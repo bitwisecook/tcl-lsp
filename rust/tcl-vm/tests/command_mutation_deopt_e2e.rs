@@ -3597,7 +3597,7 @@ fn a_running_function_is_checked_against_its_manifest_when_the_pin_changes() {
 #[test]
 fn replay_after_a_stale_binding_resumes_after_each_structured_command() {
     let stale = "set n 0; proc try args {}; try a b\n";
-    let cases: [(String, &str); 10] = [
+    let cases: [(String, &str); 13] = [
         (
             format!("{stale}if {{$n}} {{\n    puts WRONG\n}}\nputs done"),
             "done",
@@ -3643,6 +3643,25 @@ fn replay_after_a_stale_binding_resumes_after_each_structured_command() {
             "set n 0; puts pre; rename for _f; proc for args {puts redefined}\nfor {} {$n} {} {puts W}"
                 .to_owned(),
             "pre\nredefined",
+        ),
+        // A constant-false `if` still owns a boundary.
+        (
+            "proc r {} {rename if _if; proc if args {puts redefined}}; \
+             foreach x {a} {r; if {0} {puts W}}; rename if {}; rename _if if"
+                .to_owned(),
+            "redefined",
+        ),
+        // Every arm leaves the loop, so there is no join to resume at.
+        (
+            "for {set i 0} {$i < 2} {incr i} {proc try args {}; if {1} {break}}\n\
+             try a b; puts end"
+                .to_owned(),
+            "end",
+        ),
+        (
+            "proc p {n} {proc try args {}; if {$n} {return x} else {return y}; try a b}; puts [p 1]"
+                .to_owned(),
+            "x",
         ),
     ];
     let tclsh =

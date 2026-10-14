@@ -88,6 +88,9 @@ struct GenerateState {
     first_command_covered_by_if: HashSet<String>,
     /// `if`/`switch` head blocks whose command `START_CMD` is already open.
     opened_branch_commands: HashSet<String>,
+    /// Blocks in the emitted layout; a join outside it has no result pop to
+    /// end a `START_CMD` at.
+    laid_out: HashSet<String>,
 }
 
 impl GenerateState {
@@ -110,6 +113,7 @@ impl GenerateState {
             command_boundary_end_labels: HashMap::new(),
             first_command_covered_by_if: HashSet::new(),
             opened_branch_commands: HashSet::new(),
+            laid_out: HashSet::new(),
         }
     }
 }
@@ -633,20 +637,11 @@ fn emit_block_terminator(
         // the compile epoch; the first body command then shares that marker.
         // Top-level emission always emits the marker; later peepholes remove
         // it when the unit has no generic invocation.
-        if let Terminator::Branch {
-            condition,
-            true_target,
-            ..
-        } = term
-            && super::ordering::fold_const_branch(condition) == Some(true)
-            && let Some(tt_blk) = cfg.blocks.get(true_target)
-            && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-            && cfg.block_name(*join).starts_with("if_end_")
-        {
+        if let Some((true_target, join)) = constant_true_if(cfg, term) {
             if ctx.is_proc {
                 state
                     .first_command_covered_by_if
-                    .insert(cfg.block_name(*true_target).to_owned());
+                    .insert(cfg.block_name(true_target).to_owned());
             }
             if !ctx.is_proc || ctx.seen_generic_invoke {
                 ctx.set_command_boundary_site(
@@ -666,7 +661,7 @@ fn emit_block_terminator(
                 ctx.seen_generic_invoke = true;
                 state
                     .pending_join_labels
-                    .insert(cfg.block_name(*join).to_owned(), end_label);
+                    .insert(cfg.block_name(join).to_owned(), end_label);
             }
         }
 
@@ -856,6 +851,32 @@ fn emit_block(
     emit_block_terminator(ctx, cfg, state, bname, blk, block_order, i);
 }
 
+/// The selected arm and join of a constant-true `if` whose arm falls through
+/// to the join: the shape Tcl gives one count-sharing `startCommand`.
+fn constant_true_if(
+    cfg: &CfgFunction,
+    term: &Terminator,
+) -> Option<(crate::cfg::BlockId, crate::cfg::BlockId)> {
+    let Terminator::Branch {
+        condition,
+        true_target,
+        ..
+    } = term
+    else {
+        return None;
+    };
+    if ordering::fold_const_branch(condition) != Some(true) {
+        return None;
+    }
+    let Some(Terminator::Goto { target: join, .. }) = &cfg.blocks.get(true_target)?.terminator
+    else {
+        return None;
+    };
+    cfg.block_name(*join)
+        .starts_with("if_end_")
+        .then_some((*true_target, *join))
+}
+
 /// Open the replayable `START_CMD` of a branch-lowered `if` or exact `switch`
 /// at its head block, ending it before the join's result pop. Without it a
 /// command-table change replays the preceding command and resumes at the
@@ -867,7 +888,7 @@ fn open_branch_command(
     bname: &str,
     blk: &crate::cfg::Block,
 ) {
-    let Some(Terminator::Branch { condition, .. }) = &blk.terminator else {
+    let Some(term @ Terminator::Branch { .. }) = &blk.terminator else {
         return;
     };
     let Some(head) = cfg.block_id(bname) else {
@@ -876,8 +897,14 @@ fn open_branch_command(
     let Some(join) = cfg.branch_command_joins.get(&head) else {
         return;
     };
+    // A constant-true `if` whose arm reaches the join opens its own
+    // count-sharing marker in `emit_block_terminator`. When every arm leaves
+    // through `break`/`continue`/`return` the join is never laid out, so
+    // there is no continuation to end a marker at.
+    let join_name = cfg.block_name(*join);
     if ctx.cmd_index == 0
-        || ordering::fold_const_branch(condition).is_some()
+        || !state.laid_out.contains(join_name)
+        || constant_true_if(cfg, term).is_some()
         || !state.opened_branch_commands.insert(bname.to_owned())
     {
         return;
@@ -892,7 +919,7 @@ fn open_branch_command(
     ctx.cmd_index += 1;
     state
         .pending_join_labels
-        .insert(cfg.block_name(*join).to_owned(), end_label);
+        .insert(join_name.to_owned(), end_label);
 }
 
 /// Emit the trailing `DONE` / proc-exit machinery after all blocks.
@@ -1088,6 +1115,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     let block_order = linearise(cfg);
     let mut loop_ctx = ordering::build_loop_context(cfg);
     let mut state = GenerateState::new(proc_defs);
+    state.laid_out = block_order.iter().cloned().collect();
     state.try_finally_info = detect_try_finally(cfg, &block_order);
     state.catch_region_info = detect_catch_regions(cfg, &block_order);
 
