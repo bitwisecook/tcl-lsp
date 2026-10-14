@@ -11249,6 +11249,35 @@ mod tests {
         });
     }
 
+    /// A safe parent's children are safe with or without `-safe`, at every
+    /// level, including a child addressed by path; a `marktrusted` parent's are
+    /// not (tclsh 8.6.18 / 9.0.4 agree).
+    #[test]
+    fn children_of_a_safe_interp_inherit_safety() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    b"interp create -safe s; interp create n; list \
+                      [s eval {interp issafe [interp create]}] \
+                      [s eval {interp issafe [interp create -safe]}] \
+                      [s eval {interp create t; t eval {interp issafe [interp create]}}] \
+                      [n eval {interp issafe [interp create]}] \
+                      [s eval {interp issafe t}] \
+                      [interp issafe [interp create {s p}]]"
+                ),
+                b"1 1 1 0 1 1"
+            );
+            assert_eq!(
+                ok(
+                    i,
+                    b"interp marktrusted s; s eval {interp issafe [interp create]}"
+                ),
+                b"0"
+            );
+        });
+    }
+
     #[test]
     fn command_guard_checks_identity_and_exact_lifecycle() {
         leak_free(|i| {

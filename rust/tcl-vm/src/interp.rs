@@ -4067,9 +4067,6 @@ impl Vm {
         })
     }
 
-    /// A fresh child interpreter sharing this one's output sink, compile
-    /// service, and host — its command table, namespaces, variables, and
-    /// channels are otherwise independent (`interp create`).
     /// A fresh child interpreter's *bare* state (no builtins yet): its own
     /// command table, namespaces, variables, and channels, but the parent's
     /// output sink, compile service, host, and runtime version (`interp
@@ -4098,7 +4095,12 @@ impl Vm {
     /// `interp create ?-safe? ?name?` — make a child interpreter in the arena,
     /// registering it as a command in the current interp. Returns the (possibly
     /// auto-generated) name.
+    ///
+    /// A safe parent's children are safe whether or not `-safe` was asked for
+    /// (C's `Tcl_CreateChild`), so safety is settled here before the child's
+    /// command table is populated and scrubbed.
     pub(crate) fn create_child(&mut self, name: Option<String>, safe: bool) -> String {
+        let safe = safe || self.state.is_safe;
         let name = name.unwrap_or_else(|| {
             let n = format!("interp{}", self.interp_counter);
             self.interp_counter += 1;
