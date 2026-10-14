@@ -342,7 +342,7 @@ mod tests {
             ] {
                 let resolution = registry.resolve_structured_invocation(
                     crate::InvocationWords::structured(Literal("return"), &arguments),
-                    Some(dialect.authoring_query()),
+                    dialect.authoring_query(),
                 );
                 let selected = resolution.resolved().unwrap();
                 assert!(selected.effects().requires_world_barrier());
@@ -377,7 +377,7 @@ mod tests {
             ] {
                 let resolution = registry.resolve_structured_invocation(
                     crate::InvocationWords::structured(Literal("return"), &arguments),
-                    Some(dialect.authoring_query()),
+                    dialect.authoring_query(),
                 );
                 let selected = resolution.resolved().unwrap();
                 let (effects, transitions) =
@@ -412,7 +412,7 @@ mod tests {
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let dialect = InvocationDialect::of_profile(profile);
             let resolution =
-                registry.resolve_structured_invocation(words, Some(dialect.authoring_query()));
+                registry.resolve_structured_invocation(words, dialect.authoring_query());
             let selected = resolution.resolved().unwrap();
             assert!(!event_control(&selected.effects()));
             let (effects, transitions) =
@@ -434,7 +434,7 @@ mod tests {
         let profile = tcl_dialect::DialectProfile::find("f5-irules").unwrap();
         let dialect = InvocationDialect::of_profile(profile);
         let resolution =
-            registry.resolve_structured_invocation(words, Some(dialect.authoring_query()));
+            registry.resolve_structured_invocation(words, dialect.authoring_query());
         let selected = resolution.resolved().unwrap();
         assert!(event_control(&selected.effects()));
         assert!(event_control(
