@@ -2406,16 +2406,11 @@ mod tests {
         }
     }
 
-    /// A write this scan cannot turn into a fresh length invalidates the one
-    /// it recovered earlier, instead of reporting the stale figure (#2054).
-    ///
-    /// `set xs {}` then `lappend xs a b c` leaves a three-element list, and
-    /// tclsh 9.0.4 runs `lset xs 2 X` happily, printing `a b X`. W231 used to
-    /// report "list has 0 elements" from the initial `set`.
+    /// Unmeasured writes invalidate an earlier list length. Tcl 9.0.4 accepts
+    /// index 2 after appending three elements to an initially empty list.
     #[test]
     fn w231_abstains_after_a_write_it_cannot_measure() {
         for src in [
-            // The issue's own shape.
             "set xs {}\nlappend xs a b c\nlset xs 2 X\n",
             // Same gap, reached by a non-literal `set` rather than `lappend`.
             "set xs {}\nset y {a b c}\nset xs $y\nlset xs 2 X\n",

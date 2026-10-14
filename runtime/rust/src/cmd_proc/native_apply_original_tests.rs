@@ -283,3 +283,65 @@ fn original_lambda_namespace_objects_match_constructor_and_getter_controls() {
     }
     assert_eq!(comparisons, 81);
 }
+
+#[test]
+fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
+    let mut comparisons = 0;
+    for (engine, rows) in [
+        ("tcl8.5", include_str!("../../../../rust/tcl-registry/tests/data/native_lambda_missing_namespace_report/8.5.19/stdout.tsv")),
+        ("tcl8.6", include_str!("../../../../rust/tcl-registry/tests/data/native_lambda_missing_namespace_report/8.6.18/stdout.tsv")),
+        ("tcl9.0", include_str!("../../../../rust/tcl-registry/tests/data/native_lambda_missing_namespace_report/9.0.4/stdout.tsv")),
+        ("tcl9.1", include_str!("../../../../rust/tcl-registry/tests/data/native_lambda_missing_namespace_report/9.1.0/stdout.tsv")),
+    ] {
+        for (name, original) in [
+            ("PLAIN", b"Missing".as_slice()),
+            ("ABSOLUTE", b"::Missing"),
+            ("REPEATED", b"::::Missing"),
+            ("LITERAL_COLON", b":Missing"),
+            ("EMBEDDED_COLON", b"Missing:Tail"),
+            ("SPACE", b"Missing Name"),
+            ("RAW_NUL", b"Missing\0Tail"),
+            ("LEADING_NUL", b"\0Tail"),
+            ("EMPTY", b""),
+        ] {
+            for byte_array in [false, true] {
+                let constructor = if byte_array { "BYTE_ARRAY" } else { "RAW_STRING" };
+                let label = format!("{constructor}_{name}");
+                let oracle = |kind: &str| {
+                    rows.lines()
+                        .find(|line| line.starts_with(&format!("{kind}|{label}|")))
+                        .unwrap()
+                        .split('|')
+                        .collect::<Vec<_>>()
+                };
+                let apply = oracle("APPLY");
+                let mut interp = fresh(engine);
+                let namespace = Owned::fresh(if byte_array {
+                    crate::bytearray::new_byte_array(
+                        original,
+                        interp.native_invocation_dialect().byte_array_string_recipe(None).unwrap(),
+                    )
+                } else {
+                    obj::new_string_bytes(original)
+                });
+                let parameters = Owned::fresh(obj::new_string_bytes(b""));
+                let body = Owned::fresh(obj::new_string_bytes(b"namespace current"));
+                let protocol = interp.native_invocation_dialect().native_string_protocol().unwrap();
+                let lambda = Owned::fresh(crate::list::new_list_obj_native(
+                    &[parameters.as_ptr(), body.as_ptr(), namespace.as_ptr()], protocol,
+                ));
+                let code = call(&mut interp, b"apply", &[lambda.as_ptr()]);
+                assert_eq!(code.as_int(), apply[2].parse::<i64>().unwrap(), "{engine}/{label}");
+                assert_eq!(interp.result_bytes(), unhex(apply[3]), "{engine}/{label}");
+                if code == Code::Error {
+                    let tuple = interp.var_get(b"::errorCode").unwrap();
+                    assert_eq!(interp.native_object_string_bytes(tuple).unwrap().as_ref(), unhex(oracle("ERROR_CODE")[3]), "{engine}/{label}/errorCode");
+                }
+                assert_eq!(interp.native_object_string_bytes(namespace.as_ptr()).unwrap().as_ref(), unhex(oracle("GETTER")[3]), "{engine}/{label}/getter");
+                assert!(!interp.host_refusal_pending(), "{engine}/{label}");
+                comparisons += 1;
+            }
+        }
+    }
+    assert_eq!(comparisons, 72);
+}

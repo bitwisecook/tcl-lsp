@@ -1163,6 +1163,58 @@ impl<'a> Lowerer<'a> {
         cell_place(name, braced)
     }
 
+    fn original_lowered_argument<'b>(
+        &self,
+        operation: &'b LoweredOperation,
+        argument: usize,
+        expected: &str,
+    ) -> Option<crate::registry_invocation::OriginalSourceArgument<'b>> {
+        let tokens = operation.original_tokens.as_deref()?;
+        (operation.source.provenance == crate::ir::Provenance::Source).then_some(())?;
+        let (command, _) = tokens
+            .source_binding
+            .as_ref()?
+            .original_recorded_command()?;
+        (command.span == operation.source.span).then_some(())?;
+        (tokens
+            .argv_texts
+            .get(argument.checked_add(1)?)
+            .map(String::as_str)
+            == Some(expected))
+        .then_some(())?;
+        crate::registry_invocation::original_source_argument_for_module(
+            self.input.registry,
+            self.input.module,
+            tokens,
+            argument,
+        )
+    }
+
+    fn lower_original_operand(
+        &mut self,
+        operation: &LoweredOperation,
+        text: &str,
+    ) -> Option<NativeValueId> {
+        if self.source_absent_model() {
+            return self.lower_operand_word(text);
+        }
+        let argument = self.original_lowered_argument(operation, 1, text)?;
+        if let Some(text) = argument.literal_data() {
+            if self.representation
+                && let Some(Number::Int(value)) = self.numbers.parse_whole(&text)
+                && value.to_string() == text
+            {
+                return Some(self.const_int(value));
+            }
+            return Some(self.const_str(&text));
+        }
+        let (spelling, source) = argument.word().sole_variable_substitution()?;
+        tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, self.lexer_config)?;
+        let place = variable_place(spelling, source, self.lexer_config).ok()?;
+        let value = self.read_cell(&place);
+        Some(self.as_int_operand(value))
+    }
+
     // Already-lowered operations.
 
     #[allow(clippy::too_many_lines)]
@@ -1178,6 +1230,23 @@ impl<'a> Lowerer<'a> {
                     return self
                         .decline(&operation.source, NativeLoweringDecline::ComputedCellName);
                 };
+                let original;
+                let value = if self.source_absent_model() {
+                    value.as_str()
+                } else {
+                    let Some(argument) = self.original_lowered_argument(operation, 1, value) else {
+                        return self.decline(
+                            &operation.source,
+                            NativeLoweringDecline::MissingCommandTokens,
+                        );
+                    };
+                    let Some(value) = argument.literal_data() else {
+                        return self
+                            .decline(&operation.source, NativeLoweringDecline::SubstitutedOperand);
+                    };
+                    original = value;
+                    &original
+                };
                 let boxed = self.const_str(value);
                 let shadow = self.native_constant(value).unwrap_or(boxed);
                 self.write_cell(&place, boxed, shadow);
@@ -1186,6 +1255,7 @@ impl<'a> Lowerer<'a> {
             Statement::AssignValue {
                 name,
                 name_braced,
+                value,
                 tokens,
                 ..
             } => {
@@ -1193,13 +1263,36 @@ impl<'a> Lowerer<'a> {
                     return self
                         .decline(&operation.source, NativeLoweringDecline::ComputedCellName);
                 };
-                let Some(word) = value_word(tokens.as_ref()) else {
+                let word = if self.source_absent_model() {
+                    value_word(tokens.as_ref()).cloned()
+                } else {
+                    let Some(argument) = self.original_lowered_argument(operation, 1, value) else {
+                        return self.decline(
+                            &operation.source,
+                            NativeLoweringDecline::MissingCommandTokens,
+                        );
+                    };
+                    if let Some(value) = argument.literal_data() {
+                        let boxed = self.const_str(&value);
+                        let shadow = self.native_constant(&value).unwrap_or(boxed);
+                        self.write_cell(&place, boxed, shadow);
+                        return StatementOutcome::Native;
+                    }
+                    if matches!(
+                        argument.word(),
+                        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+                    ) {
+                        return self
+                            .decline(&operation.source, NativeLoweringDecline::SubstitutedOperand);
+                    }
+                    Some(argument.word().clone())
+                };
+                let Some(word) = word else {
                     return self.decline(
                         &operation.source,
                         NativeLoweringDecline::MissingCommandTokens,
                     );
                 };
-                let word = word.clone();
                 if let WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } = &word
                     && !text.contains('\\')
                 {
@@ -1243,7 +1336,7 @@ impl<'a> Lowerer<'a> {
                 };
                 let delta = match amount.as_deref() {
                     None => self.const_int(1),
-                    Some(text) => match self.lower_operand_word(text) {
+                    Some(text) => match self.lower_original_operand(operation, text) {
                         Some(value) => value,
                         None => {
                             return self.decline(

@@ -138,7 +138,9 @@ fn declare_in_original(
     };
     let target = selected_target(vm, owner, name, original)?;
     let owner_text = original.unicode(vm, owner)?;
-    if target.rule.as_path() != owner_text.as_str() || original.unicode(vm, name)?.contains("::") {
+    if target.rule.as_path() != owner_text.as_str()
+        || tcl_syntax::naming::is_qualified(original.unicode(vm, name)?.as_bytes())
+    {
         return Ok(err(
             "a rule procedure declaration requires an unqualified local name",
         ));

@@ -656,10 +656,13 @@ impl Analyser {
             .iter()
             .zip(&site.args)
             .find(|(token, _)| token.span == diagnostic.span)
-            .and_then(|(_, text)| crate::interval_bounds::plain_var_name(text))
+            .and_then(|(token, text)| (token.kind == tcl_lexer::TokenType::Var).then_some(text))
+            .and_then(|text| {
+                tcl_syntax::naming::whole_scalar_variable_reference_name(text, self.lexer_config())
+            })
             .is_some_and(|name| {
                 self.interval_index_sites
-                    .contains(&(diagnostic.code, host, name))
+                    .contains(&(diagnostic.code, host, name.to_owned()))
             })
     }
 }

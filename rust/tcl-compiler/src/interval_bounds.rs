@@ -300,37 +300,19 @@ pub struct BoundsFinding {
     pub reason: String,
 }
 
-/// One index access: `(command, list_arg, index_arg, is_lset)`.
+/// One selected index access and its retained operand words.
 #[derive(Debug, Clone)]
 struct Candidate {
     command: &'static str,
     list_arg: String,
     list_literal: Option<String>,
+    #[cfg(test)]
     index_arg: String,
     list_word: Option<crate::ir::WordExpr>,
     index_word: Option<crate::ir::WordExpr>,
     is_lset: bool,
     set_bounds: Option<tcl_dialect::ListSetBounds>,
     conditional_handler: bool,
-}
-
-/// The scalar variable name if `arg` is exactly `$name` / `${name}`.  Returns
-/// `None` for `end`, `end-1`, `$arr(i)`, `[expr …]`, composites.
-pub(crate) fn plain_var_name(arg: &str) -> Option<String> {
-    let s = arg.trim();
-    let mut s = s.strip_prefix('$')?;
-    if let Some(inner) = s.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
-        s = inner;
-    }
-    if s.is_empty() {
-        return None;
-    }
-    if s.bytes()
-        .any(|b| matches!(b, b'(' | b'[' | b'$' | b' ' | b'\t' | b')' | b']'))
-    {
-        return None;
-    }
-    Some(s.to_owned())
 }
 
 /// Element count of a static Tcl list literal, or `None` if not literal.
@@ -524,6 +506,7 @@ fn invocation_candidate(
         command,
         list_literal: access.container_literal,
         list_arg: access.container,
+        #[cfg(test)]
         index_arg: access.index,
         list_word: Some(access.container_word),
         index_word: Some(access.index_word),
@@ -663,6 +646,7 @@ fn statement_candidates(
             is_lset,
             list_arg: access.container,
             list_literal: access.container_literal,
+            #[cfg(test)]
             index_arg: access.index,
             list_word: Some(access.container_word),
             index_word: Some(access.index_word),
@@ -1108,7 +1092,17 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
     /// interval is provably out of range for the resolved length.
     fn process(&self, cand: &Candidate, site: &CandidateSite, findings: &mut Vec<BoundsFinding>) {
         let ssa = self.ssa;
-        let Some(index_var) = plain_var_name(&cand.index_arg) else {
+        let Some((spelling, _)) = cand
+            .index_word
+            .as_ref()
+            .and_then(crate::ir::WordExpr::sole_variable_substitution)
+        else {
+            return;
+        };
+        let Some(index_var) = tcl_syntax::naming::whole_scalar_variable_reference_name(
+            spelling,
+            tcl_lexer::LexerConfig::from_grammar(self.grammar),
+        ) else {
             return;
         };
         let read = cand
@@ -1205,7 +1199,7 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
             span: site.span,
             code,
             command: cand.command.to_owned(),
-            index_var,
+            index_var: index_var.to_owned(),
             index_interval: iv,
             length,
             reason: if cand.conditional_handler {

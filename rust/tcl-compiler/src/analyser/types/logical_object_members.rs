@@ -177,7 +177,6 @@ impl AnalysisResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::analyser::Analyser;
 
     #[test]

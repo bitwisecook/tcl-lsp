@@ -1390,11 +1390,17 @@ fn proc_usage(vm: &mut Vm, proc: &ProcDef) -> Result<Vec<u8>, Completion<Value>>
         proc.actual_command_slot().simple.as_bytes().to_vec(),
     )];
     let words = proc.usage_name.as_deref().unwrap_or(&plain);
+    procedure_usage_message(vm, &proc.formal_parameters(), proc.parameter_grammar, words)
+}
+
+fn procedure_usage_message(
+    vm: &mut Vm,
+    parameters: &[tcl_syntax::formal_params::ByteFormalParameter],
+    grammar: tcl_dialect::ParameterGrammar,
+    words: &[Value],
+) -> Result<Vec<u8>, Completion<Value>> {
     let usage = vm.native_argument_usage_header(words)?;
-    let suffix = tcl_syntax::formal_params::formal_parameter_usage_bytes(
-        &proc.formal_parameters(),
-        proc.parameter_grammar,
-    );
+    let suffix = tcl_syntax::formal_params::formal_parameter_usage_bytes(parameters, grammar);
     let protocol = vm
         .native_invocation_dialect()
         .usage_protocol(Some(
@@ -3482,6 +3488,37 @@ impl Vm {
         proc: &ProcDef,
         argv: &[Value],
     ) -> Result<Option<Completion<Value>>, Completion<Value>> {
+        self.early_procedure_activation_inputs(
+            &proc.formal_parameters(),
+            proc.parameter_grammar,
+            &proc.body_src,
+            argv,
+            |vm| proc_usage(vm, proc),
+        )
+    }
+
+    pub(crate) fn preflight_original_lambda_activation(
+        &mut self,
+        params: &[crate::command::Param],
+        grammar: tcl_dialect::ParameterGrammar,
+        body: &Value,
+        argv: &[Value],
+        usage_words: &[Value],
+    ) -> Result<Option<Completion<Value>>, Completion<Value>> {
+        let parameters = crate::command::formal_parameters(params, grammar);
+        self.early_procedure_activation_inputs(&parameters, grammar, body, argv, |vm| {
+            procedure_usage_message(vm, &parameters, grammar, usage_words)
+        })
+    }
+
+    fn early_procedure_activation_inputs(
+        &mut self,
+        parameters: &[tcl_syntax::formal_params::ByteFormalParameter],
+        grammar: tcl_dialect::ParameterGrammar,
+        body: &Value,
+        argv: &[Value],
+        usage: impl FnOnce(&mut Self) -> Result<Vec<u8>, Completion<Value>>,
+    ) -> Result<Option<Completion<Value>>, Completion<Value>> {
         let Some(protocol) = tcl_registry::native_procedure::procedure_activation_protocol(
             self.native_invocation_dialect(),
         ) else {
@@ -3490,11 +3527,15 @@ impl Vm {
             ));
         };
         if protocol.validates_arguments_before_body() {
-            self.procedure_argument_bindings(proc, argv)?;
+            tcl_syntax::formal_params::bind_formal_argument_bytes(parameters, argv.len(), grammar)
+                .map_err(|_| match usage(self) {
+                    Ok(message) => crate::command::native_wrong_arguments_message(self, message),
+                    Err(error) => error,
+                })?;
         }
         if protocol.empty_body_skips_activation() {
             let body = self
-                .native_name_operand_bytes_checked(&proc.body_src)
+                .native_name_operand_bytes_checked(body)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             if body.is_empty() {
                 return Ok(Some(ok(Value::empty())));
@@ -3510,12 +3551,14 @@ impl Vm {
         invoked: Value,
         arguments: &[Value],
     ) -> Completion<Value> {
-        match self.early_procedure_activation(&definition.binding, arguments) {
-            Ok(Some(completion)) | Err(completion) => {
-                self.retire_original_lambda_registration(&definition.registration);
-                return completion;
+        if !definition.activation_preflight_complete {
+            match self.early_procedure_activation(&definition.binding, arguments) {
+                Ok(Some(completion)) | Err(completion) => {
+                    self.retire_original_lambda_registration(&definition.registration);
+                    return completion;
+                }
+                Ok(None) => {}
             }
-            Ok(None) => {}
         }
         let proc = match self.ensure_proc_ready_in(definition.binding, None, None) {
             Ok(proc) => proc,

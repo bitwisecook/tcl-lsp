@@ -44,8 +44,8 @@
 //! `package ifneeded` source targets and the `auto_index` proc→file mappings
 //! from index-file *content* (tokenised with the real Tcl lexer, so nested
 //! `[file join $dir x]` / quoted / braced forms are handled structurally, not
-//! by regex). [`auto_qualify`] faithfully implements the name-qualification
-//! rules. [`PackageResolver`] ties them together over a set of search paths
+//! by regex). [`auto_qualify`] delegates name qualification to the shared
+//! naming owner. [`PackageResolver`] ties them together over a set of search paths
 //! (an `auto_path`), resolving `package require` and auto-loaded command names
 //! to the files C Tcl would load.
 //!
@@ -705,16 +705,8 @@ fn candidate_package_infos<'a>(
     candidates
 }
 
-// Name qualification (exact port of C Tcl's auto_qualify).
-
-/// Faithful port of C Tcl's `auto_qualify` (`library/init.tcl:488`).
-///
-/// Returns the candidate fully-qualified names an auto-load lookup tries for
-/// command `cmd` used in namespace `namespace` (a canonical namespace as from
-/// `namespace current`, e.g. `::` or `::sub`). For historical reasons a global
-/// command has *no* leading `::` in its `auto_index` key, so `::global` →
-/// `global`. A relative name in a non-global namespace yields two candidates
-/// (namespace-qualified, then global-relative).
+/// Shared C Tcl autoload keys for a command in its canonical namespace.
+/// Global keys omit `::`; relative names try the namespace before global scope.
 #[must_use]
 pub fn auto_qualify(cmd: &str, namespace: &str) -> Vec<String> {
     tcl_syntax::naming::autoload_command_candidates(cmd, namespace)

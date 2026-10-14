@@ -64,7 +64,6 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::interprocedural::ConstantReturn;
 use crate::ir::{CommandTokens, Script, Statement};
-use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::FoldPolicy;
 use tcl_core_types::DiagCode;
 use tcl_registry::CommandRegistry;
@@ -75,7 +74,7 @@ use super::helpers::spans::{
     full_quoted_string_span, full_rewrite_span, line_delete_span, quoted_word_rewrite_span,
 };
 use super::{Optimisation, PassContext};
-use tcl_syntax::naming::is_static_variable_source_word;
+use tcl_syntax::naming::whole_scalar_variable_reference_name;
 
 /// Run the propagation pass across every function.
 ///
@@ -598,7 +597,8 @@ fn report_load_forward(
     } = use_stmt
     {
         for (i, argv_span) in tokens.argv.iter().enumerate() {
-            let Some(text) = tokens.argv_texts.get(i) else {
+            let Some(word @ crate::ir::WordExpr::Variable { spelling, .. }) = tokens.words().get(i)
+            else {
                 continue;
             };
             // A braced word (`{$x}`) is a literal — Tcl performs no
@@ -609,10 +609,10 @@ fn report_load_forward(
                 continue;
             }
             let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, site.0, site.1);
-            let Some(read) = tokens.words().get(i).and_then(|word| view.read_word(word)) else {
+            let Some(read) = view.read_word(word) else {
                 continue;
             };
-            if simple_var_ref(text).is_none()
+            if whole_scalar_variable_reference_name(spelling, fu.source_lexer_config()).is_none()
                 || read.symbol != symbol
                 || read.version != Some(version)
             {
@@ -844,8 +844,14 @@ fn forward_candidate(
     };
     let symbol = fu.ssa.cell_symbol(&chain.key.0)?;
     let use_source = crate::ssa::SsaSourceView::at_statement(&fu.ssa, def_block, use_idx);
-    let (var_span, has_earlier_effect) =
-        locate_use_var(tokens, use_source, symbol, chain.key.1, env.registry)?;
+    let (var_span, has_earlier_effect) = locate_use_var(
+        tokens,
+        use_source,
+        symbol,
+        chain.key.1,
+        env.registry,
+        fu.source_lexer_config(),
+    )?;
     if has_earlier_effect {
         return None;
     }
@@ -1077,6 +1083,7 @@ fn locate_use_var(
     symbol: crate::ssa::Symbol,
     version: crate::ssa::Version,
     registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(tcl_lexer::Span, bool)> {
     use crate::ir::WordExpr;
     let mut has_earlier_effect = false;
@@ -1086,7 +1093,7 @@ fn locate_use_var(
                 spelling,
                 source: site,
             } => {
-                if simple_var_ref(spelling).is_some()
+                if whole_scalar_variable_reference_name(spelling, config).is_some()
                     && source.read_word_produces_value(word, registry)
                     && source
                         .read_word(word)
@@ -1836,18 +1843,8 @@ fn walk_statement(
         } => {
             visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace, *span);
         }
-        Statement::Return {
-            span, value, expr, ..
-        } => {
-            try_fold_return_terminator(
-                ctx,
-                *span,
-                value.as_deref(),
-                expr.as_ref(),
-                constants,
-                &cu.ir_module,
-                source.tokens,
-            );
+        statement @ Statement::Return { .. } => {
+            try_fold_return_terminator(ctx, statement, constants, &cu.ir_module, source.tokens);
         }
         Statement::AssignExpr {
             span, name, expr, ..
@@ -2202,25 +2199,27 @@ fn try_fold_static_proc_call(
     ctx.report(opt);
 }
 
-/// O100: rewrite `return $v` to `return K` when the SCCP
-/// environment proves `v` is a constant. Works on the `value`
-/// text since `Statement::Return::expr` is populated only when
-/// the original source was `return [expr …]`.
-///
-/// Uses `O100` (the canonical constant-propagation code) rather
-/// than the `O104` that earlier commits emitted — `O104` is
-/// reserved by `docs/generated/optimisation_codes.md` for the
-/// pattern-recognition string-build chain fold.
+/// Fold an original return operand using its retained word kind and constants.
 fn try_fold_return_terminator(
     ctx: &mut PassContext<'_>,
-    span: tcl_lexer::Span,
-    value: Option<&str>,
-    expr: Option<&crate::expr_ast::ExprNode>,
+    statement: &Statement,
     constants: &std::collections::HashMap<String, String>,
     module: &crate::ir::Module,
     tokens: Option<&CommandTokens>,
 ) {
-    use crate::naming::normalise_var_name;
+    let Statement::Return {
+        span,
+        value,
+        value_word,
+        expr,
+        ..
+    } = statement
+    else {
+        return;
+    };
+    let span = *span;
+    let value = value.as_deref();
+    let expr = expr.as_ref();
 
     // O115: `return [expr {[expr {E}]}]` → `return [expr {E}]`. Checked
     // before the `expr.is_some()` early-return below because the return
@@ -2285,19 +2284,13 @@ fn try_fold_return_terminator(
     if expr.is_some() {
         return;
     }
-    let Some(raw) = value else {
+    let Some(crate::ir::WordExpr::Variable { spelling, .. }) = value_word.as_ref() else {
         return;
     };
-    let v = raw.trim();
-    let name = if let Some(n) = v.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        n.to_owned()
-    } else if let Some(n) = v.strip_prefix('$') {
-        n.to_owned()
-    } else {
+    let Some(name) = whole_scalar_variable_reference_name(spelling, module.lexer_config) else {
         return;
     };
-    let normalised = normalise_var_name(&format!("${name}")).to_owned();
-    let Some(resolved) = constants.get(&name).or_else(|| constants.get(&normalised)) else {
+    let Some(resolved) = constants.get(name) else {
         return;
     };
     // Render the constant as a single self-contained word
@@ -2764,13 +2757,15 @@ fn visit_call_tokens(
         if single && tokens.argv_kinds.get(i).copied() == Some(tcl_lexer::TokenType::Cmd) {
             continue;
         }
-        if single {
-            visit_simple_var_word(ctx, *span, text, constants);
+        if single
+            && let Some(crate::ir::WordExpr::Variable { spelling, .. }) = tokens.words().get(i)
+        {
+            visit_simple_var_word(ctx, *span, spelling, constants, cu.ir_module.lexer_config);
         }
         // `"..."` interpolation substitution — works on both
         // single-token (quoted strings) and composite (mixed
         // text + var) words.
-        visit_string_interpolation(ctx, *span, text, constants);
+        visit_string_interpolation(ctx, *span, text, constants, cu.ir_module.lexer_config);
         // Fold a pure-builtin `[cmd …]` substitution
         // embedded *inside* an interpolation string.
         visit_string_interpolation_cmd_subs(ctx, cu, tokens, *span, text, constants);
@@ -2919,15 +2914,12 @@ fn visit_simple_var_word(
     span: tcl_lexer::Span,
     text: &str,
     constants: &std::collections::HashMap<String, String>,
+    config: tcl_lexer::LexerConfig,
 ) {
-    let Some(varname) = simple_var_ref(text) else {
+    let Some(name) = whole_scalar_variable_reference_name(text, config) else {
         return;
     };
-    let normalised = normalise_var_name(&format!("${varname}")).to_owned();
-    let Some(value) = constants
-        .get(&normalised)
-        .or_else(|| constants.get(varname))
-    else {
+    let Some(value) = constants.get(name) else {
         return;
     };
     // Re-render a metacharacter-bearing constant as a
@@ -2957,6 +2949,7 @@ fn visit_string_interpolation(
     span: tcl_lexer::Span,
     text: &str,
     constants: &std::collections::HashMap<String, String>,
+    config: tcl_lexer::LexerConfig,
 ) {
     // The lexer's argv_text strips outer `"…"` delimiters, so
     // we accept either form. Skip strings whose content is a
@@ -2969,7 +2962,7 @@ fn visit_string_interpolation(
     if !inside.contains('$') {
         return;
     }
-    if simple_var_ref(inside).is_some() {
+    if whole_scalar_variable_reference_name(inside, config).is_some() {
         return;
     }
     // A free-standing `[cmd …]` word is a command substitution, not a
@@ -2980,8 +2973,7 @@ fn visit_string_interpolation(
     if is_whole_word_cmd_subst(inside) {
         return;
     }
-    let Some(rewritten) = substitute_dollar_refs(inside, constants, ctx.lexer_config().nested())
-    else {
+    let Some(rewritten) = substitute_dollar_refs(inside, constants, config.nested()) else {
         return;
     };
     if rewritten == inside {
@@ -3118,18 +3110,6 @@ fn collect_var_refs(
         }
     }
     Some(())
-}
-
-/// Return the variable name inside a `$var` or `${var}` word, or
-/// `None` if the text is not a simple var reference.
-fn simple_var_ref(text: &str) -> Option<&str> {
-    if let Some(rest) = text.strip_prefix("${") {
-        return rest
-            .strip_suffix('}')
-            .filter(|n| is_static_variable_source_word(n));
-    }
-    text.strip_prefix('$')
-        .filter(|n| is_static_variable_source_word(n))
 }
 
 /// Allow a literal to be inlined as a bare word if it is
@@ -3491,8 +3471,15 @@ mod tests {
                     let operand = &tokens.words()[1];
                     let read = view.read_word(operand).unwrap();
                     let version = read.version.unwrap();
-                    let (span, prior_effect) =
-                        locate_use_var(tokens, view, read.symbol, version, registry).unwrap();
+                    let (span, prior_effect) = locate_use_var(
+                        tokens,
+                        view,
+                        read.symbol,
+                        version,
+                        registry,
+                        unit.ir_module.lexer_config,
+                    )
+                    .unwrap();
                     assert!(!prior_effect);
                     let span = tcl_lexer::word_span_at(&source, span);
                     assert_eq!(
@@ -3501,7 +3488,17 @@ mod tests {
                     );
                     let other = view.reaching_binding("other", registry).unwrap().symbol;
                     assert_ne!(other, read.symbol);
-                    assert!(locate_use_var(tokens, view, other, version, registry).is_none());
+                    assert!(
+                        locate_use_var(
+                            tokens,
+                            view,
+                            other,
+                            version,
+                            registry,
+                            unit.ir_module.lexer_config
+                        )
+                        .is_none()
+                    );
                     checked = true;
                 }
             }
@@ -3635,21 +3632,25 @@ mod tests {
             ("a{b}c".into(), "NESTED".into()),
             ("a{b".into(), "FIRST".into()),
         ]);
+        let config = context.lexer_config();
         visit_string_interpolation(
             &mut context,
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             source,
             &constants,
+            config,
         );
         assert_eq!(context.optimisations.len(), 1);
         assert_eq!(context.optimisations[0].replacement, "\"v=NESTED\"");
         context.source_lexer_config = None;
         context.optimisations.clear();
+        let config = context.lexer_config();
         visit_string_interpolation(
             &mut context,
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             source,
             &constants,
+            config,
         );
         assert_eq!(context.optimisations.len(), 1);
         assert_eq!(context.optimisations[0].replacement, "\"v=FIRSTc}\"");
@@ -3769,10 +3770,17 @@ mod tests {
 
     #[test]
     fn simple_var_ref_parses_bare_and_braced() {
-        assert_eq!(simple_var_ref("$foo"), Some("foo"));
-        assert_eq!(simple_var_ref("${bar}"), Some("bar"));
-        assert!(simple_var_ref("$foo(idx)").is_none());
-        assert!(simple_var_ref("plain").is_none());
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        assert_eq!(
+            whole_scalar_variable_reference_name("$foo", config),
+            Some("foo")
+        );
+        assert_eq!(
+            whole_scalar_variable_reference_name("${bar}", config),
+            Some("bar")
+        );
+        assert!(whole_scalar_variable_reference_name("$foo(idx)", config).is_none());
+        assert!(whole_scalar_variable_reference_name("plain", config).is_none());
     }
 
     #[test]
@@ -3856,6 +3864,24 @@ mod tests {
                 .any(|o| o.code == DiagCode::O100 && o.replacement == "7"),
             "expected O100 for braced var ref, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn return_literal_and_compound_names_do_not_borrow_scalar_constants() {
+        for source in [
+            "proc f {} {set x 42; return {$x}}",
+            "proc f {} {set a 42; set a:b 99; return $a:b}",
+            "proc f {} {set arr 42; return ${arr(k)}}",
+        ] {
+            let optimisations = run_pass(source);
+            assert!(
+                optimisations.iter().all(|optimisation| {
+                    optimisation.code != DiagCode::O100
+                        || !optimisation.replacement.starts_with("return ")
+                }),
+                "{source}: {optimisations:?}"
+            );
+        }
     }
 
     #[test]

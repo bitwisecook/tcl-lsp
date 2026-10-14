@@ -154,6 +154,15 @@ refusing a separate index; the consumer still needs its independently selected
 lookup policy. `whole_scalar_variable_reference_name` additionally refuses
 combined array references. Neither query supplies a variable read or cell.
 
+For a source-backed argument that may contain a variable, obtain
+`OriginalSourceArgument` through `original_source_argument_for_module` under the
+actual current Module and Registry. `word()` retains the typed original word;
+`literal_data()` decodes only its configured literal data. Native assignments
+and increment amounts additionally match the operation's source provenance,
+span and expected original argument. A variable amount needs the actual sole
+scalar reference and independent read/trace guards. The view remains immutable
+source syntax; it neither checks later Module mutations nor grants Native entry.
+
 `is_static_variable_source_word` is an unquoted source construction policy for
 a fixed ASCII identifier subset. Use it only when emitting that representation;
 it does not classify all accepted Tcl names or parse variable references.
@@ -731,6 +740,12 @@ C8.4/8.5 preserve the primitive error-code state. Runtime namespace publication
 and explicit OO namespace creation share `namespace_creation_conflict_error`
 while retaining their own lookup, class, lifecycle and original getter checks.
 Diagnostic bytes do not supply a namespace identity or Native execution grant.
+
+`namespace_creation_reuses_parent` describes only the C trailing-separator
+parent-return step with no actual delete callback. Runtime and VM first select
+the actual dying final token and may then return that same NsId. This query
+cannot create descendants, publish a namespace or establish an entered frame;
+Jim and callback-bearing requests decline.
 
 
 Original hidden-command options use
@@ -7507,12 +7522,22 @@ units never pass through a displayed namespace string. C8.4 cannot borrow the C
 Apply recipe, and Jim retains its separate original object and source path.
 These projections supply no object header, callable, entered frame or completion.
 
+A missing C lambda namespace uses the shared ObjectLookup report and selected
+native errorCode/string emitter. Keep the original namespace object's String
+or ByteArray constructor and actual getter independently of the report. Jim's
+raw context holder does not enter this C lookup/report route.
+
 For Jim, `jim_lambda_namespace_input` retains the exact counted namespace bytes
 without C root-prefix construction or namespace lookup. The VM interns the raw
 Jim context holder and independently retains the original List child; an absent
-namespace does not borrow the C missing-namespace report. The actual eager
-third-child getter remains a separate limitation. This projection grants no
-lookup, namespace creation, entered frame or successful invocation.
+namespace does not borrow the C missing-namespace report.
+`preflight_original_lambda_activation` shares the actual formal/usage and body
+checks before Jim namespace access or a temporary binding. Arity failures and
+empty-body completion do not obtain that namespace getter; the completed
+preflight flag prevents a second body getter. Nonempty successful invocation
+still materialises its Jim namespace eagerly. C ordering remains independent.
+The namespace projection grants no lookup, creation, entered frame or
+successful invocation.
 
 Lambda values additionally retain their actual constructor channel. The
 [CLI source question](../analysis/name-resolution-proofs/lambda-original-namespace-object-prefix.md)
@@ -10035,8 +10060,11 @@ activation/formal frame and source state. Lexical class labels and method
 declaration previews cannot issue that context.
 
 Object-class source candidates use the shared MAY assignment and original
-factory-schema queries only with positively retained Logical metadata. Factory
-schemas retain the current source, Registry, context and original arguments;
+factory-schema queries only with positively retained Logical metadata. Possible
+original schemas may coexist with unknown handlers only when the actual retained binding also owns Logical source purpose,
+retaining complete word/origin structure, actual candidate membership and
+current input/Registry/layout/configuration. Other purposes keep closed
+unanimous schema selection. Factory schemas retain the current source, Registry, context and original arguments;
 accepted arity and exact mandatory publication layout select a possible name,
 while the nominal callable result class remains independent. Optional or control
 layouts withhold named publication. Unknown contents remain open in every

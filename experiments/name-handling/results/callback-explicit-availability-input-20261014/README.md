@@ -1,44 +1,37 @@
 # Explicit callback availability inputs
 
-Callback source signature selection depends on the supplied Registry availability
-context. The Tcl context uses open-world package advice: unplaced Tcllib libraries
-remain available to source schemas. A `package require` statement retains source
-intent, without proving a successful runtime loader. The text
+Callback source signature selection depends on the actual supplied availability
+context and independently retained source naming purpose. The Tcl9.0 context
+admits unplaced Tcllib source descriptors under its open policy. A package require
+statement retains source intent without proving a runtime loader. The text
 `# tcl-lsp: requires` has no implemented directive meaning.
 
-The fixture uses identical C Tcl 9.0 source grammar and the same command-store
-Arc for two independently supplied availability contexts. The Tcl 9.0 context
-admits the four package descriptors. The iApps context's AmbientPlusRequire
-policy excludes these unrequired packages. Direct resolve_spec assertions check
-both answers before analysing any callback; each excluded result also checks
-all four descriptor refusals against its actual sealed input after source analysis. The iApps context is used only as
-actual availability metadata. The supplied input explicitly retains its actual
-AuthoredContext IAppImplementation vendor source policy, matching the analyser's
-sealed editing input. This is not an F5 interpreter or BIG-IP result.
+The fixture supplies identical C Tcl9.0 analyser/unit profiles, exact lexer
+configuration and one shared command-store Arc to two actual contexts. The
+positive uses Tcl9.0 availability. The negative uses the existing BPF environment:
+it has Tcl9.0 core, Closed policy, no expected packages, no hosted source domain
+and no vendor source policy. Its core source schemas remain available while
+Tcllib packages remain excluded, including after the original package-require
+probes. This is readonly original declaration advice, not BPF execution, package
+loading or Native lookup/compilation authority.
 
-Every excluded analysis asserts its exact retained input, complete source/config
-match, retained realm/input match and genuine original cb declaration. A core
-lsort callback prepended to the same source under that excluded input must issue
-a typed E003 source subject through the actual project callback API. These
-controls prevent whole-model rejection from satisfying the package refusal.
+Every excluded result must retain the exact whole input, original image/config,
+realm/input correspondence and authentic original cb declaration. Every actual
+sealed input must share the original command Arc, remain nonhosted with no vendor
+policy and exclude all four package descriptors. A core lsort callback prepended
+to each original source under the same input must produce a typed E003 source
+subject through the actual project callback API. All eleven original sources and
+the no-E002/no-E003 assertion remain; the four same rooted package probes must
+produce E003 under positive input. Missing input, foreign availability/store and
+changed-source controls retain refusal. No production callback/availability rule
+changes.
 
-All eleven original source probes and the no-E002/no-E003 assertion are retained
-under the explicit excluded input. The same four rooted SMTP/MIME/graph/tree
-probes require E003 under admitted input. The actual supplied-analysis project
-callback API consumes each result with an empty project, so positive local
-signatures cannot borrow an unrelated project header. Missing input, foreign
-availability, foreign command store and changed source controls retain their
-refusals. No production callback or availability rule changes.
-
-The original ordinary observation is retained in
-[db-production186-20261014](../db-production186-20261014/): test-19.log.gz records
-the SMTP E003 under the original open-world fixture. Original fixture bytes and
-source probes are retained here. Compiler and database acceptance of the explicit
-input fixture remains a separate executed check.
-
-The ordinary193 fixture observation retains identical C9 profiles/configuration
-and identical availability metadata but reports one input difference: the analyser
-seals AuthoredContext IAppImplementation as vendor_source_policy, while an
-implicit supplied None omits it. `db-production193-20261014/test-19.log.gz` retains
-that whole-input assertion failure. The explicit supplied policy keeps the full
-input equality assertion and the independent source/realm/core callback controls.
+Original open-fixture SMTP E003 remains in db-production186-20261014/test-19.log.gz.
+The actual hosted-context whole-input mismatch remains in
+db-production193-20261014/test-19.log.gz. The normalized hosted input's declaration
+refusal remains in consumer197-db-20261014/test-19.log.gz and the complete hosted
+fixture bytes remain in hosted-input-fixture.rs.txt. These are genuine unsupported
+premises: the NativeSource declaration factory rejects hosted inputs, and a
+vendor source policy cannot supply a Native source declaration card. No F5 result
+is claimed. Actual acceptance of the nonhosted excluded fixture is an independent
+executed check.

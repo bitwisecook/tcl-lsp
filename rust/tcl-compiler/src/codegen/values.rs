@@ -577,13 +577,9 @@ impl CodegenCtx<'_> {
     /// A braced parenthesised name selects an element with a finished key;
     /// only a bare index is evaluated as source. Declining emits nothing.
     pub(crate) fn emit_variable_reference(&mut self, spelling: &str) -> bool {
-        let Some(_) =
-            tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), self.lexer_config())
-                .ok()
-                .flatten()
-        else {
+        if !tcl_syntax::naming::is_whole_variable_reference(spelling, self.lexer_config()) {
             return false;
-        };
+        }
         let image =
             tcl_lexer::SourceImage::from_bytes(spelling.as_bytes().to_vec(), self.source.channel());
         let arena = tcl_lexer::word_parts::ExecutablePartArena::decompose(
@@ -1126,97 +1122,13 @@ impl CodegenCtx<'_> {
     }
 }
 
-// Reference parsing.
-
-/// Extract variable name from a normalised `${var}` reference, under the
-/// target release's `${…}` close rule.
-///
-/// The lowering pass normalises actual variable substitutions to
-/// `${varname}`; bare `$varname` (from braced literals like `{$x}`)
-/// is left as-is.  Only the `${...}` form is treated as a resolvable
-/// reference.
-///
-/// `style` is the release-aware `Tcl_ParseVarName` brace rule, resolved
-/// through the shared owner [`tcl_lexer::braced_var_name_end`] rather than
-/// re-scanned here. Walking brace *depth* and requiring the first balanced
-/// close to be the final byte is the **9.x** rule; `helpers::parse_subst_template`
-/// would then be reading the same encoding under the **8.x** first-`}` rule.
-/// Two decoders reading one encoding under two different releases' rules
-/// invert the outcome rather than merely getting it wrong.
-///
-/// The whole value must be the reference: a trailing byte after the name's
-/// closer means this word is `${…}` followed by literal text, which is not a
-/// simple variable load. Under 9.x that still admits nested references like
-/// `${::a(${::a(1)})}`, because the nesting rule consumes the inner pairs.
-///
-/// An unterminated name yields `None`: there is no reference to load, and the
-/// caller's fallback path re-reads the word. The shared owner reports
-/// [`tcl_lexer::BracedVarEnd::Unterminated`] so no consumer has to invent its
-/// own recovery.
-///
-/// Both wrong values of `style` are real defects — do not "simplify" this
-/// parameter away in either direction.
-///
-/// Pinning it to `Tcl9Nesting` lets an 8.x compile accept `${a{b}c}` as one
-/// reference to `a{b}c`; five tests fail.
-///
-/// Pinning it to `FirstClose` is **not** merely pessimal, which an earlier
-/// revision of this comment claimed. Declining here forfeits the direct load
-/// and hands the word to the runtime fallback, and that fallback is only
-/// equivalent when the *name* survives ordinary word substitution unchanged.
-/// It does not always:
-///
-/// ```tcl
-/// set {{}} V
-/// puts ${{}}          ;# 9.0: V   — with FirstClose: can't read "{}"
-/// set {a\}b} K
-/// set arr(K) V
-/// puts $arr(${a\}b})  ;# 9.0: V   — with FirstClose: can't read "a"
-/// ```
-///
-/// A leading `{` and an embedded `\}` both fail to round-trip through the
-/// fallback, so declining loses the name rather than merely costing a fast
-/// path. Declining is safe *only* where the fallback is equivalent, and these
-/// are the counterexamples.
+/// Extract one whole braced variable reference under the caller's close rule.
+/// A trailing component remains source text, and names retain literal bytes.
 #[must_use]
 pub fn parse_simple_var_ref(value: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
-    let rest = value.strip_prefix("${")?;
-    // `2` is the byte just past the `${`, i.e. where the name starts.
-    match tcl_lexer::braced_var_name_end(value.as_bytes(), 2, style) {
-        // The closer must be the final byte; anything after it makes the word
-        // a concatenation rather than one whole reference.
-        tcl_lexer::BracedVarEnd::Closed(end) if end == value.len() - 1 => Some(&rest[..end - 2]),
-        _ => None,
-    }
+    let (name, remainder) = tcl_syntax::naming::split_braced_var_ref(value, style)?;
+    remainder.is_empty().then_some(name)
 }
-
-// There is deliberately no `$={name}` "braced scalar" marker decoded here.
-//
-// Nothing in this workspace produces that spelling — the segmenter re-spells a
-// braced variable word verbatim from source (`${…}`, see
-// `segmenter::word_piece`), and nothing writes a `$=` prefix — so every word
-// reaching such a decoder would be the user's own text, in which `$={y}` is
-// literal in every supported release:
-//
-// ```tcl
-// set y hi
-// puts $={y}     ;# 8.4-9.0: $={y}
-// ```
-//
-// (`$` is only a substitution trigger before a name character, and `=` is not
-// one; `Tcl_ParseVarName`, tmp/tcl9.0.4/generic/tclParse.c.) Decoding it would
-// be wrong code: a whole-word `$={name}` would load the variable `name`
-// instead of pushing the literal, and no real program could tell the two
-// readings apart, so no corpus test would catch it.
-//
-// The form such a marker would spell, `${a(1)}`, reaches
-// `parse_simple_var_ref` and `load_var`, which agree with both tclsh oracles
-// (`set {a(1)} S; array set a {1 A}; puts ${a(1)}` → `A`, because
-// `TclObjLookupVar` parses the parens out of the *name* at lookup time).
-//
-// Do not introduce a marker in the `$…` space: any spelling a user can type
-// collides with real source. An internal marker needs an out-of-band channel
-// (an IR node or a word flag), not a string prefix.
 
 /// Check if a string is an integer literal (optionally negative).
 fn is_integer_literal(s: &str) -> bool {

@@ -371,12 +371,31 @@ impl Function {
             )
         };
         tokens.filter(|tokens| {
-            tokens.evaluates_words()
-                || matches!(
-                    tokens.synthetic,
-                    Some(crate::ir::SyntheticMarker::IterationBindings(_))
-                )
+            !source_free_effect_marker(tokens)
+                && (tokens.evaluates_words()
+                    || matches!(
+                        tokens.synthetic,
+                        Some(crate::ir::SyntheticMarker::IterationBindings(_))
+                    ))
         })
+    }
+}
+
+fn source_free_effect_marker(tokens: &crate::ir::CommandTokens) -> bool {
+    use crate::ir::SyntheticMarker;
+    match tokens.synthetic {
+        Some(
+            marker @ (SyntheticMarker::Condition
+            | SyntheticMarker::EmptyClause
+            | SyntheticMarker::UpvarInvalidate
+            | SyntheticMarker::RegistryBarrier
+            | SyntheticMarker::WordEffects(_)
+            | SyntheticMarker::GlobalFrameScript
+            | SyntheticMarker::CallerFrameOpaque
+            | SyntheticMarker::UnseenCall
+            | SyntheticMarker::ArmWrites),
+        ) => tokens == &crate::ir::CommandTokens::marker(marker),
+        _ => false,
     }
 }
 
@@ -4349,6 +4368,44 @@ pub fn fresh_namespace_cells(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn source_free_effects_keep_point_contexts_without_lexical_restoration() {
+        use crate::ir::{CommandTokens, Statement, SyntheticMarker, WordEffectsHost};
+        let registry = CommandRegistry::build_default();
+        let mut cfg = Function::new("::subject", "entry");
+        let effect = Statement::word_effects(
+            tcl_lexer::Span::new(0, 1),
+            (vec!["changed".to_owned()], vec!["read".to_owned()]),
+            WordEffectsHost::Statement,
+        );
+        cfg.blocks
+            .get_mut(&cfg.entry)
+            .unwrap()
+            .statements
+            .push(effect.clone());
+        assert!(cfg.source_input_tokens_at(cfg.entry, 0).is_none());
+        let mut contexts = build_point_resolve_contexts(&cfg, "::subject", &registry);
+        assert!(contexts.statements.contains_key(&(cfg.entry, 0)));
+        assert!(contexts.after.contains_key(&(cfg.entry, 0)));
+        assert!(contexts.restore_source_tokens(&BTreeMap::new()));
+        assert_eq!(cfg.blocks[&cfg.entry].statements, [effect]);
+
+        for marker in [
+            SyntheticMarker::EvaluatedArguments,
+            SyntheticMarker::WordEffects(WordEffectsHost::Statement),
+        ] {
+            let tokens = cfg.blocks.get_mut(&cfg.entry).unwrap().statements[0]
+                .tokens_mut()
+                .unwrap();
+            *tokens = CommandTokens::marker(marker);
+            if matches!(marker, SyntheticMarker::WordEffects(_)) {
+                tokens.argv_texts.push("partial carrier".to_owned());
+            }
+            assert!(cfg.source_input_tokens_at(cfg.entry, 0).is_some());
+            let mut contexts = build_point_resolve_contexts(&cfg, "::subject", &registry);
+            assert!(!contexts.restore_source_tokens(&BTreeMap::new()));
+        }
+    }
 
     #[test]
     fn original_logical_store_point_refuses_changed_words_context_and_input() {

@@ -45,6 +45,20 @@ remain independent.
 These captures do not use tcltest. Each C provider retains its matching original
 init.tcl. None supplies a new F5 observation or widens a Native execution proof.
 
+The [original assignment/increment operands](../oracles/native-original-operand-data-20261014/README.md)
+retain C8.4–9.1 and latest Jim source-value, substitution and increment controls,
+including provider-specific integer errors and the separate float probe. Their
+[appliance questions](../oracles/native-original-operand-data-20261014/bigip-questions.md)
+remain unanswered. Source operand contents do not establish Native compilation
+or a completed store.
+
+The [original return-word controls](../oracles/propagation-original-return-words-20261014/README.md)
+retain braced literal returns, partial `$a:b` substitution and combined array
+references under C8.4–9.1 and pinned latest Jim. These observations distinguish
+original reference syntax from result data; optimiser/read-owner acceptance
+and F5 answers remain separate. Both captures preserve original C init files
+and use no tcltest.
+
 The [literal/empty read-write name reductions](../results/ssa-empty-read-write-names/README.md)
 retain original C5/Jim increment, loop and dict-with results, including the
 Tcl8.4 unavailable dict rows. Current SSA controls retain actual source-role

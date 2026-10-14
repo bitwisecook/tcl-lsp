@@ -492,25 +492,8 @@ mod tests {
     fn original_loop_module(
         source: &str,
         dialect: &str,
-    ) -> (
-        std::sync::Arc<tcl_registry::model::ContextRegistry>,
-        crate::ir::Module,
-    ) {
-        let environment = tcl_registry::model::ingress::resolve_environment(dialect);
-        let context = environment.default_context_registry();
-        let profile = environment.analyser_profile();
-        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
-        let input = crate::analyser::ResolvedAnalysisInput::new(
-            profile,
-            profile,
-            std::sync::Arc::clone(&context),
-            config,
-        );
-        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
-            .with_resolved_analysis_input(input);
-        lowerer.lower(source);
-        let module = lowerer.finish_module(source);
-        (context, module)
+    ) -> crate::provider_fixtures::OriginalNativeModuleFixture {
+        crate::provider_fixtures::original_native_module(source, dialect)
     }
 
     #[test]
@@ -526,7 +509,8 @@ mod tests {
                 ("{a($key)}", vec!["a($key)"]),
             ] {
                 let source = format!("foreach {word} {{X Y}} {{set result 1}}");
-                let (context, module) = original_loop_module(&source, dialect);
+                let fixture = original_loop_module(&source, dialect);
+                let (context, module) = &*fixture;
                 let statement = &module.top_level.statements[0];
                 let crate::ir::Statement::Foreach { iterators, .. } = statement else {
                     panic!("{dialect}: {source}: actual static list receiver");
@@ -578,7 +562,8 @@ mod tests {
             }
             for word in ["$names", "[names]", "a($key)"] {
                 let source = format!("foreach {word} {{X}} {{set result 1}}");
-                let (_, module) = original_loop_module(&source, dialect);
+                let fixture = original_loop_module(&source, dialect);
+                let module = &fixture.1;
                 assert!(
                     !matches!(
                         module.top_level.statements[0],
@@ -595,7 +580,8 @@ mod tests {
         for dialect in ["tcl9.0", "tcl9.1"] {
             for expected in ["a b", "$literal", "[literal]", "", "a($key)"] {
                 let source = format!("foreachLine {{{expected}}} input.txt {{set result 1}}");
-                let (context, module) = original_loop_module(&source, dialect);
+                let fixture = original_loop_module(&source, dialect);
+                let (context, module) = &*fixture;
                 let statement = &module.top_level.statements[0];
                 let crate::ir::Statement::Foreach { iterators, .. } = statement else {
                     panic!("{dialect}: {source}: actual scalar receiver");
@@ -625,12 +611,118 @@ mod tests {
                     .is_none()
                 );
             }
-            let (_, module) =
+            let fixture =
                 original_loop_module("foreachLine $name input.txt {set result 1}", dialect);
+            let module = &fixture.1;
             assert!(!matches!(
                 module.top_level.statements[0],
                 crate::ir::Statement::Foreach { .. }
             ));
+        }
+    }
+
+    #[test]
+    fn file_line_original_source_role_does_not_require_typed_execution() {
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            for expected in ["a b", "$literal", "[literal]", "", "a($key)"] {
+                let source = format!(
+                    "proc read_lines {{}} {{foreachLine {{{expected}}} input.txt {{set result 1}}}}"
+                );
+                let environment = tcl_registry::model::ingress::resolve_known_environment(dialect)
+                    .expect("actual source-role environment");
+                let context = environment.default_context_registry();
+                let profile = environment.unit_profile();
+                let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+                let input = crate::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    std::sync::Arc::clone(&context),
+                    config,
+                );
+                let module = crate::lowering::lower_to_ir_with(
+                    crate::lowering::Lowerer::with_config(context.commands(), config)
+                        .with_resolved_analysis_input(input),
+                    &source,
+                );
+                assert!(module.source_entry.native_entry.is_none());
+                assert_eq!(module.original_native_declaration_body_units.len(), 1);
+                let (id, card) = module
+                    .original_native_declaration_body_units
+                    .iter()
+                    .next()
+                    .unwrap();
+                let procedure = module.body_units.get(id).unwrap();
+                assert!(card.matches_procedure(&module, procedure));
+                assert!(procedure.body.executed_source.is_none());
+                assert!(procedure.body.native_compilation_admission.is_none());
+                let statement = &procedure.body.statements[0];
+                let tokens = procedure
+                    .body
+                    .retained_source_tokens_for_statement(statement)
+                    .expect("actual original file-line source words");
+                assert!(
+                    tokens
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .original_native_source_owner_for_body(
+                            tokens,
+                            &module,
+                            *id,
+                            context.commands()
+                        )
+                );
+                let inventory = original_source_name_roles(context.commands(), tokens)
+                    .expect("readonly original source name-role inventory");
+                assert!(inventory.roles_complete());
+                assert!(inventory.direct_written_arguments());
+                assert!(
+                    inventory
+                        .roles()
+                        .contains(&(0, tcl_registry::ArgRole::VarWrite))
+                );
+                assert_eq!(
+                    original_name_role_values(
+                        context.commands(),
+                        tokens,
+                        0,
+                        tcl_registry::ArgRole::VarWrite
+                    )
+                    .unwrap(),
+                    vec![expected]
+                );
+                assert!(
+                    original_name_role_values(
+                        context.commands(),
+                        tokens,
+                        0,
+                        tcl_registry::ArgRole::LoopVarList
+                    )
+                    .is_none()
+                );
+                let mut detached = tokens.clone();
+                detached.source_binding = None;
+                assert!(
+                    original_name_role_values(
+                        context.commands(),
+                        &detached,
+                        0,
+                        tcl_registry::ArgRole::VarWrite
+                    )
+                    .is_none()
+                );
+                let mut changed = tokens.clone();
+                changed.argv_texts[1].push('!');
+                assert!(
+                    original_name_role_values(
+                        context.commands(),
+                        &changed,
+                        0,
+                        tcl_registry::ArgRole::VarWrite
+                    )
+                    .is_none()
+                );
+            }
         }
     }
 

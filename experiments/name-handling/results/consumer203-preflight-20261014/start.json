@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-14T23:06:46.222810+00:00",
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "--no-run",
+    "--message-format=json",
+    "-j1",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "xtask",
+    "-p",
+    "tcl-syntax",
+    "-p",
+    "bpf-tcl-ir",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "--bin",
+    "xtask"
+  ],
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "scope": "Production203 affected-consumer preflight after exact TEMP198 restoration and reviewed shared source schema, marker inventory, original operand, lexer, propagation, namespace report and Jim activation consumer migrations. Seven test artifacts only, zero tests executed here. Authored source subset only, not full Native/provider closure."
+}

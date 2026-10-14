@@ -1197,7 +1197,7 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     }
     Solved::Settled(Box::new(settled_result(
         (cfg, ssa, &order),
-        (&driver, grammar),
+        &driver,
         SettledRun {
             values,
             executable_blocks,
@@ -1224,7 +1224,7 @@ struct SettledRun {
 /// every fact the run recorded.
 fn settled_result(
     (cfg, ssa, order): (&CfgFunction, &SsaFunction, &[BlockId]),
-    (driver, grammar): (&LatticeDriver<'_>, tcl_dialect::LexerGrammar),
+    driver: &LatticeDriver<'_>,
     run: SettledRun,
 ) -> SccpResult {
     let SettledRun {
@@ -1242,7 +1242,7 @@ fn settled_result(
         (&mut values, narrowing),
         &executable_blocks,
         order,
-        BranchFold { grammar, driver },
+        BranchFold { driver },
         existence.as_ref().map(|run| &run.exits),
     );
     let rung = existence.map_or_else(RungResults::default, |run| run.finish(ssa));
@@ -4253,7 +4253,7 @@ fn sccp_process_terminator(
                 condition,
                 values,
                 ssa,
-                BranchFold { grammar, driver },
+                BranchFold { driver },
                 cfg.source_tokens_at(bn, usize::MAX).zip(*condition_base),
             );
             driver.explaining(None);
@@ -4709,12 +4709,9 @@ fn simple_var_ref_key<S: std::hash::BuildHasher>(
     Some((sym, ver))
 }
 
-/// What a branch fold needs: the grammar its condition text was written
-/// under, and the run's driver, whose services (and the target release's
-/// fold policy) the condition is evaluated through.
+/// The branch's driver retains its actual source configuration and services.
 #[derive(Clone, Copy)]
 pub(crate) struct BranchFold<'a> {
-    grammar: tcl_dialect::LexerGrammar,
     /// The run's value-transfer driver, whose services the condition is
     /// evaluated through.
     driver: &'a LatticeDriver<'a>,

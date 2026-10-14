@@ -370,3 +370,189 @@ fn jim_lambda_keeps_absent_original_namespace_objects_without_c_lookup() {
         assert!(vm.execution_refusal.is_none());
     }
 }
+
+#[test]
+fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
+    let mut comparisons = 0;
+    for (engine, rows) in [
+        (
+            "tcl8.5",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/8.5.19/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl8.6",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/8.6.18/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/9.0.4/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/9.1.0/stdout.tsv"
+            ),
+        ),
+    ] {
+        for (name, original) in [
+            ("PLAIN", b"Missing".as_slice()),
+            ("ABSOLUTE", b"::Missing"),
+            ("REPEATED", b"::::Missing"),
+            ("LITERAL_COLON", b":Missing"),
+            ("EMBEDDED_COLON", b"Missing:Tail"),
+            ("SPACE", b"Missing Name"),
+            ("RAW_NUL", b"Missing\0Tail"),
+            ("LEADING_NUL", b"\0Tail"),
+            ("EMPTY", b""),
+        ] {
+            for byte_array in [false, true] {
+                let constructor = if byte_array {
+                    "BYTE_ARRAY"
+                } else {
+                    "RAW_STRING"
+                };
+                let label = format!("{constructor}_{name}");
+                let oracle = |kind: &str| {
+                    rows.lines()
+                        .find(|line| line.starts_with(&format!("{kind}|{label}|")))
+                        .unwrap()
+                        .split('|')
+                        .collect::<Vec<_>>()
+                };
+                let apply = oracle("APPLY");
+                let mut vm = crate::native_fixture::interpreter(
+                    crate::environment::profile_for_dialect(engine),
+                );
+                let namespace = if byte_array {
+                    Value::byte_array(original)
+                } else {
+                    Value::new_native_string_bytes(original)
+                };
+                let protocol = vm
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                    .unwrap();
+                let lambda = Value::native_list_constructor(
+                    vec![
+                        Value::new_native_string_bytes(b"".as_slice()),
+                        Value::new_native_string_bytes(b"namespace current".as_slice()),
+                        namespace.clone(),
+                    ],
+                    protocol,
+                );
+                let completion = call(&mut vm, b"apply", &[lambda]);
+                assert_eq!(
+                    completion.code.as_int(),
+                    apply[2].parse::<i64>().unwrap(),
+                    "{engine}/{label}"
+                );
+                assert_eq!(
+                    completion
+                        .result
+                        .native_string_bytes(protocol)
+                        .unwrap()
+                        .as_ref(),
+                    unhex(apply[3]),
+                    "{engine}/{label}"
+                );
+                if completion.code == tcl_runtime_api::Code::Error {
+                    let tuple = vm.get_var_bytes(b"::errorCode").unwrap();
+                    assert_eq!(
+                        tuple.native_string_bytes(protocol).unwrap().as_ref(),
+                        unhex(oracle("ERROR_CODE")[3]),
+                        "{engine}/{label}/errorCode"
+                    );
+                }
+                assert_eq!(
+                    vm.native_name_operand_bytes(&namespace).unwrap().as_ref(),
+                    unhex(oracle("GETTER")[3]),
+                    "{engine}/{label}/getter"
+                );
+                assert!(vm.execution_refusal.is_none(), "{engine}/{label}");
+                comparisons += 1;
+            }
+        }
+    }
+    assert_eq!(comparisons, 72);
+}
+
+#[test]
+fn jim_lambda_preflight_leaves_unentered_namespace_objects_stringless() {
+    let rows = include_str!(
+        "../../../tcl-registry/tests/data/native_jim_lambda_namespace_preflight/jim/stdout.tsv"
+    );
+    for (label, body, required) in [
+        ("EMPTY_BODY", "", false),
+        ("RETURN_BODY", "return BODY", false),
+        ("NAMESPACE_BODY", "namespace current", false),
+        ("EMPTY_REQUIRED", "", true),
+        ("NONEMPTY_REQUIRED", "return BODY", true),
+    ] {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+        let protocol = vm
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            .unwrap();
+        let namespace = Value::int(42);
+        let parameters = if required {
+            Value::new_native_string_bytes(b"required".as_slice())
+        } else {
+            Value::native_list_constructor(vec![], protocol)
+        };
+        let lambda = Value::native_list_constructor(
+            vec![
+                parameters,
+                Value::new_native_string_bytes(body.as_bytes()),
+                namespace.clone(),
+            ],
+            protocol,
+        );
+        let fields = |kind: &str| {
+            rows.lines()
+                .find(|line| line.starts_with(&format!("{kind}|{label}|")))
+                .unwrap()
+                .split('|')
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            namespace.resident_string_bytes().is_some(),
+            fields("BEFORE")[2] == "1",
+            "{label}/before"
+        );
+        let completion = call(&mut vm, b"apply", &[lambda]);
+        assert_eq!(
+            namespace.resident_string_bytes().is_some(),
+            fields("AFTER")[2] == "1",
+            "{label}/after"
+        );
+        let result = fields("RESULT");
+        assert_eq!(
+            completion.code.as_int(),
+            result[2].parse::<i64>().unwrap(),
+            "{label}/code"
+        );
+        assert_eq!(
+            completion
+                .result
+                .native_string_bytes(protocol)
+                .unwrap()
+                .as_ref(),
+            unhex(result[3]),
+            "{label}/result"
+        );
+        assert_eq!(
+            vm.native_name_operand_bytes(&namespace).unwrap().as_ref(),
+            unhex(fields("GETTER")[3]),
+            "{label}/getter"
+        );
+        assert_eq!(vm.current_ns_id(), tcl_core_types::ROOT_NS);
+        assert!(vm.execution_refusal.is_none());
+    }
+}

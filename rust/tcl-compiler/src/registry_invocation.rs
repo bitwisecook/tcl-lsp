@@ -48,8 +48,9 @@ pub(crate) use source_receiver_names::{
 };
 mod original_word_data;
 pub(crate) use original_word_data::{
-    original_literal_argument_data, original_literal_argument_data_for_module,
-    original_lowered_expression_syntax,
+    OriginalSourceArgument, original_literal_argument_data,
+    original_literal_argument_data_for_module, original_lowered_expression_syntax,
+    original_source_argument_for_module,
 };
 mod source_name_roles;
 pub(crate) use source_name_roles::{
@@ -5163,6 +5164,45 @@ impl RegistryInvocationShape {
         tokens: &CommandTokens,
         apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
     ) -> Option<T> {
+        self.with_source_schema_alternatives(registry, context, tokens, true, apply)
+    }
+
+    /// Logical candidate unions retain possible schemas alongside unknown
+    /// handlers. Other source purposes require closed unanimous alternatives.
+    fn with_source_candidate_schema<T>(
+        &self,
+        registry: &CommandRegistry,
+        context: InvocationMetadataContext<'_>,
+        tokens: &CommandTokens,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        if !context.permits_logical_source_names()
+            || tokens.source_binding.as_ref().and_then(|binding| {
+                binding.original_source_advice_purpose(tokens, context, registry)
+            }) != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+        {
+            return self.with_source_schema(registry, context, tokens, apply);
+        }
+        if self.effective.words.is_empty()
+            || self.effective.words.len() != self.effective.origins.len()
+            || self.effective.origins.iter().any(|origin| {
+                matches!(origin, InvocationWordOrigin::BindingPrefix(index)
+                    if *index >= self.effective.binding_prefix.len())
+            })
+        {
+            return None;
+        }
+        self.with_source_schema_alternatives(registry, context, tokens, false, apply)
+    }
+
+    fn with_source_schema_alternatives<T>(
+        &self,
+        registry: &CommandRegistry,
+        context: InvocationMetadataContext<'_>,
+        tokens: &CommandTokens,
+        require_unanimous: bool,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
         let binding = tokens.source_binding.as_ref()?;
         let point = binding
             .original_source_metadata_for_advice(tokens, registry)
@@ -5180,7 +5220,9 @@ impl RegistryInvocationShape {
             Some(point),
             tokens,
         )?;
-        assistance.unanimous_command_words()?;
+        if require_unanimous {
+            assistance.unanimous_command_words()?;
+        }
         if !assistance.candidates.contains(self) {
             return None;
         }
@@ -5474,7 +5516,7 @@ pub(crate) fn original_advisory_value_assignments_with_metadata_context(
         .candidates
         .into_iter()
         .filter_map(|candidate| {
-            candidate.with_source_schema(registry, context, tokens, |schema| {
+            candidate.with_source_candidate_schema(registry, context, tokens, |schema| {
                 (schema.facts().operation
                     == tcl_registry::SemanticOperationId::StructuredLowering(
                         tcl_registry::hooks::LoweringHookId::Set,
@@ -5523,7 +5565,7 @@ pub(crate) fn advisory_object_factories_with_metadata_context(
         .candidates
         .into_iter()
         .filter_map(|candidate| {
-            candidate.with_source_schema(registry, context, tokens, |schema| {
+            candidate.with_source_candidate_schema(registry, context, tokens, |schema| {
                 (schema.facts().arity_accepts_frozen_arguments() == Some(true)).then_some(())?;
                 let publication =
                     schema

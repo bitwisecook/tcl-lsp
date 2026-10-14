@@ -2331,7 +2331,11 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         .collect();
     if !ctx.positioned_substitutions {
         scan_candidate_method_callbacks(
-            extract_var_name(command).unwrap_or(command),
+            tcl_syntax::naming::whole_scalar_variable_reference_name(
+                command,
+                ctx.source_module.lexer_config,
+            )
+            .unwrap_or(command),
             &arg_strs,
             &words,
             ctx,
@@ -2407,27 +2411,6 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     }
 }
 
-/// Extract a bare scalar variable name from a `$var` / `${var}` word —
-/// the whole word must be exactly one scalar variable substitution (no
-/// array index, conventional name shape).
-fn extract_var_name(text: &str) -> Option<&str> {
-    let name = text
-        .strip_prefix("${")
-        .and_then(|s| s.strip_suffix('}'))
-        .or_else(|| text.strip_prefix('$'))?;
-    let first = name.chars().next()?;
-    if !(first.is_alphabetic() || first == '_') {
-        return None;
-    }
-    if !name
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
-    {
-        return None;
-    }
-    Some(name)
-}
-
 /// Call-by-name alias-pair handling (`upvar`): the level and the `otherVar
 /// myVar` pairs are the head's frame-effect declaration's, the level word
 /// present by argument-count parity.  Mark a `$param` *other* (caller-var-name
@@ -2448,11 +2431,17 @@ fn handle_upvar_aliases(
     let mut names_only = caller_frame && !pairs.is_empty() && pairs.len().is_multiple_of(2);
     for [other_var, my_var] in pairs.as_chunks::<2>().0 {
         facts.linked_locals.insert(my_var.clone());
-        names_only &= extract_var_name(other_var).is_some_and(|name| ctx.params.contains(name))
+        names_only &= tcl_syntax::naming::whole_scalar_variable_reference_name(
+            other_var,
+            ctx.source_module.lexer_config,
+        )
+        .is_some_and(|name| ctx.params.contains(name))
             && is_plain_local_name(my_var)
             && !ctx.params.contains(my_var);
-        if let Some(other_vn) = extract_var_name(other_var)
-            && ctx.params.contains(other_vn)
+        if let Some(other_vn) = tcl_syntax::naming::whole_scalar_variable_reference_name(
+            other_var,
+            ctx.source_module.lexer_config,
+        ) && ctx.params.contains(other_vn)
         {
             facts
                 .param_trait_flags
@@ -2465,8 +2454,10 @@ fn handle_upvar_aliases(
                     .insert(my_var.clone(), other_vn.to_owned());
             }
         }
-        if let Some(my_vn) = extract_var_name(my_var)
-            && ctx.params.contains(my_vn)
+        if let Some(my_vn) = tcl_syntax::naming::whole_scalar_variable_reference_name(
+            my_var,
+            ctx.source_module.lexer_config,
+        ) && ctx.params.contains(my_vn)
         {
             facts
                 .param_trait_flags
@@ -2754,7 +2745,10 @@ fn scan_resolved_aliases(
         else {
             return None;
         };
-        let name = extract_var_name(spelling)?;
+        let name = tcl_syntax::naming::whole_scalar_variable_reference_name(
+            spelling,
+            ctx.source_module.lexer_config,
+        )?;
         ctx.params.contains(name).then(|| name.to_owned())
     };
     let mut declarations = HashSet::new();
@@ -3333,15 +3327,28 @@ fn scan_statement(
         }
         Statement::Return {
             value,
+            value_word,
             expr,
             braced,
             ..
         } => {
-            let config = retained_tokens
-                .and_then(|tokens| tokens.source_binding.as_ref())
-                .and_then(|binding| binding.variable_context.invocation_dialect)
-                .map(|dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar));
-            let kind = classify_return(value.as_deref(), *braced, expr.as_ref(), params, config);
+            let config = retained_tokens.and_then(|tokens| {
+                let binding = tokens.source_binding.as_ref()?;
+                binding.original_invocation_metadata_for_module(
+                    tokens,
+                    ctx.source_module,
+                    ctx.registry,
+                )?;
+                binding.original_lexer_config_for_tokens(tokens)
+            });
+            let kind = classify_return(
+                value.as_deref(),
+                *braced,
+                value_word.as_ref(),
+                expr.as_ref(),
+                params,
+                config,
+            );
             facts.returns.push(kind);
             // For a return, scan `[cmd …]` substitutions in the return
             // value (`return [add $x $x]`) for call-graph edges.
@@ -3928,6 +3935,7 @@ fn finalise_param_traits(
 fn classify_return(
     value: Option<&str>,
     braced: bool,
+    word: Option<&crate::ir::WordExpr>,
     expr: Option<&crate::expr_ast::ExprNode>,
     params: &HashSet<String>,
     config: Option<tcl_lexer::LexerConfig>,
@@ -3945,13 +3953,11 @@ fn classify_return(
     {
         return ReturnKind::Literal(ExactValue::from_literal(&text));
     }
-    // Passthrough of `$param`.
-    if let Some(name) = raw.strip_prefix('$')
-        && params.contains(name)
-    {
-        return ReturnKind::Passthrough(name.to_owned());
-    }
-    if let Some(name) = raw.strip_prefix("${").and_then(|s| s.strip_suffix('}'))
+    if !braced
+        && let Some(config) = config
+        && let Some(crate::ir::WordExpr::Variable { spelling, .. }) = word
+        && let Some(name) =
+            tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
         && params.contains(name)
     {
         return ReturnKind::Passthrough(name.to_owned());
@@ -6117,6 +6123,60 @@ mod tests {
         let s = fixture_proc(&ia, "::f").unwrap();
         assert!(s.returns_constant);
         assert_eq!(s.constant_return, Some(ConstantReturn::Int(7)));
+    }
+
+    #[test]
+    fn return_word_classification_keeps_literal_names_and_selected_grammar() {
+        let params = HashSet::from([
+            "x".to_owned(),
+            "{x}".to_owned(),
+            "a:b".to_owned(),
+            "arr".to_owned(),
+            "cash$name".to_owned(),
+            String::new(),
+        ]);
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = tcl_lexer::LexerConfig::for_dialect(profile);
+            for (raw, expected) in [
+                ("$x", Some("x")),
+                ("${cash$name}", Some("cash$name")),
+                ("${}", Some("")),
+                ("$a:b", None),
+                ("${arr(k)}", None),
+                ("$arr(k)", None),
+                ("${{x}}", profile.starts_with("tcl9").then_some("{x}")),
+            ] {
+                let source = format!("return {raw}");
+                let commands =
+                    crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config);
+                let tokens = crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::new(&source),
+                    config,
+                    &commands[0],
+                );
+                let word = tokens.words().get(1);
+                let actual = classify_return(Some(raw), false, word, None, &params, Some(config));
+                match (actual, expected) {
+                    (ReturnKind::Passthrough(actual), Some(expected)) => {
+                        assert_eq!(actual, expected)
+                    }
+                    (ReturnKind::Other, None) => {}
+                    _ => panic!("{profile}: {raw}"),
+                }
+                assert!(matches!(
+                    classify_return(Some(raw), false, word, None, &params, None),
+                    ReturnKind::Other,
+                ));
+            }
+            assert!(matches!(
+                classify_return(Some("$x"), true, None, None, &params, Some(config)),
+                ReturnKind::Literal(value) if value.bytes == b"$x",
+            ));
+            assert!(matches!(
+                classify_return(Some("$x"), true, None, None, &params, None),
+                ReturnKind::Other,
+            ));
+        }
     }
 
     #[test]

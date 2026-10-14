@@ -634,12 +634,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match interp.find_namespace_id(&full) {
             Some(id) => id,
             None => {
-                let mut m = b"namespace \"".to_vec();
-                m.extend_from_slice(&full);
-                m.extend_from_slice(b"\" not found");
-                let mut ecode = b"TCL LOOKUP NAMESPACE ".to_vec();
-                ecode.extend_from_slice(&full);
-                return interp.error_with_code(&m, &ecode);
+                return lambda_namespace_lookup_error(interp, recipe, &full);
             }
         }
     } else {
@@ -700,6 +695,37 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             jim_namespace: jim_namespace.as_ref(),
         },
     )
+}
+
+fn lambda_namespace_lookup_error(
+    interp: &mut Interp,
+    protocol: tcl_syntax::naming::NativeNameProtocol,
+    original: &[u8],
+) -> Code {
+    let report = match tcl_syntax::naming::report_native_namespace_operation_error(
+        protocol,
+        tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+        original,
+        b"::",
+    ) {
+        Ok(report) => report,
+        Err(_) => {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "lambda namespace lookup diagnostic",
+                )
+                .into(),
+            );
+        }
+    };
+    let mut error = match report.error_code {
+        Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(report.message, code),
+        None => tcl_cmd_core::CmdError::new_bytes(report.message),
+    };
+    if interp.native_invocation_dialect().native_string_protocol() == Some(report.string_protocol) {
+        error = error.with_native_string_result(report.string_protocol);
+    }
+    interp.report_cmd_error(error)
 }
 
 /// C keeps a genuine commandless Proc in the original lambdaExpr primary.
@@ -808,12 +834,7 @@ fn apply_native_c(
                 Ok(name) => name,
                 Err(error) => return interp.report_cmd_error(error.into()),
             };
-            let mut message = b"namespace \"".to_vec();
-            message.extend_from_slice(&name);
-            message.extend_from_slice(b"\" not found");
-            let mut code = b"TCL LOOKUP NAMESPACE ".to_vec();
-            code.extend_from_slice(&name);
-            return interp.error_with_code(&message, &code);
+            return lambda_namespace_lookup_error(interp, protocol, &name);
         }
         Err(error) => return interp.report_cmd_error(error.into()),
     };

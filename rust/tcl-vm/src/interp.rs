@@ -10766,15 +10766,24 @@ impl Vm {
             NativeNamespaceAddress::C { path, absolute } => {
                 let dying = self
                     .namespace_token_at_path(&path, absolute)
-                    .is_some_and(|token| {
-                        self.name_world.borrow().dying_namespaces.contains(&token)
-                    });
-                if dying {
+                    .filter(|token| self.name_world.borrow().dying_namespaces.contains(token));
+                if let Some(namespace) = dying {
                     let Some(policy) = self.name_policy_protocol() else {
                         return Err(self.refuse_host_command(
                             "native namespace creation protocol is unavailable".into(),
                         ));
                     };
+                    let reuse_parent = policy
+                        .recipe()
+                        .namespace_creation_reuses_parent(original, false)
+                        .map_err(|_| {
+                            self.refuse_host_command(
+                                "native namespace creation parent route unavailable".into(),
+                            )
+                        })?;
+                    if reuse_parent {
+                        return Ok(namespace);
+                    }
                     let report = tcl_syntax::naming::report_native_namespace_creation_conflict(
                         policy.recipe(),
                         original,
@@ -10852,7 +10861,7 @@ impl Vm {
         self.namespace_operation_error(report)
     }
 
-    fn namespace_operation_error(
+    pub(crate) fn namespace_operation_error(
         &mut self,
         report: tcl_syntax::naming::NativeNamespaceOperationError,
     ) -> Completion<Value> {
@@ -32753,6 +32762,56 @@ set ::observations
                 assert_eq!(vm.current_ns_id(), ROOT_NS);
                 assert_eq!(vm.current_level(), 0);
                 assert!(vm.execution_refusal.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn original_trailing_creation_keeps_the_dying_parent_token_and_cstring_extent() {
+        for version in tcl_dialect::TclVersion::ALL {
+            if version == tcl_dialect::TclVersion::V8_4 {
+                continue;
+            }
+            for (original, expected) in [
+                (b"retiring::".as_slice(), b"0 ::retiring".as_slice()),
+                (b"retiring::::", b"0 ::retiring"),
+                (b"retiring::\0Tail", b"0 ::retiring"),
+                (
+                    b"retiring\0::::",
+                    b"1 {can't create namespace \"retiring\": already exists}",
+                ),
+            ] {
+                let mut vm = crate::native_fixture::interpreter(
+                    crate::environment::profile_for_dialect(version.dialect_profile_name()),
+                );
+                vm.set_var_bytes(b"::operand", Value::new_native_string_bytes(original))
+                    .unwrap();
+                let source = r#"
+set ::observations {}
+proc during {name1 name2 operation} {
+    set status [catch {namespace eval $::operand {namespace current}} value]
+    set ::observations [list $status $value]
+}
+namespace eval retiring {
+    variable sentinel HELD
+    trace add variable sentinel unset ::during
+}
+namespace delete retiring
+set ::observations
+"#;
+                let completion = vm.eval_source(source).unwrap();
+                assert_eq!(completion.code, Code::Ok);
+                assert_eq!(
+                    completion.result.string_bytes().as_ref(),
+                    expected,
+                    "{version:?}"
+                );
+                assert_eq!(vm.current_ns_id(), ROOT_NS);
+                assert_eq!(vm.current_level(), 0);
+                assert!(vm.execution_refusal.is_none());
+                let final_exists = vm.eval_source("namespace exists retiring").unwrap();
+                assert_eq!(final_exists.code, Code::Ok);
+                assert_eq!(final_exists.result.string_bytes().as_ref(), b"0");
             }
         }
     }

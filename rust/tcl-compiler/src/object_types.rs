@@ -491,12 +491,7 @@ pub(crate) fn object_handle_facts_for_analysis(
     build_facts_gated(cu, registry, FactMode::Full, true, Some(analysis)).0
 }
 
-/// How much of [`ObjectHandleFacts`] a build populates.
-///
-/// The union-only mode exists so [`object_handle_classes`]'s existing
-/// consumers (the optimiser, the compilation-unit interprocedural seed,
-/// `type_infer`, semantic tokens) keep paying exactly what they paid before
-/// the scope-keyed carrier was added.
+/// Union-only candidates skip the scope-keyed maps; full builds retain them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FactMode {
     /// Populate [`ObjectHandleFacts::any_scope`] only.
@@ -544,11 +539,12 @@ fn build_facts_gated(
     for fu in units {
         harvest_unit(fu, frame_for_unit(cu, fu), registry, &mut sink);
     }
-    // A generic compiler refusal can leave a genuine normal handler in the
-    // retained IR without a FunctionUnit. Its nominal factory candidate is
-    // still useful for possible callback edges, independently of SSA proof.
-    for (name, procedure) in &cu.ir_module.procedures {
-        if !cu.procedures.contains_key(name) {
+    // Original source bodies supply factory candidates independently of
+    // callable publication and SSA proof.
+    for (name, procedure) in cu.ir_module.original_source_procedure_bodies() {
+        if context.is_some_and(|context| context.permits_logical_source_names())
+            || !cu.procedures.contains_key(name)
+        {
             harvest_script_factories(
                 &procedure.body,
                 Some(BodyFrameId::Body(*name)),
@@ -569,25 +565,8 @@ fn build_facts_gated(
     }
     sink.stats.seeds = sink.facts.any_scope.len();
     let returns = returning_proc_candidates(cu, registry, source_analysis);
-    // Fast path.  The early-out inside `propagate_object_flow`
-    // checks the *callee-side* maps (returns / proc params / ctor params),
-    // which are non-empty for any file that merely defines a proc — so every
-    // ordinary non-OO file paid a full statement walk to discover that it had
-    // nothing to propagate.  Skip the walk when no edge can fire, which is
-    // exactly when all three of these hold:
-    //
-    //  - the harvest seeded no handle, so every `out`-driven edge (aliasing,
-    //    and the `$var` half of both parameter edges) is dead;
-    //  - no procedure returns an object, so the proc-return edge is dead; and
-    //  - no argument is a bracketed registry constructor, so the *other* half
-    //    of the parameter edges — `arg_classes`' `[Factory new]` branch, which
-    //    reads no seed at all — is dead too.
-    //
-    // The third condition is why `out.is_empty()` alone is **not**
-    // behaviour-preserving: `proc take {dev} {…}; take [listbox .l]` binds
-    // `dev` from an empty seed set, as do `Wrap new [listbox .l]` and
-    // `take [struct::graph]`.  `empty_seed_fast_path_is_behaviour_preserving`
-    // pins all three shapes.
+    // Seeds, procedure-return candidates and nested constructor arguments can
+    // create flow edges. `[Factory new]` arguments need no existing seed.
     let any_edge_can_fire =
         !sink.facts.any_scope.is_empty() || !returns.is_empty() || sink.saw_constructor_arg;
     sink.stats.fast_path_hit = !any_edge_can_fire && empty_seed_fast_path;
@@ -843,7 +822,7 @@ impl OwnerIndex {
                 });
             }
         }
-        for (id, procedure) in &cu.ir_module.procedures {
+        for (id, procedure) in cu.ir_module.original_source_procedure_bodies() {
             index.spans.push(OwnerSpan {
                 span: procedure.span,
                 unit: procedure.qualified_name.clone(),
@@ -1070,7 +1049,7 @@ fn returning_proc_candidates<'a>(
     let metadata = Some(context);
     // A retained generic body can have original constructor evidence without
     // an executable FunctionUnit. This is a class candidate only.
-    for (id, procedure) in &cu.ir_module.procedures {
+    for (id, procedure) in cu.ir_module.original_source_procedure_bodies() {
         if returns.contains_key(id) {
             continue;
         }
@@ -1166,6 +1145,7 @@ fn propagate_object_flow<'a>(
         && proc_params.is_empty()
         && ctor_params.is_empty()
         && method_returns.is_empty()
+        && sink.facts.any_scope.is_empty()
     {
         return;
     }
@@ -1344,9 +1324,11 @@ fn scan_flow_edges(
     }
     for (unit, script) in cu
         .ir_module
-        .procedures
-        .iter()
-        .filter(|(name, _)| !cu.procedures.contains_key(*name))
+        .original_source_procedure_bodies()
+        .filter(|(name, _)| {
+            metadata_context.is_some_and(|context| context.permits_logical_source_names())
+                || !cu.procedures.contains_key(*name)
+        })
         .map(|(id, procedure)| (BodyFrameId::Body(*id), &procedure.body))
         .chain(
             cu.ir_module
@@ -2269,8 +2251,7 @@ mod tests {
         );
         let (id, procedure) = unit
             .ir_module
-            .procedures
-            .iter()
+            .original_source_procedure_bodies()
             .find(|(_, procedure)| procedure.name == "build")
             .unwrap();
         let owners = OwnerIndex::build(&unit, FactMode::Full);

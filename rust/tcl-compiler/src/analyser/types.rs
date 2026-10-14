@@ -698,23 +698,10 @@ pub struct MethodDef {
     /// Original formal count owner or explicit authored metadata. Display
     /// parameter labels cannot recreate an original binding/count recipe.
     pub formal_count: crate::signature_scan::formal_count::SourceFormalCount,
-    /// The method's formals are unmodelled: either the parameter-list word
-    /// was itself computed, or — the case this field was added for
-    /// — the *method* itself was installed by a literal
-    /// loop (`foreach m {alpha beta gamma} { method $m {args} {…} }`)
-    /// whose per-iteration name this walk can read off the loop's own
-    /// literal list, but whose per-iteration signature it deliberately
-    /// does not attempt to re-derive (a reflective installer's parameter
-    /// list can itself be computed per iteration — `method $m {*}[classDef
-    /// $m]` — so treating one iteration's literal `{args}` as
-    /// representative of every other would be a fabrication for the
-    /// general shape this exists to cover, even on the rare iteration
-    /// where it happens to be right).
-    ///
-    /// Mirrors [`crate::analyser::ProcDef::params_computed`] exactly: every
-    /// arity-shaped consumer must ask [`Self::arity`] rather than compute
-    /// one from [`Self::params`] directly, so the abstention cannot be
-    /// forgotten at one call site.
+    /// Unknown formals from a computed parameter word or reflective loop install.
+    /// Literal loop names do not establish each iteration's signature.
+    /// Arity consumers must use [`Self::arity`], as for
+    /// [`crate::analyser::ProcDef::params_computed`].
     pub params_computed: bool,
     /// Source span of the name token.
     pub name_span: Span,

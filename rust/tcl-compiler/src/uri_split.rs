@@ -52,7 +52,6 @@ use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::expr_parser::parse_expr;
 use crate::ir::Statement;
-use crate::naming::normalise_var_name;
 use crate::ssa::{Phi, SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::taint::{TaintWarning, is_irules_dialect};
 use crate::value_shapes::whole_word_scalar_var_name;
@@ -766,9 +765,13 @@ fn expr_literal_text(
         },
         ExprNode::Literal { text, .. } => Some(text.clone()),
         // A variable the lattice proves constant at the condition.
-        ExprNode::Var { name, .. } => {
-            let symbol = ctx.ssa.var_symbol(normalise_var_name(name))?;
-            (ctx.constants)((symbol, *ssa_versions.get(&symbol)?))
+        ExprNode::Var { .. } => {
+            let read = ctx
+                .source_view()?
+                .read_expression_variable(node, ctx.expression_base)?;
+            let version = read.version?;
+            (ssa_versions.get(&read.symbol) == Some(&version)).then_some(())?;
+            (ctx.constants)((read.symbol, version))
         }
         _ => None,
     }
@@ -1246,6 +1249,38 @@ mod tests {
         let mut r = CommandRegistry::build_default();
         r.load_irules();
         r
+    }
+
+    #[test]
+    fn expression_literal_read_requires_its_original_source_occurrence() {
+        let registry = registry();
+        let unit = CompilationUnit::build_for("set value /api", &registry, false);
+        let function = unit.function("::top").unwrap();
+        let families = uri_families(&registry);
+        let definitions = HashMap::new();
+        let phis = HashMap::new();
+        let constants = |_: ValueKey| Some("/api".to_owned());
+        let context = TraceCtx {
+            cfg: &function.cfg,
+            registry: &registry,
+            ssa: &function.ssa,
+            point: None,
+            expression_base: None,
+            families: &families,
+            def_sites: &definitions,
+            phi_index: &phis,
+            config: function.source_lexer_config(),
+            constants: &constants,
+        };
+        let symbol = function.ssa.var_symbol("value").unwrap();
+        let versions = HashMap::from([(symbol, 1)]);
+        let variable = ExprNode::Var {
+            text: "$value".into(),
+            name: "value".into(),
+            start: 0,
+            end: 5,
+        };
+        assert_eq!(expr_literal_text(&variable, &versions, context), None);
     }
 
     /// Run the IRULE3103 pass over `source` under the iRules dialect.

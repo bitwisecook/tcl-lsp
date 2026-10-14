@@ -1499,3 +1499,100 @@ fn original_definition_without_argv_is_rejected_as_invalid_executable_ir() {
         FunctionDecline::InvalidExecutableIr,
     );
 }
+
+#[test]
+fn original_increment_amount_keeps_braced_data_and_actual_scalar_reads_separate() {
+    use super::cells::CellPlace;
+    for environment in ["tcl8.6", "tcl9.0"] {
+        for (amount, literal, reads_delta) in [
+            ("{$delta}", Some("$delta"), false),
+            ("1.5", Some("1.5"), false),
+            ("$delta", None, true),
+            ("\"$delta\"", None, true),
+            (r"0\x33", Some("03"), false),
+            (r"{0\x33}", Some(r"0\x33"), false),
+        ] {
+            let source = format!("set n 5; incr n {amount}");
+            let (_owner, context, unit) = original_boolean_unit(&source, environment);
+            assert!(
+                unit.top_level
+                    .semantic_facts
+                    .executable()
+                    .function()
+                    .unwrap()
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .any(|instruction| matches!(instruction,
+                        crate::executable_ir::ExecutableInstruction::ExecuteLowered(operation)
+                            if matches!(operation.statement, crate::ir::Statement::Incr { .. })
+                                && operation.original_tokens.is_some()
+                    )),
+                "{environment}: actual original lowered increment"
+            );
+            let (function, _) =
+                lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+                    .expect("actual original scalar update");
+            assert_eq!(
+                all_ops(&function).iter().any(|op| matches!(op,
+                    NativeOp::CellRead { place: CellPlace::Named { name }, .. } if name == "delta"
+                )),
+                reads_delta,
+                "{environment}: {source}"
+            );
+            if let Some(expected) = literal {
+                let delta = all_ops(&function)
+                    .into_iter()
+                    .find_map(|op| match op {
+                        NativeOp::CellIncr { delta, .. } => Some(*delta),
+                        _ => None,
+                    })
+                    .expect("original literal delta reaches runtime integer conversion");
+                assert_eq!(
+                    original_constant(&function, delta),
+                    expected,
+                    "{environment}: {source}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn original_assignment_values_decode_actual_words_without_name_reinterpretation() {
+    use super::cells::CellPlace;
+    for environment in ["tcl8.6", "tcl9.0"] {
+        for (source, expected) in [
+            (r"set payload a\x62", "ab"),
+            (r"set payload {a\x62}", r"a\x62"),
+            ("set payload {cash$name}", "cash$name"),
+        ] {
+            let (_owner, context, unit) = original_boolean_unit(source, environment);
+            let (function, _) =
+                lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+                    .expect("actual original value assignment");
+            let value = all_ops(&function)
+                .into_iter()
+                .find_map(|op| match op {
+                    NativeOp::CellWrite {
+                        place: CellPlace::Named { name },
+                        src,
+                        ..
+                    } if name == "payload" => Some(*src),
+                    _ => None,
+                })
+                .expect("actual original destination");
+            assert_eq!(
+                original_constant(&function, value),
+                expected,
+                "{environment}: {source}"
+            );
+            assert!(
+                !all_ops(&function)
+                    .iter()
+                    .any(|op| matches!(op, NativeOp::CellRead { .. })),
+                "{environment}: {source}"
+            );
+        }
+    }
+}

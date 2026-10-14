@@ -18,7 +18,7 @@
 
 //! Literal argument data from its actual retained whole source word.
 
-use crate::ir::{CommandTokens, Module};
+use crate::ir::{CommandTokens, Module, WordExpr};
 use tcl_registry::CommandRegistry;
 
 /// Read one unchanged literal argument under its original Module and grammar.
@@ -30,12 +30,43 @@ pub(crate) fn original_literal_argument_data_for_module(
     tokens: &CommandTokens,
     argument: usize,
 ) -> Option<String> {
+    original_source_argument_for_module(registry, module, tokens, argument)?.literal_data()
+}
+
+/// One immutable original argument under its actual current Module. The view
+/// carries source syntax and literal data, without read or execution authority.
+pub(crate) struct OriginalSourceArgument<'a> {
+    word: &'a WordExpr,
+    native: tcl_lexer::NativeWord,
+}
+
+impl<'a> OriginalSourceArgument<'a> {
+    pub(crate) fn word(&self) -> &'a WordExpr {
+        self.word
+    }
+
+    pub(crate) fn literal_data(&self) -> Option<String> {
+        literal_word_data(&self.native)
+    }
+}
+
+pub(crate) fn original_source_argument_for_module<'a>(
+    registry: &CommandRegistry,
+    module: &Module,
+    tokens: &'a CommandTokens,
+    argument: usize,
+) -> Option<OriginalSourceArgument<'a>> {
     let retained = module.retained_source_bindings.as_deref()?;
     retained.positioned_for_module(module, registry)?;
     retained
         .owns_original_analysis_attachment(tokens)
         .then_some(())?;
-    original_literal_argument_data(tokens, argument)
+    let (_, words) = original_command_words(tokens)?;
+    let index = argument.checked_add(1)?;
+    Some(OriginalSourceArgument {
+        word: tokens.words().get(index)?,
+        native: words.get(index)?.clone(),
+    })
 }
 
 /// Literal data under the exact original whole source vector and grammar.
@@ -46,6 +77,10 @@ pub(crate) fn original_literal_argument_data(
 ) -> Option<String> {
     let (_, words) = original_command_words(tokens)?;
     let word = words.get(argument.checked_add(1)?)?;
+    literal_word_data(word)
+}
+
+fn literal_word_data(word: &tcl_lexer::NativeWord) -> Option<String> {
     let value = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
         word,
     )?)
@@ -156,6 +191,49 @@ mod tests {
                     .retained_source_tokens_for_statement(statement)
             })
             .expect("retained complete original source vector")
+    }
+
+    #[test]
+    fn original_arguments_keep_literal_data_separate_from_variable_reads() {
+        for (source, literal, variable) in [
+            ("incr n {$delta}", Some("$delta"), None),
+            ("incr n $delta", None, Some("$delta")),
+            ("incr n \"$delta\"", None, Some("$delta")),
+            (r"incr n 0\x33", Some("03"), None),
+            (r"incr n {0\x33}", Some(r"0\x33"), None),
+        ] {
+            let (context, module) = original_module(source);
+            let original = tokens(&module);
+            let argument =
+                original_source_argument_for_module(context.commands(), &module, original, 1)
+                    .unwrap();
+            assert_eq!(argument.literal_data().as_deref(), literal, "{source}");
+            assert_eq!(
+                argument
+                    .word()
+                    .sole_variable_substitution()
+                    .map(|(text, _)| text),
+                variable,
+                "{source}"
+            );
+            let mut missing = module.clone();
+            missing.retained_source_bindings = None;
+            assert!(
+                original_source_argument_for_module(context.commands(), &missing, original, 1)
+                    .is_none()
+            );
+            let mut changed = original.clone();
+            changed.argv_texts[2] = "OTHER".to_owned();
+            assert!(
+                original_source_argument_for_module(context.commands(), &module, &changed, 1)
+                    .is_none()
+            );
+            let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0");
+            assert!(
+                original_source_argument_for_module(foreign.commands(), &module, original, 1)
+                    .is_none()
+            );
+        }
     }
 
     #[test]

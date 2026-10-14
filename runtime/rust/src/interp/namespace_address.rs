@@ -151,11 +151,27 @@ impl Interp {
         let (anchor, components) = self
             .namespace_address_components(self.current_ns(), original)
             .map_err(NamespaceAddressError::into_creation_error)?;
-        if self
+        let dying = self
             .namespaces()
-            .dying_namespace_at_components(anchor, &components)
-            .is_some()
-        {
+            .dying_namespace_at_components(anchor, &components);
+        if let Some(namespace) = dying {
+            let protocol =
+                self.name_policy_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "namespace creation parent route issuer",
+                    ))?;
+            let reuse_parent = protocol
+                .recipe()
+                .namespace_creation_reuses_parent(original, false)
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("namespace creation parent route")
+                })?;
+            if let Some(refusal) = self.native_access_refusal() {
+                return Err(refusal.into());
+            }
+            if reuse_parent {
+                return Ok(namespace);
+            }
             return Err(self.namespace_creation_conflict_error(original)?);
         }
         Ok(self
@@ -299,6 +315,55 @@ interp invokehidden {} hiddenNamespace delete "#,
                 assert_eq!(interpreter.result_bytes(), expected, "{version:?}");
                 assert_eq!(interpreter.current_ns(), GLOBAL);
                 assert!(interpreter.native_execution_refusal().is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn original_trailing_creation_keeps_the_dying_parent_token_and_cstring_extent() {
+        for version in tcl_dialect::TclVersion::ALL {
+            if version == tcl_dialect::TclVersion::V8_4 {
+                continue;
+            }
+            for (original, expected) in [
+                (b"retiring::".as_slice(), b"0 ::retiring".as_slice()),
+                (b"retiring::::", b"0 ::retiring"),
+                (b"retiring::\0Tail", b"0 ::retiring"),
+                (
+                    b"retiring\0::::",
+                    b"1 {can't create namespace \"retiring\": already exists}",
+                ),
+            ] {
+                let mut interpreter = Interp::with_native_core(
+                    super::super::default_host(),
+                    crate::environment::profile_for_dialect(version.dialect_profile_name()),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let operand = crate::obj::Owned::fresh(crate::obj::new_string_bytes(original));
+                interpreter.var_set(b"::operand", operand.as_ptr()).unwrap();
+                let source = br#"
+set ::observations {}
+proc during {name1 name2 operation} {
+    set status [catch {namespace eval $::operand {namespace current}} value]
+    set ::observations [list $status $value]
+}
+namespace eval retiring {
+    variable sentinel HELD
+    trace add variable sentinel unset ::during
+}
+namespace delete retiring
+set ::observations
+"#;
+                assert_eq!(interpreter.eval_str(source), crate::interp::Code::Ok);
+                assert_eq!(interpreter.result_bytes(), expected, "{version:?}");
+                assert_eq!(interpreter.current_ns(), GLOBAL);
+                assert!(interpreter.native_execution_refusal().is_none());
+                assert_eq!(
+                    interpreter.eval_str(b"namespace exists retiring"),
+                    crate::interp::Code::Ok
+                );
+                assert_eq!(interpreter.result_bytes(), b"0");
             }
         }
     }

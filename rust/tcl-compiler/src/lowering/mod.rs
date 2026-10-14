@@ -2725,14 +2725,7 @@ impl<'r> Lowerer<'r> {
         if self.proc_depth == 0 {
             return None;
         }
-        let reference =
-            tcl_lexer::word_parts::whole_var_ref(word.as_bytes(), self.config).ok()??;
-        if reference.index.is_some()
-            || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
-        {
-            return None;
-        }
-        let name = std::str::from_utf8(reference.name).ok()?;
+        let name = tcl_syntax::naming::whole_scalar_variable_reference_name(word, self.config)?;
         self.const_map_stack.last()?.get(name).cloned()
     }
 

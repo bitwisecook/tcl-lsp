@@ -1106,6 +1106,23 @@ impl NativeNameProtocol {
         Ok(keys)
     }
 
+    /// C creation without a delete callback returns its selected trailing parent.
+    /// The caller must independently retain that actual namespace token; this
+    /// recipe supplies neither its existence nor creation or frame authority.
+    ///
+    /// # Errors
+    /// Jim and a C namespace delete callback require independent creation recipes.
+    pub fn namespace_creation_reuses_parent(
+        self,
+        original: &[u8],
+        has_delete_callback: bool,
+    ) -> Result<bool, NameProjectionUnavailable> {
+        if self.is_jim084() || has_delete_callback {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        Ok(c_string_extent(original).ends_with(b"::"))
+    }
+
     /// Namespace object construction is distinct from command qualification in Jim.
     ///
     /// # Errors
@@ -4064,6 +4081,38 @@ mod tests {
         ] {
             assert!(recipe.lambda_namespace_input(b":ns").is_err());
             assert!(recipe.lambda_namespace_path(b":ns").is_err());
+        }
+    }
+
+    #[test]
+    fn namespace_creation_parent_route_uses_its_original_cstring_extent() {
+        for version in TclVersion::ALL {
+            let protocol = NativeNameProtocol::C(version);
+            for (input, parent) in [
+                (b"retiring".as_slice(), false),
+                (b"retiring::", true),
+                (b"retiring::::", true),
+                (b"retiring::Missing", false),
+                (b"retiring::Missing::", true),
+                (b"retiring\0::::", false),
+                (b"retiring::\0Tail", true),
+                (b"retiring:", false),
+            ] {
+                assert_eq!(
+                    protocol.namespace_creation_reuses_parent(input, false),
+                    Ok(parent)
+                );
+                assert!(
+                    protocol
+                        .namespace_creation_reuses_parent(input, true)
+                        .is_err()
+                );
+                assert!(
+                    NativeNameProtocol::Jim084
+                        .namespace_creation_reuses_parent(input, false)
+                        .is_err()
+                );
+            }
         }
     }
 

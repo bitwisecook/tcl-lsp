@@ -16,13 +16,13 @@
   "input_difference": {
     "same": "original source strings; C9 analyser/unit profile; actual C9 lexer configuration; exact Arc CommandRegistry",
     "positive": "actual tcl9.0 ContextRegistry availability",
-    "negative": "actual f5-iapps AmbientPlusRequire ContextRegistry availability reassembled over same C9 command store; no package runtime is executed; explicitly supplied genuine AuthoredContext IAppImplementation vendor source policy",
+    "negative": "Actual bpf ContextRegistry with C9 core, Closed policy and no expected packages, reassembled over the same C9 command Arc; explicit nonhosted/no-vendor input and all original readonly declaration/arity/currentness controls; no BPF execution or Native lookup authority",
     "entry_point": "project_callback_diagnostics_for_analysis",
     "project": "empty; genuine local canonical headers only"
   },
   "validation": {
     "rustfmt": "passed scratch Rust file edition2024 skip_children",
-    "cargo": "not executed for explicit vendor-policy fixture; root only; original186 and193 failures preserved",
+    "cargo": "Not executed for nonhosted BPF closed-availability fixture; original186/193/197 failures preserved",
     "F5": "no interpreter or BIG-IP execution claim"
   },
   "ordinary_input_observation_193": {
@@ -44,5 +44,16 @@
     },
     "source_owner": "Analyser::vendor_source_name_policy in rust/tcl-compiler/src/analyser/commands.rs; Analyser::resolved_analysis_input in analyser/state.rs",
     "source_drift": []
+  },
+  "ordinary_hosted_declaration_observation_197": {
+    "capture": "experiments/name-handling/results/consumer197-db-20261014",
+    "log": "test-19.log.gz",
+    "log_sha256": "65e2c3d0051bf57da9daf0c306461b36d1fccf252b9da0b401670e689fd1b022",
+    "exit_code": 101,
+    "actual_passed_premises": "wholeinput equality; exact command Arc/config/authored vendor policy; four excluded descriptor checks; retained realm/input; original image/config",
+    "first_failed_premise": "original_procedure_declarations contains ::cb",
+    "source_owner_refusal": "SourceCommandBindings::original_native_source_declarations rejects has_hosted_source_name_context; LogicalSourceNamePurpose rejects hosted domain independently",
+    "retained_fixture": "hosted-input-fixture.rs.txt",
+    "source_drift": {}
   }
 }

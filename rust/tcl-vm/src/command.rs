@@ -137,22 +137,29 @@ pub struct ProcDef {
 
 impl ProcDef {
     pub(crate) fn formal_parameters(&self) -> Vec<tcl_syntax::formal_params::ByteFormalParameter> {
-        self.params
-            .iter()
-            .map(|parameter| tcl_syntax::formal_params::ByteFormalParameter {
-                name: parameter.name.as_bytes().to_vec(),
-                default: parameter.default.as_ref().map(|value| {
-                    if self.parameter_grammar == tcl_dialect::ParameterGrammar::Jim
-                        && parameter.name.as_bytes() == b"args"
-                    {
-                        value.string_bytes().to_vec()
-                    } else {
-                        Vec::new()
-                    }
-                }),
-            })
-            .collect()
+        formal_parameters(&self.params, self.parameter_grammar)
     }
+}
+
+pub(crate) fn formal_parameters(
+    params: &[Param],
+    grammar: tcl_dialect::ParameterGrammar,
+) -> Vec<tcl_syntax::formal_params::ByteFormalParameter> {
+    params
+        .iter()
+        .map(|parameter| tcl_syntax::formal_params::ByteFormalParameter {
+            name: parameter.name.as_bytes().to_vec(),
+            default: parameter.default.as_ref().map(|value| {
+                if grammar == tcl_dialect::ParameterGrammar::Jim
+                    && parameter.name.as_bytes() == b"args"
+                {
+                    value.string_bytes().to_vec()
+                } else {
+                    Vec::new()
+                }
+            }),
+        })
+        .collect()
 }
 
 /// One entered procedure and its actual body execution lease. Jim Script
@@ -655,6 +662,7 @@ fn fresh_apply_name() -> String {
 pub(crate) struct OriginalLambdaDefinition {
     pub(crate) binding: NativeProcedureCommand,
     pub(crate) registration: crate::interp::CommandSidecarHandle,
+    pub(crate) activation_preflight_complete: bool,
 }
 
 /// Manufacture the actual temporary lambda declaration from original list
@@ -720,6 +728,25 @@ pub(crate) fn build_lambda_proc(
             return Err(error);
         }
     };
+    let activation_preflight_complete = vm.uses_native_jim_lookup();
+    let usage_name = activation_preflight_complete
+        .then(|| vec![Value::string("apply"), Value::string("lambdaExpr")]);
+    if let Some(usage_name) = &usage_name {
+        let Some(arguments) = call_identity.get(2..) else {
+            return Err(
+                vm.refuse_host_command("original lambda call arguments are unavailable".into())
+            );
+        };
+        if let Some(completion) = vm.preflight_original_lambda_activation(
+            &params_vec,
+            parameter_grammar,
+            &body,
+            arguments,
+            usage_name,
+        )? {
+            return Err(completion);
+        }
+    }
     // C resolves from global; Jim retains its original flat context object.
     let ns_id = lambda_namespace(vm, parts.get(2))?;
     let namespace = vm.namespace_path_for_token(ns_id);
@@ -751,13 +778,16 @@ pub(crate) fn build_lambda_proc(
         statics: None,
         body: None,
         body_src: body,
-        usage_name: Some(vec![Value::string("apply"), Value::string("lambdaExpr")]),
+        usage_name: Some(
+            usage_name.unwrap_or_else(|| vec![Value::string("apply"), Value::string("lambdaExpr")]),
+        ),
         call_identity: Some(call_identity),
     });
     let registration = vm.active_sidecar(crate::interp::CommandSidecarKey::visible(publication));
     Ok(OriginalLambdaDefinition {
         binding,
         registration,
+        activation_preflight_complete,
     })
 }
 
@@ -792,10 +822,16 @@ fn lambda_namespace(vm: &mut Vm, original: Option<&Value>) -> Result<NsId, Compl
         ) {
             Ok(Some(namespace)) => Ok(namespace),
             Ok(None) => {
-                let mut message = b"namespace \"".to_vec();
-                message.extend_from_slice(lookup);
-                message.extend_from_slice(b"\" not found");
-                Err(err(message))
+                let report = tcl_syntax::naming::report_native_namespace_operation_error(
+                    recipe,
+                    tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+                    lookup,
+                    b"::",
+                )
+                .map_err(|_| {
+                    vm.refuse_host_command("lambda namespace lookup diagnostic unavailable".into())
+                })?;
+                Err(vm.namespace_operation_error(report))
             }
             Err(error) => Err(completion_from_cmd_error(vm, error.into())),
         }

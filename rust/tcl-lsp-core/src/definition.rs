@@ -421,7 +421,7 @@ pub fn definition_with(
             .unwrap_or(proc_def);
         return vec![span_to_range(source, &line_index, in_effect.name_span)];
     }
-    if let Some(span) = class_declaration_at(source, analysis, &word, cursor_offset) {
+    if let Some(span) = class_declaration_at(source, analysis, view, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
     // Class-member lookup — when the cursor sits inside a
@@ -517,7 +517,7 @@ fn indirect_definition_target(
             .unwrap_or(proc_def);
         return Some(captured.name_span);
     }
-    class_declaration_at(source, analysis, &hop.target, cursor_off)
+    class_declaration_at(source, analysis, ctx, &hop.target, cursor_off)
 }
 
 /// Original written procedure header, including displaced declarations.
@@ -2772,6 +2772,7 @@ fn itcl_self_qualified_candidate(
 fn class_declaration_at(
     source: &str,
     analysis: &AnalysisResult,
+    resolution: CallResolution<'_>,
     word: &str,
     cursor_offset: u32,
 ) -> Option<tcl_lexer::Span> {
@@ -2788,21 +2789,11 @@ fn class_declaration_at(
             .class_metadata(analysis)
             .map(|declaration| declaration.metadata().name_span);
     }
-    if let Some((_, class_def)) = analysis
-        .all_classes
-        .iter()
-        .find(|(_, c)| c.name_span.start() <= cursor_offset && cursor_offset < c.name_span.end())
-    {
-        return Some(class_def.name_span);
-    }
-    analysis
-        .all_classes
-        .iter()
-        .find(|(qname, c)| {
-            !c.via_define
-                && (c.name == word || qname.as_str() == word || *qname == &format!("::{word}"))
-        })
-        .map(|(_, class_def)| class_def.name_span)
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let (_, class) = resolve_class_target_at(analysis, source, resolution, cursor_offset, word)?;
+    (class.name_span.start() <= cursor_offset && cursor_offset < class.name_span.end()
+        || !class.via_define)
+        .then_some(class.name_span)
 }
 
 /// The declaration name span of the [incr Tcl] class-scoped `proc` that the
@@ -5655,21 +5646,8 @@ c\uD800";
         );
     }
 
-    /// TP (both tiers agree): a `namespace forget` at the file's **load
-    /// level** runs before a body-local `namespace import`, which then
-    /// installs the alias — so a call in that body still resolves.
-    ///
-    /// The in-document twin of
-    /// `workspace_index::tests::a_body_local_exact_import_survives_a_top_level_forget`.
-    /// Ranking the two by raw offset said the forget "came later" and dropped
-    /// the alias; the load-order rule the shared fold now uses reads a removal
-    /// written outside the import's own body as having run before it, which is
-    /// what actually happens — the whole file loads, forget included, before
-    /// any body runs. Oracle (8.6.14 / 9.0.4): with `proc ::dst::setup {}
-    /// {namespace import ::src::* ; p}` and a top-level `namespace eval ::dst
-    /// {namespace forget ::src::p}` below it, `::dst::setup` returns `P` — the
-    /// forget ran during load, found nothing imported, and the import inside
-    /// the body then installed the alias the call reaches.
+    /// A load-level forget precedes a body-local import, so the call resolves.
+    /// C Tcl 8.6.14/9.0.4 return `P` for this original ordering.
     #[test]
     fn a_load_level_forget_before_a_body_local_import_revokes_nothing() {
         let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* ; p }\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\n";
@@ -9309,6 +9287,122 @@ mod logical_variable_scope_owner_tests {
                 position.character.get()
             )
             .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_class_navigation_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_class_navigation_uses_the_shared_namespace_target() {
+        let source = concat!(
+            "namespace eval left {oo::class create Widget {}}\n",
+            "namespace eval right {oo::class create Widget {}}\n",
+            "namespace eval left {Widget new}\n",
+            "namespace eval right {Widget new}\n",
+            "namespace eval other {Widget new}\n",
+            "namespace eval left {::right::Widget new}\n",
+        );
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        assert_eq!(analysis.all_classes.len(), 2);
+        for (written, word, target) in [
+            ("left {Widget new}", "Widget", Some("::left::Widget")),
+            ("right {Widget new}", "Widget", Some("::right::Widget")),
+            ("other {Widget new}", "Widget", None),
+            (
+                "left {::right::Widget new}",
+                "::right::Widget",
+                Some("::right::Widget"),
+            ),
+        ] {
+            let cursor = source.find(written).unwrap() + written.find(word).unwrap();
+            let selected = class_declaration_at(
+                source,
+                &analysis,
+                CallResolution::document_only(),
+                word,
+                u32::try_from(cursor).unwrap(),
+            );
+            assert_eq!(
+                selected,
+                target.map(|name| analysis.all_classes[name].name_span),
+                "{written}"
+            );
+        }
+        let call = u32::try_from(source.find("left {Widget new}").unwrap() + 6).unwrap();
+        assert!(
+            class_declaration_at(
+                &format!("{source} "),
+                &analysis,
+                CallResolution::document_only(),
+                "Widget",
+                call,
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            class_declaration_at(
+                source,
+                &missing,
+                CallResolution::document_only(),
+                "Widget",
+                call,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_class_navigation_uses_shared_imports_and_excludes_extension_stubs() {
+        let source = concat!(
+            "namespace eval exported {oo::class create Imported {}; namespace export Imported}\n",
+            "namespace eval client {namespace import ::exported::*; Imported new}\n",
+            "oo::define Remote {method extra {} {}}\n",
+            "Remote new\n",
+        );
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let call = u32::try_from(source.find("Imported new").unwrap()).unwrap();
+        assert_eq!(
+            class_declaration_at(
+                source,
+                &analysis,
+                CallResolution::document_only(),
+                "Imported",
+                call,
+            ),
+            Some(analysis.all_classes["::exported::Imported"].name_span)
+        );
+        let call = u32::try_from(source.find("Remote new").unwrap()).unwrap();
+        assert!(
+            class_declaration_at(
+                source,
+                &analysis,
+                CallResolution::document_only(),
+                "Remote",
+                call,
+            )
+            .is_none()
+        );
+        let stub = analysis
+            .all_classes
+            .get("::Remote")
+            .expect("actual source extension stub");
+        assert!(stub.via_define);
+        assert_eq!(
+            class_declaration_at(
+                source,
+                &analysis,
+                CallResolution::document_only(),
+                "Remote",
+                stub.name_span.start(),
+            ),
+            Some(stub.name_span)
         );
     }
 }

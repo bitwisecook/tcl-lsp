@@ -5360,31 +5360,26 @@ mod tests {
         }
     }
 
-    fn original_expression_source(source: &str, dialect: &str) -> ExecutableFunction {
-        let environment = tcl_registry::model::ingress::resolve_environment(dialect);
-        let context = environment.default_context_registry();
-        let profile = environment.analyser_profile();
-        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
-        let input = crate::analyser::ResolvedAnalysisInput::new(
-            profile,
-            profile,
-            std::sync::Arc::clone(&context),
-            config,
-        );
-        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
-            .with_resolved_analysis_input(input);
-        lowerer.lower(source);
-        let module = lowerer.finish_module(source);
-        build_linear_executable_ir_with_metadata_context(
+    fn original_expression_source(
+        source: &str,
+        dialect: &str,
+    ) -> (
+        crate::provider_fixtures::OriginalNativeModuleFixture,
+        ExecutableFunction,
+    ) {
+        let fixture = crate::provider_fixtures::original_native_module(source, dialect);
+        let (context, module) = &*fixture;
+        let function = build_linear_executable_ir_with_metadata_context(
             context.commands(),
             crate::registry_invocation::InvocationMetadataContext::for_module(
                 context.commands(),
-                &module,
+                module,
             ),
             ExecutableFunctionId::new(225),
             &module.top_level,
         )
-        .expect("actual retained source expression")
+        .expect("actual retained source expression under live Native owner");
+        (fixture, function)
     }
 
     fn expression_operation(function: &ExecutableFunction) -> &LoweredOperation {
@@ -5404,7 +5399,7 @@ mod tests {
     #[test]
     fn cursor_loop_names_use_original_list_values_and_refuse_changed_receivers() {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
-            let function = original_expression_source(
+            let (_source_owner, function) = original_expression_source(
                 "foreach {$literal {a b} a($key) {}} {1 2 3 4} {set result 1}",
                 dialect,
             );
@@ -5442,13 +5437,17 @@ mod tests {
                 "{dialect}"
             );
         }
-        let registry = CommandRegistry::build_default();
-        let module = crate::lowering::lower_to_ir("foreach {$literal} X {set result 1}", &registry);
+        let fixture = crate::provider_fixtures::original_native_module(
+            "foreach {$literal} X {set result 1}",
+            "tcl9.0",
+        );
+        let (context, module) = &*fixture;
+        let registry = context.commands();
         let statement = &module.top_level.statements[0];
         let Statement::Foreach { iterators, .. } = statement else {
             panic!("actual loop")
         };
-        assert!(original_list_iterator_names(&registry, statement, iterators).is_some());
+        assert!(original_list_iterator_names(registry, statement, iterators).is_some());
         let mut detached = statement.clone();
         if let Statement::Foreach {
             raw_tokens: Some(tokens),
@@ -5457,10 +5456,10 @@ mod tests {
         {
             tokens.source_binding = None;
         }
-        assert!(original_list_iterator_names(&registry, &detached, iterators).is_none());
+        assert!(original_list_iterator_names(registry, &detached, iterators).is_none());
         let mut changed = iterators.clone();
         changed[0].vars[0] = "OTHER".to_owned();
-        assert!(original_list_iterator_names(&registry, statement, &changed).is_none());
+        assert!(original_list_iterator_names(registry, statement, &changed).is_none());
     }
 
     #[test]
@@ -5518,7 +5517,7 @@ mod tests {
                     false,
                 ),
             ] {
-                let function = original_expression_source(source, dialect);
+                let (_source_owner, function) = original_expression_source(source, dialect);
                 function.validate().expect("unchanged authentic footprint");
                 let operation = expression_operation(&function);
                 let Statement::ExprEval {
@@ -5560,7 +5559,7 @@ mod tests {
 
     #[test]
     fn expression_footprints_refuse_missing_or_changed_whole_source_syntax() {
-        let function = original_expression_source("expr {$a($k)}", "tcl8.6");
+        let (_source_owner, function) = original_expression_source("expr {$a($k)}", "tcl8.6");
         let operation = expression_operation(&function);
         let mut detached = operation.original_tokens.as_deref().unwrap().clone();
         detached.source_binding = None;
@@ -5575,7 +5574,7 @@ mod tests {
         assert_eq!(footprint.reads, vec![CellReference::Computed]);
         assert!(footprint.reads_unbounded);
 
-        let other = original_expression_source("expr {$other}", "tcl8.6");
+        let (_other_owner, other) = original_expression_source("expr {$other}", "tcl8.6");
         let mut changed_ast = operation.statement.clone();
         if let (Statement::ExprEval { expr, .. }, Statement::ExprEval { expr: other, .. }) =
             (&mut changed_ast, &expression_operation(&other).statement)
@@ -5589,7 +5588,8 @@ mod tests {
         assert_eq!(footprint.reads, vec![CellReference::Computed]);
         assert!(footprint.reads_unbounded);
 
-        let foreign = original_expression_source("set prefix 1; expr {$a($k)}", "tcl8.6");
+        let (_foreign_owner, foreign) =
+            original_expression_source("set prefix 1; expr {$a($k)}", "tcl8.6");
         let footprint = lowered_operation_footprint(
             &operation.statement,
             expression_operation(&foreign).original_tokens.as_deref(),

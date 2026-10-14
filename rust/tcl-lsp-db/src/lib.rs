@@ -9915,7 +9915,7 @@ p\uD801 ordinary";
         let commands = Arc::clone(available.commands());
         let available = Arc::new(available.with_command_store(Arc::clone(&commands)));
         let unavailable = Arc::new(
-            tcl_registry::model::ingress::static_context_for("f5-iapps")
+            tcl_registry::model::ingress::static_context_for("bpf")
                 .with_command_store(Arc::clone(&commands)),
         );
         assert!(Arc::ptr_eq(available.commands(), unavailable.commands()));
@@ -9940,21 +9940,28 @@ p\uD801 ordinary";
         }
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
-        let excluded_policy = tcl_syntax::naming::VendorSourceNamePolicy::authored(
-            tcl_registry::f5::BigIpExecutionContext::IAppImplementation,
-        )
-        .unwrap();
         let input = |context| {
-            let excluded = Arc::ptr_eq(&context, &unavailable);
-            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
-                profile, profile, context, config,
-            );
-            if excluded {
-                input.with_vendor_source_policy(excluded_policy)
-            } else {
-                input
-            }
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config)
         };
+        assert_eq!(unavailable.context().environment.id.as_str(), "bpf");
+        assert_eq!(
+            unavailable
+                .context()
+                .environment
+                .policy_defaults
+                .closed_world,
+            tcl_dialect::model::WorldPolicy::Closed,
+        );
+        assert!(
+            unavailable
+                .context()
+                .environment
+                .expected_packages
+                .is_empty()
+        );
+        let excluded_input = input(Arc::clone(&unavailable));
+        assert!(!excluded_input.has_hosted_source_name_context());
+        assert_eq!(excluded_input.vendor_source_policy(), None);
         let analyse = |source: &str, context| {
             tcl_compiler::analyser::Analyser::new()
                 .with_resolved_input(input(context))
@@ -9991,7 +9998,8 @@ p\uD801 ordinary";
             let current = resolved.context_registry();
             assert!(Arc::ptr_eq(current.commands(), &commands));
             assert_eq!(resolved.lexer_config(), config);
-            assert_eq!(resolved.vendor_source_policy(), Some(excluded_policy));
+            assert_eq!(resolved.vendor_source_policy(), None);
+            assert!(!resolved.has_hosted_source_name_context());
             for command in [
                 "smtp::sendmessage",
                 "mime::getbody",

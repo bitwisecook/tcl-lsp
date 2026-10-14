@@ -170,6 +170,50 @@ pub(crate) fn analyse(
 }
 
 #[cfg(test)]
+pub(crate) type OriginalNativeModuleFixture = crate::environment_ingress::RetainedNativeFixture<(
+    Arc<tcl_registry::model::ContextRegistry>,
+    crate::ir::Module,
+)>;
+
+/// Retain a genuine interpreter registration/frame entry and its exact source
+/// metadata through every fixture query. No analysed command is executed.
+#[cfg(test)]
+pub(crate) fn original_native_module(source: &str, dialect: &str) -> OriginalNativeModuleFixture {
+    let environment = tcl_registry::model::ingress::resolve_known_environment(dialect)
+        .expect("actual Native source fixture environment");
+    let context = environment.default_context_registry();
+    let profile = environment.unit_profile();
+    let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+    let input =
+        crate::analyser::ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+    let capture = crate::environment_ingress::captured_native_entry(profile);
+    assert_eq!(capture.execution_point, environment.point());
+    assert!(
+        capture
+            .compiler_pass_environment
+            .as_ref()
+            .unwrap()
+            .is_current_for(capture.interpreter)
+    );
+    let entry = SourceAnalysisEntry {
+        metadata_context:
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                &input,
+            )),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        native_entry: Some(Arc::new(capture.as_entry().clone())),
+        ..SourceAnalysisEntry::default()
+    };
+    let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+        .with_resolved_analysis_input(input);
+    lowerer.set_source_analysis_options(entry.options());
+    lowerer.lower(source);
+    let module = lowerer.finish_module(source);
+    capture.retain((context, module))
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

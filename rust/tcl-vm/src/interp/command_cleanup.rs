@@ -382,8 +382,8 @@ impl OriginalCommandCleanup {
         let selected = self
             .token(vm, source.generation)
             .unwrap_or_else(|| source.clone());
-        // The neutral/Jim route preserves its old implementation-first order;
-        // absence of a C recipe never manufactures C import authority.
+        // Neutral/Jim retirement releases the implementation before imports.
+        // C import authority requires its independently selected recipe.
         let order = self
             .c_order
             .unwrap_or(NativeCommandRetirementOrder::ImplementationBeforeImports);

@@ -27,8 +27,8 @@
 
 use std::collections::HashSet;
 
-use crate::ranges::command_substitution_end_bytes;
-use crate::{backslash_continuation_end, close_quote_offset};
+use crate::backslash_continuation_end;
+use crate::ranges::{close_quote_offset_in, command_substitution_end_bytes_in};
 
 /// Token types specific to Tcl expressions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -806,7 +806,7 @@ impl<'s> Inner<'s> {
 
     fn command(&mut self) -> ExprToken<Vec<u8>> {
         let start = self.i;
-        if let Some(end) = command_substitution_end_bytes(self.b, start) {
+        if let Some(end) = command_substitution_end_bytes_in(self.b, start, self.variable_config) {
             self.i = end;
         } else {
             // Keep a recovery token for callers that need the incomplete
@@ -820,7 +820,7 @@ impl<'s> Inner<'s> {
 
     fn quoted(&mut self) -> ExprToken<Vec<u8>> {
         let start = self.i;
-        if let Some(close) = close_quote_offset(self.b, start) {
+        if let Some(close) = close_quote_offset_in(self.b, start, self.variable_config) {
             self.i = close + 1;
         } else {
             // As with an unterminated command substitution, retain the
@@ -1307,6 +1307,34 @@ mod tests {
             "9.x has no closer left, so the expression is inexecutable"
         );
         assert_eq!(tokens.first().map(|t| t.text.as_str()), Some("${a{b}"));
+    }
+
+    #[test]
+    fn quoted_and_command_boundaries_retain_the_selected_variable_grammar() {
+        for profile in ["tcl8.6", "tcl9.0"] {
+            let profile = tcl_dialect::DialectProfile::find(profile).unwrap();
+            for style in [
+                tcl_dialect::BracedVarStyle::FirstClose,
+                tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ] {
+                let grammar = tcl_dialect::LexerGrammar {
+                    braced_var: style,
+                    ..profile.grammar
+                };
+                for source in [r#""${a{b}""#, "[list ${a{b}]"] {
+                    let (tokens, unknown) = tokenise_expr_checked_with_grammar(source, &grammar);
+                    assert_eq!(unknown, style.nests(), "{source:?}: {style:?}");
+                    assert_eq!(
+                        tokens.first().map(|token| token.text.as_str()),
+                        Some(source)
+                    );
+                }
+                for source in [r#""${missing""#, "[list ${missing]"] {
+                    let (_, unknown) = tokenise_expr_checked_with_grammar(source, &grammar);
+                    assert!(unknown, "{source:?}: {style:?}");
+                }
+            }
+        }
     }
 
     #[test]

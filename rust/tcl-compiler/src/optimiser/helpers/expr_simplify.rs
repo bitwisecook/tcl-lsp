@@ -2544,9 +2544,7 @@ mod tests {
 
     #[test]
     fn is_numeric_literal_agrees_with_is_numeric_string() {
-        // is_numeric_literal (the substitute_expr_constants bare-vs-quoted
-        // gate) now delegates to the same grammar, so a hex constant
-        // inlines bare instead of being needlessly quoted.
+        // Bare numeric emission uses the shared numeral grammar.
         assert!(is_numeric_literal("0x1a"));
         assert!(!is_numeric_literal("hello"));
     }
