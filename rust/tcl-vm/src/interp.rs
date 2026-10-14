@@ -18354,13 +18354,11 @@ impl Vm {
         }
     }
 
-    /// Construct the target authored by Jim's namespace-upvar script helper.
-    /// Jim namespaces are textual contexts; this does not require a live token.
-    pub(crate) fn jim_namespace_upvar_target_bytes(
+    /// Select the namespace canonicalised once by Jim's upvar helper.
+    pub(crate) fn jim_namespace_upvar_canonical_bytes(
         &self,
         namespace: &[u8],
-        other: &[u8],
-    ) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+    ) -> Result<NameBytes, tcl_syntax::value::ValueError> {
         let selected = self
             .namespace_address_from_native_bytes(self.current_ns_id(), namespace)
             .map_err(|_| {
@@ -18371,11 +18369,7 @@ impl Vm {
                 "Jim namespace upvar context",
             ));
         };
-        let mut target = b"::".to_vec();
-        target.extend_from_slice(object.as_bytes());
-        target.extend_from_slice(b"::");
-        target.extend_from_slice(other);
-        Ok(target)
+        Ok(object)
     }
 
     fn link_namespace_upvar_with_binding_bytes(
@@ -32332,7 +32326,7 @@ mod native_child_constructor_tests {
         let parent = vm.native_jim_object_context().unwrap();
         vm.in_interp(id, |child| {
             let context = child.native_jim_object_context().unwrap();
-            let value = child.get_var("tcl_patchLevel").unwrap();
+            let value = child.get_var("tcl_interactive").unwrap();
             assert!(value.bind_native_jim_context(&context).is_ok());
             assert!(value.bind_native_jim_context(&parent).is_err());
             assert!(child.execution_refusal.is_none());

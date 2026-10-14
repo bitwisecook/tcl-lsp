@@ -763,6 +763,26 @@ enum AppendAddress {
     Stack,
 }
 
+fn literal_link_local_name(
+    operand: tcl_syntax::native_variable_words::NativeVariableWordOperand,
+) -> Option<Vec<u8>> {
+    let tcl_syntax::native_variable_words::NativeVariableWordOperand::Literal {
+        name,
+        index: None,
+        ..
+    } = operand
+    else {
+        return None;
+    };
+    (!tcl_syntax::naming::is_qualified(&name)).then_some(name)
+}
+
+fn original_link_local_name(ctx: &CodegenCtx, argument: usize) -> Option<Vec<u8>> {
+    let written = ctx.original_hook_argument(argument)?;
+    let word = ctx.invocation_tokens.as_deref()?.words().get(written + 1)?;
+    literal_link_local_name(ctx.original_variable_operand(word)?)
+}
+
 fn compiled_append_local_name(ctx: &CodegenCtx, variable: &str) -> Option<String> {
     if !ctx.compiles_locals() {
         return None;
@@ -775,7 +795,10 @@ fn compiled_append_local_name(ctx: &CodegenCtx, variable: &str) -> Option<String
             crate::registry_invocation::compiled_local_name_value(word, ctx.escapes, ctx.word_rules)
         }
         // Hand-built hooks supply literal names without a source carrier.
-        None => is_compilable_local(ctx, variable).then(|| variable.to_owned()),
+        None if ctx.invocation_tokens.is_none() => {
+            is_compilable_local(ctx, variable).then(|| variable.to_owned())
+        }
+        None => return None,
     }?;
     (!is_qualified(&direct)).then_some(direct)
 }
@@ -1389,6 +1412,30 @@ fn global_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if !ctx.compiles_locals() || args.is_empty() {
         return false;
     }
+    if ctx.invocation_tokens.is_some() {
+        let names = (0..args.len())
+            .map(|argument| original_link_local_name(ctx, argument))
+            .collect::<Option<Vec<_>>>();
+        let Some(names) = names else {
+            return false;
+        };
+        let slots = names
+            .iter()
+            .map(|name| ctx.command_variable_slot(name))
+            .collect::<Option<Vec<_>>>();
+        let Some(slots) = slots else {
+            return false;
+        };
+        ctx.push_lit("::");
+        for (name, slot) in names.iter().zip(slots) {
+            ctx.push_lit_bytes_exact(name);
+            ctx.emit(Op::NSUPVAR, vec![Operand::Imm(bytecode_imm(slot))]);
+        }
+        ctx.emit(Op::POP, vec![]);
+        ctx.push_lit("");
+        ctx.emit(Op::POP, vec![]);
+        return true;
+    }
     if !args.iter().all(|n| is_compilable_scalar_local(ctx, n)) {
         return false;
     }
@@ -1439,6 +1486,45 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     };
     if pairs.is_empty() || pairs.len() % 2 != 0 {
         return false;
+    }
+    if ctx.invocation_tokens.is_some() {
+        // A captured level or remote name has no current whole written word.
+        // Refuse the complete layout before selecting slots or emitting links.
+        let original = (0..args.len())
+            .map(|argument| {
+                let written = ctx.original_hook_argument(argument)?;
+                let word = ctx.invocation_tokens.as_deref()?.words().get(written + 1)?;
+                ctx.original_variable_operand(word)
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(original) = original else {
+            return false;
+        };
+        let offset = args.len() - pairs.len();
+        let names = (0..pairs.len())
+            .step_by(2)
+            .map(|index| literal_link_local_name(original.get(offset + index + 1)?.clone()))
+            .collect::<Option<Vec<_>>>();
+        let Some(names) = names else {
+            return false;
+        };
+        let slots = names
+            .iter()
+            .map(|name| ctx.command_variable_slot(name))
+            .collect::<Option<Vec<_>>>();
+        let Some(slots) = slots else {
+            return false;
+        };
+        ctx.push_lit(level);
+        for (index, slot) in slots.into_iter().enumerate() {
+            let other = offset + index * 2;
+            ctx.emit_word_arg(other, &args[other]);
+            ctx.emit(Op::UPVAR, vec![Operand::Imm(bytecode_imm(slot))]);
+        }
+        ctx.emit(Op::POP, vec![]);
+        ctx.push_lit("");
+        ctx.emit(Op::POP, vec![]);
+        return true;
     }
     // Every `local` (the odd-indexed words) must be a simple compiled *scalar*
     // local. The `other` side may legally be an element (`upvar 0 arr(k) v`).
@@ -2621,5 +2707,92 @@ mod tests {
             &["$literal".to_owned(), "array($index)".to_owned()]
         ));
         assert!(ctx.instructions.is_empty());
+    }
+
+    #[test]
+    fn link_local_operand_uses_typed_literal_data_without_reference_prefixes() {
+        use tcl_syntax::native_variable_words::NativeVariableWordOperand;
+        for name in ["$literal", "${literal}", "[literal]", ""] {
+            let operand = NativeVariableWordOperand::Literal {
+                name: name.as_bytes().to_vec(),
+                name_span: tcl_lexer::Span::new(0, 0),
+                index: None,
+            };
+            assert_eq!(
+                literal_link_local_name(operand).as_deref(),
+                Some(name.as_bytes())
+            );
+        }
+        assert!(
+            literal_link_local_name(NativeVariableWordOperand::Literal {
+                name: b"array".to_vec(),
+                name_span: tcl_lexer::Span::new(0, 0),
+                index: Some(b"key".to_vec()),
+            })
+            .is_none()
+        );
+        assert!(
+            literal_link_local_name(NativeVariableWordOperand::Literal {
+                name: b"::qualified".to_vec(),
+                name_span: tcl_lexer::Span::new(0, 0),
+                index: None,
+            })
+            .is_none()
+        );
+        assert!(literal_link_local_name(NativeVariableWordOperand::DynamicWord).is_none());
+    }
+
+    #[test]
+    fn source_link_operands_without_original_compiler_ownership_emit_no_partial_links() {
+        let registry = CommandRegistry::build_default();
+        for source in ["global {$literal}", "upvar 0 {$other} {$literal}"] {
+            let module = crate::lowering::lower_to_ir(source, &registry);
+            let statement = module.top_level.statements.first().unwrap();
+            let tokens = statement.tokens().unwrap();
+            let args = tokens.argv_texts[1..].to_vec();
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.set_source_image(module.source.clone());
+            ctx.invocation_tokens = Some(Box::new(tokens.clone()));
+            assert!(ctx.original_compiler_words().is_none());
+            assert!(!if source.starts_with("global") {
+                global_cmd(&mut ctx, &args)
+            } else {
+                upvar_cmd(&mut ctx, &args)
+            });
+            assert!(ctx.instructions.is_empty());
+        }
+    }
+
+    #[test]
+    fn captured_upvar_prefix_without_written_remote_words_declines_the_whole_layout() {
+        let registry = CommandRegistry::build_default();
+        let source = "interp alias {} bind {} upvar 0 {$remote}; bind local";
+        let module = crate::lowering::lower_to_ir(source, &registry);
+        let call = module
+            .top_level
+            .statements
+            .iter()
+            .find(|statement| {
+                statement.tokens().is_some_and(|tokens| {
+                    tokens.argv_texts.first().is_some_and(|head| head == "bind")
+                })
+            })
+            .expect("actual original alias call");
+        let tokens = call.tokens().unwrap();
+        assert_eq!(tokens.words().len(), 2);
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.set_source_image(module.source.clone());
+        ctx.invocation_tokens = Some(Box::new(tokens.clone()));
+        // Operand-layout model only: no Native alias compiler is asserted.
+        ctx.native_hook_layout = Some(("upvar".to_owned(), 2));
+        assert_eq!(ctx.original_hook_argument(2), Some(0));
+        assert_eq!(ctx.original_hook_argument(1), None);
+        assert!(ctx.original_compiler_words().is_none());
+        assert!(!upvar_cmd(
+            &mut ctx,
+            &["0".to_owned(), "$remote".to_owned(), "local".to_owned()]
+        ));
+        assert!(ctx.instructions.is_empty());
+        assert!(ctx.lvt.is_empty());
     }
 }

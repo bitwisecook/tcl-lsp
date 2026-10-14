@@ -1,0 +1,22 @@
+{
+  "started_utc": "2026-10-14T19:58:47.741729+00:00",
+  "label": "sixactualJimcopy/bootstrapcontrols afterexactfixturebyte-sliceAPI repair",
+  "package": "tcl-vm",
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "source_paths": 34723,
+  "plan": {
+    "exact": [
+      "interp::native_jim_interpreter_crossing::tests::original_copy_has_receiver_birth_counted_bytes_and_no_source_header",
+      "interp::native_jim_interpreter_crossing::tests::original_parent_prefix_list_owns_members_without_snapshot_references",
+      "interp::native_jim_interpreter_crossing::tests::original_parent_alias_copies_operands_and_result_and_keeps_return_state_separate",
+      "interp::native_child_constructor_tests::jim_child_bootstrap_values_have_the_child_allocator_birth",
+      "interp::native_child_constructor_tests::jim_child_copies_only_existing_parent_globals_with_the_original_cstring_extent",
+      "interp::native_child_constructor_tests::child_startup_copy_ignores_parent_local_shadows_and_c_has_no_copy_recipe"
+    ],
+    "scope": "Sixactualcopy/bootstrapcontrols beforefull58originalunion; nooracleconformanceclaimbyitself"
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

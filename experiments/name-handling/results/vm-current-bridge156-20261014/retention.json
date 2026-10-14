@@ -1,0 +1,17 @@
+{
+  "files": {
+    "result.json": "2d13ba7db0b309c5f0ac9246b578c4e03a883f970621a055cc9d4efa83c1dcc0",
+    "source-after.json.gz": "95b45053de7119052b0c272062d80f40c5d68bacbf808bb7b57f5ae790a5b3af",
+    "test-06.log.gz": "e8bb06a2ecb33fc4da4f7adeae312113452ab384aa44e82e7425d90bf7e4f20b",
+    "test-05.log.gz": "ce7057f8b7722076370bce3e653fac59dd133f3fdedbd53c771a8aa7f892dfa6",
+    "test-04.log.gz": "dcbb455f1265b1432429ef87c51f6ac22467d0bba66c14c8571b745553922864",
+    "test-03.log.gz": "4f6157359194a1d1a3b09f5b06ea1072c52e401679652a55d693e493e2a9a7af",
+    "test-02.log.gz": "d41a633636c6538b621c9de13069627d7e422b0ad31e28c092ebfad3286f2a9c",
+    "test-01.log.gz": "9d86e661f8e48a43643e5e6d67dd12bb1c4eb249de2f0445bb9d22801ce78eb6",
+    "test-list.txt": "2c62736a4c44ace83d335b4cc3cc3dd3c2b1555532a331dbfbd506a3ba53b785",
+    "build.log": "54a166fbe6a74d2fc8f697c2f52c748b48868641abf98eeff8d1296dd9e52b97",
+    "start.json": "b17e842428a3c2c91b6387934df0d1bf51aa39ab08675477167b662f6a11dc97",
+    "source-before.json.gz": "837979e915efdac1779ba4f9f01c5c89f7ef3cd4c9a6e75c58dbc81eed9525d5"
+  },
+  "scope": "Six actual Jim copy/bootstrap controls:5PASS1FAIL, source subset drift zero. Failure expects Tcl patchLevel global in Jim child; current original provider/full58 remains unexecuted."
+}

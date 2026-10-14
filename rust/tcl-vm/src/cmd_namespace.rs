@@ -766,7 +766,15 @@ fn ns_upvar(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         if policy.recipe().is_jim084() {
-            let prefix = match vm.jim_namespace_upvar_target_bytes(&namespace_bytes, b"") {
+            let Some(protocol) = vm
+                .actual_native_invocation_dialect()
+                .native_jim_lookup_protocol()
+            else {
+                return vm.refuse_host_command(
+                    "Jim namespace upvar target protocol is unavailable".into(),
+                );
+            };
+            let canonical = match vm.jim_namespace_upvar_canonical_bytes(&namespace_bytes) {
                 Ok(bytes) => bytes,
                 Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
             };
@@ -776,8 +784,7 @@ fn ns_upvar(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                     Ok(bytes) => bytes,
                     Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                 };
-                let mut target = prefix.clone();
-                target.extend_from_slice(&other);
+                let target = protocol.namespace_upvar_target(canonical.as_bytes(), &other);
                 argv.push(Value::from_string_bytes(target));
                 argv.push(local_word.map_or_else(Value::empty, |word| rest[word].clone()));
             }

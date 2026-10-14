@@ -76,6 +76,21 @@ impl NativeJimLookupProtocol {
         bytes
     }
 
+    /// Counted target authored by the namespace-upvar helper after its actual
+    /// namespace canonicalisation. Target bytes are appended literally.
+    /// This constructs an operand without selecting a variable or frame.
+    #[must_use]
+    pub fn namespace_upvar_target(
+        self,
+        canonical_namespace: &[u8],
+        original_target: &[u8],
+    ) -> Vec<u8> {
+        let mut target = self.namespace_current_result(canonical_namespace);
+        target.extend_from_slice(b"::");
+        target.extend_from_slice(original_target);
+        target
+    }
+
     /// Canonicalise an origin operand in the actual caller namespace. The
     /// helper's alias and command getters independently execute in root.
     ///
@@ -378,4 +393,21 @@ fn origin_canonical_roles_keep_query_names_independent_of_reports() {
         recipe.namespace_origin_canonical(NativeNameContext::new(&path), b"name"),
         Err(crate::naming::NameProjectionUnavailable::MissingJimNamespaceObject)
     );
+}
+
+#[cfg(test)]
+#[test]
+fn namespace_upvar_targets_keep_original_counted_helper_geometry() {
+    let protocol = NativeJimLookupProtocol::jim084();
+    for (canonical, other, expected) in [
+        (b"".as_slice(), b"x".as_slice(), b"::::x".as_slice()),
+        (b"N", b"x", b"::N::x"),
+        (b"N", b"::x", b"::N::::x"),
+        (b"N", b"", b"::N::"),
+        (b"", b"", b"::::"),
+        (b"outer::child", b"x", b"::outer::child::x"),
+        (b"N\0tail", b"x\0tail", b"::N\0tail::x\0tail"),
+    ] {
+        assert_eq!(protocol.namespace_upvar_target(canonical, other), expected);
+    }
 }
