@@ -188,6 +188,19 @@ const LINDEX: &str = "lindex";
 const LSET: &str = "lset";
 const STRING_INDEX: &str = "string index";
 
+/// The release-dependent facts the dynamic bounds proofs read, all derived from
+/// the document's dialect.
+#[derive(Debug, Clone, Copy)]
+pub struct BoundsRelease {
+    /// The character-counting rule for `string index` lengths.
+    pub characters: Option<StringCharacterModel>,
+    /// The numeral grammar an index literal is read under.
+    pub numbers: NumberSyntax,
+    /// [`tcl_dialect::TclVersion::lset_appends_at_length_for`] for the
+    /// dialect's release.
+    pub lset_appends_at_length: Option<bool>,
+}
+
 /// A proven out-of-range dynamic index access.
 #[derive(Debug, Clone)]
 pub struct BoundsFinding {
@@ -353,8 +366,15 @@ fn reaching_versions(
 }
 
 /// Reason string if `index` is *wholly* out of range for `length`, else `None`.
-/// `lset` permits the append slot (`index == length`); `lindex` does not.
-fn classify(index: Interval, length: i64, is_lset: bool) -> Option<&'static str> {
+/// `lindex` never reaches `length`; `lset` may, as an append, where
+/// `lset_appends` says every candidate release takes it (`Some(true)`) or the
+/// releases disagree (`None`).
+fn classify(
+    index: Interval,
+    length: i64,
+    is_lset: bool,
+    lset_appends: Option<bool>,
+) -> Option<&'static str> {
     // Provably negative: the whole interval is below 0.
     if let Some(hi) = index.hi
         && hi < 0
@@ -362,14 +382,11 @@ fn classify(index: Interval, length: i64, is_lset: bool) -> Option<&'static str>
         return Some("negative");
     }
     // Provably past the end.
-    if let Some(lo) = index.lo {
-        if is_lset {
-            if lo > length {
-                return Some("past_append");
-            }
-        } else if lo >= length {
-            return Some("past_end");
-        }
+    let appends = is_lset && lset_appends != Some(false);
+    if let Some(lo) = index.lo
+        && lo >= length + i64::from(appends)
+    {
+        return Some(if appends { "past_append" } else { "past_end" });
     }
     None
 }
@@ -605,19 +622,18 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction, grammar: tcl_dialect::Lex
 /// an integer where it is read ([`refine_interval`]). `executable` restricts
 /// to SCCP-reachable blocks.
 ///
-/// `numbers` is the target release's numeric-literal grammar, threaded from the
-/// analyser's dialect alongside `characters` (the same shape of dialect-derived
-/// fact): it decides what an index literal in the guarded expression *is* —
-/// `0755` is 493 up to 8.6 and 755 from 9.0 — so a version-blind read can prove
-/// a range that reality never has.
+/// `release` carries the dialect-derived facts a proof reads: the numeric-literal
+/// grammar, which decides what an index literal in the guarded expression *is*
+/// (`0755` is 493 up to 8.6 and 755 from 9.0), the character model, and whether
+/// `lset` appends at a list's length — so a version-blind read can prove a range
+/// that reality never has.
 #[must_use]
 pub fn find_interval_bounds_with<S, T>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     (sccp, types): (&SccpResult, &HashMap<ValueKey, TypeLattice, T>),
     executable: &std::collections::HashSet<BlockId, S>,
-    characters: Option<StringCharacterModel>,
-    numbers: NumberSyntax,
+    release: BoundsRelease,
     grammar: tcl_dialect::LexerGrammar,
 ) -> Vec<BoundsFinding>
 where
@@ -631,10 +647,11 @@ where
         ssa,
         sccp,
         types,
-        intervals: compute_intervals_with(cfg, ssa, &sccp.values, numbers),
+        intervals: compute_intervals_with(cfg, ssa, &sccp.values, release.numbers),
         lengths: list_length_map(ssa, grammar),
         grammar,
-        str_lengths: string_length_map(ssa, characters),
+        lset_appends_at_length: release.lset_appends_at_length,
+        str_lengths: string_length_map(ssa, release.characters),
         phi_index: ssa
             .blocks
             .values()
@@ -695,6 +712,9 @@ struct BoundsCtx<'a, T> {
     str_lengths: HashMap<ValueKey, i64>,
     phi_index: PhiIndex<'a>,
     defs: DefIndex<'a>,
+    /// Whether `lset` appends at a list's length under the target release
+    /// ([`tcl_dialect::TclVersion::lset_appends_at_length_for`]).
+    lset_appends_at_length: Option<bool>,
     /// The document dialect's lexer grammar — how a literal list word divides
     /// and where a `[…]` substitution's word boundaries fall, so a length
     /// proof matches the document's own parser.
@@ -796,7 +816,7 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
         if iv.is_top() || iv.is_bottom() {
             return;
         }
-        let Some(reason) = classify(iv, length, cand.is_lset) else {
+        let Some(reason) = classify(iv, length, cand.is_lset, self.lset_appends_at_length) else {
             return;
         };
         let code = if cand.is_lset {
@@ -1124,13 +1144,37 @@ mod tests {
     }
 
     fn bounds(src: &str) -> Vec<(String, String)> {
+        bounds_for(src, "tcl8.6")
+    }
+
+    fn bounds_for(src: &str, dialect: &str) -> Vec<(String, String)> {
         let mut a = Analyser::new();
-        a.analyse(src, "tcl8.6")
+        a.analyse(src, dialect)
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W230" | "W231" | "W232"))
             .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
+    }
+
+    /// The index `$j` is the list's length: an append from 8.6, a raise on
+    /// tclsh 8.4.20 and 8.5.19; a document naming no release is not told.
+    #[test]
+    fn lset_index_at_the_length_follows_the_release() {
+        let src = "proc f {v} { set l {a b c}\n set j 3\n lset l $j $v }";
+        for dialect in ["tcl8.4", "tcl8.5"] {
+            let v = bounds_for(src, dialect);
+            assert_eq!(v.len(), 1, "{dialect}: {v:?}");
+            assert_eq!(v[0].0, "W231");
+            assert!(v[0].1.contains("past the end (3)"), "{v:?}");
+        }
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "tcl"] {
+            assert!(bounds_for(src, dialect).is_empty(), "{dialect}");
+        }
+        let past = "proc f {v} { set l {a b c}\n set j 4\n lset l $j $v }";
+        for dialect in ["tcl8.4", "tcl8.6", "tcl"] {
+            assert_eq!(bounds_for(past, dialect).len(), 1, "{dialect}");
+        }
     }
 
     #[test]

@@ -522,6 +522,40 @@ impl TclVersion {
         }
     }
 
+    /// Whether `lset` appends when an index equals the length of the list it
+    /// addresses, rather than raising `list index out of range`.
+    ///
+    /// Tcl 8.6 reads the index against `elemCount` inclusive (`TclLsetFlat`,
+    /// `tclListObj.c` 8.6.18:1444, `index > elemCount`); 8.4 and 8.5 reject it
+    /// (8.4.20:1175 and 8.5.19:1373, `index >= elemCount`). Measured on
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: `set x {a b c}; lset x 3
+    /// Z` raises on the first two and gives `a b c Z` on the rest, and so does
+    /// the empty list's `lset x 0 Z`. The rule holds at every level of a
+    /// nested index path, and for the `end+1` spelling where the release reads
+    /// it as an index at all (8.4 calls it a bad index).
+    #[must_use]
+    pub const fn lset_appends_at_length(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// [`Self::lset_appends_at_length`] for the release a consumer targets,
+    /// or — when it names none — the answer **every** release gives, `None`
+    /// where they disagree.
+    ///
+    /// Unanimity is over [`Self::ALL`], so a document that selects no release
+    /// is never told that an `lset` at the length raises (8.4/8.5) or that it
+    /// appends (8.6 and later): the boundary index is the one place the
+    /// releases split.
+    #[must_use]
+    pub fn lset_appends_at_length_for(release: Option<Self>) -> Option<bool> {
+        if let Some(release) = release {
+            return Some(release.lset_appends_at_length());
+        }
+        let mut answers = Self::ALL.into_iter().map(Self::lset_appends_at_length);
+        let first = answers.next()?;
+        answers.all(|answer| answer == first).then_some(first)
+    }
+
     /// Whether the core implements `namespace path` (introduced in Tcl 8.5).
     #[must_use]
     pub const fn has_namespace_path(self) -> bool {
@@ -1332,6 +1366,23 @@ mod tests {
         RequirementValidationError, StringCharacterModel, TclVersion, Ternary, exact_requirement,
         validate_requirement, validate_version,
     };
+
+    #[test]
+    fn lset_appends_at_the_length_from_8_6() {
+        for v in [TclVersion::V8_4, TclVersion::V8_5] {
+            assert!(!v.lset_appends_at_length(), "{v:?}");
+            assert_eq!(TclVersion::lset_appends_at_length_for(Some(v)), Some(false));
+        }
+        for v in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            assert!(v.lset_appends_at_length(), "{v:?}");
+            assert_eq!(TclVersion::lset_appends_at_length_for(Some(v)), Some(true));
+        }
+    }
+
+    #[test]
+    fn lset_append_boundary_has_no_answer_without_a_release() {
+        assert_eq!(TclVersion::lset_appends_at_length_for(None), None);
+    }
 
     #[test]
     fn regex_compile_error_prefix_is_reworded_in_9_0() {

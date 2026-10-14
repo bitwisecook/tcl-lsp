@@ -1845,7 +1845,12 @@ impl Analyser {
             &self.source,
             registry,
             self.lexer_config(),
-            numbers,
+            // The numerals the document is lexed under, which an ingress
+            // grammar may set apart from the profile's.
+            crate::interval_bounds::BoundsRelease {
+                numbers,
+                ..self.bounds_release()
+            },
         );
         let str_diags =
             super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens, numbers);

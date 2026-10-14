@@ -1389,6 +1389,22 @@ impl Analyser {
         tcl_syntax::word_rules::WordValueRules::from_grammar(&self.grammar())
     }
 
+    /// The release-dependent facts the index-bounds proofs read for this
+    /// document: its character model, its numeral grammar, and whether `lset`
+    /// appends at a list's length — `Some` when the profile names a measured
+    /// release, or every release agrees, and `None` where they split
+    /// ([`tcl_dialect::TclVersion::lset_appends_at_length_for`]).
+    pub(super) fn bounds_release(&self) -> crate::interval_bounds::BoundsRelease {
+        let release = (!self.result.dialect.is_empty())
+            .then(|| self.profile.const_fold_version())
+            .flatten();
+        crate::interval_bounds::BoundsRelease {
+            characters: self.profile.character_model(),
+            numbers: crate::intervals::numbers_for_dialect(Some(self.profile)),
+            lset_appends_at_length: tcl_dialect::TclVersion::lset_appends_at_length_for(release),
+        }
+    }
+
     /// [`Self::lexer_config`] for the **whole-file** segmentation at the top of
     /// [`Self::analyse`] — the one place that stands where a Tcl runtime's
     /// `source` stands, and therefore the only place that may skip a leading

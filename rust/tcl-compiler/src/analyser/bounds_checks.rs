@@ -1056,7 +1056,11 @@ fn lindex_diagnostics(
 /// Unlike `lindex` (which silently returns empty), `lset` raises a
 /// runtime error; a plain negative literal always errors, and — when the
 /// list length is recoverable from a recent literal `set` — an index past
-/// the append slot (`> length`) or below zero errors too.
+/// the length or below zero errors too. An index equal to the length is the
+/// append slot only where `release.lset_appends_at_length`
+/// ([`tcl_dialect::TclVersion::lset_appends_at_length_for`]) says the release
+/// takes it: it raises when every candidate release refuses it, and stays
+/// quiet when any accepts.
 pub(crate) fn lset_index_diagnostics(
     cmd_name: &str,
     args: &[String],
@@ -1064,8 +1068,9 @@ pub(crate) fn lset_index_diagnostics(
     source: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
     lexer_config: tcl_lexer::LexerConfig,
-    numbers: tcl_dialect::NumberSyntax,
+    release: crate::interval_bounds::BoundsRelease,
 ) -> Vec<Diagnostic> {
+    let numbers = release.numbers;
     // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if cmd_name != "lset" || args.len() < 3 || arg_tokens.len() < 3 {
         return Vec::new();
@@ -1112,20 +1117,30 @@ pub(crate) fn lset_index_diagnostics(
             ));
             continue;
         }
-        // `lset` accepts the append slot (`index == length`); only
-        // indices past it or below zero are runtime errors.
+        // Past the length or below zero raises under every release; the
+        // length itself raises only where `lset` does not append there.
         if let Some(length) = list_len {
             let Some(resolved) = resolve_index(stripped, length, numbers) else {
                 continue;
             };
-            if resolved < 0 || resolved > length {
+            if resolved < 0
+                || resolved > length
+                || (resolved == length && release.lset_appends_at_length == Some(false))
+            {
+                let reason = if resolved == length {
+                    format!(
+                        "{}; this release does not append at the list length (Tcl 8.6 does)",
+                        describe_index(resolved, length)
+                    )
+                } else {
+                    describe_index(resolved, length)
+                };
                 out.push(crate::analyser::types::Diagnostic::new(
                     DiagCode::W231,
                     idx_tok.span,
                     format!(
-                        "lset index '{stripped}' {}; \
-                         raises 'index out of range' at runtime.",
-                        describe_index(resolved, length)
+                        "lset index '{stripped}' {reason}; \
+                         raises 'index out of range' at runtime."
                     ),
                     Severity::Warning,
                 ));
@@ -2413,6 +2428,57 @@ mod tests {
                 "{dialect} reads 010 as out-of-range decimal 10"
             );
         }
+    }
+
+    /// `lset` takes an index equal to the list's length as an append from 8.6;
+    /// tclsh 8.4.20 and 8.5.19 raise `list index out of range` there, as does
+    /// JimTcl (measured, with the empty list's `0`).
+    #[test]
+    fn w231_reads_the_length_as_an_append_only_from_8_6() {
+        for src in [
+            "set x {a b c}\nlset x 3 Z\n",
+            "set x {a b c}\nlset x {3} Z\n",
+            "set x {}\nlset x 0 Z\n",
+        ] {
+            for dialect in ["tcl8.4", "tcl8.5"] {
+                let m = code_msgs_for(src, dialect, "W231");
+                assert_eq!(m.len(), 1, "{dialect}: {src:?}");
+                assert!(m[0].contains("does not append at the list length"), "{m:?}");
+            }
+            for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+                assert!(
+                    code_msgs_for(src, dialect, "W231").is_empty(),
+                    "{dialect} appends: {src:?}"
+                );
+            }
+        }
+    }
+
+    /// `end+1` names the length of a three-element list. 8.5 reads it and
+    /// raises; 8.4 does not read it as an index at all (`bad index`), so
+    /// W231's out-of-range claim is not made there.
+    #[test]
+    fn w231_end_plus_one_follows_the_release() {
+        let src = "set x {a b c}\nlset x end+1 Z\n";
+        assert_eq!(code_msgs_for(src, "tcl8.5", "W231").len(), 1);
+        assert!(code_msgs_for(src, "tcl8.4", "W231").is_empty());
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert!(code_msgs_for(src, dialect, "W231").is_empty(), "{dialect}");
+        }
+        let past = "set x {a b c}\nlset x end+2 Z\n";
+        assert_eq!(code_msgs_for(past, "tcl8.5", "W231").len(), 1);
+        assert_eq!(code_msgs_for(past, "tcl8.6", "W231").len(), 1);
+    }
+
+    /// A document that names no release is not told the boundary raises: the
+    /// releases disagree there. An index past the length still raises under
+    /// all of them.
+    #[test]
+    fn w231_abstains_at_the_length_when_no_release_is_selected() {
+        let at = "set x {a b c}\nlset x 3 Z\n";
+        let past = "set x {a b c}\nlset x 4 Z\n";
+        assert!(code_msgs_for(at, "tcl", "W231").is_empty());
+        assert_eq!(code_msgs_for(past, "tcl", "W231").len(), 1);
     }
 
     /// A write this scan cannot turn into a fresh length invalidates the one
