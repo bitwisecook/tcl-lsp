@@ -34,6 +34,7 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 use crate::index;
+use crate::value_size;
 
 /// `string length str` — the character count.
 pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
@@ -139,6 +140,7 @@ pub fn repeat<O: ValueOps>(
     // recover from (the unbounded `str::repeat` this replaces aborted the
     // process with `memory allocation of 200000000000 bytes failed`).
     let capacity = usize::try_from(total).map_err(|_| overflow())?;
+    value_size::charge(ops, |_, _| capacity as u64)?;
     let mut out = String::new();
     out.try_reserve_exact(capacity).map_err(|_| overflow())?;
     let n = usize::try_from(n).unwrap_or(0);
@@ -498,12 +500,16 @@ pub fn insert<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, C
 }
 
 /// `string cat ?arg ...?` — concatenate the string reps of all arguments.
-pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
+///
+/// # Errors
+/// The value-size limit, when the concatenation would be over it.
+pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    value_size::charge(ops, |ops, cap| value_size::joined(ops, args, 0, cap))?;
     let mut out = String::new();
     for a in args {
         out.push_str(&ops.as_str(a));
     }
-    ops.new_string(out)
+    Ok(ops.new_string(out))
 }
 
 /// The default `string trim` set — every Unicode space character plus NUL
@@ -701,6 +707,7 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
         .collect();
     let src: Vec<char> = string.chars().collect();
     let mut out = String::with_capacity(string.len());
+    let limit = ops.value_size_limit();
     let mut i = 0;
     'outer: while i < src.len() {
         for (key, folded_key, to) in &keys {
@@ -716,6 +723,11 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
             };
             if hit {
                 out.push_str(to);
+                // A short key mapped to a long value multiplies the input, so
+                // the limit is charged as the result grows.
+                if limit.is_some_and(|limit| out.len() as u64 > limit) {
+                    value_size::charge(ops, |_, _| out.len() as u64)?;
+                }
                 i += klen;
                 continue 'outer;
             }
@@ -773,7 +785,7 @@ pub fn dispatch_canon<O: ValueOps>(
         }
         "equal" => Some(compare(ops, rest, CompareMode::Equal)),
         "compare" => Some(compare(ops, rest, CompareMode::Compare)),
-        "cat" => Some(Ok(cat(ops, rest))),
+        "cat" => Some(cat(ops, rest)),
         "match" => Some(string_match(ops, rest)),
         "map" => Some(map(ops, rest)),
         "toupper" => Some(case_convert(

@@ -32,6 +32,7 @@ use tcl_syntax::number::Radix;
 use tcl_syntax::value::{IntegerMagnitude, ValueOps};
 
 use crate::error::CmdError;
+use crate::value_size;
 
 /// Whether `verb` belongs to the format conversion grammar consumed by the
 /// shared renderer.  This forwards the parser owner rather than maintaining a
@@ -143,6 +144,21 @@ fn render<O: ValueOps>(
         let mut fields = ConversionFields::from(&spec);
         let arg = consume_conversion_args(ops, &mut fields, args, &mut arg_state)?;
         fields.apply_to(&mut spec);
+        // A field is at least its width and its argument, and a numeric
+        // conversion at least its precision (`%.9d` pads with zeros; a `%s`
+        // precision only truncates): all charged before the field is rendered.
+        value_size::charge(ops, |ops, cap| {
+            let precision = if spec.verb == b's' {
+                0
+            } else {
+                spec.precision.unwrap_or(0)
+            };
+            let field = ops
+                .measure_value(arg, cap)
+                .max(spec.width.unwrap_or(0) as u64)
+                .max(precision as u64);
+            (out.len() as u64).saturating_add(field)
+        })?;
         out.push_str(&render_spec(ops, &spec, arg, syntax)?);
         i = j;
     }

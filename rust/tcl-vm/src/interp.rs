@@ -1440,6 +1440,35 @@ pub(crate) struct LimitSet {
     /// hosted body can leave no state behind that a later call reads
     /// ([`Vm::confine_store`]).
     confined_stores: bool,
+    /// The limit the running evaluation outran, kept until the limit is set
+    /// again or an embedder begins the next invocation: every later dispatch
+    /// fails with the same error, so a body that catches the error cannot run
+    /// on past its budget, and the embedder reads which limit it was whatever
+    /// the body did with the error (C's sticky `Tcl_LimitExceeded`).
+    exceeded: Option<LimitKind>,
+}
+
+/// Which limit an evaluation outran.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LimitKind {
+    /// The `commands` limit.
+    Commands,
+    /// The `time` limit.
+    WallClock,
+    /// The value-size limit.
+    ValueSize,
+}
+
+impl LimitKind {
+    /// The error an evaluation that outran this limit fails with.
+    #[must_use]
+    pub const fn message(self) -> &'static str {
+        match self {
+            Self::Commands => "command count limit exceeded",
+            Self::WallClock => "time limit exceeded",
+            Self::ValueSize => "value size limit exceeded",
+        }
+    }
 }
 
 impl Default for LimitSet {
@@ -1453,6 +1482,7 @@ impl Default for LimitSet {
             time_value: None,
             value_bytes: None,
             confined_stores: false,
+            exceeded: None,
         }
     }
 }
@@ -4067,9 +4097,6 @@ impl Vm {
         })
     }
 
-    /// A fresh child interpreter sharing this one's output sink, compile
-    /// service, and host — its command table, namespaces, variables, and
-    /// channels are otherwise independent (`interp create`).
     /// A fresh child interpreter's *bare* state (no builtins yet): its own
     /// command table, namespaces, variables, and channels, but the parent's
     /// output sink, compile service, host, and runtime version (`interp
@@ -4098,7 +4125,12 @@ impl Vm {
     /// `interp create ?-safe? ?name?` — make a child interpreter in the arena,
     /// registering it as a command in the current interp. Returns the (possibly
     /// auto-generated) name.
+    ///
+    /// A safe parent's children are safe whether or not `-safe` was asked for
+    /// (C's `Tcl_CreateChild`), so safety is settled here before the child's
+    /// command table is populated and scrubbed.
     pub(crate) fn create_child(&mut self, name: Option<String>, safe: bool) -> String {
+        let safe = safe || self.state.is_safe;
         let name = name.unwrap_or_else(|| {
             let n = format!("interp{}", self.interp_counter);
             self.interp_counter += 1;
@@ -4277,7 +4309,7 @@ impl Vm {
         self.limit_tick = self.limit_tick.wrapping_add(1);
         // Poll roughly every 4096 ticks (the low 12 bits clear).
         if self.limit_tick.trailing_zeros() >= 12 && self.time_limit_exceeded() {
-            return Some(err("time limit exceeded"));
+            return Some(self.exceed_limit_inner(LimitKind::WallClock));
         }
         None
     }
@@ -4286,6 +4318,7 @@ impl Vm {
     /// against, in host-clock milliseconds. The embedder-facing wrapper is
     /// [`Vm::set_wall_clock_budget`].
     pub(crate) fn set_time_limit_deadline(&mut self, deadline_millis: Option<i128>) {
+        self.forget_exceeded(LimitKind::WallClock);
         self.limits.time_value = deadline_millis.map(|deadline| {
             let seconds = i64::try_from(deadline / 1000).unwrap_or(i64::MAX);
             let millis = i64::try_from(deadline % 1000).unwrap_or(0);
@@ -4306,9 +4339,31 @@ impl Vm {
     /// from a hook body.
     pub(crate) fn charge_command(&mut self) -> Option<Completion<Value>> {
         self.commands_run = self.commands_run.saturating_add(1);
+        if let Some(kind) = self.limits.exceeded {
+            return Some(err(kind.message()));
+        }
         let limit = self.limits.cmd_value?;
         let limit = u64::try_from(limit).unwrap_or(0);
-        (self.commands_run > limit).then(|| err("command count limit exceeded"))
+        (self.commands_run > limit).then(|| self.exceed_limit_inner(LimitKind::Commands))
+    }
+
+    /// Record that the running evaluation outran `kind`, and answer its error.
+    pub(crate) fn exceed_limit_inner(&mut self, kind: LimitKind) -> Completion<Value> {
+        self.limits.exceeded = Some(kind);
+        err(kind.message())
+    }
+
+    /// The limit the running (or last) evaluation outran, if it outran one.
+    pub(crate) fn limit_exceeded_value(&self) -> Option<LimitKind> {
+        self.limits.exceeded
+    }
+
+    /// Forget a recorded breach of `kind`: the limit was set again, so the
+    /// evaluation stands against the new value (`Tcl_LimitSetCommands`).
+    fn forget_exceeded(&mut self, kind: LimitKind) {
+        if self.limits.exceeded == Some(kind) {
+            self.limits.exceeded = None;
+        }
     }
 
     /// Refuse a single allocation of `bytes` when it would exceed the armed
@@ -4323,9 +4378,9 @@ impl Vm {
     ///
     /// Checked *before* allocating, so the refusal costs nothing and the
     /// memory is never requested.
-    pub(crate) fn charge_allocation(&self, bytes: u64) -> Option<Completion<Value>> {
+    pub(crate) fn charge_allocation(&mut self, bytes: u64) -> Option<Completion<Value>> {
         let limit = self.limits.value_bytes?;
-        (bytes > limit).then(|| err("value size limit exceeded"))
+        (bytes > limit).then(|| self.exceed_limit_inner(LimitKind::ValueSize))
     }
 
     /// The value-size limit, if one is armed.
@@ -4335,6 +4390,7 @@ impl Vm {
 
     /// Arm (or disarm) the value-size limit.
     pub(crate) fn set_value_size_limit_value(&mut self, limit: Option<u64>) {
+        self.forget_exceeded(LimitKind::ValueSize);
         self.limits.value_bytes = limit;
     }
 
@@ -4444,6 +4500,7 @@ impl Vm {
 
     /// Arm (or disarm) the `commands` limit.
     pub(crate) fn set_command_limit_value(&mut self, limit: Option<i64>) {
+        self.forget_exceeded(LimitKind::Commands);
         self.limits.cmd_value = limit;
     }
 
@@ -4452,9 +4509,11 @@ impl Vm {
         self.commands_run
     }
 
-    /// Zero the command counter — an embedder's per-invocation fuel refill.
+    /// Zero the command counter and forget a breach — an embedder's
+    /// per-invocation fuel refill.
     pub(crate) fn reset_command_count_inner(&mut self) {
         self.commands_run = 0;
+        self.limits.exceeded = None;
     }
 
     /// `interp limit limitType ?-option value …?` on this interp (query / set;
@@ -4511,6 +4570,7 @@ impl Vm {
                             if n < 0 {
                                 return Err("command limit value must be at least 0".into());
                             }
+                            self.forget_exceeded(LimitKind::Commands);
                             self.limits.cmd_value = Some(n);
                         }
                     }
@@ -4588,6 +4648,7 @@ impl Vm {
                     // Normalise excess milliseconds into seconds.
                     sec += ms.div_euclid(1000);
                     ms = ms.rem_euclid(1000);
+                    self.forget_exceeded(LimitKind::WallClock);
                     self.limits.time_value = Some((sec, ms));
                 }
                 Ok(Value::string(""))

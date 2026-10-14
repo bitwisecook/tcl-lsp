@@ -83,7 +83,7 @@ pub use command::NativeCommand;
 pub use debug::{DebugAction, DebugFrame, DebugHook, DebugSnapshot, DebugVar};
 pub use embed::FunctionHandle;
 pub use error::TclError;
-pub use interp::Vm;
+pub use interp::{LimitKind, Vm};
 pub use value::Value;
 
 pub use tcl_runtime_api::{

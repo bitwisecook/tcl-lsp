@@ -121,6 +121,18 @@ unsafe fn dict_mut<'a>(obj: *mut TclObj) -> &'a mut TclDict {
     unsafe { &mut *(obj::internal_rep(obj) as usize as *mut TclDict) }
 }
 
+/// `f` over `obj`'s entries when it already holds the dict rep — no shimmer.
+pub(crate) fn with_dict_rep<R>(
+    obj: *mut TclObj,
+    f: impl FnOnce(&[(*mut TclObj, *mut TclObj)]) -> R,
+) -> Option<R> {
+    if obj::obj_type_ptr(obj) != &TCL_DICT_TYPE {
+        return None;
+    }
+    // SAFETY: the dict type was just checked.
+    Some(f(&unsafe { dict_ref(obj) }.entries))
+}
+
 // type procs
 
 extern "C" fn dict_free(obj: *mut TclObj) {

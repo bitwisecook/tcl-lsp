@@ -84,6 +84,18 @@ fn str_to_bytes(s: &str) -> Vec<u8> {
 impl ValueOps for Interp {
     type Value = *mut TclObj;
 
+    fn value_size_limit(&self) -> Option<u64> {
+        self.value_limit()
+    }
+
+    fn measure_value(&mut self, v: &*mut TclObj, cap: u64) -> u64 {
+        crate::budget::measured_bytes(*v, cap)
+    }
+
+    fn admit_value_bytes(&mut self, bytes: u64) -> bool {
+        self.charge_allocation(bytes).is_none()
+    }
+
     fn new_str(&mut self, s: &str) -> *mut TclObj {
         obj::new_string_bytes(&str_to_bytes(s))
     }

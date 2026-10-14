@@ -33,6 +33,7 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 use crate::index::{self, IndexReading};
+use crate::value_size;
 
 fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
@@ -165,6 +166,16 @@ pub fn lrepeat<O: ValueOps>(
         )));
     }
     let n = usize::try_from(n).unwrap_or(0);
+    value_size::charge(ops, |ops, cap| {
+        let once = value_size::joined(ops, values, 1, cap);
+        if values.is_empty() {
+            0
+        } else {
+            (once.saturating_add(1))
+                .saturating_mul(n as u64)
+                .saturating_sub(1)
+        }
+    })?;
     let mut out = Vec::with_capacity(n.saturating_mul(values.len()));
     for _ in 0..n {
         out.extend(values.iter().cloned());
@@ -439,7 +450,11 @@ const TCL_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
 
 /// `concat ?arg ...?` — trim each argument and join with single spaces, dropping
 /// the args that are empty after trimming.
-pub fn concat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
+///
+/// # Errors
+/// The value-size limit, when the result would be over it.
+pub fn concat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    value_size::charge(ops, |ops, cap| value_size::joined(ops, args, 1, cap))?;
     let mut parts: Vec<String> = Vec::new();
     for v in args {
         let s = ops.as_str(v);
@@ -448,7 +463,7 @@ pub fn concat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
             parts.push(t.to_string());
         }
     }
-    ops.new_string(parts.join(" "))
+    Ok(ops.new_string(parts.join(" ")))
 }
 
 /// Trim leading/trailing whitespace from one `concat` element, matching C's
@@ -489,6 +504,9 @@ pub fn join<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let sep = sep.map_or_else(|| " ".to_string(), |s| ops.as_str(s).to_string());
     let elems = ops.list_elements(value)?;
+    value_size::charge(ops, |ops, cap| {
+        value_size::joined(ops, &elems, sep.len() as u64, cap)
+    })?;
     let mut parts: Vec<String> = Vec::with_capacity(elems.len());
     for e in &elems {
         parts.push(ops.as_str(e).to_string());

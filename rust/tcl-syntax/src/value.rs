@@ -497,6 +497,30 @@ pub trait ValueOps {
     fn try_list_append_in_place(&mut self, _list: &mut Self::Value, _item: &Self::Value) -> bool {
         false
     }
+
+    // -- the embedder's value-size limit --
+
+    /// The byte length no single value may exceed, when an embedder has set
+    /// one. The default (no limit) lets a builder skip measuring altogether.
+    fn value_size_limit(&self) -> Option<u64> {
+        None
+    }
+
+    /// The byte length `v` has, or would have once rendered, measured no
+    /// further than just past `cap`. A runtime overrides this to measure a
+    /// list or dict through its elements rather than render it: rendering is
+    /// itself an allocation the limit must see first.
+    fn measure_value(&mut self, v: &Self::Value, cap: u64) -> u64 {
+        let _ = cap;
+        self.as_str(v).len() as u64
+    }
+
+    /// Admit a value of `bytes` bytes about to be built, or refuse it — and
+    /// record the refusal as the evaluation's breach — when it is over
+    /// [`value_size_limit`](Self::value_size_limit).
+    fn admit_value_bytes(&mut self, bytes: u64) -> bool {
+        self.value_size_limit().is_none_or(|limit| bytes <= limit)
+    }
 }
 
 #[cfg(test)]

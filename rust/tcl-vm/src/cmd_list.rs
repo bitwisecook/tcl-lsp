@@ -315,7 +315,7 @@ fn vm_compare(
 }
 
 fn cmd_concat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    ok(list_core::concat(vm, args))
+    adapt(list_core::concat(vm, args))
 }
 
 fn cmd_join(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

@@ -120,11 +120,13 @@ $ tcl pkg audit --lines 20
 ## Notes
 
 - The sandbox always applies a portable baseline (environment scrubbed of
-  credentials, working-directory confinement, timeouts). Stronger OS-native
-  confinement (Landlock/seccomp, Seatbelt, `pledge`/`unveil`, Capsicum, Job
-  Objects) is layered on where available; where it is not, `fail-closed`
-  policies refuse rather than run under-confined, and commands report the
-  isolation level they achieved.
+  credentials, working-directory confinement, timeouts). It adds filesystem
+  and network confinement where the host provides it: Landlock and seccomp on
+  Linux, Seatbelt on macOS, an AppContainer on Windows (for commands that name
+  the paths they may reach). The BSDs run at the baseline. Where a restriction
+  cannot be enforced, `fail-closed` policies refuse rather than run
+  under-confined, and the audit log records the isolation level and which
+  restrictions (`network_enforced`, `filesystem_enforced`) were enforced.
 - Hooks receive context as `TCLPKG_*` environment variables
   (`TCLPKG_NAME`, `TCLPKG_VERSION`, `TCLPKG_SOURCE_URL`, `TCLPKG_INTEGRITY`,
   `TCLPKG_PKG_DIR`); reference them in a hook `command` with `${TCLPKG_…}`.

@@ -35,6 +35,8 @@
 use std::time::Duration;
 
 use crate::interp::{Code, Interp};
+use crate::obj::{self, TclObj};
+use crate::{dict, list};
 
 /// Which limit an evaluation outran.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,6 +221,24 @@ impl Interp {
         self.budget.borrow().value_bytes.is_some()
     }
 
+    /// The value-size limit, if one is set.
+    pub(crate) fn value_limit(&self) -> Option<u64> {
+        self.budget.borrow().value_bytes
+    }
+
+    /// Charge a command's result against the value-size limit once it is
+    /// built: what a builder that is not charged before it allocates made, so
+    /// no value over the limit outlives the command that built it.
+    pub(crate) fn charge_result(&mut self, code: Code) -> Code {
+        let Some(limit) = self.value_limit() else {
+            return code;
+        };
+        if measured_bytes(self.result_obj(), limit) > limit {
+            return self.exceed_limit(LimitKind::ValueSize);
+        }
+        code
+    }
+
     /// Refuse to build a value of `bytes` bytes over the value-size limit,
     /// before anything is allocated: one command can ask for more memory than
     /// the process has while the command count and the clock are still nearly
@@ -231,4 +251,52 @@ impl Interp {
             .is_some_and(|limit| bytes > limit);
         over.then(|| self.exceed_limit(LimitKind::ValueSize))
     }
+}
+
+/// How deep [`measured_bytes`] follows nested lists and dicts; past it an
+/// element counts as one byte.
+const MEASURE_DEPTH: u32 = 256;
+
+/// The bytes `obj` has, or would have once rendered, counting no further than
+/// just past `cap`: its string rep when it has one, and a list's or dict's
+/// elements plus a separator between each otherwise (the quoting rendering may
+/// add is not counted). A list is measured through its elements rather than
+/// rendered — a list holding itself twice, nested a few dozen deep, renders to
+/// more than any host has.
+pub(crate) fn measured_bytes(obj: *mut TclObj, cap: u64) -> u64 {
+    measured_bytes_at_depth(obj, cap, 0)
+}
+
+fn measured_bytes_at_depth(obj: *mut TclObj, cap: u64, depth: u32) -> u64 {
+    // SAFETY: `obj` is a live object; its string rep slot is read, not changed.
+    let (bytes, length) = unsafe { ((*obj).bytes, (*obj).length) };
+    if !bytes.is_null() {
+        return u64::try_from(length).unwrap_or(0);
+    }
+    if depth >= MEASURE_DEPTH {
+        return 1;
+    }
+    let elements = |items: &mut dyn Iterator<Item = *mut TclObj>| {
+        let mut total = 0u64;
+        for (i, item) in items.enumerate() {
+            total = total
+                .saturating_add(u64::from(i > 0))
+                .saturating_add(measured_bytes_at_depth(
+                    item,
+                    cap.saturating_sub(total),
+                    depth + 1,
+                ));
+            if total > cap {
+                break;
+            }
+        }
+        total
+    };
+    list::with_list_rep(obj, |items| elements(&mut items.iter().copied()))
+        .or_else(|| {
+            dict::with_dict_rep(obj, |entries| {
+                elements(&mut entries.iter().flat_map(|&(key, value)| [key, value]))
+            })
+        })
+        .unwrap_or_else(|| obj::bytes_of(obj).len() as u64)
 }

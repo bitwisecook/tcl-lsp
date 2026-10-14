@@ -407,6 +407,49 @@ pub fn generate<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<O::Value, &'sta
     Ok(ops.new_list(elems))
 }
 
+/// Charge a series of `len` elements against the value-size limit before it is
+/// built: each element renders to at least one byte, with a separator between.
+fn charge_series<O: ValueOps>(ops: &mut O, len: i128) -> Result<(), &'static [u8]> {
+    let bytes = u64::try_from(len.saturating_mul(2).saturating_sub(1)).unwrap_or(0);
+    crate::value_size::charge(ops, |_, _| bytes)
+        .map_err(|_| crate::value_size::VALUE_SIZE_EXCEEDED.as_bytes())
+}
+
+/// The bytes a series renders to so far, charged against the value-size
+/// limit as it is built: [`charge_series`] can only count a byte per element
+/// before the elements exist, so a series of long numerals is stopped here
+/// once it crosses the limit, not after it is whole.
+struct SeriesMeter {
+    limit: Option<u64>,
+    bytes: u64,
+}
+
+impl SeriesMeter {
+    fn new<O: ValueOps>(ops: &O) -> Self {
+        Self {
+            limit: ops.value_size_limit(),
+            bytes: 0,
+        }
+    }
+
+    fn add<O: ValueOps>(&mut self, ops: &mut O, element: &O::Value) -> Result<(), &'static [u8]> {
+        let Some(limit) = self.limit else {
+            return Ok(());
+        };
+        let separator = u64::from(self.bytes > 0);
+        self.bytes = self
+            .bytes
+            .saturating_add(separator)
+            .saturating_add(ops.measure_value(element, limit));
+        if self.bytes > limit {
+            let bytes = self.bytes;
+            return crate::value_size::charge(ops, |_, _| bytes)
+                .map_err(|_| crate::value_size::VALUE_SIZE_EXCEEDED.as_bytes());
+        }
+        Ok(())
+    }
+}
+
 /// `power10` for the precision scaling.
 fn power10(n: u32) -> f64 {
     10f64.powi(n as i32)
@@ -458,13 +501,17 @@ fn build_int<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<Vec<O::Value>, &'s
     if len > i128::from(MAX_MATERIALIZE) {
         return Err(b"max length of a Tcl list exceeded");
     }
+    charge_series(ops, len)?;
     let len = len as i64;
+    let mut meter = SeriesMeter::new(ops);
     let mut out = Vec::with_capacity(len as usize);
     for i in 0..len {
         // s + i*st, computed in i128 (each value is in range, so the cast is
         // lossless) — avoids accumulation overflow at the i64 boundary.
         let v = (i128::from(s) + i128::from(i) * i128::from(st)) as i64;
-        out.push(ops.new_int(v));
+        let element = ops.new_int(v);
+        meter.add(ops, &element)?;
+        out.push(element);
     }
     Ok(out)
 }
@@ -515,10 +562,14 @@ fn build_double<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<Vec<O::Value>, 
     if len > MAX_MATERIALIZE {
         return Err(b"max length of a Tcl list exceeded");
     }
+    charge_series(ops, i128::from(len))?;
+    let mut meter = SeriesMeter::new(ops);
     let mut out = Vec::with_capacity(len as usize);
     for i in 0..len {
         let d = arith_round(ds + (i as f64) * dstep, prec);
-        out.push(ops.new_double(d));
+        let element = ops.new_double(d);
+        meter.add(ops, &element)?;
+        out.push(element);
     }
     Ok(out)
 }

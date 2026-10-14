@@ -441,8 +441,39 @@ impl Vm {
         self.command_count()
     }
 
-    /// Zero the command counter — refill the fuel before an invocation.
+    /// Zero the command counter and forget the last invocation's breach —
+    /// refill the fuel before an invocation.
     pub fn reset_command_count(&mut self) {
         self.reset_command_count_inner();
+    }
+
+    /// The limit the running (or last) invocation outran, if it outran one.
+    /// Kept whatever the body did with the error: a `catch` of a limit error
+    /// does not let the body run on, and does not hide the breach from the
+    /// embedder.
+    #[must_use]
+    pub fn limit_exceeded(&self) -> Option<crate::LimitKind> {
+        self.limit_exceeded_value()
+    }
+
+    /// Charge `value` — a result about to leave the VM — against the
+    /// value-size limit, recording the breach when it is over. Answers whether
+    /// it was within the limit.
+    pub fn charge_value_size(&mut self, value: &Value) -> bool {
+        let Some(limit) = self.value_size_limit_value() else {
+            return true;
+        };
+        if value.measured_bytes(limit) <= limit {
+            return true;
+        }
+        let _ = self.exceed_limit_inner(crate::LimitKind::ValueSize);
+        false
+    }
+
+    /// Record that work run on the body's behalf outran `kind` — a limit the
+    /// VM itself could not see, such as a host command's own budget — and
+    /// answer the error the command fails with.
+    pub fn exceed_limit(&mut self, kind: crate::LimitKind) -> Completion<Value> {
+        self.exceed_limit_inner(kind)
     }
 }

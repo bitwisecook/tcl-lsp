@@ -400,11 +400,12 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     // The path is a list of interp names; an empty/absent path auto-names a
     // child of this interp, otherwise the leaf is created inside the interp
-    // addressed by the parent segments (`interp create {a b}`).
+    // addressed by the parent segments (`interp create {a b}`). A safe parent
+    // makes every child safe, with or without `-safe` (`Tcl_CreateChild`).
     let path = name_obj.map(interp_path).unwrap_or_default();
     let Some((leaf, parent)) = path.split_last() else {
         let created = interp.create_child(None);
-        if safe {
+        if safe || interp.is_safe() {
             interp.with_child(&created, |c| c.make_safe());
         }
         interp.set_result(obj::new_string_bytes(&created));
@@ -416,7 +417,7 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return Err(()); // already exists
         }
         a.create_child(Some(leaf.clone()));
-        if safe {
+        if safe || a.is_safe() {
             a.with_child(&leaf, |c| c.make_safe());
         }
         Ok(())

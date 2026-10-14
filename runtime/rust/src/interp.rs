@@ -7943,13 +7943,15 @@ impl Interp {
         // `enter`/`leave` traces. Only the step machinery is gated, in
         // `dispatch_traced`.
         let traced = !self.traces.borrow().cmd_traces.is_empty();
-        if !traced {
-            return match prebound {
+        let code = if traced {
+            self.dispatch_traced(argv, prebound)
+        } else {
+            match prebound {
                 Some((_, binding)) => self.invoke(binding.command, argv),
                 None => self.dispatch_inner(argv),
-            };
-        }
-        self.dispatch_traced(argv, prebound)
+            }
+        };
+        self.charge_result(code)
     }
 
     /// Slow path: the command may carry execution (enter/leave/step) traces, or
@@ -11245,6 +11247,35 @@ mod tests {
                       [info exists ::tclDefaultLibrary] [info exists ::tcl_pkgPath]}"
                 ),
                 b"0 0 0 0 0"
+            );
+        });
+    }
+
+    /// A safe parent's children are safe with or without `-safe`, at every
+    /// level, including a child addressed by path; a `marktrusted` parent's are
+    /// not (tclsh 8.6.18 / 9.0.4 agree).
+    #[test]
+    fn children_of_a_safe_interp_inherit_safety() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    b"interp create -safe s; interp create n; list \
+                      [s eval {interp issafe [interp create]}] \
+                      [s eval {interp issafe [interp create -safe]}] \
+                      [s eval {interp create t; t eval {interp issafe [interp create]}}] \
+                      [n eval {interp issafe [interp create]}] \
+                      [s eval {interp issafe t}] \
+                      [interp issafe [interp create {s p}]]"
+                ),
+                b"1 1 1 0 1 1"
+            );
+            assert_eq!(
+                ok(
+                    i,
+                    b"interp marktrusted s; s eval {interp issafe [interp create]}"
+                ),
+                b"0"
             );
         });
     }

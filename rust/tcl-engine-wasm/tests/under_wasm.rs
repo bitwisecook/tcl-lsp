@@ -343,9 +343,10 @@ fn growing_the_memory_past_the_value_size_budget_is_that_budget() {
             "{body}"
         );
     }
+    // Within the cap: 100 one-byte elements and their separators.
     assert_eq!(
-        run(&mut engine, "llength [lrepeat 1000 x]"),
-        Ok("1000".to_owned())
+        run(&mut engine, "llength [lrepeat 100 x]"),
+        Ok("100".to_owned())
     );
 }
 
@@ -783,8 +784,10 @@ fn the_extension_host_evaluates_on_a_fresh_instance_each_time() {
 }
 
 /// Each budget an evaluation outruns is its own decline: the command count and
-/// the fuel that stands in for it, the wall clock, the memory's growth, and a
-/// result over the value size; under them all, the same command answers.
+/// the fuel that stands in for it, the wall clock, and the value size — the
+/// memory's growth, and a command's result over the size, which the
+/// interpreter refuses where it is built; under them all, the same command
+/// answers.
 #[test]
 fn each_budget_an_evaluation_outruns_is_its_own_decline() {
     let Some(built) = built() else {
@@ -839,7 +842,7 @@ fn each_budget_an_evaluation_outruns_is_its_own_decline() {
                 ..budget
             },
             "pkga_calc range 1000",
-            BudgetLimit::ResultBytes,
+            BudgetLimit::AllocationBytes,
         ),
     ] {
         assert_eq!(
