@@ -69,13 +69,8 @@ fn frameless_runtime_set() -> &'static HashSet<String> {
     })
 }
 
-/// Compatibility registry for dialect-blind var-escape entry points.
-///
-/// Tcl 8.6 is the compiler's documented plain-Tcl baseline. Unlike an owned
-/// `build_default()` registry, this cached registry carries an explicit
-/// profile, so structured subcommand/form resolution is never surface-blind.
-/// Production callers should pass their selected registry via
-/// the `*_with_registry` APIs instead.
+/// Explicit standalone catalogue for raw fixture adapters.
+#[cfg(test)]
 pub(crate) fn default_registry() -> &'static CommandRegistry {
     tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
 }

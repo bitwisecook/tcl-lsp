@@ -16,6 +16,7 @@ pub(crate) struct OriginalJimLocalCommand {
     slot: CommandSlot,
     generation: u64,
     node: std::rc::Weak<JimCommandNode>,
+    retired: Rc<std::cell::Cell<bool>>,
     currency: super::native_operation_currency::NativeOperationCurrency,
 }
 
@@ -201,13 +202,16 @@ impl Vm {
             });
         scope.require(self, valid, "original Jim local producer binding")?;
         let (slot, generation) = selected.expect("checked selected local binding");
+        let node = node.expect("checked selected local node");
+        let retired = Rc::clone(&node.upgrade().expect("checked selected local node").retired);
         Ok(OriginalJimLocalCommand {
             original,
             interpreter: self.cur,
             world: Rc::clone(&self.name_world),
             slot,
             generation,
-            node: node.expect("checked selected local node"),
+            node,
+            retired,
             currency: scope.currency().clone(),
         })
     }
@@ -223,17 +227,40 @@ impl Vm {
             let _ = crate::command::completion_from_cmd_error(self, error.clone());
         }
         for record in records.into_iter().rev() {
+            let mut current_name = None;
             if first.is_none()
                 && let Ok(original_names) = &names_scope
             {
-                if let Err(error) = original_names.read(self, &record.original) {
-                    let _ = crate::command::completion_from_cmd_error(self, error.clone());
-                    first = Some(error);
+                let name = original_names
+                    .read(self, &record.original)
+                    .and_then(|bytes| {
+                        let protocol = self
+                            .actual_native_invocation_dialect()
+                            .native_name_protocol()
+                            .ok_or_else(|| {
+                                self.refuse_original_jim_local_cleanup(
+                                    "original Jim local cleanup hash protocol",
+                                )
+                            })?;
+                        protocol
+                            .jim_command_table_comparison(&bytes)
+                            .map(super::NameBytes::from)
+                            .map_err(|_| {
+                                self.refuse_original_jim_local_cleanup(
+                                    "original Jim local cleanup hash protocol",
+                                )
+                            })
+                    });
+                match name {
+                    Ok(name) => current_name = Some(name),
+                    Err(error) => {
+                        let _ = crate::command::completion_from_cmd_error(self, error.clone());
+                        first = Some(error);
+                    }
                 }
             }
-            // This mandatory stage uses only the producer's existing receipt.
-            // Refusal never grants another String getter or a fresh name lookup.
-            if let Err(error) = self.clean_captured_jim_local_command(record) {
+            // After a refusal, only the already captured cleanup role remains available.
+            if let Err(error) = self.clean_captured_jim_local_command(record, current_name) {
                 let _ = crate::command::completion_from_cmd_error(self, error.clone());
                 first.get_or_insert(error);
             }
@@ -264,6 +291,7 @@ impl Vm {
     fn clean_captured_jim_local_command(
         &mut self,
         record: OriginalJimLocalCommand,
+        current_name: Option<super::NameBytes>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         if self.st_of(record.interpreter).is_none() {
             let error =
@@ -281,23 +309,55 @@ impl Vm {
             let reached = (|| {
                 let key = vm.command_storage_key_at_slot(&record.slot);
                 let node = record.node.upgrade();
-                let table_current = operation.is_ok()
+                let owner_current = operation.is_ok()
                     && Rc::ptr_eq(&record.world, &vm.name_world)
                     && vm.name_world.borrow().is_live()
-                    && vm.native_namespace_token_has_owner(record.slot.namespace)
+                    && vm.native_namespace_token_has_owner(record.slot.namespace);
+                // Jim's cleanup does nothing when its original slot was already deleted.
+                if owner_current && key.is_none() && record.retired.get() {
+                    return Ok(());
+                }
+                let current_entry = owner_current
+                    && vm.execution_refusal.is_none()
+                    && record.slot.namespace == super::ROOT_NS
+                    && current_name.as_ref() == Some(&record.slot.simple)
+                    && vm
+                        .name_world
+                        .borrow()
+                        .jim_command_original_keys
+                        .get(&record.slot)
+                        .is_some_and(|key| {
+                            key.original.check_native_header().is_ok()
+                                && key.table.comparison_bytes() == record.slot.simple.as_bytes()
+                        })
                     && key.as_ref().is_some_and(|key| {
-                        vm.visible_command_generation(key) == Some(record.generation)
-                    })
-                    && node.as_ref().is_some_and(|node| {
-                        node.published.get()
-                            && vm
-                                .name_world
-                                .borrow()
-                                .jim_command_receipts
-                                .get(&record.generation)
-                                .and_then(std::rc::Weak::upgrade)
-                                .is_some_and(|current| Rc::ptr_eq(node, &current))
+                        vm.visible_command_generation(key)
+                            .is_some_and(|generation| {
+                                vm.name_world
+                                    .borrow()
+                                    .jim_command_receipts
+                                    .get(&generation)
+                                    .and_then(std::rc::Weak::upgrade)
+                                    .is_some_and(|current| {
+                                        current.published.get() && current.token == generation
+                                    })
+                            })
                     });
+                let table_current = current_entry
+                    || (owner_current
+                        && key.as_ref().is_some_and(|key| {
+                            vm.visible_command_generation(key) == Some(record.generation)
+                        })
+                        && node.as_ref().is_some_and(|node| {
+                            node.published.get()
+                                && vm
+                                    .name_world
+                                    .borrow()
+                                    .jim_command_receipts
+                                    .get(&record.generation)
+                                    .and_then(std::rc::Weak::upgrade)
+                                    .is_some_and(|current| Rc::ptr_eq(node, &current))
+                        }));
                 if !table_current {
                     return Err(vm.refuse_original_jim_local_cleanup(
                         "original Jim local cleanup selected binding",
@@ -934,6 +994,36 @@ mod tests {
     }
 
     #[test]
+    fn deleted_local_cleanup_uses_retirement_without_reaching_a_replacement() {
+        let (mut vm, slot, _, released) = selected_local();
+        let (original, record) = captured_local_record(&mut vm, &slot);
+        assert!(!record.retired.get());
+        let key = vm.command_storage_key_at_slot(&slot).unwrap();
+        vm.remove_registered_command(&key);
+        assert!(record.retired.get());
+        assert!(vm.command_storage_key_at_slot(&slot).is_none());
+        let before = released.borrow().clone();
+        vm.clean_jim_local_commands(vec![record]).unwrap();
+        assert!(vm.execution_refusal.is_none());
+        assert!(vm.command_storage_key_at_slot(&slot).is_none());
+        assert_eq!(*released.borrow(), before);
+        assert_eq!(original.native_object_reference_count(), 1);
+    }
+
+    #[test]
+    fn a_missing_slot_without_its_actual_retirement_receipt_refuses_cleanup() {
+        let (mut vm, slot, _, _) = selected_local();
+        let (_, mut record) = captured_local_record(&mut vm, &slot);
+        let key = vm.command_storage_key_at_slot(&slot).unwrap();
+        vm.remove_registered_command(&key);
+        assert!(record.retired.get());
+        record.retired = std::rc::Rc::new(std::cell::Cell::new(false));
+        assert!(vm.clean_jim_local_commands(vec![record]).is_err());
+        assert!(vm.execution_refusal.is_some());
+        assert!(vm.command_storage_key_at_slot(&slot).is_none());
+    }
+
+    #[test]
     fn original_jim_local_frame_receipt_keeps_a_recreated_binding_unreached_after_refusal() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
@@ -972,5 +1062,24 @@ mod tests {
             original.resident_string_bytes().unwrap().as_ref(),
             b"original_local"
         );
+    }
+}
+
+#[cfg(test)]
+mod current_cleanup_tests {
+    #[test]
+    fn available_local_cleanup_selects_the_actual_recreated_entry() {
+        let profile = tcl_registry::model::resolve_environment("jim").unit_profile();
+        let mut vm = crate::Vm::new();
+        assert!(vm.set_native_engine_profile(profile));
+        vm.set_dialect_profile(profile);
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        let source = "proc p {} {return BASE};proc driver {} {local proc p {} {return LOCAL};rename p {};proc p {} {return OTHER};return DONE};list [driver] [llength [info commands p]]";
+        let result = vm.try_eval_source(source).unwrap();
+        assert!(result.code.is_ok());
+        assert_eq!(result.result.string_bytes().as_ref(), b"DONE 0");
+        assert!(vm.execution_refusal.is_none());
     }
 }

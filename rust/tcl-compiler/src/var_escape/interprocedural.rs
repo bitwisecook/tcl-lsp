@@ -184,34 +184,13 @@ impl EscapeCallGraph {
     }
 }
 
-/// Return a new map of summaries with callee-induced escapes
-/// folded in. The input *summaries* is the per-proc
-/// (intra-procedural) result; the output is keyed identically
-/// and is what codegen should consume.
-///
-/// Dialect-blind: the `pure_leaf` downgrade below classifies a callee with
-/// no summary against plain Tcl. Callers holding the unit's registry should
-/// use [`solve_interprocedural_escape_with_registry`] (#2179).
+/// Propagate escapes through the graph's already selected body identities.
+/// Graph ingress owns Registry and source resolution; this fixed point performs
+/// no command lookup and cannot recover an unresolved callee from its spelling.
 #[must_use]
 pub fn solve_interprocedural_escape<S: BuildHasher>(
     summaries: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary, S>,
     graph: &EscapeCallGraph,
-) -> HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> {
-    solve_interprocedural_escape_with_registry(summaries, graph, super::helpers::default_registry())
-}
-
-/// Registry-aware form of [`solve_interprocedural_escape`].
-///
-/// The registry decides which summary-less callees are frameless, and so
-/// which callers keep `pure_leaf` — the inliner's predicate. `tcl8.6` marks
-/// `lassign`, `lrepeat`, `lreverse`, `namespace`, `puts` and `throw`
-/// frameless where `f5-irules` marks none of them, so the blind answer is
-/// the permissive one.
-#[must_use]
-pub fn solve_interprocedural_escape_with_registry<S: BuildHasher>(
-    summaries: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary, S>,
-    graph: &EscapeCallGraph,
-    _registry: &tcl_registry::CommandRegistry,
 ) -> HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> {
     if summaries.is_empty() {
         return HashMap::new();

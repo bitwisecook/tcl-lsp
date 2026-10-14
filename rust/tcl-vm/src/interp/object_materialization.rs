@@ -77,7 +77,7 @@ impl InterpState {
                 .native_string_materialization(None)
                 .map(ObjectMaterialization::Native);
         }
-        if self.bootstrap != NativeBootstrapPurpose::Distribution {
+        if !matches!(self.bootstrap, NativeBootstrapPurpose::Distribution) {
             return None;
         }
         self.native_invocation_dialect()

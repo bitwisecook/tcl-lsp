@@ -430,8 +430,13 @@ impl<'a> NativeNameProjection<'a> {
     /// available separately in `selected`, including redundant root markers.
     #[must_use]
     pub fn jim_flat_key(&self) -> Option<&[u8]> {
-        (self.protocol == NativeNameProtocol::Jim084 && is_command_purpose(self.purpose))
-            .then(|| strip_jim_root(&self.selected))
+        is_command_purpose(self.purpose)
+            .then(|| {
+                self.protocol
+                    .jim_command_table_comparison(&self.selected)
+                    .ok()
+            })
+            .flatten()
     }
 }
 
@@ -1059,6 +1064,21 @@ impl NativeNameProtocol {
         self.command_c_api_publication_projection(context, original)
             .map(NativeCommandSlotProjection::into_slot)
     }
+    /// Jim's command hash comparison keeps counted bytes and removes leading root markers.
+    /// This supplies no live header, namespace or table-entry authority.
+    ///
+    /// # Errors
+    /// Returns unavailable for an engine without Jim's command hash protocol.
+    pub fn jim_command_table_comparison(
+        self,
+        original: &[u8],
+    ) -> Result<&[u8], NameProjectionUnavailable> {
+        if !self.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        Ok(strip_jim_root(original))
+    }
+
     /// Jim's current-namespace candidate and independent global fallback key.
     ///
     /// # Errors
@@ -5136,5 +5156,34 @@ mod command_visibility_diagnostic_tests {
             ),
             Err(NameProjectionUnavailable::PurposeNotModelled)
         );
+    }
+}
+
+#[cfg(test)]
+mod jim_command_hash_comparison_tests {
+    use super::*;
+
+    #[test]
+    fn original_jim_hash_comparison_retains_counted_zero_bytes_and_root_geometry() {
+        let jim = NativeNameProtocol::Jim084;
+        for (original, key) in [
+            (b"p".as_slice(), b"p".as_slice()),
+            (b"::::p".as_slice(), b"p".as_slice()),
+            (b"p\0x".as_slice(), b"p\0x".as_slice()),
+            (b"::p\0x".as_slice(), b"p\0x".as_slice()),
+            (b"p\0y".as_slice(), b"p\0y".as_slice()),
+        ] {
+            assert_eq!(jim.jim_command_table_comparison(original).unwrap(), key);
+        }
+        assert_ne!(
+            jim.jim_command_table_comparison(b"p\0x"),
+            jim.jim_command_table_comparison(b"p\0y")
+        );
+        for version in TclVersion::ALL {
+            assert_eq!(
+                NativeNameProtocol::C(version).jim_command_table_comparison(b"p"),
+                Err(NameProjectionUnavailable::PurposeNotModelled)
+            );
+        }
     }
 }

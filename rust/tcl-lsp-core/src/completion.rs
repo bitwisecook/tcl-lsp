@@ -241,10 +241,20 @@ fn char_col_to_utf16(line_text: &str, char_col: usize) -> u32 {
 /// method-completion gate: a `$var` instance variable, or a plain bareword
 /// instance-command name (a Tk widget path, or `CLASS create NAME`).
 /// Substituted / decorated heads are neither.
-fn dispatch_receiver_of(cmd: &str, config: tcl_lexer::LexerConfig) -> Option<(String, bool)> {
-    strip_instance_var(cmd, config)
-        .map(|v| (v, true))
-        .or_else(|| (!cmd.is_empty() && !cmd.contains(['$', '['])).then(|| (cmd.to_owned(), false)))
+fn dispatch_receiver_of(word: &tcl_lexer::NativeWord) -> Option<(String, bool)> {
+    if word.group().expand {
+        return None;
+    }
+    let written = word.image().try_text().ok()?.get(word.span().as_range())?;
+    if let Some(name) = strip_instance_var(written, word.config()) {
+        return Some((name, true));
+    }
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+    if value.contains(&0) {
+        return None;
+    }
+    let name = String::from_utf8(value).ok()?;
+    (!name.is_empty()).then_some((name, false))
 }
 
 fn context_aware_completions(
@@ -291,7 +301,9 @@ fn context_aware_completions(
     if !analysis.allows_lexical_declaration_advice() {
         return original_context::items(source, cursor, line, character, analysis, partial);
     }
-    let (cmd, word_idx) = command_context_on_line(source, line, character)?;
+    let command = command_context_on_line(source, line, character, analysis)?;
+    let cmd = command.head_text()?;
+    let word_idx = command.word_index;
 
     // `$obj <method>` / `.w <subcommand>` — when the command head is an
     // instance variable *or* a bareword instance-command name (a Tk widget
@@ -305,7 +317,7 @@ fn context_aware_completions(
     // variable of the same name happens to hold an object elsewhere.
     let line_index = tcl_lexer::LineIndex::new(source);
     if word_idx == 1
-        && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd, analysis.body_lexer_config?)
+        && let Some((recv, is_dollar)) = dispatch_receiver_of(&command.head)
         && let Some((class_q, bucket)) = crate::definition::logical_receiver_candidate_at(
             analysis,
             &recv,
@@ -982,43 +994,62 @@ fn array_element_completions(
     items
 }
 
-/// Determine the surrounding command's name and the cursor's
-/// word index on the current line.  Returns `(command,
-/// word_index)` where `word_index` is the 0-based position of
-/// the cursor (0 = typing the command name, 1 = typing the
-/// first argument, etc.).
-///
-/// **Single-line context only.**  Continuation lines, embedded
-/// `[…]` / `{…}` token nesting, and `;` command separators are
-/// not handled here.  The single-line approach covers the common
-/// editor cases (cursor on the same logical line as the
-/// command head) and shares its shape with the single-line
-/// helper in [`crate::signature_help`].
-fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(String, usize)> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let prefix: String = chars[..col].iter().collect();
+/// Original whole head and the cursor's zero-based argument position.
+struct CompletionCommandContext {
+    head: tcl_lexer::NativeWord,
+    word_index: usize,
+}
 
-    // Tokenise on whitespace.  The first token is the command;
-    // the count of subsequent tokens (adjusted for whether the
-    // cursor sits mid-token) gives the word index.
-    let tokens: Vec<&str> = prefix.split_whitespace().collect();
-    if tokens.is_empty() {
+impl CompletionCommandContext {
+    fn head_text(&self) -> Option<String> {
+        if let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(&self.head)
+        {
+            return String::from_utf8(value).ok();
+        }
+        Some(
+            self.head
+                .image()
+                .try_text()
+                .ok()?
+                .get(self.head.span().as_range())?
+                .to_owned(),
+        )
+    }
+}
+
+/// Whole command and operand geometry in the current line prefix. This retains
+/// lexical candidate context; receiver binding and Registry selection are separate.
+fn command_context_on_line(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<CompletionCommandContext> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let image = analysis.retained_command_realm()?.original_source_image()?;
+    let index = tcl_lexer::LineIndex::new(source);
+    let start = crate::definition::byte_offset_at(&index, source, line, 0);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let prefix = tcl_lexer::Span::new(start, cursor);
+    let plan = tcl_lexer::native_script_words_in(image.clone(), prefix, current.config()).ok()?;
+    if plan.fatal_tail.is_some() {
         return None;
     }
-    let command = tokens[0].to_owned();
-
-    // If the prefix ends with whitespace the cursor is *between*
-    // tokens — at the start of a fresh word.  Otherwise the
-    // cursor is inside the last token.
-    let ends_in_space = prefix.ends_with(|c: char| c.is_whitespace());
-    let word_index = if ends_in_space {
-        tokens.len()
+    let command = plan.commands.last()?;
+    if command.source_extent?.end() != cursor {
+        return None;
+    }
+    let head = command.words.first()?.clone();
+    if head.group().expand {
+        return None;
+    }
+    let last = command.words.last()?;
+    let word_index = if last.span().end() < cursor {
+        command.words.len()
     } else {
-        tokens.len().saturating_sub(1)
+        command.words.len().checked_sub(1)?
     };
-    Some((command, word_index))
+    Some(CompletionCommandContext { head, word_index })
 }
 
 /// The instance-variable name in a `$obj` / `${obj}` command head, or
@@ -2575,10 +2606,9 @@ fn fuzzy_command_fallback(
         ));
     }
     if analysis.allows_lexical_declaration_advice()
-        && let Some((cmd, word_idx)) = command_context_on_line(source, line, character)
-        && word_idx == 1
-        && let Some(config) = analysis.body_lexer_config
-        && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd, config)
+        && let Some(command) = command_context_on_line(source, line, character, analysis)
+        && command.word_index == 1
+        && let Some((recv, is_dollar)) = dispatch_receiver_of(&command.head)
         && let Some((class_q, bucket)) = crate::definition::logical_receiver_candidate_at(
             analysis,
             &recv,
@@ -6396,6 +6426,73 @@ mod configured_receiver_completion_tests {
                 .iter()
                 .all(|item| item.label != "$literal" && item.label != "two words")
         );
+    }
+
+    #[test]
+    fn completion_command_geometry_keeps_whole_literal_and_variable_heads() {
+        for (source, name, variable, argument) in [
+            ("${two words} method", "two words", true, 1),
+            ("${$literal} method", "$literal", true, 1),
+            ("{$literal} method", "$literal", false, 1),
+            ("{two words} method", "two words", false, 1),
+            ("set x 1; ${two words} ", "two words", true, 1),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let character = u32::try_from(source.encode_utf16().count()).unwrap();
+            let command = command_context_on_line(source, 0, character, &analysis)
+                .expect("actual configured original command prefix");
+            assert_eq!(command.word_index, argument, "{source}");
+            assert_eq!(
+                dispatch_receiver_of(&command.head),
+                Some((name.into(), variable))
+            );
+            assert!(
+                command_context_on_line(&format!("#{source}"), 0, character, &analysis).is_none()
+            );
+        }
+        for source in [
+            "set x 1; ",
+            "${two words}(index) method",
+            "[compute] method",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let character = u32::try_from(source.encode_utf16().count()).unwrap();
+            assert!(
+                command_context_on_line(source, 0, character, &analysis)
+                    .and_then(|command| dispatch_receiver_of(&command.head))
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_method_completion_keeps_grouped_scalar_receiver_names() {
+        for (declaration, head) in [
+            ("{two words}", "${two words}"),
+            ("{$literal}", "${$literal}"),
+        ] {
+            for selector in ["longMet", "longMethd"] {
+                let source = format!(
+                    "oo::class create C {{method longMethod {{}} {{}}}}\nset {declaration} [C new]\n{head} {selector}"
+                );
+                let analysis = Analyser::new().analyse(&source, "tcl");
+                let character =
+                    u32::try_from(source.lines().nth(2).unwrap().encode_utf16().count()).unwrap();
+                let items = completions(
+                    &source,
+                    2,
+                    character,
+                    &analysis,
+                    analysis.resolved_registry(),
+                    None,
+                    analysis.resolved_profile().unwrap(),
+                );
+                assert!(
+                    items.iter().any(|item| item.label == "longMethod"),
+                    "{source}: {items:?}"
+                );
+            }
+        }
     }
 
     #[test]

@@ -40,6 +40,7 @@ pub(super) struct JimCommandNode {
     pub(super) observed_name: OriginalJimCommandName,
     pub(super) table_key: RefCell<tcl_syntax::naming::NativeJimCommandTableKey>,
     pub(super) published: Cell<bool>,
+    pub(super) retired: Rc<Cell<bool>>,
     pub(super) active: Cell<usize>,
     pub(super) previous: RefCell<Option<Rc<Self>>>,
     pub(super) previous_owners: Cell<usize>,
@@ -81,6 +82,7 @@ impl Drop for JimCommandLease {
 
 impl native_name_world::NativeNameWorld {
     pub(super) fn retire_jim_node(&mut self, node: &Rc<JimCommandNode>) -> Vec<Rc<JimCommandNode>> {
+        node.retired.set(true);
         self.note_jim_retirement(node.token);
         let previous = node.previous.borrow_mut().take();
         let Some(previous) = previous else {
@@ -263,6 +265,7 @@ impl Vm {
             observed_name: OriginalJimCommandName::default(),
             table_key: RefCell::new(table_key),
             published: Cell::new(true),
+            retired: Rc::new(Cell::new(false)),
             active: Cell::new(0),
             previous: RefCell::new(None),
             previous_owners: Cell::new(0),

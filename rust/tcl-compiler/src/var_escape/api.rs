@@ -43,7 +43,7 @@ use crate::ir::Module;
 use tcl_core_types::BodyFrameId;
 
 use super::cfg_propagation::{CfgEscapeResult, analyse_cfg_function_with_registry};
-use super::interprocedural::solve_interprocedural_escape_with_registry;
+use super::interprocedural::solve_interprocedural_escape;
 use super::slot_resolution::populate_local_slots;
 use super::types::{EscapeTag, ProcEscapeSummary};
 use super::walker::{analyse_script, analyse_script_with_registry};
@@ -142,10 +142,9 @@ pub fn analyse_var_escape_with_registry(
         );
     }
     if interprocedural {
-        result = solve_interprocedural_escape_with_registry(
+        result = solve_interprocedural_escape(
             &result,
             &super::interprocedural::EscapeCallGraph::for_module(module, registry),
-            registry,
         );
     }
     populate_local_slots(&result, Some(module))
@@ -246,10 +245,9 @@ pub fn analyse_var_escape_cu_with_registry(
         result.insert(BodyFrameId::Body(*qname), cfg_result_to_summary(&proc));
     }
     if interprocedural {
-        result = solve_interprocedural_escape_with_registry(
+        result = solve_interprocedural_escape(
             &result,
             &super::interprocedural::EscapeCallGraph::for_module(&cu.ir_module, registry),
-            registry,
         );
     }
     populate_local_slots(&result, Some(&cu.ir_module))
