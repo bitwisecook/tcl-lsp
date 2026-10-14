@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::original_procedure_call::logical_may_named_descriptor_tests::logical_may_named_descriptors_keep_shadow_and_unknown_handler_dependencies_open ... 
+thread 'registry_invocation::original_procedure_call::logical_may_named_descriptor_tests::logical_may_named_descriptors_keep_shadow_and_unknown_handler_dependencies_open' (313926) panicked at rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs:843:17:
+assertion failed: dependencies.bodies.contains(id)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::original_procedure_call::logical_may_named_descriptor_tests::logical_may_named_descriptors_keep_shadow_and_unknown_handler_dependencies_open
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.39s
+

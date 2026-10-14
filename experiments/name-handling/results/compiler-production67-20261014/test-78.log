@@ -1,0 +1,15 @@
+
+running 1 test
+test body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit ... 
+thread 'body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit' (313114) panicked at rust/tcl-compiler/src/body_analysis_capsule.rs:795:13:
+source: set x 11111
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 4.09s
+

@@ -1,0 +1,15 @@
+
+running 1 test
+test analyser::diagnostics::tests::w214_no_dispatcher_still_fires_on_peer_family ... 
+thread 'analyser::diagnostics::tests::w214_no_dispatcher_still_fires_on_peer_family' (313065) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11589:5:
+without a dispatcher, an unused protocol-shaped param still fires; got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::w214_no_dispatcher_still_fires_on_peer_family
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 3.05s
+

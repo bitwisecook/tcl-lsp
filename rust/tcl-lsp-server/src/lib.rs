@@ -466,6 +466,34 @@ impl DocumentReadiness {
     }
 }
 
+struct LibraryPublicationSource {
+    uri: Uri,
+    document: DocumentState,
+    open_revision: Option<u64>,
+    uri_generation: u64,
+}
+
+impl LibraryPublicationSource {
+    fn matches_open_documents(&self, documents: &HashMap<Uri, DocumentState>) -> bool {
+        match self.open_revision {
+            Some(revision) => documents.get(&self.uri).is_some_and(|current| {
+                let current = current.clone().normalised_for_analysis();
+                current.publication == DocumentPublication::Indexed
+                    && !current.backing_file_deleted
+                    && current.revision == revision
+                    && current.version == self.document.version
+                    && current.text == self.document.text
+                    && current.dialect == self.document.dialect
+                    && current.dialect_resolution_generation
+                        == self.document.dialect_resolution_generation
+                    && current.resolved_dialect_generation
+                        == self.document.resolved_dialect_generation
+            }),
+            None => !documents.contains_key(&self.uri),
+        }
+    }
+}
+
 struct FreshAnalysisSeed {
     analysis: Arc<AnalysisResult>,
     analyser_inputs_epoch: u64,
@@ -12885,6 +12913,19 @@ impl Backend {
         {
             return None;
         }
+        if core_definition::original_autoload_request_at(
+            source,
+            analysis,
+            position.line,
+            position.character,
+        )
+        .is_some()
+            && !self
+                .ensure_original_library_indexed(uri, source, analysis, position)
+                .await
+        {
+            return None;
+        }
         let documents = self.original_declaration_documents(uri).await;
         let selected = documents
             .iter()
@@ -15004,6 +15045,21 @@ impl Backend {
         pos: Position,
         analysis: &AnalysisResult,
     ) -> jsonrpc::Result<Vec<Location>> {
+        if !analysis.allows_retained_logical_declaration_advice() {
+            if core_definition::original_autoload_request_at(
+                source,
+                analysis,
+                pos.line,
+                pos.character,
+            )
+            .is_none()
+            {
+                return Ok(Vec::new());
+            }
+            return self
+                .cross_document_definition(uri, source, pos, analysis)
+                .await;
+        }
         let Some((word, namespace)) = core_definition::command_head_and_namespace_at(
             source,
             analysis,
@@ -15109,8 +15165,13 @@ impl Backend {
         word: &str,
         namespace: &str,
     ) -> Option<String> {
+        let files = self.required_library_files(uri, analysis).await;
+        self.merge_library_files(word, namespace, files).await
+    }
+
+    async fn required_library_files(&self, uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
         if analysis.package_requires.is_empty() {
-            return None;
+            return Vec::new();
         }
         drop(self.workspace_scan_gate.lock().await);
         // This document's own `auto_path` mutations, folded in first: the
@@ -15176,7 +15237,7 @@ impl Backend {
             }
             files
         };
-        self.merge_library_files(word, namespace, files).await
+        files
     }
 
     /// Merge `files` (library / package implementation files) into the shared
@@ -15247,6 +15308,11 @@ impl Backend {
             return resolved;
         }
 
+        self.publish_library_analyses(&analysed).await;
+        resolved
+    }
+
+    async fn publish_library_analyses(&self, analysed: &[(Uri, Arc<AnalysisResult>)]) {
         // Publish every file as one standalone replacement transaction. A
         // navigation snapshot either sees the previous index or the complete
         // library merge, never a partially merged package nor a standalone
@@ -15254,19 +15320,202 @@ impl Backend {
         let _rehoming_guard = self.rehoming_gate.lock().await;
         {
             let mut index = self.workspace_index.write().await;
-            for (target_uri, file_analysis) in &analysed {
+            for (target_uri, file_analysis) in analysed {
                 index.replace_document(target_uri.as_str(), file_analysis);
             }
         }
         {
             let mut seeds = self.rehomed_source_seeds.lock().await;
             let mut autoloaded = self.autoloaded_library_uris.lock().await;
-            for (target_uri, _) in &analysed {
+            for (target_uri, _) in analysed {
                 seeds.remove(target_uri.as_str());
                 autoloaded.insert(target_uri.as_str().to_owned());
             }
         }
-        resolved
+    }
+
+    async fn library_publication_source(
+        &self,
+        uri: &Uri,
+        document: DocumentState,
+    ) -> Option<LibraryPublicationSource> {
+        let documents = self.documents.lock("library_source_capture").await;
+        let source = LibraryPublicationSource {
+            uri: uri.clone(),
+            open_revision: documents.get(uri).map(|current| current.revision),
+            uri_generation: self.live_publication_uri_generation(uri),
+            document,
+        };
+        source.matches_open_documents(&documents).then_some(source)
+    }
+
+    async fn publish_original_library_analyses(
+        &self,
+        epoch: u64,
+        caller: &LibraryPublicationSource,
+        analysed: &[(LibraryPublicationSource, Arc<AnalysisResult>)],
+    ) -> bool {
+        let _inputs = self.analyser_inputs_gate.read().await;
+        let _rehoming = self.rehoming_gate.lock().await;
+        loop {
+            if self.diag_inputs_epoch() != epoch {
+                return false;
+            }
+            for source in std::iter::once(caller).chain(analysed.iter().map(|(source, _)| source)) {
+                if source.open_revision.is_none() {
+                    let Some(path) = source.uri.to_file_path().map(|path| path.into_owned()) else {
+                        return false;
+                    };
+                    let store = Arc::clone(&self.store);
+                    let Ok(Ok((text, _))) =
+                        crate::rt::spawn_blocking(move || store.read_source(&path)).await
+                    else {
+                        return false;
+                    };
+                    if tcl_lexer::normalise_lone_cr(&text).as_ref() != source.document.text.as_ref()
+                    {
+                        return false;
+                    }
+                }
+            }
+            let documents = self.documents.lock("original_library_publication").await;
+            if self.diag_inputs_epoch() != epoch
+                || std::iter::once(caller)
+                    .chain(analysed.iter().map(|(source, _)| source))
+                    .any(|source| {
+                        !source.matches_open_documents(&documents)
+                            || self.live_publication_uri_generation(&source.uri)
+                                != source.uri_generation
+                    })
+            {
+                return false;
+            }
+            let Ok(mut index) = self.workspace_index.try_write() else {
+                drop(documents);
+                drop(self.workspace_index.write().await);
+                continue;
+            };
+            for (source, analysis) in analysed {
+                let Some(config) = analysis.body_lexer_config else {
+                    return false;
+                };
+                if !analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(&source.document.text),
+                    config,
+                ) {
+                    return false;
+                }
+            }
+            for (source, analysis) in analysed {
+                index.replace_document(source.uri.as_str(), analysis);
+            }
+            drop(index);
+            drop(documents);
+            let mut seeds = self.rehomed_source_seeds.lock().await;
+            let mut autoloaded = self.autoloaded_library_uris.lock().await;
+            for (source, _) in analysed {
+                seeds.remove(source.uri.as_str());
+                autoloaded.insert(source.uri.as_str().to_owned());
+            }
+            return true;
+        }
+    }
+
+    async fn ensure_original_library_indexed(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> bool {
+        let Some(request) = core_definition::original_autoload_request_at(
+            source,
+            analysis,
+            pos.line,
+            pos.character,
+        ) else {
+            return false;
+        };
+        let epoch = self.diag_inputs_epoch();
+        drop(self.workspace_scan_gate.lock().await);
+        let mut files = request.files(&*self.package_resolver.read().await);
+        for file in self.required_library_files(uri, analysis).await {
+            if !files.contains(&file) {
+                files.push(file);
+            }
+        }
+        let mut analysed = Vec::new();
+        for path in files {
+            let Some(owner) = canonical_file_uri(&path) else {
+                return false;
+            };
+            let Some(document) = self.read_document(&owner).await else {
+                return false;
+            };
+            let current = self
+                .analysis_for(&owner, document.text.clone(), document.dialect.clone())
+                .await;
+            let Some(config) = current.body_lexer_config else {
+                return false;
+            };
+            if !current.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&document.text),
+                config,
+            ) {
+                return false;
+            }
+            let Some(publication) = self.library_publication_source(&owner, document).await else {
+                return false;
+            };
+            analysed.push((publication, current));
+        }
+        let Some(document) = self.read_document(uri).await else {
+            return false;
+        };
+        let current = self
+            .analysis_for(uri, document.text.clone(), document.dialect.clone())
+            .await;
+        if document.text.as_ref() != source
+            || self.diag_inputs_epoch() != epoch
+            || core_definition::original_autoload_request_at(
+                &document.text,
+                &current,
+                pos.line,
+                pos.character,
+            )
+            .as_ref()
+                != Some(&request)
+        {
+            return false;
+        }
+        let Some(caller) = self.library_publication_source(uri, document).await else {
+            return false;
+        };
+        self.publish_original_library_analyses(epoch, &caller, &analysed)
+            .await
+    }
+
+    async fn hover_for_original_declaration(
+        &self,
+        identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
+    ) -> Option<CoreHover> {
+        let owner = identity.uri().parse::<Uri>().ok()?;
+        let document = self.read_document(&owner).await?;
+        let current = self
+            .analysis_for(&owner, document.text.clone(), document.dialect)
+            .await;
+        if !identity.is_current(owner.as_str(), &document.text, &current) {
+            return None;
+        }
+        let position = tcl_lexer::LineIndex::new(&document.text)
+            .position_at_utf16(identity.span().start(), &document.text);
+        core_hover::hover(
+            &document.text,
+            position.line,
+            position.character.get(),
+            &current,
+            None,
+        )
     }
 
     /// Hover for a command head the current document cannot resolve, using
@@ -15291,6 +15540,12 @@ impl Backend {
         pos: Position,
         analysis: &AnalysisResult,
     ) -> Option<CoreHover> {
+        if !analysis.allows_retained_logical_declaration_advice() {
+            let identity = self
+                .original_declaration_identity_at(uri, source, analysis, pos)
+                .await?;
+            return self.hover_for_original_declaration(&identity).await;
+        }
         // Cross-document tier: a proc / class defined in a sibling document
         // the workspace index knows about.
         let symbols = self
@@ -51328,6 +51583,251 @@ proc p {} {
             refs.iter()
                 .any(|l| l.uri == lib_uri && l.range.start.line == 1),
             "library-internal call site: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn original_autoload_navigation_joins_current_source_declaration_identity() {
+        let backend = test_backend();
+        let lib_uri = seed_autoload_library(&backend, "original-autoload-navigation").await;
+        let app = Uri::from_str("file:///original-autoload-app.tcl").unwrap();
+        let source = "Rbc_ActiveLegend .g\n";
+        register(&backend, &app, source).await;
+        let document = backend.read_document(&app).await.unwrap();
+        let analysis = backend
+            .analysis_for(&app, document.text.clone(), document.dialect)
+            .await;
+        assert!(!analysis.allows_retained_logical_declaration_advice());
+        let position = Position::new(0, 3);
+        let locations = backend
+            .autoload_definition(&app, source, position, &analysis)
+            .await
+            .unwrap();
+        assert_eq!(locations.len(), 1, "{locations:?}");
+        assert_eq!(locations[0].uri, lib_uri);
+        assert_eq!(locations[0].range.start.line, 0);
+        let hover = backend
+            .cross_document_hover(&app, source, position, &analysis)
+            .await
+            .expect("current original library declaration hover");
+        assert!(hover.value.contains("Rbc_ActiveLegend"), "{hover:?}");
+        assert!(
+            backend
+                .autoload_definition(&app, &format!("{source} "), position, &analysis)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        let mut missing = analysis.as_ref().clone();
+        missing.resolved_input = None;
+        assert!(
+            backend
+                .autoload_definition(&app, source, position, &missing)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            backend
+                .cross_document_hover(&app, source, position, &missing)
+                .await
+                .is_none()
+        );
+        assert!(
+            backend
+                .autoload_definition(&app, source, Position::new(0, 17), &analysis)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn original_library_publication_refuses_contended_caller_and_provider_edits() {
+        for edit_provider in [false, true] {
+            let backend = Arc::new(test_backend());
+            let caller_uri = Uri::from_str("file:///library-publication-caller.tcl").unwrap();
+            let provider_uri = Uri::from_str("file:///library-publication-provider.tcl").unwrap();
+            register(&backend, &caller_uri, "original_library_target ARG\n").await;
+            register(
+                &backend,
+                &provider_uri,
+                "proc original_library_target {arg} {}\n",
+            )
+            .await;
+            let caller_document = backend.read_document(&caller_uri).await.unwrap();
+            let caller = backend
+                .library_publication_source(&caller_uri, caller_document)
+                .await
+                .unwrap();
+            let provider_document = backend.read_document(&provider_uri).await.unwrap();
+            let analysis = backend
+                .analysis_for(
+                    &provider_uri,
+                    provider_document.text.clone(),
+                    provider_document.dialect.clone(),
+                )
+                .await;
+            let provider = backend
+                .library_publication_source(&provider_uri, provider_document)
+                .await
+                .unwrap();
+            backend
+                .workspace_index
+                .write()
+                .await
+                .remove_document(provider_uri.as_str());
+            let epoch = backend.diag_inputs_epoch();
+            let gate = backend.rehoming_gate.lock().await;
+            let (started, waiting) = tokio::sync::oneshot::channel();
+            let publishing = crate::rt::spawn({
+                let backend = Arc::clone(&backend);
+                async move {
+                    started.send(()).unwrap();
+                    backend
+                        .publish_original_library_analyses(epoch, &caller, &[(provider, analysis)])
+                        .await
+                }
+            });
+            waiting.await.unwrap();
+            let edited_uri = if edit_provider {
+                provider_uri.clone()
+            } else {
+                caller_uri.clone()
+            };
+            let edited_source = if edit_provider {
+                "proc current_library_target {arg} {}\n"
+            } else {
+                "current_library_target ARG\n"
+            };
+            let editing = crate::rt::spawn({
+                let backend = Arc::clone(&backend);
+                let edited_uri = edited_uri.clone();
+                async move {
+                    backend
+                        .did_change(DidChangeTextDocumentParams {
+                            text_document:
+                                tower_lsp_server::ls_types::VersionedTextDocumentIdentifier {
+                                    uri: edited_uri,
+                                    version: 2,
+                                },
+                            content_changes: vec![
+                                tower_lsp_server::ls_types::TextDocumentContentChangeEvent {
+                                    range: None,
+                                    range_length: None,
+                                    text: edited_source.into(),
+                                },
+                            ],
+                        })
+                        .await;
+                }
+            });
+            crate::rt::timeout(std::time::Duration::from_secs(5), async {
+                loop {
+                    let edited = backend
+                        .documents
+                        .lock("original-library-edit-visible")
+                        .await
+                        .get(&edited_uri)
+                        .is_some_and(|document| {
+                            document.text.as_ref() == edited_source && document.revision > 0
+                        });
+                    if edited {
+                        break;
+                    }
+                    crate::rt::yield_now().await;
+                }
+            })
+            .await
+            .expect("the edit must splice while publication waits for rehoming");
+            assert_eq!(
+                backend.diag_inputs_epoch(),
+                epoch,
+                "document edits are independent of configuration epochs"
+            );
+            drop(gate);
+            assert!(
+                !crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                    .await
+                    .unwrap()
+                    .unwrap()
+            );
+            crate::rt::timeout(std::time::Duration::from_secs(5), editing)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                backend
+                    .read_document(&edited_uri)
+                    .await
+                    .unwrap()
+                    .text
+                    .as_ref(),
+                edited_source
+            );
+            let index = backend.workspace_index.read().await;
+            assert!(!index.workspace_command_exists("::original_library_target"));
+            if edit_provider {
+                assert!(index.workspace_command_exists("::current_library_target"));
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn original_library_publication_rechecks_closed_source_after_gate_wait() {
+        let backend = Arc::new(test_backend());
+        let library_uri = seed_autoload_library(&backend, "original-library-closed-race").await;
+        let caller_uri = Uri::from_str("file:///original-library-closed-caller.tcl").unwrap();
+        register(&backend, &caller_uri, "Rbc_ActiveLegend ARG\n").await;
+        let caller_document = backend.read_document(&caller_uri).await.unwrap();
+        let caller = backend
+            .library_publication_source(&caller_uri, caller_document)
+            .await
+            .unwrap();
+        let library_document = backend.read_document(&library_uri).await.unwrap();
+        let analysis = backend
+            .analysis_for(
+                &library_uri,
+                library_document.text.clone(),
+                library_document.dialect.clone(),
+            )
+            .await;
+        let library = backend
+            .library_publication_source(&library_uri, library_document)
+            .await
+            .unwrap();
+        assert!(library.open_revision.is_none());
+        let epoch = backend.diag_inputs_epoch();
+        let gate = backend.rehoming_gate.lock().await;
+        let (started, waiting) = tokio::sync::oneshot::channel();
+        let publishing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            async move {
+                started.send(()).unwrap();
+                backend
+                    .publish_original_library_analyses(epoch, &caller, &[(library, analysis)])
+                    .await
+            }
+        });
+        waiting.await.unwrap();
+        std::fs::write(
+            library_uri.to_file_path().unwrap(),
+            "proc current_closed_target {arg} {}\n",
+        )
+        .unwrap();
+        drop(gate);
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
+                .await
+                .unwrap()
+                .unwrap()
+        );
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .workspace_command_exists("::Rbc_ActiveLegend")
         );
     }
 

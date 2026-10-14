@@ -1,0 +1,17 @@
+
+running 1 test
+test taint::tests::callback_replay_batches_past_the_first_batch_without_truncating_later_sinks ... 
+thread 'taint::tests::callback_replay_batches_past_the_first_batch_without_truncating_later_sinks' (312762) panicked at rust/tcl-compiler/src/taint.rs:11420:9:
+assertion `left == right` failed: callbacks beyond one replay batch must receive a second bounded solve
+  left: 1
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::callback_replay_batches_past_the_first_batch_without_truncating_later_sinks
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.69s
+

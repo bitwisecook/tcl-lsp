@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::namespace_shadowed_builtin_taint::unshadowed_namespace_call_is_still_a_sink ... 
+thread 'taint::tests::namespace_shadowed_builtin_taint::unshadowed_namespace_call_is_still_a_sink' (312884) panicked at rust/tcl-compiler/src/taint.rs:12643:13:
+expected T101 for an unshadowed puts call, got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::namespace_shadowed_builtin_taint::unshadowed_namespace_call_is_still_a_sink
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 1.87s
+

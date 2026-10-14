@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::t100_fires_for_subst_positive_form_with_commands ... 
+thread 'taint::tests::t100_fires_for_subst_positive_form_with_commands' (312928) panicked at rust/tcl-compiler/src/taint.rs:11739:9:
+expected T100 for `subst -variables -commands $x`, got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::t100_fires_for_subst_positive_form_with_commands
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.15s
+

@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::public_report_keeps_constructor_refusal_beside_an_independent_warning ... 
+thread 'taint::tests::public_report_keeps_constructor_refusal_beside_an_independent_warning' (312888) panicked at rust/tcl-compiler/src/taint.rs:13146:9:
+assertion failed: report.warnings.iter().any(|warning| warning.code == DiagCode::T103)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::public_report_keeps_constructor_refusal_beside_an_independent_warning
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 2.06s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test var_resolve::tests::whole_array_flag_yields_array_whole ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.01s
+

@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::t100_fires_through_rename_indirection ... 
+thread 'taint::tests::t100_fires_through_rename_indirection' (312950) panicked at rust/tcl-compiler/src/taint.rs:11552:9:
+expected T100 through the `myEval` rename of `eval`, got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::t100_fires_through_rename_indirection
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.20s
+

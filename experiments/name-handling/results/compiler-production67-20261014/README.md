@@ -1,0 +1,3 @@
+# Current shared consumer replay
+
+Current source builds and executes599 unique controls:442 pass and157 fail, including four stack aborts. Source subset drift is zero; no exact selector is missing and no filter is empty. Every542 previous Compiler58 control is retained:35 gains and three regressions. The regressions are dynamic-command fallback, brace-quoted eval-body escape and uplevel-zero body escape. Whole var_escape executes198 controls:168 pass/30 fail. This scoped capture does not establish complete provider or Native acceptance. Original tests, assertions and raw receipts remain unchanged.

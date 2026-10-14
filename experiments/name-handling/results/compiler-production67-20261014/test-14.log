@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::callback_replay_name_search_is_single_pass_under_collision_stress ... 
+thread 'taint::tests::callback_replay_name_search_is_single_pass_under_collision_stress' (312764) panicked at rust/tcl-compiler/src/taint.rs:11503:9:
+collision avoidance must preserve the callback warning: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::callback_replay_name_search_is_single_pass_under_collision_stress
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 3.89s
+

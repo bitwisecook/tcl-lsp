@@ -1,0 +1,17 @@
+
+running 1 test
+test taint::tests::callback_replays_batch_into_one_extra_interprocedural_build ... 
+thread 'taint::tests::callback_replays_batch_into_one_extra_interprocedural_build' (312783) panicked at rust/tcl-compiler/src/taint.rs:11389:9:
+assertion `left == right` failed: each registered sink still warns: []
+  left: 0
+ right: 3
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::callback_replays_batch_into_one_extra_interprocedural_build
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.39s
+

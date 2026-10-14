@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::hosted_structure::tests::hosted_source_grammar_cannot_supply_bytecode_hook_admission ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.09s
+

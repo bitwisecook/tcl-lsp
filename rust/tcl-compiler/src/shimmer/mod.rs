@@ -348,28 +348,11 @@ pub fn first_use_commitments_for_cu(
 ) -> HashMap<String, HashMap<String, TclType>> {
     let mut out: HashMap<String, HashMap<String, TclType>> = HashMap::new();
     for fu in cu.analysable_functions() {
-        let Some(context) = ShimmerContext::for_function(fu, registry) else {
-            continue;
-        };
-        let ctx = commit::CommitCtx {
-            registry,
-            context,
-            ssa: &fu.ssa,
-            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
-            types: &fu.types,
-            values: &fu.sccp.values,
-            folded: &fu.sccp.folded_types,
-        };
-        let facts = commit::compute_commit_facts(
-            &fu.cfg,
-            &ctx,
-            &fu.sccp.executable_blocks,
-            &fu.sccp.executable_edges,
-        );
+        let commitments = first_use_value_commitments(fu, registry);
         // Collapse (sym, ver) → name: every version with a pushback must agree
         // on the same intrep, else the name is dropped (conflicting uses).
         let mut per_name: HashMap<String, Option<TclType>> = HashMap::new();
-        for ((sym, _ver), t) in facts.single_commitments(&ctx) {
+        for ((sym, _ver), t) in commitments {
             per_name
                 .entry(fu.ssa.var_name(sym).to_owned())
                 .and_modify(|slot| {
@@ -388,6 +371,55 @@ pub fn first_use_commitments_for_cu(
         }
     }
     out
+}
+
+/// First-use commitments for actual SSA symbols in one retained function.
+/// Displayed function and variable labels do not select this result.
+#[must_use]
+pub fn first_use_commitments_for_function(
+    function: &crate::compilation_unit::FunctionUnit,
+    registry: &CommandRegistry,
+) -> HashMap<crate::ssa::Symbol, TclType> {
+    let mut symbols: HashMap<crate::ssa::Symbol, Option<TclType>> = HashMap::new();
+    for ((symbol, _version), value) in first_use_value_commitments(function, registry) {
+        symbols
+            .entry(symbol)
+            .and_modify(|previous| {
+                if *previous != Some(value) {
+                    *previous = None;
+                }
+            })
+            .or_insert(Some(value));
+    }
+    symbols
+        .into_iter()
+        .filter_map(|(symbol, value)| value.map(|value| (symbol, value)))
+        .collect()
+}
+
+fn first_use_value_commitments(
+    function: &crate::compilation_unit::FunctionUnit,
+    registry: &CommandRegistry,
+) -> HashMap<crate::ssa::ValueKey, TclType> {
+    let Some(context) = ShimmerContext::for_function(function, registry) else {
+        return HashMap::new();
+    };
+    let ctx = commit::CommitCtx {
+        registry,
+        context,
+        ssa: &function.ssa,
+        source: crate::ssa::SsaSourceView::unpositioned(&function.ssa),
+        types: &function.types,
+        values: &function.sccp.values,
+        folded: &function.sccp.folded_types,
+    };
+    commit::compute_commit_facts(
+        &function.cfg,
+        &ctx,
+        &function.sccp.executable_blocks,
+        &function.sccp.executable_edges,
+    )
+    .single_commitments(&ctx)
 }
 
 /// Find every thunking warning across a whole compilation unit. See
@@ -555,6 +587,31 @@ mod tests {
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn first_use_symbols_keep_the_actual_function_and_refuse_missing_input() {
+        let registry = registry();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "set value {1 2 3}; llength $value",
+            &registry,
+            false,
+        );
+        let original = first_use_commitments_for_function(&unit.top_level, &registry);
+        assert!(original.values().any(|value| *value == TclType::List));
+        let mut renamed = unit.top_level.clone();
+        renamed.name = "unrelated reporting label".to_owned();
+        assert_eq!(
+            first_use_commitments_for_function(&renamed, &registry),
+            original
+        );
+        renamed.source_metadata_input = None;
+        assert!(first_use_commitments_for_function(&renamed, &registry).is_empty());
+        let mut foreign = CommandRegistry::build_default();
+        let mut changed = foreign.get("set").unwrap().clone();
+        changed.name = "unrelated";
+        foreign.insert(changed);
+        assert!(first_use_commitments_for_function(&unit.top_level, &foreign).is_empty());
     }
 
     #[test]

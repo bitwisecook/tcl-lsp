@@ -1,0 +1,15 @@
+
+running 1 test
+test ir::original_source_procedure_inventory_tests::original_declaration_summary_inventory_requires_issued_body_and_allocation ... 
+thread 'ir::original_source_procedure_inventory_tests::original_declaration_summary_inventory_requires_issued_body_and_allocation' (313841) panicked at rust/tcl-compiler/src/ir.rs:4463:14:
+original declaration retained without callable publication
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ir::original_source_procedure_inventory_tests::original_declaration_summary_inventory_requires_issued_body_and_allocation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.15s
+

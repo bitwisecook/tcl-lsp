@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::handlers::tests::owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic ... 
+thread 'var_escape::handlers::tests::owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic' (314312) panicked at rust/tcl-compiler/src/var_escape/handlers.rs:601:87:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::handlers::tests::owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 1.07s
+

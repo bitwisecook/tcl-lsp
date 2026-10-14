@@ -2445,6 +2445,72 @@ pub(crate) fn namespace_context_at(
     tcl_syntax::naming::root_unrooted_key(&ns)
 }
 
+/// Original C loader advice at one complete current command-head producer.
+/// This retains caller geometry without proving loading or a callable target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalAutoloadRequest {
+    name: tcl_compiler::signature_scan::original_name::SignatureSourceNameKey,
+    invocation: tcl_compiler::command_binding::SourceInvocationBinding,
+}
+
+impl OriginalAutoloadRequest {
+    /// Files selected by genuine auto_index entries and the retained caller scope.
+    #[must_use]
+    pub fn files(
+        &self,
+        resolver: &crate::package_resolver::PackageResolver,
+    ) -> Vec<std::path::PathBuf> {
+        resolver.resolve_original_auto_command(&self.name, &self.invocation)
+    }
+}
+
+/// Select original autoload advice only at the retained complete invocation head.
+#[must_use]
+pub fn original_autoload_request_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+) -> Option<OriginalAutoloadRequest> {
+    use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
+    let input = analysis.resolved_input.as_ref()?;
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let realm = analysis.retained_command_realm()?;
+    if !analysis.matches_original_source_image(&image, config)
+        || !realm.matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    let offset = byte_offset_at(&LineIndex::new(source), source, line, character);
+    let mut sites = analysis.command_invocations.iter().filter(|site| {
+        site.lookup == tcl_compiler::signature_scan::types::SignatureCommandLookup::InvocationHead
+            && site.range.start() <= offset
+            && offset < site.range.end()
+    });
+    let site = sites.next()?;
+    if sites.next().is_some() {
+        return None;
+    }
+    let invocation = realm.invocation_at_source("", site.range.start());
+    let name_input = invocation.original_recorded_head_name_input()?;
+    if site.original_name_input.as_ref() != Some(&name_input)
+        || !crate::original_name_edit::original_input_matches_source(
+            source,
+            analysis,
+            &name_input,
+            site.range,
+        )
+    {
+        return None;
+    }
+    let SignatureSourceNameInput::OriginalWord(name) = name_input else {
+        return None;
+    };
+    invocation.original_autoload_command_candidates(&name)?;
+    Some(OriginalAutoloadRequest { name, invocation })
+}
+
 /// The bare command word at `(line, character)` together with the
 /// `::`-prefixed namespace in effect there.
 ///
@@ -2462,6 +2528,13 @@ pub fn command_head_and_namespace_at(
     line: u32,
     character: u32,
 ) -> Option<(String, String)> {
+    let config = analysis.body_lexer_config?;
+    if !analysis.allows_retained_logical_declaration_advice()
+        || !analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+    {
+        return None;
+    }
     let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
     let line_index = LineIndex::new(source);
     let offset = byte_offset_at(&line_index, source, line, character);
@@ -9154,6 +9227,107 @@ mod logical_variable_scope_owner_tests {
                 analysis.resolved_registry()
             )
             .is_empty()
+        );
+    }
+    #[test]
+    fn original_autoload_requests_keep_original_heads_current_input_and_caller_scope() {
+        let source = "namespace eval N {requested arg}\n";
+        let offset = u32::try_from(source.find("requested").unwrap()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(offset, source);
+        let mut resolver = crate::package_resolver::PackageResolver::default();
+        resolver.add_original_tcl_index(
+            "# Tcl autoload index file, version 2.0\nset auto_index(::N::requested) [list source [file join $dir nested.tcl]]\nset auto_index(requested) [list source [file join $dir global.tcl]]\n",
+            std::path::Path::new("/library"), &|_| true,
+        );
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let query = |source: &str, analysis: &AnalysisResult| {
+                original_autoload_request_at(
+                    source,
+                    analysis,
+                    position.line,
+                    position.character.get(),
+                )
+            };
+            let request = query(source, &analysis).expect("retained original C caller");
+            assert_eq!(
+                request.files(&resolver),
+                [std::path::PathBuf::from("/library/nested.tcl")],
+                "{dialect}"
+            );
+            let mut presentation = analysis.clone();
+            for invocation in &mut presentation.command_invocations {
+                invocation.name = "changed label".into();
+                invocation.resolution_candidates = vec!["::other::requested".into()];
+            }
+            assert_eq!(query(source, &presentation), Some(request.clone()));
+            assert!(query(&format!("{source} "), &analysis).is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(query(source, &missing).is_none());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config.as_mut().unwrap().strict_quoting =
+                !analysis.body_lexer_config.unwrap().strict_quoting;
+            assert!(query(source, &changed).is_none());
+            let arg_position = LineIndex::new(source)
+                .position_at_utf16(u32::try_from(source.find("arg").unwrap()).unwrap(), source);
+            assert!(
+                original_autoload_request_at(
+                    source,
+                    &analysis,
+                    arg_position.line,
+                    arg_position.character.get()
+                )
+                .is_none()
+            );
+            assert!(
+                command_head_and_namespace_at(
+                    source,
+                    &analysis,
+                    position.line,
+                    position.character.get()
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_autoload_words_require_current_retained_logical_source() {
+        let source = "namespace eval N {requested arg}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let position = LineIndex::new(source).position_at_utf16(
+            u32::try_from(source.find("requested").unwrap()).unwrap(),
+            source,
+        );
+        assert_eq!(
+            command_head_and_namespace_at(
+                source,
+                &analysis,
+                position.line,
+                position.character.get()
+            ),
+            Some(("requested".into(), "::N".into()))
+        );
+        assert!(
+            command_head_and_namespace_at(
+                &format!("{source} "),
+                &analysis,
+                position.line,
+                position.character.get()
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            command_head_and_namespace_at(
+                source,
+                &missing,
+                position.line,
+                position.character.get()
+            )
+            .is_none()
         );
     }
 }

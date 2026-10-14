@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::cfg_propagation::walker::tests::original_condition_substitutions_require_the_current_retained_operand ... 
+thread 'var_escape::cfg_propagation::walker::tests::original_condition_substitutions_require_the_current_retained_operand' (314228) panicked at rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:852:9:
+assertion failed: !function.cfg.condition_binding_sites.is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::cfg_propagation::walker::tests::original_condition_substitutions_require_the_current_retained_operand
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.35s
+

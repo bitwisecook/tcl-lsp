@@ -1,0 +1,15 @@
+
+running 1 test
+test deferred_writes::tests::a_definition_a_read_and_a_script_run_now_are_no_callback_write ... 
+thread 'deferred_writes::tests::a_definition_a_read_and_a_script_run_now_are_no_callback_write' (313753) panicked at rust/tcl-compiler/src/deferred_writes.rs:1111:9:
+assertion failed: writes("proc p {} { set local 1 }").is_clear()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_definition_a_read_and_a_script_run_now_are_no_callback_write
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.26s
+

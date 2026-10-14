@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::t100_fires_for_tainted_var_through_ternary_branch_in_coercing_context ... 
+thread 'taint::tests::t100_fires_for_tainted_var_through_ternary_branch_in_coercing_context' (312936) panicked at rust/tcl-compiler/src/taint.rs:12128:9:
+expected T100 for $x flowing through a coerced ternary branch, got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::t100_fires_for_tainted_var_through_ternary_branch_in_coercing_context
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.21s
+

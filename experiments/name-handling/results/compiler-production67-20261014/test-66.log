@@ -1,0 +1,15 @@
+
+running 1 test
+test ssa::tests::empty_dictionary_scope_source_phases_keep_original_names_and_unknown_alias_contents ... 
+thread 'ssa::tests::empty_dictionary_scope_source_phases_keep_original_names_and_unknown_alias_contents' (313049) panicked at rust/tcl-compiler/src/ssa.rs:8843:13:
+assertion failed: selection.logical_structure(tokens).is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::tests::empty_dictionary_scope_source_phases_keep_original_names_and_unknown_alias_contents
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.58s
+

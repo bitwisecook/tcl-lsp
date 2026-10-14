@@ -1,0 +1,17 @@
+
+running 1 test
+test registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership ... 
+thread 'registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership' (313922) panicked at rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs:658:13:
+assertion `left == right` failed
+  left: []
+ right: [ProcedureId { scope: 1, ordinal: 0 }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.22s
+

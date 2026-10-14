@@ -95,6 +95,15 @@ impl<'a> SsaInvocationContext<'a> {
             return self.metadata;
         }
         let binding = tokens.source_binding.as_ref()?;
+        if let Some(metadata) = self.metadata
+            && let Some(input) = metadata.source_analysis_input()
+            && metadata.matches_registry(self.registry)
+            && binding
+                .original_native_source_words(tokens, input, self.registry)
+                .is_some()
+        {
+            return Some(metadata);
+        }
         supplied_ssa_metadata(
             self.registry,
             binding.original_lexer_config_for_tokens(tokens)?,
@@ -132,6 +141,23 @@ impl<'a> SsaInvocationContext<'a> {
             tokens,
             None,
         )
+    }
+
+    fn source_structure(
+        self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::SourceStructuredInvocation> {
+        let metadata = self.token_metadata(tokens)?;
+        crate::registry_invocation::original_native_source_structured_invocation(
+            self.registry,
+            metadata,
+            tokens,
+        )
+        .or_else(|| {
+            self.logical_structure(tokens).map(|selected| {
+                crate::registry_invocation::SourceStructuredInvocation::Logical(Box::new(selected))
+            })
+        })
     }
 
     fn normal(
@@ -608,6 +634,109 @@ pub struct SsaReadContents {
     pub unknown_residual: bool,
 }
 
+/// One conditional source definition in its current actual declared body.
+/// Its authored SSA slot supplies no physical cell, successful store or edit permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceSsaDefinitionName {
+    span: tcl_lexer::Span,
+    input: crate::signature_scan::scope::SignatureSourceNameInput,
+    body: crate::ir::ProcedureId,
+}
+impl OriginalSourceSsaDefinitionName {
+    /// Complete original written variable operand extent in the document.
+    #[must_use]
+    pub const fn span(&self) -> tcl_lexer::Span {
+        self.span
+    }
+    /// Genuine original operand under the retained Native source policy.
+    #[must_use]
+    pub fn original_name_input(&self) -> &crate::signature_scan::scope::SignatureSourceNameInput {
+        &self.input
+    }
+    /// Current issued body whose conditional source owns this occurrence.
+    #[must_use]
+    pub const fn body_id(&self) -> crate::ir::ProcedureId {
+        self.body
+    }
+}
+
+/// Current analysis unit and authored SSA symbol selected by original definition geometry.
+/// This readonly source projection grants no reached cell, Native value or edit permission.
+pub struct OriginalSourceSsaDefinition<'a> {
+    function: &'a crate::compilation_unit::FunctionUnit,
+    name: OriginalSourceSsaDefinitionName,
+    symbol: Symbol,
+    version: Version,
+}
+impl<'a> OriginalSourceSsaDefinition<'a> {
+    /// Actual function from the supplied current compilation unit.
+    #[must_use]
+    pub const fn function(&self) -> &'a crate::compilation_unit::FunctionUnit {
+        self.function
+    }
+    /// Exact original source definition and its issued body owner.
+    #[must_use]
+    pub const fn name(&self) -> &OriginalSourceSsaDefinitionName {
+        &self.name
+    }
+    /// Authored analysis symbol under this function's own interner.
+    #[must_use]
+    pub const fn symbol(&self) -> Symbol {
+        self.symbol
+    }
+    /// Version at the represented conditional source definition.
+    #[must_use]
+    pub const fn version(&self) -> Version {
+        self.version
+    }
+}
+
+/// Select a unique current source definition by its original document extent.
+/// Equal variable labels and function display names never select the owner.
+#[must_use]
+pub fn original_source_definition_at_unit<'a>(
+    unit: &'a crate::compilation_unit::CompilationUnit,
+    span: tcl_lexer::Span,
+    registry: &CommandRegistry,
+) -> Option<OriginalSourceSsaDefinition<'a>> {
+    let mut selected: Option<OriginalSourceSsaDefinition<'a>> = None;
+    for function in unit.all_body_function_units() {
+        let Some(body) = function.body_id else {
+            continue;
+        };
+        for (&block, statements) in &function.ssa.blocks {
+            for (index, statement) in statements.statements.iter().enumerate() {
+                let view = SsaSourceView::at_statement(&function.ssa, block, index);
+                for (&symbol, &version) in &statement.defs {
+                    let Some(name) =
+                        view.original_source_definition_for_body(symbol, unit, body, registry)
+                    else {
+                        continue;
+                    };
+                    if name.span() != span {
+                        continue;
+                    }
+                    if selected.as_ref().is_some_and(|old| {
+                        old.name != name
+                            || old.symbol != symbol
+                            || old.version != version
+                            || !std::ptr::eq(old.function, function)
+                    }) {
+                        return None;
+                    }
+                    selected = Some(OriginalSourceSsaDefinition {
+                        function,
+                        name,
+                        symbol,
+                        version,
+                    });
+                }
+            }
+        }
+    }
+    selected
+}
+
 /// Read-only SSA source-name lookup at an optional exact execution point.
 /// Unpositioned compatibility queries succeed only for a unique proved binding.
 #[derive(Clone, Copy)]
@@ -1075,6 +1204,73 @@ impl<'a> SsaSourceView<'a> {
             input,
             cell: key.clone(),
         })
+    }
+
+    /// Readonly definition geometry from the actual Native source body/schema.
+    /// This separate source projection cannot replace a physical definition query.
+    #[must_use]
+    pub fn original_source_definition_for_body(
+        self,
+        symbol: Symbol,
+        unit: &crate::compilation_unit::CompilationUnit,
+        body: crate::ir::ProcedureId,
+        registry: &CommandRegistry,
+    ) -> Option<OriginalSourceSsaDefinitionName> {
+        let function = unit.function_for_body(Some(body))?;
+        if !std::ptr::eq(self.ssa, &function.ssa) {
+            return None;
+        }
+        let module = &unit.ir_module;
+        let card = module.original_native_declaration_body_units.get(&body)?;
+        let procedure = module.body_units.get(&body)?;
+        if !card.matches_procedure(module, procedure) {
+            return None;
+        }
+        let input = module.source_metadata_input.as_ref()?;
+        let metadata = function.invocation_metadata_context_for_module(registry, module)?;
+        let function_input = metadata.source_analysis_input()?;
+        if (function_input != input && function_input != &input.for_nested_source())
+            || function.source_lexer_config().nested().normalized()
+                != input.lexer_config().nested().normalized()
+        {
+            return None;
+        }
+        let (block, index) = self.point?;
+        let statement = self.ssa.blocks.get(&block)?.statements.get(index)?;
+        if !statement.defs.contains_key(&symbol) || statement.may_defs.contains(&symbol) {
+            return None;
+        }
+        let slot = self.ssa.cell_key(symbol).authored_spelling()?;
+        let mut tokens = self.source_tokens()?.clone();
+        crate::lattice_rebase::rebase_command_tokens(&mut tokens, function.base_offset);
+        let binding = tokens.source_binding.as_ref()?;
+        if !binding.original_native_source_owner_for_body(&tokens, module, body, registry) {
+            return None;
+        }
+        let words = binding.original_native_source_words(&tokens, input, registry)?;
+        let mut found = None;
+        for (argument, role) in words.written_argument_roles() {
+            if role != tcl_registry::ArgRole::VarWrite {
+                continue;
+            }
+            let operand = words.operands().get(argument)?.as_ref()?;
+            let name = operand.input()?;
+            let selected = name.policy().recipe().combined_variable_input(name.bytes());
+            if selected.element().is_some()
+                || selected.root().qualification()
+                    != tcl_syntax::naming::NativeNameQualification::Unqualified
+                || selected.root().selected() != slot.as_bytes()
+            {
+                continue;
+            }
+            let current = (operand.span(), name.clone());
+            if found.as_ref().is_some_and(|previous| previous != &current) {
+                return None;
+            }
+            found = Some(current);
+        }
+        let (span, input) = found?;
+        Some(OriginalSourceSsaDefinitionName { span, input, body })
     }
 
     /// Propose an unused scalar slot at this genuine reached source operation.
@@ -2644,10 +2840,11 @@ fn selected_barrier_defs(
     selection: SsaInvocationContext<'_>,
     tokens: &CommandTokens,
 ) -> Vec<String> {
-    if let Some(source) = selection.logical_structure(tokens) {
-        if source
-            .traits()
-            .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
+    if let Some(source) = selection.source_structure(tokens) {
+        let Some(traits) = source.traits() else {
+            return Vec::new();
+        };
+        if traits.contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
             || source.loop_bindings_conditional()
         {
             return Vec::new();
@@ -3990,7 +4187,7 @@ fn uses_in_barrier(
     );
     if tokens
         .as_ref()
-        .is_some_and(|tokens| selection.logical_structure(tokens).is_some())
+        .is_some_and(|tokens| selection.source_structure(tokens).is_some())
     {
         selected_handler_name_reads(tokens.as_ref(), &[], selection, found, reads_own_def);
         return;
@@ -4172,13 +4369,14 @@ fn selected_handler_name_reads(
     found: &mut ClassifiedUses,
     reads_own_def: &mut BTreeSet<String>,
 ) {
-    if let Some(source) = tokens.and_then(|tokens| selection.logical_structure(tokens)) {
+    if let Some(source) = tokens.and_then(|tokens| selection.source_structure(tokens)) {
+        let Some(traits) = source.traits() else {
+            return;
+        };
         for (argument, role) in source.written_roles() {
             if role != tcl_registry::ArgRole::VarRead
                 && !(role == tcl_registry::ArgRole::VarWrite
-                    && source
-                        .traits()
-                        .contains(tcl_registry::Traits::READS_BEFORE_WRITE))
+                    && traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE))
             {
                 continue;
             }
@@ -4478,7 +4676,7 @@ fn scan_command_words(
     let mut body_indices = HashSet::new();
     let mut name_role_braced = HashSet::new();
     let mut in_frame_braced = HashSet::new();
-    if let Some(source) = tokens.and_then(|tokens| selection.logical_structure(tokens)) {
+    if let Some(source) = tokens.and_then(|tokens| selection.source_structure(tokens)) {
         for (written, role) in source.written_roles() {
             if matches!(
                 role,
@@ -12443,5 +12641,147 @@ mod original_definition_name_tests {
         );
         assert_ne!(first.cell(), second.cell());
         assert_eq!(select("a(k)").original_name_input().bytes(), b"a(k)");
+    }
+}
+
+#[cfg(test)]
+mod native_source_definition_tests {
+    use super::*;
+
+    #[test]
+    fn native_source_definitions_select_actual_body_symbols_without_physical_store_grants() {
+        let source =
+            "proc a {} {set same 1; return $same}\nproc b {} {set same TWO; return $same}\n";
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let options = crate::compilation_unit::UnitBuildOptions {
+            registry: context.commands(),
+            defer_top_level: false,
+            config,
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source, options, None, &input,
+        );
+        assert_eq!(
+            unit.ir_module.original_native_declaration_body_units.len(),
+            2
+        );
+        let offsets = source
+            .match_indices("same ")
+            .map(|(offset, _)| u32::try_from(offset).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(offsets.len(), 2);
+        let selected = offsets
+            .iter()
+            .map(|&offset| {
+                original_source_definition_at_unit(
+                    &unit,
+                    tcl_lexer::Span::new(offset, offset + 4),
+                    context.commands(),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(selected[0].name().body_id(), selected[1].name().body_id());
+        assert!(!std::ptr::eq(
+            selected[0].function(),
+            selected[1].function()
+        ));
+        for definition in &selected {
+            assert_eq!(definition.name().original_name_input().bytes(), b"same");
+            let function = definition.function();
+            let body = definition.name().body_id();
+            assert_eq!(function.body_id, Some(body));
+            let mut accepted = 0;
+            for (&block, statements) in &function.ssa.blocks {
+                for (index, statement) in statements.statements.iter().enumerate() {
+                    if !statement.defs.contains_key(&definition.symbol()) {
+                        continue;
+                    }
+                    let view = SsaSourceView::at_statement(&function.ssa, block, index);
+                    if view
+                        .original_source_definition_for_body(
+                            definition.symbol(),
+                            &unit,
+                            body,
+                            context.commands(),
+                        )
+                        .is_some()
+                    {
+                        accepted += 1;
+                        assert!(
+                            view.original_definition_name_with_metadata_context(
+                                definition.symbol(),
+                                context.commands(),
+                                function.invocation_metadata_context_for_module(
+                                    context.commands(),
+                                    &unit.ir_module
+                                )
+                            )
+                            .is_none()
+                        );
+                        let other = selected
+                            .iter()
+                            .find(|other| other.name().body_id() != body)
+                            .unwrap();
+                        assert!(
+                            view.original_source_definition_for_body(
+                                definition.symbol(),
+                                &unit,
+                                other.name().body_id(),
+                                context.commands()
+                            )
+                            .is_none()
+                        );
+                    }
+                }
+            }
+            assert_eq!(accepted, 1);
+        }
+        for stale in [false, true] {
+            let mut changed = unit.clone();
+            let function = changed
+                .body_units
+                .get_mut(&selected[0].name().body_id())
+                .unwrap();
+            if stale {
+                function.source_config = tcl_lexer::LexerConfig::for_file_grammar(
+                    tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                        .unit_profile()
+                        .grammar,
+                );
+            } else {
+                function.source_metadata_input = None;
+            }
+            assert!(
+                original_source_definition_at_unit(
+                    &changed,
+                    selected[0].name().span(),
+                    context.commands()
+                )
+                .is_none()
+            );
+        }
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        assert!(
+            original_source_definition_at_unit(
+                &missing,
+                selected[0].name().span(),
+                context.commands()
+            )
+            .is_none()
+        );
     }
 }

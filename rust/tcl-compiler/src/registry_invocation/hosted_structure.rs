@@ -214,6 +214,40 @@ impl SourceStructuredInvocation {
             }
         }
     }
+    pub(crate) fn argument_literal(&self, argument: usize) -> Option<String> {
+        match self {
+            Self::Logical(selected) => selected.argument_literal(argument),
+            Self::Hosted(selected) | Self::NativeSource(selected) => {
+                std::str::from_utf8(selected.words.arguments().get(argument)?.literal_bytes()?)
+                    .ok()
+                    .map(str::to_owned)
+            }
+        }
+    }
+    pub(crate) fn traits(&self) -> Option<tcl_registry::Traits> {
+        match self {
+            Self::Logical(selected) => Some(selected.traits()),
+            Self::Hosted(selected) | Self::NativeSource(selected) => selected
+                .words
+                .with_source_schema(selected.input.borrowed_context_registry(), |schema| {
+                    schema.semantics.traits
+                }),
+        }
+    }
+    pub(crate) fn loop_bindings_conditional(&self) -> bool {
+        match self {
+            Self::Logical(selected) => selected.loop_bindings_conditional(),
+            Self::Hosted(selected) | Self::NativeSource(selected) => selected
+                .words
+                .with_source_schema(selected.input.borrowed_context_registry(), |schema| {
+                    schema.facts().repeated_args.iter().any(|layout| {
+                        layout.conditional_binding
+                            && layout.role == tcl_registry::ArgRole::LoopVarList
+                    })
+                })
+                .unwrap_or(true),
+        }
+    }
     pub(crate) fn error_context(&self) -> Option<tcl_registry::InlineBodyErrorContext> {
         match self {
             Self::Logical(selected) => selected.error_context(),

@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::t100_fires_for_apply_tainted_lambda ... 
+thread 'taint::tests::t100_fires_for_apply_tainted_lambda' (312924) panicked at rust/tcl-compiler/src/taint.rs:11655:9:
+expected T100 for a tainted apply lambda (arg 0), got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::t100_fires_for_apply_tainted_lambda
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.15s
+

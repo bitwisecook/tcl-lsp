@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::protected_child_substitutions_retain_their_own_source_effect_carriers ... 
+thread 'cfg_builder::global_write_info::tests::protected_child_substitutions_retain_their_own_source_effect_carriers' (313351) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1632:10:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::protected_child_substitutions_retain_their_own_source_effect_carriers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.35s
+

@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::t100_still_fires_for_a_tainted_operand_in_an_unparsed_expr ... 
+thread 'taint::tests::t100_still_fires_for_a_tainted_operand_in_an_unparsed_expr' (312996) panicked at rust/tcl-compiler/src/taint.rs:11965:9:
+expected T100 for a numeric-coercing operand, got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::t100_still_fires_for_a_tainted_operand_in_an_unparsed_expr
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.23s
+

@@ -1,0 +1,15 @@
+
+running 1 test
+test lowering::tests::proc_var_body_const_map_materialised ... 
+thread 'lowering::tests::proc_var_body_const_map_materialised' (313875) panicked at rust/tcl-compiler/src/lowering/mod.rs:9531:14:
+::Greeter registered
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    lowering::tests::proc_var_body_const_map_materialised
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.26s
+

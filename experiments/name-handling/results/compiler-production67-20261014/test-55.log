@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::t100_span_is_the_tainted_argument_word_not_the_whole_statement ... 
+thread 'taint::tests::t100_span_is_the_tainted_argument_word_not_the_whole_statement' (312990) panicked at rust/tcl-compiler/src/taint.rs:12167:32:
+expected T100, got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::t100_span_is_the_tainted_argument_word_not_the_whole_statement
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.19s
+

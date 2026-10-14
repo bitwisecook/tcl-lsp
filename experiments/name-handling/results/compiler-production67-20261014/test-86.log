@@ -1,0 +1,6 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::alias_chain_composes_every_baked_argument_in_order ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.51s
+

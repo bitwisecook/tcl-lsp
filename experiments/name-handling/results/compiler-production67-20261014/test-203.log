@@ -1,0 +1,17 @@
+
+running 1 test
+test cfg_builder::upvar_info::tests::original_protected_substitution_keeps_caller_alias_pairs ... 
+thread 'cfg_builder::upvar_info::tests::original_protected_substitution_keeps_caller_alias_pairs' (313550) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2367:13:
+assertion `left == right` failed: catch {upvar 1 target local}
+  left: None
+ right: Some("target")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::upvar_info::tests::original_protected_substitution_keeps_caller_alias_pairs
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.62s
+

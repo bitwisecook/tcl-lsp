@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::walker::tests::dynamic_command_sets_record_fallback ... 
+thread 'var_escape::walker::tests::dynamic_command_sets_record_fallback' (314631) panicked at rust/tcl-compiler/src/var_escape/walker.rs:891:9:
+assertion failed: s.has_fallback()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::walker::tests::dynamic_command_sets_record_fallback
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.05s
+

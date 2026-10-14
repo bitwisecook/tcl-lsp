@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::known_names::tests::captures_catch_result_and_options_var ... 
+thread 'var_escape::known_names::tests::captures_catch_result_and_options_var' (314426) panicked at rust/tcl-compiler/src/var_escape/known_names.rs:246:9:
+assertion failed: names.contains("result")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::known_names::tests::captures_catch_result_and_options_var
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.15s
+

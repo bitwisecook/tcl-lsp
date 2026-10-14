@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::cfg_propagation::walker::tests::global_escapes_named_var_in_an_actual_procedure_frame ... 
+thread 'var_escape::cfg_propagation::walker::tests::global_escapes_named_var_in_an_actual_procedure_frame' (314222) panicked at rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:951:45:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::cfg_propagation::walker::tests::global_escapes_named_var_in_an_actual_procedure_frame
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.20s
+

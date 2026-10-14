@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::alias_baked_global_uplevel_frame_is_resolved_from_invocation_facts ... 
+thread 'cfg_builder::global_write_info::tests::alias_baked_global_uplevel_frame_is_resolved_from_invocation_facts' (313131) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2940:9:
+assertion failed: !info[&summary_id(&m, "::p")].opaque_global_frame
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::alias_baked_global_uplevel_frame_is_resolved_from_invocation_facts
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.62s
+

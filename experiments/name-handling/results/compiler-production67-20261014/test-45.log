@@ -1,0 +1,17 @@
+
+running 1 test
+test taint::tests::t100_for_a_tainted_switch_integer_subject ... 
+thread 'taint::tests::t100_for_a_tainted_switch_integer_subject' (312954) panicked at rust/tcl-compiler/src/taint.rs:11877:13:
+assertion `left == right` failed: switch -integer -- $cmd {1 { puts one } default { puts none }}: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::t100_for_a_tainted_switch_integer_subject
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.66s
+

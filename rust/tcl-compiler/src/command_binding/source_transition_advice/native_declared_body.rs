@@ -460,6 +460,25 @@ impl OriginalNativeSourceCommand {
     }
 }
 impl crate::command_binding::SourceInvocationBinding {
+    pub(crate) fn original_native_source_owner_for_body(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        module: &crate::ir::Module,
+        body: crate::ir::ProcedureId,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        if tokens.source_binding.as_ref() != Some(self) {
+            return false;
+        }
+        let Some(command) = self.original_native_source_command.as_ref() else {
+            return false;
+        };
+        command.matches_module(tokens, module, registry)
+            && module
+                .original_native_declaration_body_units
+                .get(&body)
+                .is_some_and(|card| card.owns_source_declaration(&command.owner.declaration))
+    }
     pub(crate) fn original_native_source_words(
         &self,
         tokens: &crate::ir::CommandTokens,

@@ -1,0 +1,6 @@
+
+running 1 test
+test taint::tests::shadowed_builtin_names_tests::retained_body_scope_ignores_display_and_refuses_detached_units ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.97s
+

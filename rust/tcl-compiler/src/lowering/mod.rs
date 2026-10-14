@@ -1498,6 +1498,9 @@ impl<'r> Lowerer<'r> {
         self.start_module();
         #[cfg(any(test, debug_assertions))]
         trace_source_lowering(trace_start, "configured", source.len(), &self.module);
+        self.module.top_level_namespace_context = self.native_entry.as_deref().and_then(|entry| {
+            crate::command_binding::SourceNamespaceKey::from_native_entry(entry).ok()
+        });
         self.module.top_level_namespace.clear();
         self.module.top_level_namespace.push_str("::");
         self.module.top_level =

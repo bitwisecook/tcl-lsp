@@ -1,0 +1,24 @@
+
+running 1 test
+test taint_interproc::tests::dynamic_original_head_retains_all_actual_summary_dependencies ... 
+thread 'taint_interproc::tests::dynamic_original_head_retains_all_actual_summary_dependencies' (314095) panicked at rust/tcl-compiler/src/taint_interproc.rs:1574:9:
+assertion failed: function.cfg.blocks.values().flat_map(|block|
+            block.statements.iter()).any(|statement|
+        {
+            statement.tokens().is_some_and(|tokens|
+                    {
+                        original_head(tokens).is_none() &&
+                            tokens.words().first().is_some_and(|head|
+                                    head.legacy_text().contains("$command"))
+                    })
+        })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint_interproc::tests::dynamic_original_head_retains_all_actual_summary_dependencies
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.38s
+

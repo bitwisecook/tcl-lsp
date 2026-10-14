@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::t100_fires_when_nested_command_sub_is_itself_a_sink ... 
+thread 'taint::tests::t100_fires_when_nested_command_sub_is_itself_a_sink' (312952) panicked at rust/tcl-compiler/src/taint.rs:12111:9:
+expected T100 from the nested `exec $x`, got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::t100_fires_when_nested_command_sub_is_itself_a_sink
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.23s
+

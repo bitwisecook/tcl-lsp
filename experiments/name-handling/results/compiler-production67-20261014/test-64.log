@@ -1,0 +1,6 @@
+
+running 1 test
+test ssa::tests::dictionary_scope_bodies_and_variable_observers_keep_lookup_hazards ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 1.17s
+

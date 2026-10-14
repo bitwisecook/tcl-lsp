@@ -313,10 +313,8 @@ fn type_display(tl: &TypeLattice) -> Option<String> {
     }
 }
 
-/// Collect inferred-variable-type hints for exact original SSA definitions.
-/// Selected source inputs and byte cells must match their declaration under
-/// the complete current image/configuration. The explicit lexical-advice
-/// compatibility branch joins scope declarations through the same original body owner.
+/// Collect readonly type hints from current physical or conditional source definitions.
+/// Each projection retains its own original operands and body ownership.
 fn collect_type_hints(
     source: &str,
     analysis: &AnalysisResult,
@@ -342,25 +340,45 @@ fn collect_type_hints(
                     let view =
                         tcl_compiler::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
                     for (&symbol, &version) in &statement.defs {
-                        let Some(definition) = view.original_definition_name_with_metadata_context(
-                            symbol, registry, metadata,
-                        ) else {
+                        let definition = view
+                            .original_definition_name_with_metadata_context(
+                                symbol, registry, metadata,
+                            )
+                            .and_then(|definition| {
+                                let span = function.abs_span(definition.span());
+                                analysis
+                                    .original_variable_symbols
+                                    .iter()
+                                    .any(|occurrence| {
+                                        occurrence.is_declaration()
+                                            && occurrence.span() == span
+                                            && occurrence.original_name_input()
+                                                == definition.original_name_input()
+                                    })
+                                    .then(|| (span, definition.original_name_input().clone()))
+                            })
+                            .or_else(|| {
+                                if analysis.resolved_input.as_ref()
+                                    != cu.ir_module.source_metadata_input.as_ref()
+                                {
+                                    return None;
+                                }
+                                let definition = view.original_source_definition_for_body(
+                                    symbol,
+                                    cu,
+                                    function.body_id?,
+                                    registry,
+                                )?;
+                                Some((definition.span(), definition.original_name_input().clone()))
+                            });
+                        let Some((span, input)) = definition else {
                             continue;
                         };
-                        let span = function.abs_span(definition.span());
-                        if !analysis.original_variable_symbols.iter().any(|occurrence| {
-                            occurrence.is_declaration()
-                                && occurrence.span() == span
-                                && occurrence.original_name_input()
-                                    == definition.original_name_input()
-                        }) {
-                            continue;
-                        }
                         let display = function
                             .types
                             .get(&(symbol, version))
                             .and_then(type_display);
-                        let value = (definition.original_name_input().clone(), display);
+                        let value = (input, display);
                         hints
                             .entry((span.start(), span.end()))
                             .and_modify(|previous: &mut (_, Option<String>)| {

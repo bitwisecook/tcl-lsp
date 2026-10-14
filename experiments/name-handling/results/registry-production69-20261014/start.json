@@ -1,0 +1,22 @@
+{
+  "started_utc": "2026-10-14T09:38:59.373985+00:00",
+  "label": "Shared exact registration descriptor and dictionary source phase owners",
+  "package": "tcl-registry",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014",
+  "source_paths": 34700,
+  "plan": {
+    "exact": [
+      "model::assembly::tests::resolution_applies_the_rooted_name_fallback",
+      "native_string_compilation::tests::monolithic_match_member_projection_preserves_registration_and_original_token_scope",
+      "native_string_compilation::tests::monolithic_member_refinement_uses_the_exact_rooted_registration_descriptor",
+      "registry::tests::native_registration_descriptor_queries_remove_one_root_marker",
+      "resolved_invocation::tests::dictionary_source_phase_keeps_generic_unknown_and_additional_effects",
+      "resolved_invocation::tests::dictionary_source_phase_rejects_wrong_arity_and_scripted_helpers"
+    ],
+    "filters": []
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "4c5410f7a221df31b95d78e96699b3bb21e5c3de6c3d634287bb67fbc6278030",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

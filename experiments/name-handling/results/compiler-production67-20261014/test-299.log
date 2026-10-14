@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_retain_colliding_and_dynamic_source_alternatives ... 
+thread 'registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_retain_colliding_and_dynamic_source_alternatives' (313924) panicked at rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs:780:13:
+assertion failed: targets.is_subset(&ids)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_retain_colliding_and_dynamic_source_alternatives
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.29s
+

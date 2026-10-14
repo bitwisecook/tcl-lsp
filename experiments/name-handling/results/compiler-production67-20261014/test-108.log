@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::embedded_alias_prefix_preserves_global_alias_arguments ... 
+thread 'cfg_builder::global_write_info::tests::embedded_alias_prefix_preserves_global_alias_arguments' (313241) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2373:9:
+assertion failed: !info[&summary_id(&m, "::p")].opaque_global_frame
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::embedded_alias_prefix_preserves_global_alias_arguments
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9755 filtered out; finished in 0.68s
+
