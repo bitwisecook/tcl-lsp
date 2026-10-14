@@ -31,6 +31,7 @@ const VARIABLE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
 ];
 
 const VARIABLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(variable_state_transitions),

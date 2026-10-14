@@ -1762,6 +1762,12 @@ fn point_number_syntax(
     }
 }
 
+#[derive(Clone, Copy)]
+enum VariableWriteProjectionPurpose {
+    Invocation,
+    Source,
+}
+
 impl CommandRegistry {
     /// Retain a frozen, shareable registry for caches that must preserve
     /// authored overrides, package pins, and dialect policies. Repeated calls
@@ -7289,13 +7295,16 @@ impl CommandRegistry {
             };
         };
 
-        Self::selected_variable_write_projection(&invocation, || {
-            self.arg_role_variable_writes(name, words, query, invocation)
-        })
+        Self::selected_variable_write_projection(
+            &invocation,
+            VariableWriteProjectionPurpose::Invocation,
+            || self.arg_role_variable_writes(name, words, query, invocation),
+        )
     }
 
     fn selected_variable_write_projection(
         invocation: &ResolvedInvocation<'_, '_>,
+        purpose: VariableWriteProjectionPurpose,
         roles: impl FnOnce() -> VariableWriteProjection,
     ) -> VariableWriteProjection {
         // `incr` / `append` / `lappend` / `lset` / `lpop` / `ledit` fold the
@@ -7353,7 +7362,10 @@ impl CommandRegistry {
                 match &alias.local {
                     TransitionSubject::Literal(name)
                     | TransitionSubject::LocatedLiteral { value: name, .. } => {
-                        if !name.is_empty() && !projection.literal_names.contains(name) {
+                        if (matches!(purpose, VariableWriteProjectionPurpose::Source)
+                            || !name.is_empty())
+                            && !projection.literal_names.contains(name)
+                        {
                             projection.literal_names.push(name.clone());
                         }
                     }
@@ -7376,59 +7388,60 @@ impl CommandRegistry {
     pub fn variable_write_projection_for_selected_source(
         invocation: &ResolvedInvocation<'_, '_>,
     ) -> VariableWriteProjection {
-        Self::selected_variable_write_projection(invocation, || {
-            let arguments = invocation.words.arguments();
-            let Some(selected) = invocation.authored_source_arity() else {
-                return VariableWriteProjection {
-                    opaque_variable_frame: true,
-                    ..Default::default()
+        Self::selected_variable_write_projection(
+            invocation,
+            VariableWriteProjectionPurpose::Source,
+            || {
+                let arguments = invocation.words.arguments();
+                let Some(selected) = invocation.authored_source_arity() else {
+                    return VariableWriteProjection {
+                        opaque_variable_frame: true,
+                        ..Default::default()
+                    };
                 };
-            };
-            if arguments.exact_argv_len().is_some_and(|count| {
-                selected
-                    .command
-                    .variable_write_min_args
-                    .is_some_and(|minimum| count < usize::from(minimum))
-            }) {
-                return VariableWriteProjection::default();
-            }
-            let (roles, complete) = invocation.authored_source_argument_roles();
-            if !complete {
-                return VariableWriteProjection {
-                    opaque_variable_frame: Self::spec_may_have_arg_role(
-                        selected.command,
-                        ArgRole::VarWrite,
-                    ),
-                    ..Default::default()
-                };
-            }
-            let mut projection = VariableWriteProjection::default();
-            for (argument, role) in roles {
-                if role != ArgRole::VarWrite {
-                    continue;
+                if arguments.exact_argv_len().is_some_and(|count| {
+                    selected
+                        .command
+                        .variable_write_min_args
+                        .is_some_and(|minimum| count < usize::from(minimum))
+                }) {
+                    return VariableWriteProjection::default();
                 }
-                let argument = usize::from(argument) + invocation.semantics.argument_offset;
-                let Some(name) = arguments
-                    .literal_at(argument)
-                    .filter(|name| !name.is_empty())
-                else {
-                    projection.opaque_variable_frame = true;
-                    continue;
-                };
-                let name = if invocation.authored_source_option_variable_scope_at(argument)
-                    == Some(crate::hover::VariableScope::Global)
-                    && !name.starts_with("::")
-                {
-                    format!("::{name}")
-                } else {
-                    name.to_owned()
-                };
-                if !projection.literal_names.contains(&name) {
-                    projection.literal_names.push(name);
+                let (roles, complete) = invocation.authored_source_argument_roles();
+                if !complete {
+                    return VariableWriteProjection {
+                        opaque_variable_frame: Self::spec_may_have_arg_role(
+                            selected.command,
+                            ArgRole::VarWrite,
+                        ),
+                        ..Default::default()
+                    };
                 }
-            }
-            projection
-        })
+                let mut projection = VariableWriteProjection::default();
+                for (argument, role) in roles {
+                    if role != ArgRole::VarWrite {
+                        continue;
+                    }
+                    let argument = usize::from(argument) + invocation.semantics.argument_offset;
+                    let Some(name) = arguments.literal_at(argument) else {
+                        projection.opaque_variable_frame = true;
+                        continue;
+                    };
+                    let name = if invocation.authored_source_option_variable_scope_at(argument)
+                        == Some(crate::hover::VariableScope::Global)
+                        && !name.starts_with("::")
+                    {
+                        format!("::{name}")
+                    } else {
+                        name.to_owned()
+                    };
+                    if !projection.literal_names.contains(&name) {
+                        projection.literal_names.push(name);
+                    }
+                }
+                projection
+            },
+        )
     }
 
     /// The [`ArgRole::VarWrite`] half of [`Self::variable_write_projection`]:
@@ -19091,5 +19104,46 @@ mod declaration_key_tests {
             Some("Catalogue")
         );
         assert!(!registry.declares_command_at_rooted_key("::provided"));
+    }
+}
+
+#[cfg(test)]
+mod source_empty_write_projection_tests {
+    #[test]
+    fn selected_source_write_keeps_empty_scalar_and_array_names_but_refuses_dynamic_names() {
+        // experiments/name-handling/results/source-empty-write-projection-20261014/oracles/observations.json
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let context =
+                crate::model::ingress::resolve_environment(environment).default_context_registry();
+            for (word, expected) in [
+                (crate::InvocationWord::Literal(""), Some("")),
+                (crate::InvocationWord::Literal("(key)"), Some("(key)")),
+                (crate::InvocationWord::Dynamic, None),
+            ] {
+                let arguments = [word, crate::InvocationWord::Literal("VALUE")];
+                let selected =
+                    crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                        context.commands(),
+                        Some(context.context()),
+                        crate::InvocationWords::structured(
+                            crate::InvocationWord::Literal("set"),
+                            &arguments,
+                        )
+                        .with_profile(context.commands().profile()),
+                        tcl_dialect::model::InvocationRealm::RuleLoader,
+                    );
+                let projection =
+                    super::CommandRegistry::variable_write_projection_for_selected_source(
+                        &selected.resolved().unwrap(),
+                    );
+                if let Some(expected) = expected {
+                    assert_eq!(projection.literal_names, [expected]);
+                    assert!(!projection.opaque_variable_frame);
+                } else {
+                    assert!(projection.literal_names.is_empty());
+                    assert!(projection.opaque_variable_frame);
+                }
+            }
+        }
     }
 }

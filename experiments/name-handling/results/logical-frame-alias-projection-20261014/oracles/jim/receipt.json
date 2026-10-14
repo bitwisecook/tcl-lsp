@@ -1,0 +1,21 @@
+{
+  "provider": "jim",
+  "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "binary_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "binary_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "source_sha256": "2353b60913001ec5ac870dcbe94c3450fb5d5915d3447f63048fa788bab996db",
+  "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+  "original_library_inputs": 139,
+  "inputs_drift": 0,
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-logical-frame-alias-projection-20261014/oracles/source.tcl"
+  ],
+  "started_utc": "2026-10-14T04:57:00.784322+00:00",
+  "exit_code": 0,
+  "stdout": "GLOBAL GLOBAL\nLITERAL LITERAL\nDEFAULT DEFAULT\n",
+  "stderr": "",
+  "uses_tcltest": false,
+  "prior_provider_receipt": "experiments/name-handling/results/upvar-logical-frame-20261014/oracles/jim/receipt.json",
+  "prior_provider_receipt_sha256": "f119cae252f732f42de9f6c79e93c1767991ffe9d6575e446490d86f14822bd4"
+}

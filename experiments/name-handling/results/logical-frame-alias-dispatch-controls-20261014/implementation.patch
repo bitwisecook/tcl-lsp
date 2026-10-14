@@ -1,0 +1,126 @@
+diff --git a/rust/tcl-registry/src/resolved_invocation.rs b/rust/tcl-registry/src/resolved_invocation.rs
+index 1daae7d7f..b3992ef84 100644
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -2457,7 +2457,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+     }
+ 
+     /// Conditional state facts under the original Logical source grammar.
+-    /// Only the derived frame-alias resolver uses authored layout consensus;
++    /// Registered source frame-alias resolvers use authored layout consensus;
+     /// actual input remains caller-owned, with no frame or completion grant.
+     #[must_use]
+     pub fn authored_logical_source_state_transitions(&self) -> Option<StateTransitions> {
+@@ -2468,7 +2468,14 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+         ]
+         .into_iter()
+         .flatten()
+-        .any(|descriptor| descriptor.logical_source_resolver.is_some());
++        .fold(false, |selected, descriptor| {
++            let own = descriptor.logical_source_resolver.is_some();
++            if descriptor.composition == crate::StateTransitionComposition::Replace {
++                own
++            } else {
++                selected || own
++            }
++        });
+         if selected {
+             use crate::frame_effect::FrameArgumentResolution;
+             match self.authored_logical_source_frame_argument_layout()? {
+@@ -10415,4 +10422,35 @@ mod logical_source_alias_projection_tests {
+             );
+         }
+     }
++    #[test]
++    fn source_descriptor_replacement_withdraws_parent_layout_requirement() {
++        let profile = tcl_dialect::DialectProfile::plain_tcl();
++        let context = crate::model::ingress::context_for_profile(profile);
++        let arguments = [
++            crate::InvocationWord::Dynamic,
++            crate::InvocationWord::Literal("source"),
++            crate::InvocationWord::Literal("local"),
++        ];
++        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
++            context.commands(),
++            Some(context.context()),
++            crate::InvocationWords::structured(crate::InvocationWord::Literal("upvar"), &arguments)
++                .with_profile(Some(profile)),
++            tcl_dialect::model::InvocationRealm::RuleLoader,
++        );
++        let mut schema = selected.resolved().unwrap();
++        assert!(schema.authored_logical_source_state_transitions().is_none());
++        schema.semantics.state_transitions.form = Some(crate::StateTransitionDescriptor {
++            composition: crate::StateTransitionComposition::Replace,
++            ..crate::StateTransitionDescriptor::EMPTY
++        });
++        assert!(
++            schema
++                .authored_logical_source_state_transitions()
++                .unwrap()
++                .facts()
++                .is_empty()
++        );
++        assert!(schema.state_transitions().facts().is_empty());
++    }
+ }
+diff --git a/rust/tcl-registry/src/state_transition.rs b/rust/tcl-registry/src/state_transition.rs
+index db61f0f3d..130b7b045 100644
+--- a/rust/tcl-registry/src/state_transition.rs
++++ b/rust/tcl-registry/src/state_transition.rs
+@@ -1896,8 +1896,8 @@ impl ResolvedStateTransitions {
+         self.resolve_coverage_on_edge(arguments, false)
+     }
+ 
+-    /// Readonly source facts with only the canonical derived frame-alias
+-    /// resolver using authored layout consensus. Custom resolvers, descriptor
++    /// Readonly facts through explicitly registered source frame-alias
++    /// resolvers. Custom resolvers, descriptor
+     /// replacement, operands and commit annotations retain their own metadata.
+     pub(crate) fn resolve_logical_source_frame_aliases(
+         self,
+diff --git a/rust/tcl-spectcl/tests/eval_loader.rs b/rust/tcl-spectcl/tests/eval_loader.rs
+index b80ef2602..a65eb3755 100644
+--- a/rust/tcl-spectcl/tests/eval_loader.rs
++++ b/rust/tcl-spectcl/tests/eval_loader.rs
+@@ -1531,3 +1531,41 @@ fn runtime_backing_reads_each_shape_through_both_paths() {
+         assert_eq!(pack.notices.len(), 2, "{:#?}", pack.notices);
+     }
+ }
++
++#[test]
++fn derived_frame_aliases_register_explicit_logical_source_dispatch() {
++    let source = r"speclib probe 2.1 {
++        command probe::alias {
++            arity 2..
++            state_transitions { resolver from-frame-effect }
++            frame_effect -level-word ArityParity -layout AliasPairs
++        }
++        command probe::plain {
++            arity 1
++            state_transitions { resolver from-frame-effect }
++        }
++    }";
++    for pack in [
++        evaluate_pack(source),
++        evaluate_through_the_interpreter(source),
++    ] {
++        let alias = pack.command("probe::alias").unwrap();
++        assert!(
++            alias
++                .spec
++                .state_transitions
++                .unwrap()
++                .logical_source_resolver
++                .is_some()
++        );
++        let plain = pack.command("probe::plain").unwrap();
++        assert!(
++            plain
++                .spec
++                .state_transitions
++                .unwrap()
++                .logical_source_resolver
++                .is_none()
++        );
++    }
++}

@@ -70,6 +70,7 @@ const COPY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 };
 
 const COPY_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(copy_state_transitions),

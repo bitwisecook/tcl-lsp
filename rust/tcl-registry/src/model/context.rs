@@ -60,12 +60,7 @@ use crate::model::surface::{
 };
 use crate::registry::NameProviders;
 use tcl_dialect::model::{CorePoints, PackageFloor, SurfaceQuery, surface_admits};
-// The vendor-surface summary payload: plain registry-derived data, not
-// part of the retiring profile trait, so both faces answer with the one
-// type and the parity pin can compare them directly. The retiring trait
-// survives crate-internally, plus a cfg(test) oracle for the sweeps,
-// until it goes entirely under ledger C1/F1; the type lives here in the
-// meantime.
+// Shared registry-derived payload for vendor-surface queries.
 use crate::profile_queries::VendorSurface;
 use crate::registry::CommandRegistry;
 use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
@@ -485,13 +480,8 @@ impl ResolvedContext {
     /// require` — it declares a placement for it (§3.2's placement
     /// claims).
     ///
-    /// The placement-model face of the retired `DialectProfile::hosts_tk`
-    /// and of `DocumentEnvironment::can_host_package`'s lenient-sink
-    /// special case (ledger F4): a closed-world vendor shell — the F5
-    /// surfaces, the EDA shells, `bpf`, `spectcl` — declares no Tk
-    /// placement and therefore cannot host it however the source spells
-    /// its `package require`, while every plain-Tcl environment (the
-    /// lenient `tcl` sink included) and `tk` itself declares one.
+    /// Closed-world F5, EDA, BPF and SpecTcl environments declare no Tk
+    /// placement. Plain Tcl, its lenient sink and Tk declare one.
     ///
     /// Distinct from [`Self::package_active`]: hosting is what the
     /// *environment* offers, activation is what this *document* got.

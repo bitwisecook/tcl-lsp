@@ -53,6 +53,7 @@ const OO_OBJDEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 };
 
 const OO_OBJDEFINE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(oo_objdefine_state_transitions),

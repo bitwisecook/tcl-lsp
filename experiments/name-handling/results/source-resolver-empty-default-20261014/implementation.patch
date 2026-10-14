@@ -1,0 +1,12 @@
+diff --git a/rust/tcl-registry/src/state_transition.rs b/rust/tcl-registry/src/state_transition.rs
+index 130b7b045..eb7fcf6c9 100644
+--- a/rust/tcl-registry/src/state_transition.rs
++++ b/rust/tcl-registry/src/state_transition.rs
+@@ -1815,6 +1815,7 @@ impl StateTransitionDescriptor {
+     pub const EMPTY: Self = Self {
+         composition: StateTransitionComposition::Extend,
+         resolver: None,
++        logical_source_resolver: None,
+         success_resolver: None,
+         argument_shape: StateTransitionArgumentShape::Independent,
+         dynamic_widening: &[],

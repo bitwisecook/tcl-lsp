@@ -103,11 +103,8 @@ struct SpecEntry {
 /// One assembled, `Arc`-owned registry generation for a resolved context
 /// (see the module docs): the per-name spec multimap admitted by provider
 /// filtering, the context its queries answer under, and the generation's
-/// **command store** — the same per-`(environment, pack overlay)` spec
-/// store the old per-profile cache owns, shared by handle so the two
-/// models can never drift while both exist (ownership re-homes here when
-/// the old cache goes with ledger C1's re-type; the cache is already
-/// crate-internal only).
+/// **command store**, shared by handle for each environment/pack overlay.
+/// Queries retain the same store generation as their availability context.
 pub struct ContextRegistry {
     context: ResolvedContext,
     commands: Arc<CommandRegistry>,
@@ -336,13 +333,8 @@ type GenerationKey = (
 );
 
 /// The interned catalogue profile whose command store backs
-/// `environment_id`'s generations — the interop seam: the
-/// catalogue environments share their canonical id with their old
-/// profile, and the model-only environments (`tcl`, `tk`, third-party
-/// ids) fall back to the permissive plain profile, exactly the store
-/// every unresolved dialect string read before the port. Deleted with
-/// the old cache under ledger C1's re-type, when the store becomes
-/// environment-owned (the cache is already crate-internal).
+/// `environment_id`'s generations. Catalogue IDs retain their named profile;
+/// model-only Tcl, Tk and third-party IDs use the permissive plain profile.
 fn store_profile(environment_id: &str) -> &'static DialectProfile {
     DialectProfile::find(environment_id).unwrap_or_else(DialectProfile::plain_tcl)
 }

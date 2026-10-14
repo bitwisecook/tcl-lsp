@@ -133,7 +133,6 @@ pub fn spec() -> CommandSpec {
             DispatchDependencies::NONE,
         )),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
-        // Declared once, by naming the stock descriptor (ledger C8).
         state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),
         ..CommandSpec::DEFAULT
     }

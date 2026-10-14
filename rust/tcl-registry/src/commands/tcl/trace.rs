@@ -224,6 +224,7 @@ const LEGACY_TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
 ];
 
 const TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(trace_add_state_transitions),
@@ -239,6 +240,7 @@ const TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescript
 };
 
 const TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(trace_remove_state_transitions),
@@ -252,6 +254,7 @@ const TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescr
 };
 
 const LEGACY_TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(legacy_trace_add_state_transitions),
@@ -262,6 +265,7 @@ const LEGACY_TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 };
 
 const LEGACY_TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(legacy_trace_remove_state_transitions),

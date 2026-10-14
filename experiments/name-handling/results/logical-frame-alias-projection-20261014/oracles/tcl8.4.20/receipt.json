@@ -1,0 +1,21 @@
+{
+  "provider": "tcl8.4.20",
+  "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "binary_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "binary_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "source_sha256": "2353b60913001ec5ac870dcbe94c3450fb5d5915d3447f63048fa788bab996db",
+  "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+  "original_library_inputs": 23,
+  "inputs_drift": 0,
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/name-logical-frame-alias-projection-20261014/oracles/source.tcl"
+  ],
+  "started_utc": "2026-10-14T04:57:00.794363+00:00",
+  "exit_code": 0,
+  "stdout": "GLOBAL GLOBAL\nLITERAL LITERAL\nDEFAULT DEFAULT\n",
+  "stderr": "",
+  "uses_tcltest": false,
+  "prior_provider_receipt": "experiments/name-handling/results/upvar-logical-frame-20261014/oracles/tcl8.4.20/receipt.json",
+  "prior_provider_receipt_sha256": "e28290e134dedbebf65a990e90ff9e0ed406810738d280ac9d880c419a896145"
+}

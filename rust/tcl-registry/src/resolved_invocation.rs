@@ -382,8 +382,7 @@ fn resolve_invocation_semantics<'r, 'w>(
             // a command-table mutation with the one-word
             // `command_table_effect` selector instead. Resolve it to the
             // very stock descriptor a shipped spec names, so the pack
-            // shorthand and the shipped declaration produce one transition
-            // vocabulary through one resolver (ledger C8).
+            // shorthand and the shipped declaration share one transition resolver.
             command: inherit_command
                 .then(|| {
                     spec.state_transitions.or_else(|| {
@@ -2430,9 +2429,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         } else {
             EffectFootprint::conservative_unknown_invocation()
         };
-        // Whether this call mutated the command table is read from the one
-        // transition vocabulary (ledger C8), never from a second coarse
-        // effect word stamped beside it.
+        // Selected transitions own command-table mutation and its coverage.
         footprint.extend(EffectFootprint::from_legacy_with_transition_coverage(
             command_table_mutation,
             self.semantics.frame_effect,
@@ -2454,6 +2451,63 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .state_transitions
             .resolve_with_effect_coverage(self.words.arguments())
             .0
+    }
+
+    /// Conditional state facts under the original Logical source grammar.
+    /// Registered source frame-alias resolvers use authored layout consensus;
+    /// actual input remains caller-owned, with no frame or completion grant.
+    #[must_use]
+    pub fn authored_logical_source_state_transitions(&self) -> Option<StateTransitions> {
+        let selected = [
+            self.semantics.state_transitions.command,
+            self.semantics.state_transitions.subcommand,
+            self.semantics.state_transitions.form,
+        ]
+        .into_iter()
+        .flatten()
+        .fold(false, |selected, descriptor| {
+            let own = descriptor.logical_source_resolver.is_some();
+            if descriptor.composition == crate::StateTransitionComposition::Replace {
+                own
+            } else {
+                selected || own
+            }
+        });
+        if selected {
+            use crate::frame_effect::FrameArgumentResolution;
+            match self.authored_logical_source_frame_argument_layout()? {
+                FrameArgumentResolution::Unknown
+                | FrameArgumentResolution::Valid {
+                    level: crate::FrameLevel::Dynamic,
+                    ..
+                } => return None,
+                FrameArgumentResolution::Valid { .. } | FrameArgumentResolution::Invalid => {}
+            }
+        }
+        Some(
+            self.semantics
+                .state_transitions
+                .resolve_logical_source_frame_aliases(self.words.arguments()),
+        )
+    }
+
+    /// Readonly aliases from the same Logical state-fact projection. Unknown
+    /// source layouts abstain; successful linking remains an independent query.
+    #[must_use]
+    pub fn authored_logical_source_variable_aliases(
+        &self,
+    ) -> Option<Vec<crate::VariableCellAliasTransition>> {
+        let transitions = self.authored_logical_source_state_transitions()?;
+        Some(
+            transitions
+                .facts()
+                .iter()
+                .filter_map(|fact| match &fact.transition {
+                    crate::StateTransition::VariableCellAlias(alias) => Some(alias.clone()),
+                    _ => None,
+                })
+                .collect(),
+        )
     }
 
     /// Selected ordinary result-only return metadata preserves lexical
@@ -10291,5 +10345,109 @@ mod scope_alias_metadata_tests {
                 "{head}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod logical_source_alias_projection_tests {
+    #[test]
+    fn logical_alias_source_layout_keeps_original_operands_without_native_transition_grants() {
+        // experiments/name-handling/results/logical-frame-alias-projection-20261014/oracles/observations.json
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = crate::model::ingress::context_for_profile(profile);
+        for arguments in [
+            vec!["#0", "g", "local"],
+            vec!["1", "$literal", ""],
+            vec!["g", "local"],
+        ] {
+            let arguments = arguments
+                .iter()
+                .map(|value| crate::InvocationWord::Literal(value))
+                .collect::<Vec<_>>();
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(
+                        crate::InvocationWord::Literal("upvar"),
+                        &arguments,
+                    )
+                    .with_profile(Some(profile)),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            let schema = selected.resolved().unwrap();
+            let ordinary = schema.state_transitions();
+            let aliases = schema.authored_logical_source_variable_aliases().unwrap();
+            assert_eq!(aliases.len(), 1);
+            let offset = usize::from(arguments.len() % 2 == 1);
+            assert_eq!(aliases[0].local.literal(), arguments[offset + 1].literal());
+            assert_eq!(aliases[0].words.local, offset + 1);
+            assert_eq!(aliases[0].words.target, offset);
+            assert!(!aliases[0].writes_value);
+            assert_eq!(schema.state_transitions(), ordinary);
+        }
+        for arguments in [
+            vec![
+                crate::InvocationWord::Dynamic,
+                crate::InvocationWord::Literal("g"),
+                crate::InvocationWord::Literal("local"),
+            ],
+            vec![
+                crate::InvocationWord::Literal("010"),
+                crate::InvocationWord::Literal("g"),
+                crate::InvocationWord::Literal("local"),
+            ],
+            vec![crate::InvocationWord::Expanded],
+        ] {
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(
+                        crate::InvocationWord::Literal("upvar"),
+                        &arguments,
+                    )
+                    .with_profile(Some(profile)),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            assert!(
+                selected
+                    .resolved()
+                    .unwrap()
+                    .authored_logical_source_variable_aliases()
+                    .is_none()
+            );
+        }
+    }
+    #[test]
+    fn source_descriptor_replacement_withdraws_parent_layout_requirement() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = crate::model::ingress::context_for_profile(profile);
+        let arguments = [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("source"),
+            crate::InvocationWord::Literal("local"),
+        ];
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            crate::InvocationWords::structured(crate::InvocationWord::Literal("upvar"), &arguments)
+                .with_profile(Some(profile)),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        let mut schema = selected.resolved().unwrap();
+        assert!(schema.authored_logical_source_state_transitions().is_none());
+        schema.semantics.state_transitions.form = Some(crate::StateTransitionDescriptor {
+            composition: crate::StateTransitionComposition::Replace,
+            ..crate::StateTransitionDescriptor::EMPTY
+        });
+        assert!(
+            schema
+                .authored_logical_source_state_transitions()
+                .unwrap()
+                .facts()
+                .is_empty()
+        );
+        assert!(schema.state_transitions().facts().is_empty());
     }
 }

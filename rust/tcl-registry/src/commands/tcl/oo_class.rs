@@ -73,6 +73,7 @@ const CLASS_FACTORY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 };
 
 const CLASS_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(class_create_state_transitions),
@@ -86,6 +87,7 @@ const CLASS_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescr
 };
 
 const CLASS_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(class_new_state_transitions),
@@ -97,6 +99,7 @@ const CLASS_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescript
 
 const CLASS_CREATE_WITH_NAMESPACE_TRANSITIONS: StateTransitionDescriptor =
     StateTransitionDescriptor {
+        logical_source_resolver: None,
         composition: StateTransitionComposition::Extend,
         success_resolver: None,
         resolver: Some(class_create_with_namespace_state_transitions),

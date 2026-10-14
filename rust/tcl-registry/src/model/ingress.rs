@@ -333,8 +333,7 @@ impl DocumentEnvironment {
     }
 
     /// The keyed-axis pins for this session's library-version overrides.
-    /// A malformed override spelling drops to the axis default rather than
-    /// aborting resolution (micro-unification 3 in the module docs).
+    /// Malformed overrides use the axis defaults.
     #[must_use]
     pub fn keyed_versions(overrides: &LibraryVersionOverrides) -> KeyedVersions {
         KeyedVersions::from_overrides(overrides).unwrap_or_default()

@@ -36,6 +36,7 @@ const GLOBAL_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCo
 }];
 
 const GLOBAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(global_state_transitions),

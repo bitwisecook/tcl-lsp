@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-This is the bounded 04:55 UTC snapshot on `work`. The machine inventory keeps
+This is the bounded 05:10 UTC snapshot on `work`. The machine inventory keeps
 47 actionable rows, the inherited 330 lexical LSP candidates and original issue
 and source observations. Package membership or lexical search absence does not
 certify semantic completion. [Current consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
@@ -13,7 +13,7 @@ record each integrated owner and its remaining execution obligation.
 | Compiler33 diagnostic | 304 controls: 194 PASS, 110 FAIL; zero authored-source drift. | Among 295 common Compiler31 controls, 19 improve and one regresses. Source geometry and consumer repairs have measurable gains; global/upvar/deferred effects, source-frame fixture ownership and original summary body coverage still fail. Diagnostic capture does not establish Native provider acceptance. |
 | Full Runtime09 | 79 controls: 78 PASS, 1 FAIL; zero source/compiled-input/artifact drift. | All original 77 controls pass. Only new C8.5 rename error-code expectation fails. The independent per-engine correction is integrated and requires fresh replay. Engine host/guest closure remains separate. |
 | Core34 diagnostic | 64 controls: 39 PASS, 25 FAIL; zero authored-source drift. | Common original 30 gain 2 with no regressions; original scope 9 is 8 PASS/1 FAIL and earlier 14 is 13 PASS/1 FAIL. Linked definition 2 pass; hover 4/rename and provider/seed fail. Graph13 overflows during analysis producer; strict Native inlay has no definitions/types. |
-| DB36 | Build fails before semantic controls after 144.04s; zero authored-source drift. | Seven VM policy/signature errors stop compilation. No reuse counts or unchanged original assertions have executed in this capture. |
+| DB38 | Build PASS; ten exact controls: 2 PASS, 8 FAIL; zero source drift and no missing selectors. | Whole-file lattice shift and original quoted/braced callee-edit memo observations pass. Original body-shift/parameter/optimisation/taint/cascade and source-input controls fail; assertions remain unchanged. Earlier DB36/37 compile failures supply no semantic results. |
 | Paired Runtime08 | 2 controls: 1 PASS, 1 FAIL; zero source/compiled/artifact drift. | Only Jim rename message NUL extent fails. Actual C8.4/C8.5 observations retain counted full diagnostics; universal CString proposal rejected before Main, per-engine correction active. Prior Runtime07 76/77 remains retained scoped evidence. |
 | AI/editor | Current TypeScript typecheck PASS. | Real LSP/Electron provider, language/currentness and unavailable-owner controls remain unexecuted. |
 
@@ -103,3 +103,16 @@ from actual appliance runs in the same branch; C/Jim and software tests do not
 establish F5 behaviour. Preserve original sources, raw results, failures, legal
 attribution and provenance. Remove this temporary directory and its references
 before the merge-ready PR; durable documentation describes current contracts.
+
+## Current final-gate audit
+
+The strict proof checker is running read-only against current source. No evidence,
+provider, replay or census hash is renewed. Its result remains pending.
+
+Public owner rows require actual unrestricted public declarations. Several
+source-only helpers are intentionally crate/module-private and need accurate
+internal owner/consumer registration. The existing internal Runtime route
+requires its unchanged typed no-argument getter path; nested source helpers
+cannot invent that route or become public solely for documentation.
+Documentation link/index and remaining development-history comments are under
+inspection; source and oracle/legal provenance remain intact.

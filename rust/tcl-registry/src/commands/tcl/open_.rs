@@ -180,6 +180,7 @@ pub fn spec() -> CommandSpec {
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
             resolver: Some(discovery_file_open),

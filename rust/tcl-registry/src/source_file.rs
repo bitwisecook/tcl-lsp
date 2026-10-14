@@ -193,6 +193,7 @@ fn select_with_grammar(
 /// The operand retains its value knowledge and ordinal; no file availability,
 /// successful dispatch or completed file evaluation is established.
 pub const SOURCE_TRANSITIONS: crate::StateTransitionDescriptor = crate::StateTransitionDescriptor {
+    logical_source_resolver: None,
     resolver: Some(source_transitions),
     argument_shape: crate::state_transition::StateTransitionArgumentShape::Positional,
     commit: crate::state_transition::StateTransitionCommit::MayCommitBeforeAbruptCompletion,

@@ -1688,6 +1688,14 @@ impl StateTransitionKnowledge {
     }
 }
 
+/// Explicit source-purpose dispatch registered by the descriptor producer.
+/// The resolver's address never classifies its semantics or Native identity.
+#[derive(Debug, Clone, Copy)]
+pub enum LogicalSourceStateTransitionResolver {
+    /// Conditional frame-alias grammar under positively retained Logical input.
+    FrameAliases(StateTransitionResolver),
+}
+
 /// Argument-sensitive resolver for a state transition descriptor.
 ///
 /// The resolver sees only [`InvocationArguments`]' safe accessors. It can
@@ -1784,6 +1792,9 @@ pub struct StateTransitionDescriptor {
     /// Optional transition projection valid only on successful completion.
     /// Ordinary/error facts retain `resolver`; consumers must select the edge.
     pub success_resolver: Option<StateTransitionResolver>,
+    /// Explicit readonly Logical alias grammar, separate from ordinary and
+    /// successful Native transition resolvers.
+    pub logical_source_resolver: Option<LogicalSourceStateTransitionResolver>,
     /// Whether expansion changes the resolver's positional grammar.
     pub argument_shape: StateTransitionArgumentShape,
     /// Domains widened for dynamic identity-bearing operands.
@@ -1804,6 +1815,7 @@ impl StateTransitionDescriptor {
     pub const EMPTY: Self = Self {
         composition: StateTransitionComposition::Extend,
         resolver: None,
+        logical_source_resolver: None,
         success_resolver: None,
         argument_shape: StateTransitionArgumentShape::Independent,
         dynamic_widening: &[],
@@ -1883,6 +1895,39 @@ impl ResolvedStateTransitions {
         arguments: InvocationArguments<'_>,
     ) -> (StateTransitions, TransitionEffectCoverages) {
         self.resolve_coverage_on_edge(arguments, false)
+    }
+
+    /// Readonly facts through explicitly registered source frame-alias
+    /// resolvers. Custom resolvers, descriptor
+    /// replacement, operands and commit annotations retain their own metadata.
+    pub(crate) fn resolve_logical_source_frame_aliases(
+        self,
+        arguments: InvocationArguments<'_>,
+    ) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        for descriptor in [self.command, self.subcommand, self.form]
+            .into_iter()
+            .flatten()
+        {
+            let mut resolved = match descriptor.logical_source_resolver {
+                Some(LogicalSourceStateTransitionResolver::FrameAliases(resolver)) => {
+                    resolver(arguments)
+                }
+                None => descriptor.resolve(arguments),
+            };
+            resolved.widen_dynamic_arguments(
+                arguments,
+                descriptor.dynamic_widening,
+                descriptor.argument_shape == StateTransitionArgumentShape::Positional,
+            );
+            resolved.set_commit(descriptor.commit);
+            if descriptor.composition == StateTransitionComposition::Replace {
+                transitions = resolved;
+            } else {
+                transitions.extend(resolved);
+            }
+        }
+        transitions
     }
 
     /// Resolve normal-edge transitions and their matching write coverage.
@@ -1985,6 +2030,7 @@ pub mod command_binding {
 
     /// `proc name params body` — bind argument 0 as a procedure.
     pub const DEFINES_PROCEDURE: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
         composition: StateTransitionComposition::Extend,
         success_resolver: None,
         resolver: Some(defines_procedure),
@@ -2000,6 +2046,7 @@ pub mod command_binding {
     /// `rename oldName newName` — move argument 0 to argument 1, or delete
     /// it when the target is empty.
     pub const RENAMES_COMMANDS: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
         composition: StateTransitionComposition::Extend,
         success_resolver: None,
         resolver: Some(renames_commands),
@@ -2019,6 +2066,7 @@ pub mod command_binding {
     /// `interp alias srcPath srcCmd ?targetPath targetCmd ?args…??` —
     /// create, delete, or query a command alias.
     pub const CREATES_ALIASES: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
         composition: StateTransitionComposition::Extend,
         success_resolver: None,
         resolver: Some(creates_aliases),
@@ -2039,6 +2087,7 @@ pub mod command_binding {
 
     /// Jim's `alias newname command ?args?` preserves the caller namespace.
     pub const CREATES_CALLER_ALIASES: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
         composition: StateTransitionComposition::Extend,
         success_resolver: None,
         resolver: Some(creates_caller_aliases),
@@ -2290,6 +2339,57 @@ pub fn alias_pairs_resolver(
         FrameLevelWord::LeadingProbe => alias_pairs_by_leading_probe,
         FrameLevelWord::Upvar => alias_pairs_by_upvar,
     }
+}
+
+/// Source resolver for the same authored derived alias layout. Native call
+/// context is deliberately absent only inside this positively selected purpose.
+#[must_use]
+pub fn logical_source_alias_pairs_resolver(
+    level_word: crate::frame_effect::FrameLevelWord,
+) -> StateTransitionResolver {
+    use crate::frame_effect::FrameLevelWord;
+    match level_word {
+        FrameLevelWord::None => logical_alias_pairs_without_level,
+        FrameLevelWord::ArityParity => logical_alias_pairs_by_arity_parity,
+        FrameLevelWord::LeadingProbe => logical_alias_pairs_by_leading_probe,
+        FrameLevelWord::Upvar => logical_alias_pairs_by_upvar,
+    }
+}
+
+fn source_arguments(arguments: InvocationArguments<'_>) -> InvocationArguments<'_> {
+    match arguments {
+        InvocationArguments::Literals(words)
+        | InvocationArguments::ContextualLiterals(words, _) => InvocationArguments::Literals(words),
+        InvocationArguments::Structured(words)
+        | InvocationArguments::ContextualStructured(words, _) => {
+            InvocationArguments::Structured(words)
+        }
+    }
+}
+
+fn logical_alias_pairs_without_level(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs(
+        source_arguments(arguments),
+        crate::frame_effect::FrameLevelWord::None,
+    )
+}
+fn logical_alias_pairs_by_arity_parity(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs(
+        source_arguments(arguments),
+        crate::frame_effect::FrameLevelWord::ArityParity,
+    )
+}
+fn logical_alias_pairs_by_leading_probe(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs(
+        source_arguments(arguments),
+        crate::frame_effect::FrameLevelWord::LeadingProbe,
+    )
+}
+fn logical_alias_pairs_by_upvar(arguments: InvocationArguments<'_>) -> StateTransitions {
+    alias_pairs(
+        source_arguments(arguments),
+        crate::frame_effect::FrameLevelWord::Upvar,
+    )
 }
 
 fn alias_pairs_without_level(arguments: InvocationArguments<'_>) -> StateTransitions {
@@ -2900,6 +3000,57 @@ mod tests {
     }
     use crate::{InvocationWord, InvocationWords};
 
+    #[test]
+    fn logical_frame_alias_projection_preserves_custom_replacement_and_commit_metadata() {
+        let frame = crate::FrameEffectSpec {
+            level_word: crate::frame_effect::FrameLevelWord::Upvar,
+            layout: crate::FrameArgLayout::AliasPairs,
+        };
+        let descriptor = StateTransitionDescriptor {
+            resolver: Some(alias_pairs_resolver(frame.level_word)),
+            logical_source_resolver: Some(LogicalSourceStateTransitionResolver::FrameAliases(
+                logical_source_alias_pairs_resolver(frame.level_word),
+            )),
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            ..StateTransitionDescriptor::EMPTY
+        };
+        let words = [
+            InvocationWord::Literal("#0"),
+            InvocationWord::Literal("source"),
+            InvocationWord::Literal("local"),
+        ];
+        let arguments = InvocationArguments::structured(&words)
+            .with_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        let owner = ResolvedStateTransitions {
+            command: Some(descriptor),
+            ..Default::default()
+        };
+        let facts = owner.resolve_logical_source_frame_aliases(arguments);
+        assert!(
+            matches!(&facts.facts()[0].transition, StateTransition::VariableCellAlias(alias)
+            if alias.local.literal() == Some("local") && alias.words.local == 2)
+        );
+        assert_eq!(
+            facts.facts()[0].commit,
+            StateTransitionCommit::MayCommitBeforeAbruptCompletion
+        );
+        let replaced = ResolvedStateTransitions {
+            command: Some(descriptor),
+            form: Some(StateTransitionDescriptor {
+                logical_source_resolver: None,
+                composition: StateTransitionComposition::Replace,
+                ..StateTransitionDescriptor::EMPTY
+            }),
+            ..Default::default()
+        };
+        assert!(
+            replaced
+                .resolve_logical_source_frame_aliases(arguments)
+                .facts()
+                .is_empty()
+        );
+    }
+
     /// The alias facts a `from-frame-effect` resolver derives, and its two
     /// abstentions (`docs/design/spec-dsl-examples/README.md`, "Derivations,
     /// exactly"): a computed level word aborts the whole call, and a
@@ -3285,6 +3436,7 @@ mod tests {
     #[test]
     fn dynamic_operands_become_typed_widenings() {
         const DESCRIPTOR: StateTransitionDescriptor = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Extend,
             success_resolver: None,
             resolver: None,
@@ -3374,6 +3526,7 @@ mod tests {
         // A `proc`-like definition becomes precise only on the OK edge. An
         // exact CFG must not treat this as an unconditional binding fact.
         let descriptor = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Extend,
             success_resolver: None,
             resolver: Some(command_definition),
@@ -3397,6 +3550,7 @@ mod tests {
     #[test]
     fn descriptors_resolve_command_subcommand_then_form() {
         let command = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Extend,
             success_resolver: None,
             resolver: Some(command_definition),
@@ -3406,6 +3560,7 @@ mod tests {
             commit: StateTransitionCommit::OnOkOnly,
         };
         let subcommand = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Extend,
             success_resolver: None,
             resolver: Some(subcommand_definition),
@@ -3415,6 +3570,7 @@ mod tests {
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
         };
         let form = StateTransitionDescriptor {
+            logical_source_resolver: None,
             composition: StateTransitionComposition::Replace,
             success_resolver: None,
             resolver: Some(form_definition),

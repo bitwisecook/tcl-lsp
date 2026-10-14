@@ -811,15 +811,13 @@ pub(super) fn script_has_dynamic_write_target(script: &Script) -> bool {
     })
 }
 
-/// Record one global-frame write target: a plain literal name is
-/// enumerable, anything else widens.
+/// Record a known global-frame destination under the shared observation purpose.
 fn record_global_frame_write(name: &str, info: &mut GlobalWriteInfo) {
-    let name = literal_root(name);
-    if !name.is_empty() {
-        info.names.insert(name.to_owned());
-    } else {
-        info.opaque_global_frame = true;
-    }
+    crate::variable_observation_names::record_variable_write_name(
+        &mut info.names,
+        literal_root(name),
+        crate::variable_observation_names::VariableWriteObservationPurpose::OuterScope,
+    );
 }
 
 fn accumulate_state(
@@ -1430,6 +1428,21 @@ mod tests {
             .with_dialect(Some(profile))
             .with_resolved_analysis_input(input);
         crate::lowering::lower_to_ir_with(lowerer, src)
+    }
+
+    #[test]
+    fn original_global_source_write_keeps_empty_scalar_and_array_root() {
+        // experiments/name-handling/results/source-empty-write-projection-20261014/oracles/observations.json
+        for body in ["set {} SCALAR", "set {(key)} ARRAY"] {
+            let module = module(&format!("proc p {{}} {{uplevel #0 {{{body}}}}}"));
+            assert!(module.source_entry.native_entry.is_none());
+            let summaries = detect_global_write_procs(&module);
+            assert!(summaries[&summary_id(&module, "::p")].names.contains(""));
+        }
+        let dynamic = module("proc p {name} {uplevel #0 {set $name VALUE}}");
+        assert!(
+            detect_global_write_procs(&dynamic)[&summary_id(&dynamic, "::p")].opaque_global_frame
+        );
     }
 
     #[test]

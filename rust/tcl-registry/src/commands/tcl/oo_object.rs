@@ -48,6 +48,7 @@ const OBJECT_CREATE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 };
 
 const OBJECT_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(object_create_state_transitions),
@@ -61,6 +62,7 @@ const OBJECT_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDesc
 };
 
 const OBJECT_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(object_new_state_transitions),

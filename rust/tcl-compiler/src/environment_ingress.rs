@@ -21,9 +21,8 @@
 //!
 //! The implementation lives in the registry model so `tcl-lsp-core`,
 //! `tcl-lsp-db`, and `tcl-lsp-server` resolve names through the *same* seam
-//! rather than a second copy. The re-exports below keep every compiler call
-//! site (and this module's tests) unchanged; see the shared module's docs
-//! for the resolution rules and the three accepted micro-unifications.
+//! through the same owner. The re-exports share its canonical-name, editor-ID,
+//! Tk-package and unknown-input resolution rules.
 
 use std::sync::{Mutex, OnceLock};
 

@@ -232,6 +232,7 @@ fn return_state_transitions(arguments: crate::InvocationArguments<'_>) -> crate:
 
 const RETURN_STATE_TRANSITIONS: crate::StateTransitionDescriptor =
     crate::StateTransitionDescriptor {
+        logical_source_resolver: None,
         resolver: Some(return_state_transitions),
         // Error-option publication may invoke observers before an abrupt return.
         commit: crate::StateTransitionCommit::MayCommitBeforeAbruptCompletion,

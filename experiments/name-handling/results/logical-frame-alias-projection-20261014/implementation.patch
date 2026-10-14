@@ -1,0 +1,906 @@
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 2229911f2..11cf508f7 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -761,18 +761,7 @@ pub(crate) fn original_logical_variable_footprint_with_metadata_context(
+         registry,
+     )?;
+     selected.with_metadata_schema(registry, context, realm, |schema| {
+-        let aliases = schema
+-            .state_transitions()
+-            .facts()
+-            .iter()
+-            .filter_map(|fact| {
+-                let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition
+-                else {
+-                    return None;
+-                };
+-                Some(alias.clone())
+-            })
+-            .collect();
++        let aliases = schema.authored_logical_source_variable_aliases()?;
+         Some((
+             CommandRegistry::variable_write_projection_for_selected_source(schema),
+             aliases,
+diff --git a/rust/tcl-compiler/src/var_observability.rs b/rust/tcl-compiler/src/var_observability.rs
+index e43dae7bb..3d9d89e5b 100644
+--- a/rust/tcl-compiler/src/var_observability.rs
++++ b/rust/tcl-compiler/src/var_observability.rs
+@@ -1067,6 +1067,7 @@ mod tests {
+             arg_roles: &[(0, tcl_registry::ArgRole::VarWrite)],
+             assigns_variable_at: Some(0),
+             state_transitions: Some(tcl_registry::StateTransitionDescriptor {
++                logical_source_resolver: None,
+                 success_resolver: None,
+                 resolver: Some(overlay_alias_transitions),
+                 ..tcl_registry::StateTransitionDescriptor::EMPTY
+diff --git a/rust/tcl-registry/src/commands/tcl/cd.rs b/rust/tcl-registry/src/commands/tcl/cd.rs
+index b7065ca28..2499d0937 100644
+--- a/rust/tcl-registry/src/commands/tcl/cd.rs
++++ b/rust/tcl-registry/src/commands/tcl/cd.rs
+@@ -71,6 +71,7 @@ pub fn spec() -> CommandSpec {
+         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN | Traits::TAINT_SINK,
+         arity: Arity::new(0, 1),
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             success_resolver: None,
+             resolver: Some(discovery_changed),
+             ..StateTransitionDescriptor::EMPTY
+diff --git a/rust/tcl-registry/src/commands/tcl/file_.rs b/rust/tcl-registry/src/commands/tcl/file_.rs
+index a0859a4b9..230756fd1 100644
+--- a/rust/tcl-registry/src/commands/tcl/file_.rs
++++ b/rust/tcl-registry/src/commands/tcl/file_.rs
+@@ -112,6 +112,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
+             tcl_dialect::TclVersion::V8_6,
+         )),
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+             success_resolver: None,
+             resolver: Some(filesystem_time_changed),
+@@ -134,6 +135,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
+         name: "attributes",
+         native_compilation: Some(named_file_compiler!("attributes", no_hook)),
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+             success_resolver: None,
+             resolver: Some(filesystem_attributes_changed),
+@@ -172,6 +174,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
+         name: "copy",
+         native_compilation: Some(named_file_compiler!("copy", no_hook)),
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+             success_resolver: None,
+             resolver: Some(filesystem_changed),
+@@ -226,6 +229,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
+             tcl_dialect::TclVersion::V8_6,
+         )),
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+             success_resolver: None,
+             resolver: Some(filesystem_changed),
+@@ -502,6 +506,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
+             tcl_dialect::TclVersion::V8_6,
+         )),
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+             success_resolver: None,
+             resolver: Some(filesystem_changed),
+@@ -528,6 +533,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
+             tcl_dialect::TclVersion::V8_6,
+         )),
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+             success_resolver: None,
+             resolver: Some(filesystem_time_changed),
+@@ -669,6 +675,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
+         name: "rename",
+         native_compilation: Some(named_file_compiler!("rename", no_hook)),
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+             success_resolver: None,
+             resolver: Some(filesystem_changed),
+diff --git a/rust/tcl-registry/src/commands/tcl/global_.rs b/rust/tcl-registry/src/commands/tcl/global_.rs
+index 9626890e6..fe0f48b2b 100644
+--- a/rust/tcl-registry/src/commands/tcl/global_.rs
++++ b/rust/tcl-registry/src/commands/tcl/global_.rs
+@@ -36,6 +36,7 @@ const GLOBAL_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCo
+ }];
+ 
+ const GLOBAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(global_state_transitions),
+diff --git a/rust/tcl-registry/src/commands/tcl/interp.rs b/rust/tcl-registry/src/commands/tcl/interp.rs
+index cb3cb786d..4b8d17a44 100644
+--- a/rust/tcl-registry/src/commands/tcl/interp.rs
++++ b/rust/tcl-registry/src/commands/tcl/interp.rs
+@@ -97,6 +97,7 @@ const INTERP_POLICY_DYNAMIC_EFFECTS: StaticEffectFootprint = StaticEffectFootpri
+ };
+ 
+ const INTERP_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(interp_create_state_transitions),
+@@ -110,6 +111,7 @@ const INTERP_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDesc
+ };
+ 
+ const INTERP_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(interp_delete_state_transitions),
+@@ -128,6 +130,7 @@ const INTERP_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDesc
+ };
+ 
+ const INTERP_MARK_TRUSTED_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(interp_mark_trusted_state_transitions),
+@@ -141,6 +144,7 @@ const INTERP_MARK_TRUSTED_TRANSITIONS: StateTransitionDescriptor = StateTransiti
+ };
+ 
+ const INTERP_RECURSION_LIMIT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(interp_recursion_limit_state_transitions),
+@@ -154,6 +158,7 @@ const INTERP_RECURSION_LIMIT_TRANSITIONS: StateTransitionDescriptor = StateTrans
+ };
+ 
+ const INTERP_BGERROR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(interp_bgerror_state_transitions),
+@@ -167,6 +172,7 @@ const INTERP_BGERROR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
+ };
+ 
+ const INTERP_HIDE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(interp_hide_state_transitions),
+@@ -180,6 +186,7 @@ const INTERP_HIDE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescri
+ };
+ 
+ const INTERP_EXPOSE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(interp_expose_state_transitions),
+@@ -1063,6 +1070,7 @@ pub fn jim_spec() -> CommandSpec {
+         }],
+         side_effects: SIDE_EFFECTS,
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             success_resolver: None,
+             resolver: Some(jim_interp_create_transitions),
+             ..StateTransitionDescriptor::EMPTY
+diff --git a/rust/tcl-registry/src/commands/tcl/namespace_.rs b/rust/tcl-registry/src/commands/tcl/namespace_.rs
+index adbbc19c9..7df286376 100644
+--- a/rust/tcl-registry/src/commands/tcl/namespace_.rs
++++ b/rust/tcl-registry/src/commands/tcl/namespace_.rs
+@@ -565,6 +565,7 @@ const NAMESPACE_EVAL_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+ };
+ 
+ const NAMESPACE_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(namespace_delete_state_transitions),
+@@ -581,6 +582,7 @@ const NAMESPACE_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
+ };
+ 
+ const NAMESPACE_ENSEMBLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(namespace_ensemble_state_transitions),
+@@ -597,6 +599,7 @@ const NAMESPACE_ENSEMBLE_TRANSITIONS: StateTransitionDescriptor = StateTransitio
+ };
+ 
+ const NAMESPACE_EVAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(namespace_eval_state_transitions),
+@@ -612,6 +615,7 @@ const NAMESPACE_EVAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
+ };
+ 
+ const NAMESPACE_EXPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(namespace_export_state_transitions),
+@@ -625,6 +629,7 @@ const NAMESPACE_EXPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
+ };
+ 
+ const NAMESPACE_FORGET_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(namespace_forget_state_transitions),
+@@ -638,6 +643,7 @@ const NAMESPACE_FORGET_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
+ };
+ 
+ const NAMESPACE_IMPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(namespace_import_state_transitions),
+@@ -653,6 +659,7 @@ const NAMESPACE_IMPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
+ };
+ 
+ const NAMESPACE_PATH_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(namespace_path_state_transitions),
+@@ -666,6 +673,7 @@ const NAMESPACE_PATH_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
+ };
+ 
+ const NAMESPACE_UNKNOWN_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(namespace_unknown_state_transitions),
+@@ -682,6 +690,7 @@ const NAMESPACE_UNKNOWN_TRANSITIONS: StateTransitionDescriptor = StateTransition
+ };
+ 
+ const NAMESPACE_UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(namespace_upvar_state_transitions),
+diff --git a/rust/tcl-registry/src/commands/tcl/oo_class.rs b/rust/tcl-registry/src/commands/tcl/oo_class.rs
+index 1385f3762..a2143a909 100644
+--- a/rust/tcl-registry/src/commands/tcl/oo_class.rs
++++ b/rust/tcl-registry/src/commands/tcl/oo_class.rs
+@@ -73,6 +73,7 @@ const CLASS_FACTORY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+ };
+ 
+ const CLASS_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(class_create_state_transitions),
+@@ -86,6 +87,7 @@ const CLASS_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescr
+ };
+ 
+ const CLASS_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(class_new_state_transitions),
+@@ -97,6 +99,7 @@ const CLASS_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescript
+ 
+ const CLASS_CREATE_WITH_NAMESPACE_TRANSITIONS: StateTransitionDescriptor =
+     StateTransitionDescriptor {
++        logical_source_resolver: None,
+         composition: StateTransitionComposition::Extend,
+         success_resolver: None,
+         resolver: Some(class_create_with_namespace_state_transitions),
+diff --git a/rust/tcl-registry/src/commands/tcl/oo_copy.rs b/rust/tcl-registry/src/commands/tcl/oo_copy.rs
+index 834b116ef..8d4634b1d 100644
+--- a/rust/tcl-registry/src/commands/tcl/oo_copy.rs
++++ b/rust/tcl-registry/src/commands/tcl/oo_copy.rs
+@@ -70,6 +70,7 @@ const COPY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+ };
+ 
+ const COPY_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(copy_state_transitions),
+diff --git a/rust/tcl-registry/src/commands/tcl/oo_define.rs b/rust/tcl-registry/src/commands/tcl/oo_define.rs
+index 4efcc0293..a3882e24c 100644
+--- a/rust/tcl-registry/src/commands/tcl/oo_define.rs
++++ b/rust/tcl-registry/src/commands/tcl/oo_define.rs
+@@ -54,6 +54,7 @@ const OO_DEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+ };
+ 
+ const OO_DEFINE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(oo_define_state_transitions),
+diff --git a/rust/tcl-registry/src/commands/tcl/oo_objdefine.rs b/rust/tcl-registry/src/commands/tcl/oo_objdefine.rs
+index a7e8423ea..eebe2e972 100644
+--- a/rust/tcl-registry/src/commands/tcl/oo_objdefine.rs
++++ b/rust/tcl-registry/src/commands/tcl/oo_objdefine.rs
+@@ -53,6 +53,7 @@ const OO_OBJDEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+ };
+ 
+ const OO_OBJDEFINE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(oo_objdefine_state_transitions),
+diff --git a/rust/tcl-registry/src/commands/tcl/oo_object.rs b/rust/tcl-registry/src/commands/tcl/oo_object.rs
+index 09ebec537..94ca309cd 100644
+--- a/rust/tcl-registry/src/commands/tcl/oo_object.rs
++++ b/rust/tcl-registry/src/commands/tcl/oo_object.rs
+@@ -48,6 +48,7 @@ const OBJECT_CREATE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+ };
+ 
+ const OBJECT_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(object_create_state_transitions),
+@@ -61,6 +62,7 @@ const OBJECT_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDesc
+ };
+ 
+ const OBJECT_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(object_new_state_transitions),
+diff --git a/rust/tcl-registry/src/commands/tcl/open_.rs b/rust/tcl-registry/src/commands/tcl/open_.rs
+index 05952cdbd..157bc5912 100644
+--- a/rust/tcl-registry/src/commands/tcl/open_.rs
++++ b/rust/tcl-registry/src/commands/tcl/open_.rs
+@@ -180,6 +180,7 @@ pub fn spec() -> CommandSpec {
+             body: crate::native_compilation::NativeBodyCompilation::Inherit,
+         }),
+         state_transitions: Some(StateTransitionDescriptor {
++            logical_source_resolver: None,
+             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+             success_resolver: None,
+             resolver: Some(discovery_file_open),
+diff --git a/rust/tcl-registry/src/commands/tcl/package_.rs b/rust/tcl-registry/src/commands/tcl/package_.rs
+index 40861d8ad..63d2884f4 100644
+--- a/rust/tcl-registry/src/commands/tcl/package_.rs
++++ b/rust/tcl-registry/src/commands/tcl/package_.rs
+@@ -46,6 +46,7 @@ const PACKAGE_REGISTRATION_EFFECTS: WorldEffectDescriptor = WorldEffectDescripto
+ 
+ const fn package_descriptor(resolver: StateTransitionResolver) -> StateTransitionDescriptor {
+     StateTransitionDescriptor {
++        logical_source_resolver: None,
+         composition: StateTransitionComposition::Extend,
+         success_resolver: None,
+         resolver: Some(resolver),
+diff --git a/rust/tcl-registry/src/commands/tcl/return_.rs b/rust/tcl-registry/src/commands/tcl/return_.rs
+index 4d27b1d85..79e69f4f0 100644
+--- a/rust/tcl-registry/src/commands/tcl/return_.rs
++++ b/rust/tcl-registry/src/commands/tcl/return_.rs
+@@ -232,6 +232,7 @@ fn return_state_transitions(arguments: crate::InvocationArguments<'_>) -> crate:
+ 
+ const RETURN_STATE_TRANSITIONS: crate::StateTransitionDescriptor =
+     crate::StateTransitionDescriptor {
++        logical_source_resolver: None,
+         resolver: Some(return_state_transitions),
+         // Error-option publication may invoke observers before an abrupt return.
+         commit: crate::StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+diff --git a/rust/tcl-registry/src/commands/tcl/trace.rs b/rust/tcl-registry/src/commands/tcl/trace.rs
+index 971b26cc7..f7cdaf8f2 100644
+--- a/rust/tcl-registry/src/commands/tcl/trace.rs
++++ b/rust/tcl-registry/src/commands/tcl/trace.rs
+@@ -224,6 +224,7 @@ const LEGACY_TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+ ];
+ 
+ const TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(trace_add_state_transitions),
+@@ -239,6 +240,7 @@ const TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescript
+ };
+ 
+ const TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(trace_remove_state_transitions),
+@@ -252,6 +254,7 @@ const TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescr
+ };
+ 
+ const LEGACY_TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(legacy_trace_add_state_transitions),
+@@ -262,6 +265,7 @@ const LEGACY_TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
+ };
+ 
+ const LEGACY_TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(legacy_trace_remove_state_transitions),
+diff --git a/rust/tcl-registry/src/commands/tcl/upvar_.rs b/rust/tcl-registry/src/commands/tcl/upvar_.rs
+index 8d6c014e9..7c07dde23 100644
+--- a/rust/tcl-registry/src/commands/tcl/upvar_.rs
++++ b/rust/tcl-registry/src/commands/tcl/upvar_.rs
+@@ -47,6 +47,11 @@ const UPVAR_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+ ];
+ 
+ const UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: Some(
++        crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(
++            upvar_logical_source_transitions,
++        ),
++    ),
+     composition: StateTransitionComposition::Extend,
+     success_resolver: Some(upvar_success_transitions),
+     resolver: Some(upvar_state_transitions),
+@@ -60,6 +65,13 @@ const UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+     commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+ };
+ 
++fn upvar_logical_source_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
++    upvar_transitions_for_layout(
++        arguments,
++        UPVAR_FRAME_EFFECT.logical_source_layout(arguments),
++    )
++}
++
+ fn upvar_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+     upvar_transitions_for_layout(arguments, UPVAR_FRAME_EFFECT.resolve_arguments(arguments))
+ }
+diff --git a/rust/tcl-registry/src/commands/tcl/variable_.rs b/rust/tcl-registry/src/commands/tcl/variable_.rs
+index f90b2edb4..f819f3ed3 100644
+--- a/rust/tcl-registry/src/commands/tcl/variable_.rs
++++ b/rust/tcl-registry/src/commands/tcl/variable_.rs
+@@ -31,6 +31,7 @@ const VARIABLE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+ ];
+ 
+ const VARIABLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
++    logical_source_resolver: None,
+     composition: StateTransitionComposition::Extend,
+     success_resolver: None,
+     resolver: Some(variable_state_transitions),
+diff --git a/rust/tcl-registry/src/resolved_invocation.rs b/rust/tcl-registry/src/resolved_invocation.rs
+index d4de4a100..1daae7d7f 100644
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -2456,6 +2456,56 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+             .0
+     }
+ 
++    /// Conditional state facts under the original Logical source grammar.
++    /// Only the derived frame-alias resolver uses authored layout consensus;
++    /// actual input remains caller-owned, with no frame or completion grant.
++    #[must_use]
++    pub fn authored_logical_source_state_transitions(&self) -> Option<StateTransitions> {
++        let selected = [
++            self.semantics.state_transitions.command,
++            self.semantics.state_transitions.subcommand,
++            self.semantics.state_transitions.form,
++        ]
++        .into_iter()
++        .flatten()
++        .any(|descriptor| descriptor.logical_source_resolver.is_some());
++        if selected {
++            use crate::frame_effect::FrameArgumentResolution;
++            match self.authored_logical_source_frame_argument_layout()? {
++                FrameArgumentResolution::Unknown
++                | FrameArgumentResolution::Valid {
++                    level: crate::FrameLevel::Dynamic,
++                    ..
++                } => return None,
++                FrameArgumentResolution::Valid { .. } | FrameArgumentResolution::Invalid => {}
++            }
++        }
++        Some(
++            self.semantics
++                .state_transitions
++                .resolve_logical_source_frame_aliases(self.words.arguments()),
++        )
++    }
++
++    /// Readonly aliases from the same Logical state-fact projection. Unknown
++    /// source layouts abstain; successful linking remains an independent query.
++    #[must_use]
++    pub fn authored_logical_source_variable_aliases(
++        &self,
++    ) -> Option<Vec<crate::VariableCellAliasTransition>> {
++        let transitions = self.authored_logical_source_state_transitions()?;
++        Some(
++            transitions
++                .facts()
++                .iter()
++                .filter_map(|fact| match &fact.transition {
++                    crate::StateTransition::VariableCellAlias(alias) => Some(alias.clone()),
++                    _ => None,
++                })
++                .collect(),
++        )
++    }
++
+     /// Selected ordinary result-only return metadata preserves lexical
+     /// binding names in the separate Logical authoring model. Zero or one
+     /// exact result operand has no option fields. This source purpose does
+@@ -10293,3 +10343,76 @@ mod scope_alias_metadata_tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod logical_source_alias_projection_tests {
++    #[test]
++    fn logical_alias_source_layout_keeps_original_operands_without_native_transition_grants() {
++        // experiments/name-handling/results/logical-frame-alias-projection-20261014/oracles/observations.json
++        let profile = tcl_dialect::DialectProfile::plain_tcl();
++        let context = crate::model::ingress::context_for_profile(profile);
++        for arguments in [
++            vec!["#0", "g", "local"],
++            vec!["1", "$literal", ""],
++            vec!["g", "local"],
++        ] {
++            let arguments = arguments
++                .iter()
++                .map(|value| crate::InvocationWord::Literal(value))
++                .collect::<Vec<_>>();
++            let selected =
++                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
++                    context.commands(),
++                    Some(context.context()),
++                    crate::InvocationWords::structured(
++                        crate::InvocationWord::Literal("upvar"),
++                        &arguments,
++                    )
++                    .with_profile(Some(profile)),
++                    tcl_dialect::model::InvocationRealm::RuleLoader,
++                );
++            let schema = selected.resolved().unwrap();
++            let ordinary = schema.state_transitions();
++            let aliases = schema.authored_logical_source_variable_aliases().unwrap();
++            assert_eq!(aliases.len(), 1);
++            let offset = usize::from(arguments.len() % 2 == 1);
++            assert_eq!(aliases[0].local.literal(), arguments[offset + 1].literal());
++            assert_eq!(aliases[0].words.local, offset + 1);
++            assert_eq!(aliases[0].words.target, offset);
++            assert!(!aliases[0].writes_value);
++            assert_eq!(schema.state_transitions(), ordinary);
++        }
++        for arguments in [
++            vec![
++                crate::InvocationWord::Dynamic,
++                crate::InvocationWord::Literal("g"),
++                crate::InvocationWord::Literal("local"),
++            ],
++            vec![
++                crate::InvocationWord::Literal("010"),
++                crate::InvocationWord::Literal("g"),
++                crate::InvocationWord::Literal("local"),
++            ],
++            vec![crate::InvocationWord::Expanded],
++        ] {
++            let selected =
++                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
++                    context.commands(),
++                    Some(context.context()),
++                    crate::InvocationWords::structured(
++                        crate::InvocationWord::Literal("upvar"),
++                        &arguments,
++                    )
++                    .with_profile(Some(profile)),
++                    tcl_dialect::model::InvocationRealm::RuleLoader,
++                );
++            assert!(
++                selected
++                    .resolved()
++                    .unwrap()
++                    .authored_logical_source_variable_aliases()
++                    .is_none()
++            );
++        }
++    }
++}
+diff --git a/rust/tcl-registry/src/source_file.rs b/rust/tcl-registry/src/source_file.rs
+index 0dd0c9066..b058b2573 100644
+--- a/rust/tcl-registry/src/source_file.rs
++++ b/rust/tcl-registry/src/source_file.rs
+@@ -193,6 +193,7 @@ fn select_with_grammar(
+ /// The operand retains its value knowledge and ordinal; no file availability,
+ /// successful dispatch or completed file evaluation is established.
+ pub const SOURCE_TRANSITIONS: crate::StateTransitionDescriptor = crate::StateTransitionDescriptor {
++    logical_source_resolver: None,
+     resolver: Some(source_transitions),
+     argument_shape: crate::state_transition::StateTransitionArgumentShape::Positional,
+     commit: crate::state_transition::StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+diff --git a/rust/tcl-registry/src/source_name_ownership.rs b/rust/tcl-registry/src/source_name_ownership.rs
+index e37d2ad01..7ddaca31c 100644
+--- a/rust/tcl-registry/src/source_name_ownership.rs
++++ b/rust/tcl-registry/src/source_name_ownership.rs
+@@ -132,7 +132,15 @@ impl ResolvedInvocation<'_, '_> {
+                 }
+             }
+         }
+-        let transitions = self.state_transitions();
++        let transitions = match role_purpose {
++            SourceRolePurpose::Original => self.state_transitions(),
++            SourceRolePurpose::Logical => self
++                .authored_logical_source_state_transitions()
++                .unwrap_or_else(|| {
++                    out.opaque = true;
++                    self.state_transitions()
++                }),
++        };
+         for fact in transitions.facts() {
+             if let StateTransition::VariableCellAlias(alias) = &fact.transition {
+                 if let Some(name) = alias.local.literal() {
+diff --git a/rust/tcl-registry/src/state_transition.rs b/rust/tcl-registry/src/state_transition.rs
+index da8c961a8..db61f0f3d 100644
+--- a/rust/tcl-registry/src/state_transition.rs
++++ b/rust/tcl-registry/src/state_transition.rs
+@@ -1688,6 +1688,14 @@ impl StateTransitionKnowledge {
+     }
+ }
+ 
++/// Explicit source-purpose dispatch registered by the descriptor producer.
++/// The resolver's address never classifies its semantics or Native identity.
++#[derive(Debug, Clone, Copy)]
++pub enum LogicalSourceStateTransitionResolver {
++    /// Conditional frame-alias grammar under positively retained Logical input.
++    FrameAliases(StateTransitionResolver),
++}
++
+ /// Argument-sensitive resolver for a state transition descriptor.
+ ///
+ /// The resolver sees only [`InvocationArguments`]' safe accessors. It can
+@@ -1784,6 +1792,9 @@ pub struct StateTransitionDescriptor {
+     /// Optional transition projection valid only on successful completion.
+     /// Ordinary/error facts retain `resolver`; consumers must select the edge.
+     pub success_resolver: Option<StateTransitionResolver>,
++    /// Explicit readonly Logical alias grammar, separate from ordinary and
++    /// successful Native transition resolvers.
++    pub logical_source_resolver: Option<LogicalSourceStateTransitionResolver>,
+     /// Whether expansion changes the resolver's positional grammar.
+     pub argument_shape: StateTransitionArgumentShape,
+     /// Domains widened for dynamic identity-bearing operands.
+@@ -1885,6 +1896,39 @@ impl ResolvedStateTransitions {
+         self.resolve_coverage_on_edge(arguments, false)
+     }
+ 
++    /// Readonly source facts with only the canonical derived frame-alias
++    /// resolver using authored layout consensus. Custom resolvers, descriptor
++    /// replacement, operands and commit annotations retain their own metadata.
++    pub(crate) fn resolve_logical_source_frame_aliases(
++        self,
++        arguments: InvocationArguments<'_>,
++    ) -> StateTransitions {
++        let mut transitions = StateTransitions::default();
++        for descriptor in [self.command, self.subcommand, self.form]
++            .into_iter()
++            .flatten()
++        {
++            let mut resolved = match descriptor.logical_source_resolver {
++                Some(LogicalSourceStateTransitionResolver::FrameAliases(resolver)) => {
++                    resolver(arguments)
++                }
++                None => descriptor.resolve(arguments),
++            };
++            resolved.widen_dynamic_arguments(
++                arguments,
++                descriptor.dynamic_widening,
++                descriptor.argument_shape == StateTransitionArgumentShape::Positional,
++            );
++            resolved.set_commit(descriptor.commit);
++            if descriptor.composition == StateTransitionComposition::Replace {
++                transitions = resolved;
++            } else {
++                transitions.extend(resolved);
++            }
++        }
++        transitions
++    }
++
+     /// Resolve normal-edge transitions and their matching write coverage.
+     #[must_use]
+     pub fn resolve_after_success_with_effect_coverage(
+@@ -1985,6 +2029,7 @@ pub mod command_binding {
+ 
+     /// `proc name params body` — bind argument 0 as a procedure.
+     pub const DEFINES_PROCEDURE: StateTransitionDescriptor = StateTransitionDescriptor {
++        logical_source_resolver: None,
+         composition: StateTransitionComposition::Extend,
+         success_resolver: None,
+         resolver: Some(defines_procedure),
+@@ -2000,6 +2045,7 @@ pub mod command_binding {
+     /// `rename oldName newName` — move argument 0 to argument 1, or delete
+     /// it when the target is empty.
+     pub const RENAMES_COMMANDS: StateTransitionDescriptor = StateTransitionDescriptor {
++        logical_source_resolver: None,
+         composition: StateTransitionComposition::Extend,
+         success_resolver: None,
+         resolver: Some(renames_commands),
+@@ -2019,6 +2065,7 @@ pub mod command_binding {
+     /// `interp alias srcPath srcCmd ?targetPath targetCmd ?args…??` —
+     /// create, delete, or query a command alias.
+     pub const CREATES_ALIASES: StateTransitionDescriptor = StateTransitionDescriptor {
++        logical_source_resolver: None,
+         composition: StateTransitionComposition::Extend,
+         success_resolver: None,
+         resolver: Some(creates_aliases),
+@@ -2039,6 +2086,7 @@ pub mod command_binding {
+ 
+     /// Jim's `alias newname command ?args?` preserves the caller namespace.
+     pub const CREATES_CALLER_ALIASES: StateTransitionDescriptor = StateTransitionDescriptor {
++        logical_source_resolver: None,
+         composition: StateTransitionComposition::Extend,
+         success_resolver: None,
+         resolver: Some(creates_caller_aliases),
+@@ -2292,6 +2340,57 @@ pub fn alias_pairs_resolver(
+     }
+ }
+ 
++/// Source resolver for the same authored derived alias layout. Native call
++/// context is deliberately absent only inside this positively selected purpose.
++#[must_use]
++pub fn logical_source_alias_pairs_resolver(
++    level_word: crate::frame_effect::FrameLevelWord,
++) -> StateTransitionResolver {
++    use crate::frame_effect::FrameLevelWord;
++    match level_word {
++        FrameLevelWord::None => logical_alias_pairs_without_level,
++        FrameLevelWord::ArityParity => logical_alias_pairs_by_arity_parity,
++        FrameLevelWord::LeadingProbe => logical_alias_pairs_by_leading_probe,
++        FrameLevelWord::Upvar => logical_alias_pairs_by_upvar,
++    }
++}
++
++fn source_arguments(arguments: InvocationArguments<'_>) -> InvocationArguments<'_> {
++    match arguments {
++        InvocationArguments::Literals(words)
++        | InvocationArguments::ContextualLiterals(words, _) => InvocationArguments::Literals(words),
++        InvocationArguments::Structured(words)
++        | InvocationArguments::ContextualStructured(words, _) => {
++            InvocationArguments::Structured(words)
++        }
++    }
++}
++
++fn logical_alias_pairs_without_level(arguments: InvocationArguments<'_>) -> StateTransitions {
++    alias_pairs(
++        source_arguments(arguments),
++        crate::frame_effect::FrameLevelWord::None,
++    )
++}
++fn logical_alias_pairs_by_arity_parity(arguments: InvocationArguments<'_>) -> StateTransitions {
++    alias_pairs(
++        source_arguments(arguments),
++        crate::frame_effect::FrameLevelWord::ArityParity,
++    )
++}
++fn logical_alias_pairs_by_leading_probe(arguments: InvocationArguments<'_>) -> StateTransitions {
++    alias_pairs(
++        source_arguments(arguments),
++        crate::frame_effect::FrameLevelWord::LeadingProbe,
++    )
++}
++fn logical_alias_pairs_by_upvar(arguments: InvocationArguments<'_>) -> StateTransitions {
++    alias_pairs(
++        source_arguments(arguments),
++        crate::frame_effect::FrameLevelWord::Upvar,
++    )
++}
++
+ fn alias_pairs_without_level(arguments: InvocationArguments<'_>) -> StateTransitions {
+     alias_pairs(arguments, crate::frame_effect::FrameLevelWord::None)
+ }
+@@ -2900,6 +2999,57 @@ mod tests {
+     }
+     use crate::{InvocationWord, InvocationWords};
+ 
++    #[test]
++    fn logical_frame_alias_projection_preserves_custom_replacement_and_commit_metadata() {
++        let frame = crate::FrameEffectSpec {
++            level_word: crate::frame_effect::FrameLevelWord::Upvar,
++            layout: crate::FrameArgLayout::AliasPairs,
++        };
++        let descriptor = StateTransitionDescriptor {
++            resolver: Some(alias_pairs_resolver(frame.level_word)),
++            logical_source_resolver: Some(LogicalSourceStateTransitionResolver::FrameAliases(
++                logical_source_alias_pairs_resolver(frame.level_word),
++            )),
++            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
++            ..StateTransitionDescriptor::EMPTY
++        };
++        let words = [
++            InvocationWord::Literal("#0"),
++            InvocationWord::Literal("source"),
++            InvocationWord::Literal("local"),
++        ];
++        let arguments = InvocationArguments::structured(&words)
++            .with_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
++        let owner = ResolvedStateTransitions {
++            command: Some(descriptor),
++            ..Default::default()
++        };
++        let facts = owner.resolve_logical_source_frame_aliases(arguments);
++        assert!(
++            matches!(&facts.facts()[0].transition, StateTransition::VariableCellAlias(alias)
++            if alias.local.literal() == Some("local") && alias.words.local == 2)
++        );
++        assert_eq!(
++            facts.facts()[0].commit,
++            StateTransitionCommit::MayCommitBeforeAbruptCompletion
++        );
++        let replaced = ResolvedStateTransitions {
++            command: Some(descriptor),
++            form: Some(StateTransitionDescriptor {
++                logical_source_resolver: None,
++                composition: StateTransitionComposition::Replace,
++                ..StateTransitionDescriptor::EMPTY
++            }),
++            ..Default::default()
++        };
++        assert!(
++            replaced
++                .resolve_logical_source_frame_aliases(arguments)
++                .facts()
++                .is_empty()
++        );
++    }
++
+     /// The alias facts a `from-frame-effect` resolver derives, and its two
+     /// abstentions (`docs/design/spec-dsl-examples/README.md`, "Derivations,
+     /// exactly"): a computed level word aborts the whole call, and a
+@@ -3285,6 +3435,7 @@ mod tests {
+     #[test]
+     fn dynamic_operands_become_typed_widenings() {
+         const DESCRIPTOR: StateTransitionDescriptor = StateTransitionDescriptor {
++            logical_source_resolver: None,
+             composition: StateTransitionComposition::Extend,
+             success_resolver: None,
+             resolver: None,
+@@ -3374,6 +3525,7 @@ mod tests {
+         // A `proc`-like definition becomes precise only on the OK edge. An
+         // exact CFG must not treat this as an unconditional binding fact.
+         let descriptor = StateTransitionDescriptor {
++            logical_source_resolver: None,
+             composition: StateTransitionComposition::Extend,
+             success_resolver: None,
+             resolver: Some(command_definition),
+@@ -3397,6 +3549,7 @@ mod tests {
+     #[test]
+     fn descriptors_resolve_command_subcommand_then_form() {
+         let command = StateTransitionDescriptor {
++            logical_source_resolver: None,
+             composition: StateTransitionComposition::Extend,
+             success_resolver: None,
+             resolver: Some(command_definition),
+@@ -3406,6 +3559,7 @@ mod tests {
+             commit: StateTransitionCommit::OnOkOnly,
+         };
+         let subcommand = StateTransitionDescriptor {
++            logical_source_resolver: None,
+             composition: StateTransitionComposition::Extend,
+             success_resolver: None,
+             resolver: Some(subcommand_definition),
+@@ -3415,6 +3569,7 @@ mod tests {
+             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+         };
+         let form = StateTransitionDescriptor {
++            logical_source_resolver: None,
+             composition: StateTransitionComposition::Replace,
+             success_resolver: None,
+             resolver: Some(form_definition),
+diff --git a/rust/tcl-spectcl/src/loader.rs b/rust/tcl-spectcl/src/loader.rs
+index 91c819ccf..f19fa8bfb 100644
+--- a/rust/tcl-spectcl/src/loader.rs
++++ b/rust/tcl-spectcl/src/loader.rs
+@@ -8101,6 +8101,11 @@ fn derive_transitions_from_frame_effect(
+         };
+         if let Some(descriptor) = descriptor {
+             descriptor.resolver = derived;
++            descriptor.logical_source_resolver = spec.frame_effect
++                .filter(|frame| frame.layout == tcl_registry::FrameArgLayout::AliasPairs)
++                .map(|frame| tcl_registry::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(
++                    tcl_registry::state_transition::logical_source_alias_pairs_resolver(frame.level_word),
++                ));
+         }
+     }
+ }

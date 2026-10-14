@@ -116,9 +116,7 @@ pub(crate) fn invocation_facts_from_tokens(
     tokens: &CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<Box<InvocationFacts>> {
-    // The store's own profile *is* an already-resolved environment id, so
-    // this is the id-keyed context for the registry the caller handed us
-    // (ledger C1 re-key).
+    // Catalogue advice uses the supplied store's resolved profile context.
     let context = registry
         .profile()
         .map(tcl_registry::model::semantic::SemanticContext::for_profile);

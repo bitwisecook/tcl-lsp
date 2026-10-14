@@ -8101,6 +8101,11 @@ fn derive_transitions_from_frame_effect(
         };
         if let Some(descriptor) = descriptor {
             descriptor.resolver = derived;
+            descriptor.logical_source_resolver = spec.frame_effect
+                .filter(|frame| frame.layout == tcl_registry::FrameArgLayout::AliasPairs)
+                .map(|frame| tcl_registry::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(
+                    tcl_registry::state_transition::logical_source_alias_pairs_resolver(frame.level_word),
+                ));
         }
     }
 }

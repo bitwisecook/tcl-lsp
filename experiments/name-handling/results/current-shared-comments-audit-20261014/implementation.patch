@@ -1,0 +1,184 @@
+--- a/rust/tcl-compiler/src/environment_ingress.rs
++++ b/rust/tcl-compiler/src/environment_ingress.rs
+@@ -21,9 +21,8 @@
+ //!
+ //! The implementation lives in the registry model so `tcl-lsp-core`,
+ //! `tcl-lsp-db`, and `tcl-lsp-server` resolve names through the *same* seam
+-//! rather than a second copy. The re-exports below keep every compiler call
+-//! site (and this module's tests) unchanged; see the shared module's docs
+-//! for the resolution rules and the three accepted micro-unifications.
++//! through the same owner. The re-exports share its canonical-name, editor-ID,
++//! Tk-package and unknown-input resolution rules.
+ 
+ use std::sync::{Mutex, OnceLock};
+ 
+--- a/rust/tcl-registry/src/model/ingress.rs
++++ b/rust/tcl-registry/src/model/ingress.rs
+@@ -333,8 +333,7 @@
+     }
+ 
+     /// The keyed-axis pins for this session's library-version overrides.
+-    /// A malformed override spelling drops to the axis default rather than
+-    /// aborting resolution (micro-unification 3 in the module docs).
++    /// Malformed overrides use the axis defaults.
+     #[must_use]
+     pub fn keyed_versions(overrides: &LibraryVersionOverrides) -> KeyedVersions {
+         KeyedVersions::from_overrides(overrides).unwrap_or_default()
+--- a/rust/tcl-registry/src/model/context.rs
++++ b/rust/tcl-registry/src/model/context.rs
+@@ -60,12 +60,7 @@
+ };
+ use crate::registry::NameProviders;
+ use tcl_dialect::model::{CorePoints, PackageFloor, SurfaceQuery, surface_admits};
+-// The vendor-surface summary payload: plain registry-derived data, not
+-// part of the retiring profile trait, so both faces answer with the one
+-// type and the parity pin can compare them directly. The retiring trait
+-// survives crate-internally, plus a cfg(test) oracle for the sweeps,
+-// until it goes entirely under ledger C1/F1; the type lives here in the
+-// meantime.
++// Shared registry-derived payload for vendor-surface queries.
+ use crate::profile_queries::VendorSurface;
+ use crate::registry::CommandRegistry;
+ use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
+@@ -485,13 +480,8 @@
+     /// require` — it declares a placement for it (§3.2's placement
+     /// claims).
+     ///
+-    /// The placement-model face of the retired `DialectProfile::hosts_tk`
+-    /// and of `DocumentEnvironment::can_host_package`'s lenient-sink
+-    /// special case (ledger F4): a closed-world vendor shell — the F5
+-    /// surfaces, the EDA shells, `bpf`, `spectcl` — declares no Tk
+-    /// placement and therefore cannot host it however the source spells
+-    /// its `package require`, while every plain-Tcl environment (the
+-    /// lenient `tcl` sink included) and `tk` itself declares one.
++    /// Closed-world F5, EDA, BPF and SpecTcl environments declare no Tk
++    /// placement. Plain Tcl, its lenient sink and Tk declare one.
+     ///
+     /// Distinct from [`Self::package_active`]: hosting is what the
+     /// *environment* offers, activation is what this *document* got.
+--- a/rust/tcl-registry/src/model/assembly.rs
++++ b/rust/tcl-registry/src/model/assembly.rs
+@@ -103,11 +103,8 @@
+ /// One assembled, `Arc`-owned registry generation for a resolved context
+ /// (see the module docs): the per-name spec multimap admitted by provider
+ /// filtering, the context its queries answer under, and the generation's
+-/// **command store** — the same per-`(environment, pack overlay)` spec
+-/// store the old per-profile cache owns, shared by handle so the two
+-/// models can never drift while both exist (ownership re-homes here when
+-/// the old cache goes with ledger C1's re-type; the cache is already
+-/// crate-internal only).
++/// **command store**, shared by handle for each environment/pack overlay.
++/// Queries retain the same store generation as their availability context.
+ pub struct ContextRegistry {
+     context: ResolvedContext,
+     commands: Arc<CommandRegistry>,
+@@ -336,13 +333,8 @@
+ );
+ 
+ /// The interned catalogue profile whose command store backs
+-/// `environment_id`'s generations — the interop seam: the
+-/// catalogue environments share their canonical id with their old
+-/// profile, and the model-only environments (`tcl`, `tk`, third-party
+-/// ids) fall back to the permissive plain profile, exactly the store
+-/// every unresolved dialect string read before the port. Deleted with
+-/// the old cache under ledger C1's re-type, when the store becomes
+-/// environment-owned (the cache is already crate-internal).
++/// `environment_id`'s generations. Catalogue IDs retain their named profile;
++/// model-only Tcl, Tk and third-party IDs use the permissive plain profile.
+ fn store_profile(environment_id: &str) -> &'static DialectProfile {
+     DialectProfile::find(environment_id).unwrap_or_else(DialectProfile::plain_tcl)
+ }
+--- a/rust/tcl-registry/src/special_vars.rs
++++ b/rust/tcl-registry/src/special_vars.rs
+@@ -348,8 +348,7 @@
+ /// an already-resolved profile — the profile's
+ /// [`surface_query`](tcl_dialect::DialectProfile::surface_query). The
+ /// LSP/CLI ingress resolves the dialect name once (through
+-/// `tcl_registry::model::ingress`) and threads the profile; the old name-keyed
+-/// `resolve_dialect` validator is deleted (ledger C2).
++/// `tcl_registry::model::ingress`) and threads the resolved profile.
+ ///
+ /// `None` (no dialect resolved) answers the permissive `PLAIN_TCL`
+ /// profile's own point.
+--- a/rust/tcl-compiler/src/var_escape/helpers.rs
++++ b/rust/tcl-compiler/src/var_escape/helpers.rs
+@@ -116,9 +116,7 @@
+     tokens: &CommandTokens,
+     registry: &CommandRegistry,
+ ) -> Option<Box<InvocationFacts>> {
+-    // The store's own profile *is* an already-resolved environment id, so
+-    // this is the id-keyed context for the registry the caller handed us
+-    // (ledger C1 re-key).
++    // Catalogue advice uses the supplied store's resolved profile context.
+     let context = registry
+         .profile()
+         .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+--- a/rust/tcl-compiler/src/unit_scope.rs
++++ b/rust/tcl-compiler/src/unit_scope.rs
+@@ -1650,11 +1650,8 @@
+     tokens: Option<&crate::ir::CommandTokens>,
+ ) {
+     let args = invocation.arguments.as_slice();
+-    // A call that *moves* a binding — `rename OLD NEW`, `interp alias {} NEW
+-    // {} TARGET` — makes every command name it touches one whose binding has
+-    // moved, in either direction.  A definition does not: `proc` binds a new
+-    // name without disturbing an existing one.  Which is which is registry
+-    // data, read through the one transition vocabulary (ledger C8).
++    // Moving a binding invalidates source and destination names.
++    // Registry transitions distinguish movement from definition.
+     let tcl_registry::StateTransitionKnowledge::Declared(transitions) =
+         &invocation.facts.state_transitions
+     else {
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -382,8 +382,7 @@
+             // a command-table mutation with the one-word
+             // `command_table_effect` selector instead. Resolve it to the
+             // very stock descriptor a shipped spec names, so the pack
+-            // shorthand and the shipped declaration produce one transition
+-            // vocabulary through one resolver (ledger C8).
++            // shorthand and the shipped declaration share one transition resolver.
+             command: inherit_command
+                 .then(|| {
+                     spec.state_transitions.or_else(|| {
+@@ -2430,9 +2429,7 @@
+         } else {
+             EffectFootprint::conservative_unknown_invocation()
+         };
+-        // Whether this call mutated the command table is read from the one
+-        // transition vocabulary (ledger C8), never from a second coarse
+-        // effect word stamped beside it.
++        // Selected transitions own command-table mutation and its coverage.
+         footprint.extend(EffectFootprint::from_legacy_with_transition_coverage(
+             command_table_mutation,
+             self.semantics.frame_effect,
+--- a/rust/tcl-registry/src/commands/tcl/proc_.rs
++++ b/rust/tcl-registry/src/commands/tcl/proc_.rs
+@@ -133,7 +133,6 @@
+             DispatchDependencies::NONE,
+         )),
+         world_effects: Some(WorldEffectDescriptor::EMPTY),
+-        // Declared once, by naming the stock descriptor (ledger C8).
+         state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),
+         ..CommandSpec::DEFAULT
+     }
+--- a/rust/tcl-registry/src/commands/tcl/interp.rs
++++ b/rust/tcl-registry/src/commands/tcl/interp.rs
+@@ -531,7 +531,6 @@
+         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
+         side_effects: ALIAS_SIDE_EFFECTS,
+         world_effects: Some(WorldEffectDescriptor::EMPTY),
+-        // Declared once, by naming the stock descriptor (ledger C8).
+         state_transitions: Some(crate::state_transition::command_binding::CREATES_ALIASES),
+         ..SubCommand::DEFAULT
+     },
+--- a/rust/tcl-registry/src/commands/stdlib/tcl__optproc.rs
++++ b/rust/tcl-registry/src/commands/stdlib/tcl__optproc.rs
+@@ -69,7 +69,6 @@
+         required_package: Some("opt"),
+         side_effects: SIDE_EFFECTS,
+         analyser_hook: Some(crate::hooks::AnalyserHookId::OptProc),
+-        // Declared once, by naming the stock descriptor (ledger C8).
+         state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),
+         ..CommandSpec::DEFAULT
+     }

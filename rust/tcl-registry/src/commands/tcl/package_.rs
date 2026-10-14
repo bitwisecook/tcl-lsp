@@ -46,6 +46,7 @@ const PACKAGE_REGISTRATION_EFFECTS: WorldEffectDescriptor = WorldEffectDescripto
 
 const fn package_descriptor(resolver: StateTransitionResolver) -> StateTransitionDescriptor {
     StateTransitionDescriptor {
+        logical_source_resolver: None,
         composition: StateTransitionComposition::Extend,
         success_resolver: None,
         resolver: Some(resolver),

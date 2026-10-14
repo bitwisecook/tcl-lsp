@@ -71,6 +71,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN | Traits::TAINT_SINK,
         arity: Arity::new(0, 1),
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             success_resolver: None,
             resolver: Some(discovery_changed),
             ..StateTransitionDescriptor::EMPTY

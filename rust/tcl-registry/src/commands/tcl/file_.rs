@@ -112,6 +112,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             tcl_dialect::TclVersion::V8_6,
         )),
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
             resolver: Some(filesystem_time_changed),
@@ -134,6 +135,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "attributes",
         native_compilation: Some(named_file_compiler!("attributes", no_hook)),
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
             resolver: Some(filesystem_attributes_changed),
@@ -172,6 +174,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "copy",
         native_compilation: Some(named_file_compiler!("copy", no_hook)),
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
             resolver: Some(filesystem_changed),
@@ -226,6 +229,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             tcl_dialect::TclVersion::V8_6,
         )),
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
             resolver: Some(filesystem_changed),
@@ -502,6 +506,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             tcl_dialect::TclVersion::V8_6,
         )),
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
             resolver: Some(filesystem_changed),
@@ -528,6 +533,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             tcl_dialect::TclVersion::V8_6,
         )),
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
             resolver: Some(filesystem_time_changed),
@@ -669,6 +675,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "rename",
         native_compilation: Some(named_file_compiler!("rename", no_hook)),
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
             resolver: Some(filesystem_changed),

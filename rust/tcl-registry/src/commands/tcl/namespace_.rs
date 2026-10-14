@@ -565,6 +565,7 @@ const NAMESPACE_EVAL_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 };
 
 const NAMESPACE_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(namespace_delete_state_transitions),
@@ -581,6 +582,7 @@ const NAMESPACE_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 };
 
 const NAMESPACE_ENSEMBLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(namespace_ensemble_state_transitions),
@@ -597,6 +599,7 @@ const NAMESPACE_ENSEMBLE_TRANSITIONS: StateTransitionDescriptor = StateTransitio
 };
 
 const NAMESPACE_EVAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(namespace_eval_state_transitions),
@@ -612,6 +615,7 @@ const NAMESPACE_EVAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
 };
 
 const NAMESPACE_EXPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(namespace_export_state_transitions),
@@ -625,6 +629,7 @@ const NAMESPACE_EXPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 };
 
 const NAMESPACE_FORGET_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(namespace_forget_state_transitions),
@@ -638,6 +643,7 @@ const NAMESPACE_FORGET_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 };
 
 const NAMESPACE_IMPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(namespace_import_state_transitions),
@@ -653,6 +659,7 @@ const NAMESPACE_IMPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 };
 
 const NAMESPACE_PATH_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(namespace_path_state_transitions),
@@ -666,6 +673,7 @@ const NAMESPACE_PATH_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
 };
 
 const NAMESPACE_UNKNOWN_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(namespace_unknown_state_transitions),
@@ -682,6 +690,7 @@ const NAMESPACE_UNKNOWN_TRANSITIONS: StateTransitionDescriptor = StateTransition
 };
 
 const NAMESPACE_UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(namespace_upvar_state_transitions),

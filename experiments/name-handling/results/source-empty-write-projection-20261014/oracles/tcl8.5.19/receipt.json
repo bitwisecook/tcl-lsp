@@ -1,0 +1,22 @@
+{
+  "provider": "tcl8.5.19",
+  "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+  "binary_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "binary_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "source_sha256": "a4eedc088a60631d9708a62a3792861c4e6f3d92131ad79c1cfa45563c1e9ab1",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/tmp/name-source-empty-write-projection-20261014/oracles/source.tcl"
+  ],
+  "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+  "exit_code": 0,
+  "stdout": "scalar SCALAR\narray ARRAY 1\n",
+  "stderr": "",
+  "uses_tcltest": false,
+  "same_original_provider_inputs_capture": "/tmp/name-logical-frame-alias-projection-20261014/oracles/tcl8.5.19",
+  "same_original_provider_inputs_receipt_sha256": "b2f0b0f96ef308f36e32a168a65e568db5f0cd94d786056d7b887993edaf7a50",
+  "provider_library_inputs_count": 24,
+  "provider_library_drift": 0,
+  "source_drift": 0,
+  "captured_utc": "2026-10-14T05:11:19.607837+00:00"
+}

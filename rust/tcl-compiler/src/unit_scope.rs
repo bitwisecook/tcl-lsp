@@ -1650,11 +1650,8 @@ fn record_indirect_callers(
     tokens: Option<&crate::ir::CommandTokens>,
 ) {
     let args = invocation.arguments.as_slice();
-    // A call that *moves* a binding — `rename OLD NEW`, `interp alias {} NEW
-    // {} TARGET` — makes every command name it touches one whose binding has
-    // moved, in either direction.  A definition does not: `proc` binds a new
-    // name without disturbing an existing one.  Which is which is registry
-    // data, read through the one transition vocabulary (ledger C8).
+    // Moving a binding invalidates source and destination names.
+    // Registry transitions distinguish movement from definition.
     let tcl_registry::StateTransitionKnowledge::Declared(transitions) =
         &invocation.facts.state_transitions
     else {

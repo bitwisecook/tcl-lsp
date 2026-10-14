@@ -132,7 +132,15 @@ impl ResolvedInvocation<'_, '_> {
                 }
             }
         }
-        let transitions = self.state_transitions();
+        let transitions = match role_purpose {
+            SourceRolePurpose::Original => self.state_transitions(),
+            SourceRolePurpose::Logical => self
+                .authored_logical_source_state_transitions()
+                .unwrap_or_else(|| {
+                    out.opaque = true;
+                    self.state_transitions()
+                }),
+        };
         for fact in transitions.facts() {
             if let StateTransition::VariableCellAlias(alias) = &fact.transition {
                 if let Some(name) = alias.local.literal() {

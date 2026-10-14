@@ -47,6 +47,11 @@ const UPVAR_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
 ];
 
 const UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: Some(
+        crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(
+            upvar_logical_source_transitions,
+        ),
+    ),
     composition: StateTransitionComposition::Extend,
     success_resolver: Some(upvar_success_transitions),
     resolver: Some(upvar_state_transitions),
@@ -59,6 +64,13 @@ const UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     // before a later pair fails.
     commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
 };
+
+fn upvar_logical_source_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    upvar_transitions_for_layout(
+        arguments,
+        UPVAR_FRAME_EFFECT.logical_source_layout(arguments),
+    )
+}
 
 fn upvar_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
     upvar_transitions_for_layout(arguments, UPVAR_FRAME_EFFECT.resolve_arguments(arguments))

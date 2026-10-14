@@ -94,14 +94,15 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 ## Current implementation and audit priorities
 
 The [outstanding audit](outstanding-consumer-audit.md) and JSON current refresh
-record the bounded 04:55 UTC snapshot. Compiler33 diagnostic replay executed 304 controls:
+record the bounded 05:10 UTC snapshot. Compiler33 diagnostic replay executed 304 controls:
 194 PASS and 110 FAIL, with zero authored-source drift. Of the 295 common
 Compiler31 controls, 19 improve and one regresses. Full Runtime09 executes
 79 controls: 78 PASS and one new C8.5 error-code FAIL; all original 77 pass, with
 zero source/compiled-input/artifact drift. Core34 diagnostic seals 64 controls:
 39 PASS and 25 FAIL, with zero authored-source drift. Its common original 30
 gain 2 without regressions; original scope 9 is 8 PASS/1 FAIL and earlier 14 is
-13 PASS/1 FAIL. DB36 stops at a build failure before any semantic controls. Source integration and execution
+13 PASS/1 FAIL. DB38 builds and executes ten exact controls: 2 PASS and 8 FAIL, with zero
+source drift and no missing selectors. Source integration and execution
 acceptance remain separate; no whole-codebase completion percentage is established.
 
 | Consumer | Current shared owner | Remaining obligation |
@@ -111,7 +112,7 @@ acceptance remain separate; no whole-codebase completion percentage is establish
 | Slot/CFG/index reads | Retained point places select existing SSA symbols; genuine child readers protect host writes; detached words use lexical policy. | Compiler33 foreign/unavailable terminator, array-member and nested-command controls pass; exact original SSA-cell selection and backward fixpoint still fail. |
 | SSA literal/empty names | Actual literal payload preserves empty and dollar names; original source role owner excludes braced name data from lexical substitution. | Compiler33 original loop empty/dollar metadata passes; literal lowered and original read/mutation controls still fail. Native Normal/store/value proofs remain independent. |
 | Inlining frame locality | Shared Syntax predicate consumes retained VariableLookupPolicy; original complete source correspondence supplies readonly frame metadata. | Compiler33 frame controls fail before their assertions because plain-Tcl lacks the Native variable lookup field. Integrated consumer authenticates actual Logical Module purpose, then selects the shared authored naming recipe; exact original positive/negative replay remains pending. Finite C5/Jim observations remain scoped; no Native splice/admission claim. |
-| DB/CommonAOT | Issued bodies, genuine capsules, actual Module/caller/callee/SSA owners and exact workspace declaration ingress. | DB36 fails compilation at seven VM policy/signature errors before any semantic controls; original cold/edit reuse counts and uncached comparisons remain mandatory. |
+| DB/CommonAOT | Issued bodies, genuine capsules, actual Module/caller/callee/SSA owners and exact workspace declaration ingress. | DB38 whole-file lattice shift and quoted/braced callee-edit observation pass; eight original reuse/source-input/taint controls fail. Unchanged cold/edit counts and uncached comparisons remain mandatory. |
 | Core inlay/graph joins | Core13 actual original declaration/source allocation and issued bodies; current body-unit coverage repair is integrated. | Core34 retains repeated-type/colon/body-hint failures; strict Native inlay metadata has zero definitions/types. Graph13 stack failure occurs during analysis producer. Missing body/SSA owners cannot borrow Logical roles or reporting maps. |
 | Diagnostic parameter spans | Actual Module/body/ProcedureId/declaration plus full-config original formal source geometry. | Compiler33 both original formal geometry controls pass. W214 tight span/quoted marker diagnostic control still fails; source and all refusal assertions remain retained. |
 | Source prefix and caller bodies | Original captured-prefix provenance and shared root/current readonly body recipes. | Compiler31 direct prefix143, root146 and root/current child148 PASS; namespace currency01 PASS. Deferred source-effect147 fails the unknown-command negative after positives; narrow residual effect repair awaits replay. Core34 original scope 9 improves to8 PASS/1 FAIL; actual unknown-caller MAY and current/root child owners remain separate. |
@@ -143,3 +144,9 @@ The 52 workspace members, 11 excluded packages and inherited 330 lexical LSP row
 remain reconciliation obligations. Original experiments, failures and unanswered
 F5 packets remain retained. This temporary directory is removed before the
 merge-ready PR; durable documentation describes the current contracts.
+
+Current final-gate review keeps private helper registration separate from public
+API declaration checks. Source-only internal module/consumer routes must be
+registered accurately; helpers cannot be exposed solely to satisfy the map.
+The strict proof audit and documentation link/index inspection are running
+without evidence/provider/replay resealing or renewed Native acceptance.

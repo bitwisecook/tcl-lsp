@@ -4971,7 +4971,7 @@ mod tests {
         );
         let facts = project_original_procedure_facts(&db, partial);
         assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].0, first);
+        assert!(facts[0].0 == first);
         assert_eq!(facts[0].1.declarations().len(), 1);
         assert!(facts.iter().all(|(file, _)| *file != other));
     }

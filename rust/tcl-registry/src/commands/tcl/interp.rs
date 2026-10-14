@@ -97,6 +97,7 @@ const INTERP_POLICY_DYNAMIC_EFFECTS: StaticEffectFootprint = StaticEffectFootpri
 };
 
 const INTERP_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(interp_create_state_transitions),
@@ -110,6 +111,7 @@ const INTERP_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDesc
 };
 
 const INTERP_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(interp_delete_state_transitions),
@@ -128,6 +130,7 @@ const INTERP_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDesc
 };
 
 const INTERP_MARK_TRUSTED_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(interp_mark_trusted_state_transitions),
@@ -141,6 +144,7 @@ const INTERP_MARK_TRUSTED_TRANSITIONS: StateTransitionDescriptor = StateTransiti
 };
 
 const INTERP_RECURSION_LIMIT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(interp_recursion_limit_state_transitions),
@@ -154,6 +158,7 @@ const INTERP_RECURSION_LIMIT_TRANSITIONS: StateTransitionDescriptor = StateTrans
 };
 
 const INTERP_BGERROR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(interp_bgerror_state_transitions),
@@ -167,6 +172,7 @@ const INTERP_BGERROR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDes
 };
 
 const INTERP_HIDE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(interp_hide_state_transitions),
@@ -180,6 +186,7 @@ const INTERP_HIDE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescri
 };
 
 const INTERP_EXPOSE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
     success_resolver: None,
     resolver: Some(interp_expose_state_transitions),
@@ -524,7 +531,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
         side_effects: ALIAS_SIDE_EFFECTS,
         world_effects: Some(WorldEffectDescriptor::EMPTY),
-        // Declared once, by naming the stock descriptor (ledger C8).
         state_transitions: Some(crate::state_transition::command_binding::CREATES_ALIASES),
         ..SubCommand::DEFAULT
     },
@@ -1063,6 +1069,7 @@ pub fn jim_spec() -> CommandSpec {
         }],
         side_effects: SIDE_EFFECTS,
         state_transitions: Some(StateTransitionDescriptor {
+            logical_source_resolver: None,
             success_resolver: None,
             resolver: Some(jim_interp_create_transitions),
             ..StateTransitionDescriptor::EMPTY

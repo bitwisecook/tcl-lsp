@@ -761,18 +761,7 @@ pub(crate) fn original_logical_variable_footprint_with_metadata_context(
         registry,
     )?;
     selected.with_metadata_schema(registry, context, realm, |schema| {
-        let aliases = schema
-            .state_transitions()
-            .facts()
-            .iter()
-            .filter_map(|fact| {
-                let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition
-                else {
-                    return None;
-                };
-                Some(alias.clone())
-            })
-            .collect();
+        let aliases = schema.authored_logical_source_variable_aliases()?;
         Some((
             CommandRegistry::variable_write_projection_for_selected_source(schema),
             aliases,
