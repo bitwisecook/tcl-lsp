@@ -43,6 +43,7 @@ pub mod case;
 pub mod channel;
 pub mod clock;
 pub mod dict;
+pub mod encoding;
 pub mod ensemble;
 pub mod error;
 pub mod format;

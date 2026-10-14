@@ -380,6 +380,8 @@ pub(crate) struct CfgBuilder<'a> {
     /// Entry block to continuation block for an explicitly delimited inline
     /// structured-command region.
     command_boundary_continuations: HashMap<String, String>,
+    /// Head dispatch block to join block for a branch-lowered `if`/`switch`.
+    branch_command_joins: HashMap<String, String>,
     /// Caller-frame injection the function currently being built is subject
     /// to: the union of every called procedure's
     /// [`UpvarInfo::caller_frame_barrier`].  Drained into
@@ -523,6 +525,7 @@ impl<'a> CfgBuilder<'a> {
             procedure_binding_requirements: Vec::new(),
             command_boundary_sites: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
+            branch_command_joins: HashMap::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             depth: 0,
@@ -2099,6 +2102,10 @@ impl<'a> CfgBuilder<'a> {
                 .into_iter()
                 .map(|(entry, continuation)| (self.bid(&entry), self.bid(&continuation)))
                 .collect();
+        func.branch_command_joins = std::mem::take(&mut self.branch_command_joins)
+            .into_iter()
+            .map(|(head, join)| (self.bid(&head), self.bid(&join)))
+            .collect();
         func.caller_frame_barrier = self.caller_frame_barrier;
         func.declared_frame_effects = self.command_bindings.declared_frame_effects();
         func.alias_observed_vars = std::mem::take(&mut self.alias_observed_vars);

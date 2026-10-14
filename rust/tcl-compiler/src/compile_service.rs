@@ -1290,6 +1290,43 @@ mod tests {
     }
 
     #[test]
+    fn structured_commands_after_a_generic_invoke_own_their_start_command() {
+        let source = "set n 0; foo\n\
+                      if {$n} {puts a}\n\
+                      switch $n {1 {puts b}}\n\
+                      for {set i 0} {$i < 1} {incr i} {puts c}\n\
+                      for {} {$n} {} {puts d}\n\
+                      while {$n} {if {$n} {puts e} else {puts f}}";
+        let module = BytecodeCompileService::default().compile(source).unwrap();
+        let markers: Vec<(&str, i32)> = module
+            .top_level
+            .instructions
+            .iter()
+            .filter(|instruction| instruction.op == tcl_bytecode::Op::START_CMD)
+            .map(|instruction| {
+                let count = match instruction.operands.get(1) {
+                    Some(tcl_bytecode::Operand::Imm(count)) => *count,
+                    _ => 0,
+                };
+                (instruction.source_cmd_text.as_str(), count)
+            })
+            .collect();
+        // Tcl 9.0.4's startCommands for the same script, in order.
+        assert_eq!(
+            markers,
+            [
+                ("if {$n} {puts a}", 1),
+                ("switch $n {1 {puts b}}", 1),
+                ("for {set i 0} {$i < 1} {incr i} {puts c}", 2),
+                ("incr i", 1),
+                ("for {} {$n} {} {puts d}", 1),
+                ("while {$n} {if {$n} {puts e} else {puts f}}", 1),
+                ("if {$n} {puts e} else {puts f}", 1),
+            ],
+        );
+    }
+
+    #[test]
     fn entered_command_metadata_is_specialisation_scoped() {
         let service = BytecodeCompileService::default();
         let eligible = service.compile("set result [llength [mutate]]").unwrap();
