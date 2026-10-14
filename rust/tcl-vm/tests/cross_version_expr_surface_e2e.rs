@@ -89,7 +89,7 @@ fn vm_output(src: &str, version: TclVersion) -> String {
         Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()),
     );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));

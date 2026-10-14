@@ -136,7 +136,9 @@ mod tests {
         let (module, registry) = module_for("foreach i {A} {set broken \"}");
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let function = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace")
+            .top_level;
         let error = function.native_compilation_failure.as_ref().unwrap();
         assert_eq!(error.message, "missing \"");
         assert_eq!(error.error_code.as_deref(), Some("NONE"));
@@ -167,7 +169,9 @@ mod tests {
         let (module, registry) = module_for_entry("set x extra bad", None);
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let function = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace")
+            .top_level;
         assert_eq!(
             function.validate_native_compilation_entry(),
             Err(tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired),
@@ -179,7 +183,9 @@ mod tests {
         let (module, registry) = module_for_entry("", None);
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let function = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace")
+            .top_level;
         assert!(function.native_compilation_failure.is_none());
         assert_eq!(
             function.validate_native_compilation_entry(),
@@ -188,7 +194,9 @@ mod tests {
         let (module, registry) = module_for("");
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let function = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace")
+            .top_level;
         assert!(function.native_compilation_failure.is_none());
         assert!(function.validate_native_compilation_entry().is_ok());
     }
@@ -212,7 +220,8 @@ mod tests {
 
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let bytecode = super::super::codegen_module(&execution, &module, &registry);
+        let bytecode = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace");
         let function = &bytecode.top_level;
         let error = function.native_compilation_failure.as_ref().unwrap();
         assert_eq!(
@@ -237,7 +246,9 @@ mod tests {
             module_for_entry("set x extra bad", Some(&std::sync::Arc::new(entry.clone())));
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let function = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace")
+            .top_level;
         let required = compiler_registration(&function, "set");
         let matches = |candidate: &tcl_runtime_api::NativeCompilationEntry| {
             required
@@ -309,7 +320,9 @@ mod tests {
         );
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let function = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace")
+            .top_level;
         let error = function.native_compilation_failure.as_ref().unwrap();
         assert_eq!(error.message, "unknown math function \"future_function\"");
         assert_eq!(error.error_code.as_deref(), Some("NONE"));
@@ -342,7 +355,9 @@ mod tests {
         );
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let function = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace")
+            .top_level;
         let error = function.native_compilation_failure.as_ref().unwrap();
         assert_eq!(
             error.message,
@@ -381,7 +396,9 @@ mod tests {
         );
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let function = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace")
+            .top_level;
         assert_eq!(
             function
                 .native_compilation_failure
@@ -409,7 +426,9 @@ mod tests {
         );
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let function = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace")
+            .top_level;
         assert!(function.native_compilation_failure.is_none());
         assert!(function.instructions.is_empty());
         assert_eq!(
@@ -434,7 +453,8 @@ mod tests {
             .unwrap()
             .failure
             .message = None;
-        let bytecode = super::super::codegen_module(&execution, &module, &registry);
+        let bytecode = super::super::codegen_module(&execution, &module, &registry)
+            .expect("original source namespace");
         let function = &bytecode.top_level;
         assert!(function.native_compilation_failure.is_none());
         assert_eq!(

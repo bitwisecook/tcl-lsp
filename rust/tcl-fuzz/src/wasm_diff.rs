@@ -122,7 +122,10 @@ fn run_direct(src: &str) -> (bool, String) {
     let cfg = build_cfg_codegen_with_registry(&ir, false, &registry);
     let asm = codegen_module(&cfg, &ir, &registry);
     let (mut vm, buf) = fresh_vm();
-    let comp = vm.run_module(&asm);
+    let comp = match asm {
+        Ok(asm) => vm.run_module(&asm),
+        Err(_) => vm.eval(src),
+    };
     let out = String::from_utf8_lossy(&buf.borrow()).into_owned();
     (comp.code == Code::Error, out)
 }

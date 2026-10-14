@@ -1789,7 +1789,8 @@ mod tests {
         let registry = tcl_registry::CommandRegistry::build_default();
         let ir = tcl_compiler::lowering::lower_to_ir(src, &registry);
         let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
-        let asm = tcl_compiler::codegen::codegen_module(&cfg, &ir, &registry);
+        let asm = tcl_compiler::codegen::codegen_module(&cfg, &ir, &registry)
+            .expect("original source namespace");
         let mut vm = tcl_vm::Vm::with_output(Box::new(std::io::sink()));
         vm.run_module(&asm).code == tcl_vm::Code::Error
     }

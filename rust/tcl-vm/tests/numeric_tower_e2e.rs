@@ -155,7 +155,7 @@ impl CompileService for CompilerSvc {
         }
         let ir = lower_to_ir(src, &self.registry);
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.registry))
+        Ok(codegen_module(&cfg, &ir, &self.registry).expect("original source namespace"))
     }
 
     /// A VM pinned to a release compiles its run-time scripts for that
@@ -178,7 +178,7 @@ impl CompileService for CompilerSvc {
             Some(profile),
         );
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
     }
 }
 
@@ -216,7 +216,7 @@ fn run_at(src: &str, version: tcl_dialect::TclVersion) -> String {
         Some(profile),
     );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_runtime_version(version);

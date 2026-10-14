@@ -288,17 +288,35 @@ fn scalar_alpha_compaction(
     // Generated ASCII names are proposals. Only the independent lower receipt
     // selects a valid same-frame replacement and closes its observer effects.
     let short = super::NameGenerator::new().next_name();
-    let receipt = analysis
-        .original_fixed_scalar_body_alpha_rename(declaration, short.as_bytes(), registry)
-        .ok_or(MinifyRefusal::MissingAlphaRenameContract)?;
-    if !receipt.matches_source(&image, config)
-        || !receipt.matches_registry(registry)
-        || receipt.declaration_site() != declaration.declaration_site()
-        || receipt.new_native_tail() != short.as_bytes()
-    {
+    let formal =
+        analysis.original_fixed_scalar_body_alpha_rename(declaration, short.as_bytes(), registry);
+    let local = formal
+        .is_none()
+        .then(|| {
+            analysis.original_local_store_alpha_rename(declaration, short.as_bytes(), registry)
+        })
+        .flatten();
+    let symbol = if let Some(receipt) = formal.as_ref() {
+        if !receipt.matches_source(&image, config)
+            || !receipt.matches_registry(registry)
+            || receipt.declaration_site() != declaration.declaration_site()
+            || receipt.new_native_tail() != short.as_bytes()
+        {
+            return Err(MinifyRefusal::MissingAlphaRenameContract);
+        }
+        receipt.selected_symbol()
+    } else if let Some(receipt) = local.as_ref() {
+        if !receipt.matches_source(&image, config)
+            || !receipt.matches_registry(registry)
+            || receipt.declaration_site() != declaration.declaration_site()
+            || receipt.new_native_tail() != short.as_bytes()
+        {
+            return Err(MinifyRefusal::MissingAlphaRenameContract);
+        }
+        receipt.selected_symbol()
+    } else {
         return Err(MinifyRefusal::MissingAlphaRenameContract);
-    }
-    let symbol = receipt.selected_symbol();
+    };
     let SignatureSourceVariableSlot::Local { simple, .. } = symbol.slot() else {
         return Err(MinifyRefusal::MissingAlphaRenameContract);
     };
@@ -311,7 +329,7 @@ fn scalar_alpha_compaction(
         return Ok(plan);
     }
     // Equivalence and source geometry remain separate requirements. This edit
-    // owner authenticates the formal list child and every whole-object read.
+    // owner authenticates the selected declaration and every whole-object read.
     let edits =
         crate::variable_symbol::original_variable_rename_edits(source, analysis, symbol, &short)
             .map_err(|_| MinifyRefusal::AlphaRenameGeometryUnavailable)?;
@@ -337,12 +355,11 @@ fn scalar_alpha_compaction(
         byte_edits.push((start as usize, written.len(), edit.new_text));
     }
     // A native value can have several source-text inverses. Report the actual
-    // formal's written label after the receipt and edit owner select its cell.
+    // declaration's written label after the receipt and edit owner select its cell.
     let mut original_formals = analysis.original_variable_symbols.iter().filter(|occurrence| {
-        occurrence.symbol() == symbol
-            && occurrence.is_declaration()
-            && occurrence.receiver()
-                == tcl_compiler::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::FormalDeclaration
+        occurrence.symbol() == symbol && occurrence.is_declaration()
+            && (local.is_some() || occurrence.receiver()
+                == tcl_compiler::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::FormalDeclaration)
     });
     let original_formal = original_formals
         .next()
@@ -557,6 +574,25 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_compaction_uses_original_local_store_and_complete_edit_coverage() {
+        let source = "proc p {} {set longVariable VALUE; return $longVariable}";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let analysis = super::analysis_for_profile(source, profile, &registry);
+        assert!(!analysis.allows_lexical_declaration_advice());
+        let result = super::minify_with_analysis(
+            source,
+            &analysis,
+            super::MinifyOptions {
+                tier: super::MinifyTier::Compact,
+                ..super::MinifyOptions::default()
+            },
+        );
+        assert_eq!(result.source, "proc p {} {set a VALUE;return $a}");
+    }
+
     #[test]
     fn native_compaction_uses_fixed_formal_owner_and_original_edit_coverage() {
         let source = "proc p {unused longVariable} {return $longVariable}";

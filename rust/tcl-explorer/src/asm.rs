@@ -80,12 +80,14 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
         false,
         registry,
     );
-    let module: ModuleAsm = codegen_module_with_command_mutations(
+    let Ok(module) = codegen_module_with_command_mutations(
         &codegen_cfg,
         &result.unit.ir_module,
         registry,
         &result.unit.command_mutations,
-    );
+    ) else {
+        return Value::Null;
+    };
 
     let mut entries: Vec<Value> = Vec::new();
     let mut top = function_explorer(

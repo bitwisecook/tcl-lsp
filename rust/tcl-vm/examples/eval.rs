@@ -34,7 +34,13 @@ fn main() {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(&src, &registry);
     let cfg = build_cfg(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = match codegen_module(&cfg, &ir, &registry) {
+        Ok(asm) => asm,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+    };
     if std::env::var("DIS").is_ok() {
         eprintln!(
             "=== ::top ===\n{}",

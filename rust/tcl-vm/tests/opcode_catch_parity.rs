@@ -43,7 +43,7 @@ fn compiled_proc_body(src: &str, qname: &str) -> FunctionAsm {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, &registry);
+    let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     module
         .procedures
         .get(qname)
@@ -164,7 +164,7 @@ fn inline_catch_absorbs_child_proc_error() {
         "proc boom {} {error kaboom}\nproc p {} {\n  set r [catch {boom} msg]\n  list $r $msg\n}";
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, &registry);
+    let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let mut vm = Vm::new();
     // Defining the procs needs a compile service for their (dynamic) bodies —
     // route through the compiler exactly like the CLI embedders.
@@ -242,7 +242,7 @@ fn inline_catch_publishes_error_info() {
     let src = "proc p {} {\n  set r [catch {nosuchcmd} msg]\n  string match {invalid command name*} $::errorInfo\n}";
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, &registry);
+    let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let body = module.procedures.get("::p").expect("::p");
     let mut vm = Vm::new();
     let c = vm.run_function(body);

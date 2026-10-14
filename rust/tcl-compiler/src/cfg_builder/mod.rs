@@ -5021,7 +5021,8 @@ mod tests {
                     })
                 })
         );
-        let assembly = crate::codegen::codegen_module(&executable, &module, &registry);
+        let assembly = crate::codegen::codegen_module(&executable, &module, &registry)
+            .expect("original source namespace");
         let body = assembly.procedures.values().next().expect("compiled p");
         assert!(body.lvt.find_bytes(b"later").is_some());
         assert!(

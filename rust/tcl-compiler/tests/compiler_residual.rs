@@ -127,7 +127,7 @@ fn proc_asm(source: &str, qname: &str) -> FunctionAsm {
     let reg = registry();
     let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg(&ir, false);
-    let mut module = codegen_module(&cfg, &ir, &reg);
+    let mut module = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
     let id = fixture_id(&ir.procedures, qname);
     module
         .procedures
@@ -1059,7 +1059,7 @@ fn module_dispatch_emits_proc_and_top_level() {
     let reg = registry();
     let ir = lower_to_ir("proc foo {x} { return $x }\nset z 9", &reg);
     let cfg = build_cfg(&ir, false);
-    let m = codegen_module(&cfg, &ir, &reg);
+    let m = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
     assert!(
         fixture_id_if_present(&m.procedures, "::foo").is_some(),
         "proc emitted: {:?}",
@@ -1090,7 +1090,7 @@ fn module_dispatch_empty_source_is_just_top_level_done() {
     let reg = registry();
     let ir = lower_to_ir("", &reg);
     let cfg = build_cfg(&ir, false);
-    let m = codegen_module(&cfg, &ir, &reg);
+    let m = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
     assert!(m.procedures.is_empty(), "no procedures for an empty module");
     assert_eq!(m.top_level.name, "::top");
     assert_eq!(m.top_level.instructions.last().unwrap().op, Op::DONE);

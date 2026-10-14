@@ -322,7 +322,7 @@ impl BytecodeCompileService {
             registry,
             &command_mutations,
             policy.scope,
-        );
+        )?;
         if let Some(profile) = profile {
             module.profile = profile;
         }
@@ -445,7 +445,7 @@ impl BytecodeCompileService {
             registry,
             &command_mutations,
             ModuleEmissionScope::EnteredSource,
-        );
+        )?;
         module.profile = profile;
         validate_native_function(&module.top_level_body)?;
         Ok(module)
@@ -488,7 +488,7 @@ impl BytecodeCompileService {
             registry,
             &mutations,
             ModuleEmissionScope::EnteredSource,
-        );
+        )?;
         module.profile = profile;
         validate_native_function(&module.top_level)?;
         Ok(module)
@@ -533,7 +533,7 @@ impl BytecodeCompileService {
             registry,
             &mutations,
             ModuleEmissionScope::EnteredSource,
-        );
+        )?;
         module.profile = profile;
         validate_native_function(&module.top_level_body)?;
         Ok(module)
@@ -3062,7 +3062,7 @@ mod tests {
         );
 
         let cfg = build_cfg_codegen_with_registry(&inlined, false, &registry);
-        let module = codegen_module(&cfg, &inlined, &registry);
+        let module = codegen_module(&cfg, &inlined, &registry).expect("original source namespace");
         for name in ["while", "if"] {
             assert!(
                 module

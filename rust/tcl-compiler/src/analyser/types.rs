@@ -3402,6 +3402,53 @@ impl AnalysisResult {
         agreed
     }
 
+    /// Closed literal-local store/return equivalence, independently of edits.
+    #[must_use]
+    pub fn original_local_store_alpha_rename(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        proposed: &[u8],
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::command_binding::OriginalLocalStoreAlphaRename> {
+        if !self.original_procedure_metadata.contains(declaration)
+            || !self.matches_original_source_image(
+                declaration.name_input().source_image(),
+                declaration.name_input().lexer_config(),
+            )
+        {
+            return None;
+        }
+        let bindings = self.command_realm.as_ref()?.source_bindings_ref();
+        let mut agreed = None;
+        for occurrence in &self.original_variable_symbols {
+            if !self.original_variable_rename_is_complete(occurrence.symbol()) {
+                continue;
+            }
+            let symbol = occurrence.symbol();
+            let crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local {
+                frame,
+                simple,
+            } = symbol.slot()
+            else {
+                continue;
+            };
+            if self.original_variable_symbols.iter().any(|other| {
+                matches!(other.symbol().slot(), crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local { frame: other_frame, simple: other_name }
+                    if other_frame == frame && other_name != simple && other_name.as_bytes() == proposed)
+            }) { continue; }
+            let Some(receipt) =
+                bindings.original_local_store_alpha_rename(declaration, symbol, proposed, registry)
+            else {
+                continue;
+            };
+            if agreed.as_ref().is_some_and(|previous| previous != &receipt) {
+                return None;
+            }
+            agreed = Some(receipt);
+        }
+        agreed
+    }
+
     /// Every independently retained original class declaration.
     pub fn original_class_declarations(
         &self,

@@ -154,6 +154,30 @@ impl RetainedSourceModuleBindings {
             && self.registry == registry.snapshot().semantic_key()
     }
 
+    /// Original top-level source namespace for artifact geometry. Reporting
+    /// labels cannot select it; runtime admission remains independent.
+    pub(crate) fn original_top_namespace_for_module(
+        &self,
+        module: &Module,
+        registry: &CommandRegistry,
+    ) -> Option<&super::SourceNamespaceKey> {
+        (self.source == module.own_source()
+            && self.entry == module.source_entry
+            && self.entry.metadata_context.source_analysis_input()
+                == module.source_metadata_input.as_ref()
+            && self.grammar == module.native_lexer_config()
+            && self.native_namespace == module.native_namespace
+            && self.namespace_context == module.top_level_namespace_context
+            && self.kind == module.top_level_kind
+            && self.registry == registry.snapshot().semantic_key()
+            && module.registry_snapshot.as_ref()?.semantic_key() == self.registry
+            && self
+                .positioned
+                .matches_original_source_image(&self.source, self.grammar))
+        .then_some(())?;
+        self.namespace_context.as_ref()
+    }
+
     /// Borrow the exact positioned interpretation from the original Lowerer.
     /// An absent or changed Module input is terminal for this projection;
     /// independent source interpretation has its own explicit ingress.

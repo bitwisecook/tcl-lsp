@@ -1,0 +1,74 @@
+{
+  "files": [
+    {
+      "path": "oracles/8.4.20.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/8.4.20.stdout",
+      "sha256": "77687b65733e06f057030cd003692aff914e4706cb058f38ba25279fac8425bd",
+      "bytes": 107
+    },
+    {
+      "path": "oracles/8.5.19.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/8.5.19.stdout",
+      "sha256": "77687b65733e06f057030cd003692aff914e4706cb058f38ba25279fac8425bd",
+      "bytes": 107
+    },
+    {
+      "path": "oracles/8.6.18.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/8.6.18.stdout",
+      "sha256": "77687b65733e06f057030cd003692aff914e4706cb058f38ba25279fac8425bd",
+      "bytes": 107
+    },
+    {
+      "path": "oracles/9.0.4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/9.0.4.stdout",
+      "sha256": "77687b65733e06f057030cd003692aff914e4706cb058f38ba25279fac8425bd",
+      "bytes": 107
+    },
+    {
+      "path": "oracles/9.1.0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/9.1.0.stdout",
+      "sha256": "77687b65733e06f057030cd003692aff914e4706cb058f38ba25279fac8425bd",
+      "bytes": 107
+    },
+    {
+      "path": "oracles/Jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/Jim.stdout",
+      "sha256": "77687b65733e06f057030cd003692aff914e4706cb058f38ba25279fac8425bd",
+      "bytes": 107
+    },
+    {
+      "path": "oracles/local-literal-store-alpha.tcl",
+      "sha256": "092adb33f5e4825e7385dd5e2d8745aec6bdb8732ccf604dd9c91a023295e12c",
+      "bytes": 511
+    },
+    {
+      "path": "oracles/results.json",
+      "sha256": "507c9acc33cea86834e0843d3e4f27ca3e85e38ce843350bc3bdedce4317912c",
+      "bytes": 2741
+    }
+  ]
+}

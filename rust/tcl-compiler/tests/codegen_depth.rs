@@ -88,7 +88,9 @@ fn module_via_backend(source: &str) -> (ModuleAsm, IrModule) {
     let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg_codegen(&ir, true);
     let mut backend = BytecodeBackend;
-    let asm = backend.lower_module(&cfg, &ir, &reg);
+    let asm = backend
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace");
     (asm, ir)
 }
 
@@ -100,7 +102,9 @@ fn module_inline_via_backend(source: &str) -> ModuleAsm {
     let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg(&ir, false);
     let mut backend = BytecodeBackend;
-    backend.lower_module(&cfg, &ir, &reg)
+    backend
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace")
 }
 
 /// The `FunctionAsm` for a named procedure, lowered through the backend.
@@ -172,9 +176,8 @@ fn backend_lower_module_empty() {
 
 #[test]
 fn backend_associated_types_are_function_and_module_asm() {
-    // The trait's associated artifact types are `FunctionAsm` / `ModuleAsm`.
-    // Bind them explicitly so the test fails to compile if the impl's
-    // associated types ever drift.
+    // Function emission returns its assembly; whole-module emission explicitly
+    // carries unavailable source namespace errors before yielding assembly.
     let reg = registry();
     let ir = lower_to_ir("set x 1", &reg);
     let cfg = build_cfg_codegen(&ir, true);
@@ -182,6 +185,7 @@ fn backend_associated_types_are_function_and_module_asm() {
     let f: <BytecodeBackend as Backend>::FuncArtifact =
         backend.lower_function(&cfg.top_level, &[], false, &reg);
     let m: <BytecodeBackend as Backend>::ModuleArtifact = backend.lower_module(&cfg, &ir, &reg);
+    let m = m.expect("original source namespace");
     assert_eq!(f.name, "::top");
     assert_eq!(m.top_level.name, "::top");
 }
@@ -236,7 +240,9 @@ fn backend_lower_module_retains_original_declaration_order_and_body_identity() {
     assert_eq!(ir.procedures.len(), 1);
     let (body_id, procedure) = ir.procedures.iter().next().unwrap();
     let mut backend = BytecodeBackend;
-    let module = backend.lower_module(&cfg, &ir, &reg);
+    let module = backend
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace");
     let top = &module.top_level;
     let lits = top.literals.entries();
     assert!(
@@ -292,8 +298,12 @@ fn backend_default_and_copy() {
     let cfg = build_cfg_codegen(&ir, true);
     let mut a = BytecodeBackend;
     let mut b = BytecodeBackend::default();
-    let asm_a = a.lower_module(&cfg, &ir, &reg);
-    let asm_b = b.lower_module(&cfg, &ir, &reg);
+    let asm_a = a
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace");
+    let asm_b = b
+        .lower_module(&cfg, &ir, &reg)
+        .expect("original source namespace");
     assert_eq!(
         opcodes(&asm_a.top_level),
         opcodes(&asm_b.top_level),
@@ -1285,7 +1295,9 @@ fn backend_lower_module_handbuilt_empty_module() {
     };
     let ir = lower_to_ir("", &reg);
     let mut backend = BytecodeBackend;
-    let asm = backend.lower_module(&cfg_mod, &ir, &reg);
+    let asm = backend
+        .lower_module(&cfg_mod, &ir, &reg)
+        .expect("original source namespace");
     assert_eq!(asm.top_level.name, "::top");
     assert!(asm.procedures.is_empty());
     // An empty hand-built top-level block ends with `returnImm` (the explicit

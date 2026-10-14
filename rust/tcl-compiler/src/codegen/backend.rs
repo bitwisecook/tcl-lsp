@@ -76,7 +76,7 @@ pub struct BytecodeBackend;
 
 impl Backend for BytecodeBackend {
     type FuncArtifact = FunctionAsm;
-    type ModuleArtifact = ModuleAsm;
+    type ModuleArtifact = Result<ModuleAsm, tcl_runtime_api::CompileError>;
 
     fn lower_function(
         &mut self,
@@ -93,7 +93,7 @@ impl Backend for BytecodeBackend {
         cfg: &CfgModule,
         ir: &IrModule,
         registry: &CommandRegistry,
-    ) -> ModuleAsm {
+    ) -> Self::ModuleArtifact {
         codegen_module(cfg, ir, registry)
     }
 }

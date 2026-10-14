@@ -37,6 +37,8 @@ use crate::segmenter::SegmentedCommand;
 
 mod definition_script;
 pub use definition_script::OriginalDefinitionScriptSource;
+mod byte_source_namespace;
+pub use byte_source_namespace::OriginalByteSourceNamespace;
 mod method_identity;
 pub use method_identity::{MethodCoordinate, MethodInventory};
 mod procedure_identity;
@@ -2815,6 +2817,9 @@ pub struct Module {
     /// Retained native namespace path for executable compilation. Symbolic
     /// analysis names never reconstruct an opaque native namespace.
     pub native_namespace: Option<tcl_core_types::ByteNamespacePath>,
+    /// Explicit byte target namespace retained by the original source driver.
+    /// This supplies artifact geometry, never a live namespace incarnation.
+    pub original_byte_source_namespace: Option<std::sync::Arc<OriginalByteSourceNamespace>>,
     /// Rooted constructed namespace in which [`Self::top_level`] resolves
     /// command names. This is `"::"` for an ordinary source module and the
     /// procedure's defining namespace for a runtime procedure-body compile.

@@ -49,7 +49,7 @@ fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
@@ -71,7 +71,7 @@ fn run_bytecode(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
@@ -96,7 +96,7 @@ fn commands_dispatch_runs_proc() {
         let src = "proc add {a b} { return [expr {$a + $b}] }";
         let ir = lower_to_ir(src, &registry);
         let cfg = build_cfg_codegen(&ir, false);
-        codegen_module(&cfg, &ir, &registry)
+        codegen_module(&cfg, &ir, &registry).expect("original source namespace")
     };
 
     let mut vm = Vm::new();

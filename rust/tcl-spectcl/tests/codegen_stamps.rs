@@ -279,7 +279,7 @@ fn compile(source: &str, registry: &CommandRegistry) -> ModuleAsm {
     let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
         &ir, false, registry, config,
     );
-    tcl_compiler::codegen::codegen_module(&cfg, &ir, registry)
+    tcl_compiler::codegen::codegen_module(&cfg, &ir, registry).expect("original source namespace")
 }
 
 /// Run a setup script through the default compile service on `vm`.

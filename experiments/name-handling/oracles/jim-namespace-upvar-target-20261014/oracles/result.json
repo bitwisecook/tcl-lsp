@@ -1,0 +1,12 @@
+{
+  "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "executable_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "original_source": "/workspace/tcl-lsp/tmp/jimtcl-oracle/nshelper.tcl",
+  "original_source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+  "program_sha256": "0917087588ef84c6c6c0ad030ad6a5e6b1fc1c58a2d9987e8b48a23ec7fc63cc",
+  "stdout_sha256": "d93fbc94411e7e21dd5de3d16331e616c06a2f2f013b7b575cb3e77d273f04eb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "exit_code": 0,
+  "stdout": "{} x {0 ::::x local}\n::N x {0 ::N::x local}\n::N ::x {0 ::N::::x local}\n::N {} {0 ::N:: local}\n:: {} {0 :::: local}\n0 ::outer::child::x local\n0 ::N\u0000tail::x\u0000tail local\n",
+  "stderr": ""
+}

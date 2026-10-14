@@ -130,7 +130,7 @@ mod source_read_scope;
 pub(crate) use declaration_preview::OriginalProcedureReadDeclaration;
 pub(crate) use source_read_scope::{SourceReadScope, source_targets_match_advice};
 mod scalar_body_alpha;
-pub use scalar_body_alpha::OriginalScalarBodyAlphaRename;
+pub use scalar_body_alpha::{OriginalLocalStoreAlphaRename, OriginalScalarBodyAlphaRename};
 mod vendor_catalogue_advice;
 pub use vendor_catalogue_advice::{
     VendorCatalogueSourceCandidate, VendorCatalogueSourceObligation,

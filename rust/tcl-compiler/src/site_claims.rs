@@ -145,7 +145,7 @@ mod tests {
         let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
             &ir, false, registry, config,
         );
-        crate::codegen::codegen_module(&cfg, &ir, registry)
+        crate::codegen::codegen_module(&cfg, &ir, registry).expect("original source namespace")
     }
 
     fn stamp(registry: &CommandRegistry) -> PackFactStamp {

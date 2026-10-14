@@ -96,7 +96,7 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
 
     let ir = lower_disassembly_document(&source, &registry, dialect);
     let cfg = build_cfg_codegen_with_registry(&ir, false, &registry);
-    let module = codegen_module(&cfg, &ir, &registry);
+    let module = codegen_module(&cfg, &ir, &registry)?;
     let disassembly = format_module_asm(&module);
 
     let target = OutputTarget::from_arg(input.output.as_deref());

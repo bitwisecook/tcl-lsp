@@ -62,7 +62,7 @@ fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Arc::new(Mutex::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(SharedBuf(Arc::clone(&buf))));
@@ -96,7 +96,7 @@ fn assert_workers_inherit_a_separate_host_command_surface() {
     let source = "set w [thread::create]; set threaded [thread::send $w {llength [info commands interp]}]; thread::release $w; set p [tpool::create -maxworkers 1]; set j [tpool::post $p {llength [info commands interp]}]; set pooled [tpool::get $p $j]; tpool::release $p; list $threaded $pooled";
     let ir = lower_to_ir_for_bytecode_with_dialect(source, registry, config, Some(dialect));
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     let mut vm = Vm::with_output(Box::new(std::io::sink()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(dialect)));
@@ -140,7 +140,7 @@ fn thread_package_absent_without_enable() {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("set tcl_platform(threaded)", &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let mut vm = Vm::with_output(Box::new(std::io::sink()));
     vm.set_compiler(compiler());
     let c = vm.run_module(&asm);

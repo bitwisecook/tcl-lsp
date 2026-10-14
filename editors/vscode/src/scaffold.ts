@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { packageScaffoldNamespace } from "./nameGeneration";
+
 export interface ScaffoldFile {
   relativePath: string;
   content: string;
@@ -70,26 +72,8 @@ export function validateVersion(value: string): string | undefined {
   return undefined;
 }
 
-function sanitiseIdentifierPart(value: string): string {
-  const cleaned = value.replace(/[^A-Za-z0-9_]/g, "_");
-  if (!cleaned) {
-    return "_";
-  }
-  if (!/^[A-Za-z_]/.test(cleaned)) {
-    return `_${cleaned}`;
-  }
-  return cleaned;
-}
-
 export function namespaceFromPackageName(packageName: string): string {
-  const parts = packageName
-    .split("::")
-    .filter((part) => part.length > 0)
-    .map((part) => sanitiseIdentifierPart(part));
-  if (parts.length === 0) {
-    return "::pkg";
-  }
-  return `::${parts.join("::")}`;
+  return packageScaffoldNamespace(packageName).spelling;
 }
 
 export function packageDirectoryName(packageName: string): string {
@@ -100,11 +84,14 @@ export function packageFileStem(packageName: string): string {
   return packageName.replace(/[^A-Za-z0-9_]/g, "_");
 }
 
-export function buildPackageScaffold(options: PackageScaffoldOptions): PackageScaffoldPlan {
+export function buildPackageScaffold(
+  options: PackageScaffoldOptions,
+): PackageScaffoldPlan {
   const packageName = options.packageName.trim();
   const version = options.version.trim();
   const commandName = options.commandName.trim();
-  const minimumTclVersion = options.minimumTclVersion?.trim() || DEFAULT_TCL_VERSION;
+  const minimumTclVersion =
+    options.minimumTclVersion?.trim() || DEFAULT_TCL_VERSION;
   const namespaceName = namespaceFromPackageName(packageName);
   const dirName = packageDirectoryName(packageName);
   const stem = packageFileStem(packageName);

@@ -1,0 +1,3 @@
+# Literal local-store value observations
+
+`oracles/local-literal-store-alpha.tcl` compares original and renamed local scalar store/return programs under C Tcl 8.4–9.1 and Jim. The exact outputs and interpreter identities are recorded in `oracles/results.json`; `oracle-retention.json` authenticates every retained input and output. The observations establish the recorded value equivalence only. The compiler separately checks the current declaration, source frame, selected operations, observers, symbol and complete edit coverage. Jim observations do not grant C compilation or editing eligibility.

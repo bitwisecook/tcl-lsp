@@ -1543,13 +1543,10 @@ impl<'r> Lowerer<'r> {
             tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         #[cfg(any(test, debug_assertions))]
         trace_source_lowering(trace_start, "configured", source.len(), &self.module);
-        self.module.top_level_namespace_context = self.native_entry.as_deref().and_then(|entry| {
-            crate::command_binding::SourceNamespaceKey::from_native_entry(entry).ok()
-        });
-        self.module.top_level_namespace.clear();
-        self.module.top_level_namespace.push_str("::");
+        let namespace = self.runtime_target_namespace("");
+        self.module.top_level_namespace.clone_from(&namespace);
         self.module.top_level =
-            self.lower_script(source, "::", SourceSegmentationPurpose::WholeInput);
+            self.lower_script(source, &namespace, SourceSegmentationPurpose::WholeInput);
         #[cfg(any(test, debug_assertions))]
         trace_source_lowering(trace_start, "lowered", source.len(), &self.module);
         &self.module
@@ -6707,6 +6704,7 @@ fn lower_native_byte_calls(
     // Native calls retain unconstrained callbacks and variable effects.
     module.has_dynamic_trace = true;
     module.has_dynamic_variable_trace = true;
+    module.retain_original_byte_source_namespace(namespace, registry);
     Ok(module)
 }
 

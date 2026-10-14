@@ -1,0 +1,25 @@
+{
+  "purpose": "Original Jim namespace-upvar target geometry; syntax helper recipe observations only, no target presence, link/cell/Native admission claim. Direct interpreter script, no tcltest used.",
+  "files": [
+    {
+      "path": "oracles/result.json",
+      "sha256": "72f7ef9cb04b763ecd8298396c97d6c481b7650a72a40536b4cfc8a792369779",
+      "bytes": 821
+    },
+    {
+      "path": "oracles/target-geometry.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/target-geometry.stdout",
+      "sha256": "d93fbc94411e7e21dd5de3d16331e616c06a2f2f013b7b575cb3e77d273f04eb",
+      "bytes": 166
+    },
+    {
+      "path": "oracles/target-geometry.tcl",
+      "sha256": "0917087588ef84c6c6c0ad030ad6a5e6b1fc1c58a2d9987e8b48a23ec7fc63cc",
+      "bytes": 326
+    }
+  ]
+}

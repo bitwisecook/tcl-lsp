@@ -80,7 +80,7 @@ fn vm_output(src: &str, version: TclVersion) -> String {
         Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()),
     );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
@@ -358,7 +358,7 @@ fn run_on(vm: &mut Vm, cap: &Capture, dialect: &str, src: &str) -> String {
         Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()),
     );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
 }

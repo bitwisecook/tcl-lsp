@@ -28,6 +28,12 @@
 //! and namespace objects have separate flat composition rules. Constructed
 //! namespace segments are retained directly, without reparsing display text.
 
+mod scaffold;
+pub use scaffold::{
+    GeneratedScaffoldNamespace, PACKAGE_SCAFFOLD_NAMESPACE_CASES,
+    PACKAGE_SCAFFOLD_NAMESPACE_POLICY, ScaffoldNamespacePolicy,
+    scaffold_namespace_from_package_name,
+};
 mod authored_source;
 pub use authored_source::{
     authored_source_command_candidates, authored_source_command_slot,

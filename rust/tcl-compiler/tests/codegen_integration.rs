@@ -507,7 +507,7 @@ fn switch_glob_as_proc_tail_keeps_result_on_stack() {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("proc f {x} { switch -glob -- $x a* {set r 1} }", &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let f = asm
         .procedures
         .get(&fixture_id(&asm.procedures, "::f"))
@@ -539,7 +539,7 @@ fn foreach_synthetic_ops_carry_no_source_span() {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("foreach x {1 2 3} { set y $x }", &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let foreach_ops: Vec<_> = asm
         .top_level
@@ -575,7 +575,7 @@ fn simple_foreach_command_completion_targets_the_paired_opcodes() {
     // Native foreach compilation requires the procedure's local table.
     let ir = lower_to_ir_for_bytecode("proc p {} {foreach x {1 2} { $completion }}", &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let function = asm
         .procedures
         .get(&fixture_id(&asm.procedures, "::p"))
@@ -1020,7 +1020,7 @@ fn codegen_module_with_no_procs() {
         declared_frame_effects: std::collections::BTreeMap::new(),
     };
     let registry = CommandRegistry::build_default();
-    let asm = codegen_module(&cfg_mod, &ir_mod, &registry);
+    let asm = codegen_module(&cfg_mod, &ir_mod, &registry).expect("original source namespace");
     assert_eq!(asm.top_level.name, "::top");
     assert!(asm.procedures.is_empty());
 }
@@ -1114,7 +1114,7 @@ fn native_c86_assembly(source: &str) -> tcl_bytecode::ModuleAsm {
     let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
         &ir, false, registry, config,
     );
-    codegen_module(&cfg, &ir, registry)
+    codegen_module(&cfg, &ir, registry).expect("original source namespace")
 }
 
 #[test]
@@ -1198,7 +1198,7 @@ fn removed_expression_retains_its_consumed_implicit_lookup_dependency() {
     for block in cfg.top_level.blocks.values_mut() {
         block.statements.clear();
     }
-    let module = codegen_module(&cfg, &ir, registry);
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     assert!(
         module.top_level.command_bindings.iter().any(|binding| {
             binding.name == "tcl::mathfunc::abs" && binding.identity == "tcl::mathfunc::abs"
@@ -1232,7 +1232,7 @@ fn unrepresentable_consumed_math_dependency_refuses_the_artifact() {
     );
     assert!(tcl_compiler::math_function_binding::native_fold_dependency(&proof).is_none());
     cfg.top_level.required_math_invocations.push(proof);
-    let module = codegen_module(&cfg, &ir, registry);
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     assert_eq!(
         module.top_level.native_compilation_preflight,
         tcl_runtime_api::NativeCompilationPreflight::ProviderRequired
@@ -1249,7 +1249,7 @@ fn missing_expression_preparation_cannot_license_an_execution_fold() {
     );
     assert!(!cfg.top_level.expression_preparations.is_empty());
     cfg.top_level.expression_preparations.clear();
-    let module = codegen_module(&cfg, &ir, registry);
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     assert_eq!(
         module.top_level.native_compilation_preflight,
         tcl_runtime_api::NativeCompilationPreflight::ProviderRequired
@@ -1282,7 +1282,7 @@ fn analysis_store_keeps_the_original_native_dispatch_selection() {
         let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
             &ir, false, registry, config,
         );
-        let module = codegen_module(&cfg, &ir, registry);
+        let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
         assert_eq!(
             module
                 .top_level
@@ -1321,6 +1321,6 @@ fn codegen_retains_a_custom_profile_with_a_catalogue_name() {
     let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
         &ir, false, registry, config,
     );
-    let module = codegen_module(&cfg, &ir, registry);
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     assert!(std::ptr::eq(module.profile, custom));
 }

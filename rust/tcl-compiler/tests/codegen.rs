@@ -101,7 +101,7 @@ fn asm_for(source: &str) -> tcl_compiler::codegen::ModuleAsm {
     let reg = registry();
     let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg_codegen(&ir, true);
-    codegen_module(&cfg, &ir, &reg)
+    codegen_module(&cfg, &ir, &reg).expect("original source namespace")
 }
 
 /// The top-level `FunctionAsm` for `source`.
@@ -295,7 +295,7 @@ fn proc_return_folds_to_done() {
     let reg = registry();
     let ir = lower_to_ir("proc foo {} { return 42 }", &reg);
     let cfg = build_cfg(&ir, false);
-    let module = codegen_module(&cfg, &ir, &reg);
+    let module = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
     assert!(fixture_id_if_present(&module.procedures, "::foo").is_some());
     // Tail-position return is folded to done (matching tclsh).
     assert!(
@@ -1477,7 +1477,11 @@ fn lassign_ops_with_the_hook_stamped_from_9_0(
     let reg = authored.project_for_profile(profile);
     let ir = lower_to_ir("lassign \"a b c\" x y z", &reg);
     let cfg = build_cfg_codegen(&ir, true);
-    opcodes(&codegen_module(&cfg, &ir, &reg).top_level)
+    opcodes(
+        &codegen_module(&cfg, &ir, &reg)
+            .expect("original source namespace")
+            .top_level,
+    )
 }
 
 fn is_specialised_lassign(ops: &[Op]) -> bool {
@@ -1516,7 +1520,11 @@ fn a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6() {
     let ir = lower_to_ir("lassign \"a b c\" x y z", &control);
     let cfg = build_cfg_codegen(&ir, true);
     assert!(
-        is_specialised_lassign(&opcodes(&codegen_module(&cfg, &ir, &control).top_level)),
+        is_specialised_lassign(&opcodes(
+            &codegen_module(&cfg, &ir, &control)
+                .expect("original source namespace")
+                .top_level
+        )),
         "the unversioned stamp specialises under the same profile"
     );
 }
@@ -2136,7 +2144,7 @@ fn codegen_module_empty_has_top() {
         procedures: HashMap::new(),
     };
     let ir_mod = ir_for("");
-    let asm = codegen_module(&cfg_mod, &ir_mod, &registry());
+    let asm = codegen_module(&cfg_mod, &ir_mod, &registry()).expect("original source namespace");
     assert_eq!(asm.top_level.name, "::top");
 }
 

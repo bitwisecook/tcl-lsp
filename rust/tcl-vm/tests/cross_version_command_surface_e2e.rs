@@ -533,7 +533,7 @@ fn named_command_surface_override_cannot_hide_compiled_release_commands() {
     let config = tcl_lexer::LexerConfig::from_grammar(v91.grammar);
     let ir = lower_to_ir("lassign {a b} x; set x", registry, config, Some(v91));
     let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, registry);
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     let mut vm = Vm::new();
     vm.set_dialect_profile(v91);
@@ -607,7 +607,7 @@ fn command_surface_override_rejects_a_same_release_narrower_profile() {
     // profile validation alone cannot enforce a later command-surface change.
     let ir = lower_to_ir("lassign {a b} x; set x", registry, config, Some(bpf));
     let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, registry);
+    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     let mut vm = Vm::new();
     vm.set_dialect_profile(bpf);
@@ -1057,7 +1057,8 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     let generic_ir =
         tcl_compiler::lowering::lower_to_ir_for_bytecode("lassign {a b} x", &generic_registry);
     let generic_cfg = build_cfg_codegen(&generic_ir, false);
-    let generic_aot = codegen_module(&generic_cfg, &generic_ir, &generic_registry);
+    let generic_aot = codegen_module(&generic_cfg, &generic_ir, &generic_registry)
+        .expect("original source namespace");
     assert_eq!(
         foreign_vm.run_module(&generic_aot).result.to_str().as_ref(),
         "bytecode compiled for dialect profile tcl cannot run under tcl8.4"
@@ -1071,7 +1072,8 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         Some(v85),
     );
     let traced_cfg = build_cfg_codegen(&traced_ir, false);
-    let traced_aot = codegen_module(&traced_cfg, &traced_ir, traced_registry);
+    let traced_aot = codegen_module(&traced_cfg, &traced_ir, traced_registry)
+        .expect("original source namespace");
     assert!(std::ptr::eq(traced_aot.profile, v85));
     assert_eq!(
         foreign_vm.run_module(&traced_aot).result.to_str().as_ref(),

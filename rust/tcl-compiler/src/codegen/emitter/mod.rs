@@ -239,12 +239,15 @@ fn emit_profile(dialect: Option<&str>) -> Option<&'static tcl_dialect::DialectPr
 }
 
 /// Generate bytecode assembly for an entire module.
-#[must_use]
+///
+/// # Errors
+/// Returns an unsupported compilation when the original top-level source
+/// namespace is absent or no longer matches its retained producer.
 pub fn codegen_module(
     cfg_module: &CfgModule,
     ir_module: &IrModule,
     registry: &CommandRegistry,
-) -> ModuleAsm {
+) -> Result<ModuleAsm, tcl_runtime_api::CompileError> {
     let command_mutations =
         crate::command_binding::scan_module_command_mutations(ir_module, registry);
     codegen_module_with_command_mutations(cfg_module, ir_module, registry, &command_mutations)
@@ -255,13 +258,15 @@ pub fn codegen_module(
 ///
 /// [`codegen_module`] remains the compatibility entry point for callers that
 /// only retain IR; it computes the same summary once before delegating here.
-#[must_use]
+///
+/// # Errors
+/// Returns an unsupported compilation when the original source namespace is unavailable.
 pub fn codegen_module_with_command_mutations(
     cfg_module: &CfgModule,
     ir_module: &IrModule,
     registry: &CommandRegistry,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
-) -> ModuleAsm {
+) -> Result<ModuleAsm, tcl_runtime_api::CompileError> {
     codegen_module_with_emission_scope(
         cfg_module,
         ir_module,
@@ -273,14 +278,16 @@ pub fn codegen_module_with_command_mutations(
 
 /// Emit a script artifact with an explicit source-body ownership policy.
 /// Runtime targets use `EnteredSource`; no nested body is compiled or imported.
-#[must_use]
+///
+/// # Errors
+/// Returns an unsupported compilation when the source namespace is unavailable.
 pub fn codegen_module_with_emission_scope(
     cfg_module: &CfgModule,
     ir_module: &IrModule,
     registry: &CommandRegistry,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
     scope: ModuleEmissionScope,
-) -> ModuleAsm {
+) -> Result<ModuleAsm, tcl_runtime_api::CompileError> {
     codegen_module_with_top_context(
         cfg_module,
         ir_module,
@@ -296,13 +303,15 @@ pub fn codegen_module_with_emission_scope(
 
 /// Generate a bytecode module whose outer function is a procedure body.
 /// Nested procedure definitions remain ordinary entries in `procedures`.
-#[must_use]
+///
+/// # Errors
+/// Returns an unsupported compilation when the original source namespace is unavailable.
 pub fn codegen_procedure_module(
     cfg_module: &CfgModule,
     ir_module: &IrModule,
     params: &[&str],
     registry: &CommandRegistry,
-) -> ModuleAsm {
+) -> Result<ModuleAsm, tcl_runtime_api::CompileError> {
     let command_mutations =
         crate::command_binding::scan_module_command_mutations(ir_module, registry);
     codegen_procedure_module_with_command_mutations(
@@ -316,14 +325,16 @@ pub fn codegen_procedure_module(
 
 /// Generate a procedure-body bytecode module while reusing the caller's
 /// whole-module command-mutation summary.
-#[must_use]
+///
+/// # Errors
+/// Returns an unsupported compilation when the original source namespace is unavailable.
 pub fn codegen_procedure_module_with_command_mutations(
     cfg_module: &CfgModule,
     ir_module: &IrModule,
     params: &[&str],
     registry: &CommandRegistry,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
-) -> ModuleAsm {
+) -> Result<ModuleAsm, tcl_runtime_api::CompileError> {
     let parameters: Vec<_> = params
         .iter()
         .map(|name| tcl_runtime_api::NameBytes::from(*name))
@@ -339,14 +350,16 @@ pub fn codegen_procedure_module_with_command_mutations(
 
 /// Generate a procedure module using the actual bound native formal keys.
 /// Every key enters the same LVT owner before instruction emission.
-#[must_use]
+///
+/// # Errors
+/// Returns an unsupported compilation when the original source namespace is unavailable.
 pub fn codegen_procedure_module_with_native_parameters_and_command_mutations(
     cfg_module: &CfgModule,
     ir_module: &IrModule,
     params: &[tcl_runtime_api::NameBytes],
     registry: &CommandRegistry,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
-) -> ModuleAsm {
+) -> Result<ModuleAsm, tcl_runtime_api::CompileError> {
     codegen_procedure_module_with_emission_scope(
         cfg_module,
         ir_module,
@@ -359,7 +372,9 @@ pub fn codegen_procedure_module_with_native_parameters_and_command_mutations(
 
 /// Emit the actual bound procedure body with an explicit source-body policy.
 /// `EnteredSource` leaves nested procedure definitions to runtime activation.
-#[must_use]
+///
+/// # Errors
+/// Returns an unsupported compilation when the source namespace is unavailable.
 pub fn codegen_procedure_module_with_emission_scope(
     cfg_module: &CfgModule,
     ir_module: &IrModule,
@@ -367,7 +382,7 @@ pub fn codegen_procedure_module_with_emission_scope(
     registry: &CommandRegistry,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
     scope: ModuleEmissionScope,
-) -> ModuleAsm {
+) -> Result<ModuleAsm, tcl_runtime_api::CompileError> {
     codegen_module_with_top_context(
         cfg_module,
         ir_module,
@@ -558,18 +573,22 @@ fn codegen_module_with_top_context(
     target: ModuleTarget<'_>,
     registry: &CommandRegistry,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
-) -> ModuleAsm {
+) -> Result<ModuleAsm, tcl_runtime_api::CompileError> {
     let module = module_emission_context(ir_module, target.scope, registry, command_mutations);
     let profile = module.dialect;
-    let namespace = ir_module
-        .top_level_namespace_context
-        .as_ref()
-        .and_then(crate::command_binding::SourceNamespaceKey::exact_native_path)
-        .cloned()
-        .or_else(|| ir_module.native_namespace.clone())
-        .unwrap_or_else(|| {
-            super::namespace_path_from_constructed_key(&ir_module.top_level_namespace)
-        });
+    let namespace = match ir_module.retained_source_bindings.as_deref() {
+        Some(owner) => owner
+            .original_top_namespace_for_module(ir_module, registry)
+            .and_then(crate::command_binding::SourceNamespaceKey::source_artifact_path),
+        None => ir_module
+            .original_byte_source_namespace_for_codegen(registry)
+            .cloned(),
+    }
+    .ok_or_else(|| {
+        tcl_runtime_api::CompileError::Unsupported(
+            "original top-level source namespace is unavailable".to_owned(),
+        )
+    })?;
     let top = codegen_function_src(
         &cfg_module.top_level,
         target.parameters,
@@ -612,9 +631,6 @@ fn codegen_module_with_top_context(
     let mut asm = ModuleAsm {
         profile: profile.unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
         source: ir_module.own_source(),
-        // Lowering owns the rooted constructed form; the runtime ABI uses the
-        // corresponding unrooted constructed key. Remove exactly the root
-        // marker rather than reparsing a key whose first segment may be `:`.
         source_namespace: namespace,
         plain_command_dispatch: ir_module.plain_command_dispatch,
         top_level: top,
@@ -624,7 +640,7 @@ fn codegen_module_with_top_context(
         manifest: None,
     };
     asm.manifest = Some(std::sync::Arc::new(module_manifest(&asm)));
-    asm
+    Ok(asm)
 }
 
 /// What `module` says about the world it was compiled for: the context of the
@@ -723,7 +739,8 @@ mod tests {
             });
             let procedure_id = ir.retain_procedure(procedure);
             let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
-            let module = super::codegen_module(&cfg, &ir, &registry);
+            let module =
+                super::codegen_module(&cfg, &ir, &registry).expect("original source namespace");
             let context = module.procedure_provenance[&procedure_id]
                 .namespace_context
                 .as_ref()
@@ -837,7 +854,7 @@ mod tests {
         );
         ir.procedures.get_mut(&id).unwrap().body.namespace_context = None;
         let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
-        let asm = super::codegen_module(&cfg, &ir, &registry);
+        let asm = super::codegen_module(&cfg, &ir, &registry).expect("original source namespace");
         assert!(!asm.procedures.contains_key(&id));
         assert!(!asm.procedure_provenance.contains_key(&id));
         assert!(
@@ -846,5 +863,112 @@ mod tests {
                 .iter()
                 .any(|instruction| instruction.source_cmd_text.bytes() == source.as_bytes())
         );
+    }
+}
+
+#[cfg(test)]
+mod original_top_namespace_tests {
+    use super::*;
+
+    #[test]
+    fn top_artifact_namespace_uses_original_entry_and_ignores_reporting_labels() {
+        let registry = CommandRegistry::build_default();
+        let source = "proc helper {} {return VALUE}; helper";
+        let ir = crate::lowering::lower_to_ir_for_bytecode(source, &registry);
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
+        let original = codegen_module(&cfg, &ir, &registry).unwrap();
+        let mut reported = ir.clone();
+        reported.top_level_namespace = "::unrelated::report".to_owned();
+        let changed = codegen_module(&cfg, &reported, &registry).unwrap();
+        assert_eq!(original.source_namespace, changed.source_namespace);
+        assert!(original.source_namespace.is_root());
+        assert_eq!(original.source.bytes(), source.as_bytes());
+    }
+
+    #[test]
+    fn explicit_script_target_keeps_its_typed_source_namespace() {
+        let registry = CommandRegistry::build_default();
+        let source = "puts VALUE";
+        let ir = crate::lowering::lower_script_module_for_bytecode(
+            source,
+            "actual::scope",
+            &registry,
+            tcl_lexer::LexerConfig::default(),
+            None,
+            true,
+        );
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
+        let asm = codegen_module(&cfg, &ir, &registry).unwrap();
+        let expected = tcl_core_types::ByteNamespacePath::from_segments(["actual", "scope"]);
+        assert_eq!(asm.source_namespace, expected);
+        assert_eq!(asm.source.bytes(), source.as_bytes());
+    }
+
+    #[test]
+    fn missing_top_namespace_refuses_the_artifact_and_preserves_original_source() {
+        let registry = CommandRegistry::build_default();
+        let source = "proc helper {} {return VALUE}; helper";
+        let original = crate::lowering::lower_to_ir_for_bytecode(source, &registry);
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&original, false, &registry);
+        for mode in 0..3 {
+            let mut changed = original.clone();
+            match mode {
+                0 => changed.top_level_namespace_context = None,
+                1 => changed.retained_source_bindings = None,
+                _ => {
+                    changed.top_level_namespace_context = Some(
+                        crate::command_binding::SourceNamespaceKey::authored("::donated"),
+                    )
+                }
+            }
+            assert!(matches!(
+                codegen_module(&cfg, &changed, &registry),
+                Err(tcl_runtime_api::CompileError::Unsupported(_))
+            ));
+            assert_eq!(changed.own_source().bytes(), source.as_bytes());
+            assert_eq!(changed.top_level.statements, original.top_level.statements);
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_byte_top_namespace_tests {
+    use super::*;
+
+    #[test]
+    fn opaque_byte_target_retains_its_original_path_and_rejects_donated_geometry() {
+        let registry = CommandRegistry::build_default();
+        let source = tcl_lexer::SourceImage::native(b"puts {\xff}".as_slice());
+        let namespace = tcl_core_types::ByteNamespacePath::from_segments([b"N\xff".as_slice()]);
+        let build = || {
+            crate::lowering::lower_script_bytes_module_for_bytecode_with_options(
+                tcl_runtime_api::ScriptCompileTargetBytes {
+                    source: &source,
+                    namespace: &namespace,
+                },
+                &registry,
+                tcl_lexer::LexerConfig::default(),
+                None,
+                true,
+                None,
+            )
+            .unwrap()
+        };
+        let ir = build();
+        assert!(ir.retained_source_bindings.is_none());
+        assert!(ir.original_byte_source_namespace.is_some());
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
+        assert_eq!(
+            codegen_module(&cfg, &ir, &registry)
+                .unwrap()
+                .source_namespace,
+            namespace
+        );
+        let mut changed = ir.clone();
+        changed.native_namespace = Some(tcl_core_types::ByteNamespacePath::root());
+        assert!(codegen_module(&cfg, &changed, &registry).is_err());
+        let mut foreign = build();
+        foreign.original_byte_source_namespace = ir.original_byte_source_namespace.clone();
+        assert!(codegen_module(&cfg, &foreign, &registry).is_err());
     }
 }

@@ -418,7 +418,8 @@ fn executable_pipeline_retains_consumed_user_proc_binding() {
     assert_eq!(requirement.body, " puts hello ");
 
     let cfg = crate::cfg_builder::build_cfg_codegen(&module, true);
-    let asm = crate::codegen::codegen_module(&cfg, &module, &registry);
+    let asm = crate::codegen::codegen_module(&cfg, &module, &registry)
+        .expect("original source namespace");
     assert_eq!(
         asm.top_level.procedure_bindings,
         std::slice::from_ref(requirement)
@@ -779,7 +780,8 @@ fn repeated_v3_wrap_preserves_transitive_procedure_bindings_in_asm() {
     let once = inline_module(module_for(source), &registry);
     let module = inline_module(once, &registry);
     let cfg = crate::cfg_builder::build_cfg_codegen(&module, true);
-    let asm = crate::codegen::codegen_module(&cfg, &module, &registry);
+    let asm = crate::codegen::codegen_module(&cfg, &module, &registry)
+        .expect("original source namespace");
     let bindings: Vec<_> = asm
         .top_level
         .procedure_bindings

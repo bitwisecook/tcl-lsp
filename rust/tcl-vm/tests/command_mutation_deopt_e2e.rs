@@ -609,7 +609,7 @@ impl CompileService for InliningCompilerSvc {
         })?;
         let ir = inline_module(ir, registry);
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
     }
     fn compile_substitution_with_entry(
         &self,
@@ -650,7 +650,7 @@ impl CompileService for InliningCompilerSvc {
         })?;
         let ir = inline_module(ir, registry);
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
     }
     fn compile_plain_script_bytes_for_profile(
         &self,
@@ -728,7 +728,7 @@ impl CompileService for InliningCompilerSvc {
         );
         let ir = inline_module(ir, registry);
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
     }
 
     fn compile_procedure_with_entry(
@@ -777,7 +777,7 @@ impl CompileService for InliningCompilerSvc {
         );
         let ir = inline_module(ir, registry);
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
     }
 
     fn compile_traced_for_profile(
@@ -789,7 +789,7 @@ impl CompileService for InliningCompilerSvc {
         let config = LexerConfig::from_grammar(profile.grammar);
         let ir = lower_to_ir_traced_with_dialect(src, registry, config, Some(profile));
         let cfg = build_cfg_codegen(&ir, false);
-        Ok(codegen_module(&cfg, &ir, registry))
+        Ok(codegen_module(&cfg, &ir, registry).expect("original source namespace"))
     }
 
     fn compile_plain_script_for_profile(

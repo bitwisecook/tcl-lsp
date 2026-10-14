@@ -66,7 +66,7 @@ fn run(src: &str) -> (bool, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
@@ -89,7 +89,7 @@ fn run_at(version: TclVersion, src: &str) -> (bool, String) {
         Some(profile),
     );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry);
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
     vm.set_dialect_profile(profile);
