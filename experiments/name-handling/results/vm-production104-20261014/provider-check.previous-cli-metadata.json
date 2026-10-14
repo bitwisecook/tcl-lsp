@@ -1,0 +1,21 @@
+{
+  "checked_at": "2026-10-14T13:09:55.662233+00:00",
+  "remote_url": "https://github.com/msteveb/jimtcl.git",
+  "remote_command": [
+    "git",
+    "ls-remote",
+    "https://github.com/msteveb/jimtcl.git",
+    "HEAD"
+  ],
+  "remote_exit_code": 0,
+  "remote_stdout": "5bac7c99ad65864c87da513e22e2f01703fa4e03\tHEAD\n",
+  "remote_stderr": "",
+  "local_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "matches_current_upstream_head": true,
+  "local_status": "",
+  "interpreter": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "interpreter_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "reported_version": "0.84",
+  "original_jim_c_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "scope": "Fresh read-only upstream HEAD equality check and unchanged actual supplied executable; no new compilation or conformance inference."
+}

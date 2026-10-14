@@ -109,6 +109,9 @@ impl JimInterpreterTeardown for Vm {
     }
 
     fn release_commands(&mut self) {
+        let original_keys =
+            std::mem::take(&mut self.name_world.borrow_mut().jim_command_original_keys);
+        drop(original_keys);
         let nodes = {
             let mut world = self.name_world.borrow_mut();
             for node in world.jim_command_nodes.values() {

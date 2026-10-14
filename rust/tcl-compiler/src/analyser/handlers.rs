@@ -2063,6 +2063,16 @@ impl Analyser {
         proc: &ProcDef,
         name_span: Span,
     ) {
+        if self.selected_logical_declaration_advice()
+            && let Some(declaration) = super::types::LogicalSourceProcedureDeclaration::capture(
+                &self.result,
+                &self.source,
+                self.resolved_analysis_input(),
+                proc,
+            )
+        {
+            self.result.logical_procedure_declarations.push(declaration);
+        }
         if let (Some(original), Some(name)) = (original_name, proc.source_name.as_ref())
             && let Some(record) =
                 crate::signature_scan::original_name::SourceDeclarationMetadata::new(

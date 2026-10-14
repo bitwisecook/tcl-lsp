@@ -31,6 +31,8 @@ pub use original_linked_member::{
     OriginalSourceLinkedMember, original_source_linked_member_at,
     original_source_linked_member_reference_spans, original_source_linked_members_for_class,
 };
+mod logical_procedures;
+pub use logical_procedures::LogicalSourceProcedureDeclaration;
 mod logical_members;
 pub use logical_members::{LogicalSourceClassDeclaration, LogicalSourceMemberDeclaration};
 mod original_member_context;
@@ -2444,6 +2446,8 @@ pub struct AnalysisResult {
     pub superseded_procs: HashMap<String, Vec<ProcDef>>,
     /// Classes keyed by qualified name.
     pub all_classes: HashMap<String, ClassDef>,
+    /// Genuine Logical headers retain insertion names separately from report labels.
+    pub(super) logical_procedure_declarations: Vec<LogicalSourceProcedureDeclaration>,
     /// Completed Logical class walks retain source membership without Native identity.
     pub(super) logical_class_declarations: Vec<LogicalSourceClassDeclaration>,
     /// Authentic original class declarations, separate from UI `QName` maps.

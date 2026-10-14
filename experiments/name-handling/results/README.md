@@ -23,3 +23,5 @@ interpreter. It is outside the pinned 8.6.18 reference and does not establish
 a completed C release gate or Jim/F5 agreement.
 
 [Compiler101](compiler-production101-20261014/README.md) preserves the unexecuted linker failure; [Compiler102](compiler-production102-20261014/interruption.json) preserves the interrupted original equality assertion output. The [retained92 phase probe](compiler-production92-phase-20261014/README.md) diagnoses #2286 without semantic acceptance.
+
+[Compiler103](compiler-production103-20261014/README.md) retains the original source producer observations. [VM104](vm-production104-20261014/README.md) retains the preflight failure and distinct actual Jim version outputs.

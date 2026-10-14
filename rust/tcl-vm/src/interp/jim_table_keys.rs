@@ -1,56 +1,238 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Actual Jim table keys retain publication spelling separately from storage addresses.
 
+use super::native_numeric_ops::OriginalNumericOps;
+use super::native_operation_currency::NativeOperationScope;
+use super::native_original_lookup::OriginalLookup;
 use super::{Command, CommandSlot, NativeCommandLookupUnavailable, NsId, ROOT_NS, Vm};
-use tcl_syntax::naming::{
-    NativeJimCommandTableKey, NativeNameContext, NativeNameProtocol, NativeNamePurpose,
-};
+use crate::Value;
+use tcl_cmd_core::CmdError;
+use tcl_syntax::naming::{NativeJimCommandTableKey, NativeNameContext, NativeNamePurpose};
+use tcl_syntax::value::ValueError;
+
+/// The actual Jim qualification temporary and its independent table geometry.
+pub(crate) struct OriginalJimCommandKey {
+    pub(super) original: Value,
+    pub(super) table: NativeJimCommandTableKey,
+}
+
+struct UnownedJimKey(Option<Value>);
+impl UnownedJimKey {
+    fn value(&self) -> &Value {
+        self.0.as_ref().expect("unpromoted original Jim key")
+    }
+    fn promote(mut self) -> Value {
+        self.0
+            .take()
+            .expect("original Jim key")
+            .into_native_reference()
+    }
+}
+impl Drop for UnownedJimKey {
+    fn drop(&mut self) {
+        if let Some(value) = &self.0 {
+            value.retire_unowned_native_header();
+        }
+    }
+}
 
 impl Vm {
-    pub(crate) fn jim_command_table_key_for_original(
-        &self,
-        original: &[u8],
+    pub(super) fn initialize_original_jim_host_keys(
+        &mut self,
+    ) -> Result<(), NativeCommandLookupUnavailable> {
+        if !self.uses_native_jim_lookup() {
+            return Ok(());
+        }
+        let publications: Vec<_> = self
+            .name_world
+            .borrow()
+            .command_api_publications
+            .iter()
+            .map(|(slot, (token, bytes))| (slot.clone(), *token, bytes.clone()))
+            .collect();
+        for (slot, token, original) in publications {
+            // A C namespace slot is not a Jim flat table publication.
+            if slot.namespace != ROOT_NS {
+                continue;
+            }
+            let Some(storage) = self.command_storage_key_at_slot(&slot) else {
+                continue;
+            };
+            if self.visible_command_generation(&storage) != Some(token)
+                || self
+                    .name_world
+                    .borrow()
+                    .jim_command_original_keys
+                    .contains_key(&slot)
+            {
+                continue;
+            }
+            let Some(key) = self.jim_command_table_key_for_original(
+                &original,
+                NativeNamePurpose::CommandCApiPublication,
+            )?
+            else {
+                return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
+            };
+            if key.table.comparison_bytes() != slot.simple.as_bytes()
+                || self.visible_command_generation(&storage) != Some(token)
+            {
+                return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
+            }
+            let mut world = self.name_world.borrow_mut();
+            world
+                .jim_command_table_keys
+                .insert(storage, key.table.clone());
+            world.jim_command_original_keys.insert(slot, key);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn original_jim_publication_key(
+        &mut self,
+        original: &Value,
         purpose: NativeNamePurpose,
-    ) -> Result<Option<NativeJimCommandTableKey>, NativeCommandLookupUnavailable> {
+    ) -> Result<Option<OriginalJimCommandKey>, CmdError> {
         if !self.uses_native_jim_lookup() {
             return Ok(None);
         }
-        let protocol = self
+        let scope = NativeOperationScope::enter(self)?;
+        let entered = OriginalLookup::enter(self, self.current_ns_id(), original)?;
+        let namespace = if matches!(
+            purpose,
+            NativeNamePurpose::CommandPublication
+                | NativeNamePurpose::RenameSource
+                | NativeNamePurpose::RenameDestination
+        ) {
+            entered.read_jim_namespace(self)?
+        } else {
+            std::rc::Rc::<[u8]>::from([])
+        };
+        let incoming = if namespace.is_empty() {
+            std::rc::Rc::<[u8]>::from([])
+        } else {
+            entered.read(self)?
+        };
+        let path = self.ns_path(self.current_ns_id());
+        let policy = self
             .name_policy_protocol()
-            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim publication key issuer",
+            ))?
             .recipe();
-        let world = self.name_world.borrow();
-        let current = self.current_ns_id();
-        let path = self.ns_path(current);
-        let holder = world
-            .jim_namespace_objects
-            .get(&current)
-            .ok_or(NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
-        let context = NativeNameContext::with_jim_namespace(&path, holder.as_bytes());
-        let selected = match purpose {
-            NativeNamePurpose::CommandPublication => {
-                protocol.command_publication_input(context, original)
+        let construction = policy
+            .jim_command_key_construction(
+                NativeNameContext::with_jim_namespace(&path, &namespace),
+                &incoming,
+                purpose,
+            )
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim publication key purpose")
+            })?;
+        use tcl_syntax::naming::NativeJimNamespaceConstruction;
+        let key = match construction {
+            NativeJimNamespaceConstruction::RetainOriginal => original.clone(),
+            NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend => {
+                let context = self.native_jim_object_context()?;
+                let numeric = OriginalNumericOps::in_original_scope(self, &scope)?;
+                let namespace = entered.jim_namespace_original().ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim key namespace header"),
+                )?;
+                let protocol = tcl_syntax::native_string::NativeStringProtocol::Jim084;
+                let duplicate = UnownedJimKey(Some(
+                    namespace
+                        .duplicate_native_object_checked(
+                            protocol,
+                            &mut || numeric.current_for_value(namespace),
+                            &mut |value| numeric.string(value, protocol),
+                            &mut |error| numeric.retain_failure(error),
+                        )?
+                        .into_native_unowned_lifetime(),
+                ));
+                let append = numeric
+                    .dialect()
+                    .native_object_append_protocol(None)
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original Jim key CString append issuer",
+                    ))?;
+                let mut check = || {
+                    for value in [namespace, original, duplicate.value()] {
+                        if let Err(error) = numeric.current_for_value(value) {
+                            numeric.retain_failure(&error);
+                            return Err(OriginalNumericOps::value_unwind());
+                        }
+                    }
+                    Ok(())
+                };
+                for part in [b"::".as_slice(), tcl_core_types::c_string_extent(&incoming)] {
+                    let reached = tcl_cmd_core::native_append::append_unshared_jim_cstring(
+                        &crate::value::VmAppendObjects,
+                        append.recipe(),
+                        duplicate.value(),
+                        part,
+                        &mut check,
+                    );
+                    if let Err(error) = reached {
+                        let error = CmdError::from(error);
+                        numeric.retain_failure(&error);
+                        return Err(error);
+                    }
+                }
+                check()?;
+                duplicate.value().bind_native_jim_context(&context)?;
+                check()?;
+                duplicate.promote()
             }
-            NativeNamePurpose::AliasPublication => {
-                protocol.alias_publication_input(context, original)
+            NativeJimNamespaceConstruction::FreshString => {
+                let incoming = entered.read(self)?;
+                let created =
+                    Value::from_native_string_bytes(tcl_core_types::c_string_extent(&incoming));
+                created.bind_native_jim_context(&self.native_jim_object_context()?)?;
+                created
             }
-            NativeNamePurpose::ChildAliasPublication => {
-                protocol.child_alias_publication_input(context, original)
-            }
-            NativeNamePurpose::RenameDestination => {
-                protocol.rename_destination_input(context, original)
-            }
-            _ => return Err(NativeCommandLookupUnavailable::ProtocolUnavailable),
+        };
+        entered.check(self)?;
+        let bytes = self.native_name_operand_bytes_checked(&key)?;
+        entered.check(self)?;
+        let projected = policy
+            .command_publication_input(NativeNameContext::root(), &bytes)
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim command hash-key geometry")
+            })?;
+        let table = NativeJimCommandTableKey::from_projection(&projected).ok_or(
+            ValueError::CommandProtocolUnavailable("original Jim command table key"),
+        )?;
+        Ok(Some(OriginalJimCommandKey {
+            original: key,
+            table,
+        }))
+    }
+    /// A byte API constructs its actual input object before qualification.
+    /// This cannot replace the header supplied by an object-vector caller.
+    pub(crate) fn jim_command_table_key_for_original(
+        &mut self,
+        original: &[u8],
+        purpose: NativeNamePurpose,
+    ) -> Result<Option<OriginalJimCommandKey>, NativeCommandLookupUnavailable> {
+        if !self.uses_native_jim_lookup() {
+            return Ok(None);
         }
-        .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
-        Ok(NativeJimCommandTableKey::from_projection(&selected))
+        let created = Value::from_native_string_bytes(original);
+        let prepared = self.original_jim_publication_key(&created, purpose);
+        match prepared {
+            Ok(key) => Ok(key),
+            Err(error) => {
+                super::oo_cleanup::retain_error(self, &error);
+                Err(NativeCommandLookupUnavailable::ProtocolUnavailable)
+            }
+        }
     }
 
     pub(super) fn jim_command_table_key_for_slot(
-        &self,
+        &mut self,
         slot: &CommandSlot,
-        incoming: Option<NativeJimCommandTableKey>,
-    ) -> Option<NativeJimCommandTableKey> {
+        incoming: Option<OriginalJimCommandKey>,
+    ) -> Option<OriginalJimCommandKey> {
         if !self.uses_native_jim_lookup() {
             return None;
         }
@@ -58,25 +240,19 @@ impl Vm {
             return None;
         }
         let incoming = incoming.or_else(|| {
-            NativeJimCommandTableKey::from_comparison_key(
-                NativeNameProtocol::Jim084,
+            self.jim_command_table_key_for_original(
                 slot.simple.as_bytes(),
+                NativeNamePurpose::CommandCApiPublication,
             )
+            .ok()
+            .flatten()
         })?;
         assert_eq!(
-            incoming.comparison_bytes(),
+            incoming.table.comparison_bytes(),
             slot.simple.as_bytes(),
             "actual Jim table comparison slot"
         );
-        let occupied = self.command_storage_key_at_slot(slot).and_then(|key| {
-            self.visible_command_at_key(&key)?;
-            self.name_world
-                .borrow()
-                .jim_command_table_keys
-                .get(&key)
-                .cloned()
-        });
-        Some(incoming.retain_for_replacement(occupied.as_ref()))
+        Some(incoming)
     }
 
     pub(super) fn jim_command_table_report_names(

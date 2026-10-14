@@ -1077,6 +1077,54 @@ impl ResolvedWorldEffects {
         self.command.is_some() || self.subcommand.is_some() || self.form.is_some()
     }
 
+    /// Whether writes declared beyond the variable-primitive role contract remain.
+    /// Standard variable read/write descriptors delegate their baseline cells to
+    /// argument roles. Extra static or resolver writes retain an opaque residual
+    /// before equal scopes are coalesced; this supplies no store or frame proof.
+    #[must_use]
+    pub fn has_uncovered_variable_role_writes(
+        self,
+        args: InvocationArguments<'_>,
+        has_selected_write_roles: bool,
+    ) -> bool {
+        let mut uncovered = false;
+        for descriptor in [self.command, self.subcommand, self.form]
+            .into_iter()
+            .flatten()
+        {
+            if descriptor.composition == WorldEffectComposition::Replace {
+                uncovered = false;
+            }
+            let footprint = descriptor.static_footprint;
+            let role_baseline = [
+                WorldEffectDescriptor::VARIABLE_READ,
+                WorldEffectDescriptor::VARIABLE_WRITE,
+                WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+            ]
+            .iter()
+            .any(|baseline| {
+                footprint.accesses == baseline.static_footprint.accesses
+                    && footprint.callback == baseline.static_footprint.callback
+            });
+            uncovered |= (!role_baseline || !has_selected_write_roles)
+                && footprint.accesses.iter().any(|access| {
+                    access.domain == WorldStateDomain::VariableStore
+                        && access.mode != EffectAccessMode::Read
+                });
+            if descriptor.resolver.is_some() {
+                let resolver_only = WorldEffectDescriptor {
+                    static_footprint: StaticEffectFootprint::EMPTY,
+                    ..descriptor
+                };
+                uncovered |= resolver_only.resolve(args).accesses().iter().any(|access| {
+                    access.domain == WorldStateDomain::VariableStore
+                        && access.mode != EffectAccessMode::Read
+                });
+            }
+        }
+        uncovered
+    }
+
     /// Resolve this descriptor chain for one structured post-command argument
     /// view.
     #[must_use]
@@ -1111,6 +1159,37 @@ impl ResolvedWorldEffects {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn variable_role_baselines_do_not_cover_additional_store_declarations() {
+        let arguments = InvocationArguments::literals(&["counter", "0"]);
+        let baseline = ResolvedWorldEffects {
+            command: Some(WorldEffectDescriptor::VARIABLE_WRITE),
+            ..ResolvedWorldEffects::default()
+        };
+        assert!(!baseline.has_uncovered_variable_role_writes(arguments, true));
+        assert!(baseline.has_uncovered_variable_role_writes(arguments, false));
+        let extra = WorldEffectDescriptor {
+            static_footprint: StaticEffectFootprint {
+                accesses: &[StaticEffectAccess::VARIABLE_STORE_WILDCARD],
+                callback: CallbackEffect::NONE,
+            },
+            ..WorldEffectDescriptor::EMPTY
+        };
+        let declared = ResolvedWorldEffects {
+            form: Some(extra),
+            ..baseline
+        };
+        assert!(declared.has_uncovered_variable_role_writes(arguments, true));
+        let replaced = ResolvedWorldEffects {
+            form: Some(WorldEffectDescriptor {
+                composition: WorldEffectComposition::Replace,
+                ..WorldEffectDescriptor::EMPTY
+            }),
+            ..declared
+        };
+        assert!(!replaced.has_uncovered_variable_role_writes(arguments, false));
+    }
 
     #[test]
     fn access_modes_coalesce_without_losing_a_write() {

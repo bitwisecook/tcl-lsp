@@ -558,6 +558,60 @@ impl Namespaces {
             .collect()
     }
 
+    pub(crate) fn has_original_jim_registration_key(
+        &self,
+        namespace: NsId,
+        tail: &[u8],
+        generation: u64,
+    ) -> bool {
+        self.arena
+            .get(namespace)
+            .and_then(|namespace| namespace.commands.entries.get(tail))
+            .is_some_and(|slot| {
+                slot.binding
+                    .as_ref()
+                    .is_some_and(|binding| binding.generation == generation)
+                    && slot.original_jim_key.is_some()
+            })
+    }
+
+    pub(crate) fn publish_original_jim_registration_key(
+        &mut self,
+        namespace: NsId,
+        tail: &[u8],
+        generation: u64,
+        report: tcl_syntax::naming::NativeJimCommandTableKey,
+        original: &std::rc::Rc<crate::obj::Owned>,
+    ) -> bool {
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084)
+            || report.comparison_bytes() != tail
+        {
+            return false;
+        }
+        let Some(slot) = self
+            .arena
+            .get_mut(namespace)
+            .and_then(|namespace| namespace.commands.entries.get_mut(tail))
+        else {
+            return false;
+        };
+        let Some(binding) = slot
+            .binding
+            .as_mut()
+            .filter(|binding| binding.generation == generation)
+        else {
+            return false;
+        };
+        if slot.original_jim_key.is_some() {
+            return true;
+        }
+        slot.original_jim_key = Some(std::rc::Rc::new(crate::obj::Owned::retain(
+            original.as_ptr(),
+        )));
+        binding.jim_table_key = Some(report);
+        true
+    }
+
     /// Observe the actual found Jim hash key before retiring the lookup object's
     /// old primary. The allocation lease adds no native object reference.
     pub(crate) fn observe_original_jim_command_name(

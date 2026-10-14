@@ -24,6 +24,7 @@ struct OriginalJimLocalContinuation {
     world: Rc<RefCell<native_name_world::NativeNameWorld>>,
     slot: CommandSlot,
     table_epoch: u64,
+    original_key: Option<super::jim_table_keys::OriginalJimCommandKey>,
 }
 
 struct LocalScope(Rc<RefCell<native_name_world::NativeNameWorld>>);
@@ -125,7 +126,7 @@ impl Vm {
         &mut self,
         slot: CommandSlot,
         command: Command,
-        table_key: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+        table_key: Option<super::jim_table_keys::OriginalJimCommandKey>,
     ) -> String {
         let previous = self.command_storage_key_at_slot(&slot).and_then(|key| {
             let command = self.visible_command_at_key(&key)?;
@@ -345,6 +346,11 @@ impl Vm {
         }
         let interpreter = self.cur;
         let world = Rc::clone(&self.name_world);
+        let original_key = self
+            .name_world
+            .borrow_mut()
+            .jim_command_original_keys
+            .remove(&slot);
         let retired = self.take_command_unchecked_key(&key);
         // Capture after the genuine unlink, before retiring owned payloads.
         // This conservative software stamp grants no Native table identity.
@@ -354,6 +360,7 @@ impl Vm {
             world,
             slot,
             table_epoch,
+            original_key,
         };
         drop(retired);
         drop(top);
@@ -410,9 +417,8 @@ impl Vm {
             }
             // Restore this already selected previous role even after a first Host
             // refusal. Currency prevents later semantics, not mandatory cleanup.
-            let display = previous.name.borrow().clone();
-            let restored_key =
-                vm.storage_key_for_command_slot(continuation.slot, display.as_bytes());
+            let display = vm.command_slot_display_bytes(&continuation.slot);
+            let restored_key = vm.storage_key_for_command_slot(continuation.slot.clone(), &display);
             vm.commands
                 .insert(restored_key.clone(), previous.command.borrow().clone());
             {
@@ -427,6 +433,11 @@ impl Vm {
                 world
                     .jim_command_table_keys
                     .insert(restored_key.clone(), previous.table_key.borrow().clone());
+                if let Some(original_key) = continuation.original_key {
+                    world
+                        .jim_command_original_keys
+                        .insert(continuation.slot, original_key);
+                }
             }
             (*previous.storage_key.borrow_mut()).clone_from(&restored_key);
             if let Some(identity) = previous.builtin_identity.borrow().clone() {
@@ -680,6 +691,44 @@ mod tests {
         vm.register_jim_local_command(slot.clone(), current, None);
         assert_ne!(vm.visible_command_generation(&key), Some(original_token));
         (vm, slot, original_token, released)
+    }
+
+    #[test]
+    fn local_unlink_and_restore_preserve_the_original_key_header_and_reference_count() {
+        let (mut vm, slot, _, _) = selected_local();
+        let original = vm.name_world.borrow().jim_command_original_keys[&slot]
+            .original
+            .native_lifetime_lease();
+        let refs = original.value().native_object_reference_count();
+        let scope =
+            super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
+        let (continuation, previous) = vm.unlink_original_jim_local_command(slot.clone()).unwrap();
+        assert!(
+            continuation
+                .original_key
+                .as_ref()
+                .unwrap()
+                .original
+                .is_same_object(original.value())
+        );
+        assert_eq!(original.value().native_object_reference_count(), refs);
+        assert!(
+            !vm.name_world
+                .borrow()
+                .jim_command_original_keys
+                .contains_key(&slot)
+        );
+        vm.restore_original_jim_previous(continuation, previous, &scope)
+            .unwrap();
+        let world = vm.name_world.borrow();
+        assert!(
+            world.jim_command_original_keys[&slot]
+                .original
+                .is_same_object(original.value())
+        );
+        assert_eq!(original.value().native_object_reference_count(), refs);
+        drop(world);
+        scope.finish(&mut vm).unwrap();
     }
 
     #[test]

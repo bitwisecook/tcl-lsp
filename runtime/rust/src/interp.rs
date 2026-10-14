@@ -141,6 +141,7 @@ use std::rc::{Rc, Weak};
 
 use native_error_headers::{NativeErrorStack, NativeReturnOptions};
 use tcl_core_types::{OoId, RecursionLimit};
+use tcl_runtime_api::RegisteredBacking;
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
 use tcl_runtime_api::error_stack::validate_error_stack;
 use tcl_runtime_api::guard::{
@@ -148,15 +149,14 @@ use tcl_runtime_api::guard::{
     OwnedGuardManager,
 };
 use tcl_runtime_api::jim_error_stack::{
-    select_jim_error_frame_sources, JimErrorFrame, JimErrorStack, JimErrorTrace,
-    JimEvaluationFrame, JimScriptLocation, NativeErrorStackProtocol,
+    JimErrorFrame, JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation,
+    NativeErrorStackProtocol, select_jim_error_frame_sources,
 };
-use tcl_runtime_api::RegisteredBacking;
 use tcl_syntax::value::ValueError;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
-use crate::namespace::{CommandBinding, Namespaces, NsId, RenameOutcome, GLOBAL};
+use crate::namespace::{CommandBinding, GLOBAL, Namespaces, NsId, RenameOutcome};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
@@ -1343,6 +1343,9 @@ pub struct InterpState {
     /// token continue to apply the final builtin's dialect availability rather
     /// than treating its new display spelling as an unrelated extension.
     registry_builtin_names: RefCell<std::collections::HashMap<u64, Vec<u8>>>,
+    original_byte_command_registrations: RefCell<
+        std::collections::HashMap<u64, native_command_names::OriginalByteCommandRegistration>,
+    >,
     native_compilation: RefCell<native_compilation::CompilationState>,
     stock_ensembles: RefCell<stock_ensembles::StockEnsembles>,
     /// The generations of the builtins registered only to refuse a call with a
@@ -1980,6 +1983,7 @@ impl Interp {
             guard_lookup_environment_revision: Cell::new(Some(0)),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
+            original_byte_command_registrations: RefCell::new(std::collections::HashMap::new()),
             native_compilation: RefCell::new(native_compilation::CompilationState::default()),
             stock_ensembles: RefCell::new(stock_ensembles::StockEnsembles::default()),
             unsupported_builtins: RefCell::new(std::collections::HashSet::new()),
@@ -2572,6 +2576,10 @@ impl Interp {
                 .native_command_name_protocol()
                 .map(|protocol| protocol.version()),
         );
+        if let Err(error) = self.publish_original_jim_registration_keys() {
+            self.report_cmd_error(error.into());
+            return;
+        }
         if self.configure_native_error_stack_checked().is_err() {
             return;
         }
@@ -3134,6 +3142,7 @@ impl Interp {
         if self.host_refusal_pending() {
             return None;
         }
+        self.remember_original_byte_command_registration(name, ns, &tail, generation);
         Some(OriginalBuiltinPublication {
             namespace: ns,
             tail,
@@ -14582,7 +14591,7 @@ impl Interp {
     /// by owner+prefix handles recursion: only the outermost installs). Returns
     /// how many were pushed (the last `n` of `step_active`, popped on exit).
     fn install_step_traces(&mut self, fqn: &[u8], token: Option<u64>) -> usize {
-        use crate::cmd_trace::{ops, StepActive};
+        use crate::cmd_trace::{StepActive, ops};
         let to_install: Vec<(u8, Vec<u8>)> = {
             let t = self.traces.borrow();
             t.cmd_traces
@@ -14777,7 +14786,7 @@ impl Interp {
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Result<Box<PreparedMissingCommand>, Code> {
         use tcl_registry::command_lookup::{
-            native_lookup_fallback_policy, UnknownHandlerNamespace,
+            UnknownHandlerNamespace, native_lookup_fallback_policy,
         };
         use tcl_syntax::value::ValueOps;
         let Some(policy) = native_lookup_fallback_policy(self.native_invocation_dialect(), origin)
@@ -15222,6 +15231,7 @@ impl Interp {
         if scope.currency().ensure_current_or_refuse().is_err() {
             return None;
         }
+        self.remember_original_byte_command_registration(name, namespace, &simple, generation);
         Some(generation)
     }
 
@@ -19507,12 +19517,11 @@ mod tests {
                     .as_deref(),
                 Some(b"::other::moved".as_slice()),
             );
-            assert!(interpreter
-                .traces
-                .borrow()
-                .cmd_traces
-                .iter()
-                .any(|trace| { trace.token == Some(original) && trace.name == b"::other::moved" }));
+            assert!(
+                interpreter.traces.borrow().cmd_traces.iter().any(|trace| {
+                    trace.token == Some(original) && trace.name == b"::other::moved"
+                })
+            );
             let imported = interpreter
                 .namespaces()
                 .resolve(GLOBAL, b"imports::kept")
@@ -19552,12 +19561,11 @@ mod tests {
                     CommandVisibilityOutcome::Missing
                 );
                 assert_eq!(calls.get(), 1);
-                assert!(interpreter
-                    .traces
-                    .borrow()
-                    .cmd_traces
-                    .iter()
-                    .any(|trace| { trace.token == Some(original) && trace.name == b"::hidden" }));
+                assert!(
+                    interpreter.traces.borrow().cmd_traces.iter().any(|trace| {
+                        trace.token == Some(original) && trace.name == b"::hidden"
+                    })
+                );
                 if mode == 1 {
                     assert_eq!(
                         interpreter.host_command_refusal().as_deref(),
@@ -19598,10 +19606,12 @@ mod tests {
                 CommandVisibilityOutcome::Missing
             );
             assert_eq!(calls.get(), 1);
-            assert!(interpreter
-                .namespaces()
-                .command_fqn_by_generation(original)
-                .is_none());
+            assert!(
+                interpreter
+                    .namespaces()
+                    .command_fqn_by_generation(original)
+                    .is_none()
+            );
             let replacement = interpreter
                 .namespaces()
                 .resolve_generation(GLOBAL, b"destination")
@@ -19687,8 +19697,8 @@ mod tests {
     }
 
     #[test]
-    fn original_failed_exposure_retires_actual_ensemble_configuration_after_publication_first_cause(
-    ) {
+    fn original_failed_exposure_retires_actual_ensemble_configuration_after_publication_first_cause()
+     {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // A genuine owning configured role supplies its existing +1; no protective Native hold.
@@ -19832,10 +19842,12 @@ mod tests {
         state.calls.set(state.calls.get() + 1);
         let currency =
             native_operation_currency::NativeOperationCurrency::issue(&interpreter).unwrap();
-        assert!(interpreter
-            .namespaces()
-            .command_in(state.namespace, b"retiring")
-            .is_none());
+        assert!(
+            interpreter
+                .namespaces()
+                .command_in(state.namespace, b"retiring")
+                .is_none()
+        );
         interpreter.delete_namespace_by_id(state.namespace);
         state
             .recreated
@@ -19896,14 +19908,18 @@ mod tests {
             let fresh = recreated.get().unwrap();
             assert_ne!(fresh, namespace);
             assert!(interpreter.namespaces().namespace_is_live(fresh));
-            assert!(interpreter
-                .namespaces()
-                .command_in(namespace, b"retiring")
-                .is_none());
-            assert!(interpreter
-                .namespaces()
-                .command_in(fresh, b"retiring")
-                .is_none());
+            assert!(
+                interpreter
+                    .namespaces()
+                    .command_in(namespace, b"retiring")
+                    .is_none()
+            );
+            assert!(
+                interpreter
+                    .namespaces()
+                    .command_in(fresh, b"retiring")
+                    .is_none()
+            );
             assert_eq!(interpreter.runtime_context(), original_context);
             assert_eq!(interpreter.get_obj_result(), result);
             let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
@@ -19932,10 +19948,12 @@ mod tests {
                     b"untouched",
                     Command::Builtin(publication_builtin),
                 );
-                assert!(interpreter
-                    .namespaces()
-                    .command_in(namespace, b"untouched")
-                    .is_none());
+                assert!(
+                    interpreter
+                        .namespaces()
+                        .command_in(namespace, b"untouched")
+                        .is_none()
+                );
                 assert_eq!(interpreter.namespaces().children(GLOBAL), root_children);
                 assert_eq!(interpreter.native_execution_refusal(), Some(
                     tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
@@ -19971,13 +19989,17 @@ mod tests {
                 b"retained",
                 Command::Builtin(publication_builtin),
             );
-            assert!(interpreter
-                .namespaces()
-                .command_in(namespace, b"retained")
-                .is_some());
-            assert!(interpreter
-                .namespaces()
-                .owns_namespace_name_token(&retained));
+            assert!(
+                interpreter
+                    .namespaces()
+                    .command_in(namespace, b"retained")
+                    .is_some()
+            );
+            assert!(
+                interpreter
+                    .namespaces()
+                    .owns_namespace_name_token(&retained)
+            );
             assert_eq!(retained.lifecycle(), NativeNamespaceLifecycle::Dying);
             assert!(interpreter.native_execution_refusal().is_none());
             interpreter
@@ -20002,10 +20024,12 @@ mod tests {
                 b"root",
                 Command::Builtin(publication_builtin),
             );
-            assert!(interpreter
-                .namespaces()
-                .command_in(GLOBAL, b"root")
-                .is_some());
+            assert!(
+                interpreter
+                    .namespaces()
+                    .command_in(GLOBAL, b"root")
+                    .is_some()
+            );
             assert!(interpreter.namespaces().owns_namespace_name_token(&root));
             assert!(interpreter.native_execution_refusal().is_none());
         });
@@ -20128,16 +20152,18 @@ mod tests {
             let result = interpreter.get_obj_result();
             interpreter.refuse_host_command("original C publication refusal");
             let first = interpreter.native_execution_refusal();
-            assert!(unsafe {
-                crate::capi::Tcl_CreateObjCommand(
-                    interpreter,
-                    c"untouched::command".as_ptr(),
-                    Some(publication_noop),
-                    core::ptr::null_mut(),
-                    None,
-                )
-            }
-            .is_null());
+            assert!(
+                unsafe {
+                    crate::capi::Tcl_CreateObjCommand(
+                        interpreter,
+                        c"untouched::command".as_ptr(),
+                        Some(publication_noop),
+                        core::ptr::null_mut(),
+                        None,
+                    )
+                }
+                .is_null()
+            );
             assert_eq!(
                 unsafe { crate::capi::Tcl_DeleteCommand(interpreter, c"kept".as_ptr()) },
                 -1
@@ -20714,25 +20740,31 @@ mod tests {
                 b"::RegistrationExisting::unrelated",
                 registration_host_worker,
             );
-            assert!(tokens
-                .iter()
-                .all(|token| interpreter.check_command_guard(*token, b"registrationGuarded")));
+            assert!(
+                tokens
+                    .iter()
+                    .all(|token| interpreter.check_command_guard(*token, b"registrationGuarded"))
+            );
             // This is the actual command-publication child birth, rather than
             // an Interp facade adding an invalidation after table mutation.
             interpreter
                 .register_builtin(b"::RegistrationBorn::unrelated", registration_host_worker);
-            assert!(tokens
-                .iter()
-                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            assert!(
+                tokens
+                    .iter()
+                    .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded"))
+            );
             for token in tokens {
                 assert!(interpreter.release_command_guard(token));
             }
             interpreter.namespaces_mut().export(namespace, b"unrelated");
             let tokens = prepare(interpreter);
             interpreter.namespaces_mut().clear_exports(namespace);
-            assert!(tokens
-                .iter()
-                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            assert!(
+                tokens
+                    .iter()
+                    .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded"))
+            );
             for token in tokens {
                 assert!(interpreter.release_command_guard(token));
             }
@@ -20812,15 +20844,19 @@ mod tests {
                 } else {
                     assert!(interpreter.native_execution_refusal().is_some());
                     if let Some(generation) = current {
-                        assert!(!interpreter
-                            .native_compilation
-                            .borrow()
-                            .stock
-                            .contains_key(&generation));
-                        assert!(!interpreter
-                            .registry_builtin_names
-                            .borrow()
-                            .contains_key(&generation));
+                        assert!(
+                            !interpreter
+                                .native_compilation
+                                .borrow()
+                                .stock
+                                .contains_key(&generation)
+                        );
+                        assert!(
+                            !interpreter
+                                .registry_builtin_names
+                                .borrow()
+                                .contains_key(&generation)
+                        );
                     }
                     if mode == 0 {
                         assert!(matches!(
@@ -20911,11 +20947,13 @@ mod tests {
                 } else {
                     assert!(interpreter.native_execution_refusal().is_some());
                     if let Some(generation) = current {
-                        assert!(!interpreter
-                            .native_compilation
-                            .borrow()
-                            .stock
-                            .contains_key(&generation));
+                        assert!(
+                            !interpreter
+                                .native_compilation
+                                .borrow()
+                                .stock
+                                .contains_key(&generation)
+                        );
                     }
                     if mode == 0 {
                         assert!(matches!(
@@ -20947,20 +20985,26 @@ mod tests {
                 let generation = interpreter
                     .resolve_cmd_token(b"registrationHostWorker")
                     .unwrap();
-                assert!(!interpreter
-                    .registry_builtin_names
-                    .borrow()
-                    .contains_key(&generation));
-                assert!(!interpreter
-                    .native_compilation
-                    .borrow()
-                    .stock
-                    .contains_key(&generation));
-                assert!(interpreter
-                    .guarded_commands
-                    .borrow()
-                    .get(&generation)
-                    .is_none());
+                assert!(
+                    !interpreter
+                        .registry_builtin_names
+                        .borrow()
+                        .contains_key(&generation)
+                );
+                assert!(
+                    !interpreter
+                        .native_compilation
+                        .borrow()
+                        .stock
+                        .contains_key(&generation)
+                );
+                assert!(
+                    interpreter
+                        .guarded_commands
+                        .borrow()
+                        .get(&generation)
+                        .is_none()
+                );
                 assert_eq!(
                     interpreter
                         .eval_str(b"namespace eval RegistrationHost {registrationHostWorker}"),
@@ -20997,15 +21041,19 @@ mod tests {
             assert_eq!(interpreter.eval_str(b"lassign"), Code::Ok);
             assert_eq!(interpreter.result_bytes(), b"HOST");
             assert!(interpreter.check_command_guard_identity(token, b"lassign", GUARDED_IDENTITY));
-            assert!(!interpreter
-                .registry_builtin_names
-                .borrow()
-                .contains_key(&generation));
-            assert!(!interpreter
-                .native_compilation
-                .borrow()
-                .stock
-                .contains_key(&generation));
+            assert!(
+                !interpreter
+                    .registry_builtin_names
+                    .borrow()
+                    .contains_key(&generation)
+            );
+            assert!(
+                !interpreter
+                    .native_compilation
+                    .borrow()
+                    .stock
+                    .contains_key(&generation)
+            );
             assert!(interpreter.release_command_guard(token));
         });
     }
@@ -21037,9 +21085,11 @@ mod tests {
                             .eval_str(b"rename ::tcl::string::length ::registrationOriginalLength"),
                         Code::Ok
                     );
-                    assert!(interpreter
-                        .raw_command_location_by_generation(worker)
-                        .is_some());
+                    assert!(
+                        interpreter
+                            .raw_command_location_by_generation(worker)
+                            .is_some()
+                    );
                 }
                 interpreter.register_builtin(b"::tcl::string::length", registration_host_worker);
                 assert!(!interpreter.check_command_guard_identity(token, b"string", identity));
@@ -21127,9 +21177,11 @@ mod tests {
                         .unwrap()
                 });
                 interpreter.register_builtin(b"registrationUnrelated", registration_host_worker);
-                assert!(tokens
-                    .iter()
-                    .all(|token| interpreter.check_command_guard(*token, b"registrationGuarded")));
+                assert!(
+                    tokens.iter().all(
+                        |token| interpreter.check_command_guard(*token, b"registrationGuarded")
+                    )
+                );
                 match mutation {
                     0 => interpreter.namespaces_mut().set_path(GLOBAL, vec![GLOBAL]),
                     1 => interpreter
@@ -21163,9 +21215,12 @@ mod tests {
                         .namespaces_mut()
                         .finish_namespace_teardown(&[namespace]),
                 }
-                assert!(tokens
-                    .iter()
-                    .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+                assert!(
+                    tokens
+                        .iter()
+                        .all(|token| !interpreter
+                            .check_command_guard(*token, b"registrationGuarded"))
+                );
                 for token in tokens {
                     assert!(interpreter.release_command_guard(token));
                 }
@@ -21207,9 +21262,11 @@ mod tests {
             interpreter
                 .namespaces_mut()
                 .exhaust_guard_lookup_environment_revision_for_test();
-            assert!(tokens
-                .iter()
-                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            assert!(
+                tokens
+                    .iter()
+                    .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded"))
+            );
             assert!(interpreter.check_command_guard(independent, b"registrationGuarded"));
             interpreter.namespaces_mut().set_path(GLOBAL, vec![GLOBAL]);
             for domain in domains {
@@ -21260,16 +21317,20 @@ mod tests {
             assert_eq!(calls.get(), 1);
             assert!(interpreter.native_execution_refusal().is_some());
             let replacement = interpreter.resolve_cmd_token(b"retiring").unwrap();
-            assert!(interpreter
-                .guarded_commands
-                .borrow()
-                .get(&replacement)
-                .is_none());
+            assert!(
+                interpreter
+                    .guarded_commands
+                    .borrow()
+                    .get(&replacement)
+                    .is_none()
+            );
             assert!(interpreter.attested_identities(b"retiring").is_none());
-            assert!(!interpreter
-                .registry_builtin_names
-                .borrow()
-                .contains_key(&replacement));
+            assert!(
+                !interpreter
+                    .registry_builtin_names
+                    .borrow()
+                    .contains_key(&replacement)
+            );
         });
     }
 
@@ -21290,9 +21351,11 @@ mod tests {
                 Some(Command::Ensemble(_))
             ));
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_4);
-            assert!(interpreter
-                .resolve_dispatchable(GLOBAL, b"registrationMovedDict")
-                .is_none());
+            assert!(
+                interpreter
+                    .resolve_dispatchable(GLOBAL, b"registrationMovedDict")
+                    .is_none()
+            );
             interpreter.register_builtin(b"registrationMovedDict", registration_host_worker);
             let replacement = interpreter
                 .resolve_cmd_token(b"registrationMovedDict")
@@ -21696,9 +21759,10 @@ mod tests {
             ok(i, b"interp alias {} baz {} bar");
             ok(i, b"rename baz {}");
             assert!(i.check_command_guard(token, b"guarded"));
-            assert!(i
-                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
-                .is_ok());
+            assert!(
+                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                    .is_ok()
+            );
 
             // A change to the lookup environment itself stales the token over
             // it, and the attestation stays.
@@ -21712,9 +21776,10 @@ mod tests {
             // depend on interpreter policy.
             i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             assert!(i.check_command_guard(token, b"guarded"));
-            assert!(i
-                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
-                .is_ok());
+            assert!(
+                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                    .is_ok()
+            );
 
             // Renaming the command away drops the guard at its name, and the
             // attestation goes with the command; restoring the name restores it.
@@ -21724,9 +21789,10 @@ mod tests {
                 i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
                 Err(GuardError::IdentityUnavailable)
             );
-            assert!(i
-                .prepare_command_guard(b"moved", GUARDED_IDENTITY, domains)
-                .is_ok());
+            assert!(
+                i.prepare_command_guard(b"moved", GUARDED_IDENTITY, domains)
+                    .is_ok()
+            );
             ok(i, b"rename moved guarded");
             assert!(i.check_command_guard(token, b"guarded"));
 
@@ -21958,10 +22024,12 @@ mod tests {
         leak_free(|interp| {
             interp.register_builtin(b"opaque_\xff", guarded_builtin);
             interp.register_builtin("café".as_bytes(), guarded_builtin);
-            assert!(interp
-                .command_names()
-                .iter()
-                .any(|name| name == b"opaque_\xff"));
+            assert!(
+                interp
+                    .command_names()
+                    .iter()
+                    .any(|name| name == b"opaque_\xff")
+            );
             let head = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"opaque_\xff"));
             assert_eq!(interp.dispatch_invoke(&[head.as_ptr()]), Code::Ok);
             assert!(interp.native_execution_refusal().is_none());
@@ -22478,10 +22546,12 @@ mod tests {
                 assert!(!check_retained_fixture_guard(interp, policy, generation));
                 assert!(check_retained_fixture_guard(interp, command, generation));
                 assert!(interp.native_compiler_cache_epochs(GLOBAL).is_none());
-                assert!(interp
-                    .native_invocation_dialect()
-                    .execution_point()
-                    .is_none());
+                assert!(
+                    interp
+                        .native_invocation_dialect()
+                        .execution_point()
+                        .is_none()
+                );
                 assert!(interp.release_command_guard(policy));
                 assert!(interp.release_command_guard(command));
             });
@@ -22649,9 +22719,10 @@ mod tests {
             );
 
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
-            assert!(i
-                .prepare_command_guard(b"lassign", identity, domains)
-                .is_ok());
+            assert!(
+                i.prepare_command_guard(b"lassign", identity, domains)
+                    .is_ok()
+            );
         });
     }
 
@@ -23377,7 +23448,7 @@ mod tests {
 
     #[test]
     fn original_variable_word_vectors_match_the_selected_native_interpreter() {
-        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
+        use tcl_syntax::execution_conformance::{ExecutionDomain, vectors};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
             .into_iter()
             .filter(|case| case.id.starts_with("variable_word_"))
@@ -23848,7 +23919,7 @@ mod tests {
     /// here rather than inherited from another test.
     #[test]
     fn completion_code_integers_follow_the_release_selected_number_grammar() {
-        use tcl_syntax::number::{set_runtime_syntax, NumberSyntax};
+        use tcl_syntax::number::{NumberSyntax, set_runtime_syntax};
 
         // Release-independent: decimal, hex, the full signed *and* unsigned
         // 32-bit window, and its reduction to an `int`.
@@ -24441,9 +24512,11 @@ mod c86_original_source_text_tests {
         let _operation =
             native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
         interpreter.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.0"));
-        assert!(interpreter
-            .substitute_word(source, &commands[0].words[2])
-            .is_err());
+        assert!(
+            interpreter
+                .substitute_word(source, &commands[0].words[2])
+                .is_err()
+        );
         assert!(interpreter.native_execution_refusal().is_some());
     }
 

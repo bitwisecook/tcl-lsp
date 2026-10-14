@@ -15,6 +15,7 @@ impl Interp {
     pub(crate) fn retire_pending_native_ensemble_roles(
         &mut self,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.prune_original_byte_command_registrations();
         let saved = super::native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let cleanup = super::native_operation_currency::NativeOperationScope::enter_saved_cleanup(
             &saved, self,

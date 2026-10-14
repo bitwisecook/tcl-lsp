@@ -46,8 +46,8 @@ use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
 use tcl_runtime_api::jim_error_stack::{
-    JimErrorStack, JimErrorTrace, JimEvaluationFrame, NativeErrorStackProtocol,
-    capture_jim_error_frames,
+    JimErrorFrame, JimErrorStack, JimErrorTrace, JimEvaluationFrame, NativeErrorStackProtocol,
+    select_jim_error_frame_sources,
 };
 use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget,
@@ -1677,12 +1677,33 @@ pub(crate) struct PreparedScript {
     pub(crate) fatal_tail: Option<FatalTail>,
 }
 
+pub(crate) enum CommandPublicationOutcome {
+    Published(String),
+    Unavailable,
+}
+impl CommandPublicationOutcome {
+    pub(crate) fn into_key(self) -> Option<String> {
+        match self {
+            Self::Published(key) => Some(key),
+            Self::Unavailable => None,
+        }
+    }
+}
+
+pub(crate) struct OriginalJimEvaluationFrame {
+    pub(crate) procedure_level: u32,
+    pub(crate) command: Option<native_jim_lookup::OriginalJimCommandName>,
+    pub(crate) is_procedure: bool,
+    pub(crate) script: Option<tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>>,
+    pub(crate) invocation: Value,
+}
+
 #[derive(Default)]
 pub(crate) struct JimEvaluationState {
     pub(crate) pending_return: tcl_runtime_api::jim_return_state::JimReturnState,
     pub(crate) stack: JimErrorStack<Value>,
-    pub(crate) frames: Vec<JimEvaluationFrame<Value>>,
-    pub(crate) outer: Vec<JimEvaluationFrame<Value>>,
+    pub(crate) frames: Vec<OriginalJimEvaluationFrame>,
+    pub(crate) outer: Vec<OriginalJimEvaluationFrame>,
     pub(crate) vectors: Vec<crate::exec::NativeJimVectorFrame>,
 }
 
@@ -2210,6 +2231,9 @@ impl Vm {
         if profile_changed {
             self.refresh_actual_stock_builtins();
         }
+        if let Err(error) = self.initialize_original_jim_host_keys() {
+            let _ = self.refuse_host_command(error.to_string());
+        }
     }
 
     /// Select the actual native engine supplied by this embedding host.
@@ -2247,6 +2271,9 @@ impl Vm {
         self.eval_cache.clear();
         self.eval_cache_plain.clear();
         self.module_procs.clear();
+        if self.initialize_original_jim_host_keys().is_err() {
+            return false;
+        }
         self.refresh_actual_stock_builtins();
         true
     }
@@ -3753,7 +3780,12 @@ impl Vm {
                 .native_string_protocol()
                 != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
-            state.name_world.borrow_mut().retire();
+            let retired = {
+                let mut world = state.name_world.borrow_mut();
+                world.retire();
+                std::mem::take(&mut world.jim_command_original_keys)
+            };
+            drop(retired);
         }
         let child_ids: Vec<InterpId> = self
             .st_of(id)
@@ -3837,7 +3869,12 @@ impl Vm {
         // Finalizer callbacks may have selected a child. Retire the actual
         // original world before following the selected return convention.
         self.switch_to(id);
-        self.name_world.borrow_mut().retire();
+        let retired = {
+            let mut world = self.name_world.borrow_mut();
+            world.retire();
+            std::mem::take(&mut world.jim_command_original_keys)
+        };
+        drop(retired);
         self.switch_to(selected);
         let slot = &mut self.interps[id.0];
         debug_assert!(slot.dying && slot.active == 0);
@@ -4511,6 +4548,13 @@ impl Vm {
     /// Semantic contracts require the explicit guarded or spec-backed doors;
     /// none of these public doors grant C Tcl compiler-hook provenance.
     pub fn register(&mut self, name: &str, f: BuiltinFn) {
+        self.register_host_builtin(name, f);
+    }
+
+    fn register_host_builtin(&mut self, name: &str, f: BuiltinFn) -> bool {
+        if self.execution_refusal.is_some() {
+            return false;
+        }
         // Builtin registrations pass plain literals, bare (`set`) or rooted
         // (`::tcl::array::exists`) — never colon-tree keys — so a single root
         // strip converts to the canonical unrooted key form exactly.
@@ -4523,12 +4567,16 @@ impl Vm {
             // from the command's rendered spelling.
             self.declare_namespace_key(&holder);
         }
-        self.register_command(canonical, Command::Builtin(f));
+        self.register_command_with_host_input(canonical, name, Command::Builtin(f))
+            .into_key()
+            .is_some()
     }
 
     /// Engine bootstrap alone can identify an actual stock implementation.
     pub(crate) fn register_stock_builtin(&mut self, name: &str, f: BuiltinFn) {
-        self.register(name, f);
+        if !self.register_host_builtin(name, f) {
+            return;
+        }
         let canonical = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
         if tcl_registry::mathfunc::is_in_mathfunc_namespace(canonical) {
             if self.fixed_math.handlers.contains_key(canonical) {
@@ -5248,13 +5296,22 @@ impl Vm {
 
     /// Forget a command slot after the exact token occupying it is retired.
     fn forget_command_storage_key(&mut self, key: &str) {
-        let mut world = self.name_world.borrow_mut();
-        let identity = &mut world.command_identity;
-        if let Some(slot) = identity.slot_by_key.remove(key) {
-            identity.by_slot.remove(&slot);
-        }
-        identity.display_by_key.remove(key);
-        world.jim_command_table_keys.remove(key);
+        let retired = {
+            let mut world = self.name_world.borrow_mut();
+            let slot = world.command_identity.slot_by_key.remove(key);
+            if let Some(slot) = &slot {
+                world.command_identity.by_slot.remove(slot);
+                world.command_api_publications.remove(slot);
+            }
+            world.command_identity.display_by_key.remove(key);
+            world.jim_command_table_keys.remove(key);
+            if world.jim_local_depth == 0 {
+                slot.and_then(|slot| world.jim_command_original_keys.remove(&slot))
+            } else {
+                None
+            }
+        };
+        drop(retired);
     }
 
     /// Render one already-resolved command slot for Tcl-facing output. This is
@@ -5274,6 +5331,7 @@ impl Vm {
     pub(crate) fn note_rename_destination(
         &mut self,
         written: &[u8],
+        original_key: Option<jim_table_keys::OriginalJimCommandKey>,
     ) -> Result<String, NativeCommandLookupUnavailable> {
         let selected = self.native_rename_destination_slot(written)?;
         let namespace = self.materialise_native_command_projection(self.current_ns_id(), &selected);
@@ -5283,14 +5341,21 @@ impl Vm {
         };
         let display = self.command_slot_display_bytes(&slot);
         let key = self.storage_key_for_command_slot(slot, &display);
-        if let Some(report) = self.jim_command_table_key_for_original(
-            written,
-            tcl_syntax::naming::NativeNamePurpose::RenameDestination,
-        )? {
-            self.name_world
-                .borrow_mut()
-                .jim_command_table_keys
-                .insert(key.clone(), report);
+        if let Some(original) = original_key {
+            let slot = self
+                .command_slot(&key)
+                .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?;
+            if original.table.comparison_bytes() != slot.simple.as_bytes() {
+                return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
+            }
+            let retired = {
+                let mut world = self.name_world.borrow_mut();
+                world
+                    .jim_command_table_keys
+                    .insert(key.clone(), original.table.clone());
+                world.jim_command_original_keys.insert(slot, original)
+            };
+            drop(retired);
         }
         self.note_command_bound(&key, false);
         Ok(key)
@@ -5777,20 +5842,61 @@ impl Vm {
         remove.len()
     }
 
-    pub(crate) fn register_command(&mut self, name: &str, cmd: Command) -> String {
-        // The table is keyed by already-constructed engine keys. No root
-        // stripping happens here: an unrooted key can itself begin with `::`
-        // when a namespace is legitimately named `:`, so a strip at
-        // this boundary would corrupt it, and a rooted-form caller cannot be
-        // told apart from that key textually.
-        //
-        // Overwriting an existing command deletes it (C `Tcl_CreateObjCommand`
-        // does the same), so its `delete` command traces fire and every trace
-        // on it is dropped — tclsh-pinned: redefining a traced proc fires the
-        // delete trace.  This also detaches any in-flight sidecar handle, so
-        // overwriting a binding cannot let it follow the replacement.
-        let slot = self.command_slot_for_registration(name, &cmd);
-        self.register_command_in_slot(slot, cmd)
+    pub(crate) fn register_command(
+        &mut self,
+        name: &str,
+        cmd: Command,
+    ) -> CommandPublicationOutcome {
+        self.register_command_with_host_input(name, name, cmd)
+    }
+
+    fn register_command_with_host_input(
+        &mut self,
+        constructed: &str,
+        original_input: &str,
+        cmd: Command,
+    ) -> CommandPublicationOutcome {
+        // Jim retains the original CString input independently of C's
+        // already-constructed address and the hash comparison spelling.
+        if self.execution_refusal.is_some() {
+            drop(cmd);
+            return CommandPublicationOutcome::Unavailable;
+        }
+        let incoming = match self.jim_command_table_key_for_original(
+            original_input.as_bytes(),
+            tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
+        ) {
+            Ok(key) => key,
+            Err(error) => {
+                let _ = self.refuse_host_command(error.to_string());
+                drop(cmd);
+                return CommandPublicationOutcome::Unavailable;
+            }
+        };
+        let slot = incoming.as_ref().map_or_else(
+            || self.command_slot_for_registration(constructed, &cmd),
+            |key| CommandSlot {
+                namespace: ROOT_NS,
+                simple: key.table.comparison_bytes().into(),
+            },
+        );
+        let key = self.register_command_in_slot_with_jim_key(slot.clone(), cmd, incoming);
+        if self.execution_refusal.is_some() {
+            return CommandPublicationOutcome::Unavailable;
+        }
+        if let Some(generation) = self.visible_command_generation(&key) {
+            self.name_world
+                .borrow_mut()
+                .command_api_publications
+                .insert(
+                    slot,
+                    (
+                        generation,
+                        tcl_core_types::c_string_extent(original_input.as_bytes()).to_vec(),
+                    ),
+                );
+        }
+        CommandPublicationOutcome::Published(key)
     }
 
     /// Publish a host-written name through the selected script declaration
@@ -5851,10 +5957,15 @@ impl Vm {
         &mut self,
         slot: CommandSlot,
         cmd: Command,
-        incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+        incoming: Option<jim_table_keys::OriginalJimCommandKey>,
     ) -> String {
         let original_cleanup = command_cleanup::OriginalCommandCleanup::enter(self);
         let jim_table_key = self.jim_command_table_key_for_slot(&slot, incoming);
+        if self.uses_native_jim_lookup() && jim_table_key.is_none() {
+            let _ = self.retain_name_query_refusal("original Jim publication key unavailable");
+            let _ = original_cleanup.in_original(self, |_| drop(cmd));
+            return self.command_storage_key_at_slot(&slot).unwrap_or_default();
+        }
         if self.uses_native_jim_lookup() && self.name_world.borrow().jim_local_depth != 0 {
             return self.register_jim_local_command(slot, cmd, jim_table_key);
         }
@@ -5912,7 +6023,7 @@ impl Vm {
         // destination only after the old generation's callback-bearing
         // lifecycle is complete; the fresh command must never inherit the
         // relocated token's private storage key.
-        let storage_key = self.storage_key_for_command_slot(slot, &display);
+        let storage_key = self.storage_key_for_command_slot(slot.clone(), &display);
         let name = storage_key.as_str();
         let publishing_replacement = self.commands.contains_key(name);
         // Overwriting a cross-interp alias drops its target-death backref (the
@@ -5946,10 +6057,21 @@ impl Vm {
             self.note_jim_command_unpublished(token.generation);
         }
         if let Some(key) = jim_table_key {
-            self.name_world
-                .borrow_mut()
-                .jim_command_table_keys
-                .insert(name.to_owned(), key);
+            let unused = {
+                let mut world = self.name_world.borrow_mut();
+                if let Some(original) = world.jim_command_original_keys.get(&slot) {
+                    let table = key.table.retain_for_replacement(Some(&original.table));
+                    world.jim_command_table_keys.insert(name.to_owned(), table);
+                    Some(key)
+                } else {
+                    world
+                        .jim_command_table_keys
+                        .insert(name.to_owned(), key.table.clone());
+                    world.jim_command_original_keys.insert(slot.clone(), key);
+                    None
+                }
+            };
+            drop(unused);
         }
         self.commands.insert(name.to_owned(), cmd);
         self.note_command_bound(name, publishing_replacement);
@@ -6048,7 +6170,13 @@ impl Vm {
         name: &str,
         token: &Rc<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, NameBytes>>,
     ) {
-        self.register_command(name, Command::Ensemble(Rc::clone(token)));
+        if self
+            .register_command(name, Command::Ensemble(Rc::clone(token)))
+            .into_key()
+            .is_none()
+        {
+            return;
+        }
         let namespace = token.config().namespace;
         self.namespace_ensembles
             .entry(namespace)
@@ -22134,14 +22262,11 @@ impl Vm {
     }
 
     pub(crate) fn borrow_jim_evaluation_frame(
-        frame: &JimEvaluationFrame<Value>,
-    ) -> JimEvaluationFrame<Value> {
-        JimEvaluationFrame {
+        frame: &OriginalJimEvaluationFrame,
+    ) -> OriginalJimEvaluationFrame {
+        OriginalJimEvaluationFrame {
             procedure_level: frame.procedure_level,
-            command_name: frame
-                .command_name
-                .as_ref()
-                .map(|value| value.native_lifetime_lease().into_value()),
+            command: frame.command.clone(),
             is_procedure: frame.is_procedure,
             script: frame.script.as_ref().map(|location| {
                 tcl_runtime_api::jim_error_stack::JimScriptLocation {
@@ -22153,32 +22278,121 @@ impl Vm {
         }
     }
 
-    pub(crate) fn capture_jim_error_stack(&mut self) {
-        let frames: Vec<_> = self
-            .jim_errors
-            .frames
+    fn materialize_original_jim_error_frames(
+        &self,
+        level: u32,
+        script_failure: Option<&tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>>,
+    ) -> Result<Option<Vec<JimErrorFrame<Value>>>, tcl_cmd_core::CmdError> {
+        let empty = self
+            .native_jim_object_context()?
+            .empty_object()
+            .native_lifetime_lease()
+            .into_value();
+        if let (0, Some(script)) = (level, script_failure) {
+            return Ok(Some(vec![JimErrorFrame {
+                procedure: empty.clone(),
+                file: script.file.clone(),
+                line: script.line,
+                invocation: empty,
+            }]));
+        }
+        let frames: Vec<_> = self.jim_errors.frames.iter().rev().collect();
+        let metadata: Vec<_> = frames
             .iter()
-            .map(Self::borrow_jim_evaluation_frame)
+            .map(|frame| JimEvaluationFrame {
+                procedure_level: frame.procedure_level,
+                command_name: frame
+                    .command
+                    .as_ref()
+                    .filter(|name| name.is_observed())
+                    .map(|_| ()),
+                is_procedure: frame.is_procedure,
+                script: None,
+                invocation: (),
+            })
             .collect();
-        let level = frames.last().map_or(0, |frame| frame.procedure_level);
-        let empty = match self.native_jim_object_context() {
-            Ok(context) => context.empty_object().native_lifetime_lease().into_value(),
+        let Some(selected) = select_jim_error_frame_sources(level, &metadata) else {
+            return Ok(None);
+        };
+        let mut captured = Vec::new();
+        for selection in selected {
+            let frame = frames[selection.frame];
+            let procedure = match selection.procedure {
+                Some(index) => frames[index]
+                    .command
+                    .as_ref()
+                    .expect("selected actual command-name observation")
+                    .original()?
+                    .expect("selected original name"),
+                None => empty.clone(),
+            };
+            captured.push(JimErrorFrame {
+                procedure,
+                file: frame
+                    .script
+                    .as_ref()
+                    .map_or_else(|| empty.clone(), |location| location.file.clone()),
+                line: frame.script.as_ref().map_or(1, |location| location.line),
+                invocation: frame.invocation.capture_invocation_list(),
+            });
+        }
+        Ok(Some(captured))
+    }
+
+    pub(crate) fn capture_jim_error_stack(&mut self) {
+        self.capture_original_jim_error_stack_at(None);
+    }
+
+    fn capture_original_jim_error_stack_at(
+        &mut self,
+        script: Option<(
+            u32,
+            &tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>,
+        )>,
+    ) {
+        let Some(ticket) = self.jim_errors.stack.capture_ticket() else {
+            return;
+        };
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
             Err(error) => {
-                let _ = crate::command::completion_from_tcl_error(self, error.into());
+                oo_cleanup::retain_error(self, &error);
                 return;
             }
         };
-        self.jim_errors.stack.capture_object(|| {
-            let frames: Vec<_> = frames
-                .into_iter()
-                .rev()
-                .map(|mut frame| {
-                    frame.invocation = frame.invocation.capture_invocation_list();
-                    frame
-                })
-                .collect();
-            capture_jim_error_frames(level, &frames, None, &empty).map(Self::jim_trace_object)
-        });
+        let level = script.map_or_else(
+            || {
+                self.jim_errors
+                    .frames
+                    .last()
+                    .map_or(0, |frame| frame.procedure_level)
+            },
+            |(level, _)| level,
+        );
+        let captured =
+            self.materialize_original_jim_error_frames(level, script.map(|(_, script)| script));
+        let captured = match captured {
+            Ok(frames) => frames.map(Self::jim_trace_object),
+            Err(error) => {
+                oo_cleanup::retain_error(self, &error);
+                return;
+            }
+        };
+        if let Err(error) = scope.check(self) {
+            drop(captured);
+            oo_cleanup::retain_error(self, &error);
+            return;
+        }
+        if let Some(captured) = captured {
+            let retired = self
+                .jim_errors
+                .stack
+                .publish_capture(&ticket, JimErrorTrace::Explicit(captured));
+            drop(retired);
+        }
+        if let Err(error) = scope.check(self) {
+            oo_cleanup::retain_error(self, &error);
+        }
     }
 
     pub(crate) fn raise_jim_script_parse_failure(
@@ -22197,11 +22411,7 @@ impl Vm {
                 line: location.line,
             },
         );
-        let frames: Vec<_> = self.jim_errors.frames.iter().rev().cloned().collect();
-        self.jim_errors.stack.capture_object(|| {
-            capture_jim_error_frames(level, &frames, Some(&script), &Value::empty())
-                .map(Self::jim_trace_object)
-        });
+        self.capture_original_jim_error_stack_at(Some((level, &script)));
         err(tail.message)
     }
 
@@ -22651,7 +22861,7 @@ impl Vm {
     pub(crate) fn define_proc_binding_with_jim_key(
         &mut self,
         mut proc: ProcDef,
-        table_key: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
+        table_key: Option<jim_table_keys::OriginalJimCommandKey>,
     ) -> (crate::command::NativeProcedureCommand, String) {
         if self.uses_native_jim_lookup() && proc.native_jim_namespace.is_none() {
             proc.native_jim_namespace = Some(self.new_jim_declaration_namespace(proc.ns_id));

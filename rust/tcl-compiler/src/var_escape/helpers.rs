@@ -200,6 +200,7 @@ pub(crate) fn normal_handler_is_frameless(
 pub(crate) struct OriginalSubstitutionInvocation {
     pub(crate) invocation: Option<crate::registry_invocation::SourceNameRoleInventory>,
     pub(crate) frameless: bool,
+    pub(crate) name_writes: Option<crate::ir_helpers::VariableWriteEffects>,
 }
 
 pub(crate) struct OriginalSubstitutionInventory {
@@ -236,6 +237,7 @@ pub(crate) fn original_substitution_invocations(
                     receipt, registry,
                 ),
                 frameless: false,
+                name_writes: None,
             })
             .collect();
         return Some(OriginalSubstitutionInventory {
@@ -304,6 +306,7 @@ pub(crate) fn original_substitution_invocations(
             Some(OriginalSubstitutionInvocation {
                 invocation: crate::registry_invocation::original_source_name_roles(registry, child),
                 frameless,
+                name_writes: crate::ir_helpers::original_invocation_possible_name_writes(child, registry),
             })
         })
         .collect::<Option<Vec<_>>>()?;

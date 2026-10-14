@@ -179,7 +179,9 @@ pub fn summarise_for_statement(
     }
     let mut written = BTreeSet::new();
     for script in [init, next, body] {
-        crate::ssa::nested_writes(script, semantics.registry, &mut written);
+        if crate::ssa::nested_writes(script, semantics.registry, &mut written) {
+            return None;
+        }
     }
     let mut state = LoopState::default();
     for name in written {

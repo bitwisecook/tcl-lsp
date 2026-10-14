@@ -707,6 +707,14 @@ impl OriginalSourceTransitionAdviceTape {
         }
     }
 
+    pub(crate) fn logical_procedure_body_cards(&self) -> Vec<Arc<OriginalLogicalProcedureBody>> {
+        self.logical_procedure_bodies
+            .values()
+            .flatten()
+            .cloned()
+            .collect()
+    }
+
     /// Exact Logical catalogue words retain geometry without an entered invocation.
     pub(crate) fn logical_original_word_at_span(
         &self,

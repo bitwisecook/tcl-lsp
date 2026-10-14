@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh"
+  ],
+  "input_sha256": "2188df4834ed058eb3596f20d4c22bbcefbd3e62b288fb530effcad3f6ab7f5e",
+  "executable_before_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "executable_after_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "exit_code": 0,
+  "stdout_sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "cli_argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "--version"
+  ],
+  "cli_exit_code": 0,
+  "cli_stdout_sha256": "5e883301b0ebdb176030c15e7117d4833cf1063c5f97123e7e72f0e8b2f30057",
+  "reported_patchlevel": "0.84-9-g5bac7c9",
+  "reported_cli_version": "0.84",
+  "same_executable": true
+}

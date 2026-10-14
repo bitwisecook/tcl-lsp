@@ -1,0 +1,6 @@
+
+running 1 test
+test ssa::original_authored_analysis_definition_selector_tests::authored_source_definition_owner_requires_current_module_body_and_standalone_purpose ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9829 filtered out; finished in 0.23s
+

@@ -1154,7 +1154,10 @@ impl<'a> CfgBuilder<'a> {
         leaves_the_procedure: bool,
         barrier_reason: &str,
     ) -> Vec<Statement> {
-        let (mut barrier, mut unseen) = (false, false);
+        let mut barrier = scripts.iter().fold(false, |unknown, script| {
+            crate::ssa::nested_writes(script, self.registry, &mut written) || unknown
+        });
+        let mut unseen = false;
         for script in scripts {
             crate::ir::for_each_statement(script, &mut |inner| {
                 let own: &[String] = match inner {

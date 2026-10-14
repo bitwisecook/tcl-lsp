@@ -1,0 +1,22 @@
+
+running 1 test
+test body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes ... SOURCE_CERT entry issuer=true card=true whole_source=true body_source=true offsets=true/true metadata=true baseline_input=true logical=false hosted=false native_entry=false registry=true config=true executed=false native_admission=false
+SOURCE_CERT current_body=true
+SOURCE_CERT children offset=Some(12) binding=true native_source=true config=false site=false words=true attachment=true
+SOURCE_CERT children offset=Some(26) binding=true native_source=true config=false site=false words=true attachment=true
+SOURCE_CERT children offset=Some(12) binding=true native_source=true config=false site=false words=true attachment=true
+SOURCE_CERT children offset=Some(26) binding=true native_source=true config=false site=false words=true attachment=true
+SOURCE_CERT collected valid=false dependencies=0 activations=0 inverse=true
+
+thread 'body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes' (377628) panicked at rust/tcl-compiler/src/body_analysis_capsule.rs:1152:17:
+assertion failed: BodyLatticeInputs::retain(req, context.commands()).is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9829 filtered out; finished in 0.56s
+

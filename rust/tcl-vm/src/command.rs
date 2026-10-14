@@ -850,6 +850,23 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(bytes) => bytes,
         Err(error) => return completion_from_cmd_error(vm, error),
     };
+    let _original_source = match vm
+        .original_jim_publication_key(old, tcl_syntax::naming::NativeNamePurpose::RenameSource)
+    {
+        Ok(key) => key,
+        Err(error) => return completion_from_cmd_error(vm, error),
+    };
+    let original_destination = if new_name.is_empty() {
+        None
+    } else {
+        match vm.original_jim_publication_key(
+            new,
+            tcl_syntax::naming::NativeNamePurpose::RenameDestination,
+        ) {
+            Ok(key) => key,
+            Err(error) => return completion_from_cmd_error(vm, error),
+        }
+    };
     if let Some(error) = vm.jim_local_rename_error(&old_name, new_name.is_empty()) {
         return error;
     }
@@ -894,7 +911,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // Reserve the exact `(namespace token, simple name)` destination.
         // Its Tcl display can collide with another legal command, so
         // every lifecycle map below uses this private injective key.
-        let key = match vm.note_rename_destination(&new_name) {
+        let key = match vm.note_rename_destination(&new_name, original_destination) {
             Ok(key) => key,
             Err(error) => return vm.refuse_host_command(error.to_string()),
         };
@@ -1449,12 +1466,12 @@ fn cmd_alias(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(slot) => slot,
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
-    let report = match vm.jim_command_table_key_for_original(
-        &original,
+    let report = match vm.original_jim_publication_key(
+        name,
         tcl_syntax::naming::NativeNamePurpose::AliasPublication,
     ) {
         Ok(report) => report,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
     let original = Value::native_list_constructor(
         words,
@@ -2052,12 +2069,12 @@ fn define_procedure(
         Ok(header) => header,
         Err(completion) => return completion,
     };
-    let report = match vm.jim_command_table_key_for_original(
-        &written,
+    let report = match vm.original_jim_publication_key(
+        name,
         tcl_syntax::naming::NativeNamePurpose::CommandPublication,
     ) {
         Ok(report) => report,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
     vm.define_proc_binding_with_jim_key(
         ProcDef {

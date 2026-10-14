@@ -85,6 +85,10 @@ pub(crate) struct NativeNameWorld {
     /// Original key spelling belongs to the table entry, independently of its command generation.
     pub(super) jim_command_table_keys:
         HashMap<String, tcl_syntax::naming::NativeJimCommandTableKey>,
+    pub(super) jim_command_original_keys:
+        HashMap<CommandSlot, super::jim_table_keys::OriginalJimCommandKey>,
+    /// Constructor inputs survive engine selection only with their actual publication token.
+    pub(super) command_api_publications: HashMap<CommandSlot, (u64, Vec<u8>)>,
     /// Retired active nodes remain discoverable only through their original descriptor.
     pub(super) jim_command_receipts: HashMap<u64, Weak<super::native_jim_lookup::JimCommandNode>>,
     pub(super) jim_retired_commands: usize,
@@ -134,6 +138,8 @@ impl NativeNameWorld {
             jim_local_depth: 0,
             jim_command_nodes: HashMap::new(),
             jim_command_table_keys: HashMap::new(),
+            jim_command_original_keys: HashMap::new(),
+            command_api_publications: HashMap::new(),
             jim_command_receipts: HashMap::new(),
             jim_retired_commands: 0,
             jim_retired_tokens: HashSet::new(),

@@ -395,93 +395,175 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>, depth: u32)
     }
 }
 
-/// Extract variable names defined by command substitutions in an expression.
-///
-/// Walks the expression tree looking for `[cmd ...]` substitutions
-/// where the command has `ArgRole::VarWrite` arguments (e.g. `set`,
-/// `gets`, `regexp`, `scan`). Also scans `ArgRole::Body` arguments
-/// for nested variable definitions so that patterns like
-/// `[catch {set x [foo]}]` correctly report `x`.
+/// Possible writes from an independently supplied standalone expression.
+/// These names establish no completed store, native invocation or body owner.
 #[must_use]
 pub fn defs_from_expr(expr: &ExprNode, registry: &CommandRegistry) -> Vec<String> {
-    let mut commands = Vec::new();
-    collect_expr_commands(expr, &mut commands);
-
-    let mut defs = Vec::new();
-    for cmd_text in &commands {
-        let text = cmd_text
-            .strip_prefix('[')
-            .and_then(|s| s.strip_suffix(']'))
-            .unwrap_or(cmd_text);
-
-        let words = tokenise_to_words(text, registry);
-        let Some((cmd_word, arg_words)) = words.split_first() else {
-            continue;
-        };
-        let Some(cmd_name) = cmd_word.literal() else {
-            continue;
-        };
-        if arg_words.iter().any(|word| word.expanded) {
-            continue;
-        }
-        let args: Vec<&str> = arg_words.iter().map(|w| w.text.as_str()).collect();
-
-        // VarWrite positions.
-        for idx in registry.arg_indices_for_role(cmd_name, &args, ArgRole::VarWrite) {
-            if idx < args.len() {
-                let name = normalise_var_name(args[idx]);
-                if !name.is_empty() {
-                    defs.push(name.to_owned());
-                }
-            }
-        }
-
-        // Body positions — scan for nested defs.
-        for idx in registry.arg_indices_for_role(cmd_name, &args, ArgRole::Body) {
-            if idx < args.len() {
-                let body = args[idx]
-                    .strip_prefix('{')
-                    .and_then(|s| s.strip_suffix('}'))
-                    .unwrap_or(args[idx]);
-                defs.extend(defs_from_body_script(body, registry));
-            }
-        }
-    }
-    defs
+    let inventory = expression_command_substitutions(expr, registry, None);
+    variable_write_effects_from_commands(inventory.all_commands(), registry).names
 }
 
-/// Extract variable definitions from a body script by tokenising.
-///
-/// Scans the body text for commands with `ArgRole::VarWrite` arguments
-/// (e.g. `set x 1` inside a `catch` body).
-///
-/// Split under the **document's** grammar, taken from the dialect-selected
-/// registry's own profile (the route [`crate::dynamic_names::lexer_config_for`]
-/// takes): a second, differently-configured tokenisation would disagree with
-/// the IR about which argument sits in a variable-name position.
-fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<String> {
-    let mut defs = Vec::new();
-    for words in tokenise_command_words(body_text, LexerConfig::for_profile(registry.profile())) {
-        let Some((cmd_word, arg_words)) = words.split_first() else {
+/// Possible name writes in one genuine original statement and its substitutions.
+/// Unavailable owners and incomplete source coverage remain explicit.
+pub(crate) fn original_statement_possible_name_writes(
+    statement: &Statement,
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> VariableWriteEffects {
+    let mut out = VariableWriteEffects::default();
+    let Some(parent) = crate::registry_invocation::original_source_name_roles(registry, tokens)
+    else {
+        out.opaque = true;
+        return out;
+    };
+    if let Some(effects) = original_invocation_possible_name_writes(tokens, registry) {
+        out = effects;
+    } else {
+        retain_original_write_roles(&parent, &mut out);
+    }
+    let structural = structural_variable_write_projection(statement);
+    out.opaque |= structural.opaque_variable_frame
+        || structural
+            .literal_names
+            .iter()
+            .any(|name| !out.names.contains(name));
+    if !crate::var_escape::helpers::statement_needs_original_substitution_inventory(statement) {
+        return out;
+    }
+    let Some(children) =
+        crate::var_escape::helpers::original_substitution_invocations(tokens, registry)
+    else {
+        out.opaque = true;
+        return out;
+    };
+    out.opaque |= children.unknown_residual;
+    for child in children {
+        let Some(names) = child.invocation else {
+            out.opaque = true;
             continue;
         };
-        let Some(cmd_name) = cmd_word.literal() else {
-            continue;
-        };
-        if arg_words.iter().any(|word| word.expanded) {
-            continue;
-        }
-        let args: Vec<&str> = arg_words.iter().map(|w| w.text.as_str()).collect();
-        for idx in registry.arg_indices_for_role(cmd_name, &args, ArgRole::VarWrite) {
-            if let Some(arg) = args.get(idx) {
-                let name = normalise_var_name(arg);
-                if !name.is_empty() {
-                    defs.push(name.to_owned());
-                }
-            }
+        if let Some(effects) = child.name_writes {
+            out.opaque |= effects.opaque;
+            out.names.extend(effects.names);
+            out.read_names.extend(effects.read_names);
+        } else {
+            retain_original_write_roles(&names, &mut out);
         }
     }
-    defs
+    out
+}
+
+/// Complete selected effect projection beside the retained MAY name candidates.
+/// This returns no store values, definite SSA definitions or entered-frame proof.
+pub(crate) fn original_invocation_possible_name_writes(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<VariableWriteEffects> {
+    use crate::registry_invocation::EffectiveInvocationWord;
+    use tcl_registry::world_effect::{EffectAccessMode, WorldStateDomain};
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding
+        .original_source_metadata_for_advice(tokens, registry)
+        .ok()??;
+    let candidates =
+        crate::registry_invocation::possible_variable_name_operands_with_metadata_context(
+            registry,
+            Some(metadata),
+            tokens,
+        )?;
+    let invocation = crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+        registry,
+        Some(metadata),
+        tokens,
+    )?;
+    let realm = binding.invocation_realm()?;
+    let (projection, additional_writes) =
+        invocation.with_metadata_schema(registry, metadata, realm, |schema| {
+            (schema.semantics.descriptor_key() == invocation.facts.descriptor_key).then(|| {
+                (
+                    CommandRegistry::variable_write_projection_for_selected_source(schema),
+                    schema
+                        .semantics
+                        .world_effects
+                        .has_uncovered_variable_role_writes(
+                            schema.words.arguments(),
+                            candidates
+                                .phased_operands()
+                                .any(|(role, _, _, _)| role == ArgRole::VarWrite)
+                                || candidates
+                                    .phased_unresolved_roles()
+                                    .any(|(role, _)| role == ArgRole::VarWrite),
+                        ),
+                )
+            })
+        })?;
+    let mut out = VariableWriteEffects {
+        names: projection.literal_names,
+        read_names: projection.read_before_write_names,
+        opaque: projection.opaque_variable_frame
+            || candidates.unknown_residual()
+            || additional_writes,
+    };
+    let callback = invocation.facts.effects.callback();
+    let variables = &binding.variable_context;
+    out.opaque |= match callback.kinds {
+        tcl_registry::world_effect::CallbackKinds::NONE => false,
+        tcl_registry::world_effect::CallbackKinds::TRACE => {
+            variables.dynamic_traces
+                || !variables.traced.is_empty()
+                || !variables.untracked_traces.is_empty()
+                || !variables.possible_trace_registrations.is_empty()
+                || !variables.trace_registrations.is_empty()
+                || !variables.trace_registration_receivers.is_empty()
+        }
+        _ => true,
+    };
+    // State changes outside the selected stores can alter later alias/observer behaviour.
+    out.opaque |= invocation.facts.effects.accesses().iter().any(|access| {
+        access.domain != WorldStateDomain::VariableStore && access.mode != EffectAccessMode::Read
+    });
+    for (role, word, _, _) in candidates.phased_operands() {
+        if role != ArgRole::VarWrite {
+            continue;
+        }
+        match word {
+            EffectiveInvocationWord::Literal(name) if !name.contains('\0') => {
+                if !out.names.contains(name) {
+                    out.names.push(name.clone());
+                }
+            }
+            EffectiveInvocationWord::ArrayElementName { root } if !root.contains('\0') => {
+                if !out.names.contains(root) {
+                    out.names.push(root.clone());
+                }
+            }
+            _ => out.opaque = true,
+        }
+    }
+    out.opaque |= candidates
+        .phased_unresolved_roles()
+        .any(|(role, _)| role == ArgRole::VarWrite);
+    Some(out)
+}
+
+fn retain_original_write_roles(
+    source: &crate::registry_invocation::SourceNameRoleInventory,
+    out: &mut VariableWriteEffects,
+) {
+    // A name-role owner does not cover additional store, observer or alias effects.
+    out.opaque = true;
+    for &(argument, role) in source.roles() {
+        if role != tcl_registry::ArgRole::VarWrite {
+            continue;
+        }
+        let Some(name) = source.original_variable_name_operand(argument) else {
+            out.opaque = true;
+            continue;
+        };
+        if !out.names.iter().any(|candidate| candidate == name.as_str()) {
+            out.names.push(name.as_str().to_owned());
+        }
+    }
 }
 
 /// Out-variable names assigned by command substitutions appearing in
@@ -643,7 +725,7 @@ fn script_text_out_vars_at(
     depth: u32,
 ) {
     // The document's grammar, from the registry's profile — as
-    // `defs_from_body_script` does.
+    // the standalone expression inventory does.
     for words in tokenise_command_words(body, LexerConfig::for_profile(registry.profile())) {
         cmd_substitution_out_vars(&words, registry, out, depth + 1);
     }
@@ -1001,7 +1083,7 @@ fn collect_expr_commands_at(expr: &ExprNode, out: &mut Vec<String>, depth: u32) 
 /// Tokenise source text into a flat list of words (single command).
 ///
 /// Split under the document's grammar, taken from the dialect-selected
-/// `registry`'s own profile — the same route [`defs_from_body_script`] uses,
+/// `registry`'s own profile — the same standalone command grammar,
 /// so one document is tokenised one way whichever harvest asks.
 fn tokenise_to_words(source: &str, registry: &CommandRegistry) -> Vec<CommandWord> {
     tokenise_command_words(source, LexerConfig::for_profile(registry.profile()))
@@ -2806,6 +2888,203 @@ mod tests {
             ["rename", "rename", "set"]
         );
         assert!(!embedded.opaque);
+    }
+
+    #[test]
+    fn standalone_expression_write_names_preserve_literal_operand_data() {
+        let registry = CommandRegistry::build_default();
+        for (source, expected) in [
+            ("[set {$literal} 1]", "$literal"),
+            ("[set {} 1]", ""),
+            ("[catch {set {$literal} 1}]", "$literal"),
+        ] {
+            let expression = ExprNode::Command {
+                text: source.to_owned(),
+                start: 0,
+                end: source.len(),
+            };
+            let names = defs_from_expr(&expression, &registry);
+            assert!(
+                names.iter().any(|name| name == expected),
+                "{source}: {names:?}"
+            );
+            assert!(!names.iter().any(|name| name == "literal"));
+        }
+        let expression = ExprNode::Command {
+            text: "[set $selector 1]".to_owned(),
+            start: 0,
+            end: 17,
+        };
+        assert!(
+            !defs_from_expr(&expression, &registry)
+                .iter()
+                .any(|name| name == "selector")
+        );
+    }
+
+    #[test]
+    fn selected_extra_store_and_registered_trace_effects_remain_opaque() {
+        use tcl_registry::world_effect::{
+            EffectAccess, EffectAccessMode, EffectFootprint, InterpreterScope, NamespaceScope,
+            SubjectScope, WorldEffectDescriptor, WorldStateDomain,
+        };
+        fn extra_store(_: tcl_registry::InvocationArguments<'_>) -> EffectFootprint {
+            let mut effects = EffectFootprint::default();
+            effects.add_access(EffectAccess::new(
+                WorldStateDomain::VariableStore,
+                EffectAccessMode::Write,
+                InterpreterScope::Current,
+                NamespaceScope::named("::other"),
+                SubjectScope::named("foreign"),
+            ));
+            effects
+        }
+        fn coalesced_store(_: tcl_registry::InvocationArguments<'_>) -> EffectFootprint {
+            let mut effects = EffectFootprint::default();
+            effects.add_access(EffectAccess::variable_store_wildcard(
+                EffectAccessMode::Write,
+            ));
+            effects
+        }
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let original = tcl_registry::model::ingress::context_for_profile(profile);
+        for resolver in [
+            Some(extra_store as tcl_registry::world_effect::WorldEffectResolver),
+            Some(coalesced_store),
+            None,
+        ] {
+            let mut registry = original.commands().clone();
+            let mut setter = registry.get("set").unwrap().clone();
+            setter.world_effects = Some(WorldEffectDescriptor {
+                resolver,
+                ..WorldEffectDescriptor::VARIABLE_WRITE
+            });
+            if resolver.is_none() {
+                setter.arg_roles = &[];
+                setter.arg_role_resolver = None;
+                setter.arg_role_count_resolver = None;
+                setter.arg_role_layout_resolver = None;
+                setter.assigns_variable_at = None;
+                setter.forms = &[];
+                setter.arg_role_resolver_roles = &[];
+            }
+            registry.insert(setter);
+            let context =
+                std::sync::Arc::new(original.with_command_store(std::sync::Arc::new(registry)));
+            let registry = context.commands();
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context.clone(),
+                config,
+            );
+            let module = crate::lowering::lower_to_ir_with(
+                crate::lowering::Lowerer::with_config(registry, config)
+                    .for_bytecode_backend()
+                    .with_resolved_analysis_input(input),
+                "set counter 0",
+            );
+            let statement = &module.top_level.statements[0];
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let writes = original_statement_possible_name_writes(statement, tokens, registry);
+            assert!(
+                writes.opaque,
+                "additional store effect cannot borrow baseline role coverage"
+            );
+        }
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, original.clone(), config);
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(original.commands(), config)
+                .for_bytecode_backend()
+                .with_resolved_analysis_input(input),
+            "trace add variable counter write cb; set counter 0",
+        );
+        let statement = module.top_level.statements.last().unwrap();
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let variables = &tokens.source_binding.as_ref().unwrap().variable_context;
+        assert!(
+            variables.dynamic_traces
+                || !variables.traced.is_empty()
+                || !variables.trace_registrations.is_empty()
+                || !variables.trace_registration_receivers.is_empty()
+                || !variables.possible_trace_registrations.is_empty()
+        );
+        assert!(
+            original_statement_possible_name_writes(statement, tokens, original.commands()).opaque
+        );
+    }
+
+    #[test]
+    fn native_original_scalar_effects_keep_complete_names_and_refuse_changed_words() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(registry, config)
+                .for_bytecode_backend()
+                .with_resolved_analysis_input(input),
+            "set counter 0",
+        );
+        let statement = &module.top_level.statements[0];
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let complete = original_invocation_possible_name_writes(tokens, registry)
+            .expect("actual complete Native metadata/candidate/effect owner");
+        assert!(!complete.opaque);
+        assert!(complete.names.iter().any(|name| name == "counter"));
+        let mut writes = std::collections::BTreeSet::new();
+        assert!(!crate::ssa::nested_writes(
+            &module.top_level,
+            registry,
+            &mut writes
+        ));
+        assert!(writes.contains("counter"));
+        let mut changed = tokens.clone();
+        changed.argv_texts[1].push_str(" changed");
+        assert!(original_invocation_possible_name_writes(&changed, registry).is_none());
+    }
+
+    #[test]
+    fn original_write_name_candidates_retain_unknown_effects_and_source_refusals() {
+        let registry = CommandRegistry::build_default();
+        let module =
+            crate::lowering::lower_to_ir("proc p {} {set observed [set {$literal} 1]}", &registry);
+        let (_, procedure) = module.original_source_procedure_bodies().next().unwrap();
+        let statement = &procedure.body.statements[0];
+        let tokens = procedure
+            .body
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let names = original_statement_possible_name_writes(statement, tokens, &registry);
+        assert!(names.opaque);
+        assert!(names.names.iter().any(|name| name == "observed"));
+        assert!(names.names.iter().any(|name| name == "$literal"));
+        assert!(!names.names.iter().any(|name| name == "literal"));
+        let mut changed = tokens.clone();
+        changed.argv_texts[1].push_str(" changed");
+        let refused = original_statement_possible_name_writes(statement, &changed, &registry);
+        assert!(refused.opaque && refused.names.is_empty());
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let refused = original_statement_possible_name_writes(statement, tokens, foreign);
+        assert!(refused.opaque && refused.names.is_empty());
     }
 
     #[test]

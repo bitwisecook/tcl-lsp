@@ -9,7 +9,136 @@ use crate::{
 use tcl_runtime_api::native_command_name::{NativeCommandNameCache, NativeCommandNameLookupState};
 use tcl_syntax::value::{ValueError, ValueOps};
 
+#[derive(Clone)]
+pub(super) struct OriginalByteCommandRegistration {
+    original: Vec<u8>,
+    namespace: NsId,
+    tail: Vec<u8>,
+}
+
 impl Interp {
+    pub(super) fn prune_original_byte_command_registrations(&self) {
+        let world = self.namespaces();
+        self.original_byte_command_registrations
+            .borrow_mut()
+            .retain(|&generation, registration| {
+                world.original_publication_is_current(
+                    registration.namespace,
+                    &registration.tail,
+                    generation,
+                )
+            });
+    }
+
+    pub(super) fn remember_original_byte_command_registration(
+        &self,
+        original: &[u8],
+        namespace: NsId,
+        tail: &[u8],
+        generation: u64,
+    ) {
+        self.prune_original_byte_command_registrations();
+        if self
+            .namespaces()
+            .original_publication_is_current(namespace, tail, generation)
+        {
+            self.original_byte_command_registrations
+                .borrow_mut()
+                .insert(
+                    generation,
+                    OriginalByteCommandRegistration {
+                        original: original.to_vec(),
+                        namespace,
+                        tail: tail.to_vec(),
+                    },
+                );
+        }
+    }
+
+    pub(super) fn publish_original_jim_registration_keys(&mut self) -> Result<(), ValueError> {
+        use tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose;
+        use tcl_syntax::naming::NativeNamePurpose;
+        if !self
+            .name_policy_protocol()
+            .is_some_and(|policy| policy.recipe().is_jim084())
+        {
+            return Ok(());
+        }
+        let protocol = self
+            .native_invocation_dialect()
+            .native_command_creation_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim registration constructor",
+            ))?;
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.refuse_native_execution(first);
+                ValueError::CommandProtocolUnavailable("original Jim registration entry")
+            },
+        )?;
+        self.prune_original_byte_command_registrations();
+        let registrations: Vec<_> = self
+            .original_byte_command_registrations
+            .borrow()
+            .iter()
+            .map(|(&generation, registration)| (generation, registration.clone()))
+            .collect();
+        for (generation, registration) in registrations {
+            if registration.namespace != crate::namespace::GLOBAL
+                || !self.namespaces().original_publication_is_current(
+                    registration.namespace,
+                    &registration.tail,
+                    generation,
+                )
+                || self.namespaces().has_original_jim_registration_key(
+                    registration.namespace,
+                    &registration.tail,
+                    generation,
+                )
+            {
+                continue;
+            }
+            let Some(report) = protocol.public_jim_registration_key(
+                NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand,
+                &registration.original,
+            ) else {
+                continue;
+            };
+            if report.comparison_bytes() != registration.tail {
+                continue;
+            }
+            let key = self
+                .generated_jim_command_key(
+                    registration.namespace,
+                    &registration.original,
+                    NativeNamePurpose::CommandCApiPublication,
+                )?
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original Jim registration key",
+                ))?;
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim registration currency")
+            })?;
+            // The hash owns keyDup; the actual constructor temporary retires outside the table borrow.
+            let published = self.namespaces_mut().publish_original_jim_registration_key(
+                registration.namespace,
+                &registration.tail,
+                generation,
+                report,
+                &key,
+            );
+            drop(key);
+            if !published {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original Jim registration slot",
+                ));
+            }
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim registration retirement")
+            })?;
+        }
+        Ok(())
+    }
     /// Execute JimQualifyName on the actual supplied object. The namespace
     /// length test precedes the name getter, and the native temporary reference
     /// starts only after qualification has finished.
@@ -740,9 +869,11 @@ mod tests {
     fn origin_string_result_requires_actual_native_core_issuer() {
         let mut interp = Interp::new();
         interp.set_dialect_profile(tcl_dialect::DialectProfile::irules());
-        assert!(interp
-            .native_namespace_origin_result(b"::selected")
-            .is_err());
+        assert!(
+            interp
+                .native_namespace_origin_result(b"::selected")
+                .is_err()
+        );
     }
 
     #[test]
@@ -929,10 +1060,12 @@ mod tests {
             .ensure_namespace(GLOBAL, b"n");
         interp.set_current_ns(namespace);
         let original = head(b"p\0original");
-        assert!(interp
-            .resolve_original_command(original.as_ptr())
-            .unwrap()
-            .is_some());
+        assert!(
+            interp
+                .resolve_original_command(original.as_ptr())
+                .unwrap()
+                .is_some()
+        );
         let global_cache = obj::native_command_name_cache(original.as_ptr()).unwrap();
         assert_eq!(global_cache.namespace_token, GLOBAL as u64);
         interp.bind_command_replacement(namespace, b"p", Command::Builtin(worker));
@@ -1018,11 +1151,13 @@ mod tests {
             interp.hide_command(b"p", b"hidden"),
             super::super::CommandVisibilityOutcome::Moved
         );
-        assert!(interp
-            .native_command_name_lookup_state(&initial)
-            .unwrap()
-            .target
-            .is_none());
+        assert!(
+            interp
+                .native_command_name_lookup_state(&initial)
+                .unwrap()
+                .target
+                .is_none()
+        );
         assert_eq!(
             interp.expose_command(b"hidden", b"p"),
             super::super::CommandVisibilityOutcome::Moved
@@ -1053,23 +1188,27 @@ mod tests {
             during.target.as_ref().unwrap().namespace_token,
             namespace as u64
         );
-        assert!(interp
-            .native_invocation_dialect()
-            .native_command_name_protocol()
-            .unwrap()
-            .cache_is_current(&refreshed, &during));
+        assert!(
+            interp
+                .native_invocation_dialect()
+                .native_command_name_protocol()
+                .unwrap()
+                .cache_is_current(&refreshed, &during)
+        );
         interp
             .namespaces
             .borrow_mut()
             .retire_rename_source(&publication);
-        assert!(!interp
-            .native_invocation_dialect()
-            .native_command_name_protocol()
-            .unwrap()
-            .cache_is_current(
-                &refreshed,
-                &interp.native_command_name_lookup_state(&refreshed).unwrap()
-            ));
+        assert!(
+            !interp
+                .native_invocation_dialect()
+                .native_command_name_protocol()
+                .unwrap()
+                .cache_is_current(
+                    &refreshed,
+                    &interp.native_command_name_lookup_state(&refreshed).unwrap()
+                )
+        );
     }
 
     #[test]
@@ -1127,10 +1266,12 @@ mod tests {
                 .unwrap();
             let initial = obj::native_command_name_cache(original.as_ptr()).unwrap();
             interp.namespaces.borrow_mut().delete(GLOBAL, b"p");
-            assert!(interp
-                .resolve_original_command(original.as_ptr())
-                .unwrap()
-                .is_none());
+            assert!(
+                interp
+                    .resolve_original_command(original.as_ptr())
+                    .unwrap()
+                    .is_none()
+            );
             if version < TclVersion::V9_0 {
                 assert_eq!(obj::native_command_name_cache(original.as_ptr()), None);
                 assert_eq!(
@@ -1158,10 +1299,12 @@ mod tests {
         let worker = std::rc::Rc::downgrade(&procedure.declaration());
         drop(procedure);
         let original = head(b"p");
-        assert!(interp
-            .resolve_original_command(original.as_ptr())
-            .unwrap()
-            .is_some());
+        assert!(
+            interp
+                .resolve_original_command(original.as_ptr())
+                .unwrap()
+                .is_some()
+        );
         let cache = obj::native_command_name_cache(original.as_ptr()).unwrap();
         assert!(interp.namespaces.borrow_mut().delete(GLOBAL, b"p"));
         assert!(worker.upgrade().is_none());
@@ -1169,11 +1312,13 @@ mod tests {
             obj::native_command_name_cache(original.as_ptr()),
             Some(cache.clone())
         );
-        assert!(interp
-            .native_command_name_lookup_state(&cache)
-            .unwrap()
-            .target
-            .is_none());
+        assert!(
+            interp
+                .native_command_name_lookup_state(&cache)
+                .unwrap()
+                .target
+                .is_none()
+        );
     }
 }
 
@@ -1381,14 +1526,136 @@ mod original_key_construction_tests {
             interp.eval_str(b"namespace eval key_scope {rename list missing_original_key}"),
             crate::interp::Code::Error,
         );
-        assert!(interp
-            .namespaces()
-            .command_in(crate::namespace::GLOBAL, b"list")
-            .is_some());
-        assert!(interp
-            .namespaces()
-            .command_in(crate::namespace::GLOBAL, b"key_scope::missing_original_key")
-            .is_none());
+        assert!(
+            interp
+                .namespaces()
+                .command_in(crate::namespace::GLOBAL, b"list")
+                .is_some()
+        );
+        assert!(
+            interp
+                .namespaces()
+                .command_in(crate::namespace::GLOBAL, b"key_scope::missing_original_key")
+                .is_none()
+        );
         assert!(interp.native_execution_refusal().is_none());
+    }
+}
+
+#[cfg(test)]
+mod repinned_registration_key_tests {
+    use super::*;
+    use crate::{interp::Code, namespace::GLOBAL};
+
+    fn worker(_: &mut Interp, _: &[*mut TclObj]) -> Code {
+        Code::Ok
+    }
+
+    #[test]
+    fn jim_repin_publishes_only_actual_unchanged_byte_registration_keys() {
+        crate::counters::reset();
+        {
+            let mut interp = Interp::new();
+            interp.register_builtin(b"registered", worker);
+            let generation = interp
+                .namespaces()
+                .command_generation(GLOBAL, b"registered")
+                .unwrap();
+            assert!(
+                interp
+                    .namespaces()
+                    .original_jim_command_key(GLOBAL, b"registered")
+                    .is_none()
+            );
+            interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+            assert_eq!(
+                interp
+                    .namespaces()
+                    .command_generation(GLOBAL, b"registered"),
+                Some(generation)
+            );
+            let key = interp
+                .namespaces()
+                .original_jim_command_key(GLOBAL, b"registered")
+                .unwrap();
+            let refs = unsafe { (*key).ref_count };
+            let original = obj::Owned::fresh(obj::new_string_bytes(b"registered"));
+            for _ in 0..2 {
+                assert_eq!(
+                    interp
+                        .resolve_original_command(original.as_ptr())
+                        .unwrap()
+                        .unwrap()
+                        .1,
+                    Some(generation)
+                );
+                assert_eq!(unsafe { (*key).ref_count }, refs);
+            }
+            assert_eq!(
+                interp.eval_str(b"catch {error BOOM} result options; dict get $options -errorinfo"),
+                Code::Ok
+            );
+            assert!(!interp.host_refusal_pending());
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+        assert_eq!(crate::counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn jim_repin_declines_moved_or_nonroot_original_registration_slots() {
+        let mut interp = Interp::new();
+        interp.register_builtin(b"registered", worker);
+        assert_eq!(interp.eval_str(b"rename registered moved"), Code::Ok);
+        interp.register_builtin(b"N::relative", worker);
+        let nonroot = interp.namespaces().find_namespace(GLOBAL, b"N").unwrap();
+        let nonroot_generation = interp
+            .namespaces()
+            .command_generation(nonroot, b"relative")
+            .unwrap();
+        interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+        assert!(
+            interp
+                .namespaces()
+                .original_jim_command_key(GLOBAL, b"moved")
+                .is_none()
+        );
+        assert_eq!(
+            interp.namespaces().command_generation(nonroot, b"relative"),
+            Some(nonroot_generation)
+        );
+        assert!(
+            interp
+                .namespaces()
+                .original_jim_command_key(nonroot, b"relative")
+                .is_none()
+        );
+        let nonroot_name = obj::Owned::fresh(obj::new_string_bytes(b"N::relative"));
+        assert!(
+            interp
+                .resolve_original_command(nonroot_name.as_ptr())
+                .unwrap()
+                .is_none()
+        );
+        assert!(!interp.host_refusal_pending());
+        let moved = obj::Owned::fresh(obj::new_string_bytes(b"moved"));
+        assert!(interp.resolve_original_command(moved.as_ptr()).is_err());
+        assert!(interp.host_refusal_pending());
+    }
+    #[test]
+    fn original_byte_registration_inputs_retire_with_replaced_and_deleted_slots() {
+        let mut interp = Interp::new();
+        let baseline = interp.original_byte_command_registrations.borrow().len();
+        for _ in 0..32 {
+            interp.register_builtin(b"churn", worker);
+            assert_eq!(
+                interp.original_byte_command_registrations.borrow().len(),
+                baseline + 1
+            );
+        }
+        assert_eq!(interp.eval_str(b"rename churn {}"), Code::Ok);
+        assert_eq!(
+            interp.original_byte_command_registrations.borrow().len(),
+            baseline
+        );
     }
 }

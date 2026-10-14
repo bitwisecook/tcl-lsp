@@ -492,6 +492,20 @@ fn original_call_context(
             return Some(site.offset);
         }
     }
+    if binding.has_original_native_source_command() {
+        let held = binding.original_native_source_input_for_name_roles(tokens, registry)?;
+        if input != held && input != &held.for_nested_source() {
+            return None;
+        }
+        let words = binding.original_native_source_words(tokens, held, registry)?;
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = words.source()
+        else {
+            return None;
+        };
+        return Some(advice.site().offset);
+    }
     let original_config = binding.original_lexer_config_for_tokens(tokens)?;
     if original_config.nested().normalized() != config.nested().normalized() {
         return None;
@@ -523,6 +537,52 @@ fn collect_original_expression_calls(
         return Some(());
     }
     let binding = tokens.source_binding.as_ref()?;
+    if binding.has_original_native_source_command() {
+        let held = binding.original_native_source_input_for_name_roles(tokens, registry)?;
+        let input = context.input()?;
+        if input != held && input != &held.for_nested_source() {
+            return None;
+        }
+        let words = binding.original_native_source_words(tokens, held, registry)?;
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = words.source()
+        else {
+            return None;
+        };
+        let (roles, traits) =
+            words.with_source_schema(held.borrowed_context_registry(), |schema| {
+                let facts = schema.facts();
+                if !facts.arg_roles_complete
+                    || words.origins().iter().enumerate().any(|(ordinal, origin)| {
+                        *origin
+                            != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+                    })
+                    || advice
+                        .original_words()
+                        .iter()
+                        .any(|word| word.group().expand)
+                {
+                    return None;
+                }
+                Some((
+                    facts
+                        .arg_roles
+                        .into_iter()
+                        .map(|(ordinal, role)| (facts.argument_offset + usize::from(ordinal), role))
+                        .collect::<Vec<_>>(),
+                    schema.semantics.traits,
+                ))
+            })??;
+        return collect_original_braced_expression_calls(
+            tokens,
+            config,
+            advice.site(),
+            &roles,
+            traits,
+            collected,
+        );
+    }
     let site = match context {
         OriginalLiftedCallContext::Metadata(_) => binding.invocation_site()?,
         OriginalLiftedCallContext::LogicalInput(_) => {
@@ -3132,5 +3192,113 @@ mod readonly_logical_substitution_tests {
                 .is_none()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod native_source_lifted_inventory_owner_tests {
+    use super::*;
+
+    #[test]
+    fn native_source_child_inventory_uses_its_own_full_word_receipt() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "proc p {} {set value TEXT; return $value}\n",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                config,
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        assert_eq!(
+            unit.ir_module.original_native_declaration_body_units.len(),
+            1
+        );
+        let (&id, _) = unit
+            .ir_module
+            .original_native_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let body = &unit.ir_module.body_units.get(&id).unwrap().body;
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let mut count = 0;
+        for site in body.command_binding_sites.iter() {
+            let tokens = site.source_tokens.as_deref().unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.has_original_native_source_command());
+            assert!(binding.original_lexer_config_for_tokens(tokens).is_none());
+            assert!(binding.invocation_site().is_none());
+            assert!(
+                binding
+                    .original_native_source_words(tokens, &input, registry)
+                    .is_some()
+            );
+            let calls = checked_original_lifted_calls_with_metadata_context(
+                tokens, config, registry, metadata,
+            )
+            .expect("genuine readonly Native child syntax inventory");
+            assert!(calls.is_empty());
+            count += 1;
+            let mut changed = tokens.clone();
+            changed.argv_texts[0].push('_');
+            assert!(
+                checked_original_lifted_calls_with_metadata_context(
+                    &changed, config, registry, metadata
+                )
+                .is_none()
+            );
+            assert!(
+                checked_original_lifted_calls_with_metadata_context(
+                    tokens,
+                    config,
+                    &tcl_registry::CommandRegistry::build_default(),
+                    metadata
+                )
+                .is_none()
+            );
+            let mut changed_config = config;
+            changed_config.strict_quoting = !changed_config.strict_quoting;
+            let changed_input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                changed_config,
+            );
+            let changed_metadata =
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry,
+                    &changed_input,
+                )
+                .unwrap();
+            assert!(
+                checked_original_lifted_calls_with_metadata_context(
+                    tokens,
+                    changed_config,
+                    registry,
+                    changed_metadata
+                )
+                .is_none()
+            );
+        }
+        assert_eq!(count, 2);
     }
 }

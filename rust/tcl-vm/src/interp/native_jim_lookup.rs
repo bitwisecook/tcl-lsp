@@ -11,11 +11,33 @@ use std::rc::Weak;
 use tcl_cmd_core::CmdError;
 use tcl_syntax::value::ValueError;
 
+/// Mutable name metadata owns only the original key's allocation, never a
+/// command worker or a native object reference.
+#[derive(Clone, Default)]
+pub(crate) struct OriginalJimCommandName {
+    original: Rc<RefCell<Option<crate::value::NativeObjectLifetimeLease>>>,
+}
+
+impl OriginalJimCommandName {
+    pub(crate) fn is_observed(&self) -> bool {
+        self.original.borrow().is_some()
+    }
+
+    pub(crate) fn original(&self) -> Result<Option<Value>, ValueError> {
+        let original = self.original.borrow();
+        let Some(original) = original.as_ref() else {
+            return Ok(None);
+        };
+        original.value().check_native_header()?;
+        Ok(Some(original.value().clone()))
+    }
+}
+
 pub(super) struct JimCommandNode {
     pub(super) token: u64,
     pub(super) command: RefCell<Command>,
     pub(super) storage_key: RefCell<String>,
-    pub(super) name: RefCell<NameBytes>,
+    pub(super) observed_name: OriginalJimCommandName,
     pub(super) table_key: RefCell<tcl_syntax::naming::NativeJimCommandTableKey>,
     pub(super) published: Cell<bool>,
     pub(super) active: Cell<usize>,
@@ -238,7 +260,7 @@ impl Vm {
             token,
             command: RefCell::new(command.clone()),
             storage_key: RefCell::new(key.to_owned()),
-            name: RefCell::new(NameBytes::from(name)),
+            observed_name: OriginalJimCommandName::default(),
             table_key: RefCell::new(table_key),
             published: Cell::new(true),
             active: Cell::new(0),
@@ -267,7 +289,6 @@ impl Vm {
         {
             *node.command.borrow_mut() = command.clone();
             key.clone_into(&mut node.storage_key.borrow_mut());
-            *node.name.borrow_mut() = self.command_display_key_bytes(key);
             if let Some(table_key) = self.name_world.borrow().jim_command_table_keys.get(key) {
                 node.table_key.borrow_mut().clone_from(table_key);
             }
@@ -338,19 +359,15 @@ impl Vm {
         self.retain_active_jim_command(token)
     }
 
-    pub(crate) fn jim_original_command_reporting_name(
+    pub(crate) fn original_jim_command_name_reference(
         &self,
         original: &Value,
-    ) -> Option<NameBytes> {
-        let token = original.with_jim_command_cache(|cache| cache.token)?;
-        let node = self
-            .name_world
-            .borrow()
-            .jim_command_receipts
-            .get(&token)?
-            .upgrade()?;
-        let name = node.name.borrow().clone();
-        Some(name)
+    ) -> Option<OriginalJimCommandName> {
+        Some(
+            self.selected_original_jim_node(original)?
+                .observed_name
+                .clone(),
+        )
     }
 
     fn cached_original_jim_command(
@@ -458,6 +475,29 @@ impl Vm {
                 self.note_jim_command_publication(token, &command, &key, &bytes);
                 drop(command);
             }
+            let node = self
+                .name_world
+                .borrow()
+                .jim_command_receipts
+                .get(&token)
+                .and_then(Weak::upgrade)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original found Jim command node",
+                ))?;
+            let slot = self
+                .command_slot(&key)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original found Jim command slot",
+                ))?;
+            let observed = {
+                let world = self.name_world.borrow();
+                let original = world.jim_command_original_keys.get(&slot).ok_or(
+                    ValueError::CommandProtocolUnavailable("original found Jim command hash key"),
+                )?;
+                original.original.check_native_header()?;
+                original.original.native_lifetime_lease()
+            };
+            *node.observed_name.original.borrow_mut() = Some(observed);
             let namespace = self
                 .with_jim_namespace_at(current, |original| Ok(original.native_lifetime_lease()))?;
             let epoch = self.name_world.borrow().jim_procedure_epoch;
@@ -843,6 +883,331 @@ mod tests {
     impl crate::NativeCommand for ResultCommand {
         fn invoke(&self, _: &mut Vm, _: &[Value]) -> Completion<Value> {
             ok(Value::int(self.0))
+        }
+    }
+
+    #[test]
+    fn original_publication_header_survives_replacement_without_lookup_references() {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::core(profile);
+        let published = Value::from_native_string_bytes(b"P".as_slice());
+        let key = vm
+            .original_jim_publication_key(
+                &published,
+                tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+            )
+            .unwrap()
+            .unwrap();
+        assert!(key.original.is_same_object(&published));
+        let (_, slot, _) = vm.native_procedure_publication(b"P").unwrap();
+        vm.register_command_in_slot_with_jim_key(
+            slot.clone(),
+            Command::Native(Rc::new(ResultCommand(1))),
+            Some(key),
+        );
+        let refs = published.native_object_reference_count();
+        let head = Value::from_native_string_bytes(b"P".as_slice());
+        vm.native_jim_command_from_original_at(ROOT_NS, &head)
+            .unwrap()
+            .unwrap();
+        assert_eq!(published.native_object_reference_count(), refs);
+        let observed = vm.original_jim_command_name_reference(&head).unwrap();
+        vm.native_jim_command_from_original_at(ROOT_NS, &head)
+            .unwrap()
+            .unwrap();
+        assert_eq!(published.native_object_reference_count(), refs);
+        let replacement = Value::from_native_string_bytes(b"::P".as_slice());
+        let key = vm
+            .original_jim_publication_key(
+                &replacement,
+                tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+            )
+            .unwrap()
+            .unwrap();
+        vm.register_command_in_slot_with_jim_key(
+            slot.clone(),
+            Command::Native(Rc::new(ResultCommand(2))),
+            Some(key),
+        );
+        let world = vm.name_world.borrow();
+        assert!(
+            world.jim_command_original_keys[&slot]
+                .original
+                .is_same_object(&published)
+        );
+        assert_eq!(published.native_object_reference_count(), refs);
+        assert_eq!(replacement.native_object_reference_count(), 1);
+        drop(world);
+        assert!(
+            observed
+                .original()
+                .unwrap()
+                .unwrap()
+                .is_same_object(&published)
+        );
+    }
+
+    #[test]
+    fn original_key_retirement_is_not_reversed_by_a_same_named_publication() {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::core(profile);
+        let published = Value::from_native_string_bytes(b"P".as_slice());
+        let lifetime = published.native_lifetime_lease();
+        let key = vm
+            .original_jim_publication_key(
+                &published,
+                tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+            )
+            .unwrap()
+            .unwrap();
+        let (_, slot, _) = vm.native_procedure_publication(b"P").unwrap();
+        let storage = vm.register_command_in_slot_with_jim_key(
+            slot,
+            Command::Native(Rc::new(ResultCommand(1))),
+            Some(key),
+        );
+        let head = Value::from_native_string_bytes(b"P".as_slice());
+        vm.native_jim_command_from_original_at(ROOT_NS, &head)
+            .unwrap()
+            .unwrap();
+        let observed = vm.original_jim_command_name_reference(&head).unwrap();
+        drop(published);
+        vm.remove_registered_command(&storage);
+        assert!(!lifetime.value().native_object_is_live());
+        assert!(observed.original().is_err());
+        vm.register_written_command("P", Command::Native(Rc::new(ResultCommand(2))))
+            .unwrap();
+        let new_head = Value::from_native_string_bytes(b"P".as_slice());
+        vm.native_jim_command_from_original_at(ROOT_NS, &new_head)
+            .unwrap()
+            .unwrap();
+        assert!(
+            vm.original_jim_command_name_reference(&new_head)
+                .unwrap()
+                .original()
+                .unwrap()
+                .is_some()
+        );
+        assert!(!lifetime.value().native_object_is_live());
+        assert!(observed.original().is_err());
+    }
+
+    #[test]
+    fn host_registration_keys_are_issued_at_actual_jim_selection() {
+        let mut vm = Vm::new();
+        vm.register_command("original-host", Command::Native(Rc::new(ResultCommand(1))));
+        assert!(vm.name_world.borrow().jim_command_original_keys.is_empty());
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        assert!(vm.set_native_engine_profile(profile));
+        let head = Value::from_native_string_bytes(b"original-host".as_slice());
+        vm.native_jim_command_from_original_at(ROOT_NS, &head)
+            .unwrap()
+            .unwrap();
+        let original = vm
+            .original_jim_command_name_reference(&head)
+            .unwrap()
+            .original()
+            .unwrap()
+            .unwrap();
+        assert_eq!(original.string_bytes().as_ref(), b"original-host");
+        let error = Value::from_native_string_bytes(b"error".as_slice());
+        vm.native_jim_command_from_original_at(ROOT_NS, &error)
+            .unwrap()
+            .unwrap();
+        let name = vm
+            .original_jim_command_name_reference(&error)
+            .unwrap()
+            .original()
+            .unwrap()
+            .unwrap();
+        assert_eq!(name.string_bytes().as_ref(), b"error");
+    }
+
+    #[test]
+    fn selected_jim_host_publication_retains_its_original_rooted_cstring() {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::core(profile);
+        vm.register_command(
+            "::original-host",
+            Command::Native(Rc::new(ResultCommand(1))),
+        );
+        let head = Value::from_native_string_bytes(b"original-host".as_slice());
+        vm.native_jim_command_from_original_at(ROOT_NS, &head)
+            .unwrap()
+            .unwrap();
+        let observed = vm
+            .original_jim_command_name_reference(&head)
+            .unwrap()
+            .original()
+            .unwrap()
+            .unwrap();
+        assert_eq!(observed.string_bytes().as_ref(), b"::original-host");
+        let slot = CommandSlot {
+            namespace: ROOT_NS,
+            simple: NameBytes::from(b"original-host"),
+        };
+        assert_eq!(
+            vm.name_world.borrow().jim_command_table_keys
+                [&vm.command_storage_key_at_slot(&slot).unwrap()]
+                .report_bytes(),
+            b"::original-host"
+        );
+        vm.register("::original-builtin", |_, _| ok(Value::empty()));
+        let head = Value::from_native_string_bytes(b"original-builtin".as_slice());
+        vm.native_jim_command_from_original_at(ROOT_NS, &head)
+            .unwrap()
+            .unwrap();
+        let observed = vm
+            .original_jim_command_name_reference(&head)
+            .unwrap()
+            .original()
+            .unwrap()
+            .unwrap();
+        assert_eq!(observed.string_bytes().as_ref(), b"::original-builtin");
+    }
+
+    #[test]
+    fn a_previous_c_namespace_slot_is_not_promoted_to_a_jim_flat_key() {
+        let mut vm = Vm::new();
+        vm.declare_namespace_key("original-ns");
+        let key = vm
+            .register_command(
+                "original-ns::host",
+                Command::Native(Rc::new(ResultCommand(1))),
+            )
+            .into_key()
+            .expect("actual original C publication");
+        let slot = vm.command_slot(&key).unwrap();
+        let token = vm.visible_command_generation(&key).unwrap();
+        assert_ne!(slot.namespace, ROOT_NS);
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        assert!(vm.set_native_engine_profile(profile));
+        assert_eq!(vm.command_slot(&key), Some(slot.clone()));
+        assert_eq!(vm.visible_command_generation(&key), Some(token));
+        assert!(
+            !vm.name_world
+                .borrow()
+                .jim_command_original_keys
+                .contains_key(&slot)
+        );
+        let head = Value::from_native_string_bytes(b"error".as_slice());
+        vm.native_jim_command_from_original_at(ROOT_NS, &head)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            vm.original_jim_command_name_reference(&head)
+                .unwrap()
+                .original()
+                .unwrap()
+                .unwrap()
+                .string_bytes()
+                .as_ref(),
+            b"error"
+        );
+    }
+
+    #[test]
+    fn unavailable_host_publication_is_distinct_from_a_legal_empty_key() {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::core(profile);
+        let key = vm
+            .register_command("", Command::Native(Rc::new(ResultCommand(1))))
+            .into_key()
+            .expect("genuine empty CString publication");
+        let slot = vm.command_slot(&key).unwrap();
+        let token = vm.visible_command_generation(&key).unwrap();
+        assert_eq!(slot.simple.as_bytes(), b"");
+        let _ = vm.retain_name_query_refusal("withdrawn original host publication");
+        assert!(
+            vm.register_command("", Command::Native(Rc::new(ResultCommand(2))))
+                .into_key()
+                .is_none()
+        );
+        assert_eq!(vm.command_slot(&key), Some(slot));
+        assert_eq!(vm.visible_command_generation(&key), Some(token));
+    }
+
+    #[test]
+    fn selected_error_frames_ignore_an_unselected_retired_key() {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::core(profile);
+        let stale = Value::from_native_string_bytes(b"unselected".as_slice());
+        let observed = OriginalJimCommandName::default();
+        *observed.original.borrow_mut() = Some(stale.native_lifetime_lease());
+        drop(stale);
+        assert!(observed.original().is_err());
+        vm.jim_errors
+            .frames
+            .push(super::super::OriginalJimEvaluationFrame {
+                procedure_level: 0,
+                command: Some(observed),
+                is_procedure: false,
+                script: None,
+                invocation: Value::empty(),
+            });
+        vm.jim_errors
+            .frames
+            .push(super::super::OriginalJimEvaluationFrame {
+                procedure_level: 0,
+                command: None,
+                is_procedure: false,
+                script: None,
+                invocation: Value::list(vec![Value::string("error"), Value::string("fail")]),
+            });
+        let frames = vm
+            .materialize_original_jim_error_frames(0, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].procedure.string_bytes().as_ref(), b"");
+        assert_eq!(frames[0].invocation.string_bytes().as_ref(), b"error fail");
+    }
+
+    #[test]
+    fn automatic_error_frames_follow_original_cold_rename_and_selected_key_lifetimes() {
+        struct Output(Rc<RefCell<Vec<u8>>>);
+        impl std::io::Write for Output {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.borrow_mut().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let cases: &[(&str, &[u8])] = &[
+            (
+                "proc P {n} {if {$n} {rename P Q; Q 0; error fail}; return ok}\nset c [catch {P 1} result options]\nputs [list $c $result [dict get $options -errorinfo]]\n",
+                b"1 fail {Q stdin 1 {error fail} {} stdin 2 {P 1}}\n",
+            ),
+            (
+                "proc P {} {rename eval {}; error fail}\nset c [catch {eval {P}} result options]\nputs [list $c $result [dict get $options -errorinfo]]\n",
+                b"1 fail {P stdin 1 {error fail} {} stdin 2 P}\n",
+            ),
+        ];
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        for &(source, expected) in cases {
+            let output = Rc::new(RefCell::new(Vec::new()));
+            let mut vm = crate::native_fixture::interpreter_with_output(
+                profile,
+                Box::new(Output(Rc::clone(&output))),
+            );
+            let completion = vm
+                .try_eval_source_at(
+                    source,
+                    tcl_runtime_api::script_source_location::ScriptSourceLocation {
+                        file: "stdin".into(),
+                        line: 1,
+                    },
+                )
+                .expect("original actual Jim source entry");
+            assert!(
+                completion.code.is_ok(),
+                "{source}: {}",
+                completion.result.to_str()
+            );
+            assert_eq!(output.borrow().as_slice(), expected, "{source}");
+            assert!(vm.refused_completion().is_none(), "{source}");
         }
     }
 

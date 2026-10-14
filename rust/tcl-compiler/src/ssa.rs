@@ -3780,17 +3780,38 @@ pub(crate) fn nested_writes(
     script: &crate::ir::Script,
     registry: &CommandRegistry,
     out: &mut BTreeSet<String>,
-) {
-    use crate::ir_helpers::{
-        defs_from_ir_script, evaluated_command_substitutions, variable_write_effects_from_commands,
-    };
-    out.extend(defs_from_ir_script(script));
-    out.extend(collapsed_extra_defs(script, registry, 0));
-    crate::ir::for_each_statement(script, &mut |inner| {
-        out.extend(defs_of_with_registry(inner, Some(registry)));
-        let embedded = evaluated_command_substitutions(inner, registry);
-        out.extend(variable_write_effects_from_commands(embedded.all_commands(), registry).names);
-    });
+) -> bool {
+    let mut opaque = false;
+    let mut pending = vec![(script, 0_u32)];
+    while let Some((script, depth)) = pending.pop() {
+        if MAX_COLLAPSED_EXTRA_DEFS_DEPTH.exceeded(depth) {
+            opaque = true;
+            continue;
+        }
+        for statement in &script.statements {
+            let structural = crate::ir_helpers::structural_variable_write_projection(statement);
+            opaque |= structural.opaque_variable_frame;
+            out.extend(structural.literal_names);
+            if let Statement::Call { defs, .. } = statement {
+                // Existing callee-summary names remain possible writes, not completed stores.
+                out.extend(defs.iter().cloned());
+            }
+            if let Some(tokens) = script.retained_source_tokens_for_statement(statement) {
+                let names = crate::ir_helpers::original_statement_possible_name_writes(
+                    statement, tokens, registry,
+                );
+                opaque |= names.opaque;
+                out.extend(names.names);
+            } else if statement.is_executable_invocation() && statement.synthetic_marker().is_none()
+            {
+                opaque = true;
+            }
+            for body in statement.child_scripts() {
+                pending.push((body, depth + 1));
+            }
+        }
+    }
+    opaque
 }
 
 // Dominator algorithms
@@ -5863,9 +5884,8 @@ fn reads_in_stmt(
 const MAX_COLLAPSED_EXTRA_DEFS_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
-/// `for`-init/next clause defs and if/while/for condition command-sub defs
-/// (`[regexp … -> v]`) that [`crate::ir_helpers::defs_from_ir_script`] does not
-/// recurse — recovered for the collapsed-body read subtraction only.
+/// Explicit standalone condition/init/next write candidates for collapsed reads.
+/// Source-owned callers use their complete retained statement inventories.
 fn collapsed_extra_defs(
     script: &crate::ir::Script,
     registry: &CommandRegistry,

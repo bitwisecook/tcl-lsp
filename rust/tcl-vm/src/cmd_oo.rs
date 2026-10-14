@@ -1153,7 +1153,12 @@ fn bootstrap(vm: &mut Vm) {
         );
         let namespace_token = native_context::install_object_helpers(vm, &private_namespace);
         vm.oo.objects.get_mut(&root_id).unwrap().namespace_token = Some(namespace_token);
-        let command_key = vm.register_command(root, Command::Object(root_id));
+        let Some(command_key) = vm
+            .register_command(root, Command::Object(root_id))
+            .into_key()
+        else {
+            return;
+        };
         vm.oo
             .command_keys
             .insert(root_id, CommandSidecarKey::visible(command_key));
@@ -1209,7 +1214,12 @@ fn bootstrap(vm: &mut Vm) {
         .get_mut(&configurable_root)
         .unwrap()
         .namespace_token = Some(namespace_token);
-    let command_key = vm.register_command("oo::configurable", Command::Object(configurable_root));
+    let Some(command_key) = vm
+        .register_command("oo::configurable", Command::Object(configurable_root))
+        .into_key()
+    else {
+        return;
+    };
     vm.oo
         .command_keys
         .insert(configurable_root, CommandSidecarKey::visible(command_key));

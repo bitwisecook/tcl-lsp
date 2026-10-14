@@ -174,7 +174,7 @@ pub(crate) struct Frame {
     fixed_math_calls: Option<Rc<HashMap<usize, crate::interp::NativeFixedMathCall>>>,
     literal_pool: crate::literal_pool::NativeLiteralPoolReceipt,
     direct_source_operands: Option<crate::literal_pool::NativeDirectSourceOperands>,
-    jim_evaluation: tcl_runtime_api::jim_error_stack::JimEvaluationFrame<Value>,
+    jim_evaluation: crate::interp::OriginalJimEvaluationFrame,
     source_location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     /// Canonical unrooted namespace whose command bindings this bytecode was
     /// specialised against.
@@ -616,9 +616,9 @@ impl Frame {
         Self {
             jim_script_entry: jim_script,
             jim_script: None,
-            jim_evaluation: tcl_runtime_api::jim_error_stack::JimEvaluationFrame {
+            jim_evaluation: crate::interp::OriginalJimEvaluationFrame {
                 procedure_level: 0,
-                command_name: None,
+                command: None,
                 is_procedure: false,
                 script: Some(tcl_runtime_api::jim_error_stack::JimScriptLocation {
                     file: Value::string(
@@ -8512,14 +8512,10 @@ impl Vm {
         &mut self,
         f: &mut Frame,
         words: &crate::NativeListItems,
-        selected_key: Option<&str>,
         command: Option<&Command>,
     ) {
         if self.uses_jim_error_stack() {
-            f.jim_evaluation.command_name = self
-                .jim_original_command_reporting_name(&words[0])
-                .or_else(|| selected_key.map(|key| self.command_display_key_bytes(key)))
-                .map(|bytes| Value::from_native_string_bytes(bytes.as_bytes()));
+            f.jim_evaluation.command = self.original_jim_command_name_reference(&words[0]);
             f.jim_evaluation.is_procedure = matches!(command, Some(Command::Proc(_)));
             f.jim_evaluation.invocation = if command.is_some() {
                 Value::invocation_list_view(words)
@@ -8604,7 +8600,7 @@ impl Vm {
         let jim_lease = command
             .as_ref()
             .and_then(|_| self.retain_original_jim_command(original, selected_key.as_deref()));
-        self.retain_jim_dispatch(f, words, selected_key.as_deref(), command.as_ref());
+        self.retain_jim_dispatch(f, words, command.as_ref());
         if command.is_some() {
             self.reset_native_jim_result()
                 .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
@@ -9311,9 +9307,9 @@ impl Vm {
             .map(Self::borrow_jim_evaluation_frame);
         self.jim_errors
             .frames
-            .push(tcl_runtime_api::jim_error_stack::JimEvaluationFrame {
+            .push(crate::interp::OriginalJimEvaluationFrame {
                 procedure_level: parent.as_ref().map_or(0, |frame| frame.procedure_level),
-                command_name: None,
+                command: None,
                 is_procedure: false,
                 script: parent.and_then(|frame| frame.script),
                 invocation: Value::empty(),
@@ -9333,7 +9329,7 @@ impl Vm {
             .jim_errors
             .frames
             .get(frame_index)
-            .is_some_and(|frame| frame.command_name.is_some());
+            .is_some_and(|frame| frame.command.is_some());
         if invoked && completion.code == Code::Error && self.execution_refusal.is_none() {
             self.capture_jim_error_stack();
         }
@@ -9358,10 +9354,11 @@ impl Vm {
         }
         let frame_index = vector.frame_index;
         let invocation = Value::invocation_list_view(&vector.words);
+        let name = self.original_jim_command_name_reference(original);
         let Some(frame) = self.jim_errors.frames.get_mut(frame_index) else {
             return;
         };
-        frame.command_name = Some(original.native_lifetime_lease().into_value());
+        frame.command = name;
         frame.is_procedure = matches!(command, Command::Proc(_));
         frame.invocation = invocation;
     }

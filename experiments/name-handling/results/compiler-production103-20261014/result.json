@@ -1,0 +1,320 @@
+{
+  "started_utc": "2026-10-14T14:42:52.434697+00:00",
+  "build": null,
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+    "sha256": "dc6120853bea19bb6d66061fb38aaaca1e5e8d4ed1fa38db04f2ecc44ae7407a",
+    "bytes": 386416248
+  },
+  "selected_tests": [
+    "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+    "ssa::original_analysis_definition_selector_tests::original_analysis_word_geometry_keeps_current_input_vector_and_owner",
+    "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+    "ssa::original_authored_analysis_definition_selector_tests::authored_body_tokens_keep_the_actual_original_header_attachment",
+    "ssa::original_authored_analysis_definition_selector_tests::authored_source_definition_owner_requires_current_module_body_and_standalone_purpose",
+    "ssa::original_authored_analysis_definition_selector_tests::authored_source_definitions_select_exact_represented_versions",
+    "ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner",
+    "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+    "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+    "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 2.6222834270010935,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ssa::original_analysis_definition_selector_tests::original_analysis_word_geometry_keeps_current_input_vector_and_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.5663996530056465,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "ssa::original_analysis_definition_selector_tests::original_analysis_word_geometry_keeps_current_input_vector_and_owner",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.7187908250052715,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ssa::original_authored_analysis_definition_selector_tests::authored_body_tokens_keep_the_actual_original_header_attachment",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.2145775719982339,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "ssa::original_authored_analysis_definition_selector_tests::authored_body_tokens_keep_the_actual_original_header_attachment",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ssa::original_authored_analysis_definition_selector_tests::authored_source_definition_owner_requires_current_module_body_and_standalone_purpose",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.26487489699502476,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "ssa::original_authored_analysis_definition_selector_tests::authored_source_definition_owner_requires_current_module_body_and_standalone_purpose",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ssa::original_authored_analysis_definition_selector_tests::authored_source_definitions_select_exact_represented_versions",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.16443570700357668,
+      "log": "test-06.log",
+      "timed_out": false,
+      "test": "ssa::original_authored_analysis_definition_selector_tests::authored_source_definitions_select_exact_represented_versions",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 3.826057832004153,
+      "log": "test-07.log",
+      "timed_out": false,
+      "test": "ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4683645350014558,
+      "log": "test-08.log",
+      "timed_out": false,
+      "test": "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.6163584229943808,
+      "log": "test-09.log",
+      "timed_out": false,
+      "test": "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.31569601700175554,
+      "log": "test-10.log",
+      "timed_out": false,
+      "test": "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T14:43:06.283814+00:00",
+  "changed_sources": {}
+}

@@ -1,0 +1,23 @@
+
+running 1 test
+test ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions ... SOURCE_SSA function=::top body=None current=true physical=0 readonly=0 point_symbols={(BlockId(1), 18446744073709551615): {}, (BlockId(0), 0): {"value": Symbol(0)}, (BlockId(0), 18446744073709551615): {}}
+SOURCE_SSA point=BlockId(0)/0 synthetic=None evaluates=true word_kinds=[(Span { start: 0, end: 4 }, Discriminant(0)), (Span { start: 5, end: 6 }, Discriminant(0)), (Span { start: 7, end: 9 }, Discriminant(1)), (Span { start: 10, end: 40 }, Discriminant(1))] defs=Some({}) may_defs=Some({}) uses=Some({Symbol(0): 0}) frame=Global policy=false namespace_known=true native_words=false logical_words=false document_words=false written_roles=None source_keys_before=[Some(Authored("::value")), Some(Authored("::same"))] source_keys_after=[None, None]
+SOURCE_SSA point_guards=BlockId(0)/0 source_reads=0 scalar_store=false source_args_unknown=false actual_statement=Some(Discriminant(6)) executable=true opaque=false raw_defs=Some([]) bound_defs=Some([]) invocation_metadata=true current_attachment=true local_roles=None
+SOURCE_SSA function=::p body=Some(ProcedureId { scope: 1, ordinal: 0 }) current=true physical=0 readonly=1 point_symbols={(BlockId(0), 0): {}, (BlockId(0), 18446744073709551615): {"value": Symbol(0)}, (BlockId(1), 18446744073709551615): {}}
+SOURCE_SSA point=BlockId(0)/0 synthetic=None evaluates=true word_kinds=[(Span { start: 11, end: 14 }, Discriminant(0)), (Span { start: 15, end: 20 }, Discriminant(0)), (Span { start: 21, end: 25 }, Discriminant(0))] defs=Some({Symbol(0): 1}) may_defs=Some({}) uses=Some({}) frame=Local policy=false namespace_known=true native_words=false logical_words=false document_words=false written_roles=None source_keys_before=[Some(Authored("value")), Some(Authored("same"))] source_keys_after=[Some(Authored("value")), Some(Authored("same"))]
+SOURCE_SSA point_guards=BlockId(0)/0 source_reads=0 scalar_store=false source_args_unknown=false actual_statement=Some(Discriminant(3)) executable=true opaque=false raw_defs=Some(["value"]) bound_defs=Some([Authored("value")]) invocation_metadata=true current_attachment=true local_roles=None
+SOURCE_SSA point=BlockId(0)/18446744073709551615 synthetic=None evaluates=true word_kinds=[(Span { start: 27, end: 33 }, Discriminant(0)), (Span { start: 34, end: 40 }, Discriminant(2))] defs=None may_defs=None uses=None frame=Local policy=false namespace_known=true native_words=false logical_words=false document_words=false written_roles=None source_keys_before=[Some(Authored("value")), Some(Authored("same"))] source_keys_after=[Some(Authored("value")), Some(Authored("same"))]
+SOURCE_SSA point_guards=BlockId(0)/18446744073709551615 source_reads=0 scalar_store=false source_args_unknown=false actual_statement=None executable=false opaque=false raw_defs=None bound_defs=None invocation_metadata=true current_attachment=true local_roles=None
+
+thread 'ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions' (377606) panicked at rust/tcl-compiler/src/ssa.rs:14035:10:
+genuine readonly source read occurrence
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9829 filtered out; finished in 1.67s
+

@@ -3,5 +3,5 @@
   "cause": "Temporary diagnostic trace exhausted /tmp; runner did not finish or seal. No whole-plan acceptance.",
   "raw_log_bytes": 3546099712,
   "raw_log_sha256": "af9eb0a2340cde487a61dcf49747dca0cdc347c67ddccccac63af4843f2d3e59",
-  "compressed_log": "test-03.log.gz"
+  "compressed_log": "test-03.log.xz"
 }
