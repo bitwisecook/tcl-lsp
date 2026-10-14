@@ -1119,9 +1119,7 @@ impl CompilerTraversal<'_> {
         let original = self.chunk.source.try_text().ok()?;
         let spellings = words
             .iter()
-            .map(|word| {
-                original.get(tcl_lexer::word_span_at(original, word.source().span).as_range())
-            })
+            .map(|word| original.get(word.original_written_span(original)?.as_range()))
             .collect::<Option<Vec<_>>>();
         if let Some(spellings) = spellings
             && let Some((_, arguments)) = spellings.split_first()

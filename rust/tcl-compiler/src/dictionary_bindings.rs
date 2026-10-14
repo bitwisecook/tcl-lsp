@@ -172,6 +172,80 @@ fn selected_dictionary(
     Some(dictionary)
 }
 
+/// Possible source-phase contents changes, without body entry or successful stores.
+pub(crate) struct OriginalDictionaryScopeMayFootprint {
+    pub(crate) clobbers: Vec<Place>,
+}
+
+/// Project selected original mapping names without treating source evidence as entry.
+/// Missing or malformed contents retain possible-name uncertainty; reached entry
+/// still independently returns `Invalid` for those physical inputs.
+pub(crate) fn original_dictionary_scope_may_footprint(
+    state: &ResolveContext,
+    phase: &tcl_registry::dictionary_scope::AuthoredDictionaryScopeSourcePhase,
+    arguments: InvocationArguments<'_>,
+    registry: &CommandRegistry,
+) -> Option<OriginalDictionaryScopeMayFootprint> {
+    let plan = phase.plan();
+    if state.dynamic_bindings
+        || state.dynamic_traces
+        || !state.traced.is_empty()
+        || arguments.dialect() != Some(plan.dialect)
+    {
+        return None;
+    }
+    let name = arguments.literal_at(plan.dictionary_argument)?;
+    let read = resolve_literal_access(
+        name,
+        state,
+        false,
+        registry,
+        tcl_registry::TraceOperation::Read,
+    );
+    if read.dynamic || read.observed || read.kind == PlaceKind::Unknown {
+        return None;
+    }
+    let names = match &plan.bindings {
+        DictionaryScopeBindings::Pairs(indices) => Some(
+            indices
+                .iter()
+                .map(|&(_, name)| arguments.literal_at(name).map(str::to_owned))
+                .collect::<Option<Vec<_>>>()?,
+        ),
+        DictionaryScopeBindings::AllKeys(indices) => {
+            let path = indices
+                .iter()
+                .map(|&index| arguments.literal_at(index).map(str::to_owned))
+                .collect::<Option<Vec<_>>>()?;
+            state
+                .literal_contents_at(&read, registry)
+                .and_then(|value| selected_dictionary(value, &path, plan.dialect))
+                .map(|pairs| pairs.into_iter().map(|(key, _)| key).collect())
+        }
+    };
+    let clobbers = match names {
+        None => vec![crate::place::unknown_top()],
+        Some(names) => names
+            .into_iter()
+            .map(|name| {
+                let target = resolve_literal_access(
+                    &name,
+                    state,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Write,
+                );
+                if target.dynamic || target.observed || target.kind == PlaceKind::Unknown {
+                    crate::place::unknown_top()
+                } else {
+                    target
+                }
+            })
+            .collect(),
+    };
+    Some(OriginalDictionaryScopeMayFootprint { clobbers })
+}
+
 /// Enter an already selected dictionary wrapper on its body-entry continuation.
 /// Literal dictionary bytes establish the original keys; unknown values never
 /// manufacture a dict-with keyset. Stores/unsets resolve in native order and
@@ -680,6 +754,36 @@ mod tests {
         };
         *activation
     }
+    #[test]
+    fn source_may_names_do_not_activate_a_known_missing_dictionary() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for name in ["", "$missing"] {
+            let mut state = ResolveContext::for_function("::p");
+            let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+            state.invocation_dialect = Some(dialect);
+            let words = ["with", name, ""];
+            let selected = registry.resolve_structured_invocation(
+                tcl_registry::InvocationWords::literals("dict", &words).with_dialect(dialect),
+                None,
+            );
+            let schema = selected.resolved().unwrap();
+            let phase = schema.authored_dictionary_scope_source_phase().unwrap();
+            let arguments = InvocationArguments::literals(&words).with_dialect(dialect);
+            let before = state.clone();
+            let footprint =
+                original_dictionary_scope_may_footprint(&state, &phase, arguments, registry)
+                    .unwrap();
+            assert_eq!(footprint.clobbers, vec![crate::place::unknown_top()]);
+            assert_eq!(state, before);
+            assert!(matches!(
+                enter_dictionary_scope(&mut state, phase.plan(), arguments, registry, 10),
+                DictionaryScopeEntry::Invalid
+            ));
+            assert_eq!(state, before);
+            assert!(state.dictionary_scopes.is_empty());
+        }
+    }
+
     #[test]
     fn update_entry_and_live_writeback_share_physical_binding_owner() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();

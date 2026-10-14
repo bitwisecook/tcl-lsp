@@ -1,0 +1,11 @@
+{
+  "provider": "C9.1.0",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/tmp/name-dictionary-source-may-20261014/oracles-isolated/known-missing.tcl"
+  ],
+  "exit_code": 0,
+  "input_drift": [],
+  "original_release_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+  "scope": "Original script, interpreter, adjacent Tcl library and original release library only. No tcltest, complete loader closure, hosted F5, compiler, Native or Normal admission."
+}

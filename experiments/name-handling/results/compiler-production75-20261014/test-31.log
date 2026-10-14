@@ -1,0 +1,15 @@
+
+running 1 test
+test lowering::original_body_word_geometry_tests::original_jim_body_source_point_remains_without_a_proved_execution_target ... 
+thread 'lowering::original_body_word_geometry_tests::original_jim_body_source_point_remains_without_a_proved_execution_target' (328910) panicked at rust/tcl-compiler/src/lowering/original_body_word_geometry_tests.rs:495:5:
+assertion failed: binding.proved_execution_target().is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    lowering::original_body_word_geometry_tests::original_jim_body_source_point_remains_without_a_proved_execution_target
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.25s
+

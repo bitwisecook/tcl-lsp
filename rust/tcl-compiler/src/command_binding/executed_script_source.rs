@@ -223,7 +223,7 @@ pub(super) fn source_text(origin: &SourceOriginId) -> Option<&str> {
 }
 
 fn literal_body_base(source: &str, word: &WordExpr, value: &str) -> Option<u32> {
-    let span = tcl_lexer::word_span_at(source, word.source().span);
+    let span = word.original_written_span(source)?;
     let raw = source.get(span.as_range())?;
     if raw == value {
         return Some(span.start());

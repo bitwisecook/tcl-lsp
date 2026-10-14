@@ -51,23 +51,41 @@ pub(crate) fn collect_known_name_inventory<I: IntoIterator<Item = String>>(
         names: params.into_iter().collect(),
         unknown_residual: false,
     };
-    visit(body, &mut inventory);
+    visit(body, &mut inventory, None);
     inventory
 }
 
-fn visit(body: &Script, inventory: &mut KnownNameInventory) {
+pub(crate) fn collect_known_name_inventory_with_registry<I: IntoIterator<Item = String>>(
+    params: I,
+    body: &Script,
+    registry: &tcl_registry::CommandRegistry,
+) -> KnownNameInventory {
+    let mut inventory = KnownNameInventory {
+        names: params.into_iter().collect(),
+        unknown_residual: false,
+    };
+    visit(body, &mut inventory, Some(registry));
+    inventory
+}
+
+fn visit(
+    body: &Script,
+    inventory: &mut KnownNameInventory,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) {
     for statement in &body.statements {
         if let Some(tokens) = body.retained_source_tokens_for_statement(statement)
-            && let Some(registry) = tokens
-                .source_binding
-                .as_ref()
-                .and_then(|binding| binding.retained_registry_for_tokens(tokens))
+            && let Some(registry) = registry.or_else(|| {
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.retained_registry_for_tokens(tokens))
+            })
             && let Some(source) =
-                crate::registry_invocation::original_authored_source_structure(tokens, registry)
+                crate::registry_invocation::original_source_name_roles(registry, tokens)
         {
             inventory.unknown_residual |= source.has_unknown_residual();
-            for &(index, role) in &source.facts().arg_roles {
-                let argument = source.facts().argument_offset + usize::from(index);
+            for &(argument, role) in source.roles() {
                 let relevant = matches!(
                     role,
                     tcl_registry::ArgRole::VarRead
@@ -99,7 +117,7 @@ fn visit(body: &Script, inventory: &mut KnownNameInventory) {
                 }
             }
         }
-        visit_one(statement, inventory);
+        visit_one(statement, inventory, registry);
     }
 }
 
@@ -107,7 +125,11 @@ fn insert_name(names: &mut HashSet<String>, name: &str) {
     names.insert(name.to_owned());
 }
 
-fn visit_one(stmt: &Statement, inventory: &mut KnownNameInventory) {
+fn visit_one(
+    stmt: &Statement,
+    inventory: &mut KnownNameInventory,
+    registry: Option<&tcl_registry::CommandRegistry>,
+) {
     let names = &mut inventory.names;
     match stmt {
         Statement::AssignConst { name, .. }
@@ -145,7 +167,7 @@ fn visit_one(stmt: &Statement, inventory: &mut KnownNameInventory) {
         _ => {}
     }
     for child in stmt.child_scripts() {
-        visit(child, inventory);
+        visit(child, inventory, registry);
     }
 }
 

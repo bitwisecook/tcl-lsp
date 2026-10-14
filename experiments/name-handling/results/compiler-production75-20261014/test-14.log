@@ -1,0 +1,15 @@
+
+running 1 test
+test body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits ... 
+thread 'body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits' (328833) panicked at rust/tcl-compiler/src/body_analysis_capsule.rs:1075:9:
+assertion failed: a.has_closed_analysis_correspondence()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.59s
+

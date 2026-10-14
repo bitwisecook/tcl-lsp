@@ -1,0 +1,17 @@
+
+running 1 test
+test analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion ... 
+thread 'analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion' (328629) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13395:9:
+assertion `left == right` failed: tcl8.4/[Diagnostic { subject: None, code: W210, span: Span { start: 160, end: 167 }, message: "Variable 'absent' may be read before it is set in the declared local frame", severity: Warning, fixes: [] }]
+  left: 1
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 5.56s
+

@@ -38,15 +38,15 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Statement};
 use crate::ssa::{SsaBlock, SsaFunction, SsaStatement, Version};
 use crate::var_escape::cfg_propagation::handlers::{
-    handle_dynamic_name_first, handle_introspection, handle_normal_variable_aliases,
+    handle_dynamic_name_first, handle_normal_variable_aliases, handle_source_introspection,
 };
 use crate::var_escape::cfg_propagation::known_names::collect_known_names_from_cfg;
 use crate::var_escape::cfg_propagation::state::{CfgEscapeResult, CfgState};
 use crate::var_escape::handlers::has_expand_word;
 use crate::var_escape::helpers::{
-    invocation_facts, invocation_facts_from_tokens, invocation_from_tokens, is_dynamic_name,
-    is_dynamic_token, normal_handler_is_frameless, original_substitution_invocations,
-    retained_registry_for_cfg, statement_needs_original_substitution_inventory,
+    invocation_facts, invocation_facts_from_tokens, is_dynamic_name, is_dynamic_token,
+    normal_handler_is_frameless, original_substitution_invocations, retained_registry_for_cfg,
+    statement_needs_original_substitution_inventory,
 };
 
 fn apply_original_substitution_scan(
@@ -68,7 +68,7 @@ fn apply_original_substitution_scan(
             state.record_fallback();
         }
         if let Some(invocation) = call.invocation {
-            handle_introspection(&invocation, state, defs);
+            handle_source_introspection(&invocation, state, defs);
         } else {
             state.mark_pessimistic();
         }
@@ -94,6 +94,9 @@ fn handle_call(
     };
     let cmd = command.as_str();
     let facts = invocation_facts(stmt, registry);
+    let source_names = tokens.as_ref().and_then(|tokens| {
+        crate::registry_invocation::original_source_name_roles(registry, tokens)
+    });
 
     if !normal_handler_is_frameless(stmt, registry) {
         if cmd.is_empty() || is_dynamic_token(cmd) {
@@ -126,13 +129,10 @@ fn handle_call(
     }) {
         handle_normal_variable_aliases(&normal, state, defs);
     }
+    if let Some(source) = &source_names {
+        handle_source_introspection(source, state, defs);
+    }
     if let Some(facts) = facts.as_deref() {
-        if let Some(invocation) = tokens
-            .as_ref()
-            .and_then(|tokens| invocation_from_tokens(tokens, registry))
-        {
-            handle_introspection(&invocation, state, defs);
-        }
         if facts
             .traits
             .contains(tcl_registry::prelude::Traits::FIRST_ARG_VARNAME)

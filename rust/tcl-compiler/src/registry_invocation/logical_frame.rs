@@ -225,8 +225,9 @@ pub(crate) fn original_logical_body_geometry_for_module(
         .source_script_bodies(input.borrowed_context_registry())
         .into_iter()
         .filter(|body| {
-            body.original_container().span()
-                == tcl_lexer::word_span_at(module.source.bytes(), original.source().span)
+            original
+                .original_written_span(module.source.bytes())
+                .is_some_and(|span| span == body.original_container().span())
                 && body.matches_source(&module.source, input.lexer_config())
                 && body.matches_context(input.borrowed_context_registry())
         });

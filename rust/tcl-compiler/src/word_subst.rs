@@ -153,6 +153,38 @@ pub(crate) fn checked_original_argument_lifted_calls(
     Some(calls)
 }
 
+#[derive(Clone, Copy)]
+enum OriginalLiftedCallContext<'a> {
+    Metadata(crate::registry_invocation::InvocationMetadataContext<'a>),
+    LogicalInput(&'a crate::analyser::ResolvedAnalysisInput),
+}
+
+impl<'a> OriginalLiftedCallContext<'a> {
+    fn input(self) -> Option<&'a crate::analyser::ResolvedAnalysisInput> {
+        match self {
+            Self::Metadata(metadata) => metadata.source_analysis_input(),
+            Self::LogicalInput(input) => Some(input),
+        }
+    }
+}
+
+/// Lexical and Expr substitutions under the actual readonly Logical word owner.
+/// A supplied stronger owner or unavailable child stays a terminal refusal.
+pub(crate) fn checked_original_lifted_calls_with_logical_source_input(
+    tokens: &CommandTokens,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> Option<Vec<LiftedCall>> {
+    input.has_logical_source_name_context().then_some(())?;
+    checked_original_source_lifted_calls(
+        tokens,
+        config,
+        registry,
+        OriginalLiftedCallContext::LogicalInput(input),
+    )
+}
+
 /// Complete original nested-call geometry under the retained source input.
 /// Selected expression roles extend lexical substitutions; every child keeps
 /// its original sidecar. Missing source/config/roles or incomplete recovery
@@ -163,6 +195,20 @@ pub(crate) fn checked_original_lifted_calls_with_metadata_context(
     registry: &tcl_registry::CommandRegistry,
     metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
 ) -> Option<Vec<LiftedCall>> {
+    checked_original_source_lifted_calls(
+        tokens,
+        config,
+        registry,
+        OriginalLiftedCallContext::Metadata(metadata),
+    )
+}
+
+fn checked_original_source_lifted_calls(
+    tokens: &CommandTokens,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+    context: OriginalLiftedCallContext<'_>,
+) -> Option<Vec<LiftedCall>> {
     let mut pending = vec![(tokens.clone(), 0)];
     let mut seen = std::collections::HashSet::new();
     let mut calls: Vec<LiftedCall> = Vec::new();
@@ -170,13 +216,13 @@ pub(crate) fn checked_original_lifted_calls_with_metadata_context(
         if depth > MAX_SUBSTITUTION_DEPTH {
             return None;
         }
-        let offset = original_call_context(&parent, config, registry, metadata)?;
+        let offset = original_call_context(&parent, config, registry, context)?;
         if !seen.insert(offset) {
             continue;
         }
         let mut collected = LiftedCallCollection::default();
         collect_command_words(&parent.word_exprs, config, None, 0, &mut collected);
-        collect_original_expression_calls(&parent, config, registry, metadata, &mut collected)?;
+        collect_original_expression_calls(&parent, config, registry, context, &mut collected)?;
         if collected.incomplete {
             return None;
         }
@@ -202,16 +248,34 @@ fn original_call_context(
     tokens: &CommandTokens,
     config: tcl_lexer::LexerConfig,
     registry: &tcl_registry::CommandRegistry,
-    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    context: OriginalLiftedCallContext<'_>,
 ) -> Option<u32> {
-    let input = metadata.source_analysis_input()?;
-    if !metadata.matches_registry(registry)
-        || config.nested().normalized() != input.lexer_config().nested().normalized()
+    let input = context.input()?;
+    if config.nested().normalized() != input.lexer_config().nested().normalized()
         || tokens.synthetic.is_some()
     {
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
+    match context {
+        OriginalLiftedCallContext::Metadata(metadata) => {
+            metadata.matches_registry(registry).then_some(())?;
+        }
+        OriginalLiftedCallContext::LogicalInput(input) => {
+            if binding.original_logical_source_input_for_name_roles(tokens, registry) != Some(input)
+            {
+                return None;
+            }
+            let site = binding.original_logical_source_site_for_name_roles(tokens, registry)?;
+            crate::registry_invocation::original_native_compiler_words(
+                site.source.source_image(),
+                tokens.words(),
+                site.offset,
+                input.lexer_config(),
+            )?;
+            return Some(site.offset);
+        }
+    }
     let original_config = binding.original_lexer_config_for_tokens(tokens)?;
     if original_config.nested().normalized() != config.nested().normalized() {
         return None;
@@ -230,7 +294,7 @@ fn collect_original_expression_calls(
     tokens: &CommandTokens,
     config: tcl_lexer::LexerConfig,
     registry: &tcl_registry::CommandRegistry,
-    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    context: OriginalLiftedCallContext<'_>,
     collected: &mut LiftedCallCollection,
 ) -> Option<()> {
     let has_braced_commands = tokens
@@ -242,7 +306,14 @@ fn collect_original_expression_calls(
     if !has_braced_commands {
         return Some(());
     }
-    if let Some(input) = metadata.source_analysis_input()
+    let binding = tokens.source_binding.as_ref()?;
+    let site = match context {
+        OriginalLiftedCallContext::Metadata(_) => binding.invocation_site()?,
+        OriginalLiftedCallContext::LogicalInput(_) => {
+            binding.original_logical_source_site_for_name_roles(tokens, registry)?
+        }
+    };
+    if let Some(input) = context.input()
         && let Some(words) = tokens
             .source_binding
             .as_ref()?
@@ -276,8 +347,13 @@ fn collect_original_expression_calls(
                 }
                 Some((words.written_argument_roles(), schema.semantics.traits))
             })??;
-        return collect_original_braced_expression_calls(tokens, config, &roles, traits, collected);
+        return collect_original_braced_expression_calls(
+            tokens, config, site, &roles, traits, collected,
+        );
     }
+    let OriginalLiftedCallContext::Metadata(metadata) = context else {
+        return None;
+    };
     let logical_source = tokens
         .source_binding
         .as_ref()?
@@ -371,12 +447,13 @@ fn collect_original_expression_calls(
         }
         return (!has_braced_commands).then_some(());
     };
-    collect_original_braced_expression_calls(tokens, config, &roles, traits, collected)
+    collect_original_braced_expression_calls(tokens, config, site, &roles, traits, collected)
 }
 
 fn collect_original_braced_expression_calls(
     tokens: &CommandTokens,
     config: tcl_lexer::LexerConfig,
+    site: &crate::command_binding::CommandAllocationSite,
     roles: &[(usize, tcl_registry::ArgRole)],
     traits: tcl_registry::Traits,
     collected: &mut LiftedCallCollection,
@@ -389,7 +466,6 @@ fn collect_original_braced_expression_calls(
     if concatenated && has_braced_commands && tokens.words().len() != 2 {
         return None;
     }
-    let site = tokens.source_binding.as_ref()?.invocation_site()?;
     for (ordinal, word) in tokens.words().iter().skip(1).enumerate() {
         if !concatenated && !roles.contains(&(ordinal, tcl_registry::ArgRole::Expr)) {
             continue;
@@ -2590,5 +2666,107 @@ mod tests {
             )
             .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod readonly_logical_substitution_tests {
+    use super::*;
+
+    #[test]
+    fn readonly_logical_input_inventory_keeps_real_expr_and_lexical_children() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        for (body, expected) in [
+            ("set value [info exists target]", 1),
+            ("expr {[info exists target]}", 1),
+            ("set value {[info exists target]}", 0),
+        ] {
+            let source = format!("proc caller {{}} {{{body}}}");
+            let module = crate::lowering::lower_to_ir_with(
+                crate::lowering::Lowerer::with_config(registry, config)
+                    .with_resolved_analysis_input(input.clone()),
+                &source,
+            );
+            let (_, procedure) = module.original_source_procedure_bodies().next().unwrap();
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(&procedure.body.statements[0])
+                .unwrap();
+            let calls = checked_original_lifted_calls_with_logical_source_input(
+                tokens, config, registry, &input,
+            )
+            .expect("actual readonly Logical inventory");
+            assert_eq!(calls.len(), expected, "{body}");
+            let mut changed = tokens.clone();
+            changed.source_binding = None;
+            assert!(
+                checked_original_lifted_calls_with_logical_source_input(
+                    &changed, config, registry, &input
+                )
+                .is_none()
+            );
+            let mut wrong_config = config;
+            wrong_config.strict_quoting = !config.strict_quoting;
+            assert!(
+                checked_original_lifted_calls_with_logical_source_input(
+                    tokens,
+                    wrong_config,
+                    registry,
+                    &input
+                )
+                .is_none()
+            );
+            if expected != 0 {
+                let mut missing = tokens.clone();
+                missing.nested_bindings.clear();
+                assert!(
+                    checked_original_lifted_calls_with_logical_source_input(
+                        &missing, config, registry, &input
+                    )
+                    .is_none()
+                );
+            }
+            let wrong_profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+            let wrong_input = crate::analyser::ResolvedAnalysisInput::new(
+                wrong_profile,
+                wrong_profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            assert!(
+                checked_original_lifted_calls_with_logical_source_input(
+                    tokens,
+                    config,
+                    registry,
+                    &wrong_input
+                )
+                .is_none()
+            );
+            let top = module
+                .top_level
+                .retained_source_tokens_for_statement(&module.top_level.statements[0])
+                .unwrap();
+            assert!(
+                top.source_binding
+                    .as_ref()
+                    .unwrap()
+                    .has_original_source_layout_owner()
+            );
+            assert!(
+                checked_original_lifted_calls_with_logical_source_input(
+                    top, config, registry, &input
+                )
+                .is_none()
+            );
+        }
     }
 }

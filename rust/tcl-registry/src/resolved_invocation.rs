@@ -10448,6 +10448,13 @@ mod logical_source_alias_projection_tests {
         let mut schema = selected.resolved().unwrap();
         assert!(schema.facts().effects.callback().kinds.is_unknown());
         let phase = schema.authored_dictionary_scope_source_phase().unwrap();
+        assert!(
+            phase
+                .additional_effects()
+                .accesses()
+                .iter()
+                .all(|access| access.mode == crate::world_effect::EffectAccessMode::Read)
+        );
         assert_eq!(phase.plan().dictionary_argument, 1);
         assert_eq!(phase.plan().body_argument, 2);
         assert_eq!(
@@ -10466,6 +10473,13 @@ mod logical_source_alias_projection_tests {
         });
         let expanded = schema.authored_dictionary_scope_source_phase().unwrap();
         assert!(expanded.effects().callback().kinds.is_unknown());
+        assert!(
+            expanded
+                .additional_effects()
+                .accesses()
+                .iter()
+                .any(|access| access.mode != crate::world_effect::EffectAccessMode::Read)
+        );
         schema.semantics.body_execution = None;
         assert!(schema.authored_dictionary_scope_source_phase().is_none());
     }

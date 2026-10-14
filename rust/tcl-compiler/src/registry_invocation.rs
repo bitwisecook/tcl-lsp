@@ -37,6 +37,8 @@ pub(crate) use original_procedure_call::{
 mod authored_source_bodies;
 pub use authored_source_bodies::OriginalAuthoredProcedureBody;
 pub(crate) use authored_source_bodies::original_authored_procedure_body;
+mod source_name_roles;
+pub(crate) use source_name_roles::{SourceNameRoleInventory, original_source_name_roles};
 mod authored_source_structure;
 pub(crate) use authored_source_structure::{
     AuthoredSourceStructuredInvocation, original_authored_source_structure,
@@ -4737,8 +4739,8 @@ pub fn native_compiler_replay_source(
         return None;
     }
     let text = site.source.try_text().ok()?;
-    let first = tcl_lexer::word_span_at(text, tokens.words().first()?.source().span);
-    let last = tcl_lexer::word_span_at(text, tokens.words().last()?.source().span);
+    let first = tokens.words().first()?.original_written_span(text)?;
+    let last = tokens.words().last()?.original_written_span(text)?;
     if first.start() != site.offset || first.start() > last.end() {
         return None;
     }

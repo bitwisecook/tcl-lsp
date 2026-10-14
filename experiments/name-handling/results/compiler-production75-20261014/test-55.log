@@ -1,0 +1,19 @@
+
+running 1 test
+test taint_interproc::consumed_source_dependency_tests::native_consumed_source_heads_do_not_read_unrelated_procedure_summaries ... 
+thread 'taint_interproc::consumed_source_dependency_tests::native_consumed_source_heads_do_not_read_unrelated_procedure_summaries' (329032) panicked at rust/tcl-compiler/src/taint_interproc.rs:2254:13:
+assertion failed: function.cfg.blocks.values().flat_map(|block|
+            &block.statements).all(|statement|
+        !matches!(statement, crate::ir::Statement::Call { .. } |
+                crate::ir::Statement::Barrier { .. } |
+                crate::ir::Statement::NativeCall { .. }))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint_interproc::consumed_source_dependency_tests::native_consumed_source_heads_do_not_read_unrelated_procedure_summaries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.36s
+

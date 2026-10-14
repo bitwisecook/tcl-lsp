@@ -548,36 +548,15 @@ fn empty_dictionary_scope_continuation(
     let input = state.logical_source_name_advice_input()?;
     let arguments = tcl_registry::InvocationArguments::structured(&arguments)
         .with_dialect(super::source_analysis_entry::source_input_dialect(input));
-    let mut candidate = state.source_variables.as_ref().clone();
-    let crate::dictionary_bindings::DictionaryScopeEntry::Entered(activation) =
-        crate::dictionary_bindings::enter_dictionary_scope(
-            &mut candidate,
-            phase.plan(),
-            arguments,
-            context.registry,
-            offset,
-        )
-    else {
-        return None;
-    };
-    if candidate.dynamic_bindings || candidate.dynamic_traces {
-        return None;
-    }
-    let effects = activation.entry_effects;
-    for place in effects.writes.iter().chain(&effects.destructions) {
-        if place.dynamic || place.observed || !logical_cell_is_local(place, state, context) {
-            return None;
-        }
-    }
-    // The entry's strong values and writeback completion never enter this model.
+    let footprint = crate::dictionary_bindings::original_dictionary_scope_may_footprint(
+        &state.source_variables,
+        phase,
+        arguments,
+        context.registry,
+    )?;
+    // Possible source writes only withdraw contents; no reached scope is installed.
     let variables = Arc::make_mut(&mut state.source_variables);
-    for place in effects
-        .writes
-        .iter()
-        .chain(&effects.destructions)
-        .chain(&effects.clobbers)
-        .chain(std::iter::once(&write))
-    {
+    for place in footprint.clobbers.iter().chain(std::iter::once(&write)) {
         variables.record_contents_write(place, offset, true);
     }
     Some(())

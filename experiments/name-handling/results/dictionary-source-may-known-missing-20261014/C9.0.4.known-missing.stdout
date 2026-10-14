@@ -1,0 +1,5 @@
+version 9.0.4 dict_available 1
+name {} body {} code 1 message {can't read "": no such variable} body_ran 0 exists 0
+name {} body {set ::body_ran 1} code 1 message {can't read "": no such variable} body_ran 0 exists 0
+name {$missing} body {} code 1 message {can't read "$missing": no such variable} body_ran 0 exists 0
+name {$missing} body {set ::body_ran 1} code 1 message {can't read "$missing": no such variable} body_ran 0 exists 0

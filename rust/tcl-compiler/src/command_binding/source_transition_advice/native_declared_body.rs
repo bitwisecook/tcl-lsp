@@ -479,6 +479,19 @@ impl crate::command_binding::SourceInvocationBinding {
                 .get(&body)
                 .is_some_and(|card| card.owns_source_declaration(&command.owner.declaration))
     }
+    /// Original held source grammar only; no external current Module is selected.
+    pub(crate) fn original_native_source_input_for_name_roles(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&crate::analyser::ResolvedAnalysisInput> {
+        if tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
+        let command = self.original_native_source_command.as_ref()?;
+        command.words(tokens, &command.owner.input, registry)?;
+        Some(&command.owner.input)
+    }
     pub(crate) fn original_native_source_words(
         &self,
         tokens: &crate::ir::CommandTokens,

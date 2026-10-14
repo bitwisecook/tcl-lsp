@@ -1322,6 +1322,37 @@ impl SourceInvocationBinding {
         }
     }
 
+    pub(crate) fn has_original_logical_source_name_role_owner(&self) -> bool {
+        self.original_logical_source_advice.is_some()
+    }
+
+    /// Actual readonly Logical input for name-role metadata, without a point grant.
+    /// A stronger retained source layout keeps its terminal owner route.
+    pub(crate) fn original_logical_source_input_for_name_roles(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&crate::analyser::ResolvedAnalysisInput> {
+        if self.has_original_source_layout_owner() {
+            return None;
+        }
+        let input = self
+            .original_logical_source_advice
+            .as_deref()?
+            .logical_source_input()?;
+        self.original_logical_source_words(tokens, input, registry)?;
+        Some(input)
+    }
+
+    pub(crate) fn original_logical_source_site_for_name_roles(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&CommandAllocationSite> {
+        self.original_logical_source_input_for_name_roles(tokens, registry)?;
+        Some(self.original_logical_source_advice.as_deref()?.site())
+    }
+
     pub(crate) fn original_logical_source_words(
         &self,
         tokens: &crate::ir::CommandTokens,

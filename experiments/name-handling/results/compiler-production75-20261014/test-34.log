@@ -1,0 +1,16 @@
+
+running 1 test
+test registry_invocation::authored_source_bodies::tests::authored_declaration_cards_retain_actual_source_bodies_without_publication ... 
+thread 'registry_invocation::authored_source_bodies::tests::authored_declaration_cards_retain_actual_source_bodies_without_publication' (328916) panicked at rust/tcl-compiler/src/registry_invocation/authored_source_bodies.rs:198:9:
+assertion failed: super::super::normal_representation_invocation_with_metadata_context(&registry,
+        None, &card.header).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::authored_source_bodies::tests::authored_declaration_cards_retain_actual_source_bodies_without_publication
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.09s
+

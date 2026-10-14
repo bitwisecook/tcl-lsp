@@ -1,0 +1,16 @@
+
+running 1 test
+test word_subst::tests::original_nested_call_inventory_withdraws_changed_geometry_and_missing_sidecars ... 
+thread 'word_subst::tests::original_nested_call_inventory_withdraws_changed_geometry_and_missing_sidecars' (329099) panicked at rust/tcl-compiler/src/word_subst.rs:1771:9:
+assertion failed: checked_original_lifted_calls_with_metadata_context(&tokens, config, registry,
+        metadata).is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    word_subst::tests::original_nested_call_inventory_withdraws_changed_geometry_and_missing_sidecars
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.12s
+

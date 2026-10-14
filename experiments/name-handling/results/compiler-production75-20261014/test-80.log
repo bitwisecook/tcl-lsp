@@ -1,0 +1,16 @@
+
+running 1 test
+test word_subst::tests::original_braced_expression_inventory_still_requires_actual_selected_roles ... 
+thread 'word_subst::tests::original_braced_expression_inventory_still_requires_actual_selected_roles' (329087) panicked at rust/tcl-compiler/src/word_subst.rs:2560:9:
+assertion failed: checked_original_lifted_calls_with_metadata_context(&unknown, config,
+        registry, metadata).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    word_subst::tests::original_braced_expression_inventory_still_requires_actual_selected_roles
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.11s
+

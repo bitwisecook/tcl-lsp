@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::walker::tests::uplevel_zero_walks_body_like_eval ... 
+thread 'var_escape::walker::tests::uplevel_zero_walks_body_like_eval' (329045) panicked at rust/tcl-compiler/src/var_escape/walker.rs:947:9:
+uplevel 0 body must escape the current-frame local `x`
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::walker::tests::uplevel_zero_walks_body_like_eval
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.12s
+

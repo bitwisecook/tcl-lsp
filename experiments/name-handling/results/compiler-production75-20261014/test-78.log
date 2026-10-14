@@ -1,0 +1,15 @@
+
+running 1 test
+test word_subst::tests::jim_does_not_evaluate_a_rejected_variadic_expression_word ... 
+thread 'word_subst::tests::jim_does_not_evaluate_a_rejected_variadic_expression_word' (329083) panicked at rust/tcl-compiler/src/word_subst.rs:2051:37:
+proc lowered
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    word_subst::tests::jim_does_not_evaluate_a_rejected_variadic_expression_word
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.35s
+

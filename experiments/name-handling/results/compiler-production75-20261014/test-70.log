@@ -1,0 +1,17 @@
+
+running 1 test
+test word_subst::tests::actual_entry_grammar_precedes_assistance_during_lowering_and_nested_lifting ... 
+thread 'word_subst::tests::actual_entry_grammar_precedes_assistance_during_lowering_and_nested_lifting' (329067) panicked at rust/tcl-compiler/src/word_subst.rs:1933:9:
+assertion `left == right` failed
+  left: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }
+ right: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Jim, word_separators: Jim, quote_termination: Concatenating, var_syntax: Jim, brace_backslash_newline: Literal, list_parse: Lenient }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    word_subst::tests::actual_entry_grammar_precedes_assistance_during_lowering_and_nested_lifting
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.04s
+

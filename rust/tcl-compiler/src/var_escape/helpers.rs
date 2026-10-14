@@ -195,7 +195,7 @@ pub(crate) fn normal_handler_is_frameless(
 /// Whole original substitutions, including the selected expression roles.
 /// An unavailable or incomplete source inventory cannot establish frame safety.
 pub(crate) struct OriginalSubstitutionInvocation {
-    pub(crate) invocation: Option<ResolvedStatementInvocation>,
+    pub(crate) invocation: Option<crate::registry_invocation::SourceNameRoleInventory>,
     pub(crate) frameless: bool,
 }
 
@@ -204,58 +204,66 @@ pub(crate) fn original_substitution_invocations(
     registry: &CommandRegistry,
 ) -> Option<Vec<OriginalSubstitutionInvocation>> {
     let binding = tokens.source_binding.as_ref()?;
-    let metadata = binding
-        .original_source_metadata_for_advice(tokens, registry)
-        .ok()?;
-    let config = binding.original_lexer_config_for_tokens(tokens)?;
-    let site = binding.invocation_site()?;
-    crate::registry_invocation::original_native_compiler_words(
-        site.source.source_image(),
-        tokens.words(),
-        site.offset,
-        config,
-    )?;
-    let calls = if let Some(metadata) =
-        metadata.filter(|metadata| metadata.source_analysis_input().is_some())
-    {
-        crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-            tokens, config, registry, metadata,
+    let readonly = binding.original_logical_source_input_for_name_roles(tokens, registry);
+    let calls = if let Some(input) = readonly {
+        crate::word_subst::checked_original_lifted_calls_with_logical_source_input(
+            tokens,
+            input.lexer_config(),
+            registry,
+            input,
         )?
     } else {
-        let calls = crate::word_subst::checked_argument_lifted_calls(tokens, config)?;
-        for parent in
-            std::iter::once(tokens).chain(calls.iter().filter_map(|call| call.tokens.as_ref()))
+        let metadata = binding
+            .original_source_metadata_for_advice(tokens, registry)
+            .ok()?;
+        let config = binding.original_lexer_config_for_tokens(tokens)?;
+        let site = binding.invocation_site()?;
+        crate::registry_invocation::original_native_compiler_words(
+            site.source.source_image(),
+            tokens.words(),
+            site.offset,
+            config,
+        )?;
+        let calls = if let Some(metadata) =
+            metadata.filter(|metadata| metadata.source_analysis_input().is_some())
         {
-            let invocation = invocation_from_tokens(parent, registry)?;
-            if invocation
-                .facts
-                .arg_roles
-                .iter()
-                .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                tokens, config, registry, metadata,
+            )?
+        } else {
+            let calls = crate::word_subst::checked_argument_lifted_calls(tokens, config)?;
+            for parent in
+                std::iter::once(tokens).chain(calls.iter().filter_map(|call| call.tokens.as_ref()))
             {
-                return None;
+                let invocation =
+                    crate::registry_invocation::original_source_name_roles(registry, parent)?;
+                if invocation.has_unknown_residual()
+                    || !invocation.roles_complete()
+                    || invocation
+                        .roles()
+                        .iter()
+                        .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+                {
+                    return None;
+                }
             }
-        }
+            calls
+        };
         calls
     };
     calls
         .into_iter()
         .map(|call| {
             let child = call.tokens.as_ref()?;
-            let child_metadata = child
-                .source_binding
-                .as_ref()?
-                .original_source_metadata_for_advice(child, registry)
-                .ok()?;
-            let frameless =
-                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
-                    registry,
-                    child_metadata,
-                    child,
-                )
-                .is_some_and(|invocation| invocation.is_frameless_runtime());
+            let child_binding = child.source_binding.as_ref()?;
+            let frameless = child_binding.original_source_metadata_for_advice(child, registry)
+                .ok().and_then(|metadata| {
+                    crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                        registry, metadata, child,
+                    )
+                }).is_some_and(|invocation| invocation.is_frameless_runtime());
             Some(OriginalSubstitutionInvocation {
-                invocation: invocation_from_tokens(child, registry),
+                invocation: crate::registry_invocation::original_source_name_roles(registry, child),
                 frameless,
             })
         })

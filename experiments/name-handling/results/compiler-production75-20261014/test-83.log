@@ -1,0 +1,17 @@
+
+running 1 test
+test word_subst::tests::original_logical_inventory_keeps_alias_ordinals_and_uncertain_geometry_refusals ... 
+thread 'word_subst::tests::original_logical_inventory_keeps_alias_ordinals_and_uncertain_geometry_refusals' (329093) panicked at rust/tcl-compiler/src/word_subst.rs:1719:13:
+assertion `left == right` failed: interp alias {} calculate {} expr; calculate {[dict size DATA]}
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    word_subst::tests::original_logical_inventory_keeps_alias_ordinals_and_uncertain_geometry_refusals
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.13s
+

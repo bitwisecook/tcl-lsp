@@ -999,8 +999,8 @@ impl Builder<'_> {
                 }
                 let source = entry.header.declaration.source.source_image();
                 let text = source.try_text().ok()?;
-                let first = tcl_lexer::word_span_at(text, tokens.words().first()?.source().span);
-                let last = tcl_lexer::word_span_at(text, tokens.words().last()?.source().span);
+                let first = tokens.words().first()?.original_written_span(text)?;
+                let last = tokens.words().last()?.original_written_span(text)?;
                 if first.start() != site.offset {
                     return None;
                 }

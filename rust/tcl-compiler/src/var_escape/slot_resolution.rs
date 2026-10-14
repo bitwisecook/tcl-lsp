@@ -49,7 +49,6 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use tcl_registry::value_transfer::resolve_semantics;
 use tcl_registry::{ArgRole, Traits};
 
 use crate::ir::{Module, Script, Statement};
@@ -101,12 +100,12 @@ const MAX_SLOT_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::Recu
 /// slot-assignment loop sees names in the same order codegen
 /// emits them. `depth` is the nesting level of `script` — see
 /// [`MAX_SLOT_WALK_DEPTH`].
-fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>, depth: u32) {
+fn walk_statements<'a>(script: &'a Script, out: &mut Vec<(&'a Script, &'a Statement)>, depth: u32) {
     if MAX_SLOT_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {
-        out.push(stmt);
+        out.push((script, stmt));
         match stmt {
             Statement::If {
                 clauses, else_body, ..
@@ -168,7 +167,11 @@ fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>, depth: 
 ///
 /// Returns ``true`` when the statement's shape forces the entire
 /// proc to skip slot resolution.
-fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>) -> bool {
+fn stmt_disables_slots(
+    script: &Script,
+    stmt: &Statement,
+    ineligible_names: &mut HashSet<String>,
+) -> bool {
     match stmt {
         Statement::Barrier { .. } => true,
         // Dynamic-name writes via the `Assign*` / `Incr` variants
@@ -186,9 +189,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
         {
             true
         }
-        Statement::Call { command, args, .. } => {
-            is_dynamic_value(command) || call_disables_slots(command, args, ineligible_names)
-        }
+        Statement::Call { .. } => call_disables_slots(script, stmt, ineligible_names),
         _ => false,
     }
 }
@@ -196,57 +197,93 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
 /// The verdict on one call, from the registry's declarations for the
 /// invocation: `true` takes the whole proc out of slot resolution; otherwise
 /// the literal locals its by-name words target join *`ineligible_names`*.
-fn call_disables_slots(cmd: &str, args: &[String], ineligible_names: &mut HashSet<String>) -> bool {
-    let registry = tcl_registry::default_registry();
-    let words: Vec<&str> = args.iter().map(String::as_str).collect();
-    let Some(call) = registry.resolve_call(cmd, &words, None) else {
+fn call_disables_slots(
+    script: &Script,
+    statement: &Statement,
+    ineligible_names: &mut HashSet<String>,
+) -> bool {
+    let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
         return true;
     };
-    if call
-        .spec
-        .traits
-        .intersects(Traits::DYNAMIC_EVAL_BODY | Traits::FRAME_HASH_BUILTIN)
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return true;
+    };
+    let Some(registry) = binding.retained_registry_for_tokens(tokens) else {
+        return true;
+    };
+    let Ok(metadata) = binding.original_source_metadata_for_advice(tokens, registry) else {
+        return true;
+    };
+    let Some(normal) =
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )
+    else {
+        return true;
+    };
+    if !normal.is_frameless_runtime() {
+        return true;
+    }
+    let Some(invocation) =
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )
+    else {
+        return true;
+    };
+    let facts = &invocation.facts;
+    if !facts.arg_roles_complete
+        || facts.arity_accepts_frozen_arguments() != Some(true)
+        || facts.traits.intersects(
+            Traits::DYNAMIC_EVAL_BODY
+                | Traits::FRAME_HASH_BUILTIN
+                | Traits::CURRENT_FRAME_INTROSPECTION,
+        )
     {
         return true;
     }
-    let cmd = call.spec.descriptor_key().label();
-    let named = |role| registry.arg_indices_for_role(cmd, &words, role);
-    let dynamic = |index: &usize| args.get(*index).is_some_and(|word| is_dynamic_value(word));
-    // A cell write whose name word substitutes reaches any local.
-    if resolve_semantics(call.spec, call.sub, call.form).writes_value_word() {
-        return named(ArgRole::VarWrite).iter().any(dynamic)
-            || named(ArgRole::VarRead).iter().any(dynamic);
-    }
-    let traits = call.spec.traits | call.sub.map_or_else(Traits::empty, |sub| sub.traits);
-    let targets = if traits.contains(Traits::INTROSPECTS_BY_NAME) {
-        // The introspected name is the word after the subcommand.
-        let Some(target) = args.get(usize::from(call.sub.is_some())) else {
+    let Some(realm) = binding.invocation_realm() else {
+        return true;
+    };
+    let writes_value_word = invocation.with_argument_words(|words| {
+        let selected =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                registry,
+                metadata.map(crate::registry_invocation::InvocationMetadataContext::context),
+                words,
+                realm,
+            )
+            .resolved()?;
+        (selected.descriptor_key() == facts.descriptor_key())
+            .then(|| selected.semantics.value.writes_value_word())
+    });
+    let Some(writes_value_word) = writes_value_word else {
+        return true;
+    };
+    let mut has_variable_operand = false;
+    for &(index, role) in &facts.arg_roles {
+        if !matches!(role, ArgRole::VarRead | ArgRole::VarWrite) {
+            continue;
+        }
+        has_variable_operand = true;
+        let Some(name) = invocation.argument_literal(facts.argument_offset + usize::from(index))
+        else {
             return true;
         };
-        vec![target]
-    } else if traits.contains(Traits::CURRENT_FRAME_INTROSPECTION) {
-        return true;
-    } else if traits.contains(Traits::TARGETS_VARIABLE_BY_NAME) {
-        let written = named(ArgRole::VarWrite);
-        if written.is_empty() {
-            // With no `VarWrite` word the invocation targets a command, or a
-            // cell its roles do not place; only the first leaves the locals.
-            return named(ArgRole::CommandName).is_empty();
+        if !writes_value_word
+            && facts
+                .traits
+                .intersects(Traits::INTROSPECTS_BY_NAME | Traits::TARGETS_VARIABLE_BY_NAME)
+        {
+            ineligible_names.insert(name);
         }
-        written
-            .iter()
-            .filter_map(|&index| args.get(index))
-            .collect()
-    } else {
-        return false;
-    };
-    for target in targets {
-        if is_dynamic_value(target) {
-            return true;
-        }
-        ineligible_names.insert(target.clone());
     }
-    false
+    facts.traits.contains(Traits::TARGETS_VARIABLE_BY_NAME)
+        && !has_variable_operand
+        && !facts
+            .arg_roles
+            .iter()
+            .any(|(_, role)| *role == ArgRole::CommandName)
 }
 
 /// Return a `{local_name: slot_index}` mapping for *script*'s
@@ -286,11 +323,11 @@ pub fn assign_local_slots(
         }
     }
 
-    let mut all_stmts: Vec<&Statement> = Vec::new();
+    let mut all_stmts: Vec<(&Script, &Statement)> = Vec::new();
     walk_statements(script, &mut all_stmts, 0);
 
-    for stmt in &all_stmts {
-        if stmt_disables_slots(stmt, &mut ineligible) {
+    for (owner, stmt) in &all_stmts {
+        if stmt_disables_slots(owner, stmt, &mut ineligible) {
             return BTreeMap::new();
         }
         // Record assign target names in source order.
@@ -783,6 +820,32 @@ mod tests {
         let body = script_with(vec![call("::upvar", &["1", "src", "dst"])]);
         let slots = assign_local_slots(&body, &s, &[]);
         assert!(slots.is_empty());
+    }
+
+    #[test]
+    fn unowned_builtin_spelling_cannot_donate_physical_slot_eligibility() {
+        let body = script_with(vec![
+            assign_const("x", "1"),
+            call("string", &["length", "value"]),
+        ]);
+        assert!(assign_local_slots(&body, &ProcEscapeSummary::default(), &[]).is_empty());
+    }
+
+    #[test]
+    fn authored_source_name_roles_cannot_donate_normal_slot_eligibility() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir("puts value", &registry);
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(matches!(
+            &module.top_level.statements[0],
+            Statement::Call { .. }
+        ));
+        let mut ineligible = HashSet::new();
+        assert!(call_disables_slots(
+            &module.top_level,
+            &module.top_level.statements[0],
+            &mut ineligible
+        ));
     }
 
     #[test]

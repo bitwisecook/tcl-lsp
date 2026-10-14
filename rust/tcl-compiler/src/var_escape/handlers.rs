@@ -127,7 +127,41 @@ pub fn handle_introspection(
     invocation: &crate::registry_invocation::ResolvedStatementInvocation,
     state: &mut EscapeState,
 ) {
-    let facts = &invocation.facts;
+    let roles = invocation
+        .facts
+        .arg_roles
+        .iter()
+        .map(|&(index, role)| (invocation.facts.argument_offset + usize::from(index), role))
+        .collect::<Vec<_>>();
+    transfer_introspection(
+        &invocation.facts,
+        &roles,
+        |argument| invocation.argument_literal(argument),
+        state,
+    );
+}
+
+pub(crate) fn handle_source_introspection(
+    invocation: &crate::registry_invocation::SourceNameRoleInventory,
+    state: &mut EscapeState,
+) {
+    transfer_introspection(
+        invocation.facts(),
+        invocation.roles(),
+        |argument| invocation.argument_literal(argument),
+        state,
+    );
+    if invocation.has_unknown_residual() {
+        state.mark_pessimistic();
+    }
+}
+
+fn transfer_introspection(
+    facts: &InvocationFacts,
+    roles: &[(usize, ArgRole)],
+    argument_literal: impl Fn(usize) -> Option<String>,
+    state: &mut EscapeState,
+) {
     if (facts
         .traits
         .contains(tcl_registry::prelude::Traits::INTROSPECTS_BY_NAME)
@@ -160,11 +194,11 @@ pub fn handle_introspection(
     {
         return;
     }
-    for (index, role) in &facts.arg_roles {
+    for (argument, role) in roles {
         if !matches!(role, ArgRole::VarRead | ArgRole::VarWrite) {
             continue;
         }
-        let target = invocation.argument_literal(facts.argument_offset + usize::from(*index));
+        let target = argument_literal(*argument);
         let Some(target) = target else {
             state.record_barrier(Barrier::with_detail(
                 BarrierKind::Info,

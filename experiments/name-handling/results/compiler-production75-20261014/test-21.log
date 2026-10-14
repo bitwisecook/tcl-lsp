@@ -1,0 +1,5 @@
+
+running 1 test
+test depth_guard::tests::the_analyser_stops_at_the_shared_cap ... 
+thread 'depth_guard::tests::the_analyser_stops_at_the_shared_cap' (328857) has overflowed its stack
+fatal runtime error: stack overflow, aborting

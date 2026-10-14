@@ -197,8 +197,8 @@ impl OriginalSourceCommandProjection {
         };
         let spans: Vec<_> = words
             .iter()
-            .map(|word| tcl_lexer::word_span_at(text, word.source().span))
-            .collect();
+            .map(|word| word.original_written_span(text))
+            .collect::<Option<Vec<_>>>()?;
         if spans.first()?.start() != offset {
             #[cfg(test)]
             trace_original_projection("head_offset", offset, false, words.len());

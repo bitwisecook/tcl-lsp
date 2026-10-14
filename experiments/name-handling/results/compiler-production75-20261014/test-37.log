@@ -1,0 +1,17 @@
+
+running 1 test
+test registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission ... 
+thread 'registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission' (328922) panicked at rust/tcl-compiler/src/registry_invocation/hosted_structure.rs:335:13:
+assertion failed: if switch {
+    matches!(statement, crate::ir::Statement::Switch { .. })
+} else { matches!(statement, crate::ir::Statement::If { .. }) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9766 filtered out; finished in 0.15s
+

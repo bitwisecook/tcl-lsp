@@ -1325,8 +1325,8 @@ pub(super) fn declaration_tokens(
     observation: &DeclarationLayoutObservation,
 ) -> Option<crate::ir::CommandTokens> {
     let text = site.source.try_text().ok()?;
-    let first = tcl_lexer::word_span_at(text, observation.words.first()?.source().span);
-    let last = tcl_lexer::word_span_at(text, observation.words.last()?.source().span);
+    let first = observation.words.first()?.original_written_span(text)?;
+    let last = observation.words.last()?.original_written_span(text)?;
     if first.start() != site.offset || first.start() > last.end() {
         return None;
     }

@@ -32,15 +32,17 @@
 
 use crate::ir::{Script, Statement};
 use crate::var_escape::handlers::{
-    handle_dynamic_name_first, handle_introspection, handle_normal_variable_aliases,
+    handle_dynamic_name_first, handle_normal_variable_aliases, handle_source_introspection,
     has_expand_word,
 };
 use crate::var_escape::helpers::{
-    invocation_facts, invocation_facts_from_tokens, invocation_from_tokens, is_dynamic_name,
-    is_dynamic_token, normal_handler_is_frameless, original_substitution_invocations,
-    retained_registry_for_script, statement_needs_original_substitution_inventory,
+    invocation_facts, invocation_facts_from_tokens, is_dynamic_name, is_dynamic_token,
+    normal_handler_is_frameless, original_substitution_invocations, retained_registry_for_script,
+    statement_needs_original_substitution_inventory,
 };
-use crate::var_escape::known_names::{collect_known_name_inventory, collect_known_names};
+use crate::var_escape::known_names::{
+    collect_known_name_inventory_with_registry, collect_known_names,
+};
 use crate::var_escape::state::EscapeState;
 use crate::var_escape::types::{EscapeTag, ProcEscapeSummary};
 
@@ -62,7 +64,7 @@ fn apply_original_substitution_scan(
             state.record_fallback();
         }
         if let Some(invocation) = call.invocation {
-            handle_introspection(&invocation, state);
+            handle_source_introspection(&invocation, state);
         } else {
             state.mark_pessimistic();
         }
@@ -87,6 +89,9 @@ pub(crate) fn handle_call(
     };
     let cmd = command.as_str();
     let facts = invocation_facts(stmt, registry);
+    let source_names = tokens.as_ref().and_then(|tokens| {
+        crate::registry_invocation::original_source_name_roles(registry, tokens)
+    });
 
     // Commands outside the frameless-runtime allow-list could
     // reach the eval fallback via the codegen. Mark accordingly.
@@ -127,13 +132,10 @@ pub(crate) fn handle_call(
     }) {
         handle_normal_variable_aliases(&normal, state);
     }
+    if let Some(source) = &source_names {
+        handle_source_introspection(source, state);
+    }
     if let Some(facts) = facts.as_deref() {
-        if let Some(invocation) = tokens
-            .as_ref()
-            .and_then(|tokens| invocation_from_tokens(tokens, registry))
-        {
-            handle_introspection(&invocation, state);
-        }
         if facts
             .traits
             .contains(tcl_registry::prelude::Traits::FIRST_ARG_VARNAME)
@@ -722,7 +724,7 @@ pub fn analyse_script_with_registry<I: IntoIterator<Item = String>>(
     params: I,
     registry: &tcl_registry::CommandRegistry,
 ) -> ProcEscapeSummary {
-    let inventory = collect_known_name_inventory(params, body);
+    let inventory = collect_known_name_inventory_with_registry(params, body, registry);
     let mut state = EscapeState::new(inventory.names);
     if inventory.unknown_residual {
         state.mark_pessimistic();

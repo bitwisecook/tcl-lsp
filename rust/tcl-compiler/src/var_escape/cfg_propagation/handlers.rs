@@ -28,6 +28,7 @@
 //! call site is different (`CfgState`'s `escape` takes a defs map).
 
 use std::collections::HashMap;
+use tcl_registry::InvocationFacts;
 
 use tcl_registry::{ArgRole, CallerFrameSelection, OwnedSubcommandResolution, VariableAliasTarget};
 
@@ -111,7 +112,45 @@ pub(crate) fn handle_introspection(
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
 ) {
-    let facts = &invocation.facts;
+    let roles = invocation
+        .facts
+        .arg_roles
+        .iter()
+        .map(|&(index, role)| (invocation.facts.argument_offset + usize::from(index), role))
+        .collect::<Vec<_>>();
+    transfer_introspection(
+        &invocation.facts,
+        &roles,
+        |argument| invocation.argument_literal(argument),
+        state,
+        defs,
+    );
+}
+
+pub(crate) fn handle_source_introspection(
+    invocation: &crate::registry_invocation::SourceNameRoleInventory,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) {
+    transfer_introspection(
+        invocation.facts(),
+        invocation.roles(),
+        |argument| invocation.argument_literal(argument),
+        state,
+        defs,
+    );
+    if invocation.has_unknown_residual() {
+        state.mark_pessimistic();
+    }
+}
+
+fn transfer_introspection(
+    facts: &InvocationFacts,
+    roles: &[(usize, ArgRole)],
+    argument_literal: impl Fn(usize) -> Option<String>,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) {
     if (facts
         .traits
         .contains(tcl_registry::prelude::Traits::INTROSPECTS_BY_NAME)
@@ -135,11 +174,11 @@ pub(crate) fn handle_introspection(
     {
         return;
     }
-    for (index, role) in &facts.arg_roles {
+    for (argument, role) in roles {
         if !matches!(role, ArgRole::VarRead | ArgRole::VarWrite) {
             continue;
         }
-        let target = invocation.argument_literal(facts.argument_offset + usize::from(*index));
+        let target = argument_literal(*argument);
         let Some(target) = target else {
             state.record_barrier(Barrier::with_detail(
                 BarrierKind::Info,

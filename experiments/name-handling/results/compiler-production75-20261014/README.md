@@ -1,0 +1,3 @@
+# Current original and migrated consumer replay
+
+Current source builds and seals95 selected controls:54 pass/41 fail, source subset drift0/no missing or empty selectors. All six focused taint report controls and genuine-entry Shimmer control pass; dynamic-command escape regression is repaired, two original eval/upframe regressions remain. Fresh original Tcltest controls retain their assertions: alias/setup and shared missing-read controls pass, namespace-scoped import fails and #2286 original program reports1of2 required $absent warnings on C84. All four original depth-budget controls still abort. Authored new-card boundary, source reads/SSA and cache positives remain red. This scoped receipt supplies no whole-provider/Native/F5 acceptance.

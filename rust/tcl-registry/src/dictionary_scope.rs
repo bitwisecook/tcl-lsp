@@ -154,11 +154,20 @@ pub(crate) fn authored_dictionary_scope_source_phase(
     }
     let mut effects =
         crate::world_effect::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE.resolve(arguments);
-    let mut additional_effects = crate::world_effect::EffectFootprint::from_legacy(
-        invocation.facts().effects.legacy().command_table_mutation,
-        invocation.semantics.frame_effect,
-        invocation.semantics.side_effects,
-    );
+    let mut coverage = crate::world_effect::TransitionEffectCoverages::default();
+    coverage.extend(&[crate::world_effect::TransitionEffectCoverage {
+        source: crate::world_effect::WorldEffectWriteSource::LegacySideEffect(
+            crate::SideEffectTarget::Variable,
+        ),
+        domains: &[crate::world_effect::WorldStateDomain::VariableStore],
+    }]);
+    let mut additional_effects =
+        crate::world_effect::EffectFootprint::from_legacy_with_transition_coverage(
+            invocation.facts().effects.legacy().command_table_mutation,
+            invocation.semantics.frame_effect,
+            invocation.semantics.side_effects,
+            &coverage,
+        );
     if invocation.semantics.world_effects.is_declared() {
         additional_effects.extend(invocation.semantics.world_effects.resolve(arguments));
     }

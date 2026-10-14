@@ -1988,7 +1988,7 @@ fn original_folded_case_subject(
         .invocation_site()?
         .source
         .source_image();
-    let extent = tcl_lexer::word_span_at(image.try_text().ok()?, source.span);
+    let extent = subject.original_command_substitution_span(image.bytes())?;
     let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
         parent, config, registry, metadata,
     );

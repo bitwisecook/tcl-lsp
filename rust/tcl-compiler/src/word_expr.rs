@@ -63,6 +63,37 @@ use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
 use crate::ir::{SourceSite, WordExpr, WordOpacity, WordPart};
 
 impl WordExpr {
+    /// Whole written extent in the supplied source, using this word's span convention.
+    /// This lexical projection supplies no invocation or execution currentness.
+    #[must_use]
+    pub fn original_written_span(&self, source: impl AsRef<[u8]>) -> Option<Span> {
+        let source = source.as_ref();
+        let site = self.source();
+        if site.provenance != crate::ir::Provenance::Source {
+            return None;
+        }
+        let span = match self {
+            Self::BracedLiteral { .. } | Self::Variable { .. } => {
+                tcl_lexer::word_span_at(source, site.span)
+            }
+            Self::CommandSubstitution { .. } => {
+                return self.original_command_substitution_span(source);
+            }
+            _ => site.span,
+        };
+        source.get(span.as_range())?;
+        Some(span)
+    }
+
+    /// Exact whole command-substitution bytes, including a sole quoted component.
+    #[must_use]
+    pub fn original_command_substitution_span(&self, source: impl AsRef<[u8]>) -> Option<Span> {
+        let (spelling, site) = self.sole_command_substitution()?;
+        (site.provenance == crate::ir::Provenance::Source
+            && source.as_ref().get(site.span.as_range()) == Some(spelling.as_bytes()))
+        .then_some(site.span)
+    }
+
     /// Build the word model for one segmented word.
     ///
     /// `fragments` are the word's lexer tokens in document order (the
@@ -590,5 +621,68 @@ mod expression_source_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn typed_written_extents_do_not_borrow_an_enclosing_command_closer() {
+        let source = "list [string tolower [puts $payload]] ; # after";
+        let config = LexerConfig::default();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let words =
+            crate::ir::CommandTokens::from_segmented(&SourceMap::new(source), config, &command);
+        let outer = words.word_exprs.last().unwrap();
+        let (spelling, site) = outer.sole_command_substitution().unwrap();
+        let nested = crate::word_subst::nested_command_words(spelling, site, config).unwrap();
+        let inner = nested.word_exprs.last().unwrap();
+        let extent = inner.original_written_span(source).unwrap();
+        assert_eq!(&source[extent.as_range()], "[puts $payload]");
+        assert_eq!(source.as_bytes().get(extent.end() as usize), Some(&b']'));
+        let replay_site = crate::command_binding::CommandAllocationSite {
+            source: std::sync::Arc::new(crate::command_binding::SourceOriginId::authored_image(
+                tcl_lexer::SourceImage::document(source),
+            )),
+            offset: nested.word_exprs[0].source().span.start(),
+        };
+        assert_eq!(
+            crate::registry_invocation::native_compiler_replay_source(&nested, &replay_site,)
+                .as_deref(),
+            Some("string tolower [puts $payload]")
+        );
+        assert!(
+            inner
+                .original_written_span(source.replace("puts", "Puts"))
+                .is_none()
+        );
+        let mut withdrawn = inner.clone();
+        let WordExpr::CommandSubstitution { source: site, .. } = &mut withdrawn else {
+            panic!("nested command substitution");
+        };
+        site.provenance = crate::ir::Provenance::Opaque;
+        assert!(withdrawn.original_written_span(source).is_none());
+    }
+
+    #[test]
+    fn typed_written_extents_preserve_variable_and_literal_token_conventions() {
+        for source in ["list ${payload}", "list {}", "list {payload}"] {
+            let word = original_word(source);
+            let before = word.source().span;
+            let span = word.original_written_span(source).unwrap();
+            assert_eq!(&source[span.as_range()], &source[5..]);
+            assert_eq!(word.source().span, before);
+        }
+        let source = "list \"[puts $payload]\"";
+        let word = original_word(source);
+        assert_eq!(
+            &source[word.original_written_span(source).unwrap().as_range()],
+            "\"[puts $payload]\""
+        );
+        assert_eq!(
+            &source[word
+                .original_command_substitution_span(source)
+                .unwrap()
+                .as_range()],
+            "[puts $payload]"
+        );
     }
 }
