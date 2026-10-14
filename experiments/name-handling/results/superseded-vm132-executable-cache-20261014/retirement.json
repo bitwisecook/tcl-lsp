@@ -1,0 +1,20 @@
+{
+  "scope": "Sealed VM132 executable cache after full52-selector capture and complete raw result retention. Rebuildable obsolete executables only; current libraries, source, oracle providers, raw logs/results and closures preserved. Next VM bridge replay builds fresh binaries.",
+  "files": [
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+      "bytes": 128326016,
+      "sha256": "90f97e5c6b8e001e71db11bfbc28fd469161f89a8cc233b5e016def78bcb42c5"
+    },
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/native_compilation_conformance-b226288777165932",
+      "bytes": 111624024,
+      "sha256": "9b760f3e198d350f29ef4f97d5890ff6eff36fa4cff9fedf018e08b05fe1d397"
+    },
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/cross_interp_alias_e2e-e54172b0a2068070",
+      "bytes": 111011272,
+      "sha256": "f0b8bccf20c4c29eb686fd30cb070737f740398de0bad7fb6c67ec1fd6111625"
+    }
+  ]
+}

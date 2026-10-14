@@ -263,7 +263,7 @@ mod tests {
                 registry,
                 defer_top_level: false,
                 config: input.lexer_config(),
-                dialect: Some(input.unit_profile),
+                dialect: Some(input.unit_profile()),
                 external_call_sites: None,
                 declared_commands: None,
             },
@@ -317,7 +317,7 @@ mod tests {
                 .is_none()
         );
         let mut changed = module.clone();
-        changed.source = SourceImage::document(source.replace("VALUE", "OTHER"));
+        changed.source = SourceImage::document(&source.replace("VALUE", "OTHER"));
         assert!(
             changed
                 .original_definition_script_source(id, registry)

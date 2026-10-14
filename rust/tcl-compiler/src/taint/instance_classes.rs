@@ -336,7 +336,7 @@ pub(super) fn transfer_instance_statement(
         return;
     }
     if source.allows_nominal_metadata() {
-        standalone_transfer_instance_statement(state, statement, registry);
+        standalone_transfer_instance_statement(state, statement, registry, source.config);
         return;
     }
     if source.metadata_context().is_none() {
@@ -436,6 +436,7 @@ fn standalone_transfer_instance_statement(
     state: &mut InstanceClassState,
     statement: &Statement,
     registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
 ) {
     if statement.has_opaque_native_accesses() {
         state.clear();
@@ -480,10 +481,9 @@ fn standalone_transfer_instance_statement(
             {
                 return;
             }
-            if let Some((head, args)) = crate::value_shapes::parse_command_substitution_with_config(
-                value.trim(),
-                tcl_lexer::LexerConfig::for_profile(registry.profile()),
-            ) && let Some(class) = standalone_factory_class(registry, &head, &args)
+            if let Some((head, args)) =
+                crate::value_shapes::parse_command_substitution_with_config(value.trim(), config)
+                && let Some(class) = standalone_factory_class(registry, &head, &args)
             {
                 state.insert(name.clone(), HashSet::from([class.to_owned()]));
             }
@@ -608,7 +608,12 @@ mod tests {
                 value: "OTHER".into(),
                 value_span: None,
             };
-            standalone_transfer_instance_statement(&mut state, &statement, &registry);
+            standalone_transfer_instance_statement(
+                &mut state,
+                &statement,
+                &registry,
+                TaintSourceContext::standalone(&registry, registry.profile()).config,
+            );
             assert!(!state.contains_key(removed));
             assert!(state.contains_key("handle"));
             assert_eq!(state.len(), 4);
@@ -623,7 +628,12 @@ mod tests {
             value: "OTHER".into(),
             value_span: None,
         };
-        standalone_transfer_instance_statement(&mut state, &statement, &registry);
+        standalone_transfer_instance_statement(
+            &mut state,
+            &statement,
+            &registry,
+            TaintSourceContext::standalone(&registry, registry.profile()).config,
+        );
         assert!(state.is_empty());
     }
 
@@ -648,7 +658,10 @@ mod tests {
     }
 
     fn logical_unit(source: &str, context: &Arc<ContextRegistry>) -> CompilationUnit {
-        let profile = DialectProfile::find("tcl").unwrap();
+        let profile = context
+            .commands()
+            .profile()
+            .expect("actual fixture command profile");
         let config = LexerConfig::for_file_grammar(profile.grammar);
         let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(context), config);
         CompilationUnit::build_with_analysis_input(

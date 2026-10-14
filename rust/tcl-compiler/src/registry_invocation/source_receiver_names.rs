@@ -59,7 +59,7 @@ mod tests {
     #[test]
     fn original_receiver_syntax_preserves_literal_data_and_scalar_reference_names() {
         let source = "receiver {$obj} ${obj} {two words} {} {[obj]} {obj(key)} $obj(key) ${obj(key)} [pick] x$obj";
-        let image = tcl_lexer::SourceImage::document(std::sync::Arc::<str>::from(source));
+        let image = tcl_lexer::SourceImage::document(source);
         let words = tcl_lexer::native_script_words_in(
             image,
             tcl_lexer::Span::new(0, source.len() as u32),

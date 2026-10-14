@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "53187a97ac414fd39b3abbd6b5a39c35c41a1fc1ca49d10e1a6feac367d4a82d",
+    "source-after.json.gz": "2bdac733020fc35eed672a829ca6da45b4c1dd06f333060f5e7e6d1533b7ffe0",
+    "build.log": "ecdaa8af62d231de3b6589338f2c246bab80b2f8af2287fec011a7d29148eaf1",
+    "start.json": "adfb351bdf9f2da506862ab2b730fab420e3d3e78c80a4045df0bc173c04e497",
+    "source-before.json.gz": "205420a326bd64d0e09806760752d8e6a85bc2898741f66e4091ac9f6975410c"
+  },
+  "scope": "Actual compiler test build failed on three test fixture API mismatches; zero selectors run; source subset drift zero."
+}

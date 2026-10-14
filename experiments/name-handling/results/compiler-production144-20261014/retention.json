@@ -1,0 +1,11 @@
+{
+  "files": {
+    "result.json": "1b99f314d59029285ca0af29008693f020f50946dfbae50f0d47349b03384e76",
+    "source-after.json.gz": "45bb27fd4d511a51d0f5040b61c67bf55c5928eafc61cdd7f014a9d3caaebb99",
+    "test-list.txt": "0bbc51f2e14501b89cc4ce6cbfe1926a48256f868f7c3285a18a69f4cffac7de",
+    "build.log": "d2b9defeab90e57ba06d0509944ca7b2cddf66e999aee9731807ca2d06d14daa",
+    "start.json": "4afd7857b883c1fbf476b2e85f83c0e92d87bc2ab9791db6ce367cb8c279a9a5",
+    "source-before.json.gz": "83558b64e00fec915475474d60df810acf8d428e5f3a41c42b8f803fb94a1b40"
+  },
+  "scope": "Compiler actual library test build PASS, zero selectors executed because two requested test paths did not exist; source subset drift zero. Capture146 uses this same executable with exact expected-source comparison and corrected real selectors."
+}
