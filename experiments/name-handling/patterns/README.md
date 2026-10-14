@@ -30,6 +30,21 @@ their [acceptance scopes](../results/RESULTS.md#shared-namespace-variable-query-
 retain failed and unreached providers separately. Empty namespace addresses are
 measured independently in [namespace-address-purpose](../namespace-address-purpose/README.md).
 
+The following original namespace questions retain their executable inputs,
+provider/source/init hashes and raw output beside each manifest. They establish
+only the recorded C/Jim observations; implementation replay and F5 answers
+remain independent.
+
+| Original question and receipt | Bounded observation |
+| --- | --- |
+| [Namespace creation operand](../oracles/namespace-creation-original-operand-20261014/manifest.json) | Fresh C8.4–9.1 processes isolate the original report operand and error-code policy; the dying-token callback has its own lifecycle and option availability. No implementation result follows. |
+| [TclOO namespace conflict](../oracles/oo-namespace-conflict-original-20261014/manifest.json) | Original C8.6–9.1 conflict message/errorCode and source operand flow; C8.4/8.5 lack the TclOO command, so their lookup is unreached. Language NUL and raw C-string operands remain distinct. |
+| [Jim lambda namespace object](../oracles/jim-lambda-namespace-original-20261014/manifest.json) | Actual nested callers and previously absent namespaces distinguish latest Jim's exact context object from C lookup. C8.4 apply is unavailable; the VM's eager third-child getter remains an independent limitation. |
+| [Namespace cache context](../oracles/native-namespace-cache-context-original-20261014/manifest.json) | C8.4–9.1 text controls reuse an operand across real namespaces and root recreation. Retained upstream source informs cache/getter ordering separately; these text results do not observe native cache fields or establish Jim behavior. |
+
+These captures do not use tcltest. Each C provider retains its matching original
+init.tcl. None supplies a new F5 observation or widens a Native execution proof.
+
 The [literal/empty read-write name reductions](../results/ssa-empty-read-write-names/README.md)
 retain original C5/Jim increment, loop and dict-with results, including the
 Tcl8.4 unavailable dict rows. Current SSA controls retain actual source-role
