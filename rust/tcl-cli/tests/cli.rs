@@ -466,6 +466,31 @@ fn diag_shares_call_sites_across_inputs() {
     );
 }
 
+/// `lset x 3 Z` on a three-element list appends from Tcl 8.6 and raises
+/// `list index out of range` on tclsh 8.4.20 and 8.5.19, so `tcl diag` reports
+/// W231 only under those two dialects (#2428).
+#[test]
+fn diag_reports_an_lset_at_the_length_only_before_8_6() {
+    let source = "set x {a b c}\nlset x 3 Z\nputs $x\n";
+    for (dialect, reported) in [
+        ("tcl8.4", true),
+        ("tcl8.5", true),
+        ("tcl8.6", false),
+        ("tcl9.0", false),
+        ("tcl9.1", false),
+    ] {
+        let output = String::from_utf8(run_tcl_allow_failure(&[
+            "diag",
+            "--dialect",
+            dialect,
+            "--source",
+            source,
+        ]))
+        .expect("utf-8 output");
+        assert_eq!(output.contains("W231"), reported, "{dialect}: {output}");
+    }
+}
+
 /// The transform verbs auto-detect a document's dialect, so an iRule folds
 /// the same with and without an explicit `--dialect`.
 ///

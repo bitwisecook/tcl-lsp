@@ -67,7 +67,8 @@ Unicode scalar iteration or replacement characters.
 
 #### Current support status: unsupported, not approximated
 
-Only `string length` is versioned today. Every character-*indexed* string
+Only `string length`, and `regsub -all {}`'s walk of the same units (below),
+is versioned today. Every character-*indexed* string
 operation — `index`, `range`, `first`, `last`, `replace`, `insert`, `reverse`,
 `wordstart`/`wordend`, and the ranged case converters — addresses Unicode
 scalars in both runtimes and in the compile-time folds, whichever dialect is
@@ -85,6 +86,48 @@ Strings outside the supplementary planes are unaffected: both models agree on
 every index, so ordinary Tcl 8 scripts see exact behaviour. Closing the gap
 means the lossless value representation described above, below both runtimes,
 as its own change.
+
+#### 8.4 and 8.5 are not 8.6
+
+The table above is 8.6's. 8.4 and 8.5 (`TCL_UTF_MAX` 3) never assemble a
+supplementary scalar at all: its four UTF-8 bytes are four ordinary characters,
+each `U+0000`–`U+00FF`, and every one of them is a value a Rust string holds.
+Measured with `scan [string index $s $i] %c` over a literal `a<U+1D11E>b`
+(`LANG=C.UTF-8`):
+
+| Release | Code points in the value |
+|---|---|
+| 8.4.20, 8.5.19 | `97 240 157 132 158 98` |
+| 8.6.18 | `97 55348 56606 98` |
+| 9.0.4, 9.1.0 | `97 119070 98` |
+
+Nothing about 8.4/8.5 needs the lossless representation; what is missing there
+is the decode, which keeps the scalar where those releases see four characters
+(#2129). `StringCharacterModel::units` yields each model's characters as runs a
+Rust string holds: the four byte-characters on 8.4/8.5, one run of two units
+for 8.6's surrogate pair, one run per scalar on 9.x.
+
+#### The one consumer of the units: `regsub -all {}`
+
+`regsub`'s literal empty pattern substitutes before each character and never at
+end-of-string, so its count is `string length` and it publishes no index. It
+walks `StringCharacterModel::units` (#2170). `regsub -all {} $s X out` over
+U+1D11E:
+
+| Release | tclsh count and `out` | ours |
+|---|---|---|
+| 8.4.20, 8.5.19 | 4, `X 240 X 157 X 132 X 158` | the same |
+| 8.6.18 | 2, `X 55348 X 56606` | 2, `X X 119070` |
+| 9.0.4, 9.1.0 | 1, `X 119070` | the same |
+
+On 8.4/8.5 the output holds the four byte-characters, exactly as tclsh's does.
+On 8.6 tclsh's second replacement sits between the surrogate halves, which
+needs a lone surrogate; ours moves it before the pair, the nearest boundary a
+Rust string holds. The count and `string length $out` (4) are tclsh's, every
+replacement still precedes the unit it was emitted for, nothing follows the
+last unit, and removing the replacements gives back the subject — the
+properties a U+FFFD substitute would lose. The output differs from tclsh's only
+in where that one replacement sits, which is this section's boundary.
 
 `WasmCodegenPlan::GenericInvoke` remains the top-level record for the guarded
 intrinsic because the operation's exact slow path is still generic argv

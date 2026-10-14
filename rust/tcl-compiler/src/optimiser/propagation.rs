@@ -2404,6 +2404,11 @@ fn try_o129_fold(
 /// The `constants` map is whole-function (a var is present only if every
 /// tracked version agrees), so substituting an entry is sound without any
 /// same-block reaching-version gating.
+///
+/// A result whose literal spelling a script evaluation would read apart from
+/// the result itself ([`crate::const_subst::folded_literal_reads_apart`])
+/// abstains: `[list string range $s 0 end-2147483649]` evaluates directly,
+/// its braced literal compiles.
 fn fold_builtin_cmd_subst_raw(
     registry: &tcl_registry::CommandRegistry,
     mutations: &crate::command_binding::ModuleCommandMutations,
@@ -2423,6 +2428,12 @@ fn fold_builtin_cmd_subst_raw(
         lookup_var: &lookup,
     }
     .fold_cmd_subst(inner)
+    .filter(|value| {
+        let release = dialect.map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+            profile.vm_runtime_version
+        });
+        !crate::const_subst::folded_literal_reads_apart(value, release)
+    })
 }
 
 /// Re-lex a command-substitution interior into its literal words for the
@@ -4557,6 +4568,17 @@ mod tests {
             vec!["b".to_string()]
         );
         assert_eq!(fold_code("set x [list]", "O116"), vec!["{}".to_string()]);
+        // A list 8.6 would read apart as a script, once a literal, stays the
+        // list (`if 1 $x` ranges nothing; the braced literal ranges `abc`).
+        let hazard = "set x [list string range abc 0 end-2147483649]\nif 1 $x";
+        let o116 = |dialect| {
+            crate::optimiser::optimise_raw(hazard, &registry(), Some(dialect))
+                .into_iter()
+                .filter(|o| o.code.as_str() == "O116")
+                .count()
+        };
+        assert_eq!(o116("tcl8.6"), 0);
+        assert_eq!(o116("tcl9.0"), 1);
         assert_eq!(fold("puts [dict get {a 1 b 2} b]"), vec!["2".to_string()]);
         assert_eq!(
             fold("puts [lreverse {a b c}]"),

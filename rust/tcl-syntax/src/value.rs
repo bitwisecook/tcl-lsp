@@ -59,10 +59,12 @@ use crate::number::Radix;
 /// scalar has the same width C Tcl assigns it: one Tcl 9 character, and one or
 /// two Tcl 8 `Tcl_UniChar` units depending on whether it is supplementary.
 ///
-/// **Counting is the only versioned string operation.** Character *indexing*
-/// (`string index`, `range`, `first`, `last`, …) addresses Unicode scalars in
-/// both runtimes whatever the dialect, so on Tcl 8 a string holding a
-/// supplementary character has a length that disagrees with those indices.
+/// **Counting is the only versioned string operation** — it and `regsub -all
+/// {}`'s walk of the same units, which publishes no index (#2170).
+/// Character *indexing* (`string index`, `range`, `first`, `last`, …)
+/// addresses Unicode scalars in both runtimes whatever the dialect, so on
+/// Tcl 8 a string holding a supplementary character has a length that
+/// disagrees with those indices.
 /// That case is unsupported, deliberately rather than accidentally: reproducing
 /// it needs a value layer that can hold an unpaired surrogate, and anything
 /// less approximates. See the Tcl 8 supplementary-character boundary in

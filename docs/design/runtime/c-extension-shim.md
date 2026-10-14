@@ -459,6 +459,14 @@ messages, error codes, number formatting, list quoting, and prefix
 resolution are asserted byte-for-byte against C Tcl, not against the
 documentation.
 
+The `pkga` vectors never pass a malformed byte, because a script's string is
+well-formed UTF-8. `Tcl_NumUtfChars` and `Tcl_UtfNcmp` therefore bind
+`tcl_syntax::utf`, the one decoder of C Tcl 9.0's `Tcl_UtfToUniChar` that the WASM
+runtime's C API binds too, and both legs run its recorded vectors (twenty counts
+and eight comparisons taken from a program linked with libtcl 9.0.4) directly. The
+shim emulates Tcl 9.0 only; 8.6 reads a naked `0x80`–`0x9F` byte as itself, not as
+its cp1252 character.
+
 `tests/c/doors.c` is a second test extension for the doors: one command for each
 call (`doors_get`, `doors_set`, `doors_unset`, `doors_eval`, and the variants that
 pass `TCL_GLOBAL_ONLY`, no flags or `TCL_EVAL_DIRECT`), `doors_try`, which answers

@@ -39,7 +39,9 @@ use tcl_compiler::gvn::{
     find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
 };
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
-use tcl_compiler::interval_bounds::{find_divide_by_zero_with, find_interval_bounds_with};
+use tcl_compiler::interval_bounds::{
+    BoundsRelease, find_divide_by_zero_with, find_interval_bounds_with,
+};
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::irules_checks::{
@@ -2634,13 +2636,22 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                 &snap.unit.ssa,
                 (&snap.unit.sccp, &snap.unit.types),
                 &snap.unit.sccp.executable_blocks,
-                snap.unit
-                    .semantic_facts
-                    .context()
-                    .map(tcl_registry::model::semantic::SemanticContext::environment_id)
-                    .and_then(crate::environment::catalogue_profile_for_dialect)
-                    .and_then(tcl_dialect::DialectProfile::character_model),
-             numbers, grammar,
+                {
+                    let catalogue = snap
+                        .unit
+                        .semantic_facts
+                        .context()
+                        .map(tcl_registry::model::semantic::SemanticContext::environment_id)
+                        .and_then(crate::environment::catalogue_profile_for_dialect);
+                    BoundsRelease {
+                        characters: catalogue.and_then(tcl_dialect::DialectProfile::character_model),
+                        numbers,
+                        lset_appends_at_length: tcl_dialect::TclVersion::lset_appends_at_length_for(
+                            catalogue.and_then(tcl_dialect::DialectProfile::const_fold_version),
+                        ),
+                    }
+                },
+                grammar,
             )
             .iter()
             .map(|f| {

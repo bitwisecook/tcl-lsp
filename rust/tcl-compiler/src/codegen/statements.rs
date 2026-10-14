@@ -907,6 +907,9 @@ impl CodegenCtx<'_> {
             self.emit_inline_cmd_subst_with_tokens(value, tokens);
             return true;
         }
+        if self.try_emit_compiled_index_command(&head.0, args) {
+            return true;
+        }
         // A source snapshot may be unavailable for a compatibility caller.
         // Preserve its established generic value emission rather than
         // guessing from flattened text.
@@ -1099,6 +1102,17 @@ impl CodegenCtx<'_> {
         // The command name may itself be a substitution (`$Verify($opt) …`,
         // `[lookup] …`); emit it through the per-word path. A plain literal name
         // still lowers to a single `push`, so normal calls are unchanged.
+        let words: Vec<(&str, bool)> = args
+            .iter()
+            .enumerate()
+            .map(|(i, a)| {
+                (
+                    a.as_str(),
+                    self.cmd_arg_braced.get(i).copied().unwrap_or(false),
+                )
+            })
+            .collect();
+        let release_compiled = self.release_compiled(cmd, &words);
         self.emit_cmd_word(cmd, false);
         for (i, a) in args.iter().enumerate() {
             let braced = self.cmd_arg_braced.get(i).copied().unwrap_or(false);
@@ -1113,7 +1127,8 @@ impl CodegenCtx<'_> {
         } else {
             Op::INVOKE_STK4
         };
-        self.emit_comment(op, vec![Operand::Imm(arg_count)], cmd);
+        let invoke = self.emit_comment(op, vec![Operand::Imm(arg_count)], cmd);
+        self.instructions[invoke].release_compiled = release_compiled;
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
     }

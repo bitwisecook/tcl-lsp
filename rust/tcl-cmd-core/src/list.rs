@@ -272,7 +272,7 @@ fn lset_level<O: ValueOps>(
     release: TclVersion,
 ) -> Result<usize, CmdError> {
     let index = index_under(ops, spec, len, release)?;
-    let limit = if release >= TclVersion::V8_6 {
+    let limit = if release.lset_appends_at_length() {
         len + 1
     } else {
         len
@@ -590,6 +590,39 @@ mod tests {
             tcl_syntax::list::split_list(v)
                 .map(|elements| elements.iter().map(ToString::to_string).collect())
                 .map_err(|error| tcl_syntax::value::ValueError::BadList(error.message().to_owned()))
+        }
+    }
+
+    /// An index equal to a level's length appends from 8.6 and raises before
+    /// it, at every level of the path (tclsh 8.4.20 to 9.1.0).
+    #[test]
+    fn lset_appends_at_a_levels_length_only_from_8_6() {
+        let cases: &[(&str, &[&str], &str)] = &[
+            ("a b c", &["3"], "a b c Z"),
+            ("{a b c}", &["0", "3"], "{a b c Z}"),
+            ("{a b c}", &["1", "0"], "{a b c} Z"),
+            ("", &["0"], "Z"),
+        ];
+        for &(list, path, appended) in cases {
+            let path: Vec<String> = path.iter().map(|&spec| spec.to_owned()).collect();
+            for release in TclVersion::ALL {
+                let set = lset(
+                    &mut TextOps,
+                    &list.to_owned(),
+                    &path,
+                    "Z".to_owned(),
+                    release,
+                );
+                if release.lset_appends_at_length() {
+                    assert_eq!(set.expect("appended"), appended, "{release:?} {list:?}");
+                } else {
+                    assert_eq!(
+                        set.expect_err("raises").message(),
+                        "list index out of range",
+                        "{release:?} {list:?}"
+                    );
+                }
+            }
         }
     }
 

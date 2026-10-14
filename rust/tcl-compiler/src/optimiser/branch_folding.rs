@@ -490,6 +490,7 @@ mod tests {
                 top_level_namespace: "::".to_owned(),
                 dialect: None,
                 plain_command_dispatch: false,
+                top_level_evaluation: crate::ir::CommandEvaluation::Compiled,
                 top_level: crate::ir::Script::new(),
                 procedures: HashMap::new(),
                 methods: HashMap::new(),

@@ -266,6 +266,14 @@ pub struct CodegenCtx<'r> {
     /// Both need source ranges for diagnostics, but only a command supplies a
     /// safe whole script for runtime command-table revalidation.
     current_span_is_command: bool,
+    /// The spans of the commands the release evaluates without compiling
+    /// them: the top level's own commands where the module says so
+    /// ([`crate::ir::Module::top_level_evaluation`]), and none elsewhere.
+    pub(crate) direct_commands: Vec<Span>,
+    /// How many expressions enclose the code being emitted. The release
+    /// compiles an expression, and the commands in it, even in a command it
+    /// evaluates without compiling.
+    expr_depth: u32,
     /// Unrooted constructed namespace paired with the current executable
     /// command source site. This follows explicit IR binding sites across
     /// inlining rather than inheriting the surrounding function's namespace.
@@ -344,9 +352,31 @@ impl<'r> CodegenCtx<'r> {
             source: "".into(),
             line_index: None,
             current_span_is_command: false,
+            direct_commands: Vec::new(),
+            expr_depth: 0,
             current_command_namespace: String::new(),
             cmd_arg_braced: Vec::new(),
         }
+    }
+
+    /// How the release evaluates the command being emitted.
+    fn command_evaluation(&self) -> tcl_runtime_api::CommandEvaluation {
+        if self.in_direct_command() {
+            tcl_runtime_api::CommandEvaluation::Direct
+        } else {
+            tcl_runtime_api::CommandEvaluation::Compiled
+        }
+    }
+
+    /// Whether the release evaluates the command being emitted without
+    /// compiling it, so reads a literal word in it as the command runs.
+    #[must_use]
+    pub(crate) fn in_direct_command(&self) -> bool {
+        self.expr_depth == 0
+            && self.current_span_is_command
+            && self
+                .current_span
+                .is_some_and(|span| self.direct_commands.contains(&span))
     }
 
     /// Whether a variable named here may be addressed as a *compiled local* of
@@ -736,6 +766,7 @@ impl<'r> CodegenCtx<'r> {
         let idx = self.instructions.len();
         let mut instr = Instruction::new(op, operands);
         instr.source_span = self.current_span;
+        instr.evaluation = self.command_evaluation();
         instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
         if !instr.source_cmd_text.is_empty() {
@@ -755,6 +786,7 @@ impl<'r> CodegenCtx<'r> {
         let mut instr = Instruction::new(op, operands);
         comment.clone_into(&mut instr.comment);
         instr.source_span = self.current_span;
+        instr.evaluation = self.command_evaluation();
         instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
         if !instr.source_cmd_text.is_empty() {

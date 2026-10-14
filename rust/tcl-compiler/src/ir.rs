@@ -31,6 +31,7 @@ use tcl_lexer::{LexerConfig, SourceMap, Span, Token};
 use tcl_registry::definer::{CallableRole, MemberReceiver};
 /// A [`TryHandler`]'s selection vocabulary, the registry's clause-row fact.
 pub use tcl_registry::value_transfer::HandlerMatch;
+pub use tcl_runtime_api::CommandEvaluation;
 
 use crate::expr_ast::ExprNode;
 use crate::segmenter::SegmentedCommand;
@@ -1935,6 +1936,9 @@ pub struct Module {
     /// Whether lowering deliberately preserved ordinary command dispatch for
     /// every invocation (trace/invalidation recovery compilation).
     pub plain_command_dispatch: bool,
+    /// How the emulated release evaluates the commands of [`Self::top_level`]
+    /// itself; the bodies those commands evaluate it compiles all the same.
+    pub top_level_evaluation: CommandEvaluation,
     /// What [`Self::top_level`] actually is.
     ///
     /// The runtime compiles a `proc` or `TclOO` method body as its own module

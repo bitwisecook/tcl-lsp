@@ -2421,10 +2421,10 @@ file; this call falls through to the 'unknown' handler."
             &fu.ssa,
             (&fu.sccp, &fu.types),
             &executable,
-            self.profile.character_model(),
-            // The document's own numeral grammar, alongside the character model
-            // — both dialect-derived facts, both threaded rather than ambient.
-            crate::intervals::numbers_for_dialect(Some(self.profile)),
+            // The document's own character model, numeral grammar and `lset`
+            // append boundary — dialect-derived facts, threaded rather than
+            // ambient.
+            self.bounds_release(),
             self.grammar(),
         );
         for f in findings {

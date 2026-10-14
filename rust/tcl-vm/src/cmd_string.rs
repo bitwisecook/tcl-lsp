@@ -166,7 +166,8 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Portable subcommands now live in the shared command core (`tcl-cmd-core`);
     // the VM is a thin adapter that maps `Result<Value, CmdError>` onto its
     // `Completion`. Subcommands not yet in the core fall through to the legacy arms.
-    if let Some(result) = tcl_cmd_core::string::dispatch_canon(vm, canon, rest) {
+    let numbers = vm.runtime_version().number_syntax();
+    if let Some(result) = tcl_cmd_core::string::dispatch_canon(vm, canon, rest, numbers) {
         return match result {
             Ok(v) => ok(v),
             Err(e) => crate::command::completion_from_cmd_error(e),

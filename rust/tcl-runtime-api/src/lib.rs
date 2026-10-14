@@ -545,6 +545,25 @@ pub struct ScriptCompileTarget<'a> {
     pub source: &'a str,
     /// Canonical unrooted constructed namespace key. Empty denotes global.
     pub namespace: &'a str,
+    /// How the emulated release evaluates the script's own commands.
+    pub evaluation: CommandEvaluation,
+}
+
+/// How the emulated release evaluates a command.
+///
+/// `tclsh` compiles every body a command evaluates, every script `source`
+/// reads and every command its stdin feeds it, but evaluates the commands of
+/// the script file it is given as `Tcl_EvalEx` does, one at a time without
+/// compiling them. A release whose compiler reads a literal word apart from
+/// its command (8.6's `TclIndexEncode`) reads such a command's words as the
+/// command does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CommandEvaluation {
+    /// Compiled.
+    #[default]
+    Compiled,
+    /// Parsed and invoked without compiling it.
+    Direct,
 }
 
 /// Command-dispatch form requested for a procedure-body compilation.

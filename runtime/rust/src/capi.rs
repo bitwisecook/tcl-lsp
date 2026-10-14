@@ -34,6 +34,7 @@
 use core::ffi::{c_char, c_int, c_long, c_void, CStr};
 
 use tcl_cmd_core::prefix::{self, Resolution};
+use tcl_syntax::utf;
 
 use crate::cmd_package::provide_package;
 use crate::interp::{error_code_list, Code, Interp, ObjCommand, TclCmdDeleteProc, TclObjCmdProc};
@@ -738,10 +739,8 @@ pub unsafe extern "C" fn Tcl_PkgProvideEx(
 // UTF-8
 
 /// `Tcl_NumUtfChars` — the characters in `src[..length]`, or up to the
-/// terminator for a negative `length`, each read as [`decode`] reads it. Near
-/// the end of `src[..length]`, a byte that starts a sequence longer than the
-/// bytes left is a character of its own, as C Tcl's `Tcl_UtfCharComplete`
-/// makes it.
+/// terminator for a negative `length`, each read as C Tcl reads it
+/// ([`tcl_syntax::utf`]).
 ///
 /// # Safety
 /// `src` must reference `length` readable bytes, or be a terminated string when
@@ -751,35 +750,13 @@ pub unsafe extern "C" fn Tcl_NumUtfChars(src: *const c_char, length: TclSize) ->
     if src.is_null() {
         return 0;
     }
-    let src = src.cast::<u8>();
-    let mut count: TclSize = 0;
-    if length < 0 {
-        let mut at = src;
-        // SAFETY: the caller guarantees a terminated string, and the NUL that
-        // ends it ends every sequence `next_char` reads.
-        while unsafe { *at } != 0 {
-            // SAFETY: as above.
-            unsafe { next_char(&mut at) };
-            count += 1;
-        }
-        return count;
-    }
-    let length = length as usize;
-    let mut offset = 0;
-    while offset < length {
-        // SAFETY: `offset` is within the `length` bytes the caller guarantees.
-        let at = unsafe { src.add(offset) };
-        // SAFETY: as above.
-        let lead = unsafe { *at };
-        offset += if length - offset >= complete_width(lead) {
-            // SAFETY: the bytes the lead byte asks for are within `length`.
-            unsafe { decode(at) }.1
-        } else {
-            1
-        };
-        count += 1;
-    }
-    count
+    let bytes = match usize::try_from(length) {
+        // SAFETY: the caller guarantees `length` readable bytes.
+        Ok(length) => unsafe { core::slice::from_raw_parts(src.cast::<u8>(), length) },
+        // SAFETY: the caller guarantees a terminated string.
+        Err(_) => unsafe { CStr::from_ptr(src) }.to_bytes(),
+    };
+    utf::count_chars(bytes) as TclSize
 }
 
 /// `Tcl_UtfNcmp` — compare the first `numChars` characters of `cs` and `ct`,
@@ -795,91 +772,15 @@ pub unsafe extern "C" fn Tcl_UtfNcmp(
     ct: *const c_char,
     numChars: usize,
 ) -> c_int {
-    let (mut left, mut right) = (cs.cast::<u8>(), ct.cast::<u8>());
-    for _ in 0..numChars {
-        // SAFETY: the caller guarantees `numChars` characters in each.
-        let (one, two) = unsafe { (next_char(&mut left), next_char(&mut right)) };
-        if one != two {
-            return one as c_int - two as c_int;
-        }
-    }
-    0
-}
-
-/// The character at `*at`, advancing past it.
-///
-/// # Safety
-/// As [`decode`].
-unsafe fn next_char(at: &mut *const u8) -> u32 {
-    // SAFETY: forwarded per this fn's contract.
-    let (character, width) = unsafe { decode(*at) };
-    // SAFETY: the character was `width` readable bytes.
-    *at = unsafe { at.add(width) };
-    character
-}
-
-/// The characters C Tcl reads the naked trail bytes `0x80` to `0x9F` as: the
-/// ones cp1252 gives those bytes.
-const CP1252: [u16; 32] = [
-    0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039,
-    0x0152, 0x008D, 0x017D, 0x008F, 0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
-    0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178,
-];
-
-/// The character at `at` and the bytes it takes, as C Tcl's `Tcl_UtfToUniChar`
-/// reads them. A lead byte with its trail bytes is the code point they encode
-/// when that is its shortest form, and `C0 80`, C Tcl's NUL inside a value, is
-/// a NUL; a naked trail byte from `0x80` to `0x9F` is the character cp1252 gives
-/// it; and any other byte, a lead byte whose sequence is cut short or overlong
-/// among them, is a character of its own value.
-///
-/// # Safety
-/// `at` must be readable, and so must each byte after it up to the first that
-/// is not a trail byte or the last of the sequence its lead byte starts.
-unsafe fn decode(at: *const u8) -> (u32, usize) {
-    // SAFETY: forwarded per this fn's contract.
-    let lead = unsafe { *at };
-    // The low six bits of the byte `step` on when it is a trail byte. Each is
-    // read only once every byte before it was one.
-    let trail = |step: usize| {
-        // SAFETY: forwarded per this fn's contract.
-        let byte = unsafe { *at.add(step) };
-        (byte & 0xC0 == 0x80).then_some(u32::from(byte & 0x3F))
-    };
-    let high = |mask: u8, shift: u32| u32::from(lead & mask) << shift;
-    let decoded = match lead {
-        0x80..=0x9F => Some((u32::from(CP1252[usize::from(lead - 0x80)]), 1)),
-        // `C1` starts no sequence: its two-byte forms are all overlong, and
-        // `Tcl_UtfCharComplete` asks for one byte for it, so the byte after it
-        // is not read.
-        0xC0 | 0xC2..=0xDF => trail(1)
-            .map(|one| (high(0x1F, 6) | one, 2))
-            .filter(|&(character, _)| character == 0 || character >= 0x80),
-        0xE0..=0xEF => trail(1)
-            .and_then(|one| trail(2).map(|two| (high(0x0F, 12) | (one << 6) | two, 3)))
-            .filter(|&(character, _)| character > 0x7FF),
-        0xF0..=0xF4 => trail(1)
-            .and_then(|one| {
-                trail(2).and_then(|two| {
-                    trail(3).map(|three| (high(0x07, 18) | (one << 12) | (two << 6) | three, 4))
-                })
-            })
-            .filter(|&(character, _)| (0x1_0000..=0x10_FFFF).contains(&character)),
-        _ => None,
-    };
-    decoded.unwrap_or((u32::from(lead), 1))
-}
-
-/// The bytes C Tcl's `Tcl_UtfCharComplete` asks for before a character is read
-/// from `lead`: the sequence a lead byte starts, three for a trail byte (which
-/// may be the second of four), one for any other byte.
-fn complete_width(lead: u8) -> usize {
-    match lead {
-        0x80..=0xBF | 0xE0..=0xEF => 3,
-        0xC0 | 0xC2..=0xDF => 2,
-        0xF0..=0xF4 => 4,
-        _ => 1,
-    }
+    let (cs, ct) = (cs.cast::<u8>(), ct.cast::<u8>());
+    utf::compare_chars_with(
+        numChars,
+        // SAFETY: the caller guarantees `numChars` characters in each, and the
+        // decoder reads only the bytes of those characters.
+        |at| unsafe { *cs.add(at) },
+        // SAFETY: as above.
+        |at| unsafe { *ct.add(at) },
+    )
 }
 
 // helpers shared by the exports above

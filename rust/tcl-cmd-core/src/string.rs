@@ -29,7 +29,14 @@
 //! `reverse`/`repeat`/`cat`). It returns `None` for any subcommand a given
 //! runtime still implements itself, so a host can fall back to its own
 //! body for the few not routed here.
+//!
+//! Every core that reads an index word takes the numeral grammar it reads
+//! it under (`NumberSyntax`): a runtime passes its pinned release's, a
+//! folder the target's, so the answer never rests on whatever grammar the
+//! thread last installed. `string range abcdefghijkl 010 end` is `ijkl` on
+//! tclsh 8.4.20 to 8.6.18 and `kl` from 9.0.4.
 
+use tcl_syntax::number::NumberSyntax;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -44,9 +51,14 @@ pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
 
 /// `string index str charIndex` — the one-character string at `idx`, or empty
 /// when out of range.
-pub fn index<O: ValueOps>(ops: &mut O, s: &O::Value, idx: &O::Value) -> Result<O::Value, CmdError> {
+pub fn index<O: ValueOps>(
+    ops: &mut O,
+    s: &O::Value,
+    idx: &O::Value,
+    numbers: NumberSyntax,
+) -> Result<O::Value, CmdError> {
     let chars: Vec<char> = ops.as_str(s).chars().collect();
-    let i = index::resolve(&ops.as_str(idx), chars.len())?;
+    let i = index::resolve_with(&ops.as_str(idx), chars.len(), numbers)?;
     if i < 0 {
         return Ok(ops.empty());
     }
@@ -62,11 +74,12 @@ pub fn range<O: ValueOps>(
     s: &O::Value,
     first: &O::Value,
     last: &O::Value,
+    numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
     let chars: Vec<char> = ops.as_str(s).chars().collect();
     let len = chars.len();
-    let lo = index::resolve(&ops.as_str(first), len)?.max(0);
-    let hi = index::resolve(&ops.as_str(last), len)?;
+    let lo = index::resolve_with(&ops.as_str(first), len, numbers)?.max(0);
+    let hi = index::resolve_with(&ops.as_str(last), len, numbers)?;
     let Ok(lo) = usize::try_from(lo) else {
         return Ok(ops.empty());
     };
@@ -250,6 +263,7 @@ pub fn case_convert<O: ValueOps>(
     args: &[O::Value],
     mode: CaseMode,
     usage: &str,
+    numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
     let (s, first_spec, last_spec) = match args {
         [s] => (s, None, None),
@@ -264,10 +278,10 @@ pub fn case_convert<O: ValueOps>(
     }
     let first = match first_spec {
         None => 0,
-        Some(f) => index::resolve(&ops.as_str(f), len)?.max(0),
+        Some(f) => index::resolve_with(&ops.as_str(f), len, numbers)?.max(0),
     };
     let last = match last_spec {
-        Some(l) => index::resolve(&ops.as_str(l), len)?,
+        Some(l) => index::resolve_with(&ops.as_str(l), len, numbers)?,
         None if first_spec.is_some() => first,
         None => i64::try_from(len).unwrap_or(i64::MAX) - 1,
     };
@@ -449,7 +463,11 @@ fn titlecase_digraph(c: char) -> Option<char> {
 /// `string replace string first last ?newstring?` — remove the characters in
 /// `[first, last]` (inclusive), optionally inserting `newstring`. An empty or
 /// inverted range leaves the string unchanged.
-pub fn replace<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+pub fn replace<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    numbers: NumberSyntax,
+) -> Result<O::Value, CmdError> {
     if args.len() < 3 || args.len() > 4 {
         return Err(CmdError::wrong_args(
             "string replace string first last ?string?",
@@ -458,8 +476,8 @@ pub fn replace<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, 
     let chars: Vec<char> = ops.as_str(&args[0]).chars().collect();
     let len = chars.len();
     let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
-    let first = index::resolve(&ops.as_str(&args[1]), len)?;
-    let last = index::resolve(&ops.as_str(&args[2]), len)?;
+    let first = index::resolve_with(&ops.as_str(&args[1]), len, numbers)?;
+    let last = index::resolve_with(&ops.as_str(&args[2]), len, numbers)?;
     if last < 0 || first > end || last < first {
         let unchanged: String = chars.iter().collect();
         return Ok(ops.new_string(unchanged));
@@ -479,7 +497,11 @@ pub fn replace<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, 
 /// `string insert string index insertString` — insert `insertString` before the
 /// character at `index`. `end` denotes the position *after* the last character
 /// (so it appends); the index resolves against `len + 1`.
-pub fn insert<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+pub fn insert<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    numbers: NumberSyntax,
+) -> Result<O::Value, CmdError> {
     let [s, idx, ins] = args else {
         return Err(CmdError::wrong_args(
             "string insert string index insertString",
@@ -487,7 +509,7 @@ pub fn insert<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, C
     };
     let chars: Vec<char> = ops.as_str(s).chars().collect();
     let len = chars.len();
-    let at = index::resolve(&ops.as_str(idx), len + 1)?;
+    let at = index::resolve_with(&ops.as_str(idx), len + 1, numbers)?;
     let at = if at < 0 {
         0
     } else {
@@ -552,12 +574,14 @@ pub fn first<O: ValueOps>(
     needle: &O::Value,
     haystack: &O::Value,
     start: Option<&O::Value>,
+    numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
     let hay: Vec<char> = ops.as_str(haystack).chars().collect();
     let needle: Vec<char> = ops.as_str(needle).chars().collect();
     let start = match start {
         None => 0,
-        Some(s) => usize::try_from(index::resolve(&ops.as_str(s), hay.len())?.max(0)).unwrap_or(0),
+        Some(s) => usize::try_from(index::resolve_with(&ops.as_str(s), hay.len(), numbers)?.max(0))
+            .unwrap_or(0),
     };
     if needle.is_empty() {
         return Ok(ops.new_int(-1));
@@ -581,12 +605,13 @@ pub fn last<O: ValueOps>(
     needle: &O::Value,
     haystack: &O::Value,
     last_index: Option<&O::Value>,
+    numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
     let hay: Vec<char> = ops.as_str(haystack).chars().collect();
     let needle: Vec<char> = ops.as_str(needle).chars().collect();
     let last: i64 = match last_index {
         None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
-        Some(s) => index::resolve(&ops.as_str(s), hay.len())?,
+        Some(s) => index::resolve_with(&ops.as_str(s), hay.len(), numbers)?,
     };
     // An empty haystack can hold no non-empty needle — return -1 before the
     // clamp below, whose `saturating_sub(1)` would otherwise yield index 0 and
@@ -760,11 +785,13 @@ fn trim_dispatch<O: ValueOps>(
 /// Returns `Some(result)` when the subcommand is handled here, or `None` when it
 /// is not handled here — letting the calling runtime fall back to its own
 /// implementation. The `Some(Err(..))` case is a genuine command error (arity,
-/// bad index, …).
+/// bad index, …). Index words are read under `numbers`, the grammar of the
+/// release the caller runs or targets.
 pub fn dispatch_canon<O: ValueOps>(
     ops: &mut O,
     sub: &str,
     rest: &[O::Value],
+    numbers: NumberSyntax,
 ) -> Option<Result<O::Value, CmdError>> {
     let arity = |n: usize, usage: &str| -> Option<Result<O::Value, CmdError>> {
         if rest.len() == n {
@@ -776,9 +803,9 @@ pub fn dispatch_canon<O: ValueOps>(
     match sub {
         "length" => arity(1, "string length string").or_else(|| Some(Ok(length(ops, &rest[0])))),
         "index" => arity(2, "string index string charIndex")
-            .or_else(|| Some(index(ops, &rest[0], &rest[1]))),
+            .or_else(|| Some(index(ops, &rest[0], &rest[1], numbers))),
         "range" => arity(3, "string range string first last")
-            .or_else(|| Some(range(ops, &rest[0], &rest[1], &rest[2]))),
+            .or_else(|| Some(range(ops, &rest[0], &rest[1], &rest[2], numbers))),
         "reverse" => arity(1, "string reverse string").or_else(|| Some(Ok(reverse(ops, &rest[0])))),
         "repeat" => {
             arity(2, "string repeat string count").or_else(|| Some(repeat(ops, &rest[0], &rest[1])))
@@ -793,31 +820,34 @@ pub fn dispatch_canon<O: ValueOps>(
             rest,
             CaseMode::Upper,
             "string toupper string ?first? ?last?",
+            numbers,
         )),
         "tolower" => Some(case_convert(
             ops,
             rest,
             CaseMode::Lower,
             "string tolower string ?first? ?last?",
+            numbers,
         )),
         "totitle" => Some(case_convert(
             ops,
             rest,
             CaseMode::Title,
             "string totitle string ?first? ?last?",
+            numbers,
         )),
-        "replace" => Some(replace(ops, rest)),
-        "insert" => Some(insert(ops, rest)),
+        "replace" => Some(replace(ops, rest, numbers)),
+        "insert" => Some(insert(ops, rest, numbers)),
         "first" => match rest {
-            [n, h] => Some(first(ops, n, h, None)),
-            [n, h, s] => Some(first(ops, n, h, Some(s))),
+            [n, h] => Some(first(ops, n, h, None, numbers)),
+            [n, h, s] => Some(first(ops, n, h, Some(s), numbers)),
             _ => Some(Err(CmdError::wrong_args(
                 "string first needleString haystackString ?startIndex?",
             ))),
         },
         "last" => match rest {
-            [n, h] => Some(last(ops, n, h, None)),
-            [n, h, s] => Some(last(ops, n, h, Some(s))),
+            [n, h] => Some(last(ops, n, h, None, numbers)),
+            [n, h, s] => Some(last(ops, n, h, Some(s), numbers)),
             _ => Some(Err(CmdError::wrong_args(
                 "string last needleString haystackString ?lastIndex?",
             ))),
@@ -844,9 +874,9 @@ pub fn dispatch_canon<O: ValueOps>(
             true,
         )),
         "wordstart" => arity(2, "string wordstart string index")
-            .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], true))),
+            .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], true, numbers))),
         "wordend" => arity(2, "string wordend string index")
-            .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], false))),
+            .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], false, numbers))),
         // Not handled here — caller falls back to its own path (`is`, …).
         _ => None,
     }
@@ -861,9 +891,10 @@ pub fn word_bound<O: ValueOps>(
     s: &O::Value,
     idx: &O::Value,
     start: bool,
+    numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
     let chars: Vec<char> = ops.as_str(s).chars().collect();
-    let index = index::resolve(&ops.as_str(idx), chars.len())?;
+    let index = index::resolve_with(&ops.as_str(idx), chars.len(), numbers)?;
     let result = if start {
         word_start(&chars, index)
     } else {
@@ -937,9 +968,13 @@ fn is_connector_punct(c: char) -> bool {
 /// Dispatch a `string` subcommand from the raw argument vector (`args[0]` is the
 /// subcommand). Convenience over [`dispatch_canon`] for a runtime that does not
 /// pre-resolve abbreviations; exact subcommand names only.
-pub fn dispatch<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Option<Result<O::Value, CmdError>> {
+pub fn dispatch<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    numbers: NumberSyntax,
+) -> Option<Result<O::Value, CmdError>> {
     let sub = ops.as_str(args.first()?).to_string();
-    dispatch_canon(ops, &sub, &args[1..])
+    dispatch_canon(ops, &sub, &args[1..], numbers)
 }
 
 #[cfg(test)]
@@ -997,8 +1032,133 @@ mod tests {
         let n = needle.to_owned();
         let h = haystack.to_owned();
         let li = last_index.map(str::to_owned);
-        let r = last(&mut ops, &n, &h, li.as_ref()).expect("string last");
+        let r = last(&mut ops, &n, &h, li.as_ref(), NumberSyntax::Tcl90).expect("string last");
         r.parse().unwrap()
+    }
+
+    /// `string <words>` through [`dispatch`] under `numbers`, with the
+    /// thread's installed grammar set to `ambient` so an answer that read it
+    /// instead would show.
+    fn string_under(words: &[&str], numbers: NumberSyntax, ambient: NumberSyntax) -> String {
+        use tcl_syntax::number::{runtime_syntax, set_runtime_syntax};
+        let restore = runtime_syntax();
+        set_runtime_syntax(ambient);
+        let args: Vec<String> = words.iter().map(|&w| w.to_owned()).collect();
+        let answer = dispatch(&mut StrOps, &args, numbers).expect("a core subcommand");
+        set_runtime_syntax(restore);
+        answer.unwrap_or_else(|error| format!("error: {}", error.message()))
+    }
+
+    #[test]
+    fn index_words_read_under_the_grammar_the_caller_names() {
+        // Regression (#2126): the string cores read their index words under
+        // the thread's installed grammar, so a caller under a stated profile
+        // got whichever release the process last pinned. Measured with
+        // LANG=C.UTF-8 on tclsh 8.4.20, 8.5.19 and 8.6.18 (the 8.x column,
+        // identical on all three) and 9.0.4 and 9.1.0 (the 9.x column):
+        //   string range abcdefghijkl 010 end           ijkl | kl
+        //   string range abcdefghijkl 0 end-010         abcd | ab
+        //   string range abcdefghijkl 1_0 end           bad index | kl
+        //   string range abcdefghijkl 0d1 end           bad index | bcdefghijkl
+        //   string index abcdefghijkl 010               i | k
+        //   string index abcdefghijkl end-010           d | b
+        //   string wordstart {abcdefgh ijkl mnop} 010   8 | 9
+        //   string wordend {abcdefgh ijkl mnop} 010     9 | 13
+        //   string wordstart {abcdefgh ijkl mnop} end-010   9 | 0
+        //   string first a aaaaaaaaaaaaaa 010           8 | 10
+        //   string last a aaaaaaaaaaaaaa 010            8 | 10
+        //   string replace abcdefghijkl 010 010 Z       abcdefghZjkl | abcdefghijZl
+        //   string toupper abcdefghijkl 010 010         abcdefghIjkl | abcdefghijKl
+        let bad = |spec: &str| {
+            format!("error: bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?")
+        };
+        let rows: &[(&[&str], String, String)] = &[
+            (
+                &["range", "abcdefghijkl", "010", "end"],
+                "ijkl".into(),
+                "kl".into(),
+            ),
+            (
+                &["range", "abcdefghijkl", "0", "end-010"],
+                "abcd".into(),
+                "ab".into(),
+            ),
+            (
+                &["range", "abcdefghijkl", "1_0", "end"],
+                bad("1_0"),
+                "kl".into(),
+            ),
+            (
+                &["range", "abcdefghijkl", "0d1", "end"],
+                bad("0d1"),
+                "bcdefghijkl".into(),
+            ),
+            (&["index", "abcdefghijkl", "010"], "i".into(), "k".into()),
+            (
+                &["index", "abcdefghijkl", "end-010"],
+                "d".into(),
+                "b".into(),
+            ),
+            (
+                &["wordstart", "abcdefgh ijkl mnop", "010"],
+                "8".into(),
+                "9".into(),
+            ),
+            (
+                &["wordend", "abcdefgh ijkl mnop", "010"],
+                "9".into(),
+                "13".into(),
+            ),
+            (
+                &["wordstart", "abcdefgh ijkl mnop", "end-010"],
+                "9".into(),
+                "0".into(),
+            ),
+            (
+                &["first", "a", "aaaaaaaaaaaaaa", "010"],
+                "8".into(),
+                "10".into(),
+            ),
+            (
+                &["last", "a", "aaaaaaaaaaaaaa", "010"],
+                "8".into(),
+                "10".into(),
+            ),
+            (
+                &["replace", "abcdefghijkl", "010", "010", "Z"],
+                "abcdefghZjkl".into(),
+                "abcdefghijZl".into(),
+            ),
+            (
+                &["toupper", "abcdefghijkl", "010", "010"],
+                "abcdefghIjkl".into(),
+                "abcdefghijKl".into(),
+            ),
+        ];
+        for (words, tcl8, tcl9) in rows {
+            for tcl8_numbers in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+                assert_eq!(
+                    &string_under(words, tcl8_numbers, NumberSyntax::Tcl90),
+                    tcl8,
+                    "{words:?} under {tcl8_numbers:?}"
+                );
+            }
+            assert_eq!(
+                &string_under(words, NumberSyntax::Tcl90, NumberSyntax::Tcl85),
+                tcl9,
+                "{words:?} under Tcl90"
+            );
+        }
+        // `string insert` is 9.0's (8.6.18: `unknown or ambiguous subcommand`);
+        // 9.0.4 and 9.1.0 read `010` as 10.
+        assert_eq!(
+            string_under(
+                &["insert", "abcdefghijkl", "010", "Z"],
+                NumberSyntax::Tcl90,
+                NumberSyntax::Tcl85
+            ),
+            "abcdefghijZkl"
+        );
     }
 
     #[test]
@@ -1082,7 +1242,14 @@ mod tests {
     fn totitle_first_char_uses_titlecase_not_uppercase() {
         let mut ops = StrOps;
         let title = |ops: &mut StrOps, s: &str| {
-            case_convert(ops, &[s.to_owned()], CaseMode::Title, "u").unwrap()
+            case_convert(
+                ops,
+                &[s.to_owned()],
+                CaseMode::Title,
+                "u",
+                NumberSyntax::Tcl90,
+            )
+            .unwrap()
         };
         // The Latin dz digraph (U+01F3) titlecases to Dž (U+01F2), not the
         // uppercase DZ (U+01F1) — string-17.7; the rest is lowercased.
@@ -1092,7 +1259,14 @@ mod tests {
         assert_eq!(title(&mut ops, "hELLO"), "Hello");
         // `toupper` of the digraph is the uppercase form (U+01F1), not titlecase.
         assert_eq!(
-            case_convert(&mut ops, &["\u{01F3}".to_owned()], CaseMode::Upper, "u").unwrap(),
+            case_convert(
+                &mut ops,
+                &["\u{01F3}".to_owned()],
+                CaseMode::Upper,
+                "u",
+                NumberSyntax::Tcl90
+            )
+            .unwrap(),
             "\u{01F1}"
         );
     }

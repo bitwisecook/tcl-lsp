@@ -37,7 +37,7 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use tcl_cmd_core::prefix::{self, Resolution};
-use tcl_syntax::list;
+use tcl_syntax::{list, utf};
 
 use crate::doors;
 use crate::obj::{Obj, ObjRef, TclError, decode_bytes};
@@ -1016,8 +1016,9 @@ pub unsafe extern "C" fn tcl_eval_obj_ex(
     })
 }
 
-/// `Tcl_NumUtfChars`: the number of UTF-8 characters in `length` bytes (or
-/// up to the terminator for a negative `length`).
+/// `Tcl_NumUtfChars`: the number of characters in `length` bytes (or up to
+/// the terminator for a negative `length`), each read as C Tcl reads it, so a
+/// malformed byte is a character of its own.
 ///
 /// # Safety
 ///
@@ -1028,35 +1029,34 @@ pub unsafe extern "C" fn tcl_num_utf_chars(src: *const c_char, length: isize) ->
     guarded(0, || {
         // SAFETY: as documented on the function.
         let bytes = unsafe { c_bytes(src, length) };
-        let count = bytes.iter().filter(|&&byte| byte & 0xC0 != 0x80).count();
-        isize::try_from(count).unwrap_or(isize::MAX)
+        isize::try_from(utf::count_chars(bytes)).unwrap_or(isize::MAX)
     })
 }
 
-/// `Tcl_UtfNcmp`: compare up to `n` characters, the terminator counting as
-/// a character below every other.
+/// `Tcl_UtfNcmp`: compare the first `n` characters, the difference of the
+/// first pair that differs. As C Tcl's, it reads `n` characters from each
+/// whatever bytes they hold, so a NUL inside a value is a character like any
+/// other.
 ///
 /// # Safety
 ///
-/// `s1` and `s2` must be terminated strings.
+/// `s1` and `s2` must each hold at least `n` characters, or be NULL for none.
 #[must_use]
 #[unsafe(export_name = "Tcl_UtfNcmp")]
 pub unsafe extern "C" fn tcl_utf_ncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
     guarded(0, || {
-        // SAFETY: as documented on the function.
-        let (left, right) = unsafe { (c_text(s1), c_text(s2)) };
-        let mut left = left.chars();
-        let mut right = right.chars();
-        for _ in 0..n {
-            let (a, b) = (left.next(), right.next());
-            match a.cmp(&b) {
-                std::cmp::Ordering::Less => return -1,
-                std::cmp::Ordering::Greater => return 1,
-                std::cmp::Ordering::Equal if a.is_none() => return 0,
-                std::cmp::Ordering::Equal => {}
+        let byte_at = |text: *const c_char| {
+            move |at: usize| {
+                if text.is_null() {
+                    0
+                } else {
+                    // SAFETY: as documented on the function, and the decoder
+                    // reads only the bytes of the `n` characters.
+                    unsafe { *text.cast::<u8>().add(at) }
+                }
             }
-        }
-        0
+        };
+        utf::compare_chars_with(n, byte_at(s1), byte_at(s2))
     })
 }
 
@@ -1068,6 +1068,7 @@ mod tests {
     };
     use crate::obj::ObjRef;
     use crate::state::InterpState;
+    use tcl_syntax::utf;
 
     #[test]
     fn a_panic_at_the_boundary_is_parked_not_propagated() {
@@ -1124,7 +1125,7 @@ mod tests {
         // SAFETY: both literals are terminated.
         unsafe {
             assert_eq!(tcl_utf_ncmp(bytes.as_ptr(), c"a\xC0\x80b".as_ptr(), 3), 0);
-            assert_eq!(tcl_utf_ncmp(bytes.as_ptr(), c"a\xC0\x80c".as_ptr(), 3), -1);
+            assert!(tcl_utf_ncmp(bytes.as_ptr(), c"a\xC0\x80c".as_ptr(), 3) < 0);
             assert_eq!(tcl_num_utf_chars(bytes.as_ptr(), -1), 3);
         }
     }
@@ -1136,6 +1137,37 @@ mod tests {
         assert_eq!(result, TCL_OK);
         // SAFETY: as above.
         let shorter = unsafe { tcl_utf_ncmp(c"ab".as_ptr(), c"abc".as_ptr(), 3) };
-        assert_eq!(shorter, -1);
+        assert!(shorter < 0);
+    }
+
+    /// `bytes` with C's terminator after them.
+    fn terminated(bytes: &[u8]) -> Vec<u8> {
+        let mut text = bytes.to_vec();
+        text.push(0);
+        text
+    }
+
+    #[test]
+    fn malformed_bytes_are_counted_as_c_tcl_counts_them() {
+        for &(bytes, length, expected) in utf::NUM_UTF_CHARS_VECTORS {
+            let text = terminated(bytes);
+            // SAFETY: the buffer holds `length` bytes and is terminated.
+            let count = unsafe { tcl_num_utf_chars(text.as_ptr().cast(), length) };
+            assert_eq!(count, expected, "Tcl_NumUtfChars({bytes:x?}, {length})");
+        }
+    }
+
+    #[test]
+    fn malformed_bytes_are_compared_as_c_tcl_compares_them() {
+        for &(left, right, characters, expected) in utf::UTF_NCMP_VECTORS {
+            let (one, two) = (terminated(left), terminated(right));
+            // SAFETY: each buffer holds the characters compared and is terminated.
+            let answer =
+                unsafe { tcl_utf_ncmp(one.as_ptr().cast(), two.as_ptr().cast(), characters) };
+            assert_eq!(
+                answer, expected,
+                "Tcl_UtfNcmp({left:x?}, {right:x?}, {characters})"
+            );
+        }
     }
 }

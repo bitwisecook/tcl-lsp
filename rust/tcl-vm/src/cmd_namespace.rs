@@ -27,7 +27,7 @@
 
 use tcl_dialect::model::SurfaceQuery;
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
-use tcl_runtime_api::{Code, Completion};
+use tcl_runtime_api::{Code, CommandEvaluation, Completion};
 
 use crate::command::{command_lookup_error, err_with_code, lookup_error, settle_control_options};
 use crate::interp::{Vm, err, ok};
@@ -41,7 +41,13 @@ use tcl_dialect::model::surface_admits;
 /// and `uplevel`/`upvar` from a proc called within reach it (and its namespace
 /// variables). `call_argv` is the invoking command (e.g. `namespace eval ::ns
 /// {…}`) for `info level N`.
-fn eval_in_ns(vm: &mut Vm, written: &str, body: &str, call_argv: Vec<Value>) -> Completion<Value> {
+fn eval_in_ns(
+    vm: &mut Vm,
+    written: &str,
+    body: &str,
+    evaluation: CommandEvaluation,
+    call_argv: Vec<Value>,
+) -> Completion<Value> {
     let target = vm.namespace_display_for_written(written);
     // A token in its *synchronous* delete window is no longer found by
     // `TclGetNamespaceForQualName`, so `NamespaceEvalCmd` tries to create it —
@@ -73,7 +79,7 @@ fn eval_in_ns(vm: &mut Vm, written: &str, body: &str, call_argv: Vec<Value>) -> 
         vm.push_ns_token(target, id);
     }
     vm.enter_ns_script();
-    let result = vm.eval_source(body);
+    let result = vm.eval_source_as(body, evaluation);
     vm.leave_ns_script();
     vm.pop_ns();
     vm.pop_call_frame();
@@ -794,9 +800,11 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         Ok(body) => body,
         Err(error) => return crate::command::completion_from_cmd_error(error),
     };
+    let evaluation =
+        crate::value::script_evaluation(&[script.clone(), Value::list(extra.to_vec())]);
     let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
     call_argv.extend(rest.iter().cloned());
-    eval_in_ns(vm, &written, &body, call_argv)
+    eval_in_ns(vm, &written, &body, evaluation, call_argv)
 }
 
 /// The script `namespace inscope ns script ?arg ...?` evaluates:
@@ -856,7 +864,8 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
+    let evaluation = crate::value::script_evaluation(body_parts);
     let mut call_argv = vec![Value::string("namespace"), Value::string("eval")];
     call_argv.extend(rest.iter().cloned());
-    eval_in_ns(vm, &written, &body, call_argv)
+    eval_in_ns(vm, &written, &body, evaluation, call_argv)
 }

@@ -44,10 +44,11 @@ use tcl_runtime_api::guard::{
 };
 use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget,
-    ArtefactIdentityManifest, Code, CommandId, Commands, CompileService, Completion, FatalTail,
-    FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces, NsId, ProcInfo, ProcParam,
-    ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS, RegisteredBacking, Rung,
-    RuntimeContext, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
+    ArtefactIdentityManifest, Code, CommandEvaluation, CommandId, Commands, CompileService,
+    Completion, FatalTail, FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces, NsId,
+    ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS,
+    RegisteredBacking, Rung, RuntimeContext, ScriptCompileTarget, Traces, VarId, VarStore,
+    VarUnsetError,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -840,6 +841,11 @@ pub(crate) struct PendingControl {
     pub(crate) each_loop: Option<crate::exec::EachLoopReq>,
     /// Next body, handler, or `finally` phase of a `try`.
     pub(crate) try_phase: Option<crate::cmd_try::TryReq>,
+    /// How the emulated release compiles the command the invoke dispatching
+    /// now runs ([`tcl_bytecode::Instruction::release_compiled`]); a control
+    /// builtin that reads its words as that compiled command does takes it
+    /// at entry.
+    pub(crate) release_compiled: Option<tcl_bytecode::ReleaseCompiled>,
 }
 
 /// One interpreter's complete state: command table, namespaces, call frames,
@@ -1193,8 +1199,9 @@ pub struct InterpState {
     /// selected profile, so a script
     /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
     /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
-    /// time. This is the dominant cost in the tcltest workload.
-    eval_cache: HashMap<(String, String), Rc<ModuleAsm>>,
+    /// time. This is the dominant cost in the tcltest workload. The key also
+    /// carries [`ScriptCompileTarget::evaluation`].
+    eval_cache: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
     /// Plain-dispatch counterpart of [`Self::eval_cache`] — the SAME source
     /// text compiled with [`CompileService::compile_plain_dispatch_for_profile`]
     /// instead of
@@ -1208,7 +1215,7 @@ pub struct InterpState {
     /// entry in `eval_cache`) so the two compiled forms of the same source
     /// never collide or get served to the wrong mode. Both maps are cleared
     /// when the profile changes.
-    eval_cache_plain: HashMap<(String, String), Rc<ModuleAsm>>,
+    eval_cache_plain: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
     /// The accumulating `errorInfo` source trace (C's `iPtr->errorInfo`): the
     /// error message followed by `while executing` / `invoked from within`
     /// frames, built up as the error unwinds through commands. `None` until the
@@ -5291,12 +5298,18 @@ impl Vm {
     /// state addressable in the arena throughout.
     /// Errors and completion codes propagate through the ordinary return path
     /// (the target's `-errorcode`/`-errorinfo` reach the caller — tclsh-pinned).
-    pub(crate) fn eval_in_interp(&mut self, id: InterpId, script: &str) -> Completion<Value> {
+    /// The script's own commands are evaluated as `evaluation` says.
+    pub(crate) fn eval_in_interp(
+        &mut self,
+        id: InterpId,
+        script: &str,
+        evaluation: CommandEvaluation,
+    ) -> Completion<Value> {
         if !self.interp_alive(id) {
             return err("could not find interpreter");
         }
         let completion = self.in_interp(id, |vm| {
-            let mut completion = match vm.eval_source(script) {
+            let mut completion = match vm.eval_source_as(script, evaluation) {
                 Ok(c) => c,
                 Err(e) => err(e.message),
             };
@@ -5658,7 +5671,7 @@ impl Vm {
                     .map(|v| v.to_str().to_string())
                     .collect::<Vec<_>>()
                     .join(" ");
-                self.eval_in_interp(id, &script)
+                self.eval_in_interp(id, &script, crate::value::script_evaluation(rest))
             }
             "issafe" => ok(Value::bool(self.st_of(id).is_some_and(|st| st.is_safe))),
             "delete" => {
@@ -9719,8 +9732,7 @@ impl Vm {
     /// A missing or dishonest capability fails closed.
     pub(crate) fn compile_plain_module(
         &mut self,
-        src: &str,
-        namespace: &str,
+        target: ScriptCompileTarget<'_>,
     ) -> Result<ModuleAsm, TclError> {
         let Some(compiler) = self.compiler.as_ref() else {
             return Err(TclError::new(
@@ -9728,16 +9740,10 @@ impl Vm {
             ));
         };
         let module = compiler
-            .compile_plain_script_for_profile(
-                ScriptCompileTarget {
-                    source: src,
-                    namespace,
-                },
-                self.pin.profile,
-            )
+            .compile_plain_script_for_profile(target, self.pin.profile)
             .map_err(|error| TclError::new(error.0))?;
         self.validate_module_profile(&module)?;
-        Self::validate_module_namespace(&module, namespace)?;
+        Self::validate_module_namespace(&module, target.namespace)?;
         if !module.plain_command_dispatch
             || !module.top_level.plain_command_dispatch
             || !module.top_level.command_bindings.is_empty()
@@ -9774,6 +9780,7 @@ impl Vm {
                 ScriptCompileTarget {
                     source: src,
                     namespace,
+                    evaluation: CommandEvaluation::Compiled,
                 },
                 self.pin.profile,
             )
@@ -9802,12 +9809,16 @@ impl Vm {
         &mut self,
         target: ScriptCompileTarget<'_>,
     ) -> Result<Rc<ModuleAsm>, TclError> {
-        let key = (target.namespace.to_owned(), target.source.to_owned());
+        let key = (
+            target.namespace.to_owned(),
+            target.source.to_owned(),
+            target.evaluation,
+        );
         if let Some(module) = self.eval_cache_plain.get(&key) {
             Self::validate_module_namespace(module, target.namespace)?;
             return Ok(Rc::clone(module));
         }
-        let module = Rc::new(self.compile_plain_module(target.source, target.namespace)?);
+        let module = Rc::new(self.compile_plain_module(target)?);
         self.eval_cache_plain.insert(key, Rc::clone(&module));
         Ok(module)
     }
@@ -10239,6 +10250,17 @@ impl Vm {
     }
 
     pub(crate) fn eval_at_level(&mut self, target: usize, src: &str) -> Completion<Value> {
+        self.eval_at_level_as(target, src, CommandEvaluation::Compiled)
+    }
+
+    /// [`Self::eval_at_level`], the script's own commands evaluated as
+    /// `evaluation` says.
+    pub(crate) fn eval_at_level_as(
+        &mut self,
+        target: usize,
+        src: &str,
+        evaluation: CommandEvaluation,
+    ) -> Completion<Value> {
         if target >= self.frames.len() {
             return err(format!("bad level \"{target}\""));
         }
@@ -10259,7 +10281,7 @@ impl Vm {
             self.error_stack
                 .enter_shifted_context(target_frame_count, up_delta);
         }
-        let result = self.eval_source(src);
+        let result = self.eval_source_as(src, evaluation);
         if up_delta != 0 {
             self.error_stack.leave_shifted_context();
         }
@@ -11154,7 +11176,16 @@ impl Vm {
     /// (`TclPtrSetVarIdx`, `tclVar.c` 9.0.4:1913 — value in at :2023-2032,
     /// traces at :2040-2046, `cleanup:` at :2070; same shape in 8.6.16). A
     /// cell the write created therefore survives too.
+    ///
+    /// A name that spells an array element writes the element, creating the
+    /// array, as `Tcl_ObjSetVar2` reads a name with no element word: every
+    /// command that stores into a variable it is named (`catch`, `foreach`,
+    /// `lassign`, `scan`, …) takes `a(k)` so.
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        if let Some((base, key)) = elem_ref(name) {
+            let (base, key) = (base.to_owned(), key.to_owned());
+            return self.set_array_elem(&base, &key, value);
+        }
         self.confine_store(name, self.current_level())?;
         self.validate_var_parent(name)?;
         if self
@@ -12559,9 +12590,13 @@ impl Vm {
     /// `catch`/`try`/… bodies — every one of which funnels through this
     /// method via its runtime builtin — compile trace-visible too,
     /// without each call site needing to know that.
-    fn compile_cached(&mut self, src: &str) -> Result<Rc<ModuleAsm>, TclError> {
+    fn compile_cached(
+        &mut self,
+        src: &str,
+        evaluation: CommandEvaluation,
+    ) -> Result<Rc<ModuleAsm>, TclError> {
         let namespace = self.current_ns().to_owned();
-        self.compile_cached_in_namespace(src, &namespace)
+        self.compile_cached_in_namespace(src, &namespace, evaluation)
     }
 
     /// Namespace-explicit core of [`Self::compile_cached`]. Most dynamic Tcl
@@ -12572,16 +12607,18 @@ impl Vm {
         &mut self,
         src: &str,
         namespace: &str,
+        evaluation: CommandEvaluation,
     ) -> Result<Rc<ModuleAsm>, TclError> {
         let plain = self.requires_plain_command_dispatch();
         let target = ScriptCompileTarget {
             source: src,
             namespace,
+            evaluation,
         };
         if plain {
             return self.compile_plain_cached_module(target);
         }
-        let key = (namespace.to_owned(), src.to_owned());
+        let key = (namespace.to_owned(), src.to_owned(), evaluation);
         if let Some(m) = self.eval_cache.get(&key) {
             let m = Rc::clone(m);
             Self::validate_module_namespace(&m, namespace)?;
@@ -12595,13 +12632,7 @@ impl Vm {
                 "eval / command substitution requires a CompileService",
             ));
         };
-        let compiled = c.compile_script_for_profile(
-            ScriptCompileTarget {
-                source: src,
-                namespace,
-            },
-            self.pin.profile,
-        );
+        let compiled = c.compile_script_for_profile(target, self.pin.profile);
         let m = Rc::new(compiled.map_err(|e| TclError::new(e.0))?);
         self.validate_module_profile(&m)?;
         Self::validate_module_namespace(&m, namespace)?;
@@ -12615,6 +12646,24 @@ impl Vm {
     /// Compile and run a Tcl source string via the injected [`CompileService`]
     /// (the runtime-`eval` / command-substitution path) in the *current* frame.
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
+        self.eval_source_as(src, CommandEvaluation::Compiled)
+    }
+
+    /// [`Self::eval_source`] for the script file `tclsh` is given, whose own
+    /// commands the emulated release evaluates as `Tcl_EvalEx` does, one at a
+    /// time and without compiling them, where it compiles every body they
+    /// evaluate and every script `source` reads ([`CommandEvaluation`]).
+    pub fn eval_source_directly(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
+        self.eval_source_as(src, CommandEvaluation::Direct)
+    }
+
+    /// [`Self::eval_source`], the script's own commands evaluated as
+    /// `evaluation` says.
+    pub(crate) fn eval_source_as(
+        &mut self,
+        src: &str,
+        evaluation: CommandEvaluation,
+    ) -> Result<Completion<Value>, TclError> {
         self.claim_number_grammar();
         self.reset_error_state_for_eval();
         // C parses one command immediately before evaluating it, so every
@@ -12639,7 +12688,7 @@ impl Vm {
             }
             return Err(TclError::new(tail.message));
         }
-        let module = self.compile_cached(prefix)?;
+        let module = self.compile_cached(prefix, evaluation)?;
         let mut comp = self.run_current_module(&module);
         // Only a prefix that ran to completion reaches the parse error: an
         // error (or any non-`ok` completion) in an earlier command is what C
@@ -12662,7 +12711,7 @@ impl Vm {
     /// raises once they have run.
     ///
     /// The compiler owns the dialect-aware split ([`ScriptCommandPlan`]); this
-    /// is the non-compiling half of [`Self::prepare_script_commands`], for
+    /// is the non-compiling half of [`Self::prepare_script_commands_as`], for
     /// callers that drive a whole module rather than a deferred activation.
     /// Falls back to the whole source when no [`CompileService`] is attached or
     /// the service hands back a boundary that is not a character boundary — the
@@ -12691,8 +12740,18 @@ impl Vm {
     /// must carry this owner through to frame creation; using the VM's later
     /// ambient state there can acknowledge changes the assembly has never seen.
     pub(crate) fn compile_script_cached(&mut self, src: &str) -> Result<CompiledUnit, TclError> {
+        self.compile_script_cached_as(src, CommandEvaluation::Compiled)
+    }
+
+    /// [`Self::compile_script_cached`], the script's own commands evaluated as
+    /// `evaluation` says ([`crate::value::script_evaluation`]).
+    pub(crate) fn compile_script_cached_as(
+        &mut self,
+        src: &str,
+        evaluation: CommandEvaluation,
+    ) -> Result<CompiledUnit, TclError> {
         let namespace = self.current_ns().to_owned();
-        self.compile_script_cached_in_namespace(src, &namespace)
+        self.compile_script_cached_in_namespace_as(src, &namespace, evaluation)
     }
 
     /// Compile a deferred script in an explicit constructed namespace, carrying
@@ -12702,8 +12761,17 @@ impl Vm {
         src: &str,
         namespace: &str,
     ) -> Result<CompiledUnit, TclError> {
+        self.compile_script_cached_in_namespace_as(src, namespace, CommandEvaluation::Compiled)
+    }
+
+    fn compile_script_cached_in_namespace_as(
+        &mut self,
+        src: &str,
+        namespace: &str,
+        evaluation: CommandEvaluation,
+    ) -> Result<CompiledUnit, TclError> {
         self.reset_error_state_for_eval();
-        let module = self.compile_cached_in_namespace(src, namespace)?;
+        let module = self.compile_cached_in_namespace(src, namespace, evaluation)?;
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
         self.merge_procs(&module);
@@ -12718,10 +12786,12 @@ impl Vm {
     /// Prepare a catchable/handleable script without rejecting a valid command
     /// prefix merely because a later command is malformed. The compiler owns
     /// the dialect-aware split; this runtime only compiles and executes the
-    /// returned prefix through its normal cache/deoptimisation path.
-    pub(crate) fn prepare_script_commands(
+    /// returned prefix through its normal cache/deoptimisation path, the
+    /// script's own commands evaluated as `evaluation` says.
+    pub(crate) fn prepare_script_commands_as(
         &mut self,
         src: &str,
+        evaluation: CommandEvaluation,
     ) -> Result<PreparedScript, TclError> {
         let Some(compiler) = self.compiler.as_ref() else {
             return Err(TclError::new(
@@ -12737,7 +12807,7 @@ impl Vm {
         let prefix = if plan.complete_prefix_len == 0 {
             None
         } else {
-            Some(self.compile_script_cached(&src[..plan.complete_prefix_len])?)
+            Some(self.compile_script_cached_as(&src[..plan.complete_prefix_len], evaluation)?)
         };
         Ok(PreparedScript {
             prefix,

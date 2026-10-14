@@ -56,23 +56,19 @@ pub fn bytecode_imm(n: usize) -> i32 {
     i32::try_from(n).expect("bytecode operand exceeds i32::MAX")
 }
 
-/// Parse a Tcl index string to an integer suitable for IMM instructions.
-///
-/// Plain integers compile directly. `end`-based indices are encoded
-/// relative to [`INDEX_END`] so the VM can resolve them at runtime.
+/// How far from [`INDEX_END`] an index immediate still reads as `end`-relative:
+/// the VM reads one within the band as `end` plus its distance from
+/// `INDEX_END`, and any other as the index it is.
+pub const INDEX_END_BAND: i32 = 1 << 29;
+
+/// The index immediate for `end` plus `offset`, `None` outside
+/// [`INDEX_END_BAND`].
 #[must_use]
-pub fn parse_tcl_index(s: &str) -> Option<i32> {
-    let s = s.trim();
-    if s == "end" {
-        return Some(INDEX_END);
-    }
-    if let Some(rest) = s.strip_prefix("end-") {
-        return rest.parse::<i32>().ok().map(|n| INDEX_END - n);
-    }
-    if let Some(rest) = s.strip_prefix("end+") {
-        return rest.parse::<i32>().ok().map(|n| INDEX_END + n);
-    }
-    s.parse::<i32>().ok()
+pub fn end_relative_imm(offset: i64) -> Option<i32> {
+    let offset = i32::try_from(offset)
+        .ok()
+        .filter(|offset| offset.unsigned_abs() < INDEX_END_BAND.unsigned_abs())?;
+    Some(INDEX_END + offset)
 }
 
 /// `string is` class name → numeric index.
@@ -1252,6 +1248,13 @@ pub struct Instruction {
     /// so the literal pool and disassembly stay byte-stable (keeps identity
     /// stable).
     pub push_verbatim: bool,
+    /// `PUSH1`/`PUSH4` only: the representation the pushed literal carries.
+    /// Carried out-of-band so the literal pool and disassembly stay
+    /// byte-stable.
+    pub literal_rep: LiteralRep,
+    /// `PUSH1`/`PUSH4` only: how the emulated release evaluates the command
+    /// the word belongs to, and so a command substitution the VM makes in it.
+    pub evaluation: tcl_runtime_api::CommandEvaluation,
     /// Literal command-head `PUSH1`/`PUSH4` only: token provenance carried
     /// through argument substitution to its consuming invoke.
     pub entered_command: Option<EnteredCommandSite>,
@@ -1264,6 +1267,23 @@ pub struct Instruction {
     /// codegen emitted the C-faithful shape but relies on the VM's
     /// activation-stack unwinding instead, so `BEGIN_CATCH4` is inert.
     pub catch_target: Option<String>,
+    /// `INVOKE_STK1`/`INVOKE_STK4` only: the emulated release compiles the
+    /// command this invoke leaves to the command at run time. Carried
+    /// out-of-band so the disassembly stays byte-stable.
+    pub release_compiled: Option<ReleaseCompiled>,
+}
+
+/// A command the emulated release's compiler compiles with its words, which
+/// the VM runs as the command does where it reads them as that compiled
+/// command would.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReleaseCompiled {
+    /// The word, counting the command word, that the release compiles as a
+    /// script with the command whatever it holds (C's `TclCompileCmdWord`,
+    /// whose `INST_EVAL_STK` compiles the value): the VM compiles that value
+    /// in place before it invokes, so a canonical list there is no longer
+    /// one.
+    pub script_word: Option<u8>,
 }
 
 impl Instruction {
@@ -1288,10 +1308,25 @@ impl Instruction {
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
+            literal_rep: LiteralRep::String,
+            evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             entered_command: None,
             catch_target: None,
+            release_compiled: None,
         }
     }
+}
+
+/// The representation a pushed literal carries.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LiteralRep {
+    /// Its string.
+    #[default]
+    String,
+    /// A list the compiler built from literal words, spelt canonically: C's
+    /// `TclCompileListCmd` pushes such a list as its list object, a canonical
+    /// list.
+    List,
 }
 
 /// A statically literal command entered before its remaining words perform
@@ -1666,23 +1701,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_tcl_index_plain() {
-        assert_eq!(parse_tcl_index("0"), Some(0));
-        assert_eq!(parse_tcl_index("42"), Some(42));
-        assert_eq!(parse_tcl_index("-1"), Some(-1));
-    }
-
-    #[test]
-    fn parse_tcl_index_end() {
-        assert_eq!(parse_tcl_index("end"), Some(INDEX_END));
-        assert_eq!(parse_tcl_index("end-1"), Some(INDEX_END - 1));
-        assert_eq!(parse_tcl_index("end+2"), Some(INDEX_END + 2));
-    }
-
-    #[test]
-    fn parse_tcl_index_invalid() {
-        assert_eq!(parse_tcl_index("foo"), None);
-        assert_eq!(parse_tcl_index("end-abc"), None);
+    fn end_relative_imm_stays_in_the_band() {
+        assert_eq!(end_relative_imm(0), Some(INDEX_END));
+        assert_eq!(end_relative_imm(-1), Some(INDEX_END - 1));
+        assert_eq!(end_relative_imm(2), Some(INDEX_END + 2));
+        assert_eq!(
+            end_relative_imm(1 - i64::from(INDEX_END_BAND)),
+            Some(INDEX_END - INDEX_END_BAND + 1)
+        );
+        assert_eq!(end_relative_imm(-i64::from(INDEX_END_BAND)), None);
+        assert_eq!(end_relative_imm(-2_147_483_648), None);
+        assert_eq!(end_relative_imm(-2_147_483_649), None);
     }
 
     #[test]

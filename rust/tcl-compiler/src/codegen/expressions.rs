@@ -382,7 +382,10 @@ impl CodegenCtx<'_> {
             self.emit(Op::EXPR_STK, vec![]);
             return false;
         }
-        self.emit_expr_at(node, 0)
+        self.expr_depth += 1;
+        let emitted = self.emit_expr_at(node, 0);
+        self.expr_depth -= 1;
+        emitted
     }
 
     /// Emit an `expr` math-function call, or defer the whole call to

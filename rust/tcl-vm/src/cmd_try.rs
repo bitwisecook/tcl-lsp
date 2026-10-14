@@ -70,6 +70,11 @@ struct Handler {
 struct TryPlan {
     handlers: Vec<Handler>,
     finally: Option<Value>,
+    /// The release compiles this `try` (`TclCompileTryCmd`), whose matched
+    /// clause binds its own variables before a `-` script falls through,
+    /// where the command (`TryPostBody`) binds those of the clause whose
+    /// script runs.
+    compiled: bool,
 }
 
 /// Which phase of a `try` an explicit-stack activation is running, and the
@@ -293,6 +298,7 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
 /// `Vm::unwind` fold.
 fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     const USAGE: &str = "wrong # args: should be \"try body ?handler ...? ?finally script?\"";
+    let compiled = vm.pending.release_compiled.take().is_some();
     let Some((body, rest)) = args.split_first() else {
         return err(USAGE);
     };
@@ -300,8 +306,15 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(parsed) => parsed,
         Err(e) => return e,
     };
-    let plan = Rc::new(TryPlan { handlers, finally });
-    match vm.prepare_script_commands(&body.to_str()) {
+    let plan = Rc::new(TryPlan {
+        handlers,
+        finally,
+        compiled,
+    });
+    match vm.prepare_script_commands_as(
+        &body.to_str(),
+        crate::value::script_evaluation(std::slice::from_ref(body)),
+    ) {
         Ok(prepared) if prepared.prefix.is_some() => {
             vm.pending.try_phase = Some(TryReq {
                 script: prepared.prefix.expect("checked above"),
@@ -389,7 +402,13 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
     while plan.handlers[b].is_dash {
         b += 1; // guaranteed to terminate (the last body is not `-`)
     }
-    match bind_handler_vars(vm, &plan.handlers[b].vars, &body_comp.result, &body_opts) {
+    let binding = if plan.compiled { m } else { b };
+    match bind_handler_vars(
+        vm,
+        &plan.handlers[binding].vars,
+        &body_comp.result,
+        &body_opts,
+    ) {
         Ok(()) => {
             // The body's exception is now handled: publish `errorInfo`/
             // `errorCode` (so the handler reads the body's error) and reset the
@@ -403,7 +422,10 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
                 });
                 vm.publish_error(&einfo, &errorcode);
             }
-            match vm.prepare_script_commands(&plan.handlers[b].script.to_str()) {
+            match vm.prepare_script_commands_as(
+                &plan.handlers[b].script.to_str(),
+                crate::value::script_evaluation(std::slice::from_ref(&plan.handlers[b].script)),
+            ) {
                 Ok(prepared) if prepared.prefix.is_some() => TryOutcome::Push(TryReq {
                     script: prepared.prefix.expect("checked above"),
                     state: TryState {
@@ -468,7 +490,10 @@ fn finish_body_or_handler(
     // never runs before this point, so a
     // body/handler compile error is reported before `finally`'s own grammar
     // is ever touched.
-    let prepared = match vm.prepare_script_commands(&fin.to_str()) {
+    let prepared = match vm.prepare_script_commands_as(
+        &fin.to_str(),
+        crate::value::script_evaluation(std::slice::from_ref(&fin)),
+    ) {
         Ok(prepared) => prepared,
         // A `finally` parse error is `finally`'s own exception overriding the
         // prior outcome, same as a runtime error in `finally` would (chains

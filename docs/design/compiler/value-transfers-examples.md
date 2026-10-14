@@ -911,6 +911,7 @@ optimiser folds.
 set tail [lindex {a b c} end-5]    ;# W230; O118 folds it to `{}`
 set xs {a b c}
 lset xs 5 X                        ;# W231; every release raises here
+lset xs 3 X                        ;# W231 under tcl8.4/tcl8.5 only: the length appends from 8.6
 set last [string index "abc" end-5] ;# W232; O129 folds it to `{}`
 ```
 
@@ -933,6 +934,12 @@ checkable, inside a command substitution as on a line of its own; an index
 whose `$var` value the interval checks bound is theirs, so a site is
 reported once. The container length after a cell update is the value the
 update leaves, so `lset xs 2 X` on the three-element list is in range.
+
+An `lset` index equal to the length is the one boundary the releases split
+on (`TclVersion::lset_appends_at_length`): 8.6 and later append, 8.4 and 8.5
+raise `list index out of range`. W231 reports it only when the document's
+release is known to raise; a profile that names no measured release abstains
+there, and an index past the length is reported under all of them.
 
 ### W210 · read before set
 

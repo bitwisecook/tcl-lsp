@@ -32,6 +32,7 @@ use std::rc::Rc;
 
 use tcl_cmd_core::namespace::TclStringHashOrder;
 use tcl_core_types::RecursionLimit;
+use tcl_runtime_api::CommandEvaluation;
 use tcl_syntax::list;
 use tcl_syntax::number::{self, Number};
 use tcl_syntax::value::canonical_dict_slots;
@@ -92,8 +93,12 @@ enum IntRep {
     Double(f64),
     /// A boolean (canonicalises to `"0"`/`"1"` string-side).
     Bool(bool),
-    /// A list (`Rc` for O(1) clone + copy-on-write).
+    /// A list (`Rc` for O(1) clone + copy-on-write) whose string, if it has
+    /// one, was generated from it: a canonical list (`TclListObjIsCanonical`).
     List(Rc<Vec<Value>>),
+    /// A list read from the string the value keeps, which need not be the
+    /// list's canonical spelling.
+    ParsedList(Rc<Vec<Value>>),
     /// A dictionary with its retained Tcl hash-table growth history.
     Dict(Rc<DictRep>),
 }
@@ -198,7 +203,7 @@ impl Value {
             IntRep::Int(n) => (Rc::from(n.to_string().as_str()), false),
             IntRep::Double(f) => (Rc::from(number::format_double(*f).as_str()), false),
             IntRep::Bool(b) => (Rc::from(if *b { "1" } else { "0" }), false),
-            IntRep::List(items) => {
+            IntRep::List(items) | IntRep::ParsedList(items) => {
                 if MAX_LIST_TO_STR_DEPTH.exceeded(depth) {
                     (Rc::from(TOO_DEEPLY_NESTED_PLACEHOLDER), true)
                 } else {
@@ -251,7 +256,11 @@ impl Value {
         match &*self.0.intrep.borrow() {
             IntRep::Int(n) => return Ok(*n),
             IntRep::Bool(b) => return Ok(i64::from(*b)),
-            IntRep::Str | IntRep::Double(_) | IntRep::List(_) | IntRep::Dict(_) => {}
+            IntRep::Str
+            | IntRep::Double(_)
+            | IntRep::List(_)
+            | IntRep::ParsedList(_)
+            | IntRep::Dict(_) => {}
         }
         let s = self.to_str();
         match number::parse_whole(&s) {
@@ -336,7 +345,7 @@ impl Value {
             IntRep::Int(n) => return Ok(*n as f64),
             IntRep::Double(f) => return Ok(*f),
             IntRep::Bool(b) => return Ok(f64::from(i32::from(*b))),
-            IntRep::Str | IntRep::List(_) | IntRep::Dict(_) => {}
+            IntRep::Str | IntRep::List(_) | IntRep::ParsedList(_) | IntRep::Dict(_) => {}
         }
         let s = self.to_str();
         match number::parse_whole(&s) {
@@ -355,7 +364,7 @@ impl Value {
             IntRep::Bool(b) => return Ok(*b),
             IntRep::Int(n) => return Ok(*n != 0),
             IntRep::Double(f) => return Ok(*f != 0.0),
-            IntRep::Str | IntRep::List(_) | IntRep::Dict(_) => {}
+            IntRep::Str | IntRep::List(_) | IntRep::ParsedList(_) | IntRep::Dict(_) => {}
         }
         let s = self.to_str();
         if let Some(num) = number::parse_whole(&s) {
@@ -384,7 +393,7 @@ impl Value {
     /// The value as a list of elements (`Tcl_ListObjGetElements`), caching the
     /// typed rep on first parse.
     pub fn as_list(&self) -> Result<Rc<Vec<Value>>, TclError> {
-        if let IntRep::List(items) = &*self.0.intrep.borrow() {
+        if let IntRep::List(items) | IntRep::ParsedList(items) = &*self.0.intrep.borrow() {
             return Ok(Rc::clone(items));
         }
         let dict = match &*self.0.intrep.borrow() {
@@ -398,7 +407,12 @@ impl Value {
                     .flat_map(|(key, value)| [key.clone(), value.clone()])
                     .collect(),
             );
-            *self.0.intrep.borrow_mut() = IntRep::List(Rc::clone(&items));
+            let list = if self.0.string.borrow().is_some() {
+                IntRep::ParsedList(Rc::clone(&items))
+            } else {
+                IntRep::List(Rc::clone(&items))
+            };
+            *self.0.intrep.borrow_mut() = list;
             return Ok(items);
         }
         let s = self.to_str();
@@ -406,8 +420,46 @@ impl Value {
             .map_err(|e| TclError::with_error_code(e.full_message(&s), e.error_code()))?;
         let items: Rc<Vec<Value>> =
             Rc::new(elems.iter().map(|c| Value::string(c.as_ref())).collect());
-        *self.0.intrep.borrow_mut() = IntRep::List(Rc::clone(&items));
+        *self.0.intrep.borrow_mut() = IntRep::ParsedList(Rc::clone(&items));
         Ok(items)
+    }
+
+    /// Whether the value is a canonical list (`TclListObjIsCanonical`): a
+    /// list with no string, or one generated from the list. A script that is
+    /// one runs as one command whose words are its elements, without being
+    /// compiled (`TclEvalObjEx`'s canonical-list path).
+    #[must_use]
+    pub fn is_canonical_list(&self) -> bool {
+        matches!(&*self.0.intrep.borrow(), IntRep::List(_))
+    }
+
+    /// The canonical list a compiler built from literal words, spelt
+    /// `canonical` (C's `TclCompileListCmd` list literal). A spelling that is
+    /// not a list stays a string.
+    pub(crate) fn list_literal(canonical: &str) -> Self {
+        match list::split_list(canonical) {
+            Ok(elems) => Self::from_parts(
+                Some(Rc::from(canonical)),
+                IntRep::List(Rc::new(
+                    elems.iter().map(|c| Value::string(c.as_ref())).collect(),
+                )),
+            ),
+            Err(_) => Self::string(canonical),
+        }
+    }
+
+    /// Compile the value as a script whatever it holds, as `INST_EVAL_STK`
+    /// does: the bytecode replaces a list rep, so a canonical list is no longer
+    /// one and a later evaluation of the same value compiles it too.
+    pub(crate) fn compile_as_script(&self) {
+        if !self.is_canonical_list() {
+            return;
+        }
+        let _ = self.to_str();
+        let mut intrep = self.0.intrep.borrow_mut();
+        if let IntRep::List(items) = &*intrep {
+            *intrep = IntRep::ParsedList(Rc::clone(items));
+        }
     }
 
     /// Canonical key/value pairs, shimmering a string/list value to a native
@@ -507,7 +559,9 @@ impl Value {
             }
             IntRep::Double(f) => number::format_double(*f).len() as u64,
             _ if MAX_LIST_TO_STR_DEPTH.exceeded(depth) => return 1,
-            IntRep::List(items) => measure_elements(items.iter(), cap, depth),
+            IntRep::List(items) | IntRep::ParsedList(items) => {
+                measure_elements(items.iter(), cap, depth)
+            }
             IntRep::Dict(dict) => measure_elements(
                 dict.pairs.iter().flat_map(|(key, value)| [key, value]),
                 cap,
@@ -549,9 +603,86 @@ impl std::fmt::Debug for Value {
     }
 }
 
+/// How the emulated release evaluates the script `words` make, one word as
+/// it is or several joined by `Tcl_ConcatObj`: `TclEvalObjEx` runs a canonical
+/// list as one command whose words are its elements, without compiling it,
+/// and compiles anything else. `Tcl_ConcatObj` keeps canonical lists and empty
+/// words a canonical list, but for a later list whose first element starts a
+/// comment.
+pub(crate) fn script_evaluation(words: &[Value]) -> CommandEvaluation {
+    let mut started = false;
+    for word in words {
+        if word.is_canonical_list() {
+            let comment = word
+                .as_list()
+                .ok()
+                .and_then(|items| items.first().map(|first| first.to_str().starts_with('#')))
+                .unwrap_or(false);
+            if started && comment {
+                return CommandEvaluation::Compiled;
+            }
+            started = true;
+        } else if words.len() == 1 || !word.to_str().is_empty() {
+            return CommandEvaluation::Compiled;
+        }
+    }
+    if started {
+        CommandEvaluation::Direct
+    } else {
+        CommandEvaluation::Compiled
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `TclEvalObjEx` runs a canonical list without compiling it, and
+    /// `Tcl_ConcatObj` keeps canonical lists and empty words one; tclsh 8.6.18
+    /// shows it with `eval [list string range $s 0 end-2147483649]` and
+    /// `eval [list string range] [list $s 0 end-2147483649]` ranging nothing,
+    /// where the string spelling of either, and a mix of a list and a string,
+    /// range the whole string.
+    #[test]
+    fn a_canonical_list_script_is_evaluated_directly() {
+        use CommandEvaluation::{Compiled, Direct};
+        let list = || Value::list(vec![Value::string("string"), Value::string("range")]);
+        assert_eq!(script_evaluation(&[list()]), Direct);
+        assert_eq!(script_evaluation(&[list(), Value::empty(), list()]), Direct);
+        let rendered = list();
+        assert_eq!(&*rendered.to_str(), "string range");
+        assert_eq!(script_evaluation(&[rendered]), Direct);
+        let parsed = Value::string("string range");
+        assert_eq!(parsed.as_list().map(|items| items.len()).ok(), Some(2));
+        assert_eq!(script_evaluation(&[parsed]), Compiled);
+        assert_eq!(script_evaluation(&[list(), Value::string("a b")]), Compiled);
+        assert_eq!(script_evaluation(&[Value::empty()]), Compiled);
+        let comment = Value::list(vec![Value::string("#c")]);
+        assert_eq!(script_evaluation(&[list(), comment]), Compiled);
+    }
+
+    /// `TclCompileListCmd` pushes `[list …]` of literal words as its list
+    /// object, and `INST_EVAL_STK` compiling a canonical list leaves it a
+    /// string: tclsh 8.6.18 ranges nothing for `eval` of the one and the whole
+    /// string for `catch $b; eval $b` in a procedure.
+    #[test]
+    fn a_list_literal_is_canonical_until_compiled_as_a_script() {
+        use CommandEvaluation::{Compiled, Direct};
+        let literal = Value::list_literal("string range {a b}");
+        assert!(literal.is_canonical_list());
+        assert_eq!(&*literal.to_str(), "string range {a b}");
+        assert_eq!(literal.as_list().map(|items| items.len()).ok(), Some(3));
+        assert_eq!(script_evaluation(std::slice::from_ref(&literal)), Direct);
+        literal.compile_as_script();
+        assert!(!literal.is_canonical_list());
+        assert_eq!(&*literal.to_str(), "string range {a b}");
+        assert_eq!(literal.as_list().map(|items| items.len()).ok(), Some(3));
+        assert_eq!(script_evaluation(&[literal]), Compiled);
+        assert!(!Value::list_literal("a {b").is_canonical_list());
+        let parsed = Value::string("a b");
+        parsed.compile_as_script();
+        assert!(!parsed.is_canonical_list());
+    }
 
     #[test]
     fn int_shimmers_to_string() {

@@ -257,9 +257,14 @@ fn set_argv(vm: &mut Vm, argv0: &str, argv: &[String]) {
 }
 
 /// Compile and run a whole script once, reporting any error to stderr. Returns
-/// the process exit code.
-fn run_script(vm: &mut Vm, src: &str) -> i32 {
-    let result = vm.eval_source(src);
+/// the process exit code. `direct` runs it as `tclsh` runs the script file it
+/// is given ([`Vm::eval_source_directly`]).
+fn run_script(vm: &mut Vm, src: &str, direct: bool) -> i32 {
+    let result = if direct {
+        vm.eval_source_directly(src)
+    } else {
+        vm.eval_source(src)
+    };
     // `exit` records a pending code on the VM rather than killing the process
     // (so embedders survive); the standalone CLI performs the real termination.
     if let Some(code) = vm.take_exit() {
@@ -292,7 +297,7 @@ fn run() -> i32 {
         }
         Mode::Command(script) => {
             let mut vm = new_vm(&options);
-            run_script(&mut vm, &script)
+            run_script(&mut vm, &script, false)
         }
         Mode::Repl => {
             let stdin = std::io::stdin();
@@ -309,7 +314,7 @@ fn run() -> i32 {
             };
             let mut vm = new_vm(&options);
             set_argv(&mut vm, &path, &argv);
-            run_script(&mut vm, &src)
+            run_script(&mut vm, &src, true)
         }
         Mode::Stdin => {
             if std::io::stdin().is_terminal() {
@@ -323,7 +328,7 @@ fn run() -> i32 {
                     return 1;
                 }
                 let mut vm = new_vm(&options);
-                run_script(&mut vm, &src)
+                run_script(&mut vm, &src, false)
             }
         }
     }

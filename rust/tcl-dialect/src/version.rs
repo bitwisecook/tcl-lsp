@@ -93,21 +93,46 @@ impl StringCharacterModel {
         Self::UnicodeScalars,
     ];
 
-    /// The number of Tcl characters `value` holds under this model.
+    /// The number of Tcl characters `value` holds under this model: the
+    /// [`Self::units`] it spans.
     ///
     /// The one place the counting rule lives, so a compile-time fold and a
     /// runtime `string length` cannot drift apart.
     #[must_use]
     pub fn count(self, value: &str) -> usize {
         match self {
-            // A BMP scalar is one character; anything above it was never
-            // assembled, so it contributes its UTF-8 byte count (always 4).
-            Self::BmpCharsElseUtf8Bytes => value
-                .chars()
-                .map(|c| if (c as u32) > 0xFFFF { c.len_utf8() } else { 1 })
-                .sum(),
-            Self::Utf16CodeUnits => value.encode_utf16().count(),
             Self::UnicodeScalars => value.chars().count(),
+            Self::BmpCharsElseUtf8Bytes | Self::Utf16CodeUnits => {
+                self.units(value).map(|run| run.units).sum()
+            }
+        }
+    }
+
+    /// `value`'s characters as this model addresses them, in order: each
+    /// run is a character a Rust string holds and the number of the model's
+    /// units it spans.
+    ///
+    /// - 8.4/8.5 never assemble a supplementary scalar (`TCL_UTF_MAX` 3):
+    ///   its units are its four UTF-8 bytes, each an ordinary character
+    ///   `U+0000`–`U+00FF`, so it yields four one-unit runs. Measured with
+    ///   `scan [string index $s $i] %c` over a literal U+1D11E on tclsh
+    ///   8.4.20 and 8.5.19: 240, 157, 132, 158.
+    /// - 8.6 splits a supplementary scalar into a UTF-16 surrogate pair
+    ///   (55348, 56606 on tclsh 8.6.18). A lone surrogate is not a value a
+    ///   Rust string holds, so the pair stays one run spanning two units
+    ///   (the boundary in `semantic-aot-optimisation.md` § *Tcl 8
+    ///   supplementary-character boundary*).
+    /// - 9.x: one run per scalar.
+    ///
+    /// Every other character is one run of one unit under every model.
+    #[must_use]
+    pub fn units(self, value: &str) -> CharacterUnits<'_> {
+        CharacterUnits {
+            model: self,
+            chars: value.chars(),
+            bytes: [0; 4],
+            next_byte: 0,
+            byte_len: 0,
         }
     }
 
@@ -130,6 +155,61 @@ impl StringCharacterModel {
         let mut counts = Self::ALL.iter().map(|m| m.count(value));
         let first = counts.next()?;
         counts.all(|c| c == first).then_some(first)
+    }
+}
+
+/// One run of [`StringCharacterModel::units`]: a character a Rust string
+/// holds and the number of the model's units it spans.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnitRun {
+    /// The character, as the model's units materialise it.
+    pub held: char,
+    /// 1, or more where the model's units for `held` cannot be held apart.
+    pub units: usize,
+}
+
+/// The iterator [`StringCharacterModel::units`] returns.
+#[derive(Debug, Clone)]
+pub struct CharacterUnits<'a> {
+    model: StringCharacterModel,
+    chars: core::str::Chars<'a>,
+    /// The UTF-8 bytes of a supplementary scalar 8.4/8.5 never assembled.
+    bytes: [u8; 4],
+    next_byte: usize,
+    byte_len: usize,
+}
+
+impl Iterator for CharacterUnits<'_> {
+    type Item = UnitRun;
+
+    fn next(&mut self) -> Option<UnitRun> {
+        if self.next_byte < self.byte_len {
+            let byte = self.bytes[self.next_byte];
+            self.next_byte += 1;
+            return Some(UnitRun {
+                held: char::from(byte),
+                units: 1,
+            });
+        }
+        let held = self.chars.next()?;
+        if u32::from(held) <= 0xFFFF {
+            return Some(UnitRun { held, units: 1 });
+        }
+        Some(match self.model {
+            StringCharacterModel::BmpCharsElseUtf8Bytes => {
+                self.byte_len = held.encode_utf8(&mut self.bytes).len();
+                self.next_byte = 1;
+                UnitRun {
+                    held: char::from(self.bytes[0]),
+                    units: 1,
+                }
+            }
+            StringCharacterModel::Utf16CodeUnits => UnitRun {
+                held,
+                units: held.len_utf16(),
+            },
+            StringCharacterModel::UnicodeScalars => UnitRun { held, units: 1 },
+        })
     }
 }
 
@@ -520,6 +600,40 @@ impl TclVersion {
             Self::V8_5 | Self::V8_6 => crate::NumberSyntax::Tcl85,
             Self::V9_0 | Self::V9_1 => crate::NumberSyntax::Tcl90,
         }
+    }
+
+    /// Whether `lset` appends when an index equals the length of the list it
+    /// addresses, rather than raising `list index out of range`.
+    ///
+    /// Tcl 8.6 reads the index against `elemCount` inclusive (`TclLsetFlat`,
+    /// `tclListObj.c` 8.6.18:1444, `index > elemCount`); 8.4 and 8.5 reject it
+    /// (8.4.20:1175 and 8.5.19:1373, `index >= elemCount`). Measured on
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: `set x {a b c}; lset x 3
+    /// Z` raises on the first two and gives `a b c Z` on the rest, and so does
+    /// the empty list's `lset x 0 Z`. The rule holds at every level of a
+    /// nested index path, and for the `end+1` spelling where the release reads
+    /// it as an index at all (8.4 calls it a bad index).
+    #[must_use]
+    pub const fn lset_appends_at_length(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// [`Self::lset_appends_at_length`] for the release a consumer targets,
+    /// or — when it names none — the answer **every** release gives, `None`
+    /// where they disagree.
+    ///
+    /// Unanimity is over [`Self::ALL`], so a document that selects no release
+    /// is never told that an `lset` at the length raises (8.4/8.5) or that it
+    /// appends (8.6 and later): the boundary index is the one place the
+    /// releases split.
+    #[must_use]
+    pub fn lset_appends_at_length_for(release: Option<Self>) -> Option<bool> {
+        if let Some(release) = release {
+            return Some(release.lset_appends_at_length());
+        }
+        let mut answers = Self::ALL.into_iter().map(Self::lset_appends_at_length);
+        let first = answers.next()?;
+        answers.all(|answer| answer == first).then_some(first)
     }
 
     /// Whether the core implements `namespace path` (introduced in Tcl 8.5).
@@ -1334,6 +1448,23 @@ mod tests {
     };
 
     #[test]
+    fn lset_appends_at_the_length_from_8_6() {
+        for v in [TclVersion::V8_4, TclVersion::V8_5] {
+            assert!(!v.lset_appends_at_length(), "{v:?}");
+            assert_eq!(TclVersion::lset_appends_at_length_for(Some(v)), Some(false));
+        }
+        for v in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            assert!(v.lset_appends_at_length(), "{v:?}");
+            assert_eq!(TclVersion::lset_appends_at_length_for(Some(v)), Some(true));
+        }
+    }
+
+    #[test]
+    fn lset_append_boundary_has_no_answer_without_a_release() {
+        assert_eq!(TclVersion::lset_appends_at_length_for(None), None);
+    }
+
+    #[test]
     fn regex_compile_error_prefix_is_reworded_in_9_0() {
         for v in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
             assert_eq!(
@@ -1845,6 +1976,58 @@ mod tests {
         // 8.6/9.0-pair rule would have answered 2 and been wrong for 8.4.
         assert_eq!(StringCharacterModel::count_for(None, three_byte), Some(1));
         assert_eq!(StringCharacterModel::count_for(None, supplementary), None);
+    }
+
+    /// Issue #2170: the model's units, not just their count. Measured with
+    /// `scan [string index $s $i] %c` over every index of a literal
+    /// `a<U+1D11E>b` in a UTF-8 script, `LANG=C.UTF-8`:
+    ///
+    /// | release | code points |
+    /// |---|---|
+    /// | 8.4.20, 8.5.19 | 97 240 157 132 158 98 |
+    /// | 8.6.18 | 97 55348 56606 98 |
+    /// | 9.0.4, 9.1.0 | 97 119070 98 |
+    ///
+    /// 8.6's surrogate halves cannot be held apart, so the pair is one run of
+    /// two units.
+    #[test]
+    fn units_are_the_releases_characters_issue_2170() {
+        let runs = |version: TclVersion, value: &str| -> Vec<(u32, usize)> {
+            version
+                .string_character_model()
+                .units(value)
+                .map(|run| (u32::from(run.held), run.units))
+                .collect()
+        };
+        let subject = "a\u{1D11E}b";
+        for version in [TclVersion::V8_4, TclVersion::V8_5] {
+            assert_eq!(
+                runs(version, subject),
+                [(97, 1), (240, 1), (157, 1), (132, 1), (158, 1), (98, 1)],
+                "{version:?}"
+            );
+        }
+        assert_eq!(
+            runs(TclVersion::V8_6, subject),
+            [(97, 1), (0x1D11E, 2), (98, 1)]
+        );
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                runs(version, subject),
+                [(97, 1), (0x1D11E, 1), (98, 1)],
+                "{version:?}"
+            );
+        }
+        // `count` is the units' sum under every model.
+        for model in StringCharacterModel::ALL {
+            for value in ["", "abc", "\u{00E9}\u{20AC}", subject, "\u{1F600}\u{1D11E}"] {
+                assert_eq!(
+                    model.count(value),
+                    model.units(value).map(|run| run.units).sum::<usize>(),
+                    "{model:?} {value:?}"
+                );
+            }
+        }
     }
 
     #[test]

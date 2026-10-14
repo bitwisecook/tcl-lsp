@@ -798,6 +798,50 @@ mod tests {
         );
     }
 
+    /// An index equal to a level's length appends from 8.6 and raises before
+    /// it, as tclsh 8.4.20 to 9.1.0 do (the empty list's first slot, `end+1`
+    /// and a nested level included).
+    #[test]
+    fn lset_appends_at_the_length_only_from_8_6() {
+        use tcl_dialect::TclVersion;
+
+        let at = |release: TclVersion, src: &[u8]| {
+            counters::reset();
+            let (code, bytes);
+            {
+                let mut i = Interp::new();
+                i.set_runtime_version(release);
+                code = i.eval_str(src);
+                bytes = i.result_bytes();
+            }
+            assert_eq!(counters::finalize(), 0);
+            (code, bytes)
+        };
+        for release in TclVersion::ALL {
+            for (src, appended) in [
+                (&b"set x {a b c}; lset x 3 Z"[..], &b"a b c Z"[..]),
+                (b"set x {a b c}; lset x {3} Z", b"a b c Z"),
+                (b"set x {}; lset x 0 Z", b"Z"),
+                (b"set x {{a b c}}; lset x 0 3 Z", b"{a b c Z}"),
+                (b"set x {a b c}; lset x end+1 Z", b"a b c Z"),
+            ] {
+                let (code, bytes) = at(release, src);
+                let label = String::from_utf8_lossy(src);
+                if release.lset_appends_at_length() {
+                    assert_eq!(code, Code::Ok, "{release:?} {label}");
+                    assert_eq!(bytes, appended, "{release:?} {label}");
+                } else {
+                    assert_eq!(code, Code::Error, "{release:?} {label}");
+                    assert!(
+                        bytes == b"list index out of range" || bytes.starts_with(b"bad index"),
+                        "{release:?} {label}: {:?}",
+                        String::from_utf8_lossy(&bytes)
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn lset_errors() {
         assert_eq!(

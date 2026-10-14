@@ -627,12 +627,14 @@ impl<'ctx> ConstOps<'ctx> {
     }
 
     /// Resolve an index operand under the admitted release, returning the
-    /// canonical decimal spelling the cores' own `index::resolve` reads
-    /// identically in every release. This is what keeps the `010` answer
-    /// honest: `string range abcdefghijkl 010 end` is `ijkl` up to 8.6 and
-    /// `kl` from 9.0, and calling the core directly would lose that. An index
-    /// further out than −1 or `len + 1` is spelt as that one, which every
-    /// release reads alike and no command reads apart from it.
+    /// canonical decimal spelling every release's grammar reads identically.
+    /// The cores read an index under the grammar they are handed, but only
+    /// this step declines what no single grammar can answer: a release-less
+    /// target whose releases disagree (`string range abcdefghijkl 010 end` is
+    /// `ijkl` up to 8.6 and `kl` from 9.0), a literal 8.6 compiles apart, and
+    /// a reading the host's `long` decides. An index further out than −1 or
+    /// `len + 1` is spelt as that one, which every release reads alike and no
+    /// command reads apart from it.
     ///
     /// # Errors
     ///
@@ -696,6 +698,14 @@ impl<'ctx> ConstOps<'ctx> {
             });
             Err(self.decline_raising(raised))
         }
+    }
+
+    /// The grammar a core reads an index [`Self::index`] returned under: the
+    /// target's where it names one, else 9.0's, which reads the canonical
+    /// decimal spelling `index` answers as every other release does.
+    #[must_use]
+    pub fn index_numbers(&self) -> NumberSyntax {
+        self.target.numerals.unwrap_or(NumberSyntax::Tcl90)
     }
 
     /// The decline a failed core call answers with: the run's fault when
