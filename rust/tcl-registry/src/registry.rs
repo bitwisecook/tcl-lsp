@@ -19163,7 +19163,7 @@ mod source_empty_write_projection_tests {
             crate::InvocationWords::structured(crate::InvocationWord::Literal("set"), &arguments),
         );
         assert!(dynamic.literal_names.is_empty() && dynamic.opaque_variable_frame);
-        let mut setter = *registry.get("set").unwrap();
+        let mut setter = registry.get("set").unwrap().clone();
         setter.name = "Source::setter";
         setter.required_package = Some("SourceUnavailable");
         registry.insert(setter);
