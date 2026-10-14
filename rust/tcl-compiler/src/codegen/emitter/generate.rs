@@ -898,9 +898,8 @@ fn open_branch_command(
         return;
     };
     // A constant-true `if` whose arm reaches the join opens its own
-    // count-sharing marker in `emit_block_terminator`. When every arm leaves
-    // through `break`/`continue`/`return` the join is never laid out, so
-    // there is no continuation to end a marker at.
+    // count-sharing marker in `emit_block_terminator`. A join outside the
+    // layout has no result pop to end a marker at.
     let join_name = cfg.block_name(*join);
     if ctx.cmd_index == 0
         || !state.laid_out.contains(join_name)

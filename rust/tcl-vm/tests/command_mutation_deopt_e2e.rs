@@ -3596,8 +3596,30 @@ fn a_running_function_is_checked_against_its_manifest_when_the_pin_changes() {
 /// boundary: one without lets the resume land inside its body.
 #[test]
 fn replay_after_a_stale_binding_resumes_after_each_structured_command() {
+    let tclsh =
+        tcl_test_support::locate_tclsh(TclVersion::V9_0).expect("the Tcl 9.0 oracle is valid");
+    for (source, expected) in &stale_replay_cases() {
+        let (mut vm, output) = vm();
+        eval_ok(&mut vm, source);
+        let printed = String::from_utf8(output.0.borrow().clone()).expect("UTF-8 output");
+        assert_eq!(printed.trim_end(), *expected, "{source}");
+        if let Some(tclsh) = &tclsh {
+            let outcome = tcl_test_support::run_script(&tclsh.path, source.as_bytes())
+                .expect("Tcl 9.0 oracle runs");
+            assert_eq!(
+                outcome.strict_text().expect("Tcl 9.0 succeeds"),
+                *expected,
+                "Tcl 9.0: {source}",
+            );
+        }
+    }
+}
+
+/// Scripts and their Tcl 9.0 output for
+/// [`replay_after_a_stale_binding_resumes_after_each_structured_command`].
+fn stale_replay_cases() -> [(String, &'static str); 17] {
     let stale = "set n 0; proc try args {}; try a b\n";
-    let cases: [(String, &str); 13] = [
+    [
         (
             format!("{stale}if {{$n}} {{\n    puts WRONG\n}}\nputs done"),
             "done",
@@ -3651,7 +3673,7 @@ fn replay_after_a_stale_binding_resumes_after_each_structured_command() {
                 .to_owned(),
             "redefined",
         ),
-        // Every arm leaves the loop, so there is no join to resume at.
+        // Every arm leaves, so only a replay reaches the code after the `if`.
         (
             "for {set i 0} {$i < 2} {incr i} {proc try args {}; if {1} {break}}\n\
              try a b; puts end"
@@ -3663,22 +3685,32 @@ fn replay_after_a_stale_binding_resumes_after_each_structured_command() {
                 .to_owned(),
             "x",
         ),
-    ];
-    let tclsh =
-        tcl_test_support::locate_tclsh(TclVersion::V9_0).expect("the Tcl 9.0 oracle is valid");
-    for (source, expected) in &cases {
-        let (mut vm, output) = vm();
-        eval_ok(&mut vm, source);
-        let printed = String::from_utf8(output.0.borrow().clone()).expect("UTF-8 output");
-        assert_eq!(printed.trim_end(), *expected, "{source}");
-        if let Some(tclsh) = &tclsh {
-            let outcome = tcl_test_support::run_script(&tclsh.path, source.as_bytes())
-                .expect("Tcl 9.0 oracle runs");
-            assert_eq!(
-                outcome.strict_text().expect("Tcl 9.0 succeeds"),
-                *expected,
-                "Tcl 9.0: {source}",
-            );
-        }
-    }
+        (
+            "proc r {} {rename if _if; proc if args {puts redefined}}; \
+             proc p {} {foreach x {1} {r; if {1} {break}; puts after}}; p; \
+             rename if {}; rename _if if"
+                .to_owned(),
+            "redefined\nafter",
+        ),
+        (
+            "proc r {} {rename if _if; proc if args {puts redefined}}; \
+             foreach x {1} {r; if {1} {continue}; puts after}; rename if {}; rename _if if"
+                .to_owned(),
+            "redefined\nafter",
+        ),
+        (
+            "proc r {} {rename if _if; proc if args {puts redefined}}; \
+             proc p {n} {foreach x {1} {r; if {$n} {break} else {continue}; puts after}}; p 0; \
+             rename if {}; rename _if if"
+                .to_owned(),
+            "redefined\nafter",
+        ),
+        (
+            "proc r {} {rename switch _s; proc switch args {puts redefined}}; \
+             proc p {n} {foreach x {1} {r; switch $n {0 {break} default {continue}}; puts after}}; \
+             p 0; rename switch {}; rename _s switch"
+                .to_owned(),
+            "redefined\nafter",
+        ),
+    ]
 }
