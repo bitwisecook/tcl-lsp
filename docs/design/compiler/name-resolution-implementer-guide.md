@@ -10803,6 +10803,21 @@ distinct package labels can collide. Callers retain creation/collision checks,
 and the result cannot select an existing Tcl namespace or command. Regenerate
 and check the projection with `cargo xtask gen-editor-catalogs`.
 
+Native procedure expression syntax retains child MAY vectors only from the
+actual selected complete Expr roles and nonexpanded original words. The existing
+source inventory merges those syntax receipts after discarding speculative
+branch effects and advice; unknown child handlers remain unknown.
+`reported_namespace_strictly_contains` compares literal analytical report-key
+prefixes after one root marker and a `::` boundary. It cannot recover namespace
+components, current namespace identity, lookup or editable source occurrences.
+
+`original_logical_source_slot_for_body` checks the actual current issued body,
+Logical full input/header/name/formals/body and unique original source card.
+When the body has no supported correspondence certificate, `BodyLatticeInputs`
+can retain that raw body with command bindings and certificate both absent.
+This keeps full-context validation; a source coordinate cannot establish neutral
+memo closure, Native publication, a Return grammar or a reached call.
+
 
 Configured taint references use `substitution_variable_candidates` with the actual
 source lexer configuration. The shared executable arena keeps array-root and

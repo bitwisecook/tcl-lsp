@@ -1003,7 +1003,7 @@ impl CodegenCtx<'_> {
         // literal, strip the braces and hand back the *unsubstituted* inside:
         // `puts "{$z}"` would print `${z}`, and `set q "{$z}"` would store four
         // bytes where both oracles store three. This is the marker-carrying half of
-        // the value rule `push_word_value` states: a value the runtime still
+        // the value rule `push_compiled_word` states: a value the runtime still
         // owns cannot simply be frozen, so it is resolved here instead. A
         // genuine braced argument never reaches here (it is emitted by the
         // braced-word path), so decomposing is safe.
@@ -1032,7 +1032,7 @@ impl CodegenCtx<'_> {
             for part in &parts {
                 match part {
                     // A decoded fragment is finished text, never source — see
-                    // `push_word_value`, whose fragment rule this is.
+                    // `push_compiled_word`, whose fragment rule this is.
                     SubstPart::Lit(text) => self.push_lit_exact(text),
                     SubstPart::ByteLit(bytes) => self.push_lit_bytes_exact(bytes),
                     SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
@@ -1110,10 +1110,10 @@ impl CodegenCtx<'_> {
         }
         // Default: the word's own text is its value — push it unsubstituted
         // unless a `${…}` / `[…]` the runtime still owns survived the arms
-        // above (`push_word_value`). Substituting a finished value strips a
+        // above (`push_compiled_word`). Substituting a finished value strips a
         // brace layer that was never source: `set v "{}"` stored the empty
         // string where both oracles store the two-byte `{}`.
-        self.push_word_value(value);
+        self.push_compiled_word(value);
     }
 
     /// Evaluate the retained lexical components of an unchanged template.

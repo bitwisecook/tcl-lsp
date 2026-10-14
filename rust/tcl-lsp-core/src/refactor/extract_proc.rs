@@ -1145,17 +1145,29 @@ mod tests {
 
     #[test]
     fn extraction_original_components_keep_literal_sigil_data_and_refuse_array_captures() {
+        let logical_outcome = |source: &str, needle: &str| -> Result<String, String> {
+            let action = at_dialect(source, needle, "tcl").unwrap();
+            action
+                .disabled
+                .clone()
+                .map_or_else(|| Ok(action.apply(source)), Err)
+        };
         let source = "set value TEXT\nputs \"escaped=\\$notavar $value\"\nputs done\n";
-        let result = outcome(source, "puts \"escaped=\\$notavar $value\"").unwrap();
+        assert!(
+            outcome(source, "puts \"escaped=\\$notavar $value\"")
+                .unwrap_err()
+                .contains("captures")
+        );
+        let result = logical_outcome(source, "puts \"escaped=\\$notavar $value\"").unwrap();
         assert!(result.contains("proc extracted_proc {value}"), "{result}");
         assert!(!result.contains("{notavar value}"), "{result}");
         assert!(result.contains("escaped=\\$notavar $value"), "{result}");
         let source = "set {$literal} TEXT\nputs ${$literal}\nputs done\n";
-        let result = outcome(source, "puts ${$literal}").unwrap();
+        let result = logical_outcome(source, "puts ${$literal}").unwrap();
         assert!(result.contains("${$literal}"), "{result}");
         let source = "set array(key) TEXT\nputs $array(key)\nputs done\n";
         assert!(
-            outcome(source, "puts $array(key)")
+            logical_outcome(source, "puts $array(key)")
                 .unwrap_err()
                 .contains("array element read")
         );

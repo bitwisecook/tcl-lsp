@@ -1,0 +1,18 @@
+{
+  "started_utc": "2026-10-14T21:07:49.908520+00:00",
+  "label": "Current shared analytical reporting-key namespace geometry",
+  "package": "tcl-syntax",
+  "target": null,
+  "source_paths": 34725,
+  "plan": {
+    "filters": [
+      "naming::reporting::tests::"
+    ],
+    "exact": [],
+    "scope": "Shared generated namespace policy and constructed reporting containment syntax. Product construction/report geometry only; no Tcl runtime identity/conformance acceptance."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

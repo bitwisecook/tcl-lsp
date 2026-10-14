@@ -112,6 +112,7 @@ impl Interp {
             .native_invocation_dialect()
             .authored_logical_name_simulation(provider)
             .is_none()
+            || !self.variable_storage_matches(provider.variable_lookup_policy())
         {
             return false;
         }
@@ -120,8 +121,7 @@ impl Interp {
             self.invalidate_native_operation_context();
         }
         self.logical_name_provider.set(Some(provider));
-        self.namespaces.borrow_mut().variable_name_protocol =
-            self.name_policy_protocol().map(|policy| policy.recipe());
+        self.configure_variable_storage();
         if changed {
             self.invalidate_execution_name_policy();
         }
@@ -424,7 +424,80 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_registry::f5::{evidence::BigIpBuild, naming::BigIpNameEvent, BigIpExecutionContext};
+    use tcl_registry::f5::{BigIpExecutionContext, evidence::BigIpBuild, naming::BigIpNameEvent};
+
+    #[test]
+    fn standalone_storage_uses_the_selected_actual_engine_recipe() {
+        let interp = Interp::new();
+        let names = interp.name_policy_protocol().unwrap();
+        assert_eq!(
+            names.authority(),
+            tcl_syntax::naming::NamePolicyAuthority::Native
+        );
+        assert_eq!(
+            names.recipe(),
+            interp
+                .native_invocation_dialect()
+                .native_name_protocol()
+                .unwrap(),
+        );
+        assert!(interp.variable_storage_matches(names.variable_lookup_policy()));
+    }
+
+    #[test]
+    fn absent_vendor_policy_cannot_reinterpret_selected_jim_storage() {
+        let mut interp = Interp::with_native_core(
+            super::super::default_host(),
+            crate::environment::profile_for_dialect("jim"),
+            tcl_registry::special_vars::NativeBootstrapInputs {
+                package_path: Vec::new(),
+                default_library: None,
+            },
+        )
+        .unwrap();
+        assert!(interp.variable_storage_matches(tcl_dialect::VariableLookupPolicy::Jim));
+        let entered =
+            super::super::native_operation_currency::NativeOperationScope::enter(&interp).unwrap();
+        interp.set_dialect_profile(crate::environment::profile_for_dialect("irules"));
+        assert!(entered.currency().ensure_current().is_err());
+        assert!(interp.name_policy_protocol().is_none());
+        assert!(interp.variable_storage_matches(tcl_dialect::VariableLookupPolicy::Jim));
+        assert!(interp.frames.borrow().variable_hash_recipe.is_none());
+        assert!(interp.namespaces.borrow().variable_hash_recipe.is_none());
+        assert!(interp.namespaces.borrow().variable_name_protocol.is_none());
+        assert!(!interp.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+        ));
+        assert!(interp.name_policy_protocol().is_none());
+        assert!(interp.variable_storage_matches(tcl_dialect::VariableLookupPolicy::Jim));
+    }
+
+    #[test]
+    fn authored_names_require_compatible_existing_storage_without_native_authority() {
+        let mut interp = Interp::new();
+        assert!(interp.variable_storage_matches(tcl_dialect::VariableLookupPolicy::Tcl));
+        interp.set_dialect_profile(crate::environment::profile_for_dialect("irules"));
+        assert!(interp.name_policy_protocol().is_none());
+        assert!(interp.variable_storage_matches(tcl_dialect::VariableLookupPolicy::Tcl));
+        let entered =
+            super::super::native_operation_currency::NativeOperationScope::enter(&interp).unwrap();
+        assert!(interp.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+        ));
+        assert!(entered.currency().ensure_current().is_err());
+        let names = interp.name_policy_protocol().unwrap();
+        assert_eq!(
+            names.authority(),
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+        );
+        assert!(
+            interp
+                .native_invocation_dialect()
+                .native_name_protocol()
+                .is_none()
+        );
+        assert!(interp.variable_storage_matches(tcl_dialect::VariableLookupPolicy::Tcl));
+    }
 
     fn select(interp: &mut Interp) -> AuthoredObservedFrameStorageContext {
         assert!(interp.set_observed_bigip_name_policy(
@@ -621,9 +694,15 @@ mod tests {
                 interp
                     .observed_variable_set(b"A\0B", level, super::super::new_string(b"counted"))
                     .unwrap();
-                assert!(interp
-                    .observed_variable_set(b"A", level, super::super::new_string(b"replacement"))
-                    .is_err());
+                assert!(
+                    interp
+                        .observed_variable_set(
+                            b"A",
+                            level,
+                            super::super::new_string(b"replacement")
+                        )
+                        .is_err()
+                );
                 let frames = interp.frames.borrow();
                 let Some(slot) = frames.compiled_slot_var(0) else {
                     panic!("retained formal cell")
@@ -681,9 +760,11 @@ mod tests {
             .with_observed_frame_storage(context, |interp| {
                 interp.frames.borrow_mut().pop();
                 let level = interp.frames.borrow_mut().push(crate::namespace::GLOBAL);
-                assert!(interp
-                    .observed_variable_get(b"__tcl_lsp_2286_r2286m_nul_A", level)
-                    .is_err());
+                assert!(
+                    interp
+                        .observed_variable_get(b"__tcl_lsp_2286_r2286m_nul_A", level)
+                        .is_err()
+                );
             })
             .unwrap();
         interp.frames.borrow_mut().pop();

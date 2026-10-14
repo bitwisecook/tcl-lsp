@@ -43,6 +43,8 @@
 //! Answering one per dialect and the other per hardcoded default is precisely
 //! the bug this replaces.
 
+mod compiled_word;
+pub use compiled_word::{CompiledWordSubstitution, compiled_word_substitution};
 mod source_list;
 pub use source_list::{OriginalSourceListElement, original_static_word_list_elements};
 
@@ -467,6 +469,44 @@ pub fn original_word_unicode_value_with_variables(
     }
     std::str::from_utf8(&value).ok()?;
     Some(value)
+}
+
+/// Decode a static standalone word fragment using an explicit grouping fact.
+/// `fragment` is the caller's post-grouping source text, not a complete script
+/// or an already evaluated object. Braced fragments apply only the selected
+/// brace continuation rule; other fragments must contain only configured
+/// literal/escape components. Variable, command, expression and malformed
+/// components are unavailable. Empty and sigil data remain counted values.
+/// This syntax query supplies no original-source receipt, selected handler,
+/// Native compiler eligibility, local slot, physical cell or evaluation proof.
+#[must_use]
+pub fn standalone_static_word_fragment_value(
+    fragment: &str,
+    braced: bool,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    use tcl_lexer::{ExecutablePartArena, SourceChannel, SourceImage, Span, SubstFlags};
+    if braced {
+        let value = crate::backslash::source_braced_word_bytes(
+            fragment.as_bytes(),
+            SourceChannel::Document,
+            config.brace_backslash_newline,
+        );
+        return String::from_utf8(value.into_owned()).ok();
+    }
+    let end = u32::try_from(fragment.len()).ok()?;
+    let arena = ExecutablePartArena::decompose(
+        SourceImage::document(fragment),
+        Span::new(0, end),
+        SubstFlags::default(),
+        config,
+    )
+    .ok()?;
+    let mut value = Vec::new();
+    for component in arena.list(arena.root()) {
+        value.extend_from_slice(&original_unicode_text_component(&arena, component)?);
+    }
+    String::from_utf8(value).ok()
 }
 
 /// One original scalar reference with an exact decoded literal prefix.
@@ -981,5 +1021,63 @@ mod original_metadata_tests {
         let image = SourceImage::native(b"trim".as_slice());
         let plan = tcl_lexer::native_script_words_in(image, Span::new(0, 4), config).unwrap();
         assert!(original_static_word_ascii_presentation(&plan.commands[0].words[0]).is_none());
+    }
+}
+
+#[cfg(test)]
+mod standalone_fragment_tests {
+    use super::*;
+
+    #[test]
+    fn standalone_static_fragments_keep_grouping_and_configured_substitutions_separate() {
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        for value in [
+            "",
+            "$literal",
+            "${literal}",
+            "[data]",
+            "array($index)",
+            "two words",
+            "a\0b",
+        ] {
+            assert_eq!(
+                standalone_static_word_fragment_value(value, true, config).as_deref(),
+                Some(value)
+            );
+        }
+        assert_eq!(
+            standalone_static_word_fragment_value(r"prefix\$value", false, config).as_deref(),
+            Some("prefix$value")
+        );
+        for value in [
+            "prefix$value",
+            "[set name]",
+            "array($index)",
+            "${unfinished",
+        ] {
+            assert!(
+                standalone_static_word_fragment_value(value, false, config).is_none(),
+                "{value}"
+            );
+        }
+        assert_eq!(
+            standalone_static_word_fragment_value("", false, config).as_deref(),
+            Some("")
+        );
+        assert!(
+            standalone_static_word_fragment_value(
+                "$(1 + 2)",
+                false,
+                tcl_lexer::LexerConfig::for_dialect("jim")
+            )
+            .is_none()
+        );
+        // C reads the empty-root array element; Jim evaluates an expression.
+        // Both are computed source operands. Grouped literal data is separate.
+        assert!(standalone_static_word_fragment_value("$(1 + 2)", false, config).is_none());
+        assert_eq!(
+            standalone_static_word_fragment_value("$(1 + 2)", true, config).as_deref(),
+            Some("$(1 + 2)")
+        );
     }
 }

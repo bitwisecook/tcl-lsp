@@ -4,7 +4,7 @@
 //! construction policy and cross-language cases come from `tcl-syntax`.
 //!
 //! Run `cargo xtask gen-editor-catalogs` to (re)write them; `--check` verifies
-//! the committed files match what the registry would produce, exiting non-zero
+//! the committed files match their shared owners, exiting non-zero
 //! on drift — the same invariant the `committed_catalogs_match_generated` test
 //! pins into the `cargo test` gate.
 //!

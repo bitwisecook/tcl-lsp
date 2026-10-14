@@ -1,0 +1,50 @@
+{
+  "started_utc": "2026-10-14T21:10:46.348825+00:00",
+  "build": null,
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+    "sha256": "592dfc031dafd6f74460bf59203cbf5a91fd310ddb1b49586acf34f67d378c42",
+    "bytes": 202503592
+  },
+  "selected_tests": [
+    "tests::function_lattice_reused_on_body_shift"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+        "tests::function_lattice_reused_on_body_shift",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.9207707140012644,
+      "log": "test-01.log.gz",
+      "timed_out": false,
+      "test": "tests::function_lattice_reused_on_body_shift",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T21:10:49.765290+00:00",
+  "changed_sources": {}
+}

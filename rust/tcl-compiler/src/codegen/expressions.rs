@@ -295,7 +295,7 @@ impl CodegenCtx<'_> {
         for part in parts {
             match part {
                 // A decoded fragment is finished text, never source — see
-                // `push_word_value`, whose fragment rule this is.
+                // `push_compiled_word`, whose fragment rule this is.
                 SubstPart::Lit(t) => self.push_lit_exact(t),
                 SubstPart::ByteLit(bytes) => self.push_lit_bytes_exact(bytes),
                 SubstPart::Var(name) => self.load_var(name),
@@ -675,7 +675,7 @@ impl CodegenCtx<'_> {
                     // `{${x}}`, which must compare as `{7}`.
                     self.emit_value(text, true);
                 } else {
-                    self.push_word_value(text);
+                    self.push_compiled_word(text);
                 }
                 false
             }

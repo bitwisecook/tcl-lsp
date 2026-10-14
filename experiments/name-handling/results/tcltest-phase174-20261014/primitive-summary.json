@@ -1,0 +1,1057 @@
+{
+  "log": "/tmp/name-tcltest-phase174-20261014/run.log.gz",
+  "decoded_bytes": 750976,
+  "decoded_sha256": "883e9fee13e0ac7b02a8c60348842c7b4d65fc8e5029db1ae240ce055a92fa70",
+  "overlong_lines": 0,
+  "primitive_line_counts": {
+    "ANALYSER_PHASE": 48,
+    "SOURCE_ROOT_OWNER_WORK": 3120,
+    "SOURCE_PHASE": 120,
+    "SOURCE_LEXICAL_PROJECTION_PHASE": 120,
+    "SOURCE_DEFERRED_INDEX_PHASE": 120,
+    "SOURCE_PROVIDER_VALIDATION_PHASE": 120,
+    "SOURCE_ORIGINAL_GEOMETRY_PHASE": 840,
+    "SOURCE_LOOKUP_PHASE": 60,
+    "SOURCE_DEFERRED_PROGRESS": 40,
+    "SOURCE_DEFERRED_PHASE": 90,
+    "SOURCE_LAYOUT_PHASE": 180,
+    "SOURCE_LAYOUT_SYNTAX_SUMMARY": 30,
+    "SOURCE_INVOCATION_PROJECT": 265,
+    "ANALYSER_TOKEN_PREPARE": 265,
+    "DIAGNOSTIC_PHASE": 33,
+    "COMPILER_PIPELINE_PHASE": 107,
+    "LOWER_SOURCE_PHASE": 75,
+    "LOWER_SCRIPT_PHASE": 255,
+    "SOURCE_BODY_PROJECTION": 40,
+    "LOWER_ORIGINAL_BODY_PHASE": 160,
+    "COMPILER_FUNCTION_PHASE_TOTALS": 4,
+    "DIAGNOSTIC_CFG_EMISSION_PHASE": 44
+  },
+  "latest_primitive_lines": [
+    {
+      "line": "SOURCE_LOOKUP_PHASE bytes=33 stage=walk calls=52 ms=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=1 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=1 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-seeds ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-drained ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-complete ms=1 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=layouts ms=1 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=14149 us=175468",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=40 us=6808",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=256 us=4843",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=108 us=6287",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=256 us=677748",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=704 us=36464",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=1017 us=19858",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=293 us=274",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11310604",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=470 us=29830",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=1554 us=83650",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=1120 us=657150",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=704 us=24140222",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=121812",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=656 us=535940",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=632 us=3764",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=656 us=35774061",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=3942",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=470 us=45345",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=35256 us=374692",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=2053 us=215925",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=103 us=226608",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=103 us=403",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=deferred ms=48 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=deferred retained_owners=1 requests=15 captures=5 reuses=10 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=deferred requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=command-key scope=cumulative-inclusive calls=50 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=slot-paths scope=cumulative-inclusive calls=41 ms=2 world_clones=17 clone_us=73",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=4",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=lookup-key scope=cumulative-inclusive calls=29 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=baseline scope=cumulative-inclusive calls=60 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LOOKUP_PHASE bytes=33 stage=deferred calls=60 ms=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=14149 us=175468",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=40 us=6808",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=256 us=4843",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=108 us=6287",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=256 us=677748",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=704 us=36464",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=1017 us=19858",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=293 us=274",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11310604",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=470 us=29830",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=1554 us=83650",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=1120 us=657150",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=704 us=24140222",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=121812",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=656 us=535940",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=632 us=3764",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=656 us=35774061",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=3942",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=470 us=45345",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=35256 us=374692",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=2053 us=215925",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=103 us=226608",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=103 us=403",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=complete ms=57 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=complete retained_owners=1 requests=15 captures=5 reuses=10 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=complete requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=command-key scope=cumulative-inclusive calls=50 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=slot-paths scope=cumulative-inclusive calls=41 ms=2 world_clones=17 clone_us=73",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=4",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=lookup-key scope=cumulative-inclusive calls=29 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=baseline scope=cumulative-inclusive calls=60 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=binding-analysis ms=58 commands=0 statements=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=segmented ms=0 commands=1 statements=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=commands ms=3 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=admission ms=3 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=source ms=4 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=script ms=62 commands=0 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=restore ms=62 commands=0 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SOURCE_PHASE bytes=33 phase=lowered ms=78 statements=1 procedures=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SOURCE_PHASE bytes=33 phase=entry ms=0 statements=0 procedures=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SOURCE_PHASE bytes=33 phase=configured ms=16 statements=0 procedures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=14149 us=175468",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=40 us=6808",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=256 us=4843",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=108 us=6287",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=256 us=677748",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=704 us=36464",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=1023 us=19876",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=293 us=274",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11310604",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=470 us=29830",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=1555 us=83691",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=1120 us=657150",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=704 us=24140222",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=121812",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=656 us=535940",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=632 us=3764",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=656 us=35774061",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=3942",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=470 us=45345",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=35283 us=374847",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=2053 us=215925",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=104 us=227578",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=104 us=407",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=initial ms=32 points=0 layouts=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=14194 us=175498",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=40 us=6808",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=256 us=4843",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=108 us=6287",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=256 us=677748",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=706 us=36498",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=1025 us=19887",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=295 us=276",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11310604",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=472 us=29963",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=1557 us=83783",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=1122 us=657153",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=706 us=24154275",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=121812",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=658 us=545885",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=634 us=3778",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=658 us=35775329",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=3942",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=472 us=45690",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=35295 us=375393",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=2058 us=216403",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=104 us=227578",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=104 us=407",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=walk ms=48 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=walk retained_owners=1 requests=12 captures=5 reuses=7 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=command-key scope=cumulative-inclusive calls=40 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=slot-paths scope=cumulative-inclusive calls=37 ms=2 world_clones=17 clone_us=74",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=4",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=lookup-key scope=cumulative-inclusive calls=23 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=baseline scope=cumulative-inclusive calls=52 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LOOKUP_PHASE bytes=33 stage=walk calls=52 ms=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=1 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=1 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-seeds ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-drained ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-complete ms=1 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=layouts ms=1 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=14194 us=175498",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=40 us=6808",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=256 us=4843",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=108 us=6287",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=256 us=677748",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=706 us=36498",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=1025 us=19887",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=295 us=276",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11310604",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=472 us=29963",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=1559 us=83857",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=1122 us=657153",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=706 us=24154275",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=121812",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=658 us=545885",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=634 us=3778",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=658 us=35775329",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=3942",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=472 us=45690",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=35298 us=375408",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=2058 us=216403",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=104 us=227578",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=104 us=407",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=deferred ms=49 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=deferred retained_owners=1 requests=15 captures=5 reuses=10 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=deferred requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=command-key scope=cumulative-inclusive calls=50 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=slot-paths scope=cumulative-inclusive calls=41 ms=2 world_clones=17 clone_us=74",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=4",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=lookup-key scope=cumulative-inclusive calls=29 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=baseline scope=cumulative-inclusive calls=60 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LOOKUP_PHASE bytes=33 stage=deferred calls=60 ms=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=14194 us=175498",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=40 us=6808",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=256 us=4843",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=108 us=6287",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=256 us=677748",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=706 us=36498",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=1025 us=19887",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=295 us=276",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11310604",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=472 us=29963",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=1559 us=83857",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=1122 us=657153",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=706 us=24154275",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=121812",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=658 us=545885",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=634 us=3778",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=658 us=35775329",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=3942",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=472 us=45690",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=35298 us=375408",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=2058 us=216403",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=104 us=227578",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=104 us=407",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=complete ms=58 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=complete retained_owners=1 requests=15 captures=5 reuses=10 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=complete requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=command-key scope=cumulative-inclusive calls=50 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=slot-paths scope=cumulative-inclusive calls=41 ms=2 world_clones=17 clone_us=74",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=4",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=lookup-key scope=cumulative-inclusive calls=29 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=baseline scope=cumulative-inclusive calls=60 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=binding-analysis ms=58 commands=0 statements=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=segmented ms=0 commands=1 statements=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=commands ms=3 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=admission ms=3 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=source ms=4 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=script ms=63 commands=0 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=restore ms=63 commands=0 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SOURCE_PHASE bytes=33 phase=lowered ms=79 statements=1 procedures=0",
+      "truncated": false
+    },
+    {
+      "line": "COMPILER_PIPELINE_PHASE pipeline=unit bytes=1380 procedures=4 stage=top-level-lattice us=8171174",
+      "truncated": false
+    },
+    {
+      "line": "COMPILER_PIPELINE_PHASE pipeline=unit bytes=1380 procedures=4 stage=procedure-lattices us=8349070",
+      "truncated": false
+    }
+  ],
+  "scope": "Bounded primitive line extraction only; cumulative nested phase values overlap. No exclusive cost totals or semantic acceptance inferred."
+}

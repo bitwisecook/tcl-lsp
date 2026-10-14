@@ -1776,10 +1776,8 @@ impl DialectProfile {
     /// ```
     #[must_use]
     pub fn variable_container_model(&self) -> Option<crate::VariableContainerModel> {
-        self.variable_lookup_policy().map(|policy| match policy {
-            crate::VariableLookupPolicy::Tcl => crate::VariableContainerModel::DistinctArray,
-            crate::VariableLookupPolicy::Jim => crate::VariableContainerModel::DictionaryValue,
-        })
+        self.variable_lookup_policy()
+            .map(crate::VariableLookupPolicy::container_model)
     }
 
     /// Variable alias identity, separate from qualified-name lookup grammar.
@@ -1791,10 +1789,8 @@ impl DialectProfile {
     /// ```
     #[must_use]
     pub fn variable_link_binding(&self) -> Option<crate::VariableLinkBinding> {
-        self.variable_lookup_policy().map(|policy| match policy {
-            crate::VariableLookupPolicy::Tcl => crate::VariableLinkBinding::StableCell,
-            crate::VariableLookupPolicy::Jim => crate::VariableLinkBinding::SelectedFrameName,
-        })
+        self.variable_lookup_policy()
+            .map(crate::VariableLookupPolicy::link_binding)
     }
 
     /// Native lazy double-string policy, independently of source numeral grammar.

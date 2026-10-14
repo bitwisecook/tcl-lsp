@@ -2074,25 +2074,7 @@ impl Interp {
             retiring_oo_commands: RefCell::new(std::collections::HashSet::new()),
             original_command_retirement_recipes: RefCell::new(Vec::new()),
         }));
-        interp.frames.borrow_mut().variable_container_model =
-            profile.variable_container_model().unwrap_or_default();
-        interp.frames.borrow_mut().variable_lookup_policy = profile
-            .variable_lookup_policy()
-            .unwrap_or(tcl_dialect::VariableLookupPolicy::Tcl);
-        interp.frames.borrow_mut().variable_string_protocol =
-            interp.native_invocation_dialect().native_string_protocol();
-        interp.namespaces.borrow_mut().variable_string_protocol =
-            interp.native_invocation_dialect().native_string_protocol();
-        interp.namespaces.borrow_mut().variable_container_model =
-            profile.variable_container_model().unwrap_or_default();
-        interp.namespaces.borrow_mut().variable_lookup_policy = profile
-            .variable_lookup_policy()
-            .unwrap_or(tcl_dialect::VariableLookupPolicy::Tcl);
-        interp.namespaces.borrow_mut().variable_link_binding = profile
-            .variable_link_binding()
-            .unwrap_or(tcl_dialect::VariableLinkBinding::StableCell);
-        interp.namespaces.borrow_mut().variable_name_protocol =
-            interp.name_policy_protocol().map(|policy| policy.recipe());
+        interp.configure_variable_storage();
         interp.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
         interp.namespaces.borrow_mut().set_native_command_version(
@@ -2101,7 +2083,6 @@ impl Interp {
                 .native_command_name_protocol()
                 .map(|protocol| protocol.version()),
         );
-        interp.install_variable_table_recipe();
         if native.is_some() {
             let dialect = interp.native_invocation_dialect();
             parse::install_native_list_policy(
@@ -2558,28 +2539,7 @@ impl Interp {
             .reset_standard_channels_if_owner(version);
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
-        let variable_policy = profile
-            .variable_lookup_policy()
-            .unwrap_or(tcl_dialect::VariableLookupPolicy::Tcl);
-        let container_model = profile.variable_container_model().unwrap_or_default();
-        let variable_hash_recipe = self
-            .selected_variable_table_protocol()
-            .map(|protocol| protocol.recipe());
-        self.frames.borrow_mut().variable_hash_recipe = variable_hash_recipe;
-        self.namespaces.borrow_mut().variable_hash_recipe = variable_hash_recipe;
-        self.frames.borrow_mut().variable_container_model = container_model;
-        self.frames.borrow_mut().variable_string_protocol =
-            self.native_invocation_dialect().native_string_protocol();
-        self.namespaces.borrow_mut().variable_container_model = container_model;
-        self.namespaces.borrow_mut().variable_string_protocol =
-            self.native_invocation_dialect().native_string_protocol();
-        self.frames.borrow_mut().variable_lookup_policy = variable_policy;
-        self.namespaces.borrow_mut().variable_lookup_policy = variable_policy;
-        self.namespaces.borrow_mut().variable_link_binding = profile
-            .variable_link_binding()
-            .unwrap_or(tcl_dialect::VariableLinkBinding::StableCell);
-        self.namespaces.borrow_mut().variable_name_protocol =
-            self.name_policy_protocol().map(|policy| policy.recipe());
+        self.configure_variable_storage();
         self.namespaces.borrow_mut().set_native_command_version(
             self.native_invocation_dialect()
                 .native_command_name_protocol()
@@ -2728,14 +2688,40 @@ impl Interp {
         Ok(context)
     }
 
-    /// Policies of the actual native interpreter, independently of an
-    /// unpinned source-assistance profile. The engine's default C release is known.
-    fn install_variable_table_recipe(&self) {
+    fn configure_variable_storage(&self) {
+        let dialect = self.native_invocation_dialect();
+        if let Some(names) = dialect.native_name_protocol() {
+            let policy = names.variable_lookup_policy();
+            let mut frames = self.frames.borrow_mut();
+            let mut namespaces = self.namespaces.borrow_mut();
+            frames.variable_lookup_policy = policy;
+            namespaces.variable_lookup_policy = policy;
+            frames.variable_container_model = policy.container_model();
+            namespaces.variable_container_model = policy.container_model();
+            namespaces.variable_link_binding = policy.link_binding();
+        }
+        // Missing naming authority cannot replace an existing physical model.
+        let names = self.name_policy_protocol();
         let recipe = self
             .selected_variable_table_protocol()
             .map(|protocol| protocol.recipe());
-        self.frames.borrow_mut().variable_hash_recipe = recipe;
-        self.namespaces.borrow_mut().variable_hash_recipe = recipe;
+        let mut frames = self.frames.borrow_mut();
+        let mut namespaces = self.namespaces.borrow_mut();
+        frames.variable_hash_recipe = recipe;
+        namespaces.variable_hash_recipe = recipe;
+        frames.variable_string_protocol = dialect.native_string_protocol();
+        namespaces.variable_string_protocol = dialect.native_string_protocol();
+        namespaces.variable_name_protocol = names.map(|names| names.recipe());
+    }
+
+    fn variable_storage_matches(&self, policy: tcl_dialect::VariableLookupPolicy) -> bool {
+        let frames = self.frames.borrow();
+        let namespaces = self.namespaces.borrow();
+        frames.variable_lookup_policy == policy
+            && namespaces.variable_lookup_policy == policy
+            && frames.variable_container_model == policy.container_model()
+            && namespaces.variable_container_model == policy.container_model()
+            && namespaces.variable_link_binding == policy.link_binding()
     }
 
     pub(crate) fn selected_variable_table_protocol(
@@ -9409,7 +9395,9 @@ impl Interp {
             )?;
             return (protocol.recipe() == recipe).then_some(protocol);
         }
-        dialect.authored_logical_name_simulation(self.logical_name_provider.get()?)
+        let names = dialect.authored_logical_name_simulation(self.logical_name_provider.get()?)?;
+        self.variable_storage_matches(names.variable_lookup_policy())
+            .then_some(names)
     }
 
     pub(crate) fn array_search_keys_at_target(

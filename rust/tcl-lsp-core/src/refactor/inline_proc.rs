@@ -1356,12 +1356,15 @@ mod tests {
                 assert!(result.contains("puts {$value}"), "{result}");
             }
         }
-        let source = "proc same {value} {expr {{${value}} eq \"$value\"}}\nsame TEXT\n";
-        let result = outcome(source, "same TEXT").unwrap();
+        let source = "proc same {value} {expr {{${value}} eq \"$value\"}}\nsame 7\n";
+        let nonnumeric = source.replace("same 7", "same TEXT");
         assert!(
-            result.ends_with("expr {{${value}} eq \"TEXT\"}\n"),
-            "{result}"
+            outcome(&nonnumeric, "same TEXT")
+                .unwrap_err()
+                .contains("nonnumeric")
         );
+        let result = outcome(source, "same 7").unwrap();
+        assert!(result.ends_with("expr {{${value}} eq \"7\"}\n"), "{result}");
         let source = "proc show {value} {puts $array($value)}\nshow TEXT\n";
         assert!(
             outcome(source, "show TEXT")

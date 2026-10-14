@@ -372,6 +372,57 @@ mod tests {
     use crate::analyser::{Analyser, ItemTree};
 
     #[test]
+    fn package_callback_source_counts_follow_selected_positional_and_instance_grammar() {
+        for (package, command, expected) in [
+            (
+                "mime",
+                "mime::getbody $token -command ::cb",
+                SourceCallbackArgumentCounts::AtLeast(1),
+            ),
+            (
+                "smtp",
+                "smtp::sendmessage $token -tlspolicy ::cb",
+                SourceCallbackArgumentCounts::Finite(vec![2]),
+            ),
+            (
+                "struct::graph",
+                "struct::graph owned; owned walk root -command ::cb",
+                SourceCallbackArgumentCounts::Finite(vec![3]),
+            ),
+            (
+                "struct::tree",
+                "struct::tree owned; owned walkproc root ::cb",
+                SourceCallbackArgumentCounts::Finite(vec![3]),
+            ),
+        ] {
+            let source = format!(
+                "# tcl-lsp: requires {package}\npackage require {package}\nproc cb {{}} {{}}\n{command}"
+            );
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&source, "tcl9.0");
+            let headers = ItemTree::from_analysis(&analysis, &analyser.ensemble_namespaces)
+                .sigs()
+                .into_iter()
+                .filter_map(|signature| signature.original_declaration)
+                .collect::<Vec<_>>();
+            let selection = analysis
+                .command_invocations
+                .iter()
+                .find_map(|invocation| {
+                    let selected = invocation.original_callback_signature_lookup.as_ref()?;
+                    (selected.prefix().name_input().bytes() == b"::cb").then_some(selected)
+                })
+                .expect(&source);
+            let subject =
+                SourceCallbackAritySubject::from_source_lookup(Arc::clone(selection), &headers)
+                    .expect(&source);
+            assert_eq!(subject.issue().code(), DiagCode::E003, "{source}");
+            assert_eq!(subject.argument_counts(), &expected, "{source}");
+            assert!(subject.source_lookup().is_some());
+        }
+    }
+
+    #[test]
     fn original_callback_subject_retains_prefix_counts_headers_and_source_purpose() {
         // naming.diagnostic.original-callback-signature-subject
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-callback-signature-subject.md

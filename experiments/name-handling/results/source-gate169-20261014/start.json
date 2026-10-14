@@ -1,0 +1,19 @@
+{
+  "started_utc": "2026-10-14T21:06:05.940679+00:00",
+  "label": "All35 current original Source declaration and receiver controls",
+  "package": "xtask",
+  "target": null,
+  "source_paths": 34725,
+  "plan": {
+    "filters": [
+      "owner_resolution::source_internal::"
+    ],
+    "exact": [],
+    "scope": "All31 unchanged original Source controls plus4 actual body-type-shadow, passive attrs, signature type and exact transparent state-hop controls. Actual compiled --list is authoritative; CLI and full strict proofs remain separate.",
+    "expected_control_count": 35
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "7f16f1f670ef3a220b619d51210f1b18eaa10585bdfd22f04a1c4346588de0e9",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

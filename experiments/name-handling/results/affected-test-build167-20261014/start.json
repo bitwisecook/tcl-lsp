@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-14T20:58:37.407848+00:00",
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "--no-run",
+    "--message-format=json",
+    "-j1",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "xtask",
+    "-p",
+    "tcl-syntax",
+    "--lib",
+    "--bin",
+    "xtask"
+  ],
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "scope": "Authored Rust/runtime/data/Cargo source subset and affected test-build API preflight only. No test selectors execute and no provider/Native conformance acceptance."
+}

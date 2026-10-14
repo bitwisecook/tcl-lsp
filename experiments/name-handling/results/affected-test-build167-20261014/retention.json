@@ -1,0 +1,11 @@
+{
+  "scope": "Successful Compiler/Core/DB/xtask/Syntax test-build API preflight, five exact compiled test artifacts, authored source subset drift0. No tests executed; no provider or Native conformance acceptance.",
+  "files": {
+    "source-after.json.gz": "c7de0f79e1fea73fb6ecfc3372260ba1371e6f035866a2ebb554bb32d9343b5e",
+    "result.json": "e8326c51ff025022b7103be8e453445dc45bd58e9f048db7b46493dc3f1a4d22",
+    "capture.py": "6383afa5924ac5ac981a31201402e9912aa0b0ff346da11306cd18dcc5662646",
+    "build.jsonl": "f4db4b5df4735370b582a21dbb1716caf9c8f974c120f7f611ab7653fccfb64b",
+    "source-before.json.gz": "c89a75353865293002cfb943501e3df5562645f2afc22b27d1c6a7afba50c174",
+    "start.json": "a13ea077679ff6ed847b09409654bfed856b6628b988c182ab32208cbb71a6e3"
+  }
+}

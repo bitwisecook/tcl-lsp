@@ -172,6 +172,10 @@ impl EbpfSemanticBridge {
             }
         };
 
+        if !bundle.matches_registry(registry) {
+            return EbpfRegionEligibility::Declined(EbpfRegionDecline::RegistryUnavailable);
+        }
+
         let shape = audit_executable_shape(executable);
         if !shape.is_empty() {
             return EbpfRegionEligibility::Declined(EbpfRegionDecline::ExecutableShape(shape));
@@ -417,6 +421,8 @@ pub enum EbpfRegionDecline {
     /// The semantic bundle carried no resolved environment: an absent
     /// context, rather than a mask naming no profile.
     ContextUnavailable,
+    /// The supplied store does not match the retained invocation catalogue.
+    RegistryUnavailable,
     /// The source was outside the current executable semantic subset.
     SourceDeclined(tcl_compiler::executable_ir::SourceCompatibilityDecline),
     /// Common world-state SSA could not be built for the executable function.
@@ -561,6 +567,42 @@ mod tests {
             &declines[0].reason,
             EbpfInvocationDeclineReason::Semantic(_)
         ));
+    }
+
+    #[test]
+    fn semantic_audit_requires_the_actual_registry_store() {
+        let registry = bpf_registry();
+        let module = lower_to_ir("setint result {1}", registry);
+        let bundle = SemanticAnalysisBundle::build(
+            registry,
+            Some(bpf_context()),
+            &module.top_level,
+            tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
+        let bridge = EbpfSemanticBridge::new();
+        let original = bridge.assess(registry, &bundle);
+        assert!(bundle.matches_registry(registry));
+        assert!(matches!(
+            &original,
+            EbpfRegionEligibility::Declined(EbpfRegionDecline::Invocations(_))
+        ));
+
+        let mut foreign = registry.project_for_profile(registry.profile().unwrap());
+        let mut replacement = registry.get_exact("setint").unwrap().clone();
+        replacement.bpf_op = registry.get_exact("drop").unwrap().bpf_op;
+        foreign.insert(replacement);
+        assert_eq!(foreign.profile(), registry.profile());
+        let descriptor = first_resolved_facts(&bundle).descriptor_key();
+        assert_ne!(
+            foreign.bpf_op_for_descriptor(descriptor),
+            registry.bpf_op_for_descriptor(descriptor)
+        );
+        assert!(!bundle.matches_registry(&foreign));
+        assert_eq!(
+            bridge.assess(&foreign, &bundle),
+            EbpfRegionEligibility::Declined(EbpfRegionDecline::RegistryUnavailable)
+        );
+        assert_eq!(bridge.assess(registry, &bundle), original);
     }
 
     #[test]

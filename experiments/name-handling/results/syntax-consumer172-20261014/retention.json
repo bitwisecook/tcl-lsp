@@ -1,0 +1,15 @@
+{
+  "scope": "Two exact shared reporting namespace geometry controls bothPASS, source subset drift0. Constructed reporting syntax only, no Native namespace or runtime identity acceptance.",
+  "files": {
+    "test-02.log.gz": "eb0c66fc004687b5f5062734e0ae7c4f8e495fa3ae45b49a5a3c122e6d940aa0",
+    "source-after.json.gz": "0ae8dee7445df1eb94a9e64ce7fbcb7cc29d8ec6c7791bc22c5daea95fcc0b03",
+    "result.json": "a44f53718664a8cae147e0a83ef7bd1442b92476e6cbdeb7227654519a301242",
+    "test-list.txt": "09a4c91b8bd9086c2f142d41d7e47b7fd26e91dd480f112465c9be71eddbb916",
+    "expected-source-comparison.json": "e49fe24480fa5255fe30ddbafbb8f7f91f4691f63635e7f405b2e72580c90e4e",
+    "capture.py": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+    "test-01.log.gz": "5b19330e2f16a0899baf0b8c4be0171bab8a1c2c293370471c617b8795fc1cff",
+    "README.md": "5edac760ded427a9129031b80d05ba8feb42edbbf783de32ee905c970e4ece5d",
+    "source-before.json.gz": "84a26af771b1eec23b3811d8f05faaa8a7860d29b9d58bc5e7ef61d36a338482",
+    "start.json": "e6ee1f85ab0c9c102ab3cc35d238987771e3a77029df5db530436f5c8d661de8"
+  }
+}

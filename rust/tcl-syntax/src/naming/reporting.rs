@@ -46,6 +46,17 @@ pub fn reported_qname_namespace(qname: &str, purpose: ReportedQNameNamespacePurp
     }
 }
 
+/// Compare analytical namespace report keys for equality or containment.
+/// The optional root marker is removed once for equality; strict containment
+/// keeps the original keys for its independent literal-prefix projection.
+/// This supplies no namespace component identity, lookup or editable source.
+#[must_use]
+pub fn reported_namespace_contains(parent: &str, child: &str) -> bool {
+    super::unroot_rooted_key(parent).unwrap_or(parent)
+        == super::unroot_rooted_key(child).unwrap_or(child)
+        || reported_namespace_strictly_contains(parent, child)
+}
+
 /// Compare analytical namespace report keys for a strict literal prefix.
 /// One leading root marker is removed from either key. The root contains every
 /// non-root report key; other prefixes require a following `::` boundary.
@@ -67,6 +78,22 @@ pub fn reported_namespace_strictly_contains(parent: &str, child: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inclusive_reported_containment_roots_each_original_key_once() {
+        for (parent, child, contains) in [
+            (":::", ":::", true),
+            (":::", "::::::", true),
+            (":::", "::", false),
+            (":::", "::other", false),
+            ("", "::", true),
+            ("::", "", true),
+            ("p", "::p", true),
+            ("p", "::pq", false),
+        ] {
+            assert_eq!(reported_namespace_contains(parent, child), contains);
+        }
+    }
 
     #[test]
     fn reported_namespace_containment_preserves_literal_key_boundaries() {

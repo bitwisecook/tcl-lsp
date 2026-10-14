@@ -437,43 +437,21 @@ impl CodegenCtx<'_> {
         self.push_lit_bytes_exact(&bytes);
     }
 
-    /// Push a word's **finished value** — text every word-level rule has
-    /// already been applied to, so the VM must not run `subst_word` over it a
-    /// second time.
-    ///
-    /// A de-quoted or plain word is a value, not source: `"{}"` *is* the
-    /// two-byte string `{}`. Handed to the substituting [`push_lit`], the VM's
-    /// `subst_word` reads it back as a whole-word braced literal and strips the
-    /// braces a second time — `string index "{}" 0` would answer empty where
-    /// both oracles say `{`, and `set v "{}"` would store the empty string.
-    /// The braced and quoted halves are the same hole.
-    ///
-    /// The marker test is the VM's own, byte for byte: `subst_word` returns a
-    /// word carrying no `${` and no `[` unchanged *apart from* that brace
-    /// strip, so suppressing substitution on one is behaviour-preserving in
-    /// every other respect. A value that does still carry a marker is one the
-    /// codegen deliberately defers to the runtime scan, so it keeps
-    /// [`push_lit`].
-    ///
-    /// The same rule, unconditionally, covers a *fragment* — the `Lit` part a
-    /// composite word decomposes to. `parse_subst_template` has already carved
-    /// the real substitutions out of it and decoded its escapes, so a marker
-    /// left in one is data by construction and the three decomposition loops
-    /// push a `Lit` through [`push_lit_exact`](Self::push_lit_exact) directly.
-    /// A fragment that looked braced was being stripped too: `"{}$z"`
-    /// concatenated to `x` rather than `{}x`.
-    ///
-    /// This is [`push_lit_exact`](Self::push_lit_exact), not
-    /// [`push_lit_verbatim`](Self::push_lit_verbatim): the value is not a
-    /// braced word, so the brace-word `\<newline>` collapse is not its rule —
-    /// a quoted word's continuations were folded when its escapes were decoded.
-    /// The literal bytes are unchanged either way, so disassembly stays stable
-    /// and only the out-of-band `push_verbatim` flag differs.
-    pub fn push_word_value(&mut self, value: &str) {
-        if value.contains("${") || value.contains('[') {
-            self.push_lit(value);
-        } else {
-            self.push_lit_exact(value);
+    /// Push normalized compiled-word text whose remaining substitutions belong
+    /// to the runtime protocol. Bare dollar bytes are data; configured `${...}`,
+    /// command and Jim expression markers retain the scanner. The shared policy
+    /// is also used by the VM, so a Jim marker cannot be frozen by a C-only test.
+    /// Finished values and decoded literal fragments use `push_lit_exact` or
+    /// `push_lit_bytes_exact` directly and never enter this protocol.
+    pub fn push_compiled_word(&mut self, value: &str) {
+        match tcl_syntax::word_rules::compiled_word_substitution(
+            value.as_bytes(),
+            self.lexer_config(),
+        ) {
+            tcl_syntax::word_rules::CompiledWordSubstitution::LiteralValue => {
+                self.push_lit_exact(value)
+            }
+            tcl_syntax::word_rules::CompiledWordSubstitution::Deferred => self.push_lit(value),
         }
     }
 
@@ -1251,6 +1229,31 @@ mod tests {
     use super::*;
     use crate::codegen::{CodegenCtx, Op};
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn compiled_word_emission_keeps_jim_expression_deferred_and_finished_data_exact() {
+        for (dialect, literal) in [("tcl8.6", true), ("tcl9.0", true), ("jim", false)] {
+            let context = tcl_registry::model::ingress::static_context_for(dialect);
+            let mut ctx = CodegenCtx::new(false, &[], context.commands());
+            ctx.emit_expr(&crate::expr_ast::ExprNode::CompiledWord {
+                text: "$(1+2)".to_owned(),
+                braced: false,
+            });
+            assert_eq!(
+                ctx.instructions.last().unwrap().push_verbatim,
+                literal,
+                "{dialect}"
+            );
+            ctx.push_lit_exact("${literal}[data]$(1+2)");
+            assert!(ctx.instructions.last().unwrap().push_verbatim);
+            assert!(
+                ctx.literals
+                    .entries()
+                    .iter()
+                    .any(|entry| entry.bytes() == b"${literal}[data]$(1+2)")
+            );
+        }
+    }
 
     #[allow(clippy::unnecessary_wraps)] // test callback follows ConstFoldFn
     fn owned_list_fold(args: &[&str]) -> Option<String> {

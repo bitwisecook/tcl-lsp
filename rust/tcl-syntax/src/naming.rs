@@ -76,7 +76,12 @@ pub fn authored_namespace_hint_tail<'a>(name: &'a str, namespace: &str) -> Optio
 
 mod autoload;
 pub use autoload::{autoload_command_candidates, native_autoload_command_candidates};
+mod authored_namespace_component;
 mod command_geometry;
+pub use authored_namespace_component::{
+    AuthoredNamespaceComponent, AuthoredNamespaceOccurrencePurpose,
+    authored_namespace_component_extent,
+};
 mod reporting;
 mod root_source;
 pub use root_source::native_command_root_source_spelling;
@@ -90,7 +95,8 @@ pub use script_command_presence::{
 };
 mod script_namespace_snapshot;
 pub use reporting::{
-    ReportedQNameNamespacePurpose, reported_namespace_strictly_contains, reported_qname_namespace,
+    ReportedQNameNamespacePurpose, reported_namespace_contains,
+    reported_namespace_strictly_contains, reported_qname_namespace,
 };
 pub use script_namespace_snapshot::original_namespace_variable_snapshot_support;
 mod compiled_variables;

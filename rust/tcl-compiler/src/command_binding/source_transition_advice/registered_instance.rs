@@ -505,11 +505,7 @@ impl AdviceInvocationContext<'_> {
         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         let descriptor = schema.authored_source_descriptors().command;
         descriptor.object_class?;
-        // Optional constructor control words need their own authored layout.
-        // This bounded named-form receipt requires a mandatory naming operand.
-        if descriptor.arity.min == 0
-            || schema.facts().arity_accepts_frozen_arguments() != Some(true)
-        {
+        if schema.facts().arity_accepts_frozen_arguments() != Some(true) {
             return None;
         }
         let ordinal = usize::from(descriptor.creates_instance_at?);
@@ -800,6 +796,59 @@ mod tests {
 
     fn at(source: &str, marker: &str) -> u32 {
         u32::try_from(source.rfind(marker).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn optional_named_factory_source_requires_its_present_original_operand() {
+        for package in ["struct::graph", "struct::tree"] {
+            let method = if package == "struct::graph" {
+                "walk root -command ::cb"
+            } else {
+                "walkproc root ::cb"
+            };
+            for (name, head, expected) in [
+                ("owned", "owned", b"owned".as_slice()),
+                ("{}", "::", b"".as_slice()),
+                ("{$literal}", "{$literal}", b"$literal".as_slice()),
+            ] {
+                let source = format!(
+                    "# tcl-lsp: requires {package}\npackage require {package}\nproc cb {{}} {{}}\n{package} {name}\n{head} {method}"
+                );
+                let analysis = Analyser::new().analyse(&source, "tcl9.0");
+                let words = source_registered_instance_words_at(
+                    &source,
+                    &analysis,
+                    at(&source, &format!("{head} {method}")),
+                )
+                .expect(&source);
+                assert_eq!(words.instance().name_input().bytes(), expected, "{source}");
+                assert_eq!(words.instance().factory().command(), package);
+                assert!(words.obligations().contains(
+                    &super::SourceCommandTransitionObligation::RegisteredFactoryApplicability
+                ));
+            }
+            for constructor in [
+                package.to_owned(),
+                format!("{package} $computed"),
+                format!("{package} {{*}}{{owned}}"),
+                format!("{package} owned; rename owned {{}}"),
+                format!("proc owned args {{}}; {package} owned"),
+            ] {
+                let source = format!(
+                    "# tcl-lsp: requires {package}\npackage require {package}\n{constructor}\nowned {method}"
+                );
+                let analysis = Analyser::new().analyse(&source, "tcl9.0");
+                assert!(
+                    source_registered_instance_words_at(
+                        &source,
+                        &analysis,
+                        at(&source, &format!("owned {method}"))
+                    )
+                    .is_none(),
+                    "{source}"
+                );
+            }
+        }
     }
 
     #[test]

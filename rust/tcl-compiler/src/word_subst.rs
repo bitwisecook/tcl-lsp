@@ -1937,49 +1937,6 @@ fn selected_lifted_expressions(
     .collect()
 }
 
-/// Every nested `[expr …]` in `tokens`' words, parsed, with the absolute span
-/// of the substitution it came from.
-///
-/// `expr` concatenates its arguments, and only the single braced argument is a
-/// verbatim source slice, so any other spelling is skipped rather than guessed
-/// at — the same abstention the lowerer makes when it cannot anchor an
-/// expression's text. A lifted call is `expr` when its resolved head carries
-/// [`Traits::EXPR_CONCATENATES_ARGS`](tcl_registry::Traits::EXPR_CONCATENATES_ARGS),
-/// not by comparing the spelling — the same resolution
-/// `optimiser::tail_call` and `optimiser::end_offset` already use.
-#[must_use]
-pub fn lifted_exprs(
-    tokens: Option<&CommandTokens>,
-    profile: Option<&tcl_dialect::DialectProfile>,
-    registry: &tcl_registry::CommandRegistry,
-) -> Vec<(crate::expr_ast::ExprNode, Span)> {
-    let config = tcl_lexer::LexerConfig::for_profile(profile);
-    lifted_calls(tokens, config)
-        .into_iter()
-        .filter_map(|lifted| {
-            let is_expr = registry.get(&lifted.command).is_some_and(|spec| {
-                spec.traits
-                    .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-            });
-            if !is_expr {
-                return None;
-            }
-            let [only] = lifted.args.as_slice() else {
-                return None;
-            };
-            let trimmed = only.trim();
-            let body = trimmed
-                .strip_prefix('{')
-                .and_then(|t| t.strip_suffix('}'))
-                .unwrap_or(trimmed);
-            Some((
-                tcl_syntax::expr::parser::parse_expr_for_profile(body, profile),
-                lifted.span,
-            ))
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

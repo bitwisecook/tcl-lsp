@@ -1,0 +1,56 @@
+{
+  "started": {
+    "utc": "2026-10-14T20:58:37.407848+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "xtask",
+      "-p",
+      "tcl-syntax",
+      "--lib",
+      "--bin",
+      "xtask"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "Authored Rust/runtime/data/Cargo source subset and affected test-build API preflight only. No test selectors execute and no provider/Native conformance acceptance."
+  },
+  "finished_utc": "2026-10-14T21:05:15.898127+00:00",
+  "exit_code": 0,
+  "seconds": 398.4898849510064,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [],
+  "test_artifacts": [
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-21137d634222e84e",
+      "sha256": "82e1456be0f31500f4e94f3d0114b5ace0a9cea98c27e8ffa2099689cf4aae30"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+      "sha256": "9f4ddd78f829f1d42da4eeff0c18ac3dac6ca9ea1dcc1116eab61831b909b7c2"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+      "sha256": "592dfc031dafd6f74460bf59203cbf5a91fd310ddb1b49586acf34f67d378c42"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+      "sha256": "406b99b5a41d348971f97911502c3e3aba6aaf30a3dc291fac51d9fa4a25aad7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_core-ade0a379569a162e",
+      "sha256": "bbefe7d149b022c9a4af4fe757faca9182eae838a3cc515d608a6c9db20427d5"
+    }
+  ]
+}

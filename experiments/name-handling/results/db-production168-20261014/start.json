@@ -1,0 +1,33 @@
+{
+  "started_utc": "2026-10-14T21:06:05.881476+00:00",
+  "label": "Current DB original cold/edit/callback controls after shared source owner migration",
+  "package": "tcl-lsp-db",
+  "target": null,
+  "source_paths": 34725,
+  "plan": {
+    "filters": [
+      "callback_arity_",
+      "function_lattice_memoises_param_constant_procs",
+      "function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input",
+      "function_lattice_reused_on_body_shift",
+      "function_lattice_reused_on_whole_file_shift",
+      "function_optimisations_reused_on_unrelated_edit",
+      "lower_proc_body_reused_on_unrelated_edit",
+      "proc_summary_cascade_reused_on_unrelated_edit",
+      "summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads",
+      "taint_cascade_matches_uncached_under_edits",
+      "taint_cascade_reused_on_unrelated_edit"
+    ],
+    "scope": "Original DB cold/edit analytical reuse and current owner refusal assertions; no changed expectations. Generic capture seals authored subset only; Native and complete compiled closure acceptance remain independent.",
+    "exact": [
+      "tests::compiler_taint_replay_status_is_retained_by_memo_and_direct_paths",
+      "tests::original_callback_alias_diagnostics_keep_target_and_separate_counts",
+      "tests::original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts",
+      "tests::original_callback_signature_query_updates_headers_without_tail_substitution"
+    ]
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

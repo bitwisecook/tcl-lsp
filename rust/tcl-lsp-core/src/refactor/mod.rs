@@ -1273,7 +1273,13 @@ mod original_frame_walk_tests {
         let [command] = commands.as_slice() else {
             panic!("one original expression command")
         };
-        let references = walk.variable_references(source, command).unwrap();
+        let mut references = walk.variable_references(source, command).unwrap();
+        let mut nested = Vec::new();
+        walk.nested_same_frame_commands(source, command, &mut nested);
+        for child in &nested {
+            references.extend(walk.variable_references(source, child).unwrap());
+        }
+        references.sort_by_key(|reference| reference.span.start());
         assert_eq!(
             references
                 .iter()
@@ -1281,8 +1287,6 @@ mod original_frame_walk_tests {
                 .collect::<Vec<_>>(),
             ["active", "array", "index", "nested"]
         );
-        let mut nested = Vec::new();
-        walk.nested_same_frame_commands(source, command, &mut nested);
         assert!(walk.complete());
         assert!(nested.iter().any(|command| command.name() == "set"));
         assert!(nested.iter().all(|command| command.name() != "missing"));

@@ -1533,6 +1533,62 @@ fn direct_expr_supported(
     }
 }
 
+/// Source naming coordinates retained from the actual issued primary bodies.
+/// These facts only withdraw optional WASM specializations; they publish no
+/// runtime command and grant no callable body, frame or Native admission.
+struct OriginalProcedureNames<'a> {
+    publications: Vec<(
+        crate::ir::ProcedureId,
+        &'a crate::signature_scan::scope::SignatureSourceCommand,
+    )>,
+}
+
+impl<'a> OriginalProcedureNames<'a> {
+    fn capture(module: &'a Module, registry: &CommandRegistry) -> Option<Self> {
+        let retained = module.retained_source_bindings.as_ref()?;
+        retained.original_top_namespace_for_module(module, registry)?;
+        let publications = module
+            .procedures
+            .iter()
+            .map(|(id, procedure)| {
+                (module.procedure_ids.owns(*id)
+                    && procedure.body_kind == crate::ir::ProcedureBodyKind::Named
+                    && retained.matches_original_procedure_summary(*id, procedure))
+                .then_some(())?;
+                Some((*id, procedure.publication.as_ref()?))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(Self { publications })
+    }
+
+    fn redefined_ids(&self) -> HashSet<crate::ir::ProcedureId> {
+        let mut counts = HashMap::new();
+        for (_, publication) in &self.publications {
+            *counts.entry(*publication).or_insert(0usize) += 1;
+        }
+        self.publications
+            .iter()
+            .filter(|(_, publication)| counts.get(publication).is_some_and(|count| *count > 1))
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    fn shadow_obligations(&self) -> Option<Vec<(String, Binding)>> {
+        self.publications
+            .iter()
+            .map(|(_, publication)| {
+                Some((
+                    publication.source_spelling()?,
+                    Binding {
+                        kind: BindingKind::Unknown,
+                        target: None,
+                    },
+                ))
+            })
+            .collect()
+    }
+}
+
 fn direct_proc_eligible(
     module: &Module,
     id: crate::ir::ProcedureId,
@@ -1540,6 +1596,7 @@ fn direct_proc_eligible(
     unit: &FunctionUnit,
     registry: &CommandRegistry,
     mutations: &ModuleCommandMutations,
+    redefined_ids: &HashSet<crate::ir::ProcedureId>,
 ) -> bool {
     if !module.procedure_ids.owns(id)
         || module
@@ -1570,7 +1627,7 @@ fn direct_proc_eligible(
     };
     if crate::native_compilation_admission::script_requires_admission(&proc.body)
         || proc.namespace_scoped
-        || module.redefined_procedures.contains(&proc.qualified_name)
+        || redefined_ids.contains(&id)
         || unit.complexity_guarded
         || operations
             .into_iter()
@@ -1611,23 +1668,15 @@ fn direct_proc_eligible(
 }
 
 /// Retained declarations can withdraw a builtin proof, never supply an implementation.
-fn procedure_shadow_obligations(module: &Module, is_top: bool) -> Vec<(String, Binding)> {
+fn procedure_shadow_obligations(
+    module: &Module,
+    registry: &CommandRegistry,
+    is_top: bool,
+) -> Option<Vec<(String, Binding)>> {
     if is_top {
-        return Vec::new();
+        return Some(Vec::new());
     }
-    module
-        .procedures
-        .values()
-        .map(|procedure| {
-            (
-                procedure.qualified_name.clone(),
-                Binding {
-                    kind: BindingKind::Unknown,
-                    target: None,
-                },
-            )
-        })
-        .collect()
+    OriginalProcedureNames::capture(module, registry)?.shadow_obligations()
 }
 
 fn function_facts(
@@ -1637,7 +1686,11 @@ fn function_facts(
     mutations: &ModuleCommandMutations,
     is_top: bool,
 ) -> FunctionFacts {
-    let initial = procedure_shadow_obligations(module, is_top);
+    let Some(initial) = procedure_shadow_obligations(module, registry, is_top) else {
+        // Preserve original leaf source execution when declaration names cannot
+        // independently withdraw every possibly shadowed specialization.
+        return FunctionFacts::default();
+    };
     let context = unit.invocation_metadata_context_for_module(registry, module);
     let bindings = analyse_command_binding(&unit.cfg, registry, &initial);
     let mut facts = FunctionFacts::default();
@@ -2048,6 +2101,10 @@ fn procedure_plan<'a>(
         .map(|(id, procedure)| (*id, procedure.params.len()))
         .collect();
     let direct = analysis.map_or_else(HashSet::new, |(unit, registry)| {
+        let Some(names) = OriginalProcedureNames::capture(module, registry) else {
+            return HashSet::new();
+        };
+        let redefined_ids = names.redefined_ids();
         procs
             .iter()
             .filter(|(id, procedure)| {
@@ -2059,6 +2116,7 @@ fn procedure_plan<'a>(
                         function,
                         registry,
                         &unit.command_mutations,
+                        &redefined_ids,
                     )
                 })
             })
@@ -2903,7 +2961,8 @@ mod tests {
         registry: &CommandRegistry,
     ) -> String {
         let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
-        let initial = procedure_shadow_obligations(&unit.ir_module, true);
+        let initial = procedure_shadow_obligations(&unit.ir_module, registry, true)
+            .expect("top level has no prior procedure shadow obligations");
         let bindings = analyse_command_binding(&function.cfg, registry, &initial);
         let mut rows = vec![format!("metadata available: {}", metadata.is_some())];
         for (&block, body) in &function.cfg.blocks {
@@ -2954,6 +3013,49 @@ mod tests {
             }
         }
         rows.join("\n")
+    }
+
+    #[test]
+    fn original_publication_names_ignore_reports_and_keep_duplicate_issued_ids() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let unit = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "proc append {} {return 1}\nproc append {} {return 2}\n",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let original = OriginalProcedureNames::capture(&unit.ir_module, registry)
+            .expect("genuine current primary source publication inventory");
+        let expected = original.redefined_ids();
+        assert_eq!(expected.len(), 2);
+        let shadows = original.shadow_obligations().unwrap();
+        assert_eq!(shadows.len(), 2);
+        assert!(
+            shadows
+                .iter()
+                .all(|(name, binding)| name == "::append" && binding.kind == BindingKind::Unknown)
+        );
+        let mut reports = unit.ir_module.clone();
+        for procedure in reports.procedures.values_mut() {
+            procedure.qualified_name = "::report::unrelated".to_owned();
+        }
+        reports.redefined_procedures.clear();
+        let current = OriginalProcedureNames::capture(&reports, registry).unwrap();
+        assert_eq!(current.redefined_ids(), expected);
+        assert_eq!(current.shadow_obligations().unwrap(), shadows);
+
+        let id = *expected.iter().next().unwrap();
+        reports.procedures.get_mut(&id).unwrap().publication = None;
+        assert!(OriginalProcedureNames::capture(&reports, registry).is_none());
+        let mut wrong_kind = unit.ir_module.clone();
+        wrong_kind.procedures.get_mut(&id).unwrap().body_kind =
+            crate::ir::ProcedureBodyKind::OriginalDeclaration;
+        assert!(OriginalProcedureNames::capture(&wrong_kind, registry).is_none());
+        let mut missing = unit.ir_module.clone();
+        missing.retained_source_bindings = None;
+        assert!(OriginalProcedureNames::capture(&missing, registry).is_none());
+        assert!(procedure_shadow_obligations(&missing, registry, false).is_none());
     }
 
     #[test]

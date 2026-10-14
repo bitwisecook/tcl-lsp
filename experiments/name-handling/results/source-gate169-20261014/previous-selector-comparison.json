@@ -1,0 +1,16 @@
+{
+  "previous": "source-gate158-20261014",
+  "original_count": 31,
+  "current_count": 35,
+  "gains": [
+    "owner_resolution::source_internal::tests::source_routes_refuse_function_generic_wrappers_and_nested_item_scopes"
+  ],
+  "regressions": [],
+  "dropped": [],
+  "new_controls": [
+    "owner_resolution::source_internal::tests::source_type_declarations_keep_passive_lints_and_refuse_availability_attributes",
+    "owner_resolution::source_internal::tests::source_self_fields_require_one_exact_transparent_boxed_state_hop",
+    "owner_resolution::source_internal::tests::signature_type_routes_count_only_explicit_supported_declaration_types",
+    "owner_resolution::source_internal::tests::parameter_origins_refuse_body_type_shadows_and_restore_enclosing_scope"
+  ]
+}

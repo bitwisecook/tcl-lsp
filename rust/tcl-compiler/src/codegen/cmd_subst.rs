@@ -333,7 +333,7 @@ impl CodegenCtx<'_> {
             for part in &parts {
                 match part {
                     // A decoded fragment is finished text, never source — see
-                    // `push_word_value`, whose fragment rule this is.
+                    // `push_compiled_word`, whose fragment rule this is.
                     SubstPart::Lit(text) => self.push_lit_exact(text),
                     SubstPart::ByteLit(bytes) => self.push_lit_bytes_exact(bytes),
                     SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
@@ -385,22 +385,15 @@ impl CodegenCtx<'_> {
             // Interpolated string — delegate to emit_value with interpolation
             self.emit_value(arg, true);
         } else if !braced && arg.contains('\\') {
-            // Decoded once here, so the result is the value. The two arms this
-            // replaces both pushed `processed` the same way, so the distinction
-            // their comment drew was written down but never made; the marker
-            // test in `push_word_value` makes it, and only it. A decode that
-            // *re-creates* a `${` / `[` (`"\$\{x}"`) therefore keeps the
-            // substituting push it already had — that vector is wrong on both
-            // sides of this change (the escaped-marker double-decode the VM's
-            // `subst_word` records as living in the compiler's literal
-            // emission), and closing it is not this fix.
+            // This branch has no substitution markers and decodes its source
+            // escapes once. The result is finished data, not compiled-word text.
             self.push_decoded_literal(arg);
         } else {
             // A de-quoted or plain arg is the finished value, so it must not be
             // re-substituted: `[string index "{}" 0]` answered empty because
             // the value `{}` was pushed substituting and `subst_word` stripped
-            // the braces a second time (`push_word_value`).
-            self.push_word_value(arg);
+            // the braces a second time (`push_compiled_word`).
+            self.push_lit_exact(arg);
         }
     }
 
@@ -592,8 +585,8 @@ impl CodegenCtx<'_> {
         } else {
             // Not braced, and every substitution marker was routed above: this
             // word's text is already its value, so it goes out unsubstituted
-            // for the same reason the braced arm does — see `push_word_value`.
-            self.push_word_value(word);
+            // for the same reason the braced arm does — see `push_compiled_word`.
+            self.push_lit_exact(word);
         }
     }
 
@@ -821,7 +814,7 @@ impl CodegenCtx<'_> {
             for part in &parts {
                 match part {
                     // A decoded fragment is finished text, never source — see
-                    // `push_word_value`, whose fragment rule this is.
+                    // `push_compiled_word`, whose fragment rule this is.
                     SubstPart::Lit(text) => self.push_lit_exact(text),
                     SubstPart::ByteLit(bytes) => self.push_lit_bytes_exact(bytes),
                     SubstPart::Cmd(cmd_text) => {
@@ -882,7 +875,7 @@ impl CodegenCtx<'_> {
         }
         // Preserve the word's value, including literal braces. Any remaining
         // substitution stays with the runtime rather than becoming literal text.
-        self.push_word_value(value);
+        self.push_compiled_word(value);
     }
 
     /// Wrapping metadata follows the same actual selected invocation as hooks.

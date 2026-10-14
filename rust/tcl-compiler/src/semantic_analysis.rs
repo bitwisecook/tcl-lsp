@@ -15,7 +15,7 @@
 //! retain a typed decline instead of receiving guessed facts.
 
 use tcl_registry::model::semantic::SemanticContext;
-use tcl_registry::{CommandRegistry, EffectFootprint};
+use tcl_registry::{CommandRegistry, EffectFootprint, RegistrySemanticKey};
 
 use crate::completion::CompletionObligations;
 use crate::dispatch_proof::DispatchEntryAssumption;
@@ -61,6 +61,7 @@ pub(crate) const fn test_common_analysis_provenance() -> CommonAnalysisProvenanc
 pub struct SemanticAnalysisBundle {
     context: Option<SemanticContext>,
     metadata_context: Option<RetainedSemanticMetadataContext>,
+    registry_key: Option<RegistrySemanticKey>,
     executable: ExecutableAnalysisAvailability,
     entry_assumption: DispatchEntryAssumption,
 }
@@ -151,6 +152,7 @@ impl SemanticAnalysisBundle {
             }
         };
         let mut bundle = Self::from_executable(None, executable, entry_assumption);
+        bundle.registry_key = context.map(|_| registry.snapshot().semantic_key());
         bundle.metadata_context = context.map(RetainedSemanticMetadataContext::from_supplied);
         bundle
     }
@@ -233,6 +235,7 @@ impl SemanticAnalysisBundle {
             }
         };
         let mut bundle = Self::from_executable(None, executable, entry_assumption);
+        bundle.registry_key = context.map(|_| registry.snapshot().semantic_key());
         bundle.metadata_context = context.map(RetainedSemanticMetadataContext::from_supplied);
         bundle
     }
@@ -268,6 +271,7 @@ impl SemanticAnalysisBundle {
         };
         let mut bundle =
             Self::from_executable(None, executable, DispatchEntryAssumption::UnknownWorld);
+        bundle.registry_key = context.map(|_| registry.snapshot().semantic_key());
         bundle.metadata_context = context.map(RetainedSemanticMetadataContext::from_supplied);
         bundle
     }
@@ -288,6 +292,15 @@ impl SemanticAnalysisBundle {
             .as_ref()
             .map(RetainedSemanticMetadataContext::context)
             .or_else(|| self.context.map(SemanticContext::context))
+    }
+
+    /// Whether this store has the same complete semantic identity as the
+    /// registry that selected this bundle's invocation facts.
+    #[must_use]
+    pub fn matches_registry(&self, registry: &CommandRegistry) -> bool {
+        self.registry_key
+            .as_ref()
+            .is_some_and(|key| *key == registry.snapshot().semantic_key())
     }
 
     /// The executable-IR availability, including every typed decline.
@@ -362,6 +375,7 @@ impl SemanticAnalysisBundle {
         Self {
             context,
             metadata_context: None,
+            registry_key: None,
             executable,
             entry_assumption,
         }
@@ -681,6 +695,7 @@ mod tests {
             DispatchEntryAssumption::UnknownWorld,
         );
         assert!(bundle.context().is_none());
+        assert!(bundle.matches_registry(actual.commands()));
         assert!(std::ptr::eq(
             bundle.metadata_context().unwrap(),
             actual.context()
@@ -712,6 +727,7 @@ mod tests {
                 &ExecutableAnalysisAvailability::ContextUnavailable
             );
             assert!(bundle.metadata_context().is_none());
+            assert!(!bundle.matches_registry(actual.commands()));
             assert!(bundle.executable().invocations().next().is_none());
         }
     }
@@ -741,6 +757,7 @@ mod tests {
             actual.context()
         ));
         assert!(bundle.context().is_none());
+        assert!(bundle.matches_registry(actual.commands()));
         assert_eq!(
             bundle.dispatch_entry_assumption(),
             DispatchEntryAssumption::UnknownWorld
@@ -758,6 +775,7 @@ mod tests {
                 ExecutableAnalysisAvailability::ContextUnavailable
             ));
             assert!(bundle.metadata_context().is_none());
+            assert!(!bundle.matches_registry(actual.commands()));
         }
     }
 

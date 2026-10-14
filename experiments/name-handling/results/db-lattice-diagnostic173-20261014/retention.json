@@ -1,0 +1,14 @@
+{
+  "scope": "One unchanged original DB body-shift control FAIL with existing primitive fallback trace enabled; source subset drift0. Diagnosis only, no source/assertion changes or acceptance waiver.",
+  "files": {
+    "source-after.json.gz": "0c2ea5065ff83bbb353f6a613c98d733ffbcf837e41980055a21a683d5bbf5d1",
+    "result.json": "c4155f372455d31f4db4fc99a5c51d741837d931083cacfea9701ae53eafbbd2",
+    "test-list.txt": "3474724a2b3706fe0ac6fcd47d6e95a98385f93419f5cdd9834b7450a01278a7",
+    "expected-source-comparison.json": "e49fe24480fa5255fe30ddbafbb8f7f91f4691f63635e7f405b2e72580c90e4e",
+    "capture.py": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+    "test-01.log.gz": "ece8f9635c3045f71950258ace2bd3a546823e5bce8d909fb20749a79dcd9291",
+    "README.md": "da15a91dc9e216cad0034c456215aa2a19a426394c7ac00e46e371c497aeba0c",
+    "source-before.json.gz": "11fdf7a207de1137b971de078c97158e5c60a0842a14d9418e1eeb515cbb4fcf",
+    "start.json": "536ba60aa7cf4ca943b58c7d2a6105f73aa0f47abe0c48987dac3887aa3492a9"
+  }
+}

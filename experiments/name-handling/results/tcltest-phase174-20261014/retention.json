@@ -1,0 +1,14 @@
+{
+  "scope": "Current unchanged original #2286 fixture/exact selector,180sTIMEOUT; receiptvalid,source/binary/fixture unchanged. Primitive diagnosis only; no semantic or complete provider acceptance.",
+  "files": {
+    "primitive-summary.json": "ffe57351b6a3593869546dc6d8b10f2679802a69e552c42e94716837c37691c9",
+    "selector-list.log": "3f94570d7c6b55b9c3329281cbcdbbc6d62e315c14c57f5584113b7ccfb01a88",
+    "summarize.py": "6585764b2900fc50fecfb9930af4256193345e29200efb82bb2c630905084934",
+    "result.json": "3d594592031e085f5f2cc0f353613acf621eb6dcce689fc75821ef8ec8c829b2",
+    "source-after.json": "bbb6d83d2ccfcbb01ce7d6c324215d8c636fa84bbf0de2e85371c10c83f4d035",
+    "run.log.gz": "ba2d37c15910e92b9fb23ccc41f006b36228033a801f9e98a933e54ccf7257de",
+    "README.md": "1412ad7f35473def2bc7a4663d62bd7e7329f3f786b18060543137d97346f3d1",
+    "source-before.json": "bbb6d83d2ccfcbb01ce7d6c324215d8c636fa84bbf0de2e85371c10c83f4d035",
+    "diagnose.py": "dfba6a800e82e75b9b197a73982327a785fc1266d7503f8c90d1cd70efa99e8d"
+  }
+}

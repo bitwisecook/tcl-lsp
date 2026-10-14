@@ -44,8 +44,8 @@
 //! - `catalogue-callers` — hold every spelling of `DialectProfile::all()`,
 //!   `KNOWN_DIALECTS` and `available_dialects(` to an allowlist (`--check` is
 //!   accepted for symmetry; the gate only verifies).
-//! - `gen-editor-catalogs` — generate the VS Code iRules-event catalog JSON
-//!   from the registry (`--check` to verify instead of write).
+//! - `gen-editor-catalogs` — generate editor event catalogs and shared scaffold
+//!   naming policy (`--check` to verify instead of write).
 //! - `gen-editor-configs` — generate the Zed `extension.toml` language table,
 //!   the Helix, Emacs, Neovim and Sublime guides' configuration and dialect
 //!   lists, and `INSTALL-editors.md`'s extension lists from the environment

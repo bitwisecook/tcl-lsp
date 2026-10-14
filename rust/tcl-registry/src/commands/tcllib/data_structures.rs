@@ -173,6 +173,7 @@ const STRUCT_GRAPH_METHODS: &[SubCommand] = &[SubCommand {
     detail: "Walk the graph from node, invoking -command at each visited node.",
     synopsis: "graphName walk node ?-dir forward|backward? ?-order pre|post|both? ?-type bfs|dfs? -command cmd",
     options: STRUCT_GRAPH_WALK_OPTIONS,
+    option_prefix_words: 1,
     ..SubCommand::DEFAULT
 }];
 
@@ -354,6 +355,7 @@ const STRUCT_TREE_METHODS: &[SubCommand] = &[
         detail: "Walk the tree from node, evaluating a script (2.x) or a %-substituted command (1.x) at each visited node.",
         synopsis: "treeName walk node ?-order pre|post|in|both? ?-type bfs|dfs? ?--? loopvar script",
         options: STRUCT_TREE_WALK_OPTIONS,
+        option_prefix_words: 1,
         option_relations: STRUCT_TREE_WALK_RELATIONS,
         // `_walk {name node args}` takes the node **positionally** and then
         // reads its option run out of `$args`, so the options are not leading
@@ -369,6 +371,7 @@ const STRUCT_TREE_METHODS: &[SubCommand] = &[
         detail: "Walk the tree from node, invoking the trailing command prefix at each node.",
         synopsis: "treeName walkproc node ?-order pre|post|in|both? ?-type bfs|dfs? cmdprefix",
         options: STRUCT_TREE_WALKPROC_OPTIONS,
+        option_prefix_words: 1,
         option_relations: STRUCT_TREE_WALK_RELATIONS,
         option_placement: OptionPlacement::Anywhere,
         command_prefix_resolver: Some(struct_tree_walkproc_command_prefixes),

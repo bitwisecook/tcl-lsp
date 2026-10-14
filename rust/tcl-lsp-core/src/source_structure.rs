@@ -909,28 +909,38 @@ fn declared_bodies(
         }
     }
     if analysis.allows_lexical_declaration_advice() {
-        let input = analysis.resolved_input.as_ref()?;
-        for procedure in analysis.all_procs.values() {
-            let Some(word) = analysis
-                .logical_source_procedure_declaration(procedure)
-                .and_then(|declaration| declaration.original_body_word(image, input))
-            else {
-                continue;
-            };
-            if let Some(body) = word_body(word) {
-                bodies.push(body);
-            }
+        bodies.extend(logical_declared_bodies(analysis, image)?);
+    }
+    Some(bodies)
+}
+
+fn logical_declared_bodies(
+    analysis: &AnalysisResult,
+    image: &SourceImage,
+) -> Option<Vec<BodyGeometry>> {
+    analysis.allows_lexical_declaration_advice().then_some(())?;
+    let mut bodies = Vec::new();
+    let input = analysis.resolved_input.as_ref()?;
+    for procedure in analysis.all_procs.values() {
+        let Some(word) = analysis
+            .logical_source_procedure_declaration(procedure)
+            .and_then(|declaration| declaration.original_body_word(image, input))
+        else {
+            continue;
+        };
+        if let Some(body) = word_body(word) {
+            bodies.push(body);
         }
-        for class in analysis.all_classes.values() {
-            let Some(word) = analysis
-                .logical_source_class_declaration(class)
-                .and_then(|declaration| declaration.original_body_word(image, input))
-            else {
-                continue;
-            };
-            if let Some(body) = word_body(word) {
-                bodies.push(body);
-            }
+    }
+    for class in analysis.all_classes.values() {
+        let Some(word) = analysis
+            .logical_source_class_declaration(class)
+            .and_then(|declaration| declaration.original_body_word(image, input))
+        else {
+            continue;
+        };
+        if let Some(body) = word_body(word) {
+            bodies.push(body);
         }
     }
     Some(bodies)
@@ -1001,9 +1011,13 @@ mod tests {
     fn logical_procedure_structure_uses_current_declared_body_word() {
         let source = "proc helper {value} {puts \"literal \\} ${value}\"}";
         let analysis = Analyser::new().analyse(source, "tcl");
-        let config = analysis.body_lexer_config.unwrap();
         let image = SourceImage::document(source);
-        let bodies = declared_bodies(source, &analysis, &image, config).unwrap();
+        let config = analysis.body_lexer_config.unwrap();
+        let original = declared_bodies(source, &analysis, &image, config).unwrap();
+        assert!(original.iter().any(
+            |body| source.get(body.content.as_range()) == Some("puts \"literal \\} ${value}\"")
+        ));
+        let bodies = logical_declared_bodies(&analysis, &image).unwrap();
         assert!(bodies.iter().any(
             |body| source.get(body.content.as_range()) == Some("puts \"literal \\} ${value}\"")
         ));
@@ -1014,10 +1028,29 @@ mod tests {
             .unwrap()
             .params
             .clear();
-        let bodies = declared_bodies(source, &changed, &image, config).unwrap();
+        let bodies = logical_declared_bodies(&changed, &image).unwrap();
         assert!(bodies.is_empty());
+        let declaration = changed.original_procedure_declarations().next().unwrap();
+        assert_eq!(declaration.metadata().params.len(), 1);
+        assert!(
+            crate::original_declaration::OriginalDeclarationIdentity::for_procedure(
+                "",
+                source,
+                &changed,
+                declaration
+            )
+            .is_some()
+        );
+        let original = declared_bodies(source, &changed, &image, config).unwrap();
+        assert!(original.iter().any(
+            |body| source.get(body.content.as_range()) == Some("puts \"literal \\} ${value}\"")
+        ));
         assert!(
             declared_bodies(source, &analysis, &SourceImage::document("changed"), config)
+                .is_none_or(|bodies| bodies.is_empty())
+        );
+        assert!(
+            logical_declared_bodies(&analysis, &SourceImage::document("changed"))
                 .is_none_or(|bodies| bodies.is_empty())
         );
     }
@@ -1083,9 +1116,16 @@ mod tests {
                 };
             assert!(original_method_site_at(source, &stale, cursor).is_none());
         }
+        let source = "puts {$object method}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let cursor = u32::try_from(source.find("method").unwrap()).unwrap();
+        assert_eq!(
+            original_method_site_at(source, &analysis, cursor),
+            Some(("puts".to_owned(), "$object method".to_owned(), false))
+        );
+        assert!(crate::definition::definition(source, 0, cursor, &analysis).is_empty());
         for (source, needle) in [
             ("# $object method", "method"),
-            ("puts {$object method}", "method"),
             ("expr {$object < $other}", "<"),
             ("$object $computed", "$computed"),
             ("{*}$object method", "method"),

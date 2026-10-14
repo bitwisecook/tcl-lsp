@@ -79,6 +79,12 @@
 //! rename.  Rooted spellings are what a callback string can portably use, and
 //! they are what this scan covers.
 
+use tcl_syntax::naming::{
+    AuthoredNamespaceComponent as WrittenCellOccurrence,
+    AuthoredNamespaceOccurrencePurpose as WrittenNamePurpose,
+    authored_namespace_component_extent as written_cell_occurrence,
+};
+
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LineIndex, Span};
 
@@ -401,112 +407,13 @@ pub fn original_namespace_rename_span_at_offset(
 
 /// Whether `candidate` is the namespace `cell` itself or one beneath it.
 fn names_at_or_under(cell: &str, candidate: &str) -> bool {
-    let cell = tcl_syntax::naming::unroot_rooted_key(cell).unwrap_or(cell);
-    let candidate = tcl_syntax::naming::unroot_rooted_key(candidate).unwrap_or(candidate);
-    candidate == cell || crate::namespace_symbol::namespace_strictly_contains(cell, candidate)
+    tcl_syntax::naming::reported_namespace_contains(cell, candidate)
 }
 
 /// Whether the qualified *name* `candidate` (a proc / variable / class, not a
 /// namespace) lives beneath `cell`.
 fn names_under(cell: &str, candidate: &str) -> bool {
     crate::namespace_symbol::namespace_strictly_contains(cell, candidate)
-}
-
-/// Written namespace and entity operands retain different trailing-separator
-/// meanings. These purposes are issued by the actual Logical occurrence role.
-#[derive(Clone, Copy)]
-enum WrittenNamePurpose {
-    Namespace,
-    Entity,
-    /// An entity occurrence with independently recorded variable decoration.
-    Variable(tcl_lexer::LexerConfig),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum WrittenCellOccurrence {
-    Written(Span),
-    Inherited,
-}
-
-/// Map a positively selected Logical namespace through the shared written-name
-/// owner. Constructed-key projections are analytical in this domain only.
-/// Native original input and authentic container edit admission remain separate.
-fn written_cell_occurrence(
-    source: &str,
-    word: Span,
-    resolved: &str,
-    cell: &str,
-    purpose: WrittenNamePurpose,
-) -> Option<WrittenCellOccurrence> {
-    let start = usize::try_from(word.start()).ok()?;
-    let raw = source.get(word.as_range())?;
-    let (decoration, text, braced_scalar) = if let WrittenNamePurpose::Variable(config) = purpose {
-        if raw.starts_with("${") {
-            // The actual Var span may end immediately before its closer.
-            // The shared grammar owner selects the original header in the
-            // complete source; only its contained name supplies geometry.
-            let (name, _) =
-                tcl_syntax::naming::split_braced_var_ref(source.get(start..)?, config.braced_var)?;
-            if 2usize.checked_add(name.len())? > raw.len() {
-                return None;
-            }
-            (2usize, name, true)
-        } else if let Some(rest) = raw.strip_prefix('$') {
-            (1usize, rest, false)
-        } else {
-            (0usize, raw, false)
-        }
-    } else {
-        (0usize, raw, false)
-    };
-    let text = if matches!(purpose, WrittenNamePurpose::Variable(_)) {
-        let root = tcl_syntax::naming::split_element_ref_bytes(text.as_bytes())
-            .map_or(text.as_bytes(), |(root, _)| root);
-        text.get(..root.len())?
-    } else {
-        text
-    };
-    // Direct unbraced geometry cannot authenticate an escaped/computed
-    // container. The shared braced header already owns its literal name.
-    if !braced_scalar && text.contains(['$', '[', '\\']) {
-        return None;
-    }
-    let cell_segments = tcl_syntax::naming::key_segments(cell);
-    let resolved_segments = tcl_syntax::naming::key_segments(resolved);
-    if cell_segments.is_empty() || !resolved_segments.starts_with(&cell_segments) {
-        return None;
-    }
-    let extents =
-        tcl_syntax::naming::qualifier_component_extents(text.as_bytes()).collect::<Vec<_>>();
-    let mut written_segments = extents
-        .iter()
-        .map(|extent| text.get(extent.clone()))
-        .collect::<Option<Vec<_>>>()?;
-    if !matches!(purpose, WrittenNamePurpose::Namespace)
-        && tcl_syntax::naming::ends_with_separator(text.as_bytes())
-    {
-        written_segments.push("");
-    }
-    let unwritten = resolved_segments
-        .len()
-        .checked_sub(written_segments.len())?;
-    if (text.starts_with("::") && unwritten != 0)
-        || !resolved_segments[unwritten..]
-            .iter()
-            .map(String::as_str)
-            .eq(written_segments.iter().copied())
-    {
-        return None;
-    }
-    let Some(index) = (cell_segments.len() - 1).checked_sub(unwritten) else {
-        return Some(WrittenCellOccurrence::Inherited);
-    };
-    let extent = extents.get(index)?;
-    let at = start.checked_add(decoration)?;
-    Some(WrittenCellOccurrence::Written(Span::new(
-        u32::try_from(at.checked_add(extent.start)?).ok()?,
-        u32::try_from(at.checked_add(extent.end)?).ok()?,
-    )))
 }
 
 // Entity occurrence geometry used by the finite source mapper controls.

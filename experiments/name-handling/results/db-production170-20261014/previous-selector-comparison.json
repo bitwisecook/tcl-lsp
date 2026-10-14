@@ -1,0 +1,10 @@
+{
+  "previous": "db-production61-20261014",
+  "original_count": 10,
+  "current_count": 34,
+  "gains": [
+    "tests::lower_proc_body_reused_on_unrelated_edit"
+  ],
+  "regressions": [],
+  "dropped": []
+}

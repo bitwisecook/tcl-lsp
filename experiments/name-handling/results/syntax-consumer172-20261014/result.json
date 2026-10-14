@@ -1,0 +1,80 @@
+{
+  "started_utc": "2026-10-14T21:07:49.908520+00:00",
+  "build": null,
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+    "sha256": "406b99b5a41d348971f97911502c3e3aba6aaf30a3dc291fac51d9fa4a25aad7",
+    "bytes": 12123112
+  },
+  "selected_tests": [
+    "naming::reporting::tests::reported_namespace_containment_preserves_literal_key_boundaries",
+    "naming::reporting::tests::reported_qname_namespaces_keep_purpose_and_literal_text"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+        "naming::reporting::tests::reported_namespace_containment_preserves_literal_key_boundaries",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.0018354350031586364,
+      "log": "test-01.log.gz",
+      "timed_out": false,
+      "test": "naming::reporting::tests::reported_namespace_containment_preserves_literal_key_boundaries",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+        "naming::reporting::tests::reported_qname_namespaces_keep_purpose_and_literal_text",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.0035175800003344193,
+      "log": "test-02.log.gz",
+      "timed_out": false,
+      "test": "naming::reporting::tests::reported_qname_namespaces_keep_purpose_and_literal_text",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ]
+  ],
+  "finished_utc": "2026-10-14T21:07:52.294708+00:00",
+  "changed_sources": {}
+}

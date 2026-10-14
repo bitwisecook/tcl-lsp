@@ -1593,6 +1593,26 @@ pub enum VariableLookupPolicy {
     Jim,
 }
 
+impl VariableLookupPolicy {
+    /// Root storage selected by this engine's variable lookup policy.
+    #[must_use]
+    pub const fn container_model(self) -> VariableContainerModel {
+        match self {
+            Self::Tcl => VariableContainerModel::DistinctArray,
+            Self::Jim => VariableContainerModel::DictionaryValue,
+        }
+    }
+
+    /// Alias binding selected by this engine's variable lookup policy.
+    #[must_use]
+    pub const fn link_binding(self) -> VariableLinkBinding {
+        match self {
+            Self::Tcl => VariableLinkBinding::StableCell,
+            Self::Jim => VariableLinkBinding::SelectedFrameName,
+        }
+    }
+}
+
 /// Whether an array is a distinct variable kind or a dictionary value.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VariableContainerModel {

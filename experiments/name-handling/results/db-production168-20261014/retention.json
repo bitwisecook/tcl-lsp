@@ -1,0 +1,13 @@
+{
+  "scope": "Zero tests executed: one required original alias test had the wrong module qualifier. Selection and expected-source receipts retained; the corrected actual selector is used by DB170.",
+  "files": {
+    "source-after.json.gz": "14195e6259a76f463f5ab0238c47e066469c53428028b480e62d7fcd31794893",
+    "result.json": "3a9174c140ad447f7ee4fe7012718f9227a26017a69424498b235e0b618a6e15",
+    "test-list.txt": "3474724a2b3706fe0ac6fcd47d6e95a98385f93419f5cdd9834b7450a01278a7",
+    "expected-source-comparison.json": "e49fe24480fa5255fe30ddbafbb8f7f91f4691f63635e7f405b2e72580c90e4e",
+    "capture.py": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+    "README.md": "7f57c0e1128f7e7cdefb74ce1a5832df633cf1e52989d2726f6422a49962d7d9",
+    "source-before.json.gz": "390bf2e148b80cd9363cd0221d1955073d774b2bab72d65be114f01b085652c0",
+    "start.json": "13e1343fc44313326fdd3596d4c7ec9f7a9f106737f6748129baf9c0bb097312"
+  }
+}

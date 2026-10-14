@@ -429,10 +429,8 @@ pub fn subst_word_bytes(word: &[u8], vm: &mut Vm) -> Result<Value, TclError> {
     }
     // Literal PUSH bytes already have their source escapes decoded. Only a
     // retained substitution causes the compiled-word scanner to run again.
-    if !(word.windows(2).any(|pair| pair == b"${")
-        || word.contains(&b'[')
-        || (vm.lexer_config().var_syntax.has_expr_sugar()
-            && word.windows(2).any(|pair| pair == b"$(")))
+    if tcl_syntax::word_rules::compiled_word_substitution(word, vm.lexer_config())
+        == tcl_syntax::word_rules::CompiledWordSubstitution::LiteralValue
     {
         return Ok(Value::from_native_string_bytes(word));
     }
@@ -757,6 +755,44 @@ mod tests {
                     assert_eq!(hex, expected[18], "{context} value");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn compiled_word_protocol_evaluates_jim_expression_without_reinterpreting_bare_dollars() {
+        for (dialect, expected) in [
+            ("tcl8.6", b"$(1+2)".as_slice()),
+            ("tcl9.0", b"$(1+2)".as_slice()),
+            ("jim", b"3".as_slice()),
+        ] {
+            let mut vm = Vm::new();
+            vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            );
+            assert_eq!(
+                super::subst_word_bytes(b"$(1+2)", &mut vm)
+                    .unwrap()
+                    .string_bytes()
+                    .as_ref(),
+                expected,
+                "{dialect}"
+            );
+            assert_eq!(
+                super::subst_word_bytes(b"$literal\\n", &mut vm)
+                    .unwrap()
+                    .string_bytes()
+                    .as_ref(),
+                b"$literal\\n",
+                "{dialect}"
+            );
+            assert_eq!(
+                super::subst_word_bytes(b"{${literal}}", &mut vm)
+                    .unwrap()
+                    .string_bytes()
+                    .as_ref(),
+                b"${literal}",
+                "{dialect}"
+            );
         }
     }
 

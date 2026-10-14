@@ -729,28 +729,27 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
 
 // append / lappend
 
-/// True when `var` names a variable codegen can resolve to a compiled
-/// local — a proc context, a plain (non-`::`-qualified) name, and not a
-/// dynamic `$…` / `[…]` reference. The shared gate for the statement-
-/// position `append`/`lappend` specialisations.
-fn is_compilable_local(ctx: &CodegenCtx, var: &str) -> bool {
-    ctx.compiles_locals() && !is_qualified(var) && !var.starts_with('$') && !var.starts_with('[')
+/// Static name data for an explicitly source-absent standalone hook model.
+/// Source-backed hooks require their original operand projection instead.
+fn standalone_local_name(ctx: &CodegenCtx, argument: usize, fragment: &str) -> Option<String> {
+    if !ctx.compiles_locals() || ctx.invocation_tokens.is_some() || ctx.native_entry.is_some() {
+        return None;
+    }
+    let value = tcl_syntax::word_rules::standalone_static_word_fragment_value(
+        fragment,
+        ctx.cmd_arg_braced.get(argument).copied().unwrap_or(false),
+        ctx.lexer_config(),
+    )?;
+    (!is_qualified(&value)).then_some(value)
 }
 
-/// [`is_compilable_local`] restricted to a *scalar*: an `arr(k)`-shaped name is
-/// rejected too.
-///
-/// The link commands (`global`, `upvar`) take this stricter gate, mirroring C's
-/// `LocalScalar` (`tclCompCmds.c` — `TclPushVarName` with `TCL_NO_ELEMENT`,
-/// which answers -1 and abandons the compile for an element-looking name). It
-/// is not a nicety: the link is the *point* at which C reports `bad variable
-/// name "…": can't create a scalar variable that looks like an array element`,
-/// and that report lives in the commands. Compiling these names to
-/// `nsupvar`/`upvar` would silently create the mislinked variable instead.
-/// `append`/`lappend`/`unset` keep the looser gate — they have real element
-/// opcodes.
-fn is_compilable_scalar_local(ctx: &CodegenCtx, var: &str) -> bool {
-    is_compilable_local(ctx, var) && split_array_ref(var).is_none()
+fn standalone_scalar_local_name(
+    ctx: &CodegenCtx,
+    argument: usize,
+    fragment: &str,
+) -> Option<String> {
+    let value = standalone_local_name(ctx, argument, fragment)?;
+    split_array_ref(&value).is_none().then_some(value)
 }
 
 /// Native variable-name emission keeps source eligibility separate from its
@@ -795,9 +794,7 @@ fn compiled_append_local_name(ctx: &CodegenCtx, variable: &str) -> Option<String
             crate::registry_invocation::compiled_local_name_value(word, ctx.escapes, ctx.word_rules)
         }
         // Hand-built hooks supply literal names without a source carrier.
-        None if ctx.invocation_tokens.is_none() => {
-            is_compilable_local(ctx, variable).then(|| variable.to_owned())
-        }
+        None if ctx.invocation_tokens.is_none() => standalone_local_name(ctx, 0, variable),
         None => return None,
     }?;
     (!is_qualified(&direct)).then_some(direct)
@@ -1147,31 +1144,35 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         ctx.emit(Op::POP, vec![]);
         return true;
     }
-    for name in names {
-        if !is_qualified(name) && !name.starts_with('$') && !name.starts_with('[') {
-            if let Some((base, key)) = split_array_ref(name) {
+    if ctx.native_entry.is_some() {
+        return false;
+    }
+    for (index, name) in names.iter().enumerate() {
+        let argument = options.names_from + index;
+        if let Some(value) = standalone_local_name(ctx, argument, name) {
+            if let Some((base, key)) = split_array_ref(&value) {
                 let Some(slot) = ctx.command_variable_slot(base.as_bytes()) else {
                     return false;
                 };
-                ctx.push_array_key(key);
+                ctx.push_lit_exact(key);
                 ctx.emit_comment(
                     Op::UNSET_ARRAY,
                     vec![Operand::Imm(flags), Operand::Imm(bytecode_imm(slot))],
                     &format!("var \"{base}\""),
                 );
             } else {
-                let Some(slot) = ctx.command_variable_slot(name.as_bytes()) else {
+                let Some(slot) = ctx.command_variable_slot(value.as_bytes()) else {
                     return false;
                 };
                 ctx.emit_comment(
                     Op::UNSET_SCALAR,
                     vec![Operand::Imm(flags), Operand::Imm(bytecode_imm(slot))],
-                    &format!("var \"{name}\""),
+                    &format!("var \"{value}\""),
                 );
             }
         } else {
             // Qualified or dynamic name: push it and use the stack form.
-            ctx.emit_value_interpolated(name);
+            ctx.emit_word_arg(argument, name);
             ctx.emit(Op::UNSET_STK, vec![Operand::Imm(flags)]);
         }
     }
@@ -1436,15 +1437,24 @@ fn global_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         ctx.emit(Op::POP, vec![]);
         return true;
     }
-    if !args.iter().all(|n| is_compilable_scalar_local(ctx, n)) {
+    let names = args
+        .iter()
+        .enumerate()
+        .map(|(argument, name)| standalone_scalar_local_name(ctx, argument, name))
+        .collect::<Option<Vec<_>>>();
+    let Some(names) = names else {
         return false;
-    }
+    };
+    let slots = names
+        .iter()
+        .map(|name| ctx.command_variable_slot(name.as_bytes()))
+        .collect::<Option<Vec<_>>>();
+    let Some(slots) = slots else {
+        return false;
+    };
     ctx.push_lit("::");
-    for name in args {
-        let Some(slot) = ctx.command_variable_slot(name.as_bytes()) else {
-            return false;
-        };
-        ctx.push_lit(name);
+    for (name, slot) in names.iter().zip(slots) {
+        ctx.push_lit_exact(name);
         ctx.emit_comment(
             Op::NSUPVAR,
             vec![Operand::Imm(bytecode_imm(slot))],
@@ -1538,20 +1548,36 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     } else {
         ("1", args)
     };
-    // Every `local` (the odd-indexed words) must be a simple compiled *scalar*
-    // local. The `other` side may legally be an element (`upvar 0 arr(k) v`).
-    for pair in pairs.as_chunks::<2>().0 {
-        if !is_compilable_scalar_local(ctx, &pair[1]) {
-            return false;
-        }
-    }
+    // Standalone local operands are source fragments with explicit grouping;
+    // remote words still follow the existing configured value emitter.
+    let names = pairs
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .enumerate()
+        .map(|(pair, values)| standalone_scalar_local_name(ctx, offset + pair * 2 + 1, &values[1]))
+        .collect::<Option<Vec<_>>>();
+    let Some(names) = names else {
+        return false;
+    };
+    let slots = names
+        .iter()
+        .map(|name| ctx.command_variable_slot(name.as_bytes()))
+        .collect::<Option<Vec<_>>>();
+    let Some(slots) = slots else {
+        return false;
+    };
     ctx.push_lit(level);
-    for pair in pairs.as_chunks::<2>().0 {
-        let (other, local) = (&pair[0], &pair[1]);
-        let Some(slot) = ctx.command_variable_slot(local.as_bytes()) else {
-            return false;
-        };
-        ctx.emit_value_interpolated(other);
+    for (index, ((pair, slot), local)) in pairs
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .zip(slots)
+        .zip(&names)
+        .enumerate()
+    {
+        let other = &pair[0];
+        ctx.emit_word_arg(offset + index * 2, other);
         ctx.emit_comment(
             Op::UPVAR,
             vec![Operand::Imm(bytecode_imm(slot))],
@@ -1570,6 +1596,113 @@ mod tests {
 
     use super::*;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn standalone_local_name_models_preserve_literal_sigils_and_empty_data() {
+        let registry = CommandRegistry::build_default();
+        for name in ["$literal", "${literal}", "[literal]", ""] {
+            let mut global = CodegenCtx::new(true, &[], &registry);
+            global.cmd_arg_braced = vec![true];
+            assert!(global_cmd(&mut global, &[name.into()]));
+            assert!(global.lvt.find(name).is_some(), "{name}");
+            assert!(
+                global
+                    .instructions
+                    .iter()
+                    .any(|instruction| instruction.op == Op::NSUPVAR)
+            );
+
+            let mut unset = CodegenCtx::new(true, &[], &registry);
+            unset.cmd_arg_braced = vec![true];
+            assert!(unset_cmd(&mut unset, &[name.into()]));
+            assert!(unset.lvt.find(name).is_some(), "{name}");
+            assert!(
+                unset
+                    .instructions
+                    .iter()
+                    .any(|instruction| instruction.op == Op::UNSET_SCALAR)
+            );
+        }
+        let mut append = CodegenCtx::new(true, &[], &registry);
+        append.cmd_arg_braced = vec![true, false];
+        assert!(append_cmd(
+            &mut append,
+            &["array($index)".into(), "value".into()]
+        ));
+        assert!(append.lvt.find("array").is_some());
+        assert!(append.lvt.find("index").is_none());
+        assert!(
+            append
+                .instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::APPEND_ARRAY1)
+        );
+        assert!(
+            append
+                .literals
+                .entries()
+                .iter()
+                .any(|entry| entry.bytes() == b"$index")
+        );
+
+        let mut upvar = CodegenCtx::new(true, &[], &registry);
+        upvar.cmd_arg_braced = vec![false, true, true];
+        assert!(upvar_cmd(
+            &mut upvar,
+            &["0".into(), "$remote".into(), "$local".into()]
+        ));
+        assert!(upvar.lvt.find("$local").is_some());
+        assert!(upvar.lvt.find("remote").is_none());
+        assert!(
+            upvar
+                .literals
+                .entries()
+                .iter()
+                .any(|entry| entry.bytes() == b"$remote")
+        );
+    }
+
+    #[test]
+    fn standalone_computed_name_models_do_not_claim_literal_local_slots() {
+        let registry = CommandRegistry::build_default();
+        for name in ["prefix$computed", "array($index)"] {
+            let mut append = CodegenCtx::new(true, &[], &registry);
+            assert!(append_cmd(&mut append, &[name.into(), "value".into()]));
+            assert!(append.lvt.find(name).is_none());
+            assert!(append.lvt.find("array").is_none());
+            assert!(
+                append
+                    .instructions
+                    .iter()
+                    .any(|instruction| instruction.op == Op::APPEND_STK)
+            );
+
+            let mut unset = CodegenCtx::new(true, &[], &registry);
+            assert!(unset_cmd(&mut unset, &[name.into()]));
+            assert!(unset.lvt.find(name).is_none());
+            assert!(unset.lvt.find("array").is_none());
+            assert!(
+                unset
+                    .instructions
+                    .iter()
+                    .any(|instruction| instruction.op == Op::UNSET_STK)
+            );
+        }
+        let mut global = CodegenCtx::new(true, &[], &registry);
+        assert!(!global_cmd(
+            &mut global,
+            &["first".into(), "prefix$computed".into()]
+        ));
+        assert!(global.instructions.is_empty());
+        assert!(global.lvt.is_empty());
+        let mut upvar = CodegenCtx::new(true, &[], &registry);
+        assert!(!upvar_cmd(
+            &mut upvar,
+            &["0".into(), "remote".into(), "prefix$computed".into()]
+        ));
+        assert!(upvar.instructions.is_empty());
+        assert!(upvar.lvt.is_empty());
+    }
 
     #[test]
     fn private_ensemble_rewrites_require_a_native_implementation() {
