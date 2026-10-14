@@ -1083,6 +1083,11 @@ fn original_word_script_body_geometry(word: &NativeWord) -> Option<ScriptBodyGeo
     })
 }
 
+/// Original script content geometry; selected body roles and entry remain separate.
+pub(crate) fn original_written_script_body_span(word: &NativeWord) -> Option<Span> {
+    Some(original_word_script_body_geometry(word)?.content)
+}
+
 /// Lexical zero-command shape of one genuine written script word.
 /// Selected body roles, timing, effects and execution remain independent.
 pub(crate) fn original_written_script_body_is_empty(word: &NativeWord) -> Option<bool> {

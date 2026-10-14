@@ -3093,6 +3093,7 @@ impl CompilationUnit {
                 original_native_declaration_body_units: std::collections::BTreeMap::default(),
                 original_logical_declaration_body_units: std::collections::BTreeMap::default(),
                 original_hosted_declaration_body_units: std::collections::BTreeMap::default(),
+                original_authored_declaration_body_units: std::collections::BTreeMap::default(),
                 irules_event_bodies: HashMap::new(),
                 procedure_implementation_bodies: std::sync::Arc::from([]),
                 top_level_kind: crate::ir::TopLevelKind::Script,
@@ -3784,6 +3785,9 @@ impl CompilationUnit {
                             .contains_key(id)
                         || ir_module
                             .original_hosted_declaration_body_units
+                            .contains_key(id)
+                        || ir_module
+                            .original_authored_declaration_body_units
                             .contains_key(id))
                         && ir_module
                             .original_source_procedure_bodies()

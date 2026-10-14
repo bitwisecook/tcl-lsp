@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9758 filtered out; finished in 3.34s
+

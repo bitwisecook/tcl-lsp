@@ -2788,6 +2788,12 @@ pub struct Module {
         ProcedureId,
         std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
     >,
+    /// Standalone source declaration cards retain their actual original
+    /// grammar and body without publication, physical frame or Native entry.
+    pub original_authored_declaration_body_units: std::collections::BTreeMap<
+        ProcedureId,
+        std::sync::Arc<crate::registry_invocation::OriginalAuthoredProcedureBody>,
+    >,
     /// Hosted source declarations retain their actual rule-loader owner,
     /// independently of Native callable publication or Logical source scopes.
     pub original_hosted_declaration_body_units: std::collections::BTreeMap<
@@ -3028,6 +3034,15 @@ impl Module {
             )
             .chain(
                 self.original_logical_declaration_body_units
+                    .iter()
+                    .filter_map(|(id, card)| {
+                        let procedure = self.body_units.get(id)?;
+                        (self.procedure_ids.owns(*id) && card.matches_procedure(self, procedure))
+                            .then_some((id, procedure))
+                    }),
+            )
+            .chain(
+                self.original_authored_declaration_body_units
                     .iter()
                     .filter_map(|(id, card)| {
                         let procedure = self.body_units.get(id)?;

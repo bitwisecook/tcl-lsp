@@ -1,0 +1,53 @@
+
+running 1 test
+test registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission ... HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=3 binding=true context=true
+HOSTED_STRUCTURE words site=Some(19) roles=Some([(0, Expr), (1, Body)])
+HOSTED_STRUCTURE schema hook=Some(If) arity=Some(true) roles=([(0, Expr), (1, Body)], true)
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=3 binding=true context=true
+HOSTED_STRUCTURE words site=Some(19) roles=Some([(0, Expr), (1, Body)])
+HOSTED_STRUCTURE schema hook=Some(If) arity=Some(true) roles=([(0, Expr), (1, Body)], true)
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=3 binding=true context=true
+HOSTED_STRUCTURE words site=Some(19) roles=Some([(0, Expr), (1, Body)])
+HOSTED_STRUCTURE schema hook=Some(If) arity=Some(true) roles=([(0, Expr), (1, Body)], true)
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=3 binding=true context=true
+HOSTED_STRUCTURE words site=Some(19) roles=Some([(0, Expr), (1, Body)])
+HOSTED_STRUCTURE schema hook=Some(If) arity=Some(true) roles=([(0, Expr), (1, Body)], true)
+HOSTED_STRUCTURE schema-use hosted=true realm=RuleLoader registry=true input=true
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-enter words=3 binding=true context=true
+HOSTED_STRUCTURE words site=Some(0) roles=Some([(1, Body)])
+HOSTED_STRUCTURE schema hook=Some(When) arity=Some(true) roles=([(1, Body)], true)
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=3 binding=true context=true
+HOSTED_STRUCTURE words site=Some(19) roles=Some([(0, Expr), (1, Body)])
+HOSTED_STRUCTURE schema hook=Some(If) arity=Some(true) roles=([(0, Expr), (1, Body)], true)
+HOSTED_STRUCTURE schema-use hosted=true realm=RuleLoader registry=true input=true
+HOSTED_STRUCTURE schema-use hosted=true realm=InterpreterRuntime registry=true input=true
+HOSTED_STRUCTURE schema-use hosted=true realm=RuleLoader registry=true input=true
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=3 binding=true context=true
+HOSTED_STRUCTURE words site=Some(19) roles=Some([(0, Expr), (1, Body)])
+HOSTED_STRUCTURE schema hook=Some(If) arity=Some(true) roles=([(0, Expr), (1, Body)], true)
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(19) stage=binding-vector-config-mismatch words=3 binding=true context=true
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=4 binding=true context=true
+HOSTED_STRUCTURE words site=Some(19) roles=None
+HOSTED_STRUCTURE schema hook=Some(Switch) arity=Some(true) roles=([], false)
+HOSTED_TAINT_SOURCE site=Some(0) stage=issuer-enter words=3 binding=true context=true
+HOSTED_STRUCTURE words site=Some(0) roles=Some([(1, Body)])
+HOSTED_STRUCTURE schema hook=Some(When) arity=Some(true) roles=([(1, Body)], true)
+HOSTED_TAINT_SOURCE site=Some(19) stage=issuer-enter words=4 binding=true context=true
+HOSTED_STRUCTURE words site=Some(19) roles=None
+HOSTED_STRUCTURE schema hook=Some(Switch) arity=Some(true) roles=([], false)
+
+thread 'registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission' (322809) panicked at rust/tcl-compiler/src/registry_invocation/hosted_structure.rs:364:13:
+assertion failed: if switch {
+    matches!(statement, crate::ir::Statement::Switch { .. })
+} else { matches!(statement, crate::ir::Statement::If { .. }) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9759 filtered out; finished in 0.13s
+

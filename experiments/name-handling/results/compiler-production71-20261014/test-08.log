@@ -1,0 +1,15 @@
+
+running 1 test
+test shimmer::tests::first_use_symbols_keep_the_actual_function_and_refuse_missing_input ... 
+thread 'shimmer::tests::first_use_symbols_keep_the_actual_function_and_refuse_missing_input' (321144) panicked at rust/tcl-compiler/src/shimmer/mod.rs:601:9:
+assertion failed: original.values().any(|value| *value == TclType::List)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    shimmer::tests::first_use_symbols_keep_the_actual_function_and_refuse_missing_input
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9758 filtered out; finished in 0.14s
+

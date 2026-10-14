@@ -1,0 +1,33 @@
+{
+  "started_utc": "2026-10-14T09:58:02.080190+00:00",
+  "label": "Current source producer controls and migrated name-independent codegen condition consumer",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014",
+  "source_paths": 34700,
+  "plan": {
+    "exact": [
+      "command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners",
+      "registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission",
+      "registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership",
+      "registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_retain_colliding_and_dynamic_source_alternatives",
+      "registry_invocation::original_procedure_call::logical_may_named_descriptor_tests::logical_may_named_descriptors_keep_shadow_and_unknown_handler_dependencies_open",
+      "ssa::native_source_definition_tests::native_source_definitions_select_actual_body_symbols_without_physical_store_grants",
+      "shimmer::tests::first_use_symbols_keep_the_actual_function_and_refuse_missing_input",
+      "registry_invocation::authored_source_structure::tests::authored_source_roles_require_the_actual_store_and_complete_original_vector",
+      "var_escape::known_names::tests::original_authored_name_roles_preserve_empty_and_literal_sigils",
+      "var_escape::api::tests::implicit_escape_driver_uses_the_retained_actual_registry",
+      "taint::tests::required_replay_empty_success_differs_from_withdrawn_source_owner",
+      "taint::tests::unavailable_nested_replay_retains_original_site_and_independent_warnings",
+      "taint::tests::scaffold_constructors_require_actual_selected_descriptor_identity",
+      "taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner",
+      "taint::tests::callback_unavailable_spans_require_bounded_original_correspondence",
+      "taint::tests::public_report_keeps_constructor_refusal_beside_an_independent_warning",
+      "codegen::emitter::terminator::tests::scalar_command_conditions_use_result_geometry_without_command_name_classification"
+    ],
+    "filters": []
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "4c5410f7a221df31b95d78e96699b3bb21e5c3de6c3d634287bb67fbc6278030",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

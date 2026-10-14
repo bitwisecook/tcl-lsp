@@ -2866,7 +2866,11 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
             .as_ref()
             .map(|event| (event, key.body(db).body())),
     };
-    let unit = if let Some(body_id) = key.entry(db).original_declaration_body {
+    let unit = if let Some(body_id) = key
+        .entry(db)
+        .original_declaration_body
+        .or_else(|| key.body(db).certified_native_source_body_id())
+    {
         FunctionUnit::build_for_original_declaration_lattice(
             body_id,
             key.qname(db),
@@ -3254,6 +3258,7 @@ fn lattice_request_key<'db>(
     registry: &tcl_registry::RegistrySnapshot,
     epoch: u64,
 ) -> FnLatticeKey<'db> {
+    let certified_native_source = body.certified_native_source_body_id().is_some();
     FnLatticeKey::new(
         db,
         body,
@@ -3273,12 +3278,16 @@ fn lattice_request_key<'db>(
             has_dynamic_variable_trace: req.has_dynamic_variable_trace,
         },
         FnLatticeEntry {
-            original_declaration_body: req
-                .original_source_procedure()
-                .filter(|procedure| {
-                    procedure.body_kind == tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
+            original_declaration_body: (!certified_native_source)
+                .then(|| {
+                    req.original_source_procedure()
+                        .filter(|procedure| {
+                            procedure.body_kind
+                                == tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
+                        })
+                        .map(|_| req.body_id)
                 })
-                .map(|_| req.body_id),
+                .flatten(),
             plain_command_dispatch: req.plain_command_dispatch,
             source_metadata_input: req.source_metadata_input.cloned(),
             irules_event_body: req.irules_event_body.cloned(),

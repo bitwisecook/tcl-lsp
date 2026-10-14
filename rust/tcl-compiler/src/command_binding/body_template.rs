@@ -738,8 +738,8 @@ pub(super) fn normalize_native_tokens(
         .iter_mut()
         .chain(tokens.nested_bindings.iter_mut().map(|(_, proof)| proof))
     {
-        // Template analysis has proved that it never asks the command world
-        // for another target. Actual returned carriers are restored by the driver.
+        // Callers capture original dependencies before removing lookup worlds.
+        // Analysis consumers must restore the current source owners.
         proof.lookup_state = None;
         proof.compiler_lookup_state = None;
         proof.compiler_policy = None;

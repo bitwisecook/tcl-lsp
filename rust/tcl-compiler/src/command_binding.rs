@@ -1854,6 +1854,16 @@ impl SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<&tcl_registry::CommandRegistry> {
+        Some(
+            self.retained_registry_snapshot_for_tokens(tokens)?
+                .registry(),
+        )
+    }
+
+    pub(crate) fn retained_registry_snapshot_for_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<&tcl_registry::RegistrySnapshot> {
         let owner = self
             .lookup_state
             .as_ref()?
@@ -1861,11 +1871,10 @@ impl SourceInvocationBinding {
             .baseline
             .registry_owner
             .as_ref()?;
-        let registry = owner.registry();
         self.original_lexer_config_for_tokens(tokens)?;
-        self.original_invocation_metadata_at_point(tokens, registry)
+        self.original_invocation_metadata_at_point(tokens, owner.registry())
             .ok()?;
-        Some(registry)
+        Some(owner)
     }
 
     /// MAY layout from the genuine Authored/Standalone world at this source point.
@@ -1879,11 +1888,9 @@ impl SourceInvocationBinding {
         if retained.snapshot().semantic_key() != registry.snapshot().semantic_key() {
             return None;
         }
-        let mut advice = self.original_compilation_lookup_advice(tokens)?;
         let point = self.lookup_state.as_ref()?;
         let baseline = &point.state.baseline;
-        if !advice.is_authored_standalone_source()
-            || !baseline.metadata_context.is_standalone()
+        if !baseline.metadata_context.is_standalone()
             || baseline.native_entry.is_some()
             || baseline.logical_source_input.is_some()
             || baseline.vendor_source_input.is_some()
@@ -1892,9 +1899,14 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        let head = self.lookup_word.as_deref()?;
-        let current = source_binding_projection(&point.state, head, advice.namespace());
-        if current.targets.as_slice() != advice.targets()
+        let advice = original_site_operand_layout_advice(
+            self.invocation_site()?,
+            tokens,
+            point,
+            &self.lookup_namespace_key,
+            self.original_lexer_config_for_tokens(tokens)?,
+        )?;
+        if !advice.is_authored_standalone_source()
             || advice
                 .targets()
                 .iter()
@@ -1902,11 +1914,6 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        advice.unknown |= current.unknown
-            || point.state.has_opaque_domain()
-            || point.state.source_step_observed()
-            || !point.state.command_observers.is_quiet();
-        advice.may_be_absent |= current.may_be_absent;
         Some(advice)
     }
 

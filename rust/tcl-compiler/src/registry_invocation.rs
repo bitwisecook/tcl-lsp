@@ -34,6 +34,9 @@ pub(crate) use original_procedure_call::{
     original_procedure_scalar_bindings, original_source_procedure_calls_for_word_for_module,
     original_source_procedure_ids_for_word_for_module,
 };
+mod authored_source_bodies;
+pub use authored_source_bodies::OriginalAuthoredProcedureBody;
+pub(crate) use authored_source_bodies::original_authored_procedure_body;
 mod authored_source_structure;
 pub(crate) use authored_source_structure::{
     AuthoredSourceStructuredInvocation, original_authored_source_structure,

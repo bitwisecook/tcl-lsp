@@ -1,0 +1,6 @@
+
+running 1 test
+test taint::tests::scaffold_constructors_require_actual_selected_descriptor_identity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9758 filtered out; finished in 0.07s
+

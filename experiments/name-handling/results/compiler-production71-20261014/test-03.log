@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::authored_source_structure::tests::authored_source_roles_require_the_actual_store_and_complete_original_vector ... 
+thread 'registry_invocation::authored_source_structure::tests::authored_source_roles_require_the_actual_store_and_complete_original_vector' (321126) panicked at rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs:93:14:
+genuine authored role owner
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::authored_source_structure::tests::authored_source_roles_require_the_actual_store_and_complete_original_vector
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9758 filtered out; finished in 0.10s
+

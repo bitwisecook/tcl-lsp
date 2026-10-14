@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T09:57:31Z. The [outstanding audit](outstanding-consumer-audit.md)
+Current bounded snapshot: 2026-10-14T10:10:13Z. The [outstanding audit](outstanding-consumer-audit.md)
 and machine inventory retain original issue and source observations.
 
 The current shared consumers retain complete original source, analysis input,
@@ -119,7 +119,7 @@ consumer gates.
 
 The latest Core70 capture stops in compilation at two test-only context-profile
 accessors: zero semantic controls and zero source drift. The genuine shared
-context profile correction is integrated; fresh Core/server consumer replay
+context profile correction is reviewed; fresh Core/server consumer replay
 remains required. F5 production53 builds and seals 32 controls: 9 PASS/23 FAIL
 (lib 3/6, model 6/25, original golden differential FAIL). Its inventory records
 one new obsolete-agent-cache receipt; zero total drift is not claimed.
@@ -147,7 +147,7 @@ refuses authored overrides with absent, true or false translation flags. Fresh
 custom getter controls keep the original pool independently available; their
 authored override now retains the actual selected surface/lifecycle/traits and
 asserts exact selected pointer provenance before refusal. The Hosted structured source producer is integrated; its current case-schema
-consumer correction is independently reviewed and integrated; replay is pending.
+consumer correction is independently reviewed and awaits adoption/replay.
 The Hosted structured source wrapper is integrated with complete retained analysis
 input and exact original policy/context checks. It supplies guarded If/Switch
 source grammar independently of runtime invocation and Native entry. Current
@@ -247,11 +247,37 @@ retained. No whole-codebase, Native, F5 or PR-ready acceptance is established.
 This temporary coordination directory and its references are removed before
 the merge-ready PR; durable documentation describes current contracts.
 
-The current batch integrates Logical original body-ID inventory repair, Hosted
-case-schema consumption, MCP typed If schema and codegen scalar-result geometry.
-Actual source signature/body kind/publication/declaration site remain ownership
-checks; reporting labels do not select bodies. Sixteen focused producer/codegen
-controls are prepared for Compiler71; no result is available. Logical namespace
-path/import MAY dependencies remain a distinct completeness obligation. Codegen
-retains fifteen real oracle files; C8.4 source audit and Jim observations do not
-claim unavailable bytecode disassembly.
+Compiler71 seals 17 focused controls: 9 PASS/8 FAIL, build PASS, no missing or
+empty selectors and zero source drift. All three Logical MAY controls and the
+scalar-result codegen control pass. Native child schema, Authored roles/literal
+name inventory, Hosted grammar, per-function Shimmer/source SSA and two taint
+report ownership controls remain red. These results remain distinct from the
+broader Compiler67 union; no full consumer or Native acceptance is inferred.
+
+Current source integrates the independently reviewed Logical original body-ID
+inventory, Hosted case-schema consumer, MCP selected If schema and scalar-result
+codegen geometry with fifteen retained real oracle files. Authored layout now
+uses the actual standalone lookup snapshot rather than compiler visitation;
+its original escape regressions still require replay. Taint consumed dependencies
+select command heads only for generic Call/Barrier/NativeCall and retain original
+child substitutions independently. Keyed retained procedure snapshot plus actual
+current inventory ID/pointer preserves source/formal/kind/publication/site truth.
+
+Diagnostic72 builds and seals both original Native-child/Hosted positives FAIL
+with zero source drift and an accurate temporary-instrumentation receipt. The
+trace-only source changes are removed exactly before production checkpoint. The separate Native Source-schema lattice and
+full-capsule correspondence packets complete source review with full current
+input/entry/body/card/ID, real namespace policy/slot, authentic source dependencies
+and actual observer/source-step state; both are integrated, execution remains pending.
+Private comparison clears only authenticated carriers after dependency capture
+and restores current original proofs/issued IDs. Original DB10 counts/assertions
+remain mandatory. Authored declaration transport integrates the exact original header-span guard,
+whole source/card/Script and retained closed-grammar dependency union. Child
+source schema ownership remains a separate unfinished consumer producer.
+
+The shared architecture is used by the integrated compiler/CFG, source inventory,
+SSA definition, Core navigation, server library, MCP/AI metadata, source reports
+and codegen consumers described above. The remaining original failures, absent
+readonly source-read selector, namespace path/import dependency completeness,
+cache reuse/full owner manifest and all-target runtime gates still prevent a
+complete-consumer claim.

@@ -49,6 +49,7 @@ use crate::segmenter::SegmentedCommand;
 use tcl_dialect::model::surface_admits;
 use tcl_syntax::word_rules::WordValueRules;
 
+mod authored_source_bodies;
 mod execution_regions;
 pub(crate) mod hooks;
 mod hosted_source_bodies;
@@ -1122,6 +1123,7 @@ pub struct Lowerer<'r> {
         Option<std::sync::Arc<crate::command_binding::OriginalNativeSourceBodyChildren>>,
     /// Hosted source cards keep their independent declaration owner.
     readonly_hosted_body: bool,
+    readonly_authored_body: bool,
     /// Lexer config for the document's dialect, threaded into every
     /// body re-segmentation so `{*}` expansion (off for Tcl 8.4 /
     /// iRules) and the iRules `}{` ghost SEP are honoured rather than
@@ -1338,6 +1340,7 @@ impl<'r> Lowerer<'r> {
             readonly_native_declaration_body: false,
             native_source_children: None,
             readonly_hosted_body: false,
+            readonly_authored_body: false,
             config,
             dialect: None,
             dialect_context: None,
@@ -2025,6 +2028,7 @@ impl<'r> Lowerer<'r> {
     fn retain_script_source(&self, mut script: Script, text: &str, base: u32) -> Script {
         if self.readonly_logical_body
             || self.readonly_hosted_body
+            || self.readonly_authored_body
             || self.readonly_native_declaration_body
         {
             return script;
@@ -2513,6 +2517,7 @@ impl<'r> Lowerer<'r> {
     fn attach_native_compilation_failure(&self, mut script: Script, chunk: u32) -> Script {
         if self.readonly_logical_body
             || self.readonly_hosted_body
+            || self.readonly_authored_body
             || self.readonly_native_declaration_body
         {
             return script;
@@ -3653,8 +3658,9 @@ impl<'r> Lowerer<'r> {
         }
         if !self.target.is_bytecode()
             && !self.target.is_trace_visible()
-            && let Some(statement) =
-                self.try_lower_logical_procedure_declaration(seg, namespace, &tokens)
+            && let Some(statement) = self
+                .try_lower_authored_procedure_declaration(seg, namespace, &tokens)
+                .or_else(|| self.try_lower_logical_procedure_declaration(seg, namespace, &tokens))
         {
             return Some(Box::new(statement));
         }

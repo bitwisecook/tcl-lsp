@@ -1,0 +1,15 @@
+
+running 1 test
+test ssa::native_source_definition_tests::native_source_definitions_select_actual_body_symbols_without_physical_store_grants ... 
+thread 'ssa::native_source_definition_tests::native_source_definitions_select_actual_body_symbols_without_physical_store_grants' (321146) panicked at rust/tcl-compiler/src/ssa.rs:12693:18:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::native_source_definition_tests::native_source_definitions_select_actual_body_symbols_without_physical_store_grants
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9758 filtered out; finished in 0.39s
+

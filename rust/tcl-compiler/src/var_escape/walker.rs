@@ -776,7 +776,12 @@ mod tests {
 
     fn analyse(src: &str) -> ProcEscapeSummary {
         let m = lower_to_ir(src, &reg());
-        analyse_script(&m.top_level, std::iter::empty::<String>())
+        let registry = m
+            .registry_snapshot
+            .as_ref()
+            .expect("actual lowered command store")
+            .registry();
+        analyse_script_with_registry(&m.top_level, std::iter::empty::<String>(), registry)
     }
 
     /// `walk` recurses once per

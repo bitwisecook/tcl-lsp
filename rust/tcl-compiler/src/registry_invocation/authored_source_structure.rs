@@ -25,8 +25,52 @@ pub(crate) struct AuthoredSourceStructuredInvocation {
     invocation: ResolvedStatementInvocation,
     config: tcl_lexer::LexerConfig,
     unknown_residual: bool,
+    registry: tcl_registry::RegistrySnapshot,
+    realm: tcl_dialect::model::InvocationRealm,
+    namespace: crate::command_binding::SourceNamespaceKey,
+    original_words: Vec<tcl_lexer::NativeWord>,
 }
 impl AuthoredSourceStructuredInvocation {
+    pub(crate) fn into_closed_source_grammar(self) -> Option<AuthoredSourceGrammar> {
+        if self.unknown_residual || self.facts().arity_accepts_frozen_arguments() != Some(true) {
+            return None;
+        }
+        let roles = self.with_source_schema(self.registry.registry(), |schema| {
+            let (roles, complete) = schema.authored_source_argument_roles();
+            complete.then(|| {
+                roles
+                    .into_iter()
+                    .map(|(argument, role)| {
+                        (schema.facts().argument_offset + usize::from(argument), role)
+                    })
+                    .collect::<Vec<_>>()
+            })
+        })?;
+        Some(AuthoredSourceGrammar {
+            source: self,
+            roles,
+        })
+    }
+
+    fn with_source_schema<T>(
+        &self,
+        registry: &CommandRegistry,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        if registry.snapshot().semantic_key() != self.registry.semantic_key() {
+            return None;
+        }
+        self.invocation.with_argument_words(|words| {
+            let selected =
+                tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    registry, None, words, self.realm,
+                )
+                .resolved()?;
+            (selected.descriptor_key() == self.facts().descriptor_key()).then_some(())?;
+            apply(&selected)
+        })
+    }
+
     pub(crate) fn has_unknown_residual(&self) -> bool {
         self.unknown_residual
     }
@@ -38,6 +82,70 @@ impl AuthoredSourceStructuredInvocation {
     }
     pub(crate) fn config(&self) -> tcl_lexer::LexerConfig {
         self.config
+    }
+}
+
+/// Closed original source grammar; no invoked body, frame or Normal effect follows.
+pub(crate) struct AuthoredSourceGrammar {
+    source: AuthoredSourceStructuredInvocation,
+    roles: Vec<(usize, tcl_registry::ArgRole)>,
+}
+
+impl AuthoredSourceGrammar {
+    pub(crate) fn canonical_command(&self) -> &str {
+        &self.source.facts().canonical_command
+    }
+    pub(crate) fn descriptor_key(&self) -> tcl_registry::CanonicalCommandDescriptorKey<'_> {
+        self.source.facts().descriptor_key()
+    }
+    pub(crate) fn lowering_hook(&self) -> Option<tcl_registry::hooks::LoweringHookId> {
+        self.source.facts().lowering_hook
+    }
+    pub(crate) fn written_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {
+        self.roles
+            .iter()
+            .filter_map(|&(argument, role)| {
+                self.source
+                    .invocation
+                    .effective
+                    .written_argument(argument)
+                    .map(|written| (written, role))
+            })
+            .collect()
+    }
+    pub(crate) fn source_namespace(&self) -> &crate::command_binding::SourceNamespaceKey {
+        &self.source.namespace
+    }
+    pub(crate) fn with_source_schema<T>(
+        &self,
+        registry: &CommandRegistry,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        self.source.with_source_schema(registry, apply)
+    }
+    pub(crate) fn original_argument_word(&self, argument: usize) -> Option<&tcl_lexer::NativeWord> {
+        self.source.original_words.get(argument.checked_add(1)?)
+    }
+    pub(crate) fn argument_literal(&self, argument: usize) -> Option<String> {
+        self.source.argument_literal(argument)
+    }
+    pub(crate) fn config(&self) -> tcl_lexer::LexerConfig {
+        self.source.config()
+    }
+    pub(crate) fn traits(&self) -> tcl_registry::Traits {
+        self.source.facts().traits
+    }
+    pub(crate) fn loop_bindings_conditional(&self) -> bool {
+        self.source.facts().repeated_args.iter().any(|layout| {
+            layout.conditional_binding && layout.role == tcl_registry::ArgRole::LoopVarList
+        })
+    }
+    pub(crate) fn original_body_word(&self, argument: usize) -> Option<&tcl_lexer::NativeWord> {
+        self.written_roles()
+            .contains(&(argument, tcl_registry::ArgRole::Body))
+            .then_some(())?;
+        self.source.argument_literal(argument)?;
+        self.original_argument_word(argument)
     }
 }
 
@@ -55,17 +163,24 @@ pub(crate) fn original_authored_source_structure(
     let advice = binding.original_authored_source_layout(tokens, registry)?;
     let config = binding.original_lexer_config_for_tokens(tokens)?;
     let site = binding.invocation_site()?;
-    super::original_native_compiler_words(
+    let original_words = super::original_native_compiler_words(
         site.source.source_image(),
         tokens.words(),
         site.offset,
         config,
     )?;
+    let registry_owner = binding
+        .retained_registry_snapshot_for_tokens(tokens)?
+        .clone();
     let invocation = super::resolve_original_source_layout(registry, metadata, tokens, &advice)?;
     Some(AuthoredSourceStructuredInvocation {
         invocation,
         config,
         unknown_residual: advice.has_unclosed_source_coverage(),
+        registry: registry_owner,
+        realm: advice.realm(),
+        namespace: advice.namespace().clone(),
+        original_words,
     })
 }
 
@@ -83,6 +198,35 @@ mod tests {
             .find_map(|statement| script.retained_source_tokens_for_statement(statement))
             .expect("actual original source vector")
             .clone()
+    }
+
+    #[test]
+    fn closed_authored_source_grammar_retains_actual_body_geometry_without_entry() {
+        let registry = CommandRegistry::build_default();
+        let tokens = original_tokens("catch {set {$literal} VALUE} result", &registry);
+        let source = original_authored_source_structure(&tokens, &registry).unwrap();
+        let grammar = source
+            .into_closed_source_grammar()
+            .expect("closed authored grammar");
+        assert_eq!(
+            grammar.lowering_hook(),
+            Some(tcl_registry::hooks::LoweringHookId::Catch)
+        );
+        assert!(grammar.original_body_word(0).is_some());
+        assert!(grammar.original_body_word(1).is_none());
+        let wrong = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(grammar.with_source_schema(wrong, |_| Some(())).is_none());
+        let observed = crate::lowering::lower_to_ir("unknown; catch {} result", &registry);
+        let script = &observed.top_level;
+        let tokens = script
+            .statements
+            .last()
+            .and_then(|statement| script.retained_source_tokens_for_statement(statement))
+            .expect("actual later source");
+        assert!(
+            original_authored_source_structure(tokens, &registry)
+                .is_none_or(|source| source.into_closed_source_grammar().is_none())
+        );
     }
 
     #[test]
