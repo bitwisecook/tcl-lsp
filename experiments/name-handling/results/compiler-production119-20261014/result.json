@@ -1,0 +1,326 @@
+{
+  "started_utc": "2026-10-14T17:26:27.374006+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 244.78817205000087,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "sha256": "23e79b3a8aceef5fbe7e94bfed3092eff948f6c53e75c1fb1b4397523ee4a744",
+    "bytes": 234027464
+  },
+  "selected_tests": [
+    "ssa::original_analysis_definition_selector_tests::named_source_body_tokens_require_the_actual_header_body_and_attachment",
+    "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+    "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+    "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+    "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+    "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+    "word_subst::native_source_lifted_inventory_owner_tests::native_source_braced_expression_inventory_preserves_child_geometry_and_refuses_expansion",
+    "analyser::per_item::tests::isolated_global_reads_retain_selected_literal_name_and_element_data",
+    "analyser::per_item::tests::multi_method_class_byte_identical",
+    "analyser::per_item::tests::oo_class_with_method"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "ssa::original_analysis_definition_selector_tests::named_source_body_tokens_require_the_actual_header_body_and_attachment",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.871255731995916,
+      "log": "test-01.log.gz",
+      "timed_out": false,
+      "test": "ssa::original_analysis_definition_selector_tests::named_source_body_tokens_require_the_actual_header_body_and_attachment",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 2.7742589809931815,
+      "log": "test-02.log.gz",
+      "timed_out": false,
+      "test": "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.7694171789917164,
+      "log": "test-03.log.gz",
+      "timed_out": false,
+      "test": "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.5157043210056145,
+      "log": "test-04.log.gz",
+      "timed_out": false,
+      "test": "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.7162081409915118,
+      "log": "test-05.log.gz",
+      "timed_out": false,
+      "test": "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.3153132080042269,
+      "log": "test-06.log.gz",
+      "timed_out": false,
+      "test": "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "word_subst::native_source_lifted_inventory_owner_tests::native_source_braced_expression_inventory_preserves_child_geometry_and_refuses_expansion",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.3657031519978773,
+      "log": "test-07.log.gz",
+      "timed_out": false,
+      "test": "word_subst::native_source_lifted_inventory_owner_tests::native_source_braced_expression_inventory_preserves_child_geometry_and_refuses_expansion",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "analyser::per_item::tests::isolated_global_reads_retain_selected_literal_name_and_element_data",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": -9,
+      "seconds": 60.2273156040028,
+      "log": "test-08.log.gz",
+      "timed_out": true,
+      "test": "analyser::per_item::tests::isolated_global_reads_retain_selected_literal_name_and_element_data",
+      "summaries": [],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "analyser::per_item::tests::multi_method_class_byte_identical",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 42.394433484994806,
+      "log": "test-09.log.gz",
+      "timed_out": false,
+      "test": "analyser::per_item::tests::multi_method_class_byte_identical",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "analyser::per_item::tests::oo_class_with_method",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 24.8397712129954,
+      "log": "test-10.log.gz",
+      "timed_out": false,
+      "test": "analyser::per_item::tests::oo_class_with_method",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T17:33:05.582763+00:00",
+  "changed_sources": {}
+}

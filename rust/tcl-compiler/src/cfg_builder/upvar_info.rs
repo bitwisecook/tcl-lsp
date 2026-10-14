@@ -224,7 +224,7 @@ pub(super) struct CallerSideEffects {
 }
 
 fn push_caller_side_def(effects: &mut CallerSideEffects, name: &str) {
-    let name = crate::naming::split_array_name_braced(name, true).0;
+    let name = crate::naming::split_element_ref(name).map_or(name, |(root, _)| root);
     if !effects.defs.iter().any(|found| found == name) {
         effects.defs.push(name.to_owned());
     }
@@ -1853,8 +1853,8 @@ fn selected_alias_target(
                 .literal()
                 .map_or(SelectedAliasTarget::SameOpaque, |name| {
                     SelectedAliasTarget::SameExact(
-                        crate::naming::split_array_name_braced(name, true)
-                            .0
+                        crate::naming::split_element_ref(name)
+                            .map_or(name, |(root, _)| root)
                             .to_owned(),
                     )
                 })
@@ -1894,7 +1894,8 @@ fn compose_selected_alias(
 ) {
     let local_written = alias.writes_value
         || alias.local.literal().map_or(any_write, |local| {
-            projected_names.contains(crate::naming::split_array_name_braced(local, true).0)
+            projected_names
+                .contains(crate::naming::split_element_ref(local).map_or(local, |(root, _)| root))
         });
     if !local_written {
         return;

@@ -31,3 +31,5 @@ a completed C release gate or Jim/F5 agreement.
 [Compiler114](compiler-production114-20261014/README.md) records208/265 ordinary naming controls with source-subset drift0 and lossless large-log retention.
 
 [Core117](core-production117-20261014/README.md) records71/101 ordinary LSP naming controls with all92 prior planned selectors retained and source-subset drift0.
+
+[Compiler119](compiler-production119-20261014/README.md) retains ten failed bounded original owner diagnostics, source-subset drift0 and lossless equality output; temporary instrumentation is removed before ordinary replay.

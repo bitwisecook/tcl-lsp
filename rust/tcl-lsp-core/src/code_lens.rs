@@ -384,6 +384,7 @@ pub fn lens_qname_exists(analysis: &AnalysisResult, qname: &str) -> bool {
                 identities.iter().any(|identity| {
                     identity.label() == qname
                         || identity.reporting_key(analysis).as_deref() == Some(qname)
+                        || identity.class_reports_member_key(analysis, qname)
                 })
             });
     }
@@ -1746,6 +1747,30 @@ mod tests {
         analysis.resolved_input = None;
         assert!(!lens_qname_exists(&analysis, "helper"));
         assert!(!lens_qname_exists(&analysis, "::N::helper"));
+    }
+
+    #[test]
+    fn original_class_member_reporting_keys_require_current_source_without_display_maps() {
+        let source = "oo::class create C {method foo {} {}; classmethod foo {} {}}\n";
+        let mut analysis = analyse(source);
+        analysis.all_classes.clear();
+        for class_side in [false, true] {
+            assert!(lens_qname_exists(
+                &analysis,
+                &tcl_compiler::analyser::class_member_key("::C", "foo", class_side),
+            ));
+            assert!(!lens_qname_exists(
+                &analysis,
+                &tcl_compiler::analyser::class_member_key("::Other", "foo", class_side),
+            ));
+        }
+        analysis.resolved_input = None;
+        for class_side in [false, true] {
+            assert!(!lens_qname_exists(
+                &analysis,
+                &tcl_compiler::analyser::class_member_key("::C", "foo", class_side),
+            ));
+        }
     }
 
     #[test]

@@ -608,6 +608,46 @@ impl OriginalDeclarationIdentity {
         })
     }
 
+    /// Compare presentation keys from the current original class snapshot.
+    /// A reported member need not carry a Native method identity.
+    pub(crate) fn class_reports_member_key(&self, analysis: &AnalysisResult, key: &str) -> bool {
+        if self.role != OriginalDeclarationRole::Class
+            || !self
+                .image
+                .try_text()
+                .ok()
+                .is_some_and(|source| self.is_current(self.uri(), source, analysis))
+        {
+            return false;
+        }
+        let Some(class) = self.class_metadata(analysis) else {
+            return false;
+        };
+        let owner = tcl_syntax::native_string::resident_name_label(
+            &tcl_syntax::naming::native_command_full_name_bytes(class.name().slot()),
+        );
+        let metadata = class.metadata();
+        metadata.methods.values().any(|member| {
+            !member.name_span.is_empty()
+                && tcl_compiler::analyser::class_member_key(&owner, &member.name, false) == key
+        }) || metadata.class_methods.values().any(|member| {
+            !member.name_span.is_empty()
+                && tcl_compiler::analyser::class_member_key(&owner, &member.name, true) == key
+        }) || metadata.properties.values().any(|member| {
+            !member.name_span.is_empty()
+                && tcl_compiler::analyser::class_property_key(&owner, &member.name) == key
+        }) || (metadata
+            .constructors
+            .last()
+            .is_some_and(|member| !member.name_span.is_empty())
+            && tcl_compiler::analyser::class_constructor_key(&owner) == key)
+            || (metadata
+                .destructor
+                .as_ref()
+                .is_some_and(|member| !member.name_span.is_empty())
+                && tcl_compiler::analyser::class_destructor_key(&owner) == key)
+    }
+
     /// Render only after identity selection; opaque units remain distinguishable.
     #[must_use]
     pub fn label(&self) -> String {
