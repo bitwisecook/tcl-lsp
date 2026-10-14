@@ -841,6 +841,11 @@ pub(crate) struct PendingControl {
     pub(crate) each_loop: Option<crate::exec::EachLoopReq>,
     /// Next body, handler, or `finally` phase of a `try`.
     pub(crate) try_phase: Option<crate::cmd_try::TryReq>,
+    /// How the emulated release compiles the command the invoke dispatching
+    /// now runs ([`tcl_bytecode::Instruction::release_compiled`]); a control
+    /// builtin that reads its words as that compiled command does takes it
+    /// at entry.
+    pub(crate) release_compiled: Option<tcl_bytecode::ReleaseCompiled>,
 }
 
 /// One interpreter's complete state: command table, namespaces, call frames,

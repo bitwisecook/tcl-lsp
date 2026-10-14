@@ -1267,13 +1267,23 @@ pub struct Instruction {
     /// codegen emitted the C-faithful shape but relies on the VM's
     /// activation-stack unwinding instead, so `BEGIN_CATCH4` is inert.
     pub catch_target: Option<String>,
-    /// `INVOKE_STK1`/`INVOKE_STK4` only: the word, counting the command word,
-    /// that the emulated release compiles as a script with its command (C's
-    /// `TclCompileCmdWord`, whose `INST_EVAL_STK` compiles the value whatever
-    /// it holds). The VM compiles that value in place before it invokes, so a
-    /// canonical list there is no longer one. Carried out-of-band so the
-    /// disassembly stays byte-stable.
-    pub compiled_script_word: Option<u8>,
+    /// `INVOKE_STK1`/`INVOKE_STK4` only: the emulated release compiles the
+    /// command this invoke leaves to the command at run time. Carried
+    /// out-of-band so the disassembly stays byte-stable.
+    pub release_compiled: Option<ReleaseCompiled>,
+}
+
+/// A command the emulated release's compiler compiles with its words, which
+/// the VM runs as the command does where it reads them as that compiled
+/// command would.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReleaseCompiled {
+    /// The word, counting the command word, that the release compiles as a
+    /// script with the command whatever it holds (C's `TclCompileCmdWord`,
+    /// whose `INST_EVAL_STK` compiles the value): the VM compiles that value
+    /// in place before it invokes, so a canonical list there is no longer
+    /// one.
+    pub script_word: Option<u8>,
 }
 
 impl Instruction {
@@ -1302,7 +1312,7 @@ impl Instruction {
             evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             entered_command: None,
             catch_target: None,
-            compiled_script_word: None,
+            release_compiled: None,
         }
     }
 }

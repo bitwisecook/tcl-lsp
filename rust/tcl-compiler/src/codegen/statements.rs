@@ -1112,7 +1112,7 @@ impl CodegenCtx<'_> {
                 )
             })
             .collect();
-        let compiled_script_word = self.release_compiled_script_word(cmd, &words);
+        let release_compiled = self.release_compiled(cmd, &words);
         self.emit_cmd_word(cmd, false);
         for (i, a) in args.iter().enumerate() {
             let braced = self.cmd_arg_braced.get(i).copied().unwrap_or(false);
@@ -1128,7 +1128,7 @@ impl CodegenCtx<'_> {
             Op::INVOKE_STK4
         };
         let invoke = self.emit_comment(op, vec![Operand::Imm(arg_count)], cmd);
-        self.instructions[invoke].compiled_script_word = compiled_script_word;
+        self.instructions[invoke].release_compiled = release_compiled;
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
     }

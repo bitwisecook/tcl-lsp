@@ -70,6 +70,11 @@ struct Handler {
 struct TryPlan {
     handlers: Vec<Handler>,
     finally: Option<Value>,
+    /// The release compiles this `try` (`TclCompileTryCmd`), whose matched
+    /// clause binds its own variables before a `-` script falls through,
+    /// where the command (`TryPostBody`) binds those of the clause whose
+    /// script runs.
+    compiled: bool,
 }
 
 /// Which phase of a `try` an explicit-stack activation is running, and the
@@ -293,6 +298,7 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
 /// `Vm::unwind` fold.
 fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     const USAGE: &str = "wrong # args: should be \"try body ?handler ...? ?finally script?\"";
+    let compiled = vm.pending.release_compiled.take().is_some();
     let Some((body, rest)) = args.split_first() else {
         return err(USAGE);
     };
@@ -300,7 +306,11 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(parsed) => parsed,
         Err(e) => return e,
     };
-    let plan = Rc::new(TryPlan { handlers, finally });
+    let plan = Rc::new(TryPlan {
+        handlers,
+        finally,
+        compiled,
+    });
     match vm.prepare_script_commands_as(
         &body.to_str(),
         crate::value::script_evaluation(std::slice::from_ref(body)),
@@ -392,7 +402,13 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
     while plan.handlers[b].is_dash {
         b += 1; // guaranteed to terminate (the last body is not `-`)
     }
-    match bind_handler_vars(vm, &plan.handlers[b].vars, &body_comp.result, &body_opts) {
+    let binding = if plan.compiled { m } else { b };
+    match bind_handler_vars(
+        vm,
+        &plan.handlers[binding].vars,
+        &body_comp.result,
+        &body_opts,
+    ) {
         Ok(()) => {
             // The body's exception is now handled: publish `errorInfo`/
             // `errorCode` (so the handler reads the body's error) and reset the

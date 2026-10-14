@@ -862,7 +862,7 @@ impl CodegenCtx<'_> {
             .iter()
             .map(|(arg, braced)| (arg.as_str(), *braced))
             .collect();
-        let compiled_script_word = self.release_compiled_script_word(cmd, &words);
+        let release_compiled = self.release_compiled(cmd, &words);
         // The command name itself may be a substitution (`$Verify($opt) ...`,
         // `[lookup] ...`), so it is emitted through the same per-word path as
         // the arguments rather than as a bare literal.
@@ -877,7 +877,7 @@ impl CodegenCtx<'_> {
             Op::INVOKE_STK4
         };
         let invoke = self.emit(op, vec![Operand::Imm(arg_count)]);
-        self.instructions[invoke].compiled_script_word = compiled_script_word;
+        self.instructions[invoke].release_compiled = release_compiled;
         // Resolve the literal head when it is pushed, before any argument word
         // can substitute, and keep it until this generic invoke.
         self.retain_entered_command(body_start, entered_binding);

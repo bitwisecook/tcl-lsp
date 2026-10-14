@@ -4098,13 +4098,17 @@ impl Vm {
                 }
                 let words = f.stack.split_off(f.stack.len() - argc);
                 if let Some(word) = instr
-                    .compiled_script_word
+                    .release_compiled
+                    .and_then(|compiled| compiled.script_word)
                     .and_then(|index| words.get(usize::from(index)))
                 {
                     word.compile_as_script();
                 }
                 let entered = f.take_entered_command();
-                match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
+                self.pending.release_compiled = instr.release_compiled;
+                let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
+                self.pending.release_compiled = None;
+                match dispatched {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
                     Err(c) => {
@@ -4163,6 +4167,7 @@ impl Vm {
                     }
                 } else {
                     let entered = f.take_entered_command();
+                    self.pending.release_compiled = None;
                     match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
                         Ok(Some(call)) => return call,
                         Ok(None) => {}
@@ -4208,6 +4213,7 @@ impl Vm {
                 if opnd < words.len() {
                     rewritten.extend_from_slice(&words[opnd..]);
                 }
+                self.pending.release_compiled = None;
                 match self.dispatch_words_with_entered(f, &rewritten, None) {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}

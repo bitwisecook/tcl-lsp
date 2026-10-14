@@ -207,24 +207,27 @@ struct DictMapPatch {
 }
 
 impl CodegenCtx<'_> {
-    /// The word of a generic invocation of `command` that the release compiles
-    /// as a script with the command, counting the command word: the script
-    /// word C's `TclCompileCatchCmd`, `TclCompileTryCmd` or `TclCompileForCmd`
-    /// compiles through `TclCompileCmdWord` when it is not one literal, whose
-    /// `INST_EVAL_STK` compiles the value whatever it holds. Measured on
-    /// tclsh 8.6.18, where a canonical list a command evaluates directly reads
-    /// a literal index apart: `catch $b r`, `try $b` and `for $b {0} {} {}` in
-    /// a procedure compile `$b`, `lmap x {1} $b` or `catch $b ::r` does not.
+    /// How the release compiles a generic invocation of `command` it compiles
+    /// where the VM leaves the command to run, following C's
+    /// `TclCompileCatchCmd`, `TclCompileTryCmd` and `TclCompileForCmd`. Their
+    /// script word, when it is not one literal, compiles through
+    /// `TclCompileCmdWord`, whose `INST_EVAL_STK` compiles the value whatever
+    /// it holds, and a compiled `try` binds the variables of the clause that
+    /// matched where the command binds those of the clause whose script runs.
+    /// Measured on tclsh 8.6.18, where a canonical list a command evaluates
+    /// directly reads a literal index apart: `catch $b r`, `try $b` and
+    /// `for $b {0} {} {}` in a procedure compile `$b`, `lmap x {1} $b` or
+    /// `catch $b ::r` does not.
     ///
     /// The release compiles none of these in a command it evaluates directly,
     /// and binds a handler or result variable only to a local of a procedure
     /// body; a script `eval` compiles in a procedure frame can bind one of the
     /// procedure's existing locals, which this compile cannot see.
-    pub(crate) fn release_compiled_script_word(
+    pub(crate) fn release_compiled(
         &mut self,
         command: &str,
         args: &[(&str, bool)],
-    ) -> Option<u8> {
+    ) -> Option<tcl_bytecode::ReleaseCompiled> {
         if self.plain_command_dispatch || self.in_direct_command() {
             return None;
         }
@@ -247,8 +250,8 @@ impl CodegenCtx<'_> {
             LoweringHookId::Catch => self.release_compiles_catch(&words),
             LoweringHookId::Try => self.release_compiles_try(command, &words, &arg_refs),
             LoweringHookId::For => {
-                matches!(words.as_slice(), [start, test, next, body]
-                    if !start.simple() && test.simple() && next.simple() && body.simple())
+                matches!(words.as_slice(), [_, test, next, body]
+                    if test.simple() && next.simple() && body.simple())
             }
             _ => false,
         };
@@ -256,17 +259,21 @@ impl CodegenCtx<'_> {
             return None;
         }
         self.require_command_binding(&binding);
-        Some(1)
+        Some(tcl_bytecode::ReleaseCompiled {
+            script_word: words
+                .first()
+                .is_some_and(|script| !script.simple())
+                .then_some(1),
+        })
     }
 
     /// `TclCompileCatchCmd`: a result or options variable needs a procedure
     /// local.
     fn release_compiles_catch(&self, words: &[ReleaseWord<'_>]) -> bool {
-        let Some((body, vars)) = words.split_first() else {
+        let Some((_, vars)) = words.split_first() else {
             return false;
         };
-        !body.simple()
-            && vars.len() <= 2
+        vars.len() <= 2
             && (vars.is_empty()
                 || (self.compiles_locals()
                     && vars
@@ -292,9 +299,6 @@ impl CodegenCtx<'_> {
             return false;
         };
         let word = |index: usize| words.get(index).copied();
-        if word(invocation.body_index).is_none_or(ReleaseWord::simple) {
-            return false;
-        }
         invocation.clauses.iter().all(|clause| {
             let body = word(clause.body_index).is_some_and(ReleaseWord::simple);
             if clause.kind == TryClauseKind::Finally {
@@ -1934,8 +1938,11 @@ mod tests {
     #[test]
     fn the_release_compiles_a_substituted_catch_try_or_for_script_word() {
         let registry = CommandRegistry::build_default();
+        let compiled = |is_proc: bool, command: &str, args: &[(&str, bool)]| {
+            CodegenCtx::new(is_proc, &[], &registry).release_compiled(command, args)
+        };
         let word = |is_proc: bool, command: &str, args: &[(&str, bool)]| {
-            CodegenCtx::new(is_proc, &[], &registry).release_compiled_script_word(command, args)
+            compiled(is_proc, command, args).and_then(|compiled| compiled.script_word)
         };
         let b = ("$b", false);
         let handler = [("on", false), ("ok", false), ("r", true), ("set r", true)];
@@ -1996,6 +2003,26 @@ mod tests {
         assert_eq!(word(true, "for", &[b, ("0", true), ("", true), b]), None);
         assert_eq!(word(true, "lmap", &[("x", false), ("1", true), b]), None);
         assert_eq!(word(true, "eval", &[b]), None);
+
+        // A compiled `try` binds its matched clause's variables whatever its
+        // body: `try {set x 1} on ok {r} - on error {e} {…}` in a procedure.
+        let falls_through = [
+            ("set x 1", true),
+            ("on", false),
+            ("ok", false),
+            ("r", true),
+            ("-", false),
+            ("on", false),
+            ("error", false),
+            ("e", true),
+            ("list $r", true),
+        ];
+        let literal = Some(tcl_bytecode::ReleaseCompiled { script_word: None });
+        assert_eq!(compiled(true, "try", &falls_through), literal);
+        assert_eq!(compiled(false, "try", &falls_through), None);
+        let mut dynamic = falls_through;
+        dynamic[8] = ("$h", false);
+        assert_eq!(compiled(true, "try", &dynamic), None);
     }
 
     #[test]
