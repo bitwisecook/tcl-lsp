@@ -46,15 +46,15 @@
 //! boundary is immediate, which is what `Tcl_DecrRefCount` documents.
 
 mod native_jim_lookup;
+pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 pub(crate) use native_jim_lookup::{
     install_command_cache_with_stage_check as install_jim_command_cache_with_stage_check,
     install_variable_cache_with_stage_check as install_jim_variable_cache_with_stage_check,
     with_command_cache as with_jim_command_cache, with_variable_cache as with_jim_variable_cache,
 };
-pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 
 use core::ffi::{c_char, c_void};
-use std::alloc::{alloc, dealloc, realloc, Layout};
+use std::alloc::{Layout, alloc, dealloc, realloc};
 use std::{
     any::Any,
     cell::{Cell, RefCell},
@@ -328,6 +328,7 @@ impl NativePrimaryReceipt {
         purpose: &'static str,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         check_native_liveness(value)?;
+        self.header.checked_ptr()?;
         if self.header.as_ptr() != value
             || auxiliary(value).primary_epoch.get() != Some(self.epoch)
             || obj_type_ptr(value) != self.kind
@@ -629,6 +630,7 @@ struct ObjectAllocation {
 }
 struct ObjectAuxiliary {
     lifetime_pins: Cell<usize>,
+    incarnation: RefCell<tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation>,
     live: Cell<bool>,
     retiring: Cell<bool>,
     primary_epoch: Cell<Option<u64>>,
@@ -769,10 +771,25 @@ pub(crate) fn check_native_liveness(
 /// Memory safety lease with no native object reference. A native decr-to-zero
 /// still retires the cache and its children immediately while this holds only
 /// the allocation. A retired object cannot be promoted back into a native owner.
-pub(crate) struct NativeObjectLifetime(*mut TclObj);
+pub(crate) struct NativeObjectLifetime {
+    pointer: *mut TclObj,
+    incarnation: tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation,
+}
 impl NativeObjectLifetime {
     pub(crate) fn as_ptr(&self) -> *mut TclObj {
-        self.0
+        self.pointer
+    }
+    pub(crate) fn checked_ptr(&self) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+        check_native_liveness(self.pointer)?;
+        if !self
+            .incarnation
+            .same_as(&auxiliary(self.pointer).incarnation.borrow())
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original object allocation incarnation",
+            ));
+        }
+        Ok(self.pointer)
     }
     pub(crate) fn retain(value: *mut TclObj) -> Self {
         let state = auxiliary(value);
@@ -784,12 +801,15 @@ impl NativeObjectLifetime {
                 .checked_add(1)
                 .expect("object lifetime pins"),
         );
-        Self(value)
+        Self {
+            pointer: value,
+            incarnation: state.incarnation.borrow().clone(),
+        }
     }
 }
 impl Clone for NativeObjectLifetime {
     fn clone(&self) -> Self {
-        let state = auxiliary(self.0);
+        let state = auxiliary(self.pointer);
         state.lifetime_pins.set(
             state
                 .lifetime_pins
@@ -797,7 +817,10 @@ impl Clone for NativeObjectLifetime {
                 .checked_add(1)
                 .expect("object lifetime pins"),
         );
-        Self(self.0)
+        Self {
+            pointer: self.pointer,
+            incarnation: self.incarnation.clone(),
+        }
     }
 }
 
@@ -820,15 +843,16 @@ impl ProcedureObject {
     /// performing a native operation.
     #[must_use]
     pub fn as_ptr(&self) -> *mut TclObj {
-        self.0 .0
+        self.0.as_ptr()
     }
     /// Select a live original header without acquiring a native reference.
     pub(crate) fn checked_ptr(&self) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
-        allocation_is_live(self.as_ptr())
-            .then_some(self.as_ptr())
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+        if !allocation_is_live(self.as_ptr()) {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "retired native procedure object",
-            ))
+            ));
+        }
+        self.0.checked_ptr()
     }
 }
 impl ObjectPointer for ProcedureObject {
@@ -838,7 +862,7 @@ impl ObjectPointer for ProcedureObject {
 }
 impl Drop for NativeObjectLifetime {
     fn drop(&mut self) {
-        let state = auxiliary(self.0);
+        let state = auxiliary(self.pointer);
         let remaining = state
             .lifetime_pins
             .get()
@@ -848,7 +872,7 @@ impl Drop for NativeObjectLifetime {
         if remaining == 0 && !state.live.get() && !state.retiring.get() {
             // SAFETY: all native resources were retired at the actual free
             // boundary, and this is the last memory safety owner.
-            unsafe { deallocate_object(self.0) };
+            unsafe { deallocate_object(self.pointer) };
         }
     }
 }
@@ -992,6 +1016,9 @@ fn obj_alloc() -> *mut TclObj {
             core::ptr::addr_of_mut!((*p.cast::<ObjectAllocation>()).auxiliary),
             ObjectAuxiliary {
                 lifetime_pins: Cell::new(0),
+                incarnation: RefCell::new(
+                    tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation::fresh(),
+                ),
                 live: Cell::new(true),
                 retiring: Cell::new(false),
                 primary_epoch: Cell::new(Some(0)),

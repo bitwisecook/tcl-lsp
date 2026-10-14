@@ -33,6 +33,8 @@ pub use original_linked_member::{
 };
 mod logical_procedures;
 pub use logical_procedures::LogicalSourceProcedureDeclaration;
+mod logical_object_members;
+pub use logical_object_members::{LogicalSourceObjectMemberState, LogicalSourceObjectMembers};
 mod logical_members;
 pub use logical_members::{
     LogicalSourceClassDeclaration, LogicalSourceMemberDeclaration, LogicalSourceMemberInsertion,
@@ -868,6 +870,8 @@ pub struct ObjectMethodDef {
 /// consumers (definition, completion) and the `oo::objdefine` W315 need.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ObjectMemberState {
+    /// Independently selected Logical source names and visibility masks.
+    pub logical_source_members: Option<LogicalSourceObjectMemberState>,
     /// The object's own member table after every walked block: declared
     /// methods, minus retractions, with renames applied — each entry
     /// carrying its effective visibility.

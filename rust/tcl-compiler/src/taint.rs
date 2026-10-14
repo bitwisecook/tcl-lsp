@@ -12308,7 +12308,7 @@ mod tests {
 
         /// The array root and its substituted index are separate dependencies.
         #[test]
-        fn disagree_on_var_nested_in_array_index() {
+        fn agree_on_var_nested_in_array_index() {
             let registry = CommandRegistry::build_default();
             assert_eq!(
                 arg_var_names("$arr($cmd)", tcl_dialect::BracedVarStyle::default()),
@@ -12319,8 +12319,8 @@ mod tests {
                 crate::var_refs::vars_in_word("$arr($cmd)", &registry)
                     .into_iter()
                     .collect::<HashSet<_>>(),
-                HashSet::from(["arr".to_owned()]),
-                "vars_in_word does not recurse into the array index — documented gap"
+                HashSet::from(["arr".to_owned(), "cmd".to_owned()]),
+                "the shared inventory includes the substituted index dependency"
             );
         }
 

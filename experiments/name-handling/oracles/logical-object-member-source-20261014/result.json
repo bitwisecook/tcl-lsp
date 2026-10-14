@@ -1,0 +1,77 @@
+{
+  "scope": "Actual unmodified provider original TclOO name/receiver/mask data; unsupported records no TclOO conformance; no Tcltest used",
+  "providers": [
+    {
+      "provider": "c84",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_before_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "binary_after_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "source_sha256": "cf2bcac0df727911a431cd433fa30e727f0ce0c2e2fe9c453a7214eaa24a298b",
+      "exit_code": 0,
+      "elapsed_seconds": 0.003,
+      "stdout_sha256": "74d88aa8cddf741233d8ad585b995ae1faa2bb01a4d418bb6433142800a1bf7f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "supported": false
+    },
+    {
+      "provider": "c85",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_before_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "binary_after_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "source_sha256": "cf2bcac0df727911a431cd433fa30e727f0ce0c2e2fe9c453a7214eaa24a298b",
+      "exit_code": 0,
+      "elapsed_seconds": 0.004,
+      "stdout_sha256": "74d88aa8cddf741233d8ad585b995ae1faa2bb01a4d418bb6433142800a1bf7f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "supported": false
+    },
+    {
+      "provider": "c86",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_before_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "binary_after_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "source_sha256": "cf2bcac0df727911a431cd433fa30e727f0ce0c2e2fe9c453a7214eaa24a298b",
+      "exit_code": 0,
+      "elapsed_seconds": 0.005,
+      "stdout_sha256": "0299cc6c1c008fc7d2133a9daa7d06bb3610c725c2105c890e5601d942975ce7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "supported": true
+    },
+    {
+      "provider": "c90",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_before_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "binary_after_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "source_sha256": "cf2bcac0df727911a431cd433fa30e727f0ce0c2e2fe9c453a7214eaa24a298b",
+      "exit_code": 0,
+      "elapsed_seconds": 0.009,
+      "stdout_sha256": "0299cc6c1c008fc7d2133a9daa7d06bb3610c725c2105c890e5601d942975ce7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "supported": true
+    },
+    {
+      "provider": "c91",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_before_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "binary_after_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "source_sha256": "cf2bcac0df727911a431cd433fa30e727f0ce0c2e2fe9c453a7214eaa24a298b",
+      "exit_code": 0,
+      "elapsed_seconds": 0.009,
+      "stdout_sha256": "0299cc6c1c008fc7d2133a9daa7d06bb3610c725c2105c890e5601d942975ce7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "supported": true
+    },
+    {
+      "provider": "jim",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_before_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "binary_after_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "source_sha256": "cf2bcac0df727911a431cd433fa30e727f0ce0c2e2fe9c453a7214eaa24a298b",
+      "exit_code": 0,
+      "elapsed_seconds": 0.004,
+      "stdout_sha256": "74d88aa8cddf741233d8ad585b995ae1faa2bb01a4d418bb6433142800a1bf7f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "supported": false
+    }
+  ]
+}

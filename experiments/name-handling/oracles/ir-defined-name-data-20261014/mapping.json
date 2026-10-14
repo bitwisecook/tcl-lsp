@@ -1,0 +1,5 @@
+{
+  "purpose": "IR typed destination/list-element names are data; $iterator/${iterator}/empty names are distinct from iterator, braced arr($index) retains literal index",
+  "scope": "Six unchanged direct providers, no Native/Normal/cell/SSA/F5 acceptance",
+  "rust_selector": "ir_helpers::tests::ir_destination_inventory_keeps_literal_data_and_refuses_computed_names"
+}

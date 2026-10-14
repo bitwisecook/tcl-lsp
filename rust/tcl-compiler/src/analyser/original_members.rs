@@ -391,6 +391,7 @@ impl Analyser {
         scope_path: &[usize],
     ) {
         self.retain_logical_member_name_operand(grammar, command, class);
+        self.retain_logical_member_visibility_operands(grammar, command, class);
         let Some(policy) = self.declaration_name_policy() else {
             class.original_members.withdraw();
             class.original_relations.withdraw();

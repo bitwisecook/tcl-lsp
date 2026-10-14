@@ -1285,33 +1285,79 @@ impl Analyser {
         bodies
     }
 
+    fn original_logical_member_words<'a>(
+        &self,
+        grammar: &'a DefinitionBodyGrammar,
+        cmd: &'a crate::segmenter::SegmentedCommand,
+    ) -> Option<(
+        MemberStatement<'a>,
+        super::ResolvedAnalysisInput,
+        Vec<tcl_lexer::NativeWord>,
+    )> {
+        if !self.selected_logical_declaration_advice() || cmd.is_partial {
+            return None;
+        }
+        let input = self.resolved_analysis_input();
+        let image = self
+            .result
+            .retained_command_realm()
+            .filter(|realm| realm.matches_resolved_analysis_input(&input))
+            .and_then(|realm| realm.original_source_image())
+            .filter(|image| image.bytes() == self.source.as_bytes())?;
+        let config = self.file_lexer_config().nested();
+        if config != input.lexer_config().nested() {
+            return None;
+        }
+        let context = self.analysis_context();
+        let statement = MemberStatement::read(
+            grammar,
+            &cmd.texts,
+            &cmd.argv,
+            Some(context.context().authoring_query()),
+        )?;
+        let groups = tcl_lexer::group_commands_bytes(&cmd.all_tokens, image.bytes(), config);
+        let [group] = groups.as_slice() else {
+            return None;
+        };
+        if group.words.len() != cmd.argv.len() || group.words.iter().any(|word| word.expand) {
+            return None;
+        }
+        let words = group
+            .words
+            .iter()
+            .map(|group| {
+                tcl_lexer::NativeWord::from_group(image.clone(), config, &cmd.all_tokens, group)
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .ok()?;
+        if !words.iter().zip(&cmd.argv).all(|(word, token)| {
+            word.group().span == token.span
+                && word.tokens().first().is_some_and(|original| {
+                    original.kind == token.kind
+                        && original.content_offset == token.content_offset
+                        && original.in_quote == token.in_quote
+                })
+        }) || words[..=statement.row.keyword_index]
+            .iter()
+            .zip(&cmd.texts)
+            .any(|(word, text)| {
+                tcl_syntax::word_rules::original_static_word_ascii_presentation(word).as_deref()
+                    != Some(text.as_bytes())
+            })
+        {
+            return None;
+        }
+        Some((statement, input, words))
+    }
+
     pub(super) fn retain_logical_member_name_operand(
         &self,
         grammar: &DefinitionBodyGrammar,
         cmd: &crate::segmenter::SegmentedCommand,
         class: &mut ClassDef,
     ) {
-        if !self.selected_logical_declaration_advice() || cmd.is_partial {
-            return;
-        }
-        let input = self.resolved_analysis_input();
-        let Some(image) = self
-            .result
-            .retained_command_realm()
-            .filter(|realm| realm.matches_resolved_analysis_input(&input))
-            .and_then(|realm| realm.original_source_image())
-            .filter(|image| image.bytes() == self.source.as_bytes())
+        let Some((statement, input, words)) = self.original_logical_member_words(grammar, cmd)
         else {
-            return;
-        };
-        let config = self.file_lexer_config().nested();
-        let context = self.analysis_context();
-        let Some(statement) = MemberStatement::read(
-            grammar,
-            &cmd.texts,
-            &cmd.argv,
-            Some(context.context().authoring_query()),
-        ) else {
             return;
         };
         let MemberEffect::Callable {
@@ -1328,7 +1374,7 @@ impl Analyser {
         ) else {
             return;
         };
-        let name_ordinal = statement.row.keyword_index + 1 + usize::from(name_slot);
+        let context = self.analysis_context();
         let surface = Some(context.context().authoring_query());
         let mut names =
             statement
@@ -1345,44 +1391,10 @@ impl Analyser {
                 .map(|index| statement.row.keyword_index + 1 + index)
                 != Some(body.0)
             || bodies.next().is_some()
-            || config != input.lexer_config().nested()
         {
             return;
         }
-        let groups = tcl_lexer::group_commands_bytes(&cmd.all_tokens, image.bytes(), config);
-        let [group] = groups.as_slice() else {
-            return;
-        };
-        if group.words.len() != cmd.argv.len() || group.words.iter().any(|word| word.expand) {
-            return;
-        }
-        let Ok(words) = group
-            .words
-            .iter()
-            .map(|group| {
-                tcl_lexer::NativeWord::from_group(image.clone(), config, &cmd.all_tokens, group)
-            })
-            .collect::<Result<Vec<_>, _>>()
-        else {
-            return;
-        };
-        if !words.iter().zip(&cmd.argv).all(|(word, token)| {
-            word.group().span == token.span
-                && word.tokens().first().is_some_and(|original| {
-                    original.kind == token.kind
-                        && original.content_offset == token.content_offset
-                        && original.in_quote == token.in_quote
-                })
-        }) || words[..=statement.row.keyword_index]
-            .iter()
-            .zip(&cmd.texts)
-            .any(|(word, text)| {
-                tcl_syntax::word_rules::original_static_word_ascii_presentation(word).as_deref()
-                    != Some(text.as_bytes())
-            })
-        {
-            return;
-        }
+        let name_ordinal = statement.row.keyword_index + 1 + usize::from(name_slot);
         let Some(word) = words.get(name_ordinal) else {
             return;
         };
@@ -1403,6 +1415,51 @@ impl Analyser {
             side,
             (name_token.span, body_token.span),
         );
+    }
+
+    pub(super) fn retain_logical_member_visibility_operands(
+        &self,
+        grammar: &DefinitionBodyGrammar,
+        cmd: &crate::segmenter::SegmentedCommand,
+        class: &mut ClassDef,
+    ) {
+        let Some((statement, input, words)) = self.original_logical_member_words(grammar, cmd)
+        else {
+            return;
+        };
+        if statement.row.effect != MemberEffect::Visibility
+            || statement.member.all_args_ref != Some(MemberRefKind::Method)
+        {
+            return;
+        }
+        let (Some(side), Some(effect)) = (
+            member_side(statement.row.receiver),
+            statement.member.visibility_effect,
+        ) else {
+            return;
+        };
+        let first = statement.row.keyword_index + 1;
+        if words[first..]
+            .iter()
+            .zip(statement.args())
+            .any(|(word, name)| {
+                name.as_bytes().contains(&0)
+                    || tcl_syntax::word_rules::original_static_word_ascii_presentation(word)
+                        .as_deref()
+                        != Some(name.as_bytes())
+            })
+        {
+            return;
+        }
+        for ordinal in first..words.len() {
+            class.original_members.retain_logical_visibility_operand(
+                input.clone(),
+                words.clone(),
+                ordinal,
+                side,
+                effect,
+            );
+        }
     }
 
     /// Selected source-member formal applicability and exact authored ordinals.

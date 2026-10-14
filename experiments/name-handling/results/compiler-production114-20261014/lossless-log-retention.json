@@ -1,0 +1,34 @@
+[
+  {
+    "original_log": "test-92.log.gz",
+    "original_gzip_sha256": "d7756f7af98c4f863a3ea85889e1c9491453a644dbf5c90f5d6e91a185b10c50",
+    "retained_log": "test-92.log.xz",
+    "retained_xz_sha256": "0bc5017df6cecd7d74fe3d1d4a7fb58a955a7c6f2fb1994d97c82f094f566bd4",
+    "raw_bytes": 25844527,
+    "raw_sha256": "deac3e00774a99b217f6ed8bd1214378594204b5e3c1beeef2a3c8501453b9cd"
+  },
+  {
+    "original_log": "test-87.log.gz",
+    "original_gzip_sha256": "739862242952c1bbb3561cd9246ea3255d8a7e4c9ffa18c232fec2bda0de60ce",
+    "retained_log": "test-87.log.xz",
+    "retained_xz_sha256": "9ab53fadb62aaf1e27b76aea58d1b18fc0b3b9d7c29a5f1ceb745eeea1666b10",
+    "raw_bytes": 885184233,
+    "raw_sha256": "ef9fdd2822683e7187105f347d786549b7714e9c64aa9c2ee18d12c7a34bc917"
+  },
+  {
+    "original_log": "test-86.log.gz",
+    "original_gzip_sha256": "b13680f50fdfb6e63914cc0b1a54bb2f893574173687b6fc43de0ba06d77e784",
+    "retained_log": "test-86.log.xz",
+    "retained_xz_sha256": "29fe8e547fca8b9a1347904a5dc5a7cdba03c55bb817ddd91c00906e6722ae23",
+    "raw_bytes": 1536007999,
+    "raw_sha256": "4c0b4ad929e16c5f939fef9a6baff9710ccf65ebb874f7dcd1521f7ab6525ae2"
+  },
+  {
+    "original_log": "test-84.log.gz",
+    "original_gzip_sha256": "4c66c3c97f9230e160e460277d3a92a71d8d4e856249ce7699793ea39e2142cc",
+    "retained_log": "test-84.log.xz",
+    "retained_xz_sha256": "b925ec23ec6ca12f91721cb0d7cb4ff94bc043729e93055e00996ef106b62be8",
+    "raw_bytes": 1604190505,
+    "raw_sha256": "cc3cea7603a094fc23ea83025a7e45f8ef50ffa23c1e7249321b97f37694fe99"
+  }
+]

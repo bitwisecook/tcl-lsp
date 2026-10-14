@@ -1,0 +1,4 @@
+provider 0.84-9-g5bac7c9
+indexed_values FIRST SECOND
+missing_index 1 {can't read "cmd": no such variable}
+missing_array 1 {can't read "arr": no such variable}

@@ -3848,7 +3848,9 @@ pub(crate) fn nested_writes(
                 out.extend(names.names);
             } else if statement.is_executable_invocation() && statement.synthetic_marker().is_none()
             {
-                opaque = true;
+                opaque |= !crate::ir_helpers::standalone_typed_statement_writes_are_covered(
+                    script, statement, registry,
+                );
             }
             for body in statement.child_scripts() {
                 pending.push((body, depth + 1));

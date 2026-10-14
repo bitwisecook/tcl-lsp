@@ -379,12 +379,22 @@ struct LogicalSourceMemberNameOperand {
     body_span: tcl_lexer::Span,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LogicalSourceMemberVisibilityOperand {
+    input: crate::analyser::ResolvedAnalysisInput,
+    words: Vec<tcl_lexer::NativeWord>,
+    ordinal: usize,
+    side: MemberSide,
+    effect: tcl_registry::definer::MemberVisibility,
+}
+
 /// Ordered original member metadata. Unknown/computed input remains an
 /// explicit coverage gap; the compatibility String table supplies no names.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OriginalSourceMemberLedger {
     operations: Vec<Operation>,
     logical_names: Vec<LogicalSourceMemberNameOperand>,
+    logical_visibility: Vec<LogicalSourceMemberVisibilityOperand>,
     unavailable: bool,
 }
 
@@ -434,6 +444,61 @@ impl OriginalSourceMemberLedger {
         selected.words.get(selected.name_ordinal)
     }
 
+    pub(crate) fn retain_logical_visibility_operand(
+        &mut self,
+        input: crate::analyser::ResolvedAnalysisInput,
+        words: Vec<tcl_lexer::NativeWord>,
+        ordinal: usize,
+        side: MemberSide,
+        effect: tcl_registry::definer::MemberVisibility,
+    ) {
+        self.logical_visibility
+            .push(LogicalSourceMemberVisibilityOperand {
+                input,
+                words,
+                ordinal,
+                side,
+                effect,
+            });
+    }
+
+    pub(crate) fn logical_visibility_name(
+        &self,
+        name: &str,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<tcl_registry::definer::MemberVisibility> {
+        if name.as_bytes().contains(&0) {
+            return None;
+        }
+        let matching = self
+            .logical_visibility
+            .iter()
+            .filter(|entry| {
+                entry.input == *input
+                    && entry.side == MemberSide::Instance
+                    && entry.words.iter().all(|word| {
+                        word.image() == image && word.config() == input.lexer_config().nested()
+                    })
+                    && entry.words.get(entry.ordinal).is_some_and(|word| {
+                        tcl_syntax::word_rules::original_static_word_ascii_presentation(word)
+                            .as_deref()
+                            == Some(name.as_bytes())
+                    })
+            })
+            .collect::<Vec<_>>();
+        let last = matching
+            .iter()
+            .map(|entry| entry.words[entry.ordinal].span().start())
+            .max()?;
+        let mut effects = matching
+            .into_iter()
+            .filter(|entry| entry.words[entry.ordinal].span().start() == last)
+            .map(|entry| entry.effect);
+        let selected = effects.next()?;
+        effects.all(|effect| effect == selected).then_some(selected)
+    }
+
     pub(crate) fn withdraw(&mut self) {
         self.unavailable = true;
     }
@@ -446,6 +511,11 @@ impl OriginalSourceMemberLedger {
     }
     pub(crate) fn absorb(&mut self, other: &Self, other_ran_second: bool) {
         self.unavailable |= other.unavailable;
+        for visibility in &other.logical_visibility {
+            if !self.logical_visibility.contains(visibility) {
+                self.logical_visibility.push(visibility.clone());
+            }
+        }
         for name in &other.logical_names {
             if !self.logical_names.contains(name) {
                 self.logical_names.push(name.clone());

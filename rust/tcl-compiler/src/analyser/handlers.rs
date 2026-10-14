@@ -6477,16 +6477,17 @@ impl Analyser {
         }
         let (obj_name, resolved_obj) =
             self.oo_objdefine_receiver(args, arg_tokens, arg_single, scope_path);
-        if !obj_name.is_empty() {
-            self.objdefined_vars.insert(obj_name.clone());
+        if let Some(name) = &obj_name {
+            self.objdefined_vars.insert(name.clone());
         }
         // A receiver that resolves to no static name (`$objs($i)`, `[pick]`)
         // may define members on *any* object, so the per-object W315 gates
         // abstain file-wide.
-        if (obj_name.is_empty() || crate::naming::is_dynamic_word(&obj_name))
-            && resolved_obj.is_none()
-        {
+        if obj_name.is_none() && resolved_obj.is_none() {
             self.objdefine_unresolved_receiver = true;
+            for state in self.result.object_member_state.values_mut().flatten() {
+                state.logical_source_members = None;
+            }
         }
 
         // `oo::objdefine $obj` with no definition script — the object variable
@@ -6503,13 +6504,12 @@ impl Analyser {
         // under a private synthetic name (`@objdefine@…`, unrepresentable in
         // real Tcl) so a per-object `greet` never collides with the same-named
         // class method in the duplicate detector or the scope-name key.
-        let synthetic = if obj_name.is_empty() {
-            "::@objdefine@".to_string()
-        } else {
-            format!("::@objdefine@::{obj_name}")
-        };
+        let synthetic = obj_name.as_ref().map_or_else(
+            || "::@objdefine@".to_string(),
+            |name| format!("::@objdefine@::{name}"),
+        );
         let mut object_class = super::types::ClassDef {
-            name: obj_name.clone(),
+            name: obj_name.clone().unwrap_or_default(),
             qualified_name: synthetic,
             ..Default::default()
         };
@@ -6518,13 +6518,10 @@ impl Analyser {
         // block belongs to: the innermost proc/method frame is
         // the walk-time spelling of the binding identity consumers re-derive
         // from `ObjectMemberState::anchor_offset`.
-        let keys: Vec<String> = [
-            Some(obj_name.clone()).filter(|k| !k.is_empty()),
-            resolved_obj.clone(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        let keys: Vec<String> = [obj_name.clone(), resolved_obj.clone()]
+            .into_iter()
+            .flatten()
+            .collect();
         let frame = self.innermost_frame_extent(scope_path);
         let objdefine_offset = arg_tokens.first().map_or(0, |t| t.span.start());
         // Seed the holder with the binding's accumulated per-object table, so
@@ -6538,6 +6535,17 @@ impl Analyser {
             .map(|st| (st.methods.clone(), st.conditional))
             .unwrap_or_default();
         object_class.methods = seed;
+        if let Some(source) = self.logical_object_member_source_input()
+            && let Some(previous) = keys
+                .first()
+                .and_then(|key| self.objdefine_binding_state(key, frame))
+            && let Some(owner) = previous.logical_source_members.as_ref()
+            && owner.matches_state(previous, &source.0, &source.1)
+        {
+            object_class
+                .original_members
+                .absorb(owner.original_members(), true);
+        }
 
         self.walk_oo_objdefine_form(args, arg_tokens, scope_path, &mut object_class);
 
@@ -6574,23 +6582,59 @@ impl Analyser {
         arg_tokens: &[Token],
         arg_single: &[bool],
         scope_path: &[usize],
-    ) -> (String, Option<String>) {
-        let mut written = args[0].trim().to_string();
-        if let Some(stripped) = written.strip_prefix('$') {
-            written = stripped.trim_matches(|c| c == '{' || c == '}').to_string();
+    ) -> (Option<String>, Option<String>) {
+        let Some(token) = arg_tokens.first() else {
+            return (None, None);
+        };
+        let config = self.file_lexer_config();
+        let Some(realm) = self.result.retained_command_realm() else {
+            return (None, None);
+        };
+        let Some(image) = realm
+            .original_source_image()
+            .filter(|image| image.bytes() == self.source.as_bytes())
+        else {
+            return (None, None);
+        };
+        let Some((word, _)) =
+            realm.original_written_word_at_span_in_source(image, token.span, config)
+        else {
+            return (None, None);
+        };
+        if let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(&word) {
+            if self.selected_logical_declaration_advice() && value.contains(&0) {
+                return (None, None);
+            }
+            return (String::from_utf8(value).ok(), None);
+        }
+        let arena = word.executable_parts();
+        let [part] = arena.list(arena.root()) else {
+            return (None, None);
+        };
+        let tcl_lexer::ExecutablePart::Variable { name, index: None } = part.part else {
+            return (None, None);
+        };
+        let Some(written) = arena
+            .bytes(name)
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .map(str::to_owned)
+        else {
+            return (None, None);
+        };
+        if self.selected_logical_declaration_advice() && written.as_bytes().contains(&0) {
+            return (None, None);
         }
         let resolved = self
             .resolve_dynamic_word(
                 &args[0],
-                arg_tokens.first().copied(),
+                Some(*token),
                 arg_single.first().copied().unwrap_or(false),
                 scope_path,
             )
-            .map(|name| name.trim().to_string())
             .filter(|name| {
                 !name.is_empty() && *name != written && !crate::naming::is_dynamic_word(name)
             });
-        (written, resolved)
+        (Some(written), resolved)
     }
 
     /// Walk an `oo::objdefine` inline member or its braced definition body
@@ -6673,7 +6717,18 @@ impl Analyser {
         object_class: &super::types::ClassDef,
     ) {
         let block_conditional = self.conditional_depth > 0;
+        let source = self.logical_object_member_source_input();
         for key in keys {
+            let previous_source_complete =
+                self.objdefine_binding_state(key, frame)
+                    .is_none_or(|previous| {
+                        source.as_ref().is_some_and(|(image, input)| {
+                            previous
+                                .logical_source_members
+                                .as_ref()
+                                .is_some_and(|owner| owner.matches_state(previous, image, input))
+                        })
+                    });
             let key_seed = self
                 .objdefine_binding_state(key, frame)
                 .map(|st| st.methods.clone())
@@ -6702,7 +6757,32 @@ impl Analyser {
                 state.exports.remove(name);
             }
             state.conditional |= block_conditional;
+            state.logical_source_members = source
+                .as_ref()
+                .filter(|_| previous_source_complete && !object_class.member_set_incomplete)
+                .and_then(|(image, input)| {
+                    super::types::LogicalSourceObjectMemberState::capture(
+                        image.clone(),
+                        input.clone(),
+                        state,
+                        &object_class.original_members,
+                    )
+                });
         }
+    }
+
+    fn logical_object_member_source_input(
+        &self,
+    ) -> Option<(tcl_lexer::SourceImage, super::ResolvedAnalysisInput)> {
+        (self.selected_logical_declaration_advice() && !self.objdefine_unresolved_receiver)
+            .then_some(())?;
+        let input = self.resolved_analysis_input();
+        let realm = self.result.retained_command_realm()?;
+        realm
+            .matches_resolved_analysis_input(&input)
+            .then_some(())?;
+        let image = realm.original_source_image()?;
+        (image.bytes() == self.source.as_bytes()).then_some((image.clone(), input))
     }
 
     /// The accumulated [`super::types::ObjectMemberState`] for `key`'s

@@ -30,3 +30,5 @@ Source gate1782, exact Named/method/slot registrations, current retired-owner re
 ## Checkpoint
 
 Current17:28 BST (16:28 UTC). Next tracking17:43 BST; hourly report18:13 BST. Root owns Main integration, commit/push and the active lease. Red development pushes are authorised; no whole-codebase, Native, F5 or PR-ready acceptance is claimed.
+
+Current integrated consumer changes: selected per-object method names and visibility masks; actual Local-frame prerequisite for slots; shared primitive standalone typed-IR write coverage; shared literal typed destination/Foreach projection; oracle-supported nested array read parity; exact allocation-birth identity in Runtime/VM. Affected current execution is pending. Pool resident following is not enabled.

@@ -1669,6 +1669,11 @@ fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
         || !result.original_procedure_metadata.is_empty()
         || !result.original_class_metadata.is_empty()
         || !result.logical_class_declarations.is_empty()
+        || result
+            .object_member_state
+            .values()
+            .flatten()
+            .any(|state| state.logical_source_members.is_some())
         || !result.logical_procedure_declarations.is_empty()
         || !result.original_vendor_source_names.is_empty()
         || !result.original_vendor_procedure_metadata.is_empty()
@@ -1919,6 +1924,7 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for states in r.object_member_state.values_mut() {
         for st in states {
+            st.logical_source_members = None;
             st.anchor_offset += d;
             for m in st.methods.values_mut() {
                 m.name_span = shift(m.name_span, d);
@@ -2414,6 +2420,9 @@ fn body_needs_enclosing_context(body_text: &str) -> bool {
 }
 
 fn clear_fragment_original_producers(r: &mut AnalysisResult) {
+    for state in r.object_member_state.values_mut().flatten() {
+        state.logical_source_members = None;
+    }
     r.original_vendor_source_names.clear();
     r.original_vendor_procedure_metadata.clear();
     r.original_vendor_class_metadata.clear();

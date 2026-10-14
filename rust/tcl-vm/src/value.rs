@@ -468,6 +468,7 @@ struct NativeJimSource {
 }
 
 struct Obj {
+    incarnation: tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation,
     /// Explicit transport references that retain lifetime without native ownership.
     lifetime_pins: Cell<usize>,
     retired: Cell<bool>,
@@ -1765,6 +1766,8 @@ impl Value {
     pub(crate) fn duplicate_native_object(&self) -> Self {
         Self(
             Rc::new(Obj {
+                incarnation:
+                    tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation::fresh(),
                 string: RefCell::new(self.0.string.borrow().clone()),
                 string_storage: Cell::new(self.0.string_storage.get()),
                 intrep: RefCell::new(match &*self.0.intrep.borrow() {
@@ -3077,6 +3080,8 @@ impl Value {
     pub fn with_resident_string_bytes(self, bytes: Rc<[u8]>) -> Self {
         Self(
             Rc::new(Obj {
+                incarnation:
+                    tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation::fresh(),
                 string: RefCell::new(Some(RawString::from_bytes(bytes))),
                 string_storage: Cell::new(NativeStringStorageIdentity::Unknown),
                 intrep: RefCell::new(match &*self.0.intrep.borrow() {
@@ -5165,6 +5170,8 @@ impl Value {
     fn from_raw_parts(string: Option<RawString>, intrep: IntRep) -> Self {
         Self(
             Rc::new(Obj {
+                incarnation:
+                    tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation::fresh(),
                 string: RefCell::new(string),
                 string_storage: Cell::new(NativeStringStorageIdentity::Unknown),
                 intrep: RefCell::new(intrep),
@@ -8034,7 +8041,7 @@ impl Value {
     /// Whether two handles refer to the same Tcl value object.
     #[must_use]
     pub(crate) fn is_same_object(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
+        Rc::ptr_eq(&self.0, &other.0) && self.0.incarnation.same_as(&other.0.incarnation)
     }
 }
 

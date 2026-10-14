@@ -1,0 +1,65 @@
+{
+  "scope": "Original source name, quoted receiver and literal visibility masks. C84/C85/Jim unsupported; C86/C90/C91 observed expected distinctions. No Tcltest, Native or live-frame claim.",
+  "files": [
+    {
+      "path": "probe.tcl",
+      "sha256": "cf2bcac0df727911a431cd433fa30e727f0ce0c2e2fe9c453a7214eaa24a298b"
+    },
+    {
+      "path": "result.json",
+      "sha256": "cf49ecf4f17801275ec81737e2c3a2ca5522bbfa918e867a9562386c2429bd04"
+    },
+    {
+      "path": "c84.stdout",
+      "sha256": "74d88aa8cddf741233d8ad585b995ae1faa2bb01a4d418bb6433142800a1bf7f"
+    },
+    {
+      "path": "c84.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "c85.stdout",
+      "sha256": "74d88aa8cddf741233d8ad585b995ae1faa2bb01a4d418bb6433142800a1bf7f"
+    },
+    {
+      "path": "c85.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "c86.stdout",
+      "sha256": "0299cc6c1c008fc7d2133a9daa7d06bb3610c725c2105c890e5601d942975ce7"
+    },
+    {
+      "path": "c86.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "c90.stdout",
+      "sha256": "0299cc6c1c008fc7d2133a9daa7d06bb3610c725c2105c890e5601d942975ce7"
+    },
+    {
+      "path": "c90.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "c91.stdout",
+      "sha256": "0299cc6c1c008fc7d2133a9daa7d06bb3610c725c2105c890e5601d942975ce7"
+    },
+    {
+      "path": "c91.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "jim.stdout",
+      "sha256": "74d88aa8cddf741233d8ad585b995ae1faa2bb01a4d418bb6433142800a1bf7f"
+    },
+    {
+      "path": "jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "f5-questions.md",
+      "sha256": "a952baa105fea08d1025e207a7a08f483d88b50c6d31be62c825ba28c7505d48"
+    }
+  ]
+}

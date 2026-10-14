@@ -1,0 +1,31 @@
+{
+  "recorded_utc": "2026-10-14T16:32:51.417244+00:00",
+  "scope": "Superseded build-cache executables; current captures use separate debug0 target. Original source, raw results, build/source/provider receipts and independently retained Compiler88/92 executables remain. These retired executable paths cannot be replayed without rebuilding.",
+  "files": [
+    {
+      "path": "tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+      "bytes": 433701416,
+      "sha256": "c2da3cc6c41ad2547dc6efeb8a6ba74fe1f5ef3137e5125f5d26651457dbd0f7"
+    },
+    {
+      "path": "tmp/name-target-clean-20261014/debug/deps/xtask-943d0c5a54718e28",
+      "bytes": 238669680,
+      "sha256": "eb77d69d802af7a4c9aa8bedb253129440f3fa7a0b43b2b37ac01d36982478e5"
+    },
+    {
+      "path": "tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+      "bytes": 386416248,
+      "sha256": "dc6120853bea19bb6d66061fb38aaaca1e5e8d4ed1fa38db04f2ecc44ae7407a"
+    },
+    {
+      "path": "tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+      "bytes": 368155816,
+      "sha256": "5d774855dd57bf6385e9327b502e1ea26d6e1755a7e23407cccde2c92ce3dc4a"
+    },
+    {
+      "path": "tmp/name-target-clean-20261014/debug/deps/tcl_lsp_core-44d35ade4611194f",
+      "bytes": 332881208,
+      "sha256": "ec69f095defb48302eddd3f22c893bd0114b846fffaf79cba12bc6efdb414bb7"
+    }
+  ]
+}

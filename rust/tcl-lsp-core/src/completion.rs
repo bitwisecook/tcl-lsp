@@ -1432,9 +1432,31 @@ fn method_items(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Vec<CompletionItem>> {
     use crate::definition::MethodBucket;
+    let object_members = if bucket == MethodBucket::Instance {
+        match object_state {
+            Some(state) => Some(analysis.logical_source_object_member_state(state)?),
+            None => None,
+        }
+    } else {
+        None
+    };
     if !analysis.all_classes.contains_key(class_q) {
+        // An external catalogue cannot supply the source object's own masks.
+        if object_members.is_some() {
+            return None;
+        }
         return registry_method_items(analysis, registry?, class_q, profile);
     }
+    let exports = object_members
+        .as_ref()
+        .into_iter()
+        .flat_map(|members| members.export_names())
+        .collect::<FxHashSet<_>>();
+    let unexports = object_members
+        .as_ref()
+        .into_iter()
+        .flat_map(|members| members.unexport_names())
+        .collect::<FxHashSet<_>>();
     let hierarchy = analysis.class_hierarchy();
     let mro = hierarchy
         .mro_map
@@ -1447,9 +1469,9 @@ fn method_items(
     // ahead of the class chain, so the receiver's own members claim their
     // names before any class provider.
     if bucket == MethodBucket::Instance
-        && let Some(st) = object_state
+        && let (Some(state), Some(members)) = (object_state, object_members.as_ref())
     {
-        layer_per_object_members(st, &mut seen, &mut items);
+        layer_per_object_members(state, members, &mut seen, &mut items)?;
     }
     for cls in &mro {
         let Some(cd) = analysis.all_classes.get(cls) else {
@@ -1467,18 +1489,13 @@ fn method_items(
         // receiver: an `oo::objdefine … export` revives an unexported class
         // member, an `… unexport` masks an exported one.
         let flipped = |name: &str, declared_public: bool| {
-            object_state.map_or(declared_public, |st| {
-                if bucket != MethodBucket::Instance {
-                    return declared_public;
-                }
-                if st.exports.contains(name) {
-                    true
-                } else if st.unexports.contains(name) {
-                    false
-                } else {
-                    declared_public
-                }
-            })
+            if exports.contains(name) {
+                true
+            } else if unexports.contains(name) {
+                false
+            } else {
+                declared_public
+            }
         };
         let side = match bucket {
             MethodBucket::Instance => tcl_compiler::analyser::MemberSide::Instance,
@@ -1545,42 +1562,32 @@ fn method_items(
     Some(items)
 }
 
-/// The per-object leg of [`method_items`]: offer the
-/// receiver's own externally dispatchable `oo::objdefine`d members ahead of
-/// the class chain, and claim the names of its *unexported* per-object
-/// members so they cannot resurface from the class walk — an unexported
-/// per-object member masks the class-provided name for external dispatch
-/// (`$o m` → `unknown method`, tclsh 9.0.4 / 8.6.14).
+/// Own names and visibility masks require the same current original source state.
 fn layer_per_object_members(
-    st: &tcl_compiler::analyser::ObjectMemberState,
+    state: &tcl_compiler::analyser::ObjectMemberState,
+    members: &tcl_compiler::analyser::LogicalSourceObjectMembers<'_>,
     seen: &mut FxHashSet<String>,
     items: &mut Vec<CompletionItem>,
-) {
-    let mut per_object: Vec<&String> = st
-        .methods
-        .iter()
-        .filter(|(_, m)| m.visibility == "public")
-        .map(|(n, _)| n)
-        .collect();
-    per_object.sort();
-    for name in per_object {
-        if !seen.insert(name.clone()) {
+) -> Option<()> {
+    let mut methods = state.methods.values().collect::<Vec<_>>();
+    methods.sort_by(|left, right| left.name.cmp(&right.name));
+    for method in methods {
+        let spelling = members.source_word(method)?;
+        if method.name.contains('\0') {
+            return None;
+        }
+        if !seen.insert(method.name.clone()) || method.visibility != "public" {
             continue;
         }
         items.push(CompletionItem {
-            label: name.clone(),
-            insert_text: name.clone(),
+            label: method.name.clone(),
+            insert_text: spelling,
             kind: CompletionKind::Function,
-            detail: Some("method — per-object (oo::objdefine)".to_string()),
+            detail: Some("method — per-object (oo::objdefine)".to_owned()),
             ..CompletionItem::default()
         });
     }
-    seen.extend(
-        st.methods
-            .iter()
-            .filter(|(_, m)| m.visibility != "public")
-            .map(|(n, _)| n.clone()),
-    );
+    Some(())
 }
 
 /// Every instance method/subcommand item for a *registry*-modelled class:
@@ -6404,6 +6411,58 @@ mod configured_receiver_completion_tests {
             return None;
         };
         dispatch_receiver_of(word)
+    }
+
+    #[test]
+    fn logical_object_completion_keeps_selected_names_and_visibility_masks() {
+        let source = "oo::class create C {method m {} {}}\nset o [C new]\noo::objdefine $o {method {two words} {} {}; method {$literal} {} {}; export {$literal}; unexport m}\n$o ";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let state = crate::definition::object_member_state_at(&analysis, source, "o", 3, 3)
+            .expect("actual current receiver source state");
+        let items = method_items(
+            &analysis,
+            analysis.resolved_registry(),
+            "::C",
+            crate::definition::MethodBucket::Instance,
+            Some(state),
+            analysis.resolved_profile().unwrap(),
+        )
+        .expect("selected original own members and masks");
+        for (name, expected) in [("two words", "{two words}"), ("$literal", "{$literal}")] {
+            let item = items
+                .iter()
+                .find(|item| item.label == name)
+                .expect("actual per-object selected name");
+            assert_eq!(item.insert_text, expected);
+        }
+        assert!(items.iter().all(|item| item.label != "m"));
+        assert!(
+            method_items(
+                &analysis,
+                analysis.resolved_registry(),
+                "::C",
+                crate::definition::MethodBucket::Instance,
+                Some(&state.clone()),
+                analysis.resolved_profile().unwrap(),
+            )
+            .is_none()
+        );
+        let mut changed = analysis.clone();
+        changed.object_member_state.get_mut("o").unwrap()[0]
+            .unexports
+            .clear();
+        let state = crate::definition::object_member_state_at(&changed, source, "o", 3, 3).unwrap();
+        assert!(
+            method_items(
+                &changed,
+                changed.resolved_registry(),
+                "::C",
+                crate::definition::MethodBucket::Instance,
+                Some(state),
+                changed.resolved_profile().unwrap(),
+            )
+            .is_none()
+        );
     }
 
     #[test]

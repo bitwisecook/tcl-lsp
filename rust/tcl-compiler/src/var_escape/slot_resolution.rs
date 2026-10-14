@@ -281,6 +281,9 @@ fn call_disables_slots(
     let Some(registry) = binding.retained_registry_for_tokens(tokens) else {
         return true;
     };
+    if binding.variable_context.frame_kind != crate::var_resolve::VariableFrameKind::Local {
+        return true;
+    }
     let Ok(metadata) = binding.original_source_metadata_for_advice(tokens, registry) else {
         return true;
     };
@@ -995,6 +998,43 @@ mod tests {
             call("string", &["length", "value"]),
         ]);
         assert!(assign_local_slots(&body, &ProcEscapeSummary::default(), &[]).is_empty());
+    }
+
+    #[test]
+    fn original_global_handler_does_not_supply_local_slot_frame() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+            "list value",
+            registry,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            Some(profile),
+        );
+        let statement = &module.top_level.statements[0];
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert_eq!(
+            binding.variable_context.frame_kind,
+            crate::var_resolve::VariableFrameKind::Global
+        );
+        let metadata = binding
+            .original_source_metadata_for_advice(tokens, registry)
+            .unwrap();
+        let normal =
+            crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+            .unwrap();
+        assert!(normal.is_frameless_runtime());
+        assert!(call_disables_slots(
+            &module.top_level,
+            statement,
+            &mut HashSet::new()
+        ));
     }
 
     #[test]

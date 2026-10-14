@@ -1,0 +1,10 @@
+{
+  "original_input": "$arr($cmd)",
+  "expected_names": [
+    "arr",
+    "cmd"
+  ],
+  "evidence": "Changing cmd independently selects FIRST/SECOND; removing cmd errors naming cmd; removing arr errors naming arr(KEY). Both shared scanners must retain both dependencies.",
+  "prior_failure": "experiments/name-handling/results/compiler-production114-20261014/test-58.log.gz",
+  "scope": "Actual direct six-provider scalar index reads only; no compiler/SSA/source/slot acceptance or F5 claim."
+}

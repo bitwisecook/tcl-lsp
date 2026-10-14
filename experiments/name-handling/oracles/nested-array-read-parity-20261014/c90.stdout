@@ -1,0 +1,4 @@
+provider 9.0.4
+indexed_values FIRST SECOND
+missing_index 1 {can't read "cmd": no such variable}
+missing_array 1 {can't read "arr(KEY)": no such variable}

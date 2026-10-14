@@ -93,131 +93,20 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T14:28:00Z on `work`.
+Current17:28 BST (16:28 UTC); next17:43 BST, hourly18:13 BST. The detailed [current state](current-state.md) and [implementation ledger](implementation-ledger.md) retain the current obligations. The bounded source rows above describe their inspected purposes; current adopted owner contracts and sealed execution receipts determine validation.
 
-Shared command, variable, body and source owners are integrated across compiler/CFG,
-summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
-current migrations include exact source-read/definition Symbol/Version selection,
-ValueKey hover/inlay joins, Registry-owned source name roles and substitutions,
-strict Normal physical slots, typed word extents, procedure editing references,
-minifier erasure/collision readers, shared code-lens member keys, Runtime namespace
-byte addressing and literal catch/try and variable-name data. Empty and sigil names
-remain data. Source MAY uncertainty does not establish a physical frame, callable
-publication, represented read value or editing permission.
+| Scope | Latest sealed result | Remaining concrete work |
+| --- | --- | --- |
+| Compiler114 | 208 PASS / 265, source drift0;57 nonpassing | Original #2286/isolation84/depth-cap192 harness timeouts and three fixed-depth SIGABRTs remain. Finish authentic source scalar/SSA, typed destination coverage and selected method/visibility producers without changing original assertions or budgets. |
+| Core95 replay | 66 PASS / 92, source drift0 | All71 original Core84 controls retained: two gains, zero regressions. Finish exact current read/value/inlay/graph and completion availability. |
+| Runtime110 | 102 PASS / 104; all captured drift maps0 | Original bootstrap/key/error-stack and both new import-key controls pass. Public moved-refusal correction awaits replay; retained-import still fails. Authentic incarnation versus neutral header residence remains separate implementation work, without extra frame references or retired-key revival. |
+| VM107 | 31 PASS / 35; all captured drift maps0 | Actual Script filename/LINE, local cleanup, child publication and public original Jimsh fixture are integrated with ordinary replay pending. |
+| DB61 original ten | 0 PASS / 10; source subset drift0 | Preserve cold/edit/whole-shift counts and uncached equivalence. Four independent source syntax-cache controls pass in Compiler92; these do not close the original DB suite. |
+| Private owners | Strict checker1,979 structural errors | 996 evidence digests,952 census digests,12 paths,17 missing test-proof comments,2 retired owner registrations. Catalogue2,606 total questions. Real bounded nested/optional/iterator/enum Source routes are in peer review; no private API exposure or digest refresh. |
+| Other targets/editors/F5 | Existing editor11-control receipt has zero source/output/binary drift; actual appliance answers retained | Fresh affected MCP/server/codegen/editing and provider/cache replays remain required. No lexical count or software result supplies whole-surface or F5 acceptance. |
 
-Authored declaration cards, child scopes and control grammar retain their actual
-header/body/vector/input/entry/configuration/store. Hosted case grammar uses the
-actual retained source configuration. Native children retain their genuine birth
-tape, parent and distinct analysis attachment; independent cache-hit analyses cannot
-donate that attachment. Missing or changed owners remain unavailable. Conditional
-global-body candidate exclusion is withdrawn: descriptor metadata cannot close
-alias/observer alternatives. Original #0 vocabulary, uncertainty and assertions
-remain required.
+Current source consumers retain complete original vectors/input/configuration/store and independent purpose boundaries. Name-role, lexical/Expr and phased-effect inventories preserve legal empty/sigil data and unknown residuals. Exact source reads/definitions use actual FU/Symbol/represented Version; hover/inlay use the exact ValueKey. Physical slot eligibility keeps strict Normal/frame/descriptor correspondence, while MAY advice cannot establish cell/frame/effect absence. Declaration/source syntax memoization restores genuine current tokens after independently captured dependency/shape checks.
 
-MCP89 seals at12:17:04 with build101, zero semantic controls, zero source drift and
-zero provider-closure drift. All five original C Tcl providers plus Jim pass matching
-interpreter/library metadata checks using their original init/Tcltest libraries.
-The build stops at two private compiler API accesses in minifier. The integrated public
-SSA lexical facade keeps private rebasing inside compiler and preserves the separate
-physical read/erasure guards; fresh MCP execution remains required.
-No MCP semantic acceptance follows from provider metadata success.
+Runtime and VM keys retain actual original API inputs, physical publication generations and original helper List/local/alias objects; reached original spelling supplies helper operands. Current source completion/member/code-lens and document inventories keep actual declaration/source/channel/metadata pointers. Missing, changed or stronger-present refused owners stay terminal. The original #2286/import/depth/cache controls and matching provider/library sources remain required.
 
-Compiler90 seals12:44:33 with build101, zero semantic controls and zero source
-drift. Minifier borrows a Registry through a temporary context Arc (E0716); the
-repair must retain that actual context or use its existing borrowed accessor.
-No current consumer assertion has run in this scope.
-
-Compiler91 seals12:56:51 with build101 after Rust compilation reaches linking;
-ld terminates with SIGBUS. Zero semantic controls execute and source drift is
-zero. The genuine held-context lifetime repair is integrated; fresh linking and
-original/new assertion execution remain required.
-
-Current source integrates SCCP and instance-variable typed destination consumers,
-positioned test-fixture minifier symbols, actual inline codegen admission, Jim cold
-original-key/error-frame selection, and the declaration source syntax memo with
-explicit original expansion refusal. Neutral syntax restores current receipts;
-all original DB cold/edit/equivalence and Runtime controls remain required.
-Compiler92 seals at13:43:45 with147 controls:123 PASS/24 nonpassing (19 assertion
-failures, three depth SIGABRTs and two600-second timeouts), zero source drift and
-no missing or empty selectors. Four source-cache controls pass (cold3/edit1/shift0/
-current cached versus fresh equality and expansion refusal); SCCP/instance typed
-writes, Native child ownership and the original forty-case alias setup also pass.
-Namespace import, SSA/word/receiver/scalar/dictionary, Native certificates, selected
-codegen hooks, two substitution helpers, global-body escape and Logical substitution
-remain red. The unchanged original #2286 and analyser-cap controls time out at600
-seconds. Original source/assertions and code budgets remain unchanged. These
-results establish no complete consumer/cache or #2286 acceptance.
-
-Current source additionally integrates Logical class/member receipts, shared current
-Document/outline guards, dynamic alias/scanner and Shimmer name-data consumers,
-exact token attachment joins, SCCP phased Call/destroy inventories and shared
-completion reference extents. Genuine root source-image issuance and the new
-CFG/dictionary fixture producers preserve existing assertions. Core93 stops at a
-private test API access before semantic execution; the public purpose premise is
-corrected. Core95 builds successfully, then the initial selector mismatch executes
-zero controls. The corrected same-binary, expected-source replay seals at13:56:53:
-92 controls,66 PASS/26 FAIL, zero source drift and no missing or empty selectors.
-The original workspace member and deep graph controls and new current-source
-outline control pass. All71 original Core84 controls remain, with two gains and
-zero regressions on that common set: workspace member and qualified Logical
-variable scope. Code-lens, completion, hover/inlay and remaining Core failures
-remain visible. The distinct inputless Authored definition owner and actual header
-attachment transport are now integrated; their new controls remain unexecuted.
-
-Compiler88 builds and seals113 controls:96 PASS/17 nonpassing (13 assertion failures,
-three depth SIGABRTs and one analyser-cap timeout), zero source drift and no missing
-or empty selectors. Current source also integrates scalar-only CFG name-data projection and nonrecursive
-Native cold preparation, preserving array-root invalidation and original budgets.
-Scalar assignment escape consumers now retain actual Script/SSA tokens and selected
-FIRST_ARG+VarWrite name data with exact IR-field correspondence and unchanged unknown
-residual. Dictionary destinations use the selected hook/role/direct written slot and
-the same schema for safe-on-uninit; unavailable ownership remains generic dispatch.
-The current partial replay retains failures in these consumers; fixes must pass
-the unchanged original and new controls. Other
-retained scopes remain distinct: Compiler82=194 PASS/46 nonpassing across240,
-focused83=6 PASS/6 FAIL across12, Core84=48 PASS/23 FAIL across71, and broader
-Compiler67=442 PASS/157 FAIL across599. Both original eval/up-frame regressions pass83;
-new minifier/linked controls pass84 with all original68 Core controls retained.
-These results establish no complete consumer acceptance.
-
-Original #2286 C8.4 still records1 versus2, W210 at bytes160–167; unchanged82 times
-out after180 seconds. Namespace import remains0 versus1. Original matching
-Tcltest programs, all forty alias setup cases, assertions and raw results are
-preserved. DB61 retains ten original failures, including cold0 versus3. The genuine source-body
-syntax request/callback is now integrated; actual cold/edit/uncached equivalence
-replay is required independently of lattice/full-capsule equality. Runtime09 retains
-78 PASS/1 FAIL with all original77 PASS. F5 production53 retains9 PASS/23 FAIL across32
-and one actual experiment receipt delta; appliance answers remain outstanding.
-
-Runtime97 and98 retain zero semantic controls and zero source/provider closure
-drift. All six matching original interpreter/library metadata checks pass. Runtime97
-stops at a test-only Code path; Runtime98 builds runtime successfully and stops at
-a Registry test source-slice coercion. Both exact representation repairs preserve
-original bytes/assertions. Runtime99 is sealed:95 of99 controls pass; four retained Jim bootstrap/key/error-stack/import controls fail. Full captured source/provider, compiled-input and artifact drift are zero. Matching
-C8.4–9.1 libraries and the verified latest Jim remain independent oracle owners.
-
-Runtime audit rows26 and29 already use shared rename-destination and import metadata
-owners, retaining actual generations/tokens rather than reporting labels. OO
-namespace operands now use the checked original object/context cache and shared
-byte-address owner. Current Runtime/codegen consumer replay remains required.
-
-Remaining work is current Native/Hosted/Authored producer replay and syntax memo
-transport; exact SSA read/definition/hover availability; namespace path/import MAY
-candidate completeness; original depth/graph budgets; all DB cold/edit/direct memo
-controls; all target/runtime consumers; actual F5 answers; and complete consumer
-registration. The52 workspace members,11 excluded packages and330 lexical rows
-remain reconciliation obligations. Source gate45 passes44 exact controls including15
-registration controls, but full current private-owner registration is unverified.
-The last strict proof audit retains1959 errors across2606 questions. Unsupported
-routes remain explicit; private APIs are not exposed to satisfy the gate.
-
-Final cleanup removes development chronology from durable documents/comments while
-preserving original experiments, source programs, failures, legal provenance and
-protected evidence/provider digests. Comments explain only current how/why. This
-temporary tracking directory and its references are removed before the merge-ready
-PR. All required formatting, generation, proof, consumer, cache and provider gates
-must pass; no complete cache, Native, F5 or PR-ready acceptance is claimed.
-
-Current17:13 BST receipt: Runtime99 remains95/99 with zero captured source/provider/compiled-input/artifact drift. VM original key/publication migration is independently reviewed; runtime Jim registration producer fixes and bounded retirement await integration. Compiler101 linker failed without semantic execution. Compiler102 links successfully; two original/shared TclOO controls pass, then a new isolated global read equality fails and its large existing Debug assertion output interrupts capture. Raw output is retained compressed with hash; no whole-plan acceptance. Compiler103 reuses that exact diagnostic binary under an expected-source comparison and seals10 original SSA/certificate/Authored controls:5 pass/5 fail, source drift0. Foreign-owner refusal, direct source reads and three Authored controls pass; definition/readonly-version and three Native certificates remain red. Historical92 #2286 phase diagnosis completes two analysis cycles then times out during subsequent source preparation, with zero source/executable drift and unchanged original probe. Temporary traces are removed before ordinary replay. VM original key/publication consumers are integrated with verification pending. Next tracking17:28 BST; hourly18:13 BST.
-
-Current17:28 BST snapshot: sealed Compiler114 is208/265 PASS (57 nonpassing, including three harness timeouts and three fixed-depth SIGABRTs), Core95 is66/92 PASS with all71 original controls retained and two gains/zero regressions, Runtime110 is102/104 PASS and VM107 is31/35 PASS; their reported captured drift maps are zero. DB61 original ten remain0/10. Runtime bootstrap/key/error-stack and both new import-key controls pass; original retained-import remains red. Public moved-refusal and VM local/location/child repairs are integrated with replay pending. Ordinary Compiler114 is sealed with source drift0 and no diagnostic instrumentation; original #2286, isolation84 and depth-cap192 timed out. Strict proof checker has1,979 errors, including17 missing test comments and two retired owners;2,606 is the total catalogue-question count. Exact original assertions, evidence and census digests remain unchanged. Current private AST routes and pooled-header incarnation work stay bounded and explicit. Next tracking17:43 BST; hourly18:13 BST.
+Final cleanup removes development chronology and stale claims from durable documents/comments while preserving original experiment programs, raw results, failures, legal attribution and protected evidence/provider/census digests. This temporary directory and its references are removed before the PR. Formatting, generation, proof, consumer, cache and provider gates remain mandatory; no finish percentage, whole-codebase, Native, F5 or PR-ready acceptance is claimed.

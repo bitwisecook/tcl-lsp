@@ -49,6 +49,8 @@ pub use tcl_lexer::{SourceChannel, SourceImage};
 pub mod native_c_string_abi;
 pub mod native_hash_abi;
 pub mod native_list_insertion;
+/// Exact object-allocation births, independent of reused header addresses.
+pub mod native_object_incarnation;
 pub mod native_return_literal;
 
 pub mod native_each_loop;

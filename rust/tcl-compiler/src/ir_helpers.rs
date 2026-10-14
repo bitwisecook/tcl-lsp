@@ -268,11 +268,9 @@ pub(crate) fn structural_variable_write_projection(
     projection
 }
 
-/// Collect all variable names defined anywhere inside a script (recursive).
-///
-/// Walks through structured IR nodes (`If`, `For`, `While`, `Foreach`,
-/// `Catch`, `Try`, `Switch`) to find every assignment, call-def, and
-/// iteration variable.
+/// Literal destination names and existing callee summaries in structured IR.
+/// Dynamic destinations remain unavailable; these names prove no completed
+/// store, current variable cell or definite SSA version.
 #[must_use]
 pub fn defs_from_ir_script(script: &Script) -> Vec<String> {
     let mut defs = Vec::new();
@@ -280,31 +278,17 @@ pub fn defs_from_ir_script(script: &Script) -> Vec<String> {
     defs
 }
 
-#[allow(clippy::too_many_lines)] // the depth-cap check adds a few lines over the threshold
 fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>, depth: u32) {
     if MAX_DEFS_COLLECT_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {
         match stmt {
-            Statement::AssignConst {
-                name, name_braced, ..
-            }
-            | Statement::AssignExpr {
-                name, name_braced, ..
-            }
-            | Statement::AssignValue {
-                name, name_braced, ..
-            }
-            | Statement::Incr {
-                name, name_braced, ..
-            } => {
-                // Element-qualified to match the SSA use scan: a collapsed
-                // arm's `set b(k) 1; puts $b(k)` must cancel its own read.
-                let n = crate::naming::element_var_name_braced(name, *name_braced);
-                if !n.is_empty() {
-                    defs.push(n.to_owned());
-                }
+            Statement::AssignConst { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::AssignValue { .. }
+            | Statement::Incr { .. } => {
+                defs.extend(structural_variable_write_projection(stmt).literal_names);
             }
 
             Statement::Call {
@@ -328,17 +312,8 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>, depth: u32)
                 collect_defs_from_script(body, defs, depth + 1);
             }
 
-            Statement::Foreach {
-                iterators, body, ..
-            } => {
-                for iter in iterators {
-                    for vn in &iter.vars {
-                        let n = crate::naming::element_var_name(vn);
-                        if !n.is_empty() {
-                            defs.push(n.to_owned());
-                        }
-                    }
-                }
+            Statement::Foreach { body, .. } => {
+                defs.extend(structural_variable_write_projection(stmt).literal_names);
                 collect_defs_from_script(body, defs, depth + 1);
             }
 
@@ -402,6 +377,82 @@ fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>, depth: u32)
 pub fn defs_from_expr(expr: &ExprNode, registry: &CommandRegistry) -> Vec<String> {
     let inventory = expression_command_substitutions(expr, registry, None);
     variable_write_effects_from_commands(inventory.all_commands(), registry).names
+}
+
+/// Primitive effects of independently supplied typed IR, without source lookup.
+/// Present source evidence remains terminal; this supplies no dispatch, cell or value proof.
+pub(crate) fn standalone_typed_statement_writes_are_covered(
+    script: &Script,
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> bool {
+    if script.executed_source.is_some()
+        || script.namespace_context.is_some()
+        || script.command_binding_sites.iter().next().is_some()
+        || !script.implicit_math_invocations.is_empty()
+        || !script.expression_preparations.is_empty()
+        || script
+            .procedure_binding_requirements
+            .iter()
+            .next()
+            .is_some()
+        || script.native_compilation_failure.is_some()
+        || script.native_compilation_admission.is_some()
+        || statement.tokens().is_some()
+    {
+        return false;
+    }
+    let mut expressions = Vec::new();
+    match statement {
+        Statement::AssignConst { .. } | Statement::Incr { .. } => {}
+        Statement::AssignExpr {
+            expr,
+            command_binding: None,
+            ..
+        } => expressions.push(expr),
+        Statement::If { clauses, .. } => {
+            expressions.extend(clauses.iter().map(|clause| &clause.condition));
+        }
+        Statement::For { condition, .. } | Statement::While { condition, .. } => {
+            expressions.push(condition);
+        }
+        Statement::Switch { .. } => {}
+        _ => return false,
+    }
+    let surfaces = evaluated_command_substitution_surfaces(statement, registry);
+    if surfaces.opaque || !surfaces.texts.is_empty() {
+        return false;
+    }
+    let mut pending: Vec<_> = expressions.into_iter().map(|expr| (expr, 0_u32)).collect();
+    while let Some((expr, depth)) = pending.pop() {
+        if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+            return false;
+        }
+        match expr {
+            ExprNode::Command { .. } | ExprNode::Call { .. } | ExprNode::Raw { .. } => {
+                return false;
+            }
+            ExprNode::Var { text, .. } if text.contains('[') => return false,
+            ExprNode::Binary { left, right, .. } => {
+                pending.extend([(left.as_ref(), depth + 1), (right.as_ref(), depth + 1)]);
+            }
+            ExprNode::Unary { operand, .. } => pending.push((operand, depth + 1)),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => pending.extend([
+                (condition.as_ref(), depth + 1),
+                (true_branch.as_ref(), depth + 1),
+                (false_branch.as_ref(), depth + 1),
+            ]),
+            ExprNode::Literal { .. }
+            | ExprNode::String { .. }
+            | ExprNode::CompiledWord { .. }
+            | ExprNode::Var { .. } => {}
+        }
+    }
+    true
 }
 
 /// Possible name writes in one genuine original statement and its substitutions.
@@ -2510,6 +2561,59 @@ mod tests {
     }
 
     #[test]
+    fn ir_destination_inventory_keeps_literal_data_and_refuses_computed_names() {
+        let assign = |name: &str, braced| Statement::AssignConst {
+            span: Span::new(0, 0),
+            name: name.into(),
+            name_braced: braced,
+            value: "VALUE".into(),
+            value_span: None,
+        };
+        let script = Script::from_statements(vec![
+            assign("$literal", true),
+            assign("${literal}", true),
+            assign("", true),
+            assign("arr($index)", true),
+            assign("$computed", false),
+            Statement::Foreach {
+                span: Span::new(0, 0),
+                iterators: vec![ForeachIterator {
+                    vars: vec![
+                        "$iterator".into(),
+                        "${iterator}".into(),
+                        "".into(),
+                        "array(key)".into(),
+                    ],
+                    list_arg: "ONE TWO THREE FOUR".into(),
+                    list_braced: true,
+                }],
+                body: Script::from_statements(vec![assign("nested", false)]),
+                body_span: Span::new(0, 0),
+                is_lmap: false,
+                raw_args: Vec::new(),
+                is_dict_iteration: false,
+                is_array_iteration: false,
+                raw_tokens: None,
+            },
+        ]);
+        assert_eq!(
+            defs_from_ir_script(&script),
+            [
+                "$literal",
+                "${literal}",
+                "",
+                "arr($index)",
+                "$iterator",
+                "${iterator}",
+                "",
+                "array(key)",
+                "nested"
+            ]
+        );
+        assert!(structural_variable_write_projection(&script.statements[4]).opaque_variable_frame);
+    }
+
+    #[test]
     fn defs_from_catch() {
         let script = Script::from_statements(vec![Statement::Catch {
             span: Span::new(0, 30),
@@ -3086,6 +3190,108 @@ mod tests {
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let refused = original_statement_possible_name_writes(statement, tokens, foreign);
         assert!(refused.opaque && refused.names.is_empty());
+    }
+
+    #[test]
+    fn standalone_typed_write_coverage_preserves_primitive_data_and_nested_control() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let assign = |name: &str| Statement::AssignConst {
+            span: Span::new(0, 0),
+            name: name.into(),
+            name_braced: true,
+            value: "VALUE".into(),
+            value_span: None,
+        };
+        let script = Script::from_statements(vec![
+            assign("$literal"),
+            assign(""),
+            Statement::If {
+                span: Span::new(0, 0),
+                clauses: vec![crate::ir::IfClause {
+                    condition: crate::expr_parser::parse_expr("$counter < 3", None),
+                    condition_span: Span::new(0, 0),
+                    condition_base: None,
+                    body: Script::from_statements(vec![assign("nested")]),
+                    body_span: Span::new(0, 0),
+                }],
+                else_body: None,
+                else_span: None,
+            },
+        ]);
+        let mut names = BTreeSet::new();
+        assert!(!crate::ssa::nested_writes(&script, registry, &mut names));
+        assert_eq!(
+            names,
+            BTreeSet::from(["".into(), "$literal".into(), "nested".into()])
+        );
+    }
+
+    #[test]
+    fn standalone_typed_write_coverage_keeps_calls_and_present_source_terminal() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let assign = Statement::AssignConst {
+            span: Span::new(0, 0),
+            name: "counter".into(),
+            name_braced: false,
+            value: "0".into(),
+            value_span: None,
+        };
+        let standalone = Script::from_statements(vec![assign.clone()]);
+        assert!(standalone_typed_statement_writes_are_covered(
+            &standalone,
+            &standalone.statements[0],
+            registry
+        ));
+        for condition in ["[set unexpected 1]", "sin(0)", "$arr([set key 1])"] {
+            let script = Script::from_statements(vec![Statement::If {
+                span: Span::new(0, 0),
+                clauses: vec![crate::ir::IfClause {
+                    condition: crate::expr_parser::parse_expr(condition, None),
+                    condition_span: Span::new(0, 0),
+                    condition_base: None,
+                    body: Script::new(),
+                    body_span: Span::new(0, 0),
+                }],
+                else_body: None,
+                else_span: None,
+            }]);
+            assert!(
+                crate::ssa::nested_writes(&script, registry, &mut BTreeSet::new()),
+                "{condition}"
+            );
+        }
+        let call = Script::from_statements(vec![Statement::Call {
+            span: Span::new(0, 0),
+            command: "set".into(),
+            canonical_command: None,
+            args: vec!["counter".into(), "0".into()],
+            defs: vec!["counter".into()],
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        }]);
+        assert!(crate::ssa::nested_writes(
+            &call,
+            registry,
+            &mut BTreeSet::new()
+        ));
+        let module = crate::lowering::lower_to_ir("set counter 0", registry);
+        let mut source = module.top_level;
+        assert!(source.executed_source.is_some());
+        source.statements = vec![assign];
+        source.command_binding_sites = crate::ir::CommandBindingSites::default();
+        assert!(!standalone_typed_statement_writes_are_covered(
+            &source,
+            &source.statements[0],
+            registry
+        ));
+        assert!(crate::ssa::nested_writes(
+            &source,
+            registry,
+            &mut BTreeSet::new()
+        ));
     }
 
     #[test]
