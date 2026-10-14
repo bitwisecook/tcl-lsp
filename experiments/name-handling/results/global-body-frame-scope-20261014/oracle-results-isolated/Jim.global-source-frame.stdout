@@ -1,0 +1,5 @@
+scope {set x GLOBAL} {0 GLOBAL LOCAL}
+scope {uplevel #1 {set x ABSOLUTE}} {1 {bad level "#1"} LOCAL}
+scope {uplevel 1 {set x RELATIVE}} {1 {bad level "1"} LOCAL}
+scope scope_callback {0 {0 CALLBACK} LOCAL}
+global_alias {1 {bad variable name "::scope_alias": upvar won't create namespace variable that refers to procedure variable} LOCAL}

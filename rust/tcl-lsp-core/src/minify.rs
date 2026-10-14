@@ -143,8 +143,11 @@ use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::expr_ast::render_expr;
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
+#[cfg(test)]
 use tcl_compiler::ssa::Version;
-use tcl_compiler::taint::{TaintColour, TaintLattice};
+use tcl_compiler::taint::TaintColour;
+#[cfg(test)]
+use tcl_compiler::taint::TaintLattice;
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr_for_profile};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType, close_quote_offset};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
@@ -619,7 +622,7 @@ fn lexical_aggressive(
     let optimised = apply_edits(source, opt_edits);
 
     // Fold static substrings (SCCP-proven constants).
-    let (folded, fold_count, static_folds) = fold_static_substrings(&optimised, dialect, registry);
+    let (folded, fold_count, static_folds) = fold_original_static_substrings(&optimised, input);
 
     // Compact names.
     let (renamed, mut symbol_map) = compact_names(&folded, input, isolated);
@@ -632,7 +635,7 @@ fn lexical_aggressive(
     // so a preamble `set alias …` never clobbers a variable the
     // script reads through a name-taking command like `[set a]`.
     let mut claimed_names = collect_symbol_shorts(&symbol_map);
-    claimed_names.extend(collect_live_names(&renamed, dialect, registry));
+    claimed_names.extend(collect_live_names(&renamed, input));
     let (renamed, cmd_aliases) =
         alias_repeated_commands(&renamed, dialect, &mut claimed_names, registry);
     symbol_map.command_aliases = cmd_aliases;
@@ -1703,13 +1706,12 @@ fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
 /// an alias name is rejected on any hit.
 fn collect_live_names(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    registry: &CommandRegistry,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
 ) -> HashSet<String> {
     let mut out: HashSet<String> = HashSet::new();
 
     // Analyser scope tables.
-    let analysis = original::analysis_for_profile(source, dialect, registry);
+    let analysis = original::analysis_with_input(source, input);
     let mut stack: Vec<&Scope> = vec![&analysis.global_scope];
     while let Some(scope) = stack.pop() {
         out.extend(scope.variables.keys().cloned());
@@ -1717,11 +1719,14 @@ fn collect_live_names(
     }
 
     // SSA symbol tables (per function unit).
-    let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
-    let mut units: Vec<&FunctionUnit> = vec![&cu.top_level];
-    units.extend(cu.procedures.values());
-    for fu in units {
-        out.extend(fu.ssa.var_names().iter().cloned());
+    if let Some(cu) = crate::original_invocation::source_compilation_unit(
+        source,
+        &analysis,
+        input.context_registry().commands(),
+    ) {
+        for fu in cu.all_body_function_units() {
+            out.extend(fu.ssa.var_names().iter().cloned());
+        }
     }
 
     // Textual `$name` / `${name}` references.
@@ -1729,11 +1734,14 @@ fn collect_live_names(
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'$' {
-            let (end, name) = parse_var_ref(source, i, dialect.grammar.braced_var);
-            if let Some(name) = name {
+            if let Ok(Some(reference)) = tcl_lexer::scan_var_ref(bytes, i, input.lexer_config())
+                && let Ok(name) = std::str::from_utf8(reference.name)
+            {
                 out.insert(name.to_owned());
-                i = end.max(i + 1);
-                continue;
+                if reference.index.is_none() {
+                    i = reference.next.max(i + 1);
+                    continue;
+                }
             }
         }
         i += 1;
@@ -2285,6 +2293,152 @@ fn safe_taint_colours() -> TaintColour {
         | TaintColour::REGEX_LITERAL
 }
 
+/// Fold only original quoted words whose exact reads have independent erasure proof.
+fn fold_original_static_substrings(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> (String, usize, BTreeMap<String, String>) {
+    let analysis = original::analysis_with_input(source, input);
+    let registry = input.context_registry().commands();
+    let Some(unit) =
+        crate::original_invocation::source_compilation_unit(source, &analysis, registry)
+    else {
+        return (source.to_owned(), 0, BTreeMap::new());
+    };
+    if unit.ir_module.source_metadata_input.as_ref() != Some(input) {
+        return (source.to_owned(), 0, BTreeMap::new());
+    }
+    let mut edits = BTreeMap::new();
+    let mut folds = BTreeMap::new();
+    for function in unit.all_body_function_units() {
+        if function
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .is_none()
+        {
+            continue;
+        }
+        for (&block, body) in &function.ssa.blocks {
+            if !function.sccp.executable_blocks.contains(&block) {
+                continue;
+            }
+            for index in 0..body.statements.len() {
+                let view =
+                    tcl_compiler::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                let Some(binding) = tokens.source_binding.as_ref() else {
+                    continue;
+                };
+                let Some(config) = binding.original_lexer_config_for_tokens(tokens) else {
+                    continue;
+                };
+                let mut original = tokens.clone();
+                tcl_compiler::lattice_rebase::rebase_command_tokens(
+                    &mut original,
+                    function.base_offset,
+                );
+                let Some(offset) = original
+                    .words()
+                    .first()
+                    .map(|word| word.source().span.start())
+                else {
+                    continue;
+                };
+                if tcl_compiler::registry_invocation::original_native_compiler_words(
+                    &unit.ir_module.source,
+                    original.words(),
+                    offset,
+                    config,
+                )
+                .is_none()
+                {
+                    continue;
+                }
+                for word in tokens.words().iter().skip(1) {
+                    let tcl_compiler::ir::WordExpr::Template {
+                        parts,
+                        rejected: None,
+                        ..
+                    } = word
+                    else {
+                        continue;
+                    };
+                    let span = function.abs_span(word.source().span);
+                    let Some(content) = source
+                        .get(span.as_range())
+                        .and_then(|written| written.strip_prefix('"'))
+                        .and_then(|written| written.strip_suffix('"'))
+                    else {
+                        continue;
+                    };
+                    let Some(value) =
+                        fold_original_word_parts(&unit, function, view, parts, registry, config)
+                    else {
+                        continue;
+                    };
+                    edits.insert((span.start(), span.end()), build_replacement(&value));
+                    folds.insert(content.to_owned(), value);
+                }
+            }
+        }
+    }
+    let count = edits.len();
+    let edits = edits
+        .into_iter()
+        .map(|((start, end), replacement)| (start as usize, (end - start) as usize, replacement))
+        .collect();
+    (apply_edits(source, edits), count, folds)
+}
+
+fn fold_original_word_parts(
+    unit: &CompilationUnit,
+    function: &FunctionUnit,
+    view: tcl_compiler::ssa::SsaSourceView<'_>,
+    parts: &[tcl_compiler::ir::WordPart],
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<String> {
+    let mut value = String::new();
+    let mut substituted = false;
+    for part in parts {
+        match part {
+            tcl_compiler::ir::WordPart::Text { text, .. } => {
+                value.push_str(&tcl_lexer::backslash_subst_in(text, config.escapes));
+            }
+            tcl_compiler::ir::WordPart::Variable { spelling, source } => {
+                let physical = view.replaceable_read_at(source, spelling, registry)?;
+                let version = physical.version?;
+                let original = tcl_compiler::ssa::original_source_read_at_unit(
+                    unit,
+                    function.abs_span(source.span),
+                    registry,
+                )?;
+                if !std::ptr::eq(original.function(), function)
+                    || original.symbol() != physical.symbol
+                    || original.version() != Some(version)
+                {
+                    return None;
+                }
+                let key = (physical.symbol, version);
+                if function.taints.get(&key).is_some_and(|taint| {
+                    taint.is_tainted() && !taint.colours.intersects(safe_taint_colours())
+                }) {
+                    return None;
+                }
+                let LatticeValue::Const(constant) = function.sccp.values.get(&key)? else {
+                    return None;
+                };
+                value.push_str(&const_to_string(constant)?);
+                substituted = true;
+            }
+            tcl_compiler::ir::WordPart::CommandSubstitution { .. }
+            | tcl_compiler::ir::WordPart::Opaque { .. } => return None,
+        }
+    }
+    substituted.then_some(value)
+}
+
 /// Replace dynamic quoted strings with their static values where the
 /// compiler's SCCP pass proves every `$var` substitution is a
 /// compile-time constant and no unsanitised tainted value is
@@ -2292,6 +2446,7 @@ fn safe_taint_colours() -> TaintColour {
 /// string constants; bails on command substitutions (`[…]`) and on
 /// boolean / float constants.  Returns `(folded_source, fold_count,
 /// fold_map)`.
+#[cfg(test)]
 fn fold_static_substrings(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -2329,6 +2484,7 @@ fn fold_static_substrings(
 /// The read-only context a constant-fold decision needs: the scope's
 /// analysed unit and the document's `${…}` close rule (which decides where
 /// a `${…}` reference's name ends).
+#[cfg(test)]
 #[derive(Clone, Copy)]
 struct FoldContext<'a> {
     fu: &'a FunctionUnit,
@@ -2336,6 +2492,7 @@ struct FoldContext<'a> {
 }
 
 /// Collect static-fold edits for one function scope.
+#[cfg(test)]
 fn collect_folds_for_scope(
     source: &str,
     cx: FoldContext<'_>,
@@ -2413,6 +2570,7 @@ fn collect_folds_for_scope(
 
 /// Fold the quoted string inside the `span` region of an
 /// `AssignValue` (`set x "…"`).
+#[cfg(test)]
 fn try_fold_region(
     source: &str,
     span: Span,
@@ -2449,6 +2607,7 @@ fn try_fold_region(
 /// Resolve a quoted-string body to a static value via SCCP, or
 /// `None` when any substitution is non-constant.  `$var` only;
 /// command substitutions (`[…]`) bail out.
+#[cfg(test)]
 fn fold_string_via_sccp(
     content: &str,
     uses: &HashMap<String, Version>,
@@ -2510,6 +2669,7 @@ fn const_to_string(cv: &ConstValue) -> Option<String> {
 
 /// Whether any `$var` in `content` is tainted without a
 /// fixed-form mitigation colour.
+#[cfg(test)]
 fn has_unsafe_tainted_inputs(
     content: &str,
     uses: &HashMap<String, Version>,
@@ -2544,50 +2704,35 @@ fn has_unsafe_tainted_inputs(
     false
 }
 
-/// Parse a `$var` / `${var}` reference at `pos`, returning
-/// `(end, name)`.  Rejects array (`$a(i)`) and namespaced
-/// (`$a::b`) forms.
-///
-/// The braced form is delimited by [`tcl_lexer::braced_var_name_end`] under
-/// the document's own `${…}` close rule: on a Tcl 9 document `${a{b}c}` is
-/// one variable named `a{b}c`, where the 8.x first-`}` rule reads `a{b` and
-/// leaves `c}` as word text. Minify rewrites these spans, so reading the
-/// wrong one changes what the output program means.
+/// Fixture scalar eligibility uses the shared reference extent and grammar.
+#[cfg(test)]
+fn scalar_reference_at(text: &str, pos: usize, config: LexerConfig) -> (usize, Option<&str>) {
+    if text.as_bytes().get(pos) != Some(&b'$') {
+        return (pos.saturating_add(1), None);
+    }
+    let Ok(Some(reference)) = tcl_lexer::scan_var_ref(text.as_bytes(), pos, config) else {
+        return (pos.saturating_add(1), None);
+    };
+    if reference.index.is_some() {
+        return (reference.next, None);
+    }
+    (reference.next, std::str::from_utf8(reference.name).ok())
+}
+
+#[cfg(test)]
 fn parse_var_ref(
     text: &str,
     pos: usize,
     style: tcl_dialect::BracedVarStyle,
 ) -> (usize, Option<&str>) {
-    let bytes = text.as_bytes();
-    if pos >= bytes.len() || bytes[pos] != b'$' {
-        return (pos + 1, None);
-    }
-    let start = pos + 1;
-    if start >= bytes.len() {
-        return (start, None);
-    }
-    if bytes[start] == b'{' {
-        return match tcl_lexer::braced_var_name_end(bytes, start + 1, style) {
-            tcl_lexer::BracedVarEnd::Closed(close) => (close + 1, Some(&text[start + 1..close])),
-            tcl_lexer::BracedVarEnd::Unterminated => (start, None),
-        };
-    }
-    let mut end = start;
-    while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
-        end += 1;
-    }
-    if end == start {
-        return (start, None);
-    }
-    if end < bytes.len() {
-        if bytes[end] == b'(' {
-            return (start, None);
-        }
-        if bytes[end] == b':' && end + 1 < bytes.len() && bytes[end + 1] == b':' {
-            return (start, None);
-        }
-    }
-    (end, Some(&text[start..end]))
+    scalar_reference_at(
+        text,
+        pos,
+        LexerConfig {
+            braced_var: style,
+            ..LexerConfig::default()
+        },
+    )
 }
 
 /// Build a replacement token for a folded static string: bare when
@@ -4108,6 +4253,33 @@ mod tests {
             &registry,
         )
         .source
+    }
+
+    #[test]
+    fn original_static_folds_do_not_borrow_erasure_from_logical_source_values() {
+        let source = "set value 42\nputs \"n=$value\"\n";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(source, profile, &registry);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert!(input.has_logical_source_name_context());
+        let (out, count, map) = fold_original_static_substrings(source, input);
+        assert_eq!(out, source);
+        assert_eq!(count, 0);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn live_name_inventory_uses_the_actual_complete_reference_grammar() {
+        let source = "# ${a{b}c} $a::value $a(index) $Ω\n";
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default();
+        let analysis = original::analysis_for_profile(source, profile, &registry);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let names = collect_live_names(source, input);
+        for name in ["a{b}c", "a::value", "a", "Ω"] {
+            assert!(names.contains(name), "{name}: {names:?}");
+        }
     }
 
     #[test]

@@ -1,0 +1,11 @@
+{
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+    "sha256": "2a41ead4d0fc94792ac0cba316311d69e020067a3a762f297f60e7d7591d7350",
+    "bytes": 384999568
+  },
+  "saved_binary": "/workspace/tcl-lsp/tmp/name-depth-budget88-compiler-ELF",
+  "sha256_after": "2a41ead4d0fc94792ac0cba316311d69e020067a3a762f297f60e7d7591d7350",
+  "scope": "Original unchanged source-walk depth test on frozen production88 ELF inspected by approved own-child GDB; no source/budget changes",
+  "debugger_log": "gdb-source-walk.log"
+}

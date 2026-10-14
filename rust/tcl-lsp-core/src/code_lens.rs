@@ -370,70 +370,34 @@ pub fn reference_count_title(count: usize) -> String {
     }
 }
 
-/// Whether `qname` names a symbol [`code_lenses`] would emit a lens for in
-/// this document — a proc, a class, or one of a class's members (method /
-/// classmethod / property / constructor / destructor), matching exactly the
-/// same "declared members only" guards `code_lenses` /
-/// `emit_class_member_lenses` apply (a member with an empty `name_span`
-/// gets no lens, so it must not answer `true` here either).
-///
-/// `codeLens/resolve` uses this existence check to decide
-/// whether a lens is genuinely one of this document's own lenses before
-/// resolving its click locations.  Calling [`code_lenses`] in full and
-/// searching its output for a matching `qname` would recompute
-/// every *other* proc's / class's / member's reference count (each itself a
-/// resolver walk) just to answer one boolean. This answers the same
-/// question with direct `HashMap`/`Vec` lookups: O(1) for a plain proc or
-/// class, O(the document's own class count) for a member qname (bounded by
-/// how many classes share its `{class}::…` prefix, never by proc count or
-/// by any reference-resolution work).
+/// Match compatibility lens keys using the same analyser recipes as emission.
+/// This presentation query grants no original declaration or invocation identity.
 #[must_use]
 pub fn lens_qname_exists(analysis: &AnalysisResult, qname: &str) -> bool {
     if analysis.all_procs.contains_key(qname) || analysis.all_classes.contains_key(qname) {
         return true;
     }
-    for (class_q, class_def) in &analysis.all_classes {
-        let Some(rest) = qname.strip_prefix(class_q.as_str()) else {
-            continue;
-        };
-        // A shorter `class_q` can still produce a `rest` that happens to
-        // start with one of these markers (e.g. a class literally named
-        // `method` nested under this one) — only trust a *hit*, and keep
-        // checking the other classes on a miss rather than trusting a wrong
-        // split's "not found" as the final answer.
-        let found = if let Some(name) = rest.strip_prefix("::method::") {
-            class_def
-                .methods
-                .get(name)
-                .is_some_and(|m| !m.name_span.is_empty())
-        } else if let Some(name) = rest.strip_prefix("::classmethod::") {
-            class_def
-                .class_methods
-                .get(name)
-                .is_some_and(|m| !m.name_span.is_empty())
-        } else if let Some(name) = rest.strip_prefix("::property::") {
-            class_def
-                .properties
-                .get(name)
-                .is_some_and(|p| !p.name_span.is_empty())
-        } else if rest == "::constructor" {
-            class_def
-                .constructors
-                .last()
-                .is_some_and(|c| !c.name_span.is_empty())
-        } else if rest == "::destructor" {
-            class_def
+    analysis.all_classes.iter().any(|(class_q, class_def)| {
+        class_def.methods.iter().any(|(name, member)| {
+            !member.name_span.is_empty()
+                && tcl_compiler::analyser::class_member_key(class_q, name, false) == qname
+        }) || class_def.class_methods.iter().any(|(name, member)| {
+            !member.name_span.is_empty()
+                && tcl_compiler::analyser::class_member_key(class_q, name, true) == qname
+        }) || class_def.properties.iter().any(|(name, member)| {
+            !member.name_span.is_empty()
+                && tcl_compiler::analyser::class_property_key(class_q, name) == qname
+        }) || (class_def
+            .constructors
+            .last()
+            .is_some_and(|member| !member.name_span.is_empty())
+            && tcl_compiler::analyser::class_constructor_key(class_q) == qname)
+            || (class_def
                 .destructor
                 .as_ref()
-                .is_some_and(|d| !d.name_span.is_empty())
-        } else {
-            false
-        };
-        if found {
-            return true;
-        }
-    }
-    false
+                .is_some_and(|member| !member.name_span.is_empty())
+                && tcl_compiler::analyser::class_destructor_key(class_q) == qname)
+    })
 }
 
 /// Count invocations targeting the given class — `ClassName

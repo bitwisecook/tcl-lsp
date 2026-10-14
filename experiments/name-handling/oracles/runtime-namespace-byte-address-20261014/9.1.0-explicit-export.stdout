@@ -1,0 +1,4 @@
+copied ::outer::ns::child
+existing 1 {ns::::child refers to an existing namespace}
+created ::outer::allocated::child
+duplicate 1 {can't create namespace "allocated::::child": already exists}

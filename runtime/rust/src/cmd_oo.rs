@@ -2567,15 +2567,12 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Some(ref ns) if !ns.is_empty() => {
                 // The target namespace is *created*; an existing one is an error
                 // (C's `TclOO_Copy`; oo-15.12).
-                if interp
-                    .resolve_namespace_name(tcl_core_types::c_string_extent(ns))
-                    .is_some()
-                {
+                if oo_checked!(interp, interp.resolve_namespace_name(ns)).is_some() {
                     let mut m = ns.clone();
                     m.extend_from_slice(b" refers to an existing namespace");
                     return err(interp, &m);
                 }
-                interp.ensure_namespace(tcl_core_types::c_string_extent(ns))
+                oo_checked!(interp, interp.ensure_namespace_address(ns))
             }
             _ => interp.fresh_native_oo_namespace(),
         };
@@ -6315,9 +6312,7 @@ impl Interp {
                         };
                         let namespace = oo_original_bytes!(interp, originals, 1);
                         oo_checked!(interp, class_owner.check(interp));
-                        if interp
-                            .resolve_namespace_name(tcl_core_types::c_string_extent(&namespace))
-                            .is_some()
+                        if oo_checked!(interp, interp.resolve_namespace_name(&namespace)).is_some()
                         {
                             let mut message = b"can't create namespace \"".to_vec();
                             message.extend_from_slice(&namespace);
@@ -6327,7 +6322,7 @@ impl Interp {
                         let invocation = oo_checked!(interp, invocation(interp));
                         oo_checked!(interp, class_owner.check(interp));
                         let namespace =
-                            interp.ensure_namespace(tcl_core_types::c_string_extent(&namespace));
+                            oo_checked!(interp, interp.ensure_namespace_address(&namespace));
                         oo_original_check!(interp, originals);
                         oo_checked!(interp, class_owner.check(interp));
                         interp.oo_new_ns(
@@ -10254,6 +10249,45 @@ mod tests {
             ok(i, b"s p q");
             assert_eq!(ok(i, b"s contents"), b"p q");
         });
+    }
+
+    #[test]
+    fn object_namespace_publication_uses_selected_relative_byte_geometry() {
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                ok(
+                    i,
+                    b"namespace eval ::outer {oo::object create src; oo::copy src dst ns::::child}",
+                );
+                assert_eq!(
+                    ok(i, b"info object namespace ::outer::dst"),
+                    b"::outer::ns::child"
+                );
+                assert_eq!(
+                    i.eval_str(b"namespace eval ::outer {oo::copy src another ns::::child}"),
+                    Code::Error
+                );
+                assert_eq!(
+                    i.result_bytes(),
+                    b"ns::::child refers to an existing namespace"
+                );
+                ok(i, b"namespace eval ::outer {oo::class create C; oo::objdefine C export createWithNamespace; C createWithNamespace named allocated::::child}");
+                assert_eq!(
+                    ok(i, b"info object namespace ::outer::named"),
+                    b"::outer::allocated::child"
+                );
+                assert_eq!(i.eval_str(b"namespace eval ::outer {C createWithNamespace another allocated::::child}"), Code::Error);
+                assert_eq!(
+                    i.result_bytes(),
+                    b"can't create namespace \"allocated::::child\": already exists"
+                );
+            });
+        }
     }
 
     #[test]

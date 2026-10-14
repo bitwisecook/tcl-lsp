@@ -1,0 +1,4 @@
+/tmp/name-control-receiver-data-20261014/oracles/probe.tcl:5: Error: can't read "": no such variable
+Traceback (most recent call last):
+  File "/tmp/name-control-receiver-data-20261014/oracles/probe.tcl", line 5
+    set {}

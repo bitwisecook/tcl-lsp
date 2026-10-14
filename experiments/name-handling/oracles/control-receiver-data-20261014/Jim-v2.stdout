@@ -1,0 +1,15 @@
+interpreter 0.84-9-g5bac7c9
+catch {} code 2 exists 0 value MISSING
+catch {$dollar} code 2 exists 1 value PAYLOAD
+catch {${braced}} code 2 exists 1 value PAYLOAD
+catch arr(key) code 2 exists 1 value PAYLOAD
+catch_options {} {$options} outer 0 result_exists 0 options_exists 1 message 2
+catch_options {$dollar2} {${opts}} outer 0 result_exists 1 options_exists 1 message 2
+result {$dollar2} PAYLOAD2
+catch_options arr2(key) opts(key) outer 0 result_exists 1 options_exists 1 message 2
+result arr2(key) PAYLOAD2
+try_status {} {$try_options} 1 {can't read "": no such variable}
+try {$try_dollar} {${try_opts}} result_exists 1 value BOOM options_exists 1
+try_status {$try_dollar} {${try_opts}} 0 {}
+try try_arr(key) try_opts(key) result_exists 1 value BOOM options_exists 1
+try_status try_arr(key) try_opts(key) 0 {}

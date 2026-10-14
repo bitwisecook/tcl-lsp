@@ -42,7 +42,8 @@ pub use authored_source_bodies::OriginalAuthoredProcedureBody;
 pub(crate) use authored_source_bodies::original_authored_procedure_body;
 mod source_name_roles;
 pub(crate) use source_name_roles::{
-    SourceNameRoleInventory, original_authored_substitution_name_roles, original_source_name_roles,
+    OriginalVariableNameOperand, SourceNameRoleInventory,
+    original_authored_substitution_name_roles, original_source_name_roles,
 };
 mod authored_source_structure;
 pub(crate) use authored_source_structure::{

@@ -890,6 +890,30 @@ impl<'a> OriginalAnalysisSsaDefinition<'a> {
     }
 }
 
+fn original_written_source_variable_name<'a>(
+    words: &'a crate::registry_invocation::source_structure::OriginalRegistryWords,
+    written: usize,
+    span: tcl_lexer::Span,
+) -> Option<&'a str> {
+    let mut selected = words
+        .origins()
+        .iter()
+        .enumerate()
+        .filter_map(|(effective, origin)| {
+            (*origin
+                == crate::registry_invocation::InvocationWordOrigin::Written(
+                    written.checked_add(1)?,
+                ))
+            .then(|| effective.checked_sub(1))
+            .flatten()
+        });
+    let argument = selected.next()?;
+    if selected.next().is_some() || words.operands().get(argument)?.as_ref()?.span() != span {
+        return None;
+    }
+    std::str::from_utf8(words.arguments().get(argument)?.literal_bytes()?).ok()
+}
+
 fn current_analysis_function(
     unit: &crate::compilation_unit::CompilationUnit,
     function: &crate::compilation_unit::FunctionUnit,
@@ -992,15 +1016,11 @@ pub fn original_analysis_definition_at_unit<'a>(
                         let Some(word) = original.words().get(argument + 1) else {
                             continue;
                         };
-                        let operand = words
-                            .operands()
-                            .iter()
-                            .flatten()
-                            .find(|operand| operand.span() == word.source().span);
-                        let Some(name) = operand.and_then(|operand| operand.input()) else {
-                            continue;
-                        };
-                        let Ok(name) = std::str::from_utf8(name.bytes()) else {
+                        let Some(name) = original_written_source_variable_name(
+                            &words,
+                            argument,
+                            word.source().span,
+                        ) else {
                             continue;
                         };
                         let Some(symbol) = view.symbol(name) else {
@@ -6704,16 +6724,9 @@ impl<'a> RenameWalk<'a> {
                     let Some(word) = tokens.words().get(argument + 1) else {
                         continue;
                     };
-                    let Some(input) = words
-                        .operands()
-                        .iter()
-                        .flatten()
-                        .find(|operand| operand.span() == word.source().span)
-                        .and_then(|operand| operand.input())
+                    let Some(name) =
+                        original_written_source_variable_name(&words, argument, word.source().span)
                     else {
-                        continue;
-                    };
-                    let Ok(name) = std::str::from_utf8(input.bytes()) else {
                         continue;
                     };
                     if !defs_of_in_context(

@@ -161,6 +161,20 @@ impl EscapeState {
             .push(reason);
     }
 
+    pub(crate) fn escape_original_name_with_reason(
+        &mut self,
+        name: &crate::registry_invocation::OriginalVariableNameOperand,
+        reason: EscapeReason,
+    ) {
+        let name = name.as_str();
+        self.tags.insert(name.to_owned(), EscapeTag::Frame);
+        self.known_names.insert(name.to_owned());
+        self.tag_reasons
+            .entry(name.to_owned())
+            .or_default()
+            .push(reason);
+    }
+
     /// Record a per-name [`EscapeReason`] without changing the tag.
     /// Useful when the caller already escaped the var via a separate
     /// path and now wants to attach a reason.

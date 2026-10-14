@@ -75,6 +75,7 @@ mod native_dictionary;
 pub(crate) mod native_host_publication;
 mod native_introspection;
 pub(crate) use native_dictionary::DictionaryScopeRead;
+pub(crate) mod namespace_address;
 mod native_ensemble_objects;
 mod native_error_variables;
 mod native_execution_constants;
@@ -7356,72 +7357,10 @@ impl Interp {
                 };
             self.namespaces_mut().retain_jim_namespace(canonical, bytes)
         } else {
-            let Some(policy) = self.name_policy_protocol() else {
-                return self.report_cmd_error(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "namespace creation issuer",
-                    )
-                    .into(),
-                );
-            };
-            let current = self.current_ns.get();
-            let Some(path) = self.namespaces().native_context_path(current) else {
-                return self.report_cmd_error(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "namespace creation context",
-                    )
-                    .into(),
-                );
-            };
-            let context = tcl_syntax::naming::NativeNameContext::new(&path);
-            let selected = match policy.recipe().namespace_address_input(context, name) {
-                Ok(selected) => selected,
-                Err(_) => {
-                    return self.report_cmd_error(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "namespace creation name purpose",
-                        )
-                        .into(),
-                    );
-                }
-            };
-            let geometry = match policy.recipe().namespace_address_path(context, name) {
-                Ok(geometry) => geometry,
-                Err(reason @ tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot) => {
-                    let report = match tcl_syntax::naming::report_native_namespace_creation_error(policy.recipe(), reason) {
-                        Ok(report) => report,
-                        Err(_) => return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "namespace creation diagnostic purpose",
-                        ).into()),
-                    };
-                    return crate::cmd_namespace::publish_namespace_error_using(self, report, None);
-                }
-                Err(_) => return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "namespace creation geometry",
-                ).into()),
-            };
-            let (anchor, components) = if selected.qualification()
-                == tcl_syntax::naming::NativeNameQualification::Absolute
-            {
-                (GLOBAL, geometry.as_segments())
-            } else {
-                (current, &geometry.as_segments()[path.as_segments().len()..])
-            };
-            let dying_name = {
-                let namespaces = self.namespaces.borrow();
-                namespaces
-                    .dying_namespace_at_components(anchor, components)
-                    .map(|id| namespaces.qualified_name(id))
-            };
-            if let Some(dying_name) = dying_name {
-                let mut message = b"can't create namespace \"".to_vec();
-                message.extend_from_slice(&dying_name);
-                message.extend_from_slice(b"\": already exists");
-                return self.set_error(&message);
+            match self.publish_namespace_address(name) {
+                Ok(namespace) => namespace,
+                Err(error) => return self.report_cmd_error(error),
             }
-            self.namespaces
-                .borrow_mut()
-                .ensure_namespace_at_components(anchor, components)
         };
         self.ns_eval_in_token(
             target,
@@ -10253,13 +10192,20 @@ impl Interp {
         }
     }
 
-    /// The fully-qualified name of an existing namespace `name` (absolute or
-    /// relative to the current namespace), or `None` if it does not exist —
-    /// for `definitionnamespace`, which requires the namespace to exist.
-    pub(crate) fn resolve_namespace_name(&self, name: &[u8]) -> Option<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let id = ns.find_namespace(self.current_ns.get(), name)?;
-        Some(ns.qualified_name(id))
+    /// Report an existing namespace only after the selected byte-address lookup.
+    pub(crate) fn resolve_namespace_name(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
+        let current = u32::try_from(self.current_ns()).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("namespace context width")
+        })?;
+        let selected = tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
+            self,
+            tcl_runtime_api::NsId(current),
+            name,
+        )?;
+        Ok(selected.map(|namespace| self.namespaces().qualified_name(namespace.0 as usize)))
     }
 
     /// Resolve (creating if needed) a namespace by name, relative to the current

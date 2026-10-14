@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T12:00:18Z on `work`.
+Current bounded snapshot: 2026-10-14T12:14:12Z on `work`.
 
 The integrated consumers use shared original command, variable, body and source
 owners across compiler/CFG, summaries, DB, LSP navigation/hover, server libraries,
@@ -229,11 +229,26 @@ new minifier/linked controls pass. Native/certificate/source SSA producers,
 original #2286 timeout/import failure, depth budgets and DB reuse remain open.
 
 The post88 source batch integrates the explicit Authored clause reader, checked
-handler-role readers, exact inlay definition Symbol/Version selection, descriptor
-controlled global-body name exclusion, selected invocation wrapping traits,
+handler-role readers, exact inlay definition Symbol/Version selection, selected invocation wrapping traits,
 actual Jim fixture profile and standalone wrapper compatibility corrections.
 The Native child producer reaches the real foreign-attachment guard; a private
 analysis attachment now distinguishes genuinely independent cache-hit analyses
 without changing semantic cache keys or weakening current input/source checks.
 Current source is formatted. These fixes await their next actual captures;
 minifier erasure migration remains under review and is not integrated here.
+
+Current source integrates minifier erasure/collision readers, shared code-lens
+member keys, exact Logical written-name SSA projection, Runtime namespace byte
+addressing, catch/try receiver name data, legal empty/sigil variable-name operands
+and strict Normal slot handler-role readers. The proposed global-body candidate
+exclusion is withdrawn: conditional descriptor metadata does not establish
+closed alias/observer alternatives. Original #0 assertions and uncertainty/name
+vocabulary remain required. No such exclusion is active.
+
+Fresh full MCP89 starts12:12 with matching original per-provider init/Tcltest
+libraries; it is RUNNING with no result. Source/runtime/data/scripts/experiments
+are frozen for that capture. Latest completed Compiler88 remains96 PASS/17
+nonpassing across113, build PASS/source drift zero/no missing-empty. Its three
+depth controls abort and analyser cap times out; Native/certificate/SSA and
+Authored clause positives remain failed in that pre-fix scope. Current code is
+reviewed and formatted, with all post88 original/new acceptance still required.

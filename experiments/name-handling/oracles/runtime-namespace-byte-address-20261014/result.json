@@ -1,0 +1,32 @@
+[
+  {
+    "provider": "8.6.18",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "source_sha256": "c0f89306e4540b5fd34057d7e206790c13c426e3f1f37696012a40cfd03c0161",
+    "exit_code": 0,
+    "stdout": "copied ::outer::ns::child 1\nexisting 1 {ns::::child refers to an existing namespace}\ncreated 1 {unknown method \"createWithNamespace\": must be create, destroy or new}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "9.0.4",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+    "source_sha256": "c0f89306e4540b5fd34057d7e206790c13c426e3f1f37696012a40cfd03c0161",
+    "exit_code": 0,
+    "stdout": "copied ::outer::ns::child 1\nexisting 1 {ns::::child refers to an existing namespace}\ncreated 1 {unknown method \"createWithNamespace\": must be create, destroy or new}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "9.1.0",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+    "source_sha256": "c0f89306e4540b5fd34057d7e206790c13c426e3f1f37696012a40cfd03c0161",
+    "exit_code": 0,
+    "stdout": "copied ::outer::ns::child 1\nexisting 1 {ns::::child refers to an existing namespace}\ncreated 1 {unknown method \"createWithNamespace\": must be create, destroy or new}\n",
+    "stderr": ""
+  }
+]

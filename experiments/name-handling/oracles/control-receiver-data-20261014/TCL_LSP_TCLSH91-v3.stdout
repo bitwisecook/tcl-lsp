@@ -1,0 +1,17 @@
+interpreter 9.1.0
+catch {} code 2 exists 1 value PAYLOAD
+catch {$dollar} code 2 exists 1 value PAYLOAD
+catch {${braced}} code 2 exists 1 value PAYLOAD
+catch arr(key) code 2 exists 1 value PAYLOAD
+catch_options {} {$options} outer 0 result_exists 1 options_exists 1 message 2
+result {} PAYLOAD2
+catch_options {$dollar2} {${opts}} outer 0 result_exists 1 options_exists 1 message 2
+result {$dollar2} PAYLOAD2
+catch_options arr2(key) opts(key) outer 0 result_exists 1 options_exists 1 message 2
+result arr2(key) PAYLOAD2
+try {} {$try_options} result_exists 1 value BOOM options_exists 1
+try_status {} {$try_options} 0 {}
+try {$try_dollar} {${try_opts}} result_exists 1 value BOOM options_exists 1
+try_status {$try_dollar} {${try_opts}} 0 {}
+try try_arr(key) try_opts(key) result_exists 1 value BOOM options_exists 1
+try_status try_arr(key) try_opts(key) 0 {}

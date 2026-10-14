@@ -121,7 +121,7 @@ pub(crate) fn handle_introspection(
     transfer_introspection(
         &invocation.facts,
         &roles,
-        |argument| invocation.argument_literal(argument),
+        |argument| invocation.original_variable_name_operand(argument),
         state,
         defs,
     );
@@ -135,7 +135,7 @@ pub(crate) fn handle_source_introspection(
     transfer_introspection(
         invocation.facts(),
         invocation.roles(),
-        |argument| invocation.argument_literal(argument),
+        |argument| invocation.original_variable_name_operand(argument),
         state,
         defs,
     );
@@ -147,7 +147,7 @@ pub(crate) fn handle_source_introspection(
 fn transfer_introspection(
     facts: &InvocationFacts,
     roles: &[(usize, ArgRole)],
-    argument_literal: impl Fn(usize) -> Option<String>,
+    argument_literal: impl Fn(usize) -> Option<crate::registry_invocation::OriginalVariableNameOperand>,
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
 ) {
@@ -190,37 +190,38 @@ fn transfer_introspection(
             state.escape_all_known(defs);
             continue;
         };
+        let name = target.as_str();
         if facts.operation
             == tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::InfoExists)
         {
-            state.escape_resolved_name_with_reason(
+            state.escape_original_name_with_reason(
                 &target,
                 defs,
                 EscapeReason::with_detail(
                     EscapeReasonKind::InfoExists,
                     format!(
-                        "{} {} {target}",
+                        "{} {} {name}",
                         facts.canonical_command,
                         facts.subcommand.canonical_name().unwrap_or("<subcommand>")
                     ),
                 ),
             );
         } else if *role == ArgRole::VarWrite {
-            state.escape_resolved_name_with_reason(
+            state.escape_original_name_with_reason(
                 &target,
                 defs,
                 EscapeReason::with_detail(
                     EscapeReasonKind::InfoVarWrite,
-                    format!("{} writes {target}", facts.canonical_command),
+                    format!("{} writes {name}", facts.canonical_command),
                 ),
             );
         } else {
-            state.escape_resolved_name_with_reason(
+            state.escape_original_name_with_reason(
                 &target,
                 defs,
                 EscapeReason::with_detail(
                     EscapeReasonKind::InfoVarRead,
-                    format!("{} reads {target}", facts.canonical_command),
+                    format!("{} reads {name}", facts.canonical_command),
                 ),
             );
         }
@@ -562,6 +563,62 @@ mod tests {
         assert!(s.ssa_tags.contains_key(&("a".into(), 0)));
         assert!(s.ssa_tags.contains_key(&("b".into(), 0)));
     }
+    #[test]
+    fn original_empty_and_sigil_name_operands_keep_escape_reasons() {
+        for (source, expected) in [
+            ("info exists {}", ""),
+            ("info exists {$literal}", "$literal"),
+        ] {
+            let invocation = crate::var_escape::info_subcommands::original_info_invocation(source)
+                .expect("actual original invocation owner");
+            assert!(invocation.original_variable_name_operand(0).is_none());
+            let mut state = CfgState::default();
+            handle_introspection(&invocation, &mut state, &HashMap::new());
+            assert_eq!(
+                state.ssa_tags.get(&(expected.to_owned(), 0)),
+                Some(&crate::var_escape::types::EscapeTag::Frame)
+            );
+            assert!(!state.dynamic_barrier());
+            assert!(state.tag_reasons.get(expected).is_some_and(|reasons| {
+                reasons
+                    .iter()
+                    .any(|reason| reason.kind == EscapeReasonKind::InfoExists)
+            }));
+        }
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(
+            "proc p {} {info exists {}; info exists {$literal}}",
+            &registry,
+        );
+        let (_, procedure) = module.original_source_procedure_bodies().next().unwrap();
+        for (statement, expected) in procedure.body.statements.iter().zip(["", "$literal"]) {
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let names = crate::registry_invocation::original_source_name_roles(&registry, tokens)
+                .expect("actual readonly source body owner");
+            assert!(names.original_variable_name_operand(0).is_none());
+            let mut state = CfgState::default();
+            handle_source_introspection(&names, &mut state, &HashMap::new());
+            assert_eq!(
+                state.ssa_tags.get(&(expected.to_owned(), 0)),
+                Some(&crate::var_escape::types::EscapeTag::Frame)
+            );
+            assert!(state.tag_reasons.get(expected).is_some_and(|reasons| {
+                reasons
+                    .iter()
+                    .any(|reason| reason.kind == EscapeReasonKind::InfoExists)
+            }));
+            let mut changed = tokens.clone();
+            changed.argv_texts[2].push_str(" changed");
+            assert!(
+                crate::registry_invocation::original_source_name_roles(&registry, &changed)
+                    .is_none()
+            );
+        }
+    }
+
     #[test]
     fn owned_info_operands_preserve_original_literal_names() {
         for (source, expected) in [

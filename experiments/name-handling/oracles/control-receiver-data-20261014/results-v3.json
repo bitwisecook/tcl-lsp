@@ -1,0 +1,67 @@
+{
+  "script_sha256": "b1ea0d46ebedf65a5b45115d00e21e0778dcd4121b5494879a73a813da678740",
+  "runs": [
+    {
+      "key": "TCL_LSP_TCLSH84",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_before_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "binary_after_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit": 0,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "stdout_sha256": "cf3f1dd8afbc8dc4d9f3f6110afd884043fd8d9a3c9c976f6675ca5fb0876989",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "key": "TCL_LSP_TCLSH85",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_before_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "binary_after_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit": 0,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "stdout_sha256": "8cf30115deb414a144c5d346eb43b74e90dba2f7cb8243d0da7d5bc478f980b5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "key": "TCL_LSP_TCLSH86",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_before_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "binary_after_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit": 0,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "stdout_sha256": "85be73587a6c9e5fffe139e06fb78e70dcdbf63793ef7211505fead9022722a5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "key": "TCL_LSP_TCLSH90",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_before_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "binary_after_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit": 0,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "stdout_sha256": "23689d320252b7c96a6934d379a6dddcc8e7901a9d591c7ee66bd3aa57ca9de9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "key": "TCL_LSP_TCLSH91",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_before_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "binary_after_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit": 0,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "stdout_sha256": "5f829781cedd498e646a4b596be1416f3393ffcf0f9d34eedd458fb142475957",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "key": "TCL_LSP_JIMSH",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_before_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "binary_after_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit": 0,
+      "TCL_LIBRARY": null,
+      "stdout_sha256": "2817ef8505f1cdf4ad732b27ae778944ac80a0b7f1e92baca533ef2cb6cf6cfb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "tcltest": "not used; direct actual interpreter commands",
+  "f5": "not executed; BIG-IP questions pending separate chat"
+}

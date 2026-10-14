@@ -1,0 +1,2 @@
+install 0 {} 0
+trace {0 TRIGGER LOCAL} {0 TRACECALLBACK}

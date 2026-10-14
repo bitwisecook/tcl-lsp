@@ -228,6 +228,11 @@ fn call_disables_slots(
         crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
             registry, metadata, tokens,
         )
+        .or_else(|| {
+            crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+        })
     else {
         return true;
     };
@@ -820,6 +825,42 @@ mod tests {
         let body = script_with(vec![call("::upvar", &["1", "src", "dst"])]);
         let slots = assign_local_slots(&body, &s, &[]);
         assert!(slots.is_empty());
+    }
+
+    #[test]
+    fn actual_bytecode_frameless_handler_roles_preserve_other_local_slots() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        for head in ["list", "::list"] {
+            let source = format!("proc p {{}} {{set x 1; {head} value}}");
+            let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+                &source,
+                registry,
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                Some(profile),
+            );
+            let procedure = module.procedures.values().next().unwrap();
+            let statement = procedure.body.statements.last().unwrap();
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let metadata = binding
+                .original_source_metadata_for_advice(tokens, registry)
+                .unwrap();
+            let normal =
+                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                    registry, metadata, tokens,
+                )
+                .expect("actual selected bytecode handler");
+            assert!(normal.is_frameless_runtime());
+            assert_eq!(
+                assign_local_slots(&procedure.body, &ProcEscapeSummary::default(), &[]).get("x"),
+                Some(&0),
+            );
+        }
     }
 
     #[test]

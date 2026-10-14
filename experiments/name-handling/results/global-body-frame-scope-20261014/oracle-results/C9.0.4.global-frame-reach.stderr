@@ -1,0 +1,4 @@
+bad option "variable": must be add, info, or remove
+    while executing
+"trace variable x w scope_trace"
+    (file "/tmp/name-global-body-frame-oracles-20261014/oracles-isolated/global-frame-reach.tcl" line 26)

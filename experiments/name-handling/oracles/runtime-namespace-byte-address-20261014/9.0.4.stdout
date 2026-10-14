@@ -1,0 +1,3 @@
+copied ::outer::ns::child 1
+existing 1 {ns::::child refers to an existing namespace}
+created 1 {unknown method "createWithNamespace": must be create, destroy or new}

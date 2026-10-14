@@ -1,0 +1,9 @@
+interpreter 8.4.20
+catch {} code 2 exists 1 value PAYLOAD
+catch {$dollar} code 2 exists 1 value PAYLOAD
+catch {${braced}} code 2 exists 1 value PAYLOAD
+catch arr(key) code 2 exists 1 value PAYLOAD
+catch_options {} {$options} outer 1 result_exists 0 options_exists 0 message {wrong # args: should be "catch command ?varName?"}
+catch_options {$dollar2} {${opts}} outer 1 result_exists 0 options_exists 0 message {wrong # args: should be "catch command ?varName?"}
+catch_options arr2(key) opts(key) outer 1 result_exists 0 options_exists 0 message {wrong # args: should be "catch command ?varName?"}
+try unavailable

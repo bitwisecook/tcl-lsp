@@ -1326,55 +1326,17 @@ impl Namespaces for Interp {
         cxt: NsId,
         original: &[u8],
     ) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
-        use tcl_syntax::{naming::NativeNameContext, value::ValueError};
-        let policy = self
-            .name_policy_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable("namespace lookup"))?;
-        if policy.recipe().is_jim084() {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "Jim flat namespace object storage",
-            ));
+        match self.namespace_address_components(cxt.0 as usize, original) {
+            Ok((anchor, components)) => Ok(self
+                .namespaces()
+                .namespace_at_components(anchor, &components)
+                .map(|namespace| NsId(namespace as u32))),
+            Err(super::interp::namespace_address::NamespaceAddressError::Projection {
+                reason: tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot,
+                ..
+            }) => Ok(None),
+            Err(error) => Err(error.into_value_error()),
         }
-        let path = self
-            .namespaces()
-            .native_context_path(cxt.0 as usize)
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "namespace lookup context",
-            ))?;
-        let selected = policy
-            .recipe()
-            .namespace_address_input(NativeNameContext::new(&path), original)
-            .map_err(|_| ValueError::CommandProtocolUnavailable("namespace lookup name purpose"))?;
-        if let Some(refusal) = self.native_access_refusal() {
-            return Err(refusal.into());
-        }
-        let geometry = match policy
-            .recipe()
-            .namespace_address_path(NativeNameContext::new(&path), original)
-        {
-            Ok(geometry) => geometry,
-            Err(tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot) => {
-                return Ok(None);
-            }
-            Err(_) => {
-                return Err(ValueError::CommandProtocolUnavailable(
-                    "namespace address geometry",
-                ))
-            }
-        };
-        let (anchor, components) =
-            if selected.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute {
-                (crate::namespace::GLOBAL, geometry.as_segments())
-            } else {
-                (
-                    cxt.0 as usize,
-                    &geometry.as_segments()[path.as_segments().len()..],
-                )
-            };
-        Ok(self
-            .namespaces()
-            .namespace_at_components(anchor, components)
-            .map(|id| NsId(id as u32)))
     }
 
     fn find_namespace_child_bytes_checked(

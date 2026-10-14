@@ -823,8 +823,23 @@ impl Lowerer<'_> {
         }
 
         let body = self.lower_body_from_tok(&args[0], Some(&arg_tokens[0]), namespace);
-        let result_var = args.get(1).map(|a| normalise_var_name(a).to_owned());
-        let options_var = args.get(2).map(|a| normalise_var_name(a).to_owned());
+        let receiver = |argument| self.original_control_receiver_value(seg, argument);
+        let result_var = if args.len() > 1 {
+            let Some(name) = receiver(1) else {
+                return self.barrier(seg, "catch with dynamic receiver");
+            };
+            Some(name)
+        } else {
+            None
+        };
+        let options_var = if args.len() > 2 {
+            let Some(name) = receiver(2) else {
+                return self.barrier(seg, "catch with dynamic receiver");
+            };
+            Some(name)
+        } else {
+            None
+        };
 
         Statement::Catch {
             span: seg.span,
@@ -835,6 +850,19 @@ impl Lowerer<'_> {
             raw_args: args.to_vec(),
             tokens: Some(self.cmd_tokens(seg)),
         }
+    }
+
+    /// Receiver operands are evaluated name data, never variable-reference syntax.
+    fn original_control_receiver_value(
+        &self,
+        seg: &SegmentedCommand,
+        argument: usize,
+    ) -> Option<String> {
+        if self.target.is_bytecode() {
+            return self.original_native_written_argument_value(seg, argument);
+        }
+        self.logical_structured_invocation(&self.cmd_tokens(seg))?
+            .argument_literal(argument)
     }
 
     // try
@@ -1008,14 +1036,15 @@ impl Lowerer<'_> {
         let trap_pattern = self
             .try_trap_pattern(seg, pattern_idx + 1, keyword, &match_arg)
             .map_err(|()| "try trap native byte pattern is not represented")?;
-        let Some(var_names) = parse_var_list_names(
-            &args[var_list_idx],
-            WordValueRules::from_config(&self.config),
-        ) else {
+        let Some(variable_list) = self.original_control_receiver_value(seg, var_list_idx) else {
+            return Err("try with dynamic handler variable list");
+        };
+        let Ok(var_names) = WordValueRules::from_config(&self.config).split_list(&variable_list)
+        else {
             return Err("try with malformed handler variable list");
         };
-        let var_name = var_names.first().map(|v| normalise_var_name(v).to_owned());
-        let options_var = var_names.get(1).map(|v| normalise_var_name(v).to_owned());
+        let var_name = var_names.first().map(|name| name.to_string());
+        let options_var = var_names.get(1).map(|name| name.to_string());
         let handler_tok = arg_tokens.get(body_idx);
         // A handler whose script word is the fall-through marker shares the
         // next handler's body (like `switch`). Tcl recognises the marker by
@@ -2617,5 +2646,59 @@ mod original_body_word_caller_tests {
                 .original_body_source_for_word(parent, span, changed_config)
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod control_receiver_data_tests {
+    use crate::ir::Statement;
+
+    fn body(source: &str) -> crate::ir::Module {
+        crate::lowering::lower_to_ir(source, &tcl_registry::CommandRegistry::build_default())
+    }
+
+    #[test]
+    fn catch_and_try_receivers_keep_literal_sigils_elements_and_empty_data() {
+        for (name, expected) in [
+            ("{$literal}", "$literal"),
+            ("{${braced}}", "${braced}"),
+            ("{arr(key)}", "arr(key)"),
+            ("{}", ""),
+        ] {
+            let module = body(&format!("proc p {{}} {{catch {{}} {name}}}"));
+            let (_, procedure) = module.original_source_procedure_bodies().next().unwrap();
+            let Statement::Catch { result_var, .. } = &procedure.body.statements[0] else {
+                panic!("authentic source catch")
+            };
+            assert_eq!(result_var.as_deref(), Some(expected));
+        }
+        let module = body("proc p {} {try {error BOOM} on error {{$literal} {opts(key)}} {}} ");
+        let (_, procedure) = module.original_source_procedure_bodies().next().unwrap();
+        let Statement::Try { handlers, .. } = &procedure.body.statements[0] else {
+            panic!("authentic source try")
+        };
+        assert_eq!(handlers[0].var_name.as_deref(), Some("$literal"));
+        assert_eq!(handlers[0].options_var.as_deref(), Some("opts(key)"));
+    }
+
+    #[test]
+    fn computed_control_receiver_names_keep_runtime_dispatch() {
+        for source in [
+            "proc p {} {catch {} $receiver}",
+            "proc p {} {try {error BOOM} on error $receivers {}}",
+        ] {
+            let module = body(source);
+            let (_, procedure) = module.original_source_procedure_bodies().next().unwrap();
+            assert!(matches!(
+                &procedure.body.statements[0],
+                Statement::Call { .. } | Statement::Barrier { .. }
+            ));
+            assert!(
+                procedure
+                    .body
+                    .retained_source_tokens_for_statement(&procedure.body.statements[0])
+                    .is_some()
+            );
+        }
     }
 }

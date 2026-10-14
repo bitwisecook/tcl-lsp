@@ -20,6 +20,35 @@
 
 use super::{CommandRegistry, CommandTokens, InvocationFacts, ResolvedStatementInvocation};
 
+pub(crate) struct OriginalVariableNameOperand(String);
+
+impl OriginalVariableNameOperand {
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl ResolvedStatementInvocation {
+    pub(crate) fn original_variable_name_operand(
+        &self,
+        argument: usize,
+    ) -> Option<OriginalVariableNameOperand> {
+        self.facts
+            .arg_roles
+            .iter()
+            .any(|&(ordinal, role)| {
+                self.facts.argument_offset + usize::from(ordinal) == argument
+                    && matches!(
+                        role,
+                        tcl_registry::ArgRole::VarRead | tcl_registry::ArgRole::VarWrite
+                    )
+            })
+            .then_some(())?;
+        self.argument_literal(argument)
+            .map(OriginalVariableNameOperand)
+    }
+}
+
 /// Possible name operands from a complete actual original source owner.
 /// This result grants no Normal completion, entered frame or cell identity.
 pub(crate) struct SourceNameRoleInventory {
@@ -39,6 +68,23 @@ impl SourceNameRoleInventory {
     }
     pub(crate) fn argument_literal(&self, argument: usize) -> Option<String> {
         self.values.get(argument)?.clone()
+    }
+    pub(crate) fn original_variable_name_operand(
+        &self,
+        argument: usize,
+    ) -> Option<OriginalVariableNameOperand> {
+        self.roles
+            .iter()
+            .any(|&(ordinal, role)| {
+                ordinal == argument
+                    && matches!(
+                        role,
+                        tcl_registry::ArgRole::VarRead | tcl_registry::ArgRole::VarWrite
+                    )
+            })
+            .then_some(())?;
+        self.argument_literal(argument)
+            .map(OriginalVariableNameOperand)
     }
     pub(crate) fn roles(&self) -> &[(usize, tcl_registry::ArgRole)] {
         &self.roles

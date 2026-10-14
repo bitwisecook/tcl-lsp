@@ -253,6 +253,24 @@ impl CfgState {
             .push(reason);
     }
 
+    pub(crate) fn escape_original_name_with_reason(
+        &mut self,
+        name: &crate::registry_invocation::OriginalVariableNameOperand,
+        defs: &HashMap<String, Version>,
+        reason: crate::var_escape::types::EscapeReason,
+    ) {
+        let name = name.as_str();
+        let version = self.version_for(name, defs);
+        self.ssa_tags
+            .insert((name.to_owned(), version), EscapeTag::Frame);
+        self.known_names.insert(name.to_owned());
+        self.ssa_for_name.entry(name.to_owned()).or_insert(version);
+        self.tag_reasons
+            .entry(name.to_owned())
+            .or_default()
+            .push(reason);
+    }
+
     /// Record a literal caller-frame name reached via `upvar`.
     pub fn record_upvar_source(&mut self, src: &str) {
         if !src.is_empty() {
