@@ -239,8 +239,8 @@ mod tests {
     use super::*;
     use crate::obj::{NativeObjectLifetime, Owned, new_string_bytes};
 
-    fn interpreter() -> crate::Interp {
-        crate::Interp::with_native_core(
+    fn interpreter() -> crate::interp::Interp {
+        crate::interp::Interp::with_native_core(
             crate::interp::default_host(),
             crate::environment::profile_for_dialect("jim"),
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
@@ -306,7 +306,7 @@ mod tests {
         let original = Owned::fresh(new_string_bytes(b"OLD"));
         let neutral = JimCommandNameObservation::capture(original.as_ptr()).unwrap();
         drop(original);
-        let c_interpreter = crate::Interp::with_native_core(
+        let c_interpreter = crate::interp::Interp::with_native_core(
             crate::interp::default_host(),
             crate::environment::profile_for_dialect("tcl8.6"),
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
