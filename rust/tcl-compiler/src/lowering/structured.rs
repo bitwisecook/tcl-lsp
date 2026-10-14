@@ -37,7 +37,7 @@ use crate::ir::{
 use crate::lowering_hooks::word_content_base;
 use crate::segmenter::SegmentedCommand;
 
-use super::{Lowerer, parse_var_list_names};
+use super::Lowerer;
 use tcl_syntax::word_rules::WordValueRules;
 
 /// A single pattern/body pair collected by
@@ -660,9 +660,12 @@ impl Lowerer<'_> {
         for i in (0..body_idx).step_by(2) {
             // A varList that is not a well-formed Tcl list binds nothing we can
             // name; the runtime `foreach` raises Tcl's own error.
-            let Some(var_names) =
-                parse_var_list_names(&args[i], WordValueRules::from_config(&self.config))
-            else {
+            let Some(var_names) = crate::registry_invocation::original_name_role_values(
+                self.registry,
+                &cmd_tokens,
+                i,
+                ArgRole::LoopVarList,
+            ) else {
                 return self.barrier(seg, "foreach with malformed variable list");
             };
             iterators.push(ForeachIterator {
@@ -717,27 +720,8 @@ impl Lowerer<'_> {
         }
     }
 
-    /// Lower `foreachLine varName filename body` (Tcl 9.0+, TIP 670)
-    /// as a single-iterator [`Statement::Foreach`] so variables
-    /// assigned inside the body propagate to the enclosing scope —
-    /// matching plain `foreach`'s lattice behaviour rather than the
-    /// opaque [`Statement::Barrier`] treatment used for generic
-    /// stdlib procs.
-    ///
-    /// # Analyser IR only
-    ///
-    /// The resulting [`Statement::Foreach`] is for **static-analysis
-    /// dataflow only** — it gives the analyser the same lattice
-    /// shape it would see for a real `foreach` loop (body-scope
-    /// variable propagation, def-use over the iteration variable,
-    /// W-code emitters that walk loop bodies, etc.).  The runtime
-    /// semantics of `foreachLine` are different: it reads lines from
-    /// a file rather than iterating a Tcl list.
-    ///
-    /// **Downstream codegen / runtime-emission consumers MUST NOT
-    /// treat this IR as a real list-iteration `foreach`.**  A codegen
-    /// consumer must detect `raw_args[0] == "foreachLine"` (or
-    /// equivalent) before treating this as a list iteration.
+    /// Bind one decoded name for file-line analysis. Execution consumers must
+    /// retain the selected file-iteration descriptor rather than list semantics.
     pub(super) fn lower_foreach_line(
         &mut self,
         seg: &SegmentedCommand,
@@ -762,17 +746,16 @@ impl Lowerer<'_> {
             return self.barrier(seg, "foreachLine with dynamic body");
         }
 
-        // Single iterator binding the loop variable.  `list_arg`
-        // semantically carries "the iteration source" — for plain
-        // `foreach` that's the list; for `foreachLine` it's the
-        // filename (the runtime reads lines from it).  Downstream
-        // dataflow doesn't care: the lattice-propagation matters,
-        // not the literal value.  See the type-level doc-comment
-        // above for the runtime-semantics caveat.
+        // The selected scalar receiver owns one name; the iteration source
+        // remains a filename and supplies no list-iteration execution contract.
         let cmd_tokens = self.cmd_tokens(seg);
-        let Some(vars) = parse_var_list_names(&args[0], WordValueRules::from_config(&self.config))
-        else {
-            return self.barrier(seg, "foreachLine with malformed variable list");
+        let Some(vars) = crate::registry_invocation::original_name_role_values(
+            self.registry,
+            &cmd_tokens,
+            0,
+            ArgRole::VarWrite,
+        ) else {
+            return self.barrier(seg, "foreachLine with dynamic variable name");
         };
         let iterators = vec![ForeachIterator {
             vars,
@@ -1432,9 +1415,12 @@ impl Lowerer<'_> {
 
         match sub.as_str() {
             "for" | "map" if sub_args.len() >= 3 => {
-                let Some(var_names) =
-                    parse_var_list_names(&sub_args[0], WordValueRules::from_config(&self.config))
-                else {
+                let Some(var_names) = crate::registry_invocation::original_name_role_values(
+                    self.registry,
+                    &self.cmd_tokens(seg),
+                    1,
+                    ArgRole::LoopVarList,
+                ) else {
                     return self.barrier(seg, &format!("dict {sub} with malformed variable list"));
                 };
                 let body_idx = 3; // index in original args

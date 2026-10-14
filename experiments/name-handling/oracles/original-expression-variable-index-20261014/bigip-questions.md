@@ -1,0 +1,3 @@
+# F5 expression variable index questions
+
+Run the exact retained `probe.tcl` in an admitted BIG-IP Tcl context and retain stdout, stderr, completion status, BIG-IP version and evaluation surface. Does `${a($k)}` retrieve literal key `$k` while `$a($k)` retrieves the substituted key? Does `${a([index])}` leave the call counter zero while `$a([index])` increments it once? Does nested `$a($b($inner))` follow the returned key? Do quoted and braced operands match the retained C/Jim observations? Preserve unsupported syntax and unavailable contexts as actual results. No F5 answer is currently retained.

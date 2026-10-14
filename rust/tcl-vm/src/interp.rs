@@ -10770,11 +10770,21 @@ impl Vm {
                         self.name_world.borrow().dying_namespaces.contains(&token)
                     });
                 if dying {
-                    let mut message = b"can't create namespace \"::".to_vec();
-                    message
-                        .extend_from_slice(Self::namespace_path_reporting_bytes(&path).as_bytes());
-                    message.extend_from_slice(b"\": already exists");
-                    return Err(err(message));
+                    let Some(policy) = self.name_policy_protocol() else {
+                        return Err(self.refuse_host_command(
+                            "native namespace creation protocol is unavailable".into(),
+                        ));
+                    };
+                    let report = tcl_syntax::naming::report_native_namespace_creation_conflict(
+                        policy.recipe(),
+                        original,
+                    )
+                    .map_err(|_| {
+                        self.refuse_host_command(
+                            "native namespace creation conflict report unavailable".into(),
+                        )
+                    })?;
+                    return Err(self.namespace_operation_error(report));
                 }
                 if !absolute && let Some(token) = self.retained_token_at_path(&path) {
                     return Ok(token);
@@ -32692,6 +32702,58 @@ list $deleted $message $::observations [interp invokehidden {} hiddenNamespace e
             );
             assert_eq!(vm.current_level(), 0);
             assert_eq!(vm.current_ns_id(), ROOT_NS);
+        }
+    }
+
+    #[test]
+    fn public_namespace_conflict_keeps_the_original_operand_and_error_code() {
+        for version in tcl_dialect::TclVersion::ALL {
+            if version == tcl_dialect::TclVersion::V8_4 {
+                continue;
+            }
+            for (seed, operand) in [
+                ("retiring", "retiring"),
+                ("retiring", "::retiring"),
+                ("retiring", "::::retiring"),
+                ("retiring:tail", "retiring:tail"),
+            ] {
+                let mut vm = crate::native_fixture::interpreter(
+                    crate::environment::profile_for_dialect(version.dialect_profile_name()),
+                );
+                let source = format!(
+                    r#"
+set ::observations {{}}
+proc during {{name1 name2 operation}} {{
+    set status [catch {{interp invokehidden {{}} hiddenNamespace eval $::operand {{}}}} value]
+    set ::observations [list $status $value $::errorCode]
+}}
+set ::operand {operand}
+namespace eval {seed} {{
+    variable sentinel HELD
+    trace add variable sentinel unset ::during
+}}
+interp hide {{}} namespace hiddenNamespace
+interp invokehidden {{}} hiddenNamespace delete {seed}
+set ::observations
+"#
+                );
+                let completion = vm.eval_source(&source).unwrap();
+                assert_eq!(completion.code, Code::Ok);
+                let code = if version >= tcl_dialect::TclVersion::V8_6 {
+                    "{TCL OPERATION NAMESPACE CREATEEXISTING}"
+                } else {
+                    "NONE"
+                };
+                let expected =
+                    format!("1 {{can't create namespace \"{operand}\": already exists}} {code}");
+                assert_eq!(
+                    completion.result.string_bytes().as_ref(),
+                    expected.as_bytes()
+                );
+                assert_eq!(vm.current_ns_id(), ROOT_NS);
+                assert_eq!(vm.current_level(), 0);
+                assert!(vm.execution_refusal.is_none());
+            }
         }
     }
 

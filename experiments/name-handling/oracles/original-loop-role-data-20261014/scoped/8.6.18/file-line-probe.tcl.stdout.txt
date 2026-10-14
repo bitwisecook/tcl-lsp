@@ -1,0 +1,7 @@
+core-availability 1 {invalid command name "foreachLine"}
+fileutil-availability 0 1.16.3
+receiver ::fileutil::foreachLine {a b} 0 {FIRST SECOND} {FIRST SECOND}
+receiver ::fileutil::foreachLine {$literal} 0 {FIRST SECOND} {FIRST SECOND}
+receiver ::fileutil::foreachLine {[literal]} 0 {FIRST SECOND} {FIRST SECOND}
+receiver ::fileutil::foreachLine {} 0 {FIRST SECOND} {FIRST SECOND}
+receiver ::fileutil::foreachLine {a($key)} 0 {FIRST SECOND} {FIRST SECOND}

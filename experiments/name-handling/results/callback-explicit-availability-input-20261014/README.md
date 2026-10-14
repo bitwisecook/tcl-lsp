@@ -10,8 +10,11 @@ The fixture uses identical C Tcl 9.0 source grammar and the same command-store
 Arc for two independently supplied availability contexts. The Tcl 9.0 context
 admits the four package descriptors. The iApps context's AmbientPlusRequire
 policy excludes these unrequired packages. Direct resolve_spec assertions check
-both answers before analysing any callback. The iApps context is used only as
-actual availability metadata; this is not an F5 interpreter or BIG-IP result.
+both answers before analysing any callback; each excluded result also checks
+all four descriptor refusals against its actual sealed input after source analysis. The iApps context is used only as
+actual availability metadata. The supplied input explicitly retains its actual
+AuthoredContext IAppImplementation vendor source policy, matching the analyser's
+sealed editing input. This is not an F5 interpreter or BIG-IP result.
 
 Every excluded analysis asserts its exact retained input, complete source/config
 match, retained realm/input match and genuine original cb declaration. A core
@@ -32,3 +35,10 @@ The original ordinary observation is retained in
 the SMTP E003 under the original open-world fixture. Original fixture bytes and
 source probes are retained here. Compiler and database acceptance of the explicit
 input fixture remains a separate executed check.
+
+The ordinary193 fixture observation retains identical C9 profiles/configuration
+and identical availability metadata but reports one input difference: the analyser
+seals AuthoredContext IAppImplementation as vendor_source_policy, while an
+implicit supplied None omits it. `db-production193-20261014/test-19.log.gz` retains
+that whole-input assertion failure. The explicit supplied policy keeps the full
+input equality assertion and the independent source/realm/core callback controls.

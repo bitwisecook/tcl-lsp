@@ -1,0 +1,3 @@
+# F5 loop receiver questions
+
+Execute the retained foreach probe in an admitted BIG-IP Tcl surface; preserve complete stdout, stderr, completion and provider/surface version. In particular, compare `foreach a\ b ...` with `foreach {{a b}} ...`, literal sigil and empty-name bindings, and dynamic variable lists. If a genuine fileutil::foreachLine or core foreachLine implementation is available, execute the unchanged file-line probe with its genuine package source and record the five full-name receiver cases. Preserve missing commands/packages or unsupported source as refusals rather than installing a replacement wrapper. F5 answers are outstanding.

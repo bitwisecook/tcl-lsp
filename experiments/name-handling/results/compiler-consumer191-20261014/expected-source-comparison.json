@@ -1,0 +1,5 @@
+{
+  "expected_source": "/tmp/name-affected-test-build190-20261014/source-before.json.gz",
+  "expected_paths": 34728,
+  "mismatches": {}
+}

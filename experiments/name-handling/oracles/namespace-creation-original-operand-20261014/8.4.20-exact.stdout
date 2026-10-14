@@ -1,0 +1,1 @@
+RESULT {0 {} {{1 {bad option "-namespace": must be -global or --}} {0 1} {0 {}}} 0}

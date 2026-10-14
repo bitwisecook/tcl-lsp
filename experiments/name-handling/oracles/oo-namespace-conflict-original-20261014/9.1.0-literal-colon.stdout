@@ -1,0 +1,2 @@
+PROVIDER 9.1.0
+RESULT 1 {can't create namespace "allocated:tail": already exists} {TCL OPERATION NAMESPACE CREATEEXISTING} {}

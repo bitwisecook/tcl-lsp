@@ -9940,8 +9940,20 @@ p\uD801 ordinary";
         }
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let excluded_policy = tcl_syntax::naming::VendorSourceNamePolicy::authored(
+            tcl_registry::f5::BigIpExecutionContext::IAppImplementation,
+        )
+        .unwrap();
         let input = |context| {
-            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config)
+            let excluded = Arc::ptr_eq(&context, &unavailable);
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            );
+            if excluded {
+                input.with_vendor_source_policy(excluded_policy)
+            } else {
+                input
+            }
         };
         let analyse = |source: &str, context| {
             tcl_compiler::analyser::Analyser::new()
@@ -9971,7 +9983,26 @@ p\uD801 ordinary";
         ] {
             let analysis = analyse(source, Arc::clone(&unavailable));
             let supplied = input(Arc::clone(&unavailable));
-            assert_eq!(analysis.resolved_input.as_ref(), Some(&supplied));
+            assert!(
+                analysis.resolved_input.as_ref() == Some(&supplied),
+                "{source}: exact retained editing input"
+            );
+            let resolved = analysis.resolved_input.as_ref().unwrap();
+            let current = resolved.context_registry();
+            assert!(Arc::ptr_eq(current.commands(), &commands));
+            assert_eq!(resolved.lexer_config(), config);
+            assert_eq!(resolved.vendor_source_policy(), Some(excluded_policy));
+            for command in [
+                "smtp::sendmessage",
+                "mime::getbody",
+                "struct::graph",
+                "struct::tree",
+            ] {
+                assert!(
+                    current.context().resolve_spec(&commands, command).is_none(),
+                    "{source}: {command} must remain excluded after analysis"
+                );
+            }
             assert!(
                 analysis
                     .retained_command_realm()

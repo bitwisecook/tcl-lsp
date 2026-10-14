@@ -1,0 +1,7 @@
+# Original loop receiver roles
+
+All original C Tcl 8.4.20–9.1.0 providers and latest Jim execute eight foreach receiver cases with matching results: literal sigil, command-looking name, empty name, grouped name, escaped word producing a two-name list, escaped word producing one name, literal array key and dynamically substituted variable list. These observations require source word evaluation before list parsing; a source dynamic operand does not become its literal spelling.
+
+Original core foreachLine on C Tcl 9.0/9.1 and original Tcllib 2.0 fileutil::foreachLine on C Tcl 8.5–9.1 each bind one full name, including whitespace, sigils, command-looking bytes, empty names and literal array keys. The real implementations use upvar on the one varName operand. Core foreachLine is unavailable on C8.4–8.6 and Jim. This Tcllib release does not load on C8.4 or Jim in the captured environments. The caught availability refusals and C8.4 package-index diagnostics remain actual results; script exit0 does not mean unsupported package execution succeeded.
+
+The broad capture uses the original Tcllib modules search path. The scoped capture narrows only the search path to the actual fileutil/cmdline directories, preserving both original package implementations and all receiver probes. Both complete raw captures are retained. result.json records provider executable before/after hashes, exact original matching C init.tcl, commands, statuses and original library sources/hashes. No tcltest was used; no F5 result or compiler acceptance is claimed.

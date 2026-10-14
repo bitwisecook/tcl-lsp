@@ -44,17 +44,21 @@ impl NamespaceAddressError {
                         .into()
                     }
                 };
-                let error = match report.error_code {
-                    Some(code) => {
-                        tcl_cmd_core::CmdError::with_error_code_bytes(report.message, code)
-                    }
-                    None => tcl_cmd_core::CmdError::new_bytes(report.message),
-                };
-                error.with_native_string_result(report.string_protocol)
+                native_namespace_creation_error(report)
             }
             error => error.into_value_error().into(),
         }
     }
+}
+
+fn native_namespace_creation_error(
+    report: tcl_syntax::naming::NativeNamespaceOperationError,
+) -> tcl_cmd_core::CmdError {
+    let error = match report.error_code {
+        Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(report.message, code),
+        None => tcl_cmd_core::CmdError::new_bytes(report.message),
+    };
+    error.with_native_string_result(report.string_protocol)
 }
 
 impl Interp {
@@ -118,6 +122,28 @@ impl Interp {
         self.publish_namespace_address(original)
     }
 
+    pub(crate) fn namespace_creation_conflict_error(
+        &self,
+        original: &[u8],
+    ) -> Result<tcl_cmd_core::CmdError, ValueError> {
+        let protocol =
+            self.name_policy_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "namespace creation diagnostic issuer",
+                ))?;
+        let report = tcl_syntax::naming::report_native_namespace_creation_conflict(
+            protocol.recipe(),
+            original,
+        )
+        .map_err(|_| {
+            ValueError::CommandProtocolUnavailable("namespace creation conflict diagnostic")
+        })?;
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(native_namespace_creation_error(report))
+    }
+
     pub(crate) fn publish_namespace_address(
         &mut self,
         original: &[u8],
@@ -125,17 +151,12 @@ impl Interp {
         let (anchor, components) = self
             .namespace_address_components(self.current_ns(), original)
             .map_err(NamespaceAddressError::into_creation_error)?;
-        let dying_name = {
-            let namespaces = self.namespaces();
-            namespaces
-                .dying_namespace_at_components(anchor, &components)
-                .map(|namespace| namespaces.qualified_name(namespace))
-        };
-        if let Some(name) = dying_name {
-            let mut message = b"can't create namespace \"".to_vec();
-            message.extend_from_slice(&name);
-            message.extend_from_slice(b"\": already exists");
-            return Err(tcl_cmd_core::CmdError::new_bytes(message));
+        if self
+            .namespaces()
+            .dying_namespace_at_components(anchor, &components)
+            .is_some()
+        {
+            return Err(self.namespace_creation_conflict_error(original)?);
         }
         Ok(self
             .namespaces_mut()
@@ -220,6 +241,65 @@ list $deleted $message $::observations [interp invokehidden {} hiddenNamespace e
             );
             assert_eq!(interpreter.current_ns(), GLOBAL);
             assert!(interpreter.native_execution_refusal().is_none());
+        }
+    }
+
+    #[test]
+    fn public_creation_conflict_uses_original_operand_and_release_error_code() {
+        for version in tcl_dialect::TclVersion::ALL {
+            if version == tcl_dialect::TclVersion::V8_4 {
+                continue;
+            }
+            for (seed, operand) in [
+                (b"retiring".as_slice(), b"retiring".as_slice()),
+                (b"retiring", b"::retiring"),
+                (b"retiring", b"::::retiring"),
+                (b"retiring:tail", b"retiring:tail"),
+            ] {
+                let mut interpreter = Interp::with_native_core(
+                    super::super::default_host(),
+                    crate::environment::profile_for_dialect(version.dialect_profile_name()),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let source = [
+                    br#"
+set ::observations {}
+proc during {name1 name2 operation} {
+    set status [catch {interp invokehidden {} hiddenNamespace eval $::operand {}} value]
+    set ::observations [list $status $value $::errorCode]
+}
+set ::operand "#
+                        .as_slice(),
+                    operand,
+                    b"\nnamespace eval ",
+                    seed,
+                    br#" {
+    variable sentinel HELD
+    trace add variable sentinel unset ::during
+}
+interp hide {} namespace hiddenNamespace
+interp invokehidden {} hiddenNamespace delete "#,
+                    seed,
+                    b"\nset ::observations",
+                ]
+                .concat();
+                assert_eq!(interpreter.eval_str(&source), crate::interp::Code::Ok);
+                let expected = [
+                    b"1 {can't create namespace \"".as_slice(),
+                    operand,
+                    b"\": already exists} ",
+                    if version >= tcl_dialect::TclVersion::V8_6 {
+                        b"{TCL OPERATION NAMESPACE CREATEEXISTING}".as_slice()
+                    } else {
+                        b"NONE".as_slice()
+                    },
+                ]
+                .concat();
+                assert_eq!(interpreter.result_bytes(), expected, "{version:?}");
+                assert_eq!(interpreter.current_ns(), GLOBAL);
+                assert!(interpreter.native_execution_refusal().is_none());
+            }
         }
     }
 

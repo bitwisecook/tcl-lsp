@@ -44,6 +44,68 @@ pub(crate) fn original_literal_argument_data(
     tokens: &CommandTokens,
     argument: usize,
 ) -> Option<String> {
+    let (_, words) = original_command_words(tokens)?;
+    let word = words.get(argument.checked_add(1)?)?;
+    let value = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        word,
+    )?)
+    .ok()?;
+    (!value.contains('\0')).then_some(value)
+}
+
+/// Original word grammar and any independently retained native/authored name
+/// recipe. The immutable source vector supplies no executed variable lookup.
+fn original_variable_reference_syntax(
+    tokens: &CommandTokens,
+) -> Option<(
+    tcl_lexer::LexerConfig,
+    Option<tcl_syntax::naming::NamePolicyProtocol>,
+)> {
+    let (config, _) = original_command_words(tokens)?;
+    let policy = tokens
+        .source_binding
+        .as_ref()?
+        .original_variable_reference_policy(tokens);
+    Some((config, policy))
+}
+
+/// Reborrow only the selected original expression operand whose complete AST
+/// and source base remain attached to this command or its genuine child.
+pub(crate) fn original_lowered_expression_syntax(
+    expression: &crate::expr_ast::ExprNode,
+    expression_base: Option<u32>,
+    tokens: &CommandTokens,
+) -> Option<(
+    tcl_lexer::LexerConfig,
+    Option<tcl_syntax::naming::NamePolicyProtocol>,
+)> {
+    let base = expression_base?;
+    let (config, _) = original_command_words(tokens)?;
+    let binding = tokens.source_binding.as_ref()?;
+    let registry = binding.retained_registry_for_tokens(tokens)?;
+    let matches = |tokens: &CommandTokens| {
+        let operand = super::original_expression_operand_advice(registry, tokens)?;
+        (operand.expression_base == base && &operand.expression == expression).then_some(())?;
+        original_variable_reference_syntax(tokens)
+    };
+    if let Some(syntax) = matches(tokens) {
+        return Some(syntax);
+    }
+    let metadata = binding
+        .original_source_metadata_for_advice(tokens, registry)
+        .ok()??;
+    let mut matches = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+        tokens, config, registry, metadata,
+    )?
+    .into_iter()
+    .filter_map(|call| matches(call.tokens.as_ref()?));
+    let syntax = matches.next()?;
+    matches.next().is_none().then_some(syntax)
+}
+
+fn original_command_words(
+    tokens: &CommandTokens,
+) -> Option<(tcl_lexer::LexerConfig, Vec<tcl_lexer::NativeWord>)> {
     if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
         return None;
     }
@@ -56,12 +118,7 @@ pub(crate) fn original_literal_argument_data(
         site.offset,
         config,
     )?;
-    let word = words.get(argument.checked_add(1)?)?;
-    let value = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
-        word,
-    )?)
-    .ok()?;
-    (!value.contains('\0')).then_some(value)
+    Some((config, words))
 }
 
 #[cfg(test)]

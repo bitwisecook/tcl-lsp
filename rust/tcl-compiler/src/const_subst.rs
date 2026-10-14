@@ -61,8 +61,6 @@ use tcl_registry::value_transfer::{
 use tcl_registry::{CommandRegistry, CommandSpec, SubCommand, TclType};
 use tcl_runtime_api::CommandBindingIdentity;
 
-use crate::naming::normalise_var_name;
-
 /// Nesting bound for recursive folds of nested command substitutions
 /// (`[llength [list a [list b c]]]`). Each level consumes one bracketed
 /// interior of strictly smaller text, so recursion is structurally bounded
@@ -100,7 +98,7 @@ pub struct ConstSubstCtx<'a> {
     pub trusts: &'a dyn Fn(&str) -> bool,
     /// Constant lookup for a `$var` word inside the substitution: the
     /// variable's proven compile-time value, or `None` to abstain. The
-    /// engine queries both the raw written name and its normalised form.
+    /// engine queries the exact scalar name selected from the original reference.
     pub lookup_var: &'a dyn Fn(&str) -> Option<String>,
 }
 
@@ -597,10 +595,11 @@ impl ConstSubstCtx<'_> {
                     if !prev_is_sep {
                         return None;
                     }
-                    let name = sm.token_text(*tok);
-                    let normalised = normalise_var_name(&format!("${name}")).to_owned();
-                    let value =
-                        (self.lookup_var)(&normalised).or_else(|| (self.lookup_var)(name))?;
+                    let reference = sm.text(tcl_lexer::word_span_at(inner, tok.span));
+                    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(
+                        reference, config,
+                    )?;
+                    let value = (self.lookup_var)(name)?;
                     words.push(value);
                     prev_is_sep = false;
                 }
@@ -870,6 +869,45 @@ mod tests {
         // A separator after the sole command does not manufacture another
         // command and keeps the existing fold behaviour.
         assert_eq!(c.fold_cmd_subst("string length abc;").as_deref(), Some("3"));
+    }
+
+    #[test]
+    fn literal_word_reads_keep_original_scalar_names_and_refuse_array_roots() {
+        // Original inputs: experiments/name-handling/oracles/literal-reference-names-20261014.
+        let trust = |_: &str| true;
+        let lookup = |name: &str| match name {
+            "x" => Some("PLAIN".to_owned()),
+            "{x}" => Some("WRAPPED".to_owned()),
+            "cash$name" => Some("CASH".to_owned()),
+            "" => Some("EMPTY".to_owned()),
+            "arr" => Some("unrelated root value".to_owned()),
+            _ => None,
+        };
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let context = tcl_registry::model::ingress::static_context_for(profile);
+            let current = ctx(context.commands(), &trust, &lookup);
+            for (reference, value) in [("${cash$name}", "CASH"), ("${}", "EMPTY")] {
+                assert_eq!(
+                    current.literal_words(&format!("list {reference}")),
+                    Some(vec!["list".to_owned(), value.to_owned()]),
+                    "{profile}: {reference}"
+                );
+            }
+            for reference in ["${arr(k)}", "$arr(k)"] {
+                assert_eq!(
+                    current.literal_words(&format!("list {reference}")),
+                    None,
+                    "{profile}: {reference}"
+                );
+            }
+            assert_eq!(
+                current.literal_words("list ${{x}}"),
+                matches!(profile, "tcl9.0" | "tcl9.1")
+                    .then(|| vec!["list".to_owned(), "WRAPPED".to_owned()]),
+                "{profile}"
+            );
+            assert_eq!(current.literal_words("list ${missing}"), None);
+        }
     }
 
     #[test]

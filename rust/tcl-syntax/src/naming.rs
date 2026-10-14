@@ -157,10 +157,10 @@ pub use native::{
     native_jim_namespace_source_spelling, native_namespace_full_name_bytes,
     native_namespace_source_spelling, native_procedure_compilation_name_input,
     report_native_c_variable_value_name, report_native_dictionary_missing_key,
-    report_native_name_bytes, report_native_namespace_creation_error,
-    report_native_namespace_lookup_error, report_native_namespace_operation_error,
-    report_native_variable_access_trace_names, report_native_variable_diagnostic,
-    report_native_variable_diagnostic_at,
+    report_native_name_bytes, report_native_namespace_creation_conflict,
+    report_native_namespace_creation_error, report_native_namespace_lookup_error,
+    report_native_namespace_operation_error, report_native_variable_access_trace_names,
+    report_native_variable_diagnostic, report_native_variable_diagnostic_at,
 };
 
 /// Rooted slot for an authored support-command registration label.
@@ -929,6 +929,19 @@ pub fn is_whole_variable_reference(source: &str, config: tcl_lexer::LexerConfig)
     )
 }
 
+/// One complete reference's literal name, without a separately substituted index.
+/// Combined names such as `${a(k)}` remain exact name data; the selected lookup
+/// must independently decide scalar/element semantics and authenticate the read.
+#[must_use]
+pub fn whole_variable_reference_literal_name(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<&str> {
+    let reference = tcl_lexer::word_parts::whole_var_ref(source.as_bytes(), config).ok()??;
+    reference.index.is_none().then_some(())?;
+    core::str::from_utf8(reference.name).ok()
+}
+
 /// A whole scalar reference's literal name under the selected source grammar.
 /// Separate and combined array references decline; empty and literal sigil names
 /// remain data. The caller must independently authenticate the source and read.
@@ -937,11 +950,10 @@ pub fn whole_scalar_variable_reference_name(
     source: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<&str> {
-    let reference = tcl_lexer::word_parts::whole_var_ref(source.as_bytes(), config).ok()??;
-    if reference.index.is_some() || split_element_ref_bytes(reference.name).is_some() {
-        return None;
-    }
-    core::str::from_utf8(reference.name).ok()
+    let name = whole_variable_reference_literal_name(source, config)?;
+    split_element_ref_bytes(name.as_bytes())
+        .is_none()
+        .then_some(name)
 }
 
 /// A whole original substitution's analytical variable root under its grammar.
@@ -2297,6 +2309,35 @@ mod tests {
                 assert_eq!(normalise_var_name_for_style(source, style), root);
                 assert_eq!(split_array_name_for_style(source, style).0, root);
             }
+        }
+    }
+
+    #[test]
+    fn literal_reference_names_keep_combined_lookup_data_separate_from_indexes() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = tcl_lexer::LexerConfig::for_dialect(profile);
+            for (source, name) in [
+                ("${arr(key)}", "arr(key)"),
+                ("${}", ""),
+                ("${scalar(open}", "scalar(open"),
+            ] {
+                assert_eq!(
+                    whole_variable_reference_literal_name(source, config),
+                    Some(name),
+                    "{profile}: {source}"
+                );
+            }
+            for source in ["$arr(key)", "$arr($key)", "$a:b", "$a$b", "${missing"] {
+                assert_eq!(
+                    whole_variable_reference_literal_name(source, config),
+                    None,
+                    "{profile}: {source}"
+                );
+            }
+            assert_eq!(
+                whole_scalar_variable_reference_name("${arr(key)}", config),
+                None
+            );
         }
     }
 

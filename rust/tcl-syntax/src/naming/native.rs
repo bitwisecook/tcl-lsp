@@ -166,6 +166,8 @@ pub enum NativeNamePurpose {
     NamespaceAddress,
     /// C lambda namespace object construction before namespace lookup.
     LambdaNamespace,
+    /// Counted Jim lambda namespace object, without lookup or canonicalisation.
+    JimLambdaNamespace,
     /// Jim helper canonicalisation before flat command enumeration.
     JimNamespaceCanonical,
     /// Namespace ensemble command publication, independently of proc creation.
@@ -1137,6 +1139,28 @@ impl NativeNameProtocol {
         ))
     }
 
+    /// Retain the counted original Jim lambda namespace object's bytes.
+    /// The actual List child and procedure/frame object remain independent;
+    /// this projection neither looks up nor creates a namespace.
+    ///
+    /// # Errors
+    /// Refuses C lambda constructors with their independent namespace recipe.
+    pub fn jim_lambda_namespace_input(
+        self,
+        original: &[u8],
+    ) -> Result<NativeNameProjection<'_>, NameProjectionUnavailable> {
+        if !self.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        Ok(projection(
+            self,
+            NativeNamePurpose::JimLambdaNamespace,
+            original,
+            Cow::Borrowed(original),
+            None,
+        ))
+    }
+
     /// Original C lambda namespace object bytes. An unrooted value receives
     /// an exact :: prefix before lookup; its counted suffix remains retained.
     /// Namespace lookup applies its independent C-string extent afterwards.
@@ -1888,6 +1912,7 @@ fn projection<'a>(
             | NativeNamePurpose::FormalEnumeration
             | NativeNamePurpose::FormalParameterList
             | NativeNamePurpose::FormalStorage
+            | NativeNamePurpose::JimLambdaNamespace
             | NativeNamePurpose::NamespaceUpvarLocal
             | NativeNamePurpose::HiddenToken
             | NativeNamePurpose::InterpreterChild
@@ -2228,6 +2253,30 @@ pub fn report_native_namespace_creation_error(
         message: b"can't create namespace \"\": only global namespace can have empty name".to_vec(),
         error_code: (version >= TclVersion::V8_6)
             .then(|| b"TCL OPERATION NAMESPACE CREATEGLOBAL".to_vec()),
+        string_protocol: crate::native_string::NativeStringProtocol::C(version),
+    })
+}
+
+/// Report C namespace-creation occupancy using its original C-string operand.
+///
+/// # Errors
+/// Refuses unaudited Jim namespace-creation diagnostics.
+pub fn report_native_namespace_creation_conflict(
+    protocol: NativeNameProtocol,
+    original: &[u8],
+) -> Result<NativeNamespaceOperationError, NameProjectionUnavailable> {
+    let NativeNameProtocol::C(version) = protocol else {
+        return Err(NameProjectionUnavailable::PurposeNotModelled);
+    };
+    Ok(NativeNamespaceOperationError {
+        message: [
+            b"can't create namespace \"".as_slice(),
+            c_string_extent(original),
+            b"\": already exists",
+        ]
+        .concat(),
+        error_code: (version >= TclVersion::V8_6)
+            .then(|| b"TCL OPERATION NAMESPACE CREATEEXISTING".to_vec()),
         string_protocol: crate::native_string::NativeStringProtocol::C(version),
     })
 }
@@ -4019,6 +4068,35 @@ mod tests {
     }
 
     #[test]
+    fn jim_lambda_namespace_keeps_the_counted_original_context_object() {
+        for original in [
+            b"AbsentLambda".as_slice(),
+            b"::AbsentLambda",
+            b"::::AbsentLambda",
+            b":AbsentLambda",
+            b"Absent:Lambda",
+            b"Absent\0Tail",
+            b"",
+            b"Absent::Child",
+        ] {
+            let input = NativeNameProtocol::Jim084
+                .jim_lambda_namespace_input(original)
+                .unwrap();
+            assert_eq!(input.original(), original);
+            assert_eq!(input.selected(), original);
+            assert_eq!(input.purpose(), NativeNamePurpose::JimLambdaNamespace);
+            assert_eq!(input.qualification(), NativeNameQualification::Unqualified);
+            for version in TclVersion::ALL {
+                assert!(
+                    NativeNameProtocol::C(version)
+                        .jim_lambda_namespace_input(original)
+                        .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn original_root_procedure_publication_preserves_a_literal_colon() {
         // naming.procedure.original-root-and-colon-holder-publication
         // docs/design/analysis/name-resolution-proofs/procedure-original-root-and-colon-holder-publication.md
@@ -4491,6 +4569,49 @@ fn empty_namespace_creation_diagnostic_requires_its_selected_address_reason() {
             NameProjectionUnavailable::EmptyNamespaceOutsideRoot
         )
         .is_err()
+    );
+}
+
+#[test]
+fn namespace_creation_conflict_keeps_original_spelling_and_selected_extent() {
+    for version in TclVersion::ALL {
+        for original in [
+            b"retiring".as_slice(),
+            b"::retiring",
+            b"::::retiring",
+            b"retiring:tail",
+            b"retiring\0ignored",
+        ] {
+            let report =
+                report_native_namespace_creation_conflict(NativeNameProtocol::C(version), original)
+                    .unwrap();
+            let selected = if original == b"retiring\0ignored" {
+                b"retiring".as_slice()
+            } else {
+                original
+            };
+            assert_eq!(
+                report.message,
+                [
+                    b"can't create namespace \"".as_slice(),
+                    selected,
+                    b"\": already exists"
+                ]
+                .concat(),
+            );
+            assert_eq!(
+                report.error_code.as_deref(),
+                (version >= TclVersion::V8_6)
+                    .then_some(b"TCL OPERATION NAMESPACE CREATEEXISTING".as_slice()),
+            );
+            assert_eq!(
+                report.string_protocol,
+                crate::native_string::NativeStringProtocol::C(version),
+            );
+        }
+    }
+    assert!(
+        report_native_namespace_creation_conflict(NativeNameProtocol::Jim084, b"retiring").is_err()
     );
 }
 

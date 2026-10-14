@@ -3188,10 +3188,16 @@ impl FunctionBuilder {
         control: ControlContext,
         tail: bool,
     ) -> Result<StatementTail, SourceCompatibilityDecline> {
+        let names = original_list_iterator_names(registry, statement, iterators).ok_or(
+            SourceCompatibilityDecline::UnsupportedStatement {
+                statement_index: node.path().last().copied().unwrap_or(0) as usize,
+                kind: "unowned or non-list iteration",
+            },
+        )?;
         let source = SourceSite::source(statement.span());
         let mut current = block;
         let mut groups = Vec::with_capacity(iterators.len());
-        for iterator in iterators {
+        for (iterator, names) in iterators.iter().zip(names) {
             let value = self.allocator.value();
             let completion = self.allocator.completion();
             self.push(
@@ -3210,10 +3216,9 @@ impl FunctionBuilder {
             current = self.dispatch(current, completion, control);
             groups.push(IteratorGroup {
                 list: value,
-                variables: iterator
-                    .vars
+                variables: names
                     .iter()
-                    .map(|name| CellReference::from_name(name, false))
+                    .map(|name| CellReference::from_name_data(name))
                     .collect(),
             });
         }
@@ -3856,8 +3861,13 @@ fn lowered_operation_footprint(
                 completion: vec![CompletionCode::Ok, CompletionCode::Error],
             }
         }
-        Statement::AssignExpr { name, expr, .. } => {
-            let operand = expr_footprint(expr);
+        Statement::AssignExpr {
+            name,
+            expr,
+            expr_base,
+            ..
+        } => {
+            let operand = expr_footprint(expr, *expr_base, original_tokens);
             LoweredFootprint {
                 writes: vec![lowered_source_name_reference(
                     statement,
@@ -3884,8 +3894,10 @@ fn lowered_operation_footprint(
                 completion: vec![CompletionCode::Ok, CompletionCode::Error],
             }
         }
-        Statement::ExprEval { expr, .. } => {
-            let operand = expr_footprint(expr);
+        Statement::ExprEval {
+            expr, expr_base, ..
+        } => {
+            let operand = expr_footprint(expr, *expr_base, original_tokens);
             LoweredFootprint {
                 writes: Vec::new(),
                 reads: operand.reads,
@@ -3897,11 +3909,12 @@ fn lowered_operation_footprint(
         Statement::Return {
             value,
             expr,
+            expr_base,
             braced,
             ..
         } => {
             let operand = match (expr, value) {
-                (Some(expr), _) => expr_footprint(expr),
+                (Some(expr), _) => expr_footprint(expr, *expr_base, original_tokens),
                 // A braced result word suppresses substitution entirely.
                 (None, Some(_)) if *braced => OperandFootprint::exact(),
                 (None, Some(value)) => operand_text_footprint(value),
@@ -3933,6 +3946,54 @@ fn lowered_operation_footprint(
         | Statement::Try { .. }
         | Statement::Switch { .. } => LoweredFootprint::conservative(),
     }
+}
+
+fn original_list_iterator_names(
+    registry: &CommandRegistry,
+    statement: &Statement,
+    iterators: &[crate::ir::ForeachIterator],
+) -> Option<Vec<Vec<String>>> {
+    let Statement::Foreach {
+        raw_tokens: Some(tokens),
+        is_lmap,
+        ..
+    } = statement
+    else {
+        return None;
+    };
+    let (command, _) = tokens
+        .source_binding
+        .as_ref()?
+        .original_recorded_command()?;
+    (command.span == statement.span()).then_some(())?;
+    let source = crate::registry_invocation::original_source_name_roles(registry, tokens)?;
+    let hook = if *is_lmap {
+        LoweringHookId::Lmap
+    } else {
+        LoweringHookId::Foreach
+    };
+    (source.facts().operation == SemanticOperationId::StructuredLowering(hook)).then_some(())?;
+    let arguments: Vec<_> = source
+        .roles()
+        .iter()
+        .filter_map(|&(argument, role)| {
+            (role == tcl_registry::ArgRole::LoopVarList).then_some(argument)
+        })
+        .collect();
+    (arguments.len() == iterators.len()).then_some(())?;
+    iterators
+        .iter()
+        .zip(arguments)
+        .map(|(iterator, argument)| {
+            let names = crate::registry_invocation::original_name_role_values(
+                registry,
+                tokens,
+                argument,
+                tcl_registry::ArgRole::LoopVarList,
+            )?;
+            (names == iterator.vars).then_some(names)
+        })
+        .collect()
 }
 
 fn lowered_source_name_reference(
@@ -3994,41 +4055,186 @@ fn operand_text_footprint(text: &str) -> OperandFootprint {
 /// variables inside it would change nothing — and this projection is
 /// recomputed by validation from the retained expression without inventing
 /// a grammar for an unparsed node.
-fn expr_footprint(expr: &ExprNode) -> OperandFootprint {
-    let unparsed = expr_has_raw(expr);
-    let runs_commands = unparsed || !expr.command_texts().is_empty();
-    let mut reads: Vec<CellReference> = expr
-        .vars_parsed_only()
-        .into_iter()
-        .map(|name| CellReference::from_name(&name, false))
-        .collect();
-    reads.sort();
-    reads.dedup();
-    OperandFootprint {
-        reads_unbounded: unparsed || reads.iter().any(|cell| cell.name().is_none()),
-        reads,
-        runs_commands,
+fn expr_footprint(
+    expr: &ExprNode,
+    expression_base: Option<u32>,
+    original_tokens: Option<&crate::ir::CommandTokens>,
+) -> OperandFootprint {
+    let mut result = OperandFootprint::exact();
+    let syntax = original_tokens.and_then(|tokens| {
+        crate::registry_invocation::original_lowered_expression_syntax(
+            expr,
+            expression_base,
+            tokens,
+        )
+    });
+    for node in expr.evaluation_nodes() {
+        match node {
+            ExprNode::Var { .. } => {
+                let Some((config, policy)) = syntax else {
+                    result.reads.push(CellReference::Computed);
+                    result.reads_unbounded = true;
+                    continue;
+                };
+                let Ok(Some(reference)) = node.variable_reference(config) else {
+                    result.reads.push(CellReference::Computed);
+                    result.reads_unbounded = true;
+                    continue;
+                };
+                result.reads.push(original_reference_cell(
+                    reference.name,
+                    reference.index.is_some(),
+                    policy,
+                ));
+                if let Some(index) = reference.index {
+                    original_substitution_reads(
+                        index,
+                        config,
+                        policy,
+                        tcl_lexer::word_parts::SubstFlags::default(),
+                        true,
+                        &mut result,
+                    );
+                }
+            }
+            ExprNode::String { text, .. } => original_string_reads(text, syntax, &mut result),
+            ExprNode::CompiledWord {
+                text,
+                braced: false,
+            } => {
+                if let Some((config, policy)) = syntax {
+                    if tcl_syntax::word_rules::compiled_word_substitution(text.as_bytes(), config)
+                        == tcl_syntax::word_rules::CompiledWordSubstitution::LiteralValue
+                    {
+                        continue;
+                    }
+                    original_substitution_reads(
+                        text.as_bytes(),
+                        config,
+                        policy,
+                        tcl_lexer::word_parts::SubstFlags::compiled_word(),
+                        false,
+                        &mut result,
+                    );
+                } else {
+                    result.reads_unbounded = true;
+                    result.runs_commands = true;
+                }
+            }
+            ExprNode::Command { .. } | ExprNode::Raw { .. } | ExprNode::Call { .. } => {
+                result.reads_unbounded = true;
+                result.runs_commands = true;
+            }
+            ExprNode::Literal { .. }
+            | ExprNode::CompiledWord { braced: true, .. }
+            | ExprNode::Binary { .. }
+            | ExprNode::Unary { .. }
+            | ExprNode::Ternary { .. } => {}
+        }
+    }
+    result.reads.sort();
+    result.reads.dedup();
+    result.reads_unbounded |= result.reads.iter().any(|cell| cell.name().is_none());
+    result
+}
+
+fn original_string_reads(
+    text: &str,
+    syntax: Option<(
+        tcl_lexer::LexerConfig,
+        Option<tcl_syntax::naming::NamePolicyProtocol>,
+    )>,
+    result: &mut OperandFootprint,
+) {
+    if crate::expr_ast::fixed_string_operand(text).is_some() {
+        return;
+    }
+    if let Some(body) = crate::expr_ast::quoted_string_body(text) {
+        if let Some((config, policy)) = syntax {
+            original_substitution_reads(
+                body.as_bytes(),
+                config,
+                policy,
+                tcl_lexer::word_parts::SubstFlags::default(),
+                false,
+                result,
+            );
+        } else {
+            result.reads_unbounded = true;
+            result.runs_commands = true;
+        }
+    } else if tcl_syntax::word_rules::whole_braced_word(text).is_none() {
+        result.reads_unbounded = true;
+        result.runs_commands = true;
     }
 }
 
-/// Whether any part of the expression fell back to unparsed raw text, which
-/// can hide both variable references and command substitutions.
-fn expr_has_raw(expr: &ExprNode) -> bool {
-    match expr {
-        ExprNode::Raw { .. } => true,
-        ExprNode::Literal { .. }
-        | ExprNode::String { .. }
-        | ExprNode::CompiledWord { .. }
-        | ExprNode::Var { .. }
-        | ExprNode::Command { .. } => false,
-        ExprNode::Binary { left, right, .. } => expr_has_raw(left) || expr_has_raw(right),
-        ExprNode::Unary { operand, .. } => expr_has_raw(operand),
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => expr_has_raw(condition) || expr_has_raw(true_branch) || expr_has_raw(false_branch),
-        ExprNode::Call { args, .. } => args.iter().any(expr_has_raw),
+fn original_reference_cell(
+    name: &[u8],
+    separate_index: bool,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+) -> CellReference {
+    if name.contains(&0) {
+        return CellReference::Computed;
+    }
+    let named = |root: &[u8], element| {
+        std::str::from_utf8(root).map_or(CellReference::Computed, |name| CellReference::Named {
+            name: name.to_owned(),
+            element,
+        })
+    };
+    match policy {
+        Some(policy) if separate_index => {
+            named(policy.recipe().variable_root_input(name).selected(), true)
+        }
+        Some(policy) => {
+            let selected = policy.recipe().combined_variable_input(name);
+            named(selected.root().selected(), selected.element().is_some())
+        }
+        None if !separate_index && tcl_syntax::naming::split_element_ref_bytes(name).is_none() => {
+            named(name, false)
+        }
+        None => CellReference::Computed,
+    }
+}
+
+fn original_substitution_reads(
+    source: &[u8],
+    config: tcl_lexer::LexerConfig,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    flags: tcl_lexer::word_parts::SubstFlags,
+    in_index: bool,
+    footprint: &mut OperandFootprint,
+) {
+    use tcl_lexer::word_parts::{WordPart, decompose_spanned_checked};
+    let Ok(parts) = decompose_spanned_checked(source, flags, config) else {
+        footprint.reads_unbounded = true;
+        footprint.runs_commands = true;
+        return;
+    };
+    let mut pending: Vec<_> = parts
+        .into_iter()
+        .map(|part| (part.part, in_index))
+        .collect();
+    while let Some((part, in_index)) = pending.pop() {
+        match part {
+            WordPart::Text(_) => {}
+            WordPart::Variable(reference) => {
+                footprint.reads_unbounded |= in_index;
+                footprint.reads.push(original_reference_cell(
+                    reference.name,
+                    reference.index.is_some(),
+                    policy,
+                ));
+                if let Some(index) = reference.index {
+                    pending.extend(index.into_iter().map(|part| (part, true)));
+                }
+            }
+            WordPart::Command(_) | WordPart::Expression(_) | WordPart::ParseError(_) => {
+                footprint.reads_unbounded = true;
+                footprint.runs_commands = true;
+            }
+        }
     }
 }
 
@@ -5152,6 +5358,244 @@ mod tests {
             operation.original_tokens = Some(original);
             assert!(function.validate().is_ok());
         }
+    }
+
+    fn original_expression_source(source: &str, dialect: &str) -> ExecutableFunction {
+        let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+        let context = environment.default_context_registry();
+        let profile = environment.analyser_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input);
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
+        build_linear_executable_ir_with_metadata_context(
+            context.commands(),
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                context.commands(),
+                &module,
+            ),
+            ExecutableFunctionId::new(225),
+            &module.top_level,
+        )
+        .expect("actual retained source expression")
+    }
+
+    fn expression_operation(function: &ExecutableFunction) -> &LoweredOperation {
+        instructions(function)
+            .into_iter()
+            .find_map(|instruction| match instruction {
+                ExecutableInstruction::ExecuteLowered(operation)
+                    if matches!(operation.statement, Statement::ExprEval { .. }) =>
+                {
+                    Some(operation)
+                }
+                _ => None,
+            })
+            .expect("actual lowered expression source operation")
+    }
+
+    #[test]
+    fn cursor_loop_names_use_original_list_values_and_refuse_changed_receivers() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let function = original_expression_source(
+                "foreach {$literal {a b} a($key) {}} {1 2 3 4} {set result 1}",
+                dialect,
+            );
+            function.validate().expect("authentic cursor source");
+            let groups = instructions(&function)
+                .into_iter()
+                .find_map(|instruction| {
+                    if let ExecutableInstruction::IterateLists { groups, .. } = instruction {
+                        Some(groups)
+                    } else {
+                        None
+                    }
+                })
+                .expect("actual list iteration");
+            assert_eq!(
+                groups[0].variables,
+                vec![
+                    CellReference::Named {
+                        name: "$literal".to_owned(),
+                        element: false
+                    },
+                    CellReference::Named {
+                        name: "a b".to_owned(),
+                        element: false
+                    },
+                    CellReference::Named {
+                        name: "a".to_owned(),
+                        element: true
+                    },
+                    CellReference::Named {
+                        name: String::new(),
+                        element: false
+                    },
+                ],
+                "{dialect}"
+            );
+        }
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir("foreach {$literal} X {set result 1}", &registry);
+        let statement = &module.top_level.statements[0];
+        let Statement::Foreach { iterators, .. } = statement else {
+            panic!("actual loop")
+        };
+        assert!(original_list_iterator_names(&registry, statement, iterators).is_some());
+        let mut detached = statement.clone();
+        if let Statement::Foreach {
+            raw_tokens: Some(tokens),
+            ..
+        } = &mut detached
+        {
+            tokens.source_binding = None;
+        }
+        assert!(original_list_iterator_names(&registry, &detached, iterators).is_none());
+        let mut changed = iterators.clone();
+        changed[0].vars[0] = "OTHER".to_owned();
+        assert!(original_list_iterator_names(&registry, statement, &changed).is_none());
+    }
+
+    #[test]
+    fn file_line_analysis_cannot_be_emitted_as_a_list_cursor() {
+        let registry = CommandRegistry::build_default();
+        let module =
+            crate::lowering::lower_to_ir("foreachLine {a b} input.txt {set result 1}", &registry);
+        let Statement::Foreach { iterators, .. } = &module.top_level.statements[0] else {
+            panic!("actual file-line analysis shape");
+        };
+        assert_eq!(iterators[0].vars, vec!["a b"]);
+        assert!(matches!(
+            build_linear_executable_ir(
+                &registry,
+                Some(test_context()),
+                ExecutableFunctionId::new(226),
+                &module.top_level
+            ),
+            Err(SourceCompatibilityDecline::UnsupportedStatement {
+                kind: "unowned or non-list iteration",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn expression_footprints_keep_original_reference_form_and_index_reads() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (source, expected, unbounded, commands) in [
+                ("expr {${a(k)}}", vec![("a", true)], false, false),
+                ("expr {${a($k)}}", vec![("a", true)], false, false),
+                (
+                    "expr {$a($k)}",
+                    vec![("a", true), ("k", false)],
+                    true,
+                    false,
+                ),
+                (
+                    "expr {$a($b($k))}",
+                    vec![("a", true), ("b", true), ("k", false)],
+                    true,
+                    false,
+                ),
+                ("expr {$a([index])}", vec![("a", true)], true, true),
+                ("expr {${a([index])}}", vec![("a", true)], false, false),
+                ("expr {${$name}}", vec![("$name", false)], false, false),
+                ("expr {${}}", vec![("", false)], false, false),
+                ("expr {${a(b)c}}", vec![("a(b)c", false)], false, false),
+                (r#"expr {"pre$k"}"#, vec![("k", false)], false, false),
+                ("expr {{pre$k}}", vec![], false, false),
+                (
+                    r#"expr {"$a($k)"}"#,
+                    vec![("a", true), ("k", false)],
+                    true,
+                    false,
+                ),
+            ] {
+                let function = original_expression_source(source, dialect);
+                function.validate().expect("unchanged authentic footprint");
+                let operation = expression_operation(&function);
+                let Statement::ExprEval {
+                    expr, expr_base, ..
+                } = &operation.statement
+                else {
+                    panic!("actual source expression");
+                };
+                assert!(
+                    crate::registry_invocation::original_lowered_expression_syntax(
+                        expr,
+                        *expr_base,
+                        operation.original_tokens.as_deref().unwrap(),
+                    )
+                    .unwrap()
+                    .1
+                    .is_some(),
+                    "{dialect}: {source}: selected original expression and recipe"
+                );
+                let expected = expected
+                    .into_iter()
+                    .map(|(name, element)| CellReference::Named {
+                        name: name.to_owned(),
+                        element,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(operation.footprint.reads, expected, "{dialect}: {source}");
+                assert_eq!(
+                    operation.footprint.reads_unbounded, unbounded,
+                    "{dialect}: {source}"
+                );
+                assert_eq!(
+                    operation.footprint.runs_commands, commands,
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn expression_footprints_refuse_missing_or_changed_whole_source_syntax() {
+        let function = original_expression_source("expr {$a($k)}", "tcl8.6");
+        let operation = expression_operation(&function);
+        let mut detached = operation.original_tokens.as_deref().unwrap().clone();
+        detached.source_binding = None;
+        for tokens in [None, Some(&detached)] {
+            let footprint = lowered_operation_footprint(&operation.statement, tokens);
+            assert_eq!(footprint.reads, vec![CellReference::Computed]);
+            assert!(footprint.reads_unbounded);
+        }
+        let mut changed = operation.original_tokens.as_deref().unwrap().clone();
+        changed.argv_texts[1] = "OTHER".to_owned();
+        let footprint = lowered_operation_footprint(&operation.statement, Some(&changed));
+        assert_eq!(footprint.reads, vec![CellReference::Computed]);
+        assert!(footprint.reads_unbounded);
+
+        let other = original_expression_source("expr {$other}", "tcl8.6");
+        let mut changed_ast = operation.statement.clone();
+        if let (Statement::ExprEval { expr, .. }, Statement::ExprEval { expr: other, .. }) =
+            (&mut changed_ast, &expression_operation(&other).statement)
+        {
+            *expr = other.clone();
+        } else {
+            panic!("authentic expression operations");
+        }
+        let footprint =
+            lowered_operation_footprint(&changed_ast, operation.original_tokens.as_deref());
+        assert_eq!(footprint.reads, vec![CellReference::Computed]);
+        assert!(footprint.reads_unbounded);
+
+        let foreign = original_expression_source("set prefix 1; expr {$a($k)}", "tcl8.6");
+        let footprint = lowered_operation_footprint(
+            &operation.statement,
+            expression_operation(&foreign).original_tokens.as_deref(),
+        );
+        assert_eq!(footprint.reads, vec![CellReference::Computed]);
+        assert!(footprint.reads_unbounded);
     }
 
     #[test]

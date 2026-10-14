@@ -224,6 +224,34 @@ pub(crate) fn standalone_written_source_name_roles(
     })
 }
 
+/// Literal receiver names under the actual selected argument role. A list
+/// role parses the decoded word value; a scalar role preserves that whole value.
+pub(crate) fn original_name_role_values(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    argument: usize,
+    role: tcl_registry::ArgRole,
+) -> Option<Vec<String>> {
+    let source = original_source_name_roles(registry, tokens)?;
+    (source.roles_complete()
+        && source.direct_written_arguments()
+        && source.roles().contains(&(argument, role)))
+    .then_some(())?;
+    let value = source.argument_literal(argument)?;
+    match role {
+        tcl_registry::ArgRole::VarWrite => Some(vec![value]),
+        tcl_registry::ArgRole::LoopVarList => Some(
+            tcl_syntax::word_rules::WordValueRules::from_config(&source.config())
+                .split_list(&value)
+                .ok()?
+                .into_iter()
+                .map(std::borrow::Cow::into_owned)
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
 pub(crate) fn original_assignment_name_operand(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
@@ -461,6 +489,151 @@ fn from_source_words(
 
 #[cfg(test)]
 mod tests {
+    fn original_loop_module(
+        source: &str,
+        dialect: &str,
+    ) -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        crate::ir::Module,
+    ) {
+        let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+        let context = environment.default_context_registry();
+        let profile = environment.analyser_profile();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input);
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
+        (context, module)
+    }
+
+    #[test]
+    fn loop_names_follow_decoded_word_then_the_selected_list_role() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (word, expected) in [
+                ("{$literal}", vec!["$literal"]),
+                ("{[literal]}", vec!["[literal]"]),
+                ("{{}}", vec![""]),
+                ("{{a b}}", vec!["a b"]),
+                (r"a\ b", vec!["a", "b"]),
+                (r"a\x62", vec!["ab"]),
+                ("{a($key)}", vec!["a($key)"]),
+            ] {
+                let source = format!("foreach {word} {{X Y}} {{set result 1}}");
+                let (context, module) = original_loop_module(&source, dialect);
+                let statement = &module.top_level.statements[0];
+                let crate::ir::Statement::Foreach { iterators, .. } = statement else {
+                    panic!("{dialect}: {source}: actual static list receiver");
+                };
+                assert_eq!(iterators[0].vars, expected, "{dialect}: {source}");
+                let tokens = module
+                    .top_level
+                    .retained_source_tokens_for_statement(statement)
+                    .unwrap();
+                let names = original_name_role_values(
+                    context.commands(),
+                    tokens,
+                    0,
+                    tcl_registry::ArgRole::LoopVarList,
+                )
+                .unwrap();
+                assert_eq!(names, expected, "{dialect}: {source}");
+                assert!(
+                    original_name_role_values(
+                        context.commands(),
+                        tokens,
+                        0,
+                        tcl_registry::ArgRole::VarWrite
+                    )
+                    .is_none()
+                );
+                let mut detached = tokens.clone();
+                detached.source_binding = None;
+                assert!(
+                    original_name_role_values(
+                        context.commands(),
+                        &detached,
+                        0,
+                        tcl_registry::ArgRole::LoopVarList
+                    )
+                    .is_none()
+                );
+                let mut changed = tokens.clone();
+                changed.argv_texts[1].push('!');
+                assert!(
+                    original_name_role_values(
+                        context.commands(),
+                        &changed,
+                        0,
+                        tcl_registry::ArgRole::LoopVarList
+                    )
+                    .is_none()
+                );
+            }
+            for word in ["$names", "[names]", "a($key)"] {
+                let source = format!("foreach {word} {{X}} {{set result 1}}");
+                let (_, module) = original_loop_module(&source, dialect);
+                assert!(
+                    !matches!(
+                        module.top_level.statements[0],
+                        crate::ir::Statement::Foreach { .. }
+                    ),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn file_line_receiver_role_keeps_one_complete_name() {
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            for expected in ["a b", "$literal", "[literal]", "", "a($key)"] {
+                let source = format!("foreachLine {{{expected}}} input.txt {{set result 1}}");
+                let (context, module) = original_loop_module(&source, dialect);
+                let statement = &module.top_level.statements[0];
+                let crate::ir::Statement::Foreach { iterators, .. } = statement else {
+                    panic!("{dialect}: {source}: actual scalar receiver");
+                };
+                assert_eq!(iterators[0].vars, vec![expected]);
+                let tokens = module
+                    .top_level
+                    .retained_source_tokens_for_statement(statement)
+                    .unwrap();
+                assert_eq!(
+                    original_name_role_values(
+                        context.commands(),
+                        tokens,
+                        0,
+                        tcl_registry::ArgRole::VarWrite
+                    )
+                    .unwrap(),
+                    vec![expected]
+                );
+                assert!(
+                    original_name_role_values(
+                        context.commands(),
+                        tokens,
+                        0,
+                        tcl_registry::ArgRole::LoopVarList
+                    )
+                    .is_none()
+                );
+            }
+            let (_, module) =
+                original_loop_module("foreachLine $name input.txt {set result 1}", dialect);
+            assert!(!matches!(
+                module.top_level.statements[0],
+                crate::ir::Statement::Foreach { .. }
+            ));
+        }
+    }
+
     #[test]
     fn original_scalar_name_projection_preserves_data_and_refuses_relabelled_fields() {
         let registry = tcl_registry::CommandRegistry::build_default();

@@ -1,0 +1,224 @@
+{
+  "captured_utc": "2026-10-14T22:27:17.645610+00:00",
+  "scope": "Original foreach list-word and real core/Tcllib file-line receiver executions; unsupported providers retained; matching C init, no tcltest or F5 result",
+  "library_sources": [
+    {
+      "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/fileutil/fileutil.tcl",
+      "sha256": "adbf38016f0775239739bcc3b791c37aaba87a28e20116732dc61249db029b1a",
+      "retained": "original-library/fileutil-fileutil.tcl"
+    },
+    {
+      "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/fileutil/pkgIndex.tcl",
+      "sha256": "0d0bee6bd1c40f054869bd5efadddca8eccae8727a0671402a88ae24361a2725",
+      "retained": "original-library/fileutil-pkgIndex.tcl"
+    },
+    {
+      "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/cmdline.tcl",
+      "sha256": "dcf1ab9c581484eb9219728594d9d2e35dd07fa4e63c844927990e147285a1d6",
+      "retained": "original-library/cmdline-cmdline.tcl"
+    },
+    {
+      "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/pkgIndex.tcl",
+      "sha256": "b2766b3999f6b025b3958584aaf8e4872c89d709094712faa85cd3aad3098d49",
+      "retained": "original-library/cmdline-pkgIndex.tcl"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/foreachline.tcl",
+      "sha256": "5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8",
+      "retained": "original-library/tcl9.0.4-foreachline.tcl"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/foreachline.tcl",
+      "sha256": "5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8",
+      "retained": "original-library/tcl9.1.0-foreachline.tcl"
+    }
+  ],
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "executable_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "runs": [
+        {
+          "probe": "probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/probe.tcl"
+          ],
+          "exit_code": 0,
+          "stdout": "literal-sigil SIGIL\nliteral-command-name BRACKET\nempty-name EMPTY\ngrouped-name SPACE\nescaped-word-list FIRST SECOND\nescaped-word-name HEX\nliteral-index ELEMENT\nsubstituted-variable-list DYNAMIC\n",
+          "stderr": ""
+        },
+        {
+          "probe": "file-line-probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/file-line-probe.tcl",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/8.4.20/line-input.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "core-availability 1 {invalid command name \"foreachLine\"}\nfileutil-availability 1 {can't find package fileutil}\n",
+          "stderr": "error reading package index file /tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/pkgIndex.tcl: wrong # args: should be \"package vsatisfies version1 version2\"\nerror reading package index file /tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/fileutil/pkgIndex.tcl: wrong # args: should be \"package vsatisfies version1 version2\"\n"
+        }
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "executable_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "runs": [
+        {
+          "probe": "probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/probe.tcl"
+          ],
+          "exit_code": 0,
+          "stdout": "literal-sigil SIGIL\nliteral-command-name BRACKET\nempty-name EMPTY\ngrouped-name SPACE\nescaped-word-list FIRST SECOND\nescaped-word-name HEX\nliteral-index ELEMENT\nsubstituted-variable-list DYNAMIC\n",
+          "stderr": ""
+        },
+        {
+          "probe": "file-line-probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/file-line-probe.tcl",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/8.5.19/line-input.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "core-availability 1 {invalid command name \"foreachLine\"}\nfileutil-availability 0 1.16.3\nreceiver ::fileutil::foreachLine {a b} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {$literal} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {[literal]} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {a($key)} 0 {FIRST SECOND} {FIRST SECOND}\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "executable_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "runs": [
+        {
+          "probe": "probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/probe.tcl"
+          ],
+          "exit_code": 0,
+          "stdout": "literal-sigil SIGIL\nliteral-command-name BRACKET\nempty-name EMPTY\ngrouped-name SPACE\nescaped-word-list FIRST SECOND\nescaped-word-name HEX\nliteral-index ELEMENT\nsubstituted-variable-list DYNAMIC\n",
+          "stderr": ""
+        },
+        {
+          "probe": "file-line-probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/file-line-probe.tcl",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/8.6.18/line-input.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "core-availability 1 {invalid command name \"foreachLine\"}\nfileutil-availability 0 1.16.3\nreceiver ::fileutil::foreachLine {a b} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {$literal} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {[literal]} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {a($key)} 0 {FIRST SECOND} {FIRST SECOND}\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "executable_sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "runs": [
+        {
+          "probe": "probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/probe.tcl"
+          ],
+          "exit_code": 0,
+          "stdout": "literal-sigil SIGIL\nliteral-command-name BRACKET\nempty-name EMPTY\ngrouped-name SPACE\nescaped-word-list FIRST SECOND\nescaped-word-name HEX\nliteral-index ELEMENT\nsubstituted-variable-list DYNAMIC\n",
+          "stderr": ""
+        },
+        {
+          "probe": "file-line-probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/file-line-probe.tcl",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/9.0.4/line-input.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "core-availability 0 {}\nreceiver foreachLine {a b} 0 {FIRST SECOND} {}\nreceiver foreachLine {$literal} 0 {FIRST SECOND} {}\nreceiver foreachLine {[literal]} 0 {FIRST SECOND} {}\nreceiver foreachLine {} 0 {FIRST SECOND} {}\nreceiver foreachLine {a($key)} 0 {FIRST SECOND} {}\nfileutil-availability 0 1.16.3\nreceiver ::fileutil::foreachLine {a b} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {$literal} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {[literal]} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {a($key)} 0 {FIRST SECOND} {FIRST SECOND}\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "executable_sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "runs": [
+        {
+          "probe": "probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/probe.tcl"
+          ],
+          "exit_code": 0,
+          "stdout": "literal-sigil SIGIL\nliteral-command-name BRACKET\nempty-name EMPTY\ngrouped-name SPACE\nescaped-word-list FIRST SECOND\nescaped-word-name HEX\nliteral-index ELEMENT\nsubstituted-variable-list DYNAMIC\n",
+          "stderr": ""
+        },
+        {
+          "probe": "file-line-probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/file-line-probe.tcl",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/9.1.0/line-input.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "core-availability 0 {}\nreceiver foreachLine {a b} 0 {FIRST SECOND} {}\nreceiver foreachLine {$literal} 0 {FIRST SECOND} {}\nreceiver foreachLine {[literal]} 0 {FIRST SECOND} {}\nreceiver foreachLine {} 0 {FIRST SECOND} {}\nreceiver foreachLine {a($key)} 0 {FIRST SECOND} {}\nfileutil-availability 0 1.16.3\nreceiver ::fileutil::foreachLine {a b} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {$literal} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {[literal]} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {} 0 {FIRST SECOND} {FIRST SECOND}\nreceiver ::fileutil::foreachLine {a($key)} 0 {FIRST SECOND} {FIRST SECOND}\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "provider": "jim-latest",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "executable_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "executable_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "original_init": null,
+      "init_sha256": null,
+      "runs": [
+        {
+          "probe": "probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/probe.tcl"
+          ],
+          "exit_code": 0,
+          "stdout": "literal-sigil SIGIL\nliteral-command-name BRACKET\nempty-name EMPTY\ngrouped-name SPACE\nescaped-word-list FIRST SECOND\nescaped-word-name HEX\nliteral-index ELEMENT\nsubstituted-variable-list DYNAMIC\n",
+          "stderr": ""
+        },
+        {
+          "probe": "file-line-probe.tcl",
+          "command": [
+            "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/file-line-probe.tcl",
+            "/tmp/name-original-loop-role-oracles-scoped-20261014/jim-latest/line-input.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "core-availability 1 {invalid command name \"foreachLine\"}\nfileutil-availability 1 {wrong # args: should be \"package require name ?version?\"\nCan't load package fileutil}\n",
+          "stderr": ""
+        }
+      ]
+    }
+  ]
+}

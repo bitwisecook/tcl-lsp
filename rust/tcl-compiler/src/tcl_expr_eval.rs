@@ -3263,14 +3263,13 @@ fn comparison_facts(
     right: &ExprNode,
     reading: ConditionReading<'_>,
 ) -> EdgeFacts {
-    let style = reading.config.braced_var;
-    let operands = variable_operand(left, style)
+    let operands = variable_operand(left, reading.config)
         .zip(literal_operand(right))
         .map(|(place, literal)| (op, place, literal))
         .or_else(|| {
             let turned = turned_round(op)?;
             literal_operand(left)
-                .zip(variable_operand(right, style))
+                .zip(variable_operand(right, reading.config))
                 .map(|(literal, place)| (turned, place, literal))
         });
     let Some((op, place, literal)) = operands else {
@@ -3445,7 +3444,7 @@ fn string_is_fact(node: &ExprNode, reading: ConditionReading<'_>) -> Option<Plac
             .words
             .get(value_index.checked_add(1)?)?;
         let (spelling, _) = value.sole_variable_substitution()?;
-        let place = variable_name(spelling, reading.config.braced_var)?;
+        let place = variable_name(spelling, reading.config)?;
         let mut values = (invocation.facts.argument_offset..value_index)
             .map(|index| invocation.argument_literal(index))
             .collect::<Option<Vec<_>>>()?;
@@ -3479,7 +3478,7 @@ fn string_is_fact(node: &ExprNode, reading: ConditionReading<'_>) -> Option<Plac
     if value.expanded || !(reading.trusted)(head) {
         return None;
     }
-    let place = variable_name(&value.raw, reading.config.braced_var)?;
+    let place = variable_name(&value.raw, reading.config)?;
     let mut texts: Vec<&str> = options
         .iter()
         .map(crate::ir_helpers::CommandWord::literal)
@@ -3509,18 +3508,18 @@ fn string_is_fact(node: &ExprNode, reading: ConditionReading<'_>) -> Option<Plac
 /// The plain local variable an operand reads whole: a `$x` or `${x}`
 /// reference, or the flattened `switch` subject that carries one as `Raw`
 /// text. A qualified name or an array element is no plain local.
-fn variable_operand(node: &ExprNode, style: tcl_dialect::BracedVarStyle) -> Option<String> {
+fn variable_operand(node: &ExprNode, config: tcl_lexer::LexerConfig) -> Option<String> {
     match node {
         ExprNode::Var { text, .. } | ExprNode::Raw { text } => {
-            variable_name(text, style).map(str::to_owned)
+            variable_name(text, config).map(str::to_owned)
         }
         _ => None,
     }
 }
 
 /// The plain local name a `$x` or `${x}` spelling reads.
-fn variable_name(text: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
-    crate::value_transfer::whole_variable_operand(text, style)
+fn variable_name(text: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    crate::value_transfer::whole_variable_operand(text, config)
         .filter(|name| !name.is_empty() && !name.contains("::") && !name.contains('('))
 }
 

@@ -1,0 +1,12 @@
+core-availability 0 {}
+receiver foreachLine {a b} 0 {FIRST SECOND} {}
+receiver foreachLine {$literal} 0 {FIRST SECOND} {}
+receiver foreachLine {[literal]} 0 {FIRST SECOND} {}
+receiver foreachLine {} 0 {FIRST SECOND} {}
+receiver foreachLine {a($key)} 0 {FIRST SECOND} {}
+fileutil-availability 0 1.16.3
+receiver ::fileutil::foreachLine {a b} 0 {FIRST SECOND} {FIRST SECOND}
+receiver ::fileutil::foreachLine {$literal} 0 {FIRST SECOND} {FIRST SECOND}
+receiver ::fileutil::foreachLine {[literal]} 0 {FIRST SECOND} {FIRST SECOND}
+receiver ::fileutil::foreachLine {} 0 {FIRST SECOND} {FIRST SECOND}
+receiver ::fileutil::foreachLine {a($key)} 0 {FIRST SECOND} {FIRST SECOND}

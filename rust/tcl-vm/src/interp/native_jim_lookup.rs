@@ -599,7 +599,8 @@ impl Vm {
         let Some(cell) = self.var_arena.weak_jim_cell(raw) else {
             return Ok(());
         };
-        let global = bytes.starts_with(b"::");
+        let global = projection.root().qualification()
+            == tcl_syntax::naming::NativeNameQualification::Absolute;
         let frame = self.jim_variable_frame_id(global)?;
         let cache = crate::value::JimVariableCache {
             interpreter: self.native_interpreter_identity(),
@@ -840,7 +841,9 @@ impl Vm {
                 {
                     // Jim strips a global marker into a distinct original key;
                     // an unqualified first birth retains the very same operand.
-                    let key = if bytes.starts_with(b"::") {
+                    let key = if projection.root().qualification()
+                        == tcl_syntax::naming::NativeNameQualification::Absolute
+                    {
                         let key = Value::from_native_string_bytes(binding.name.as_bytes());
                         key.bind_native_jim_context(&self.native_jim_object_context().map_err(
                             |error| crate::command::completion_from_cmd_error(self, error.into()),

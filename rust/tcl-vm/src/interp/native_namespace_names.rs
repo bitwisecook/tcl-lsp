@@ -221,13 +221,37 @@ impl Vm {
                     .map_err(Into::into);
             };
             let recipe = protocol.recipe();
+            let names =
+                dialect
+                    .native_name_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "native namespace-name input protocol",
+                    ))?;
+            let context_path = self
+                .name_world
+                .borrow()
+                .ns_arena
+                .get(current.0 as usize)
+                .cloned()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "native namespace-name input context",
+                ))?;
+            let context = tcl_syntax::naming::NativeNameContext::new(&context_path);
             let mut bytes = if recipe.absolute_references_global() {
                 Some(entered.read(self)?)
             } else {
                 None
             };
-            let reference_ns = if bytes.as_ref().is_some_and(|bytes| bytes.starts_with(b"::")) {
-                ROOT_NS
+            let reference_ns = if let Some(bytes) = &bytes {
+                let selected = names.namespace_address_input(context, bytes).map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("native namespace-name input extent")
+                })?;
+                if selected.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute
+                {
+                    ROOT_NS
+                } else {
+                    current
+                }
             } else {
                 current
             };
@@ -272,11 +296,18 @@ impl Vm {
                 bytes = Some(entered.read(self)?);
             }
             let bytes = bytes.expect("original namespace string was materialised");
+            let input = names
+                .namespace_address_input(context, &bytes)
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("native namespace-name input extent")
+                })?;
+            let absolute =
+                input.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute;
             let selected = Namespaces::find_namespace_bytes_checked(self, reference_ns, &bytes)?;
             if let Some(namespace) = selected {
                 let target = self.native_namespace_name_token(namespace)?;
-                let reference = (!bytes.starts_with(b"::") || recipe.absolute_references_global())
-                    .then_some(reference);
+                let reference =
+                    (!absolute || recipe.absolute_references_global()).then_some(reference);
                 let selected_target = QueryNamespace::capture(self, namespace)?;
                 let target_lifecycle = target.lifecycle();
                 let target_observation = target.clone();

@@ -720,8 +720,7 @@ pub(crate) fn build_lambda_proc(
             return Err(error);
         }
     };
-    // Resolve the original namespace object from the global namespace before
-    // compiling the lambda; display spelling is not its namespace identity.
+    // C resolves from global; Jim retains its original flat context object.
     let ns_id = lambda_namespace(vm, parts.get(2))?;
     let namespace = vm.namespace_path_for_token(ns_id);
     let native_jim_namespace = vm.uses_native_jim_lookup().then(|| {
@@ -776,16 +775,16 @@ fn lambda_namespace(vm: &mut Vm, original: Option<&Value>) -> Result<NsId, Compl
             .ok_or_else(|| {
                 vm.refuse_host_command("lambda namespace has no original naming recipe".to_owned())
             })?;
-        let selected = if recipe == tcl_syntax::naming::NativeNameProtocol::Jim084 {
-            None
-        } else {
-            Some(recipe.lambda_namespace_input(&bytes).map_err(|error| {
-                vm.refuse_host_command(format!("lambda namespace recipe is unavailable: {error}"))
-            })?)
-        };
-        let lookup = selected
-            .as_ref()
-            .map_or(bytes.as_ref(), |input| input.selected());
+        if recipe.is_jim084() {
+            let selected = recipe.jim_lambda_namespace_input(&bytes).map_err(|error| {
+                vm.refuse_host_command(format!("Jim lambda namespace input unavailable: {error}"))
+            })?;
+            return Ok(vm.intern_jim_namespace_object(selected.selected()));
+        }
+        let selected = recipe.lambda_namespace_input(&bytes).map_err(|error| {
+            vm.refuse_host_command(format!("lambda namespace recipe is unavailable: {error}"))
+        })?;
+        let lookup = selected.selected();
         match tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
             vm,
             tcl_core_types::ROOT_NS,
@@ -794,9 +793,6 @@ fn lambda_namespace(vm: &mut Vm, original: Option<&Value>) -> Result<NsId, Compl
             Ok(Some(namespace)) => Ok(namespace),
             Ok(None) => {
                 let mut message = b"namespace \"".to_vec();
-                if selected.is_none() && !bytes.starts_with(b"::") {
-                    message.extend_from_slice(b"::");
-                }
                 message.extend_from_slice(lookup);
                 message.extend_from_slice(b"\" not found");
                 Err(err(message))

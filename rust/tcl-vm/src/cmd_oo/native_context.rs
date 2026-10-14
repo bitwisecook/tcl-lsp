@@ -274,7 +274,7 @@ pub(super) fn unknown_definition(vm: &mut Vm, args: &[Value]) -> Completion<Valu
 }
 
 fn definition_head(vm: &Vm, requested: &[u8]) -> Option<Value> {
-    if requested.is_empty() || requested.windows(2).any(|pair| pair == b"::") {
+    if requested.is_empty() || tcl_syntax::naming::is_qualified(requested) {
         return None;
     }
     let names = vm.native_oo_definition_command_names();

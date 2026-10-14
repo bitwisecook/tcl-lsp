@@ -1,0 +1,8 @@
+literal-dollar-index 19
+substituted-index 23
+nested-index 23
+literal-command-index 31 0
+substituted-command-index 23 1
+quoted-variable pre41
+braced-no-substitution {pre$k}
+quoted-array 23

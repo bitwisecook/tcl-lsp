@@ -1,0 +1,2 @@
+error reading package index file /tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/pkgIndex.tcl: wrong # args: should be "package vsatisfies version1 version2"
+error reading package index file /tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/fileutil/pkgIndex.tcl: wrong # args: should be "package vsatisfies version1 version2"

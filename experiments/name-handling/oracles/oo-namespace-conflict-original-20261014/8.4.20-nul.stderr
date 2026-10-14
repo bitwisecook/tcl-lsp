@@ -1,0 +1,11 @@
+invalid command name "oo::class"
+    while executing
+"oo::class create C"
+    (in namespace eval "::Outer" script line 2)
+    invoked from within
+"namespace eval ::Outer {
+    oo::class create C
+    oo::objdefine C export createWithNamespace
+    namespace eval allocated {}
+    set operand "alloca..."
+    (file "/tmp/name-oo-namespace-conflict-original-20261014/nul.tcl" line 2)

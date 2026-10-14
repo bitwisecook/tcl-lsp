@@ -625,11 +625,21 @@ impl ExprNode {
     /// read proof; positioned consumers must resolve each original occurrence.
     #[must_use]
     pub fn variable_nodes(&self) -> Vec<&Self> {
+        self.evaluation_nodes()
+            .into_iter()
+            .filter(|node| matches!(node, Self::Var { .. }))
+            .collect()
+    }
+
+    /// Typed evaluation nodes in source order, including word operands and
+    /// opaque boundaries. This traversal supplies no execution or read proof.
+    #[must_use]
+    pub fn evaluation_nodes(&self) -> Vec<&Self> {
         let mut pending = vec![self];
-        let mut variables = Vec::new();
+        let mut nodes = Vec::new();
         while let Some(node) = pending.pop() {
+            nodes.push(node);
             match node {
-                Self::Var { .. } => variables.push(node),
                 Self::Binary { left, right, .. } => {
                     pending.push(right);
                     pending.push(left);
@@ -648,7 +658,7 @@ impl ExprNode {
                 _ => {}
             }
         }
-        variables
+        nodes
     }
 
     /// Native lexical extent of one positioned expression variable reference.

@@ -1,0 +1,147 @@
+{
+  "started": {
+    "utc": "2026-10-14T22:38:54.470323+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "xtask",
+      "-p",
+      "tcl-syntax",
+      "-p",
+      "bpf-tcl-ir",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "--bin",
+      "xtask"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "Production affected-consumer preflight after all temporary diagnostic source restoration and reviewed current shared reference, semantic-token, conditional completion and hidden-invocation consumer migrations. Seven test artifacts only, zero tests executed here. Authored source subset only, not full Native/provider closure."
+  },
+  "finished_utc": "2026-10-14T22:40:05.473928+00:00",
+  "exit_code": 101,
+  "seconds": 71.00344367900107,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [
+    {
+      "rendered": "error[E0308]: mismatched types\n    --> rust/tcl-compiler/src/tcl_expr_eval.rs:3523:57\n     |\n3523 |     crate::value_transfer::whole_variable_operand(text, style)\n     |     ---------------------------------------------       ^^^^^ expected `LexerConfig`, found `BracedVarStyle`\n     |     |\n     |     arguments to this function are incorrect\n     |\nnote: function defined here\n    --> rust/tcl-compiler/src/value_transfer.rs:8026:15\n     |\n8026 | pub(crate) fn whole_variable_operand(text: &str, config: LexerConfig) -> Option<&str> {\n     |               ^^^^^^^^^^^^^^^^^^^^^^             -------------------\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "function defined here",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 332699,
+              "byte_start": 332680,
+              "column_end": 69,
+              "column_start": 50,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/value_transfer.rs",
+              "is_primary": false,
+              "label": "",
+              "line_end": 8026,
+              "line_start": 8026,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 69,
+                  "highlight_start": 50,
+                  "text": "pub(crate) fn whole_variable_operand(text: &str, config: LexerConfig) -> Option<&str> {"
+                }
+              ]
+            },
+            {
+              "byte_end": 332667,
+              "byte_start": 332645,
+              "column_end": 37,
+              "column_start": 15,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/value_transfer.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 8026,
+              "line_start": 8026,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 37,
+                  "highlight_start": 15,
+                  "text": "pub(crate) fn whole_variable_operand(text: &str, config: LexerConfig) -> Option<&str> {"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "mismatched types",
+      "spans": [
+        {
+          "byte_end": 147808,
+          "byte_start": 147803,
+          "column_end": 62,
+          "column_start": 57,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/tcl_expr_eval.rs",
+          "is_primary": true,
+          "label": "expected `LexerConfig`, found `BracedVarStyle`",
+          "line_end": 3523,
+          "line_start": 3523,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 62,
+              "highlight_start": 57,
+              "text": "    crate::value_transfer::whole_variable_operand(text, style)"
+            }
+          ]
+        },
+        {
+          "byte_end": 147796,
+          "byte_start": 147751,
+          "column_end": 50,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/tcl_expr_eval.rs",
+          "is_primary": false,
+          "label": "arguments to this function are incorrect",
+          "line_end": 3523,
+          "line_start": 3523,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 50,
+              "highlight_start": 5,
+              "text": "    crate::value_transfer::whole_variable_operand(text, style)"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0308",
+        "explanation": "Expected type did not match the received type.\n\nErroneous code examples:\n\n```compile_fail,E0308\nfn plus_one(x: i32) -> i32 {\n    x + 1\n}\n\nplus_one(\"Not a number\");\n//       ^^^^^^^^^^^^^^ expected `i32`, found `&str`\n\nif \"Not a bool\" {\n// ^^^^^^^^^^^^ expected `bool`, found `&str`\n}\n\nlet x: f32 = \"Not a float\";\n//     ---   ^^^^^^^^^^^^^ expected `f32`, found `&str`\n//     |\n//     expected due to this\n```\n\nThis error occurs when an expression was used in a place where the compiler\nexpected an expression of a different type. It can occur in several cases, the\nmost common being when calling a function and passing an argument which has a\ndifferent type than the matching type in the function declaration.\n"
+      }
+    }
+  ],
+  "test_artifacts": []
+}

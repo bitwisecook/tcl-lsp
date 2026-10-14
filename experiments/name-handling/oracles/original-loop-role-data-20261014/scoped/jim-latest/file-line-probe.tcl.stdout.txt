@@ -1,0 +1,3 @@
+core-availability 1 {invalid command name "foreachLine"}
+fileutil-availability 1 {wrong # args: should be "package require name ?version?"
+Can't load package fileutil}

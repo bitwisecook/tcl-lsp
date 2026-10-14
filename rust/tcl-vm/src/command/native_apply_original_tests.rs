@@ -320,3 +320,53 @@ fn original_lambda_namespace_objects_match_constructor_and_getter_controls() {
     }
     assert_eq!(comparisons, 81);
 }
+
+#[test]
+fn jim_lambda_keeps_absent_original_namespace_objects_without_c_lookup() {
+    for original in [
+        b"AbsentLambda".as_slice(),
+        b"::AbsentLambda",
+        b"::::AbsentLambda",
+        b":AbsentLambda",
+        b"Absent:Lambda",
+        b"Absent\0Tail",
+        b"",
+        b"Absent::Child",
+    ] {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+        let setup = vm
+            .eval_source("namespace eval Caller {proc launch {lambda} {apply $lambda}}")
+            .unwrap();
+        assert_eq!(setup.code, tcl_runtime_api::Code::Ok);
+        let protocol = vm
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            .unwrap();
+        let namespace = Value::new_native_string_bytes(original);
+        let lambda = Value::native_list_constructor(
+            vec![
+                Value::new_native_string_bytes(b"".as_slice()),
+                Value::new_native_string_bytes(b"namespace current".as_slice()),
+                namespace.clone(),
+            ],
+            protocol,
+        );
+        let completion = call(&mut vm, b"::Caller::launch", &[lambda]);
+        assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
+        assert_eq!(
+            completion
+                .result
+                .native_string_bytes(protocol)
+                .unwrap()
+                .as_ref(),
+            [b"::".as_slice(), original].concat(),
+        );
+        assert_eq!(
+            vm.native_name_operand_bytes(&namespace).unwrap().as_ref(),
+            original
+        );
+        assert_eq!(vm.current_ns_id(), tcl_core_types::ROOT_NS);
+        assert!(vm.execution_refusal.is_none());
+    }
+}

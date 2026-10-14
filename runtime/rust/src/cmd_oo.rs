@@ -6314,10 +6314,11 @@ impl Interp {
                         oo_checked!(interp, class_owner.check(interp));
                         if oo_checked!(interp, interp.resolve_namespace_name(&namespace)).is_some()
                         {
-                            let mut message = b"can't create namespace \"".to_vec();
-                            message.extend_from_slice(&namespace);
-                            message.extend_from_slice(b"\": already exists");
-                            return interp.error(&message);
+                            let error = oo_checked!(
+                                interp,
+                                interp.namespace_creation_conflict_error(&namespace)
+                            );
+                            return interp.report_cmd_error(error);
                         }
                         let invocation = oo_checked!(interp, invocation(interp));
                         oo_checked!(interp, class_owner.check(interp));
@@ -10287,6 +10288,53 @@ mod tests {
                     b"can't create namespace \"allocated::::child\": already exists"
                 );
             });
+        }
+    }
+
+    #[test]
+    fn create_with_namespace_conflicts_use_the_shared_native_report() {
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            for (seed, operand) in [
+                (b"allocated".as_slice(), b"allocated".as_slice()),
+                (b"allocated", b"::Outer::allocated"),
+                (b"allocated", b"::::Outer::::allocated"),
+                (b"allocated:tail", b"allocated:tail"),
+            ] {
+                let mut interpreter = Interp::with_native_core(
+                    crate::interp::default_host(),
+                    crate::environment::profile_for_dialect(version.dialect_profile_name()),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let source = [
+                    br#"namespace eval ::Outer {
+    oo::class create C
+    oo::objdefine C export createWithNamespace
+    namespace eval "#
+                        .as_slice(),
+                    seed,
+                    b" {}\nset operand ",
+                    operand,
+                    br#"
+    set status [catch {C createWithNamespace object $operand} value]
+    list $status $value $::errorCode [info commands object]
+}"#,
+                ]
+                .concat();
+                assert_eq!(interpreter.eval_str(&source), Code::Ok);
+                let expected = [
+                    b"1 {can't create namespace \"".as_slice(),
+                    operand,
+                    b"\": already exists} {TCL OPERATION NAMESPACE CREATEEXISTING} {}",
+                ]
+                .concat();
+                assert_eq!(interpreter.result_bytes(), expected, "{version:?}");
+                assert!(interpreter.native_execution_refusal().is_none());
+            }
         }
     }
 

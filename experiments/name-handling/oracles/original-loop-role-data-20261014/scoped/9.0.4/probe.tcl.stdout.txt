@@ -1,0 +1,8 @@
+literal-sigil SIGIL
+literal-command-name BRACKET
+empty-name EMPTY
+grouped-name SPACE
+escaped-word-list FIRST SECOND
+escaped-word-name HEX
+literal-index ELEMENT
+substituted-variable-list DYNAMIC

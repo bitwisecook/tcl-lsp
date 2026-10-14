@@ -4752,7 +4752,10 @@ pub(crate) fn evaluate_branch_under<S: std::hash::BuildHasher>(
             uses.entry(sym).or_insert(0);
         }
     }
-    let resolved = with_whole_variable_operands(condition, fold.grammar.braced_var);
+    let resolved = fold
+        .driver
+        .source_reference_lexer_config()
+        .and_then(|config| with_whole_variable_operands(condition, config));
     fold.driver.evaluate_condition(
         resolved.as_ref().unwrap_or(condition),
         original,
@@ -4767,24 +4770,24 @@ pub(crate) fn evaluate_branch_under<S: std::hash::BuildHasher>(
 /// dispatch's whole-variable subject, which
 /// `switch_subject_operand` keeps `Raw` so codegen loads the name intact.
 /// `None` when no operand resolves. The proof is
-/// [`crate::value_transfer::whole_variable_operand`] under `style`, the
-/// document's `${…}` close rule; a root `Raw` is an unparsed condition, not
+/// [`crate::value_transfer::whole_variable_operand`] under the complete
+/// document configuration; a root `Raw` is an unparsed condition, not
 /// an operand, and stays undecided, as does any `Raw` text the owner does
 /// not prove.
 fn with_whole_variable_operands(
     condition: &ExprNode,
-    style: tcl_dialect::BracedVarStyle,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<ExprNode> {
     let operand = |node: &ExprNode| match node {
         ExprNode::Raw { text } => {
-            crate::value_transfer::whole_variable_operand(text, style).map(|name| ExprNode::Var {
+            crate::value_transfer::whole_variable_operand(text, config).map(|name| ExprNode::Var {
                 text: text.clone(),
                 name: name.to_owned(),
                 start: 0,
                 end: 0,
             })
         }
-        other => with_whole_variable_operands(other, style),
+        other => with_whole_variable_operands(other, config),
     };
     let or_same = |resolved: Option<ExprNode>, node: &ExprNode| {
         Box::new(resolved.unwrap_or_else(|| node.clone()))

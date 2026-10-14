@@ -49,12 +49,13 @@ pub(crate) use source_receiver_names::{
 mod original_word_data;
 pub(crate) use original_word_data::{
     original_literal_argument_data, original_literal_argument_data_for_module,
+    original_lowered_expression_syntax,
 };
 mod source_name_roles;
 pub(crate) use source_name_roles::{
     OriginalVariableNameOperand, SourceNameRoleInventory, original_assignment_name_operand,
-    original_authored_substitution_name_roles, original_source_name_roles,
-    standalone_written_source_name_roles,
+    original_authored_substitution_name_roles, original_name_role_values,
+    original_source_name_roles, standalone_written_source_name_roles,
 };
 mod authored_source_structure;
 pub(crate) use authored_source_structure::original_authored_source_structure;

@@ -1,0 +1,2 @@
+core-availability 1 {invalid command name "foreachLine"}
+fileutil-availability 1 {Can't load package fileutil}

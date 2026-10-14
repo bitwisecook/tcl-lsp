@@ -1,0 +1,338 @@
+{
+  "captured_at": "2026-10-14T22:18:08.528757+00:00",
+  "providers": [
+    {
+      "version": "8.4.20",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "original_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "runs": [
+        {
+          "kind": "exact",
+          "exit": 0
+        },
+        {
+          "kind": "controls",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "version": "8.5.19",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "original_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "runs": [
+        {
+          "kind": "exact",
+          "exit": 0
+        },
+        {
+          "kind": "controls",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "version": "8.6.18",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "original_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "runs": [
+        {
+          "kind": "exact",
+          "exit": 0
+        },
+        {
+          "kind": "controls",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "version": "9.0.4",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "original_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "runs": [
+        {
+          "kind": "exact",
+          "exit": 0
+        },
+        {
+          "kind": "controls",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "version": "9.1.0",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "original_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "runs": [
+        {
+          "kind": "exact",
+          "exit": 0
+        },
+        {
+          "kind": "controls",
+          "exit": 0
+        }
+      ]
+    }
+  ],
+  "inputs": {
+    "literal-colon.tcl": "f3e055b211df1425dac8cebfcab845d07aa6a10a6d1b733b86d06ce869b5088c",
+    "nul.tcl": "069dd7e886fe0ae8f85523297b5c6bcc06f6d9a3b09a2c9163354c66e9c323f0",
+    "trailing.tcl": "e40663046622acc3031c82312fa6e6f777149724d6c1a6f3e35242be416f416a",
+    "repeated-root.tcl": "a0c6460e29ea090ccba663b7115ac7d53c415f844e271e3470afc1a95f2f145b",
+    "absolute.tcl": "b461e1409fe9e3eefaa26ba5b7e2866468d84b5a72567b5f013704463505e343",
+    "relative.tcl": "23474187091861825f2d82885970493ada9d80bf29df21412c60bfc78185115c",
+    "exact-wrapper.tcl": "071a8f008c0facfedf1e634491d530780d5200d649c3b9e7d8aae14e14656d12",
+    "exact-runtime188-input.tcl": "39a9ead7064afa8e9959163e667264d20b48cc4f5fd1a9ba328cfa569b29eb02"
+  },
+  "scope": "Exact Runtime188 callback fixture; independent original C5 operand spelling/error-code controls, each isolated in fresh original process. No tcltest. C84 has distinct namespace lifecycle and no hidden -namespace option. Implementation not executed.",
+  "isolated_controls": [
+    {
+      "version": "8.4.20",
+      "label": "relative",
+      "exit": 0,
+      "source_sha256": "23474187091861825f2d82885970493ada9d80bf29df21412c60bfc78185115c"
+    },
+    {
+      "version": "8.5.19",
+      "label": "relative",
+      "exit": 0,
+      "source_sha256": "23474187091861825f2d82885970493ada9d80bf29df21412c60bfc78185115c"
+    },
+    {
+      "version": "8.6.18",
+      "label": "relative",
+      "exit": 0,
+      "source_sha256": "23474187091861825f2d82885970493ada9d80bf29df21412c60bfc78185115c"
+    },
+    {
+      "version": "9.0.4",
+      "label": "relative",
+      "exit": 0,
+      "source_sha256": "23474187091861825f2d82885970493ada9d80bf29df21412c60bfc78185115c"
+    },
+    {
+      "version": "9.1.0",
+      "label": "relative",
+      "exit": 0,
+      "source_sha256": "23474187091861825f2d82885970493ada9d80bf29df21412c60bfc78185115c"
+    },
+    {
+      "version": "8.4.20",
+      "label": "absolute",
+      "exit": 0,
+      "source_sha256": "b461e1409fe9e3eefaa26ba5b7e2866468d84b5a72567b5f013704463505e343"
+    },
+    {
+      "version": "8.5.19",
+      "label": "absolute",
+      "exit": 0,
+      "source_sha256": "b461e1409fe9e3eefaa26ba5b7e2866468d84b5a72567b5f013704463505e343"
+    },
+    {
+      "version": "8.6.18",
+      "label": "absolute",
+      "exit": 0,
+      "source_sha256": "b461e1409fe9e3eefaa26ba5b7e2866468d84b5a72567b5f013704463505e343"
+    },
+    {
+      "version": "9.0.4",
+      "label": "absolute",
+      "exit": 0,
+      "source_sha256": "b461e1409fe9e3eefaa26ba5b7e2866468d84b5a72567b5f013704463505e343"
+    },
+    {
+      "version": "9.1.0",
+      "label": "absolute",
+      "exit": 0,
+      "source_sha256": "b461e1409fe9e3eefaa26ba5b7e2866468d84b5a72567b5f013704463505e343"
+    },
+    {
+      "version": "8.4.20",
+      "label": "repeated-root",
+      "exit": 0,
+      "source_sha256": "a0c6460e29ea090ccba663b7115ac7d53c415f844e271e3470afc1a95f2f145b"
+    },
+    {
+      "version": "8.5.19",
+      "label": "repeated-root",
+      "exit": 0,
+      "source_sha256": "a0c6460e29ea090ccba663b7115ac7d53c415f844e271e3470afc1a95f2f145b"
+    },
+    {
+      "version": "8.6.18",
+      "label": "repeated-root",
+      "exit": 0,
+      "source_sha256": "a0c6460e29ea090ccba663b7115ac7d53c415f844e271e3470afc1a95f2f145b"
+    },
+    {
+      "version": "9.0.4",
+      "label": "repeated-root",
+      "exit": 0,
+      "source_sha256": "a0c6460e29ea090ccba663b7115ac7d53c415f844e271e3470afc1a95f2f145b"
+    },
+    {
+      "version": "9.1.0",
+      "label": "repeated-root",
+      "exit": 0,
+      "source_sha256": "a0c6460e29ea090ccba663b7115ac7d53c415f844e271e3470afc1a95f2f145b"
+    },
+    {
+      "version": "8.4.20",
+      "label": "trailing",
+      "exit": 0,
+      "source_sha256": "e40663046622acc3031c82312fa6e6f777149724d6c1a6f3e35242be416f416a"
+    },
+    {
+      "version": "8.5.19",
+      "label": "trailing",
+      "exit": 0,
+      "source_sha256": "e40663046622acc3031c82312fa6e6f777149724d6c1a6f3e35242be416f416a"
+    },
+    {
+      "version": "8.6.18",
+      "label": "trailing",
+      "exit": 0,
+      "source_sha256": "e40663046622acc3031c82312fa6e6f777149724d6c1a6f3e35242be416f416a"
+    },
+    {
+      "version": "9.0.4",
+      "label": "trailing",
+      "exit": 0,
+      "source_sha256": "e40663046622acc3031c82312fa6e6f777149724d6c1a6f3e35242be416f416a"
+    },
+    {
+      "version": "9.1.0",
+      "label": "trailing",
+      "exit": 0,
+      "source_sha256": "e40663046622acc3031c82312fa6e6f777149724d6c1a6f3e35242be416f416a"
+    },
+    {
+      "version": "8.4.20",
+      "label": "nul",
+      "exit": 0,
+      "source_sha256": "069dd7e886fe0ae8f85523297b5c6bcc06f6d9a3b09a2c9163354c66e9c323f0"
+    },
+    {
+      "version": "8.5.19",
+      "label": "nul",
+      "exit": 0,
+      "source_sha256": "069dd7e886fe0ae8f85523297b5c6bcc06f6d9a3b09a2c9163354c66e9c323f0"
+    },
+    {
+      "version": "8.6.18",
+      "label": "nul",
+      "exit": 0,
+      "source_sha256": "069dd7e886fe0ae8f85523297b5c6bcc06f6d9a3b09a2c9163354c66e9c323f0"
+    },
+    {
+      "version": "9.0.4",
+      "label": "nul",
+      "exit": 0,
+      "source_sha256": "069dd7e886fe0ae8f85523297b5c6bcc06f6d9a3b09a2c9163354c66e9c323f0"
+    },
+    {
+      "version": "9.1.0",
+      "label": "nul",
+      "exit": 0,
+      "source_sha256": "069dd7e886fe0ae8f85523297b5c6bcc06f6d9a3b09a2c9163354c66e9c323f0"
+    },
+    {
+      "version": "8.4.20",
+      "label": "literal-colon",
+      "exit": 0,
+      "source_sha256": "f3e055b211df1425dac8cebfcab845d07aa6a10a6d1b733b86d06ce869b5088c"
+    },
+    {
+      "version": "8.5.19",
+      "label": "literal-colon",
+      "exit": 0,
+      "source_sha256": "f3e055b211df1425dac8cebfcab845d07aa6a10a6d1b733b86d06ce869b5088c"
+    },
+    {
+      "version": "8.6.18",
+      "label": "literal-colon",
+      "exit": 0,
+      "source_sha256": "f3e055b211df1425dac8cebfcab845d07aa6a10a6d1b733b86d06ce869b5088c"
+    },
+    {
+      "version": "9.0.4",
+      "label": "literal-colon",
+      "exit": 0,
+      "source_sha256": "f3e055b211df1425dac8cebfcab845d07aa6a10a6d1b733b86d06ce869b5088c"
+    },
+    {
+      "version": "9.1.0",
+      "label": "literal-colon",
+      "exit": 0,
+      "source_sha256": "f3e055b211df1425dac8cebfcab845d07aa6a10a6d1b733b86d06ce869b5088c"
+    }
+  ],
+  "superseded_controls": "sequential-controls retains first raw observations; operand mutation can affect later operations, so independent fresh processes own scoped results.",
+  "provenance_sources": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c",
+      "retained": "provider-sources/8.4.20/generic/tclNamesp.c",
+      "sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+      "retained": "provider-sources/8.5.19/generic/tclNamesp.c",
+      "sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c",
+      "retained": "provider-sources/8.6.18/generic/tclNamesp.c",
+      "sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c",
+      "retained": "provider-sources/9.0.4/generic/tclNamesp.c",
+      "sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c",
+      "retained": "provider-sources/9.1.0/generic/tclNamesp.c",
+      "sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815"
+    }
+  ],
+  "retained_original_init": [
+    {
+      "version": "8.4.20",
+      "retained": "provider-sources/8.4.20/library/init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "version": "8.5.19",
+      "retained": "provider-sources/8.5.19/library/init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "version": "8.6.18",
+      "retained": "provider-sources/8.6.18/library/init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "version": "9.0.4",
+      "retained": "provider-sources/9.0.4/library/init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "version": "9.1.0",
+      "retained": "provider-sources/9.1.0/library/init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    }
+  ]
+}

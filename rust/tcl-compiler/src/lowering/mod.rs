@@ -578,20 +578,8 @@ fn proc_body_namespace(qualified: &str, lexical_fallback: &str) -> String {
     }
 }
 
-/// Split a Tcl *variable list* word into the variable names it binds.
-///
-/// This is the `foreach` / `lmap` varList word, and the identically-shaped
-/// varLists of `dict for|map`, `array for`, and a `try on|trap` handler. Such a
-/// word is a plain Tcl list, so grouping binds *one* variable whose name
-/// contains the separator: tclsh 9.0 binds the single name `a b` for both
-/// `foreach {{a b}} …` and `foreach {a\ b} …`, where a whitespace split would
-/// invent two names (or drop one). [`tcl_syntax::list::split_list`] owns that
-/// grammar, and it is what the analyser's `define_vars_from_list` already uses
-/// for the same word, so lowering and analysis agree by construction.
-///
-/// `None` means the word is not a well-formed list (an unmatched brace or
-/// quote). Callers fall back to the runtime command, which raises Tcl's own
-/// error, rather than guessing at a binding.
+/// Configured list names from a brace-collapsed compatibility word.
+#[cfg(test)]
 fn parse_var_list_names(list_text: &str, rules: WordValueRules) -> Option<Vec<String>> {
     rules.split_word_names(list_text)
 }
@@ -599,7 +587,7 @@ fn parse_var_list_names(list_text: &str, rules: WordValueRules) -> Option<Vec<St
 /// Split a Tcl *formal parameter* list word into its parameter names.
 ///
 /// This is the `proc` / `apply`-lambda / TclOO-method parameter word, a
-/// different grammar from [`parse_var_list_names`]: it has two list levels, the
+/// different grammar from a loop variable list: it has two list levels, the
 /// outer one holding a specifier per parameter and each specifier itself a
 /// `name ?default?` list. So `{x {y 2} args}` is the three parameters `x`, `y`
 /// (defaulting to `2`), and `args`; and `proc p {a\ b} {}` is the *single*
@@ -4889,8 +4877,12 @@ impl<'r> Lowerer<'r> {
         // body is walked, so a rejected loop leaves no const-map traces behind.
         if args.len() == 4
             && body_is_braced
-            && let Some(vars) =
-                parse_var_list_names(&args[1], WordValueRules::from_config(&self.config))
+            && let Some(vars) = crate::registry_invocation::original_name_role_values(
+                self.registry,
+                &self.cmd_tokens(seg),
+                1,
+                tcl_registry::ArgRole::LoopVarList,
+            )
         {
             let body_tok = &arg_tokens[3];
             // The body runs in the *caller's* frame (`vm.eval_source` in place),

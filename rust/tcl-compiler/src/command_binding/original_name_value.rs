@@ -1175,6 +1175,23 @@ impl super::SourceInvocationBinding {
         self.original_recorded_written_name_input(written, words, config)
     }
 
+    /// Explicit retained Native/authored variable-name policy for the exact
+    /// original vector. Logical source syntax supplies no Native name recipe.
+    pub(crate) fn original_variable_reference_policy(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<NamePolicyProtocol> {
+        let config = self.original_lexer_config_for_tokens(tokens)?;
+        let (words, original_config) = self.original_recorded_name_words()?;
+        (words == tokens.words() && original_config == config).then_some(())?;
+        matches!(
+            self.original_recorded_name_purpose(words, config)?,
+            OriginalRecordedNamePurpose::Native
+        )
+        .then_some(())?;
+        self.variable_context.execution_name_policy?.native_recipe()
+    }
+
     /// Readonly input at one exact extent in this invocation's original full
     /// vector. The source channel, complete config and current retained value
     /// are checked before the ordinary original-input factory is reused.

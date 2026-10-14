@@ -136,8 +136,23 @@ Native entry, a variable cell or a completed store. Completed names use
 `CellReference::from_name_data`, preserving empty, sigil and literal element
 bytes without interpreting them as source; this symbolic vocabulary may retain
 NUL while Native cell admission separately refuses it. Catch/Try destinations
-consume this completed-name route. Codegen retains its independent
-operation, trace, dispatch and storage guards.
+and authenticated Foreach/Lmap cursor receivers consume this completed-name
+route. Codegen retains its independent operation, trace, dispatch and storage
+guards.
+
+Use `original_name_role_values` for a selected literal name-bearing argument.
+The original source-role owner requires complete direct argument roles and
+decodes the actual original word first. LoopVarList then applies its retained
+list grammar; VarWrite retains one complete name, including spaces. The loop
+cursor additionally checks the actual Foreach/Lmap descriptor, source span and
+iterator names. File-line lowering retains its scalar receiver for analysis and
+cannot enter that list-cursor emitter.
+
+Whole variable-reference syntax uses the complete lexer configuration.
+`whole_variable_reference_literal_name` preserves combined name data while
+refusing a separate index; the consumer still needs its independently selected
+lookup policy. `whole_scalar_variable_reference_name` additionally refuses
+combined array references. Neither query supplies a variable read or cell.
 
 `is_static_variable_source_word` is an unquoted source construction policy for
 a fixed ASCII identifier subset. Use it only when emitting that representation;
@@ -708,6 +723,15 @@ inventory grants no method execution, visibility or result proof.
 For example, a retained stable `set x value` can establish the normal write to `x` even when an unselected engine's compiler protocol is unknown. That does not prove when the native compiler validates `set`, whether earlier commands execute on a syntax error, or that codegen may emit a store opcode. An unknown `return`, `try`, or expression protocol cannot acquire those broader guarantees through handler identity.
 
 ## Resolve dynamic command names at their actual invocation
+
+Namespace creation conflicts use
+`report_native_namespace_creation_conflict` on the original C-string operand,
+independently of the selected address. C8.6 and later provide CREATEEXISTING;
+C8.4/8.5 preserve the primitive error-code state. Runtime namespace publication
+and explicit OO namespace creation share `namespace_creation_conflict_error`
+while retaining their own lookup, class, lifecycle and original getter checks.
+Diagnostic bytes do not supply a namespace identity or Native execution grant.
+
 
 Original hidden-command options use
 `NativeNameProtocol::hidden_invocation_grammar` and that table's returned
@@ -4300,6 +4324,17 @@ execution proof. `${$b}` names `$b`, `${a(k)}` names `a(k)`, and `$a($k)` owns a
 separate index-evaluation protocol. A second name decoder or base-name lookup
 cannot substitute for that protocol.
 
+`evaluation_nodes()` visits typed expression operands, including String and
+CompiledWord boundaries; it supplies no evaluation receipt. Executable name
+footprints use `original_lowered_expression_syntax` to match the entire original
+AST and expression base against the selected operand or exactly one genuine
+checked child. That owner retains its Registry, full vector, source and lexer
+configuration. Variable text uses the shared reference decoder, and separate
+indices retain their own substitution reads and uncertainty. Combined names
+require an independently retained lookup policy; Logical source syntax does
+not issue a Native recipe. Missing or changed syntax keeps the footprint
+conservative, with no executed-read or physical-cell grant.
+
 The following queries separate contents identity from dependency projection.
 Missing original reads or grammar cannot supply scalar contents or formal
 identity from a base label.
@@ -7471,6 +7506,13 @@ selected path must match a unique current namespace inventory. Opaque native
 units never pass through a displayed namespace string. C8.4 cannot borrow the C
 Apply recipe, and Jim retains its separate original object and source path.
 These projections supply no object header, callable, entered frame or completion.
+
+For Jim, `jim_lambda_namespace_input` retains the exact counted namespace bytes
+without C root-prefix construction or namespace lookup. The VM interns the raw
+Jim context holder and independently retains the original List child; an absent
+namespace does not borrow the C missing-namespace report. The actual eager
+third-child getter remains a separate limitation. This projection grants no
+lookup, namespace creation, entered frame or successful invocation.
 
 Lambda values additionally retain their actual constructor channel. The
 [CLI source question](../analysis/name-resolution-proofs/lambda-original-namespace-object-prefix.md)

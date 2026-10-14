@@ -210,11 +210,16 @@ impl Vm {
             .ok_or_else(|| {
                 self.original_jim_link_failure(UpvarLinkError::LocalNamespace, bytes, bytes)
             })?;
-        let key = if bytes.starts_with(b"::") {
-            Value::new_native_string_bytes(binding.name.as_bytes())
-        } else {
-            local.clone()
-        };
+        let protocol = self.name_policy_protocol().ok_or_else(|| {
+            self.refuse_host_command("original Jim link local name policy unavailable".into())
+        })?;
+        let selected = protocol.recipe().variable_alias_local_input(bytes);
+        let key =
+            if selected.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute {
+                Value::new_native_string_bytes(binding.name.as_bytes())
+            } else {
+                local.clone()
+            };
         let Some(table) = self.var_table_mut(binding.owner) else {
             return Err(self.original_jim_link_failure(
                 UpvarLinkError::LocalNamespace,
