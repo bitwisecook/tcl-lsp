@@ -113,6 +113,20 @@ coverage and invalidation; publish scalar constants only for actual scalar names
 An element write withdraws that root's scalar value, and an opaque write clears
 constant knowledge. Literal empty and sigil names stay data throughout this path.
 
+## Keep word representations distinct
+
+Use an original word and its retained lexer configuration for source values.
+`standalone_static_word_fragment_value` is only for an explicitly source-absent
+fragment with an independent braced fact; it cannot replace a genuine original
+operand or establish compiler, local-slot or physical-cell eligibility.
+
+`compiled_word_substitution` instead selects the compiler/VM protocol for
+already normalised bytes. Bare dollar bytes are data; `${`, `[` and Jim
+expression markers retain runtime scanning under the actual configuration.
+`push_compiled_word` and `subst_word_bytes` share that selection. Finished
+values use exact literal emission so their bytes never enter substitution
+again. None of these representation queries resolves a name or proves a read.
+
 ## Project source values and APL conventions at their owners
 
 Analyser value consumers use the retained original word or executable component
@@ -155,6 +169,22 @@ vectors; a later literal setter restores advice, and inline priority affects
 only its own handler. Validation reuses these reports for event/profile and
 priority checks. Neither route establishes event activation, runtime ordering
 or an unobserved BIG-IP result.
+
+For an independently selected authored namespace, use
+`authored_namespace_component_extent` with the actual occurrence purpose and
+variable LexerConfig. A written component gives source geometry; an inherited
+component has no editable span. Keep current source, namespace selection,
+hazards and edit permission at the caller. Report containment instead uses
+`reported_namespace_contains` or its strict variant on analytical report keys;
+those comparisons supply neither namespace identity nor a source occurrence.
+
+`VariableLookupPolicy::container_model` and `link_binding` share the selected
+policy's pure mappings. Physical Runtime configuration still requires its
+actual native name protocol; an authored provider checks compatibility with
+the existing model. The audit-only BPF bridge similarly requires
+`SemanticAnalysisBundle::matches_registry` before projecting descriptors from
+another Registry argument. Its complete semantic-key check preserves the
+independent source/context declines and supplies no backend execution grant.
 
 ## Select the proof the consumer needs
 
@@ -9910,6 +9940,17 @@ exact source image and its correspondence with `Module.source_metadata_input`.
 Missing, foreign or mismatched context supplies no factory advice. A possible
 result remains a possible result; it cannot donate a completed store, live
 object, current class or entered command.
+
+Object-class source candidates use the shared MAY assignment and original
+factory-schema queries only with positively retained Logical metadata. Factory
+schemas retain the current source, Registry, context and original arguments;
+accepted arity and exact mandatory publication layout select a possible name,
+while the nominal callable result class remains independent. Optional or control
+layouts withhold named publication. Unknown contents remain open in every
+scoped Logical candidate query. Alias propagation requires one genuine original
+variable substitution under its selected scalar grammar; inert braced data,
+compound words and arrays cannot supply that read. Strict physical reads and
+Normal procedure results keep their separate maps and proofs.
 
 The regexp/scan no-match diagnostic selects its layout from genuine original
 Registry words and typed conditional output operands. Captured alias arguments

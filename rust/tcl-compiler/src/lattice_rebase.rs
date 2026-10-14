@@ -101,6 +101,9 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
             rebase_statement(&mut ssa_stmt.statement, delta);
         }
     }
+    if let Some(points) = &mut fu.ssa.point_contexts {
+        points.rebase_source_tokens(delta);
+    }
     for cb in &mut fu.sccp.constant_branches {
         shift_opt(&mut cb.span, delta);
     }
@@ -123,6 +126,10 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     for record in &mut fu.sccp.loop_enumerations {
         shift(&mut record.span, delta);
     }
+}
+
+pub(crate) fn rebase_span(span: &mut Span, delta: i64) {
+    shift(span, delta);
 }
 
 fn shift(span: &mut Span, delta: i64) {

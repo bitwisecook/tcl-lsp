@@ -435,7 +435,7 @@ impl Interp {
     }
 
     fn oo_definition_head(&self, requested: &[u8]) -> Option<obj::Owned> {
-        if requested.is_empty() || requested.windows(2).any(|pair| pair == b"::") {
+        if requested.is_empty() || tcl_syntax::naming::is_qualified(requested) {
             return None;
         }
         let names = self.visible_command_names_in(self.current_ns());

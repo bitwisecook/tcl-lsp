@@ -450,6 +450,19 @@ impl PointResolveContexts {
         &self.source_tokens
     }
 
+    /// Move retained lexical carriers with their CFG and SSA statement coordinates.
+    /// Immutable source issuers and physical binding identities remain unchanged.
+    pub(crate) fn rebase_source_tokens(&mut self, delta: i64) {
+        for tokens in self.source_tokens.values_mut() {
+            crate::lattice_rebase::rebase_command_tokens(tokens, delta);
+        }
+        for accesses in self.reads.values_mut() {
+            for access in accesses {
+                crate::lattice_rebase::rebase_span(&mut access.source.span, delta);
+            }
+        }
+    }
+
     /// Replace template source ownership with exact carriers from the actual body.
     /// Lexical coordinates must already agree; missing sites decline the artifact.
     pub fn restore_source_tokens(

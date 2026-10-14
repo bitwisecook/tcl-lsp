@@ -1725,6 +1725,36 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
         {
             self.matched = true;
         }
+        // Only the standard Option identity can supply its single map argument.
+        // Keep the original receiver route through the closure's local binding.
+        if call.method == "map"
+            && call.turbofish.is_none()
+            && super::route_attrs_are_plain(&call.attrs)
+            && call.args.len() == 1
+            && let Some(mut value) = self.expression_identity(&call.receiver)
+            && let Some(inner) = value
+                .identity
+                .strip_prefix("Option<")
+                .and_then(|value| value.strip_suffix('>'))
+            && let Some(syn::Expr::Closure(closure)) = call.args.first()
+            && closure.inputs.len() == 1
+            && super::route_attrs_are_plain(&closure.attrs)
+            && let Some(syn::Pat::Ident(parameter)) = closure.inputs.first()
+            && super::route_attrs_are_plain(&parameter.attrs)
+            && parameter.by_ref.is_none()
+            && parameter.subpat.is_none()
+        {
+            value.identity = inner.into();
+            let previous = self.locals.clone();
+            let shadowed = self.shadowed.clone();
+            self.clear_pattern(closure.inputs.first().unwrap());
+            self.locals.insert(parameter.ident.to_string(), value);
+            self.visit_expr(&closure.body);
+            self.locals = previous;
+            self.shadowed = shadowed;
+            self.visit_expr(&call.receiver);
+            return;
+        }
         if ["any", "map"].iter().any(|name| call.method == *name)
             && call.args.len() == 1
             && let Some(mut value) = self.expression_identity(&call.receiver)
@@ -2283,6 +2313,36 @@ mod tests {
             "parameter:ledger",
         );
         assert!(modules.check_row(&row));
+    }
+
+    #[test]
+    fn source_routes_follow_only_actual_standard_option_map_arguments() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn revision(&self) {} }";
+        for caller in [
+            "use super::owner::Ledger; fn consume(current: Option<&Ledger>) { current.map(|ledger| ledger.revision()); }",
+            "fn consume(current: std::option::Option<&super::owner::Ledger>) { current.map(|ledger| ledger.revision()); }",
+            "use std::option::Option as Maybe; fn consume(current: Maybe<&super::owner::Ledger>) { current.map(|ledger| ledger.revision()); }",
+            "use super::owner::Ledger; fn consume(current: Option<&Ledger>) { current.map(|ledger| { { let ledger = (); } ledger.revision(); }); }",
+        ] {
+            let (modules, row) = fixture(owner, caller, "Ledger::revision", "parameter:current");
+            assert!(modules.check_row(&row), "{caller}");
+        }
+        for caller in [
+            "struct Other; impl Other { fn revision(&self) {} } fn consume(current: Option<&Other>) { current.map(|ledger| ledger.revision()); }",
+            "struct Maybe<T>(T); impl<T> Maybe<T> { fn map<F>(&self, f: F) {} } fn consume(current: Maybe<&super::owner::Ledger>) { current.map(|ledger| ledger.revision()); }",
+            "struct Option<T>(T); fn consume(current: Option<&super::owner::Ledger>) { current.map(|ledger| ledger.revision()); }",
+            "type Maybe<T> = std::option::Option<T>; fn consume(current: Maybe<&super::owner::Ledger>) { current.map(|ledger| ledger.revision()); }",
+            "use super::owner::Ledger; fn consume(current: Option<&Ledger>) { use fake::Ledger; current.map(|ledger| ledger.revision()); }",
+            "use super::owner::Ledger; fn consume(current: Option<&Ledger>) { current.map(|ledger: &Ledger| ledger.revision()); }",
+            "use super::owner::Ledger; fn consume(current: Option<&Ledger>) { current.map(|ledger, extra| ledger.revision()); }",
+            "use super::owner::Ledger; fn consume(current: Option<&Ledger>) { current.map::<()>(|ledger| ledger.revision()); }",
+            "use super::owner::Ledger; fn consume(current: Option<&Ledger>) { current.map(|ledger| { let ledger = (); ledger.revision(); }); }",
+            "use super::owner::Ledger; fn consume(current: Option<&Ledger>) { current.map(#[cfg(any())] |ledger| ledger.revision()); }",
+            "use super::owner::Ledger; fn consume(current: Option<&Ledger>) { current.map(|ledger| { inject!(); ledger.revision(); }); }",
+        ] {
+            let (modules, row) = fixture(owner, caller, "Ledger::revision", "parameter:current");
+            assert!(!modules.check_row(&row), "{caller}");
+        }
     }
 
     #[test]

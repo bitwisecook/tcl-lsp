@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-14T21:23:27.837182+00:00",
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "--no-run",
+    "--message-format=json",
+    "-j1",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "xtask",
+    "-p",
+    "tcl-syntax",
+    "-p",
+    "bpf-tcl-ir",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "--bin",
+    "xtask"
+  ],
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "scope": "TEMPORARY diagnostic source build for DB rebind and original Tcltest provider phase tracing. Seven affected test artifacts only, zero tests executed here. Temporary instrumentation must be removed before ordinary semantic acceptance or commit. Authored source subset only, not full Native/provider closure."
+}

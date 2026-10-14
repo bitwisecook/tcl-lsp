@@ -1,0 +1,193 @@
+{
+  "started": {
+    "utc": "2026-10-14T21:23:27.837182+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "xtask",
+      "-p",
+      "tcl-syntax",
+      "-p",
+      "bpf-tcl-ir",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "--bin",
+      "xtask"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "TEMPORARY diagnostic source build for DB rebind and original Tcltest provider phase tracing. Seven affected test artifacts only, zero tests executed here. Temporary instrumentation must be removed before ordinary semantic acceptance or commit. Authored source subset only, not full Native/provider closure."
+  },
+  "finished_utc": "2026-10-14T21:30:52.972818+00:00",
+  "exit_code": 101,
+  "seconds": 445.13548358400294,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [
+    {
+      "rendered": "error[E0716]: temporary value dropped while borrowed\n   --> rust/bpf-tcl-ir/src/semantic_bridge.rs:595:26\n    |\n595 |         let descriptor = first_resolved_facts(&bundle).descriptor_key();\n    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                 - temporary value is freed at the end of this statement\n    |                          |\n    |                          creates a temporary value which is freed while still in use\n596 |         assert_ne!(\n597 |             foreign.bpf_op_for_descriptor(descriptor),\n    |                                           ---------- borrow later used here\n    |\nhelp: consider using a `let` binding to create a longer lived value\n    |\n595 ~         let binding = first_resolved_facts(&bundle);\n596 ~         let descriptor = binding.descriptor_key();\n    |\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "consider using a `let` binding to create a longer lived value",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 24892,
+              "byte_start": 24892,
+              "column_end": 9,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/bpf-tcl-ir/src/semantic_bridge.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 595,
+              "line_start": 595,
+              "suggested_replacement": "let binding = first_resolved_facts(&bundle);\n        ",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 9,
+                  "highlight_start": 9,
+                  "text": "        let descriptor = first_resolved_facts(&bundle).descriptor_key();"
+                }
+              ]
+            },
+            {
+              "byte_end": 24938,
+              "byte_start": 24909,
+              "column_end": 55,
+              "column_start": 26,
+              "expansion": null,
+              "file_name": "rust/bpf-tcl-ir/src/semantic_bridge.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 595,
+              "line_start": 595,
+              "suggested_replacement": "binding",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 55,
+                  "highlight_start": 26,
+                  "text": "        let descriptor = first_resolved_facts(&bundle).descriptor_key();"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "temporary value dropped while borrowed",
+      "spans": [
+        {
+          "byte_end": 24938,
+          "byte_start": 24909,
+          "column_end": 55,
+          "column_start": 26,
+          "expansion": null,
+          "file_name": "rust/bpf-tcl-ir/src/semantic_bridge.rs",
+          "is_primary": true,
+          "label": "creates a temporary value which is freed while still in use",
+          "line_end": 595,
+          "line_start": 595,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 55,
+              "highlight_start": 26,
+              "text": "        let descriptor = first_resolved_facts(&bundle).descriptor_key();"
+            }
+          ]
+        },
+        {
+          "byte_end": 24956,
+          "byte_start": 24955,
+          "column_end": 73,
+          "column_start": 72,
+          "expansion": null,
+          "file_name": "rust/bpf-tcl-ir/src/semantic_bridge.rs",
+          "is_primary": false,
+          "label": "temporary value is freed at the end of this statement",
+          "line_end": 595,
+          "line_start": 595,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 73,
+              "highlight_start": 72,
+              "text": "        let descriptor = first_resolved_facts(&bundle).descriptor_key();"
+            }
+          ]
+        },
+        {
+          "byte_end": 25029,
+          "byte_start": 25019,
+          "column_end": 53,
+          "column_start": 43,
+          "expansion": null,
+          "file_name": "rust/bpf-tcl-ir/src/semantic_bridge.rs",
+          "is_primary": false,
+          "label": "borrow later used here",
+          "line_end": 597,
+          "line_start": 597,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 53,
+              "highlight_start": 43,
+              "text": "            foreign.bpf_op_for_descriptor(descriptor),"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0716",
+        "explanation": "A temporary value is being dropped while a borrow is still in active use.\n\nErroneous code example:\n\n```compile_fail,E0716\nfn foo() -> i32 { 22 }\nfn bar(x: &i32) -> &i32 { x }\nlet p = bar(&foo());\n         // ------ creates a temporary\nlet q = *p;\n```\n\nHere, the expression `&foo()` is borrowing the expression `foo()`. As `foo()` is\na call to a function, and not the name of a variable, this creates a\n**temporary** -- that temporary stores the return value from `foo()` so that it\ncan be borrowed. You could imagine that `let p = bar(&foo());` is equivalent to\nthe following, which uses an explicit temporary variable.\n\nErroneous code example:\n\n```compile_fail,E0597\n# fn foo() -> i32 { 22 }\n# fn bar(x: &i32) -> &i32 { x }\nlet p = {\n  let tmp = foo(); // the temporary\n  bar(&tmp) // error: `tmp` does not live long enough\n}; // <-- tmp is freed as we exit this block\nlet q = p;\n```\n\nWhenever a temporary is created, it is automatically dropped (freed) according\nto fixed rules. Ordinarily, the temporary is dropped at the end of the enclosing\nstatement -- in this case, after the `let p`. This is illustrated in the example\nabove by showing that `tmp` would be freed as we exit the block.\n\nTo fix this problem, you need to create a local variable to store the value in\nrather than relying on a temporary. For example, you might change the original\nprogram to the following:\n\n```\nfn foo() -> i32 { 22 }\nfn bar(x: &i32) -> &i32 { x }\nlet value = foo(); // dropped at the end of the enclosing block\nlet p = bar(&value);\nlet q = *p;\n```\n\nBy introducing the explicit `let value`, we allocate storage that will last\nuntil the end of the enclosing block (when `value` goes out of scope). When we\nborrow `&value`, we are borrowing a local variable that already exists, and\nhence no temporary is created.\n\nTemporaries are not always dropped at the end of the enclosing statement. In\nsimple cases where the `&` expression is immediately stored into a variable, the\ncompiler will automatically extend the lifetime of the temporary until the end\nof the enclosing block. Therefore, an alternative way to fix the original\nprogram is to write `let tmp = &foo()` and not `let tmp = foo()`:\n\n```\nfn foo() -> i32 { 22 }\nfn bar(x: &i32) -> &i32 { x }\nlet value = &foo();\nlet p = bar(value);\nlet q = *p;\n```\n\nHere, we are still borrowing `foo()`, but as the borrow is assigned directly\ninto a variable, the temporary will not be dropped until the end of the\nenclosing block. Similar rules apply when temporaries are stored into aggregate\nstructures like a tuple or struct:\n\n```\n// Here, two temporaries are created, but\n// as they are stored directly into `value`,\n// they are not dropped until the end of the\n// enclosing block.\nfn foo() -> i32 { 22 }\nlet value = (&foo(), &foo());\n```\n"
+      }
+    }
+  ],
+  "test_artifacts": [
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-21137d634222e84e",
+      "sha256": "188be99ff384af6a37231fbb4f5dad12627f4a38a9f386644ed52545ff97d424"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+      "sha256": "b2430f93196fc9a03ffac6a38f67f838ff23aa644caa9d765adf10ff9a84dd78"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+      "sha256": "180c44c7a1d64d3863ddca03eeccdb2e03a0cd0af51fee8f1f9e8a13661089e6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+      "sha256": "7c5204e3d06323b33f8bee47679ae522a7e672ca190e1f546340a3c2485dfab7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-145075525995b859",
+      "sha256": "31a2a19bda9544f4837bcc5b64c2e67c3dfb9ccdec7544338515cac230d188bb"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_core-ade0a379569a162e",
+      "sha256": "f90b411e7f67711cc18f9defd0d094b3e51f749ea527d9e164847d6b467a6c4d"
+    }
+  ]
+}

@@ -1499,6 +1499,7 @@ impl FunctionUnit {
                 procedures: None,
             },
         )
+        .with_body_id(body_id)
     }
 
     /// Conditional inherited-frame facts for an admitted original child CFG.

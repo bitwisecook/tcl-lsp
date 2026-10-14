@@ -1,0 +1,110 @@
+{
+  "started_utc": "2026-10-14T21:32:15.525005+00:00",
+  "build": null,
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+    "sha256": "180c44c7a1d64d3863ddca03eeccdb2e03a0cd0af51fee8f1f9e8a13661089e6",
+    "bytes": 202571640
+  },
+  "selected_tests": [
+    "tests::function_lattice_memoises_param_constant_procs",
+    "tests::function_lattice_reused_on_body_shift",
+    "tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+        "tests::function_lattice_memoises_param_constant_procs",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.2178187949903077,
+      "log": "test-01.log.gz",
+      "timed_out": false,
+      "test": "tests::function_lattice_memoises_param_constant_procs",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+        "tests::function_lattice_reused_on_body_shift",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.967038628004957,
+      "log": "test-02.log.gz",
+      "timed_out": false,
+      "test": "tests::function_lattice_reused_on_body_shift",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+        "tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 4.627722186996834,
+      "log": "test-03.log.gz",
+      "timed_out": false,
+      "test": "tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T21:32:24.805815+00:00",
+  "changed_sources": {}
+}

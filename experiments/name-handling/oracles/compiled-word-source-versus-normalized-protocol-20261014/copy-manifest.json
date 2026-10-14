@@ -1,0 +1,189 @@
+{
+  "destination_root": "experiments/name-handling/oracles/compiled-word-source-versus-normalized-protocol-20261014",
+  "files": [
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/capture.py",
+      "destination": "first-premise-failure/capture.py",
+      "sha256": "09051666b3e971aa63cfdd7950dd73032ecb78714fc3cdd49491a529c62ef694"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/jim.stderr",
+      "destination": "first-premise-failure/jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/jim.stdout",
+      "destination": "first-premise-failure/jim.stdout",
+      "sha256": "74de8e9cdcd7b1c5255ac20dc7504bffda430523e11bc7f26de91617f991a329"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/probe.tcl",
+      "destination": "first-premise-failure/probe.tcl",
+      "sha256": "52806756c56089c05aebdc2caab331f3b9c090cfc1891a39a87efd56b7b72071"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/results.json",
+      "destination": "first-premise-failure/results.json",
+      "sha256": "764a70505cdad08900cea8564d840bc3e1108077093f50994477efb7ffa7091d"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl8.4.stderr",
+      "destination": "first-premise-failure/tcl8.4.stderr",
+      "sha256": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl8.4.stdout",
+      "destination": "first-premise-failure/tcl8.4.stdout",
+      "sha256": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl8.5.stderr",
+      "destination": "first-premise-failure/tcl8.5.stderr",
+      "sha256": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl8.5.stdout",
+      "destination": "first-premise-failure/tcl8.5.stdout",
+      "sha256": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl8.6.stderr",
+      "destination": "first-premise-failure/tcl8.6.stderr",
+      "sha256": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl8.6.stdout",
+      "destination": "first-premise-failure/tcl8.6.stdout",
+      "sha256": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl9.0.stderr",
+      "destination": "first-premise-failure/tcl9.0.stderr",
+      "sha256": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl9.0.stdout",
+      "destination": "first-premise-failure/tcl9.0.stdout",
+      "sha256": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl9.1.stderr",
+      "destination": "first-premise-failure/tcl9.1.stderr",
+      "sha256": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-providers-20261014/tcl9.1.stdout",
+      "destination": "first-premise-failure/tcl9.1.stdout",
+      "sha256": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/capture.py",
+      "destination": "corrected-source-observation/capture.py",
+      "sha256": "b9e51090179ff413ee3a389da12580bf4394051a59232502f6f9fcf2ac7697d5"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/jim.stderr",
+      "destination": "corrected-source-observation/jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/jim.stdout",
+      "destination": "corrected-source-observation/jim.stdout",
+      "sha256": "a429d98c37c0301a27e3c9bc4a52e26812c71f9e4ab78ef278d6bb9aea1f51b7"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/manifest.json",
+      "destination": "corrected-source-observation/manifest.json",
+      "sha256": "49ac3cdffefe2f254e38cdac6d9750de711ca3b357d12aea06dd564b9f7a9a40"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/probe.tcl",
+      "destination": "corrected-source-observation/probe.tcl",
+      "sha256": "998a2609981f4b46bb4703939cb75b87c5eaad7c53db62b2e743f975810d8dce"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/results.json",
+      "destination": "corrected-source-observation/results.json",
+      "sha256": "35da3cbb93e4b97696ef2c0c84615d09b83ff84be236862ddf770874fee813d8"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.4.stderr",
+      "destination": "corrected-source-observation/tcl8.4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.4.stdout",
+      "destination": "corrected-source-observation/tcl8.4.stdout",
+      "sha256": "af0719fe3583f5ca245f74a0c7cbe92f813bef40543b07d50fa8e3c2e791cc32"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.5.stderr",
+      "destination": "corrected-source-observation/tcl8.5.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.5.stdout",
+      "destination": "corrected-source-observation/tcl8.5.stdout",
+      "sha256": "2a5077c4051022042d6fb6e7adb1efdfa82c078731cac459ede697898931c20c"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.6.stderr",
+      "destination": "corrected-source-observation/tcl8.6.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.6.stdout",
+      "destination": "corrected-source-observation/tcl8.6.stdout",
+      "sha256": "9ee3fda81adb6b64bf0f65466592c5b826eddb54a3afd98b7c17c3881b506ecc"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.0.stderr",
+      "destination": "corrected-source-observation/tcl9.0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.0.stdout",
+      "destination": "corrected-source-observation/tcl9.0.stdout",
+      "sha256": "20f1d13942029a3f9c2aa617c8257a6189c6bcfe49946d7d2b114bbc39d5dee3"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.1.stderr",
+      "destination": "corrected-source-observation/tcl9.1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.1.stdout",
+      "destination": "corrected-source-observation/tcl9.1.stdout",
+      "sha256": "0bcf945c4e9091b7ca2f2bffeccf0951de14308f9e64f193db09e0ec82eb361f"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "destination": "original-init/tcl8.4/init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "destination": "original-init/tcl8.5/init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "destination": "original-init/tcl8.6/init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "destination": "original-init/tcl9.0/init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "destination": "original-init/tcl9.1/init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    }
+  ],
+  "scope": "Original six-provider written-source observations, including unmodified first wrong-premise failure and corrected missing/bound-empty-root comparison. Compiler/VM normalized compiled-word convention is separate. No Native admission/current physical identity/optimized Rust execution acceptance. F5/Hosted not exercised.",
+  "freeze": "Root may copy only after current source/experiments capture seals. Recheck every SHA before copying; no provider mutations. Executables referenced by immutable path/SHA in results, not copied.",
+  "first_failure_interpretation": "C5 exit1 missing empty-root array read; Jim0 expression3. Incorrect planned C-literal premise rejected by actual raw result, never treated as acceptance.",
+  "corrected_result": "C5 catch missing read returns1 then bound empty-root element ARRAY; Jim catch success3 both times. Braced $(1+2) literal in all6. Jim info library explicitly unsupported; raw response retained, no init query support claimed."
+}

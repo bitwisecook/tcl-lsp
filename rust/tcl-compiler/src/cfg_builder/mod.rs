@@ -2129,9 +2129,16 @@ impl<'a> CfgBuilder<'a> {
             && self.block_mut(current).terminator.is_none()
         {
             let route = self.command_classes.completion_route(stmt).or_else(|| {
+                let tokens = stmt.tokens()?;
                 self.command_classes
-                    .logical_structured_invocation(stmt.tokens()?)
-                    .map(|invocation| invocation.conditional_completion_route(self.registry))
+                    .conditional_source_completion_route(tokens)
+                    .or_else(|| {
+                        self.command_classes
+                            .logical_structured_invocation(tokens)
+                            .map(|invocation| {
+                                invocation.conditional_completion_route(self.registry)
+                            })
+                    })
             });
             let Some(route) = route else {
                 return;
@@ -4109,6 +4116,21 @@ impl CfgCommandClasses {
             }
             CfgMetadataContext::Unavailable => None,
         }
+    }
+
+    fn conditional_source_completion_route(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<tcl_registry::completion_route::InvocationCompletionRoute> {
+        let registry = self.registry.registry();
+        let metadata = self
+            .metadata_context()?
+            .filter(|context| context.source_analysis_input().is_some())?;
+        let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+        invocation.dialect?;
+        Some(invocation.completion_route(registry))
     }
 
     fn exact_completion(

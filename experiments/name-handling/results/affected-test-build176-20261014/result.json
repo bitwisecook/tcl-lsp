@@ -1,0 +1,68 @@
+{
+  "started": {
+    "utc": "2026-10-14T21:31:25.666438+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "xtask",
+      "-p",
+      "tcl-syntax",
+      "-p",
+      "bpf-tcl-ir",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "--bin",
+      "xtask"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "TEMPORARY diagnostic source build for DB rebind and original Tcltest provider phase tracing. Seven affected test artifacts only, zero tests executed here. Temporary instrumentation must be removed before ordinary semantic acceptance or commit. Authored source subset only, not full Native/provider closure."
+  },
+  "finished_utc": "2026-10-14T21:31:31.286970+00:00",
+  "exit_code": 0,
+  "seconds": 5.6203728890104685,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [],
+  "test_artifacts": [
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-21137d634222e84e",
+      "sha256": "188be99ff384af6a37231fbb4f5dad12627f4a38a9f386644ed52545ff97d424"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+      "sha256": "b2430f93196fc9a03ffac6a38f67f838ff23aa644caa9d765adf10ff9a84dd78"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+      "sha256": "180c44c7a1d64d3863ddca03eeccdb2e03a0cd0af51fee8f1f9e8a13661089e6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-145075525995b859",
+      "sha256": "31a2a19bda9544f4837bcc5b64c2e67c3dfb9ccdec7544338515cac230d188bb"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+      "sha256": "7c5204e3d06323b33f8bee47679ae522a7e672ca190e1f546340a3c2485dfab7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_core-ade0a379569a162e",
+      "sha256": "f90b411e7f67711cc18f9defd0d094b3e51f749ea527d9e164847d6b467a6c4d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/bpf_tcl_ir-626787c886b85da4",
+      "sha256": "49428a6419b297eaa8fb5ef3c08fc6e67b5326aa6cd972fe164057eee135dfb4"
+    }
+  ]
+}

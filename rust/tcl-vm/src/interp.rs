@@ -8940,7 +8940,7 @@ impl Vm {
             // The hide destination is the hidden token. Check it first: in
             // the one-argument child shorthand the source and token spellings
             // are equal, and Tcl identifies the qualified token role.
-            if token.windows(2).any(|pair| pair == b"::") {
+            if tcl_syntax::naming::is_qualified(token) {
                 return Err(CommandVisibilityError::InvalidHiddenToken(policy));
             }
             if !tcl_cmd_core::namespace::qualifiers(cmd).is_empty() {
@@ -18692,8 +18692,14 @@ impl Vm {
         self.var_binding_from_bytes(name.as_bytes(), start)
     }
 
-    fn jim_var_binding_from_bytes(&self, name: &[u8], start: usize) -> VarBinding {
-        let global = name.starts_with(b"::") || start == 0;
+    fn jim_var_binding_from_bytes(
+        &self,
+        name: &[u8],
+        start: usize,
+        qualification: tcl_syntax::naming::NativeNameQualification,
+    ) -> VarBinding {
+        let global =
+            qualification == tcl_syntax::naming::NativeNameQualification::Absolute || start == 0;
         let global_key =
             global.then(|| tcl_syntax::naming::jim_global_variable_key_bytes(b"::", name));
         let selected = global_key.as_deref().unwrap_or(name);
@@ -18725,7 +18731,7 @@ impl Vm {
         let projection = protocol.variable_root_input(original);
         let name = projection.selected();
         if protocol.is_jim084() {
-            return Some(self.jim_var_binding_from_bytes(name, start));
+            return Some(self.jim_var_binding_from_bytes(name, start, projection.qualification()));
         }
         if let Some((namespace, storage)) =
             crate::cmd_oo::native_variables::runtime_target(self, start, protocol, name).ok()?

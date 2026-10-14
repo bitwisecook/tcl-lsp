@@ -1,0 +1,8 @@
+RAW=$(1+2)
+MISSING_CODE=0
+MISSING_RESULT=3
+BIND_CODE=0
+BOUND_CODE=0
+BOUND_RESULT=3
+LIBRARY_CODE=1
+LIBRARY=info, unknown command "library": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version

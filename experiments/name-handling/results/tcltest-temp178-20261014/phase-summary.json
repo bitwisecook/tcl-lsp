@@ -1,0 +1,1193 @@
+{
+  "log": "/tmp/name-tcltest-temp178-20261014/run.log.gz",
+  "decoded_bytes": 754410,
+  "decoded_sha256": "ff014f62aa56d94fbc926255b961f0520c641db8033843b5c4ecfee159b115f4",
+  "overlong_lines": 0,
+  "primitive_line_counts": {
+    "PROVIDER_FIXTURE_PHASE": 33,
+    "ANALYSER_PHASE": 48,
+    "SOURCE_ROOT_OWNER_WORK": 3120,
+    "SOURCE_PHASE": 120,
+    "SOURCE_LEXICAL_PROJECTION_PHASE": 120,
+    "SOURCE_DEFERRED_INDEX_PHASE": 120,
+    "SOURCE_PROVIDER_VALIDATION_PHASE": 120,
+    "SOURCE_ORIGINAL_GEOMETRY_PHASE": 840,
+    "SOURCE_LOOKUP_PHASE": 60,
+    "SOURCE_DEFERRED_PROGRESS": 40,
+    "SOURCE_DEFERRED_PHASE": 90,
+    "SOURCE_LAYOUT_PHASE": 180,
+    "SOURCE_LAYOUT_SYNTAX_SUMMARY": 30,
+    "SOURCE_INVOCATION_PROJECT": 265,
+    "ANALYSER_TOKEN_PREPARE": 265,
+    "ANALYSER_COMMAND_PHASE": 1470,
+    "DIAGNOSTIC_PHASE": 33,
+    "COMPILER_PIPELINE_PHASE": 107,
+    "LOWER_SOURCE_PHASE": 75,
+    "LOWER_SCRIPT_PHASE": 255,
+    "SOURCE_BODY_PROJECTION": 40,
+    "LOWER_ORIGINAL_BODY_PHASE": 160,
+    "COMPILER_FUNCTION_PHASE_TOTALS": 4,
+    "DIAGNOSTIC_CFG_EMISSION_PHASE": 44
+  },
+  "latest_primitive_lines": [
+    {
+      "line": "SOURCE_LOOKUP_PHASE bytes=33 stage=walk calls=52 ms=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=1 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=1 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-seeds ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-drained ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-complete ms=1 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=layouts ms=1 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=14149 us=176021",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=40 us=5722",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=256 us=4734",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=108 us=6383",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=256 us=709566",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=704 us=35424",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=1017 us=19140",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=293 us=310",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11624167",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=470 us=29970",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=1554 us=82608",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=1120 us=676925",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=704 us=24424916",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=126392",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=656 us=532481",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=632 us=3949",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=656 us=36304149",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=4166",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=470 us=46807",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=35228 us=372092",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=2053 us=218354",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=103 us=235527",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=103 us=316",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=deferred ms=48 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=deferred retained_owners=1 requests=15 captures=5 reuses=10 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=deferred requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=command-key scope=cumulative-inclusive calls=50 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=slot-paths scope=cumulative-inclusive calls=41 ms=2 world_clones=17 clone_us=102",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=4",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=lookup-key scope=cumulative-inclusive calls=29 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=baseline scope=cumulative-inclusive calls=60 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LOOKUP_PHASE bytes=33 stage=deferred calls=60 ms=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=14149 us=176021",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=40 us=5722",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=256 us=4734",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=108 us=6383",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=256 us=709566",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=704 us=35424",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=1017 us=19140",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=293 us=310",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11624167",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=470 us=29970",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=1554 us=82608",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=1120 us=676925",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=704 us=24424916",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=126392",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=656 us=532481",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=632 us=3949",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=656 us=36304149",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=4166",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=470 us=46807",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=35228 us=372092",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=2053 us=218354",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=103 us=235527",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=103 us=316",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=complete ms=59 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=complete retained_owners=1 requests=15 captures=5 reuses=10 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=complete requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=command-key scope=cumulative-inclusive calls=50 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=slot-paths scope=cumulative-inclusive calls=41 ms=2 world_clones=17 clone_us=102",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=4",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=lookup-key scope=cumulative-inclusive calls=29 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=baseline scope=cumulative-inclusive calls=60 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=binding-analysis ms=59 commands=0 statements=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=segmented ms=0 commands=1 statements=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=commands ms=3 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=admission ms=3 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=source ms=4 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=script ms=64 commands=0 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=restore ms=64 commands=0 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SOURCE_PHASE bytes=33 phase=lowered ms=80 statements=1 procedures=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SOURCE_PHASE bytes=33 phase=entry ms=0 statements=0 procedures=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SOURCE_PHASE bytes=33 phase=configured ms=18 statements=0 procedures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=14149 us=176021",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=40 us=5722",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=256 us=4734",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=108 us=6383",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=256 us=709566",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=704 us=35424",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=1023 us=19161",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=293 us=310",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11624167",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=470 us=29970",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=1555 us=82648",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=1120 us=676925",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=704 us=24424916",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=126392",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=656 us=532481",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=632 us=3949",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=656 us=36304149",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=4166",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=470 us=46807",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=35255 us=372186",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=2053 us=218354",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=104 us=236472",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=104 us=319",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=initial ms=37 points=0 layouts=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=14194 us=176051",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=40 us=5722",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=256 us=4734",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=108 us=6383",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=256 us=709566",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=706 us=35456",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=1025 us=19171",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=295 us=311",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11624167",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=472 us=30110",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=1557 us=82737",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=1122 us=676928",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=706 us=24444605",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=126392",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=658 us=548038",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=634 us=3963",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=658 us=36305608",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=4166",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=472 us=47150",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=35267 us=372751",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=2058 us=218852",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=104 us=236472",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=104 us=319",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=walk ms=58 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=walk retained_owners=1 requests=12 captures=5 reuses=7 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=command-key scope=cumulative-inclusive calls=40 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=slot-paths scope=cumulative-inclusive calls=37 ms=2 world_clones=17 clone_us=78",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=5",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=lookup-key scope=cumulative-inclusive calls=23 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=baseline scope=cumulative-inclusive calls=52 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=walk query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LOOKUP_PHASE bytes=33 stage=walk calls=52 ms=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=1 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=1 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-seeds ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-drained ms=0 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LAYOUT_PHASE stage=nested-complete ms=1 visits=0 pending=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_PHASE stage=layouts ms=1 roots=0 outcomes=0 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=14194 us=176051",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=40 us=5722",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=256 us=4734",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=108 us=6383",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=256 us=709566",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=706 us=35456",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=1025 us=19171",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=295 us=311",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11624167",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=472 us=30110",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=1559 us=82801",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=1122 us=676928",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=706 us=24444605",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=126392",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=658 us=548038",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=634 us=3963",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=658 us=36305608",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=4166",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=472 us=47150",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=35270 us=372765",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=2058 us=218852",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=104 us=236472",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=104 us=319",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=deferred ms=59 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=deferred retained_owners=1 requests=15 captures=5 reuses=10 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=deferred requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=command-key scope=cumulative-inclusive calls=50 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=slot-paths scope=cumulative-inclusive calls=41 ms=2 world_clones=17 clone_us=78",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=5",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=lookup-key scope=cumulative-inclusive calls=29 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=baseline scope=cumulative-inclusive calls=60 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LOOKUP_PHASE bytes=33 stage=deferred calls=60 ms=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=14194 us=176051",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=40 us=5722",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=256 us=4734",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=108 us=6383",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=256 us=709566",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=706 us=35456",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=1025 us=19171",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=295 us=311",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=40 us=11624167",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=472 us=30110",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=1559 us=82801",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=1122 us=676928",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=706 us=24444605",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=578 us=126392",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=658 us=548038",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=634 us=3963",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=658 us=36305608",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=256 us=4166",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=472 us=47150",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=35270 us=372765",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=2058 us=218852",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=104 us=236472",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=104 us=319",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PHASE bytes=33 stage=complete ms=68 points=4 layouts=1",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_LEXICAL_PROJECTION_PHASE bytes=33 stage=complete retained_owners=1 requests=15 captures=5 reuses=10 rejected_captures=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_DEFERRED_INDEX_PHASE bytes=33 stage=complete requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_PROVIDER_VALIDATION_PHASE bytes=33 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=command-key scope=cumulative-inclusive calls=50 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=slot-paths scope=cumulative-inclusive calls=41 ms=2 world_clones=17 clone_us=78",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=metadata-advice scope=cumulative-inclusive calls=2 ms=0 world_clones=1 clone_us=5",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=lookup-key scope=cumulative-inclusive calls=29 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=baseline scope=cumulative-inclusive calls=60 ms=1 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=33 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=binding-analysis ms=68 commands=0 statements=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=segmented ms=0 commands=1 statements=0",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=commands ms=4 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=admission ms=4 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=source ms=5 commands=1 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=script ms=74 commands=0 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SCRIPT_PHASE bytes=33 depth=1 phase=restore ms=74 commands=0 statements=1",
+      "truncated": false
+    },
+    {
+      "line": "LOWER_SOURCE_PHASE bytes=33 phase=lowered ms=92 statements=1 procedures=0",
+      "truncated": false
+    },
+    {
+      "line": "COMPILER_PIPELINE_PHASE pipeline=unit bytes=1380 procedures=4 stage=top-level-lattice us=8405269",
+      "truncated": false
+    },
+    {
+      "line": "COMPILER_PIPELINE_PHASE pipeline=unit bytes=1380 procedures=4 stage=procedure-lattices us=8595632",
+      "truncated": false
+    }
+  ],
+  "provider_phase_lines": [
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=initial elapsed_us=78 thread_us=59",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=analyser-created elapsed_us=516 thread_us=516",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=input-prepared elapsed_us=60065 thread_us=60063",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=entry-selected elapsed_us=60828 thread_us=60828",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=configured elapsed_us=60847 thread_us=60847",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=analysis-returned elapsed_us=9728358 thread_us=9728357",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=analyser-dropped elapsed_us=9729094 thread_us=9729094",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=initial elapsed_us=1 thread_us=9731149",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=analyser-created elapsed_us=459 thread_us=9731607",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=input-prepared elapsed_us=54504 thread_us=9785649",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=entry-selected elapsed_us=54986 thread_us=9786133",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=configured elapsed_us=55007 thread_us=9786156",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=analysis-returned elapsed_us=11382679 thread_us=21113827",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=analyser-dropped elapsed_us=11383687 thread_us=21114835",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=initial elapsed_us=1 thread_us=21116671",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=analyser-created elapsed_us=511 thread_us=21117180",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=input-prepared elapsed_us=54916 thread_us=21171584",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=entry-selected elapsed_us=55364 thread_us=21172034",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=configured elapsed_us=55387 thread_us=21172057",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=analysis-returned elapsed_us=14030134 thread_us=35146804",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=analyser-dropped elapsed_us=14031161 thread_us=35147830",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=initial elapsed_us=1 thread_us=35150158",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=analyser-created elapsed_us=196 thread_us=35150353",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=input-prepared elapsed_us=57088 thread_us=35207242",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=entry-selected elapsed_us=57603 thread_us=35207760",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=configured elapsed_us=57622 thread_us=35207779",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=analysis-returned elapsed_us=14982217 thread_us=50132374",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=analyser-dropped elapsed_us=14983351 thread_us=50133508",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=initial elapsed_us=1 thread_us=50135899",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=analyser-created elapsed_us=460 thread_us=50136358",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=input-prepared elapsed_us=54415 thread_us=50190310",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=entry-selected elapsed_us=54943 thread_us=50190842",
+      "truncated": false
+    },
+    {
+      "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=configured elapsed_us=54965 thread_us=50190864",
+      "truncated": false
+    }
+  ],
+  "scope": "Bounded primitive line extraction only; cumulative nested phase values overlap. No exclusive cost totals or semantic acceptance inferred."
+}

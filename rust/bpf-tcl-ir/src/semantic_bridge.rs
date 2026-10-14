@@ -592,7 +592,8 @@ mod tests {
         replacement.bpf_op = registry.get_exact("drop").unwrap().bpf_op;
         foreign.insert(replacement);
         assert_eq!(foreign.profile(), registry.profile());
-        let descriptor = first_resolved_facts(&bundle).descriptor_key();
+        let facts = first_resolved_facts(&bundle);
+        let descriptor = facts.descriptor_key();
         assert_ne!(
             foreign.bpf_op_for_descriptor(descriptor),
             registry.bpf_op_for_descriptor(descriptor)

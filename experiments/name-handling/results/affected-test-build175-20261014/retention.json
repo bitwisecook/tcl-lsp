@@ -1,0 +1,12 @@
+{
+  "scope": "TEMP diagnostic build only:exit101 at newBPFfixture lifetime error;6testartifacts,0tests,authoredsource0. No ordinary acceptance.",
+  "files": {
+    "source-after.json.gz": "f3a7537a3731a0f90ae7769be41a78be392c3e965e877b528ac5a6d9409c707b",
+    "result.json": "b40da7b46341f1561b07ce92dd745372d227674784cc17f7e07cf2d9cd3f0ad5",
+    "capture.py": "2a829b551d45d7c5b2849cdf7f1511b58fd044550e9ca54ca5144983dd03dcd2",
+    "build.jsonl": "8290b474aa46aad7fd24d6d494a1d881e987d9a4a91b1ae391d97fb3cc9f08cc",
+    "README.md": "492b1d6ab3572bc7aa8f91d783038664ac7b920193fc609b182cdd0d99daad06",
+    "source-before.json.gz": "04f1e4872e4ac7161aadce14f4bc358a4f9f7995bdce1d7a075c0974c13a9df8",
+    "start.json": "f36043f310c70f9949e51cd35a27783b4d09e11dda5b81cfc1877e35bbab3ebc"
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "started_scope": "Root granted lightweight six-provider read-only scratch probe lease during current semantic capture; no Cargo, provider or Main mutation. No tcltest used.",
+  "finished_utc": "2026-10-14T21:07:45.596066+00:00",
+  "source_sha256": "998a2609981f4b46bb4703939cb75b87c5eaad7c53db62b2e743f975810d8dce",
+  "source": "/tmp/name-compiled-word-original-source-providers-20261014/probe.tcl",
+  "results": [
+    {
+      "profile": "tcl8.4",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-compiled-word-original-source-providers-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "executable_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "matching_init_sha256_before": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "matching_init_sha256_after": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.003295076996437274,
+      "exit_code": 0,
+      "stdout": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.4.stdout",
+      "stdout_sha256": "af0719fe3583f5ca245f74a0c7cbe92f813bef40543b07d50fa8e3c2e791cc32",
+      "stderr": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.4.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_value_prefix_observed": true,
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "tcl8.5",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-compiled-word-original-source-providers-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "executable_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "matching_init_sha256_before": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "matching_init_sha256_after": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.004730271000880748,
+      "exit_code": 0,
+      "stdout": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.5.stdout",
+      "stdout_sha256": "2a5077c4051022042d6fb6e7adb1efdfa82c078731cac459ede697898931c20c",
+      "stderr": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.5.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_value_prefix_observed": true,
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "tcl8.6",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-compiled-word-original-source-providers-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "executable_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "matching_init_sha256_before": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "matching_init_sha256_after": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.005537457996979356,
+      "exit_code": 0,
+      "stdout": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.6.stdout",
+      "stdout_sha256": "9ee3fda81adb6b64bf0f65466592c5b826eddb54a3afd98b7c17c3881b506ecc",
+      "stderr": "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.6.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_value_prefix_observed": true,
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "tcl9.0",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-compiled-word-original-source-providers-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "executable_sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "matching_init_sha256_before": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "matching_init_sha256_after": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.030944379002903588,
+      "exit_code": 0,
+      "stdout": "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.0.stdout",
+      "stdout_sha256": "20f1d13942029a3f9c2aa617c8257a6189c6bcfe49946d7d2b114bbc39d5dee3",
+      "stderr": "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.0.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_value_prefix_observed": true,
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "tcl9.1",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-compiled-word-original-source-providers-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "executable_sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "matching_init_sha256_before": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "matching_init_sha256_after": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.012875259009888396,
+      "exit_code": 0,
+      "stdout": "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.1.stdout",
+      "stdout_sha256": "0bcf945c4e9091b7ca2f2bffeccf0951de14308f9e64f193db09e0ec82eb361f",
+      "stderr": "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.1.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_value_prefix_observed": true,
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "jim",
+      "command": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-compiled-word-original-source-providers-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "executable_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "matching_init": null,
+      "matching_init_sha256_before": null,
+      "matching_init_sha256_after": null,
+      "TCL_LIBRARY": null,
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.005814334988826886,
+      "exit_code": 0,
+      "stdout": "/tmp/name-compiled-word-original-source-providers-20261014/jim.stdout",
+      "stdout_sha256": "a429d98c37c0301a27e3c9bc4a52e26812c71f9e4ab78ef278d6bb9aea1f51b7",
+      "stderr": "/tmp/name-compiled-word-original-source-providers-20261014/jim.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_value_prefix_observed": true,
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    }
+  ],
+  "all_exit_zero": true,
+  "all_expected_prefixes": true,
+  "claim": "Original source observation: quoted $(1+2) evaluates to3 in Jim, while C Tcl8.4\u20139.1 reads array element(1+2) under the empty variable root (missing read errors, bound read ARRAY). Braced spelling is literal in all. The normalized compiled-word convention intentionally differs from written source: bare dollar bytes are already processed there. This grants no Rust emitter/Native admission/identity conformance."
+}

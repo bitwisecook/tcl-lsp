@@ -1,0 +1,8 @@
+RAW=$(1+2)
+MISSING_CODE=1
+MISSING_RESULT=can't read "(1+2)": no such variable
+BIND_CODE=0
+BOUND_CODE=0
+BOUND_RESULT=ARRAY
+LIBRARY_CODE=0
+LIBRARY=/workspace/tcl-lsp/tmp/tcl8.6.18/library

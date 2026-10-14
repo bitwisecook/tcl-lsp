@@ -1,0 +1,1 @@
+Seven affected test artifacts compiled successfully with temporary provider-clock and capsule-rebind instrumentation. No tests execute in this build receipt. Captured authored source subset is unchanged; this is not ordinary semantic acceptance or full provider validation. Temporary instrumentation is removed before production testing.

@@ -1,0 +1,39 @@
+{
+  "files": {
+    "/tmp/name-compiled-word-original-source-providers-20261014/capture.py": "b9e51090179ff413ee3a389da12580bf4394051a59232502f6f9fcf2ac7697d5",
+    "/tmp/name-compiled-word-original-source-providers-20261014/jim.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/name-compiled-word-original-source-providers-20261014/jim.stdout": "a429d98c37c0301a27e3c9bc4a52e26812c71f9e4ab78ef278d6bb9aea1f51b7",
+    "/tmp/name-compiled-word-original-source-providers-20261014/probe.tcl": "998a2609981f4b46bb4703939cb75b87c5eaad7c53db62b2e743f975810d8dce",
+    "/tmp/name-compiled-word-original-source-providers-20261014/results.json": "35da3cbb93e4b97696ef2c0c84615d09b83ff84be236862ddf770874fee813d8",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.4.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.4.stdout": "af0719fe3583f5ca245f74a0c7cbe92f813bef40543b07d50fa8e3c2e791cc32",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.5.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.5.stdout": "2a5077c4051022042d6fb6e7adb1efdfa82c078731cac459ede697898931c20c",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.6.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl8.6.stdout": "9ee3fda81adb6b64bf0f65466592c5b826eddb54a3afd98b7c17c3881b506ecc",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.0.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.0.stdout": "20f1d13942029a3f9c2aa617c8257a6189c6bcfe49946d7d2b114bbc39d5dee3",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.1.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/name-compiled-word-original-source-providers-20261014/tcl9.1.stdout": "0bcf945c4e9091b7ca2f2bffeccf0951de14308f9e64f193db09e0ec82eb361f"
+  },
+  "original_predecessor": "/tmp/name-compiled-word-original-providers-20261014/results.json",
+  "correction": "Predecessor expected C source literal; actual raw C outputs instead showed empty-root array errors. Corrected observation preserves missing-read error and independently binds empty-root element to distinguish C ARRAY read from Jim expression3. Neither raw result is overwritten.",
+  "scope": "Six existing original executable providers, matching original C init.tcl files; Jim info library explicitly unsupported and retained, no tcltest needed. No Rust/Native conformance claim.",
+  "predecessor_files": {
+    "/tmp/name-compiled-word-original-providers-20261014/capture.py": "09051666b3e971aa63cfdd7950dd73032ecb78714fc3cdd49491a529c62ef694",
+    "/tmp/name-compiled-word-original-providers-20261014/jim.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/name-compiled-word-original-providers-20261014/jim.stdout": "74de8e9cdcd7b1c5255ac20dc7504bffda430523e11bc7f26de91617f991a329",
+    "/tmp/name-compiled-word-original-providers-20261014/probe.tcl": "52806756c56089c05aebdc2caab331f3b9c090cfc1891a39a87efd56b7b72071",
+    "/tmp/name-compiled-word-original-providers-20261014/results.json": "764a70505cdad08900cea8564d840bc3e1108077093f50994477efb7ffa7091d",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl8.4.stderr": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl8.4.stdout": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl8.5.stderr": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl8.5.stdout": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl8.6.stderr": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl8.6.stdout": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl9.0.stderr": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl9.0.stdout": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl9.1.stderr": "33455602ba7577ef2acbce46bd9a9b6bd75d803c05cb6c1268e992e0d816fccd",
+    "/tmp/name-compiled-word-original-providers-20261014/tcl9.1.stdout": "2f5821fafcf559c6d97ed8fede0b192bff71016c96320c737f1c64bd786c1061"
+  }
+}

@@ -5387,6 +5387,66 @@ pub(crate) fn advisory_value_assignments_with_metadata_context(
         .collect()
 }
 
+/// Conditional object factory metadata at one original source point.
+/// Unknown receiver contents, handler and completion alternatives remain open.
+#[derive(Clone, Debug)]
+pub(crate) struct AdvisoryObjectFactory {
+    pub(crate) publication: Option<(String, &'static str)>,
+    pub(crate) result_class: Option<&'static str>,
+}
+
+/// Original selected factory source schemas for advisory object-class unions.
+/// A named publication requires the descriptor's explicit source layout; an
+/// unsupported optional/control layout supplies no name. Callable result class
+/// metadata remains independent of that named publication. Neither is a store,
+/// allocation, physical read, runtime class, completed handler or dispatch proof.
+pub(crate) fn advisory_object_factories_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Vec<AdvisoryObjectFactory> {
+    let Some(assistance) = original_registry_invocation_assistance_with_metadata_context(
+        registry,
+        Some(context),
+        tokens,
+    ) else {
+        return Vec::new();
+    };
+    assistance
+        .candidates
+        .into_iter()
+        .filter_map(|candidate| {
+            candidate.with_source_schema(registry, context, tokens, |schema| {
+                (schema.facts().arity_accepts_frozen_arguments() == Some(true)).then_some(())?;
+                let publication =
+                    schema
+                        .authored_source_command_publication()
+                        .and_then(|publication| {
+                            let tcl_registry::AuthoredSourceCommandPublicationKind::Instance {
+                                class_name,
+                            } = publication.kind
+                            else {
+                                return None;
+                            };
+                            Some((
+                                schema
+                                    .words
+                                    .arguments()
+                                    .literal_at(publication.argument)?
+                                    .to_owned(),
+                                class_name,
+                            ))
+                        });
+                let result_class = schema.authored_source_callable_factory_class();
+                (publication.is_some() || result_class.is_some()).then_some(AdvisoryObjectFactory {
+                    publication,
+                    result_class,
+                })
+            })
+        })
+        .collect()
+}
+
 /// Possible original operands of a default return operation. These are
 /// result candidates only: no completion, returned type or reached caller is
 /// established. Option-bearing forms require their own return-options recipe.

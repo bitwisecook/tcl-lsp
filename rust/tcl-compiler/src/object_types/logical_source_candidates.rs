@@ -380,6 +380,14 @@ mod tests {
         );
         assert!(candidates.has_unknown_residual());
         assert!(candidates.contents_versions_are_unioned());
+        assert!(analysis.object_handle_facts.proven_reads.is_empty());
+        assert!(analysis.object_handle_facts.physical_type_reads.is_empty());
+        assert!(
+            analysis
+                .object_handle_facts
+                .normal_procedure_results
+                .is_empty()
+        );
         assert!(
             analysis
                 .object_handle_facts
@@ -445,6 +453,38 @@ mod tests {
                 .is_none()
         );
     }
+    #[test]
+    fn logical_assignment_candidates_keep_literal_data_separate_from_reads() {
+        for (value, expected) in [
+            ("$object", true),
+            (r#""$object""#, true),
+            ("{$object}", false),
+            ("{[C new]}", false),
+            ("prefix$object", false),
+        ] {
+            let source = format!(
+                "oo::class create C {{method longMethod {{}} {{}}}}\nset object [C new]\nset alias {value}\n$alias longMet"
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            let registry = analysis.resolved_registry().unwrap();
+            let head = original_head(&analysis, source.rfind("$alias").unwrap() as u32);
+            let classes = analysis.logical_source_receiver_class_candidates(&head, registry);
+            assert_eq!(classes.is_some(), expected, "{value}");
+            if let Some(classes) = classes {
+                assert!(classes.classes().any(|class| class == "::C"));
+                assert!(classes.has_unknown_residual());
+            }
+            assert!(analysis.object_handle_facts.proven_reads.is_empty());
+            assert!(analysis.object_handle_facts.physical_type_reads.is_empty());
+            assert!(
+                analysis
+                    .object_handle_facts
+                    .normal_procedure_results
+                    .is_empty()
+            );
+        }
+    }
+
     #[test]
     fn logical_receiver_candidates_refuse_array_and_nul_name_geometry() {
         for head_text in ["$value(key)", "${value(key)}", "${value\0tail}"] {

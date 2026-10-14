@@ -51,7 +51,7 @@ use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::ir::{MethodCoordinate, MethodKind, ProcedureId, Statement};
+use crate::ir::{MethodCoordinate, MethodKind, ProcedureId, Statement, WordExpr};
 use crate::value_shapes::parse_command_substitution_with_config;
 use tcl_core_types::BodyFrameId;
 
@@ -1353,6 +1353,12 @@ fn scan_flow_statement(
     } = index;
     match stmt {
         Statement::AssignValue { name, value, .. } => {
+            let Some(value) = ctx
+                .tokens
+                .and_then(|tokens| unique_original_value_word(tokens, value))
+            else {
+                return;
+            };
             scan_assign_edges(
                 AssignSite {
                     unit: ctx.unit,
@@ -1370,18 +1376,14 @@ fn scan_flow_statement(
             );
         }
         Statement::Call { .. } => {
-            if let Some(assignment) = ctx
-                .tokens
-                .and_then(|tokens| {
-                    source_normal_representation(ctx.registry, ctx.metadata_context, tokens)
-                })
-                .and_then(|normal| normal.value_assignment())
-            {
+            for assignment in ctx.tokens.map_or_else(Vec::new, |tokens| {
+                source_assignment_candidates(ctx.registry, ctx.metadata_context, tokens)
+            }) {
                 scan_assign_edges(
                     AssignSite {
                         unit: ctx.unit,
                         name: &assignment.name,
-                        value: &assignment.value.legacy_text(),
+                        value: &assignment.value,
                     },
                     ReturnEdges {
                         procs: returns,
@@ -1406,13 +1408,7 @@ fn scan_flow_statement(
                     .tokens
                     .and_then(crate::registry_invocation::effective_command_words)
             {
-                let args = effective
-                    .words
-                    .iter()
-                    .skip(1)
-                    .map(crate::ir::WordExpr::legacy_text)
-                    .collect::<Vec<_>>();
-                emit_proc_param_bindings(id, params, &args, ctx, bindings);
+                emit_proc_param_bindings(id, params, &effective.words[1..], ctx, bindings);
             }
             // Constructor-parameter edge: `Class create NAME …`.
             emit_ctor_param_bindings(resolve_ctor_class, ctx, bindings);
@@ -1465,7 +1461,7 @@ fn scan_substitution_constructor_edges(
 struct AssignSite<'a> {
     unit: BodyFrameId,
     name: &'a str,
-    value: &'a str,
+    value: &'a WordExpr,
 }
 
 /// The callee-side return-type maps [`scan_assign_edges`] resolves a
@@ -1489,10 +1485,7 @@ fn scan_assign_edges(
     ctx: ScanContext,
     bindings: &mut Vec<Binding>,
 ) {
-    let v = site.value.trim();
-    // Aliasing edge: `set A $B` copies B's classes to A.  `B` is read *in this
-    // unit*, so the scope-keyed fact resolves it here and nowhere else.
-    if let Some(src) = deref_arg_var(v)
+    if let Some(src) = deref_arg_var(site.value, ctx)
         && let Some(classes) = ctx.out.get(src).filter(|s| !s.is_empty())
     {
         bindings.push(Binding {
@@ -1503,29 +1496,15 @@ fn scan_assign_edges(
             kind: ObjectFlowEdge::Alias,
         });
     }
-    if !v.starts_with('[') {
-        return;
-    }
-    let Some((cmd, args)) = parse_command_substitution_with_config(
-        v,
-        tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()),
-    ) else {
+    let Some(nested) = ctx
+        .tokens
+        .and_then(|parent| sole_substitution_tokens(site.value, parent, ctx.registry))
+    else {
         return;
     };
-    let nested = ctx.tokens.and_then(|parent| {
-        let mut candidates = parent
-            .words()
-            .iter()
-            .filter(|word| word.legacy_text() == site.value);
-        let word = candidates.next()?;
-        if candidates.next().is_some() {
-            return None;
-        }
-        sole_substitution_tokens(word, parent, ctx.registry)
-    });
     let target = nested
+        .source_binding
         .as_ref()
-        .and_then(|tokens| tokens.source_binding.as_ref())
         .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target);
     // Return flow follows the retained implementation token, independently
     // of its written spelling or present command slot.
@@ -1551,13 +1530,20 @@ fn scan_assign_edges(
     // whose own return type names an object class types the captured handle,
     // exactly like a proc return.  The *receiver* is a variable read in this
     // unit, so the scope-keyed fact resolves it here (the union fact stays
-    // blind, as for the aliasing edge); the method word must be a plain
-    // bareword — a computed member (`[$a $m]`) proves nothing.
-    if let Some(recv) = deref_arg_var(&cmd)
-        && let Some(method) = args
-            .first()
-            .map(String::as_str)
-            .filter(|m| !m.is_empty() && !m.starts_with(['$', '[', '{', '"']))
+    // blind, as for the aliasing edge). The selected grammar must decode a
+    // literal member; computed member words supply no coordinate.
+    let words = nested.words();
+    if let Some(recv) = words.first().and_then(|word| {
+        deref_arg_var(
+            word,
+            ScanContext {
+                tokens: Some(&nested),
+                ..ctx
+            },
+        )
+    }) && let Some(method) = words
+        .get(1)
+        .and_then(|word| literal_source_word(word, &nested, ctx.registry))
     {
         let resolve = |classes: &HashSet<String>| -> HashSet<String> {
             classes
@@ -1597,7 +1583,7 @@ fn scan_assign_edges(
 fn emit_proc_param_bindings(
     callee: ProcedureId,
     params: &[String],
-    args: &[String],
+    args: &[WordExpr],
     ctx: ScanContext,
     bindings: &mut Vec<Binding>,
 ) {
@@ -1680,12 +1666,9 @@ fn emit_ctor_param_bindings(
     let Some(effective) = crate::registry_invocation::effective_command_words(tokens) else {
         return;
     };
-    let ctor_args = effective
-        .words
-        .iter()
-        .skip(1 + payload_from)
-        .map(crate::ir::WordExpr::legacy_text)
-        .collect::<Vec<_>>();
+    let Some(ctor_args) = effective.words.get(1 + payload_from..) else {
+        return;
+    };
     if ctor_args.is_empty() {
         return;
     }
@@ -1754,8 +1737,8 @@ fn emit_ctor_param_bindings(
 /// is unit-independent, so both agree.  `by_scope` is a subset of `any_scope`
 /// per name by construction, so an empty union implies an empty scoped set and
 /// the blind lookup can gate both.
-fn arg_classes(arg: &str, ctx: ScanContext) -> Option<EdgeClasses> {
-    if let Some(var) = deref_arg_var(arg)
+fn arg_classes(arg: &WordExpr, ctx: ScanContext) -> Option<EdgeClasses> {
+    if let Some(var) = deref_arg_var(arg, ctx)
         && let Some(classes) = ctx.out.get(var).filter(|s| !s.is_empty())
     {
         return Some(EdgeClasses {
@@ -1763,19 +1746,54 @@ fn arg_classes(arg: &str, ctx: ScanContext) -> Option<EdgeClasses> {
             scoped: ctx.scoped_classes(var),
         });
     }
-    constructor_class(arg, ctx.registry, ctx.tokens, ctx.metadata_context)
+    let parent = ctx.tokens?;
+    let tokens = sole_substitution_tokens(arg, parent, ctx.registry)?;
+    constructor_class_candidate(&tokens, ctx.registry, ctx.metadata_context)
         .map(|class| EdgeClasses::unscoped(&class))
 }
 
-/// The variable name a `$name` / `${name}` argument dereferences, or `None` for
-/// a non-plain reference.
-fn deref_arg_var(text: &str) -> Option<&str> {
-    let rest = text.trim().strip_prefix('$')?;
-    Some(
-        rest.strip_prefix('{')
-            .and_then(|r| r.strip_suffix('}'))
-            .unwrap_or(rest),
-    )
+fn unique_original_value_word<'a>(
+    tokens: &'a crate::ir::CommandTokens,
+    compatibility: &str,
+) -> Option<&'a WordExpr> {
+    let mut matching = tokens
+        .words()
+        .iter()
+        .skip(1)
+        .filter(|word| word.legacy_text() == compatibility);
+    let word = matching.next()?;
+    matching.next().is_none().then_some(word)
+}
+
+fn deref_arg_var<'a>(word: &'a WordExpr, ctx: ScanContext<'_>) -> Option<&'a str> {
+    let (spelling, _) = word.sole_variable_substitution()?;
+    let parent = ctx.tokens?;
+    let config =
+        parent.native_lexer_config(tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()));
+    let reference = tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config).ok()??;
+    if reference.index.is_some()
+        || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+    {
+        return None;
+    }
+    std::str::from_utf8(reference.name).ok()
+}
+
+fn literal_source_word(
+    word: &WordExpr,
+    parent: &crate::ir::CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<String> {
+    let config =
+        parent.native_lexer_config(tcl_lexer::LexerConfig::for_profile(registry.profile()));
+    let value = crate::registry_invocation::effective_invocation_word(
+        word,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    );
+    std::str::from_utf8(value.literal_bytes()?)
+        .ok()
+        .map(str::to_owned)
 }
 
 /// Map every variable that holds an object *collection* — a `List`/`Dict`
@@ -1836,21 +1854,35 @@ fn harvest_unit(
                         sink.note_constructor_args(&args, registry);
                     }
                 }
-                // A registry naming factory (`creates_instance_at` + a class)
-                // names the new object command positionally, e.g. `struct::graph
-                // myG` / `struct::tree myT`.  Only a plain bareword name binds
-                // (the `= | := | as | deserialize` operator forms and dynamic
-                // `$name` do not create a statically-known handle).
+                // Source advice uses the selected descriptor's naming layout;
+                // normal handler candidates retain their independent proof.
                 Statement::Call { args, .. } => {
-                    if let Some((name, class)) = stmt
-                        .tokens()
-                        .and_then(|tokens| {
-                            source_normal_representation(registry, sink.metadata_context, tokens)
-                        })
-                        .and_then(|normal| normal.naming_factory_candidate())
-                        && is_plain_object_name(&name)
-                    {
-                        sink.bind(frame, &name, class);
+                    if let Some(tokens) = stmt.tokens() {
+                        for assignment in
+                            source_assignment_candidates(registry, sink.metadata_context, tokens)
+                        {
+                            if let Some(class) =
+                                sole_substitution_tokens(&assignment.value, tokens, registry)
+                                    .and_then(|child| {
+                                        constructor_class_candidate(
+                                            &child,
+                                            registry,
+                                            sink.metadata_context,
+                                        )
+                                    })
+                            {
+                                sink.bind(frame, &assignment.name, &class);
+                            }
+                        }
+                        for factory in source_object_factory_candidates(
+                            registry,
+                            sink.metadata_context,
+                            tokens,
+                        ) {
+                            if let Some((name, class)) = factory.publication {
+                                sink.bind(frame, &name, class);
+                            }
+                        }
                     }
                     // Both parameter edges read a call's arguments through
                     // `arg_classes`, whose `[Factory new]` branch needs no
@@ -1882,19 +1914,69 @@ fn harvest_script_factories(
     let mut pending = vec![script];
     while let Some(script) = pending.pop() {
         for statement in &script.statements {
-            if let Some((name, class)) = script
-                .retained_source_tokens_for_statement(statement)
-                .and_then(|tokens| {
-                    source_normal_representation(registry, sink.metadata_context, tokens)
-                })
-                .and_then(|normal| normal.naming_factory_candidate())
-                && is_plain_object_name(&name)
-            {
-                sink.bind(owner, &name, class);
+            if let Some(tokens) = script.retained_source_tokens_for_statement(statement) {
+                for factory in
+                    source_object_factory_candidates(registry, sink.metadata_context, tokens)
+                {
+                    if let Some((name, class)) = factory.publication {
+                        sink.bind(owner, &name, class);
+                    }
+                }
             }
             pending.extend(statement.child_scripts());
         }
     }
+}
+
+fn source_assignment_candidates(
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    tokens: &crate::ir::CommandTokens,
+) -> Vec<crate::registry_invocation::AdvisoryValueAssignment> {
+    let Some(context) = context else {
+        return Vec::new();
+    };
+    if context.permits_logical_source_names() {
+        return crate::registry_invocation::advisory_value_assignments_with_metadata_context(
+            registry,
+            Some(context),
+            tokens,
+        );
+    }
+    source_normal_representation(registry, Some(context), tokens)
+        .and_then(|normal| normal.value_assignment())
+        .map(
+            |assignment| crate::registry_invocation::AdvisoryValueAssignment {
+                name: assignment.name,
+                value: assignment.value,
+            },
+        )
+        .into_iter()
+        .collect()
+}
+
+fn source_object_factory_candidates(
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    tokens: &crate::ir::CommandTokens,
+) -> Vec<crate::registry_invocation::AdvisoryObjectFactory> {
+    let Some(context) = context else {
+        return Vec::new();
+    };
+    if context.permits_logical_source_names() {
+        return crate::registry_invocation::advisory_object_factories_with_metadata_context(
+            registry, context, tokens,
+        );
+    }
+    let Some(normal) = source_normal_representation(registry, Some(context), tokens) else {
+        return Vec::new();
+    };
+    vec![crate::registry_invocation::AdvisoryObjectFactory {
+        publication: normal
+            .naming_factory_candidate()
+            .filter(|(name, _)| is_plain_object_name(name)),
+        result_class: normal.callable_result_class_candidate(),
+    }]
 }
 
 /// Query original normal metadata only under its supplied source generation.
@@ -1943,6 +2025,7 @@ fn sole_substitution_tokens(
     parent: &crate::ir::CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<crate::ir::CommandTokens> {
+    word.sole_command_substitution()?;
     let mut commands = crate::value_shapes::command_substitution_tokens(
         word,
         Some(parent),
@@ -1974,10 +2057,12 @@ fn constructor_class_candidate(
             return Some(first.command.clone());
         }
     }
-    if let Some(class) = source_normal_representation(registry, Some(context), tokens)
-        .and_then(|normal| normal.callable_result_class_candidate())
-    {
-        return Some(class.to_owned());
+    let factories = source_object_factory_candidates(registry, Some(context), tokens);
+    let mut classes = factories.iter().filter_map(|factory| factory.result_class);
+    if let Some(class) = classes.next() {
+        return classes
+            .all(|other| other == class)
+            .then(|| class.to_owned());
     }
     let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
         registry,
@@ -2072,6 +2157,44 @@ mod tests {
             context,
         );
         (registry, unit)
+    }
+
+    #[test]
+    fn advisory_argument_edges_keep_original_substitution_shapes() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = r#"list $object "${two words}" {$object} {[C new]} prefix$object $object(key) ${object(key)}"#;
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            &commands[0],
+        );
+        let ctor_params = HashMap::new();
+        let out = HashMap::from([
+            ("object".to_owned(), HashSet::from(["::C".to_owned()])),
+            ("two words".to_owned(), HashSet::from(["::C".to_owned()])),
+        ]);
+        let module = crate::compilation_unit::CompilationUnit::build_for("", registry, false);
+        let ctx = ScanContext {
+            ctor_params: &ctor_params,
+            out: &out,
+            by_scope: None,
+            owners: OwnerIndex::shared_empty(),
+            registry,
+            metadata_context: None,
+            unit: BodyFrameId::Top(module.ir_module.procedure_ids.module_id()),
+            tokens: Some(&tokens),
+        };
+        assert_eq!(deref_arg_var(&tokens.words()[1], ctx), Some("object"));
+        assert_eq!(deref_arg_var(&tokens.words()[2], ctx), Some("two words"));
+        assert!(arg_classes(&tokens.words()[1], ctx).is_some());
+        assert!(arg_classes(&tokens.words()[2], ctx).is_some());
+        for word in &tokens.words()[3..] {
+            assert!(deref_arg_var(word, ctx).is_none(), "{word:?}");
+            assert!(arg_classes(word, ctx).is_none(), "{word:?}");
+        }
+        assert!(sole_substitution_tokens(&tokens.words()[4], &tokens, registry).is_none());
     }
 
     #[test]

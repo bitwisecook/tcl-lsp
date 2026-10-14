@@ -4400,7 +4400,7 @@ fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 );
                 return interp.set_error(&m);
             }
-            if name.windows(2).any(|w| w == b"::") {
+            if tcl_syntax::naming::is_qualified(&name) {
                 let mut m = b"bad variable name \"".to_vec();
                 m.extend_from_slice(&name);
                 m.extend_from_slice(

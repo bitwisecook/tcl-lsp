@@ -1,0 +1,4 @@
+can't read "(1+2)": no such variable
+    while executing
+"set value "$(1+2)""
+    (file "/tmp/name-compiled-word-original-providers-20261014/probe.tcl" line 3)
