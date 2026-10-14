@@ -193,8 +193,7 @@ Runtime97 and98 retain zero semantic controls and zero source/provider closure
 drift. All six matching original interpreter/library metadata checks pass. Runtime97
 stops at a test-only Code path; Runtime98 builds runtime successfully and stops at
 a Registry test source-slice coercion. Both exact representation repairs preserve
-original bytes/assertions. Runtime99 is RUNNING: runtime builds successfully,
-Registry build and all99 original/new semantic controls remain pending. Matching
+original bytes/assertions. Runtime99 is sealed:95 of99 controls pass; four retained Jim bootstrap/key/error-stack/import controls fail. Full captured source/provider, compiled-input and artifact drift are zero. Matching
 C8.4–9.1 libraries and the verified latest Jim remain independent oracle owners.
 
 Runtime audit rows26 and29 already use shared rename-destination and import metadata
