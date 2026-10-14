@@ -2327,34 +2327,12 @@ fn fold_original_static_substrings(
                 let Some(tokens) = view.source_tokens() else {
                     continue;
                 };
-                let Some(binding) = tokens.source_binding.as_ref() else {
+                let Some(original) = tcl_compiler::ssa::original_analysis_words_for_statement(
+                    &unit, function, block, index, registry,
+                ) else {
                     continue;
                 };
-                let Some(config) = binding.original_lexer_config_for_tokens(tokens) else {
-                    continue;
-                };
-                let mut original = tokens.clone();
-                tcl_compiler::lattice_rebase::rebase_command_tokens(
-                    &mut original,
-                    function.base_offset,
-                );
-                let Some(offset) = original
-                    .words()
-                    .first()
-                    .map(|word| word.source().span.start())
-                else {
-                    continue;
-                };
-                if tcl_compiler::registry_invocation::original_native_compiler_words(
-                    &unit.ir_module.source,
-                    original.words(),
-                    offset,
-                    config,
-                )
-                .is_none()
-                {
-                    continue;
-                }
+                let config = original.config();
                 for word in tokens.words().iter().skip(1) {
                     let tcl_compiler::ir::WordExpr::Template {
                         parts,
@@ -2365,6 +2343,13 @@ fn fold_original_static_substrings(
                         continue;
                     };
                     let span = function.abs_span(word.source().span);
+                    if !original
+                        .words()
+                        .iter()
+                        .any(|written| written.span() == span)
+                    {
+                        continue;
+                    }
                     let Some(content) = source
                         .get(span.as_range())
                         .and_then(|written| written.strip_prefix('"'))

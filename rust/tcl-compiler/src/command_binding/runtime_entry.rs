@@ -69,12 +69,12 @@ impl ModuleCommandBindings {
         namespace: &(impl super::NamespaceKeyQuery + ?Sized),
         guard: tcl_runtime_api::CommandBindingGuard,
     ) -> Option<tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite> {
+        let entry = self.baseline.native_entry.as_ref()?;
         let identity = self.compiler_identity_at_lookup(head, namespace)?;
         let row = self.runtime_compiler_row(identity)?;
         if self.runtime_compiler_hook(Some(identity)) != Some(true) {
             return None;
         }
-        let entry = self.baseline.native_entry.as_ref()?;
         let lookup_key = if head.starts_with("::") {
             self.native_root_namespace_key()?
         } else {

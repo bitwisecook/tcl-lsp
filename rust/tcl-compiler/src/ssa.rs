@@ -914,6 +914,84 @@ fn original_written_source_variable_name<'a>(
     std::str::from_utf8(words.arguments().get(argument)?.literal_bytes()?).ok()
 }
 
+/// Exact source word geometry at one current represented analysis operation.
+/// This supplies no read value, completed invocation, Normal or edit authority.
+pub struct OriginalAnalysisSsaWords {
+    words: Vec<tcl_lexer::NativeWord>,
+    config: tcl_lexer::LexerConfig,
+}
+
+impl OriginalAnalysisSsaWords {
+    /// Complete original lexical vector in document coordinates.
+    #[must_use]
+    pub fn words(&self) -> &[tcl_lexer::NativeWord] {
+        &self.words
+    }
+
+    /// Actual grammar used to authenticate this vector.
+    #[must_use]
+    pub const fn config(&self) -> tcl_lexer::LexerConfig {
+        self.config
+    }
+}
+
+/// Authenticate the actual function, body, input and whole original word vector.
+/// Present readonly child purposes remain terminal when their owner refuses.
+#[must_use]
+pub fn original_analysis_words_for_statement(
+    unit: &crate::compilation_unit::CompilationUnit,
+    function: &crate::compilation_unit::FunctionUnit,
+    block: BlockId,
+    index: usize,
+    registry: &CommandRegistry,
+) -> Option<OriginalAnalysisSsaWords> {
+    if !current_analysis_function(unit, function, registry) {
+        return None;
+    }
+    let module = &unit.ir_module;
+    let input = module.source_metadata_input.as_ref()?;
+    let retained = module.retained_source_bindings.as_deref()?;
+    let positioned = retained.positioned_for_module(module, registry)?;
+    let origin = positioned.source_origin()?;
+    let tokens = SsaSourceView::at_statement(&function.ssa, block, index).source_tokens()?;
+    let mut original = tokens.clone();
+    crate::lattice_rebase::rebase_command_tokens(&mut original, function.base_offset);
+    let binding = original.source_binding.as_ref()?;
+    let config = if binding.has_original_native_source_command() {
+        let body = function.body_id?;
+        if !binding.original_native_source_owner_for_body(&original, module, body, registry) {
+            return None;
+        }
+        binding.original_native_source_words(&original, input, registry)?;
+        input.lexer_config()
+    } else if binding.has_original_logical_source_advice() {
+        let words = binding.original_logical_source_words(&original, input, registry)?;
+        if !matches!(words.source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+            if std::sync::Arc::ptr_eq(&advice.site().source, origin))
+        {
+            return None;
+        }
+        input.lexer_config()
+    } else {
+        if !retained.owns_original_tokens(&original)
+            || binding
+                .invocation_site()
+                .is_none_or(|site| !std::sync::Arc::ptr_eq(&site.source, origin))
+        {
+            return None;
+        }
+        binding.original_lexer_config_for_tokens(&original)?
+    };
+    let offset = original.words().first()?.source().span.start();
+    let words = crate::registry_invocation::original_native_compiler_words(
+        &module.source,
+        original.words(),
+        offset,
+        config,
+    )?;
+    Some(OriginalAnalysisSsaWords { words, config })
+}
+
 fn current_analysis_function(
     unit: &crate::compilation_unit::CompilationUnit,
     function: &crate::compilation_unit::FunctionUnit,
@@ -9044,10 +9122,8 @@ mod tests {
 
     #[test]
     fn compute_idom_fast_handles_long_chain_without_blowup() {
-        // A long chain of `if`-style diamonds (the shape a big
-        // generated dispatch proc lowers to) must compute quickly via
-        // CHK — this is the regression for the analyser stalling /
-        // OOMing on machine-generated files.
+        // Generated dispatch procedures form long diamond chains; dominator
+        // computation must remain bounded on this shape.
         let mut func = Function::new("::big", "b0");
         let n = 4000;
         for i in 0..n {

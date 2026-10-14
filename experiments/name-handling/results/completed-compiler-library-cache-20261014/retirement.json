@@ -1,0 +1,16 @@
+{
+  "retired_utc": "2026-10-14T12:20:20.411491+00:00",
+  "files": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-0ddc6207e90fbe77.rlib",
+      "sha256": "63493d1c901c633ad26d3a1ac0b71f73b77c7df2fc11bc9aa843827c4e3f2949",
+      "bytes": 442578126
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-0ddc6207e90fbe77.rmeta",
+      "sha256": "87ba120d723094ddba261c8718716941b22a28416b659aafc4e29dc2d61344b4",
+      "bytes": 39624785
+    }
+  ],
+  "scope": "Obsolete Cargo library cache only; current MCP89 uses compiler92891d60 archive, all original captured test ELF/source/provenance retained. Compiler355d archive from captured F5 software closure retained. No source/provider/experiment hash changed; caches can be rebuilt."
+}

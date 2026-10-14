@@ -1339,10 +1339,7 @@ mod tests {
 
     #[test]
     fn lens_counts_external_obj_method_call_issue_864() {
-        // FN-regression + TP: `puts [$b get foo]` references `Bar`'s `get`
-        // via an instance whose class is known (`set b [Bar new]`).  The
-        // lens on `method get` (line 6) must read `1 reference`, not the
-        // `0 references` the head-scan heuristic produced.
+        // The known Bar instance supplies one reference to its get method.
         let analysis = analyse(ISSUE_864_SRC);
         assert!(!analysis.all_classes.is_empty(), "class not analysed");
         let lenses = code_lenses(

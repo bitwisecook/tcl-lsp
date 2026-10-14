@@ -309,16 +309,12 @@ impl CodegenCtx<'_> {
         }
 
         let names = tcl_syntax::list::split_list(&args[variable_list_index].0).ok()?;
-        let result_var = names
-            .first()
-            .filter(|name| !name.is_empty())
-            .map(ToString::to_string);
-        // Tcl suppresses an empty first result name, but a present empty
-        // second name is still a real options-variable name.
+        let result_var = names.first().map(ToString::to_string);
         let options_var = names.get(1).map(ToString::to_string);
+        // Empty receivers have engine-specific output semantics and stay generic.
         if result_var
             .iter()
-            .chain(options_var.iter().filter(|name| !name.is_empty()))
+            .chain(options_var.iter())
             .any(|name| !is_inline_local_scalar_name(name))
         {
             return None;
@@ -2642,6 +2638,49 @@ mod tests {
                 >= 4,
             "result/options temps and both handler bindings must be stored"
         );
+    }
+
+    #[test]
+    fn nested_try_receiver_name_data_retains_generic_output_protocol() {
+        let registry = CommandRegistry::build_default();
+        for variable_list in [
+            "{} options",
+            "message {}",
+            "{$literal} options",
+            "{arr(key)} options",
+        ] {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            let body =
+                format!("try {{error boom}} on error {{{variable_list}}} {{set handled yes}}");
+            assert!(ctx.emit_catch_inline(&body, Some("result"), None));
+            let ops: Vec<_> = ctx
+                .instructions
+                .iter()
+                .map(|instruction| instruction.op)
+                .collect();
+            assert_eq!(
+                ops.iter().filter(|&&op| op == Op::BEGIN_CATCH4).count(),
+                1,
+                "only the outer catch can specialise: {variable_list}: {ops:?}"
+            );
+            assert!(ops.contains(&Op::INVOKE_STK1), "{variable_list}: {ops:?}");
+            assert!(
+                ctx.literals
+                    .entries()
+                    .iter()
+                    .any(|literal| literal == variable_list),
+                "original receiver list must reach runtime: {:?}",
+                ctx.literals.entries()
+            );
+            assert!(
+                !ctx.lvt
+                    .entries()
+                    .iter()
+                    .any(|name| name == "options" || name == "message"),
+                "declined handler outputs must not acquire local slots: {:?}",
+                ctx.lvt.entries()
+            );
+        }
     }
 
     #[test]

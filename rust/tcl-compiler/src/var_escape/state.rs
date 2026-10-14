@@ -243,6 +243,28 @@ impl EscapeState {
         }
     }
 
+    pub(crate) fn note_original_literal_assign(
+        &mut self,
+        name: &crate::registry_invocation::OriginalVariableNameOperand,
+        value: &str,
+    ) {
+        let name = name.as_str();
+        let binding = if self.literal_assigns.contains_key(name) {
+            LiteralBinding::Invalidated
+        } else {
+            LiteralBinding::Set(value.to_owned())
+        };
+        self.literal_assigns.insert(name.to_owned(), binding);
+    }
+
+    pub(crate) fn invalidate_original_literal(
+        &mut self,
+        name: &crate::registry_invocation::OriginalVariableNameOperand,
+    ) {
+        self.literal_assigns
+            .insert(name.as_str().to_owned(), LiteralBinding::Invalidated);
+    }
+
     /// Mark *name*'s tracked literal invalid (subsequent writer).
     pub fn invalidate_literal(&mut self, name: &str) {
         if !name.is_empty() {

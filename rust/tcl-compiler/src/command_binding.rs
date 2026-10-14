@@ -10138,16 +10138,6 @@ impl SourceCommandBindings {
         route: tcl_registry::completion_route::InvocationCompletionRoute,
         incoming: &ModuleCommandBindings,
     ) -> Box<SourceOutcomes> {
-        if let Some(outcomes) = trusted_package_transfer::OriginalTrustedPackageTransfer::capture(
-            native, facts, state, *context,
-        )
-        .map(|transfer| transfer.finish(native, facts, state, *context))
-        {
-            return Box::new(outcomes);
-        }
-        if self.defers_runtime_body(native, facts) {
-            return Box::new(opaque_source_invocation(state));
-        }
         let route = match self.prepare_native_target(native, state, context, facts, route, incoming)
         {
             Ok(route) => route,
@@ -10212,6 +10202,16 @@ impl SourceCommandBindings {
     ) -> Result<tcl_registry::completion_route::InvocationCompletionRoute, Box<SourceOutcomes>>
     {
         let context = *context;
+        if let Some(outcomes) = trusted_package_transfer::OriginalTrustedPackageTransfer::capture(
+            native, facts, state, context,
+        )
+        .map(|transfer| transfer.finish(native, facts, state, context))
+        {
+            return Err(Box::new(outcomes));
+        }
+        if self.defers_runtime_body(native, facts) {
+            return Err(Box::new(opaque_source_invocation(state)));
+        }
         if let Some(outcomes) = self.walk_native_body_protocol(native, state, context, facts) {
             return Err(Box::new(outcomes));
         }

@@ -1,0 +1,7 @@
+{
+  "retired_utc": "2026-10-14T12:16:46.600238+00:00",
+  "path": "/workspace/tcl-lsp/tmp/name-depth-budget79-compiler-ELF",
+  "sha256": "f912d63e66397262ffa4bf8effb477cee9aed187914b4c994fa23306b150929e",
+  "bytes": 383999680,
+  "reason": "Root-created cached saved diagnostic79 executable; source snapshots, exact patches, raw original tests, before/after frame observations and GDB trace are retained. Its own-child debugging and static comparison completed; current production88 executable retained. No source/provider/experiment record changed."
+}

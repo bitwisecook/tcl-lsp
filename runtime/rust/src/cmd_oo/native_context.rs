@@ -491,8 +491,18 @@ impl Interp {
         let name = self
             .definition_namespace_for(target)
             .unwrap_or_else(|| default.to_vec());
-        let Some(namespace) = self.find_namespace_id(&name) else {
-            return Err(self.set_error(b"cannot process definitions; support namespace deleted"));
+        let namespace = match tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
+            self,
+            tcl_runtime_api::ROOT_NS,
+            &name,
+        ) {
+            Ok(Some(namespace)) => namespace.0 as usize,
+            Ok(None) => {
+                return Err(
+                    self.set_error(b"cannot process definitions; support namespace deleted")
+                );
+            }
+            Err(error) => return Err(self.report_cmd_error(error.into())),
         };
         let caller = self.current_ns();
         let caller_activation = self.frames.borrow().current_activation();

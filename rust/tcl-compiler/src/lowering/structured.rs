@@ -35,7 +35,6 @@ use crate::ir::{
     ForeachIterator, HandlerMatch, IfClause, Script, Statement, SwitchArm, SwitchMode, TryHandler,
 };
 use crate::lowering_hooks::word_content_base;
-use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 
 use super::{Lowerer, parse_var_list_names};
@@ -1380,14 +1379,48 @@ impl Lowerer<'_> {
 
     // dict
 
-    /// True when this `dict` invocation's subcommand writes the dict
-    /// variable at `args[1]` — the registry's per-subcommand `VarWrite`
-    /// role, resolved against the actual argument list.
-    fn dict_sub_writes_var(&self, args: &[String]) -> bool {
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        self.registry
-            .arg_indices_for_role("dict", &arg_strs, tcl_registry::prelude::ArgRole::VarWrite)
-            .contains(&1)
+    fn original_dict_write_name(&self, seg: &SegmentedCommand) -> Option<(String, bool)> {
+        let tokens = self.cmd_tokens(seg);
+        let context = self.invocation_metadata_context()?;
+        let invocation = if self.target.is_bytecode() {
+            self.resolved_metadata_invocation(&tokens)?
+        } else {
+            crate::registry_invocation::original_structured_invocation_with_metadata_context(
+                self.registry,
+                context,
+                &tokens,
+            )?
+        };
+        (invocation.facts.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Dict))
+            .then_some(())?;
+        let argument = invocation
+            .facts
+            .arg_roles
+            .iter()
+            .find_map(|&(ordinal, role)| {
+                let argument = invocation.facts.argument_offset + usize::from(ordinal);
+                (role == ArgRole::VarWrite
+                    && invocation.effective.written_argument(argument) == Some(1))
+                .then_some(argument)
+            })?;
+        let name = invocation
+            .original_variable_name_operand(argument)?
+            .as_str()
+            .to_owned();
+        let safe_on_uninit = tokens
+            .source_binding
+            .as_ref()
+            .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
+            .and_then(|realm| {
+                invocation.with_metadata_schema(self.registry, context, realm, |schema| {
+                    let query = context.context().authoring_query();
+                    Some(schema.semantics.safe_on_uninit.is_none_or(|allowed| {
+                        tcl_dialect::model::surface_admits(allowed, Some(&query))
+                    }))
+                })
+            })
+            .unwrap_or(false);
+        Some((name, safe_on_uninit))
     }
 
     /// Lower `dict` subcommands.
@@ -1451,39 +1484,21 @@ impl Lowerer<'_> {
                 tokens: Some(self.cmd_tokens(seg)),
             },
 
-            // A sub-mutator (`dict set/unset/append/lappend/incr …`) tags
-            // the lowered call with the dict variable as a def.  Membership
-            // comes from the registry's per-subcommand `VarWrite` role on
-            // `dict` — the variable is `args[1]` (just past the subcommand
-            // word) — never a hardcoded subcommand list.
-            _ if !sub_args.is_empty() && self.dict_sub_writes_var(args) => {
-                let var_name = normalise_var_name(&sub_args[0]).to_owned();
+            _ => {
+                let output = self.original_dict_write_name(seg);
                 Statement::Call {
                     span: seg.span,
                     command: seg.name().into(),
                     canonical_command: None,
                     args: args.to_vec(),
-                    defs: vec![var_name],
+                    defs: output.iter().map(|(name, _)| name.clone()).collect(),
                     reads: vec![],
-                    reads_own_defs: true,
-                    safe_on_uninit: self.safe_on_uninit(seg.name(), args),
+                    reads_own_defs: output.is_some(),
+                    safe_on_uninit: output.is_some_and(|(_, safe)| safe),
                     tokens: Some(self.cmd_tokens(seg)),
                     foreach_groups: None,
                 }
             }
-
-            _ => Statement::Call {
-                span: seg.span,
-                command: seg.name().into(),
-                canonical_command: None,
-                args: args.to_vec(),
-                defs: vec![],
-                reads: vec![],
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: Some(self.cmd_tokens(seg)),
-                foreach_groups: None,
-            },
         }
     }
 
@@ -2700,5 +2715,120 @@ mod control_receiver_data_tests {
                     .is_some()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod original_dict_name_tests {
+    use crate::ir::Statement;
+
+    fn module(source: &str) -> crate::ir::Module {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input),
+            source,
+        )
+    }
+
+    #[test]
+    fn selected_dictionary_writes_keep_original_literal_variable_name_data() {
+        for (word, name) in [
+            ("{}", ""),
+            ("{$literal}", "$literal"),
+            ("{${braced}}", "${braced}"),
+            ("{arr(key)}", "arr(key)"),
+        ] {
+            let module = module(&format!("dict set {word} key VALUE"));
+            let Statement::Call {
+                defs,
+                reads_own_defs,
+                ..
+            } = &module.top_level.statements[0]
+            else {
+                panic!("original selected dictionary call")
+            };
+            assert_eq!(defs, &[name.to_owned()]);
+            assert!(*reads_own_defs);
+        }
+    }
+
+    #[test]
+    fn dictionary_prefix_and_expansion_keep_original_slot_ownership() {
+        for source in [
+            "interp alias {} write {} dict set; write {$literal} key VALUE",
+            "dict set {*}{d key} VALUE",
+            "dict set {*}$words",
+        ] {
+            let module = module(source);
+            let statement = module.top_level.statements.last().unwrap();
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let input = module.source_metadata_input.as_ref().unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            let context =
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry, input,
+                )
+                .unwrap();
+            assert!(
+                crate::registry_invocation::original_structured_invocation_with_metadata_context(
+                    registry, context, tokens
+                )
+                .is_none(),
+                "shifted original operands cannot borrow direct source structure: {source}"
+            );
+            assert!(matches!(
+                statement,
+                Statement::Call { .. } | Statement::Barrier { .. }
+            ));
+            assert!(
+                tokens
+                    .argv_texts
+                    .iter()
+                    .any(|word| word == "$literal" || word == "d key" || word == "$words"),
+                "original shifted source operands must be retained: {:?}",
+                tokens.argv_texts
+            );
+        }
+        let module = module("dict get {key VALUE} key");
+        let Statement::Call {
+            defs,
+            reads_own_defs,
+            safe_on_uninit,
+            ..
+        } = &module.top_level.statements[0]
+        else {
+            panic!("original nonmutating dictionary dispatch")
+        };
+        assert!(defs.is_empty());
+        assert!(!reads_own_defs && !safe_on_uninit);
+    }
+
+    #[test]
+    fn dynamic_dictionary_targets_keep_original_dispatch_without_static_defs() {
+        let module = module("dict set $receiver key VALUE");
+        let statement = &module.top_level.statements[0];
+        match statement {
+            Statement::Call { defs, .. } => assert!(defs.is_empty()),
+            Statement::Barrier { .. } => {}
+            _ => panic!("original dynamic dictionary dispatch"),
+        }
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        assert_eq!(tokens.argv_texts[2], "$receiver");
     }
 }

@@ -127,6 +127,26 @@ impl SourceNameRoleInventory {
     }
 }
 
+pub(crate) fn original_assignment_name_operand(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    statement_name: &str,
+) -> Option<(OriginalVariableNameOperand, bool)> {
+    let source = original_source_name_roles(registry, tokens)?;
+    source
+        .facts
+        .traits
+        .contains(tcl_registry::Traits::FIRST_ARG_VARNAME)
+        .then_some(())?;
+    let argument = source.facts.argument_offset;
+    source
+        .roles
+        .contains(&(argument, tcl_registry::ArgRole::VarWrite))
+        .then_some(())?;
+    let name = source.original_variable_name_operand(argument)?;
+    (name.as_str() == statement_name).then_some((name, source.has_unknown_residual()))
+}
+
 pub(crate) fn original_source_name_roles(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
@@ -313,6 +333,39 @@ fn from_source_words(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_scalar_name_projection_preserves_data_and_refuses_relabelled_fields() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        for (source, expected) in [
+            ("set {} 1", ""),
+            ("incr {}", ""),
+            ("set {$literal} 1", "$literal"),
+            ("incr {[literal]}", "[literal]"),
+        ] {
+            let module = crate::lowering::lower_to_ir(source, &registry);
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(&module.top_level.statements[0])
+                .unwrap();
+            let (name, residual) =
+                super::original_assignment_name_operand(&registry, tokens, expected)
+                    .expect("actual selected original scalar name role");
+            assert_eq!(name.as_str(), expected);
+            let source_roles = super::original_source_name_roles(&registry, tokens).unwrap();
+            assert_eq!(residual, source_roles.has_unknown_residual());
+            assert!(
+                super::original_assignment_name_operand(&registry, tokens, "relabelled").is_none()
+            );
+            let mut changed = tokens.clone();
+            changed.argv_texts[1].push_str(" changed");
+            assert!(
+                super::original_assignment_name_operand(&registry, &changed, expected).is_none()
+            );
+            let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+            assert!(super::original_assignment_name_operand(foreign, tokens, expected).is_none());
+        }
+    }
+
     use super::*;
     #[test]
     fn original_dynamic_role_and_expansion_metadata_retain_unknown_name_hazards() {

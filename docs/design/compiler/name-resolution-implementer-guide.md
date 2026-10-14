@@ -98,6 +98,21 @@ readonly declaration lattice; its source proofs and issued ID must be restored
 to the current request. Full capsule comparisons retain actual function,
 summary, module and semantic facts, while unsupported dependencies recompute.
 
+Use `ssa::original_analysis_words_for_statement` for complete original lexical
+words at a current function/SSA statement. It retains actual grammar and document
+coordinates under the full Module/body/input/CFG owner, with terminal child-purpose
+refusal. Minifier still needs an independent replaceable read and the same current
+function, symbol and represented version before erasing a substitution. Readonly
+source occurrences with no represented version cannot supply contents. Inlays join
+an exact original definition to the current source-selected function and its precise
+Symbol/Version. Code-lens member-key existence is presentation through the analyser
+key recipes; it cannot select an original declaration or count references.
+
+Typed CFG destinations are evaluated name data. Project array roots for write
+coverage and invalidation; publish scalar constants only for actual scalar names.
+An element write withdraws that root's scalar value, and an opaque write clears
+constant knowledge. Literal empty and sigil names stay data throughout this path.
+
 ## Project source values and APL conventions at their owners
 
 Analyser value consumers use the retained original word or executable component

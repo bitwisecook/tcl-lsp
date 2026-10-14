@@ -41,7 +41,6 @@ use crate::cfg::{Block, BlockId, CfgModule, Function, LoopNode, Terminator};
 use crate::command_binding::ModuleCommandBindings;
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandBindingSite, CommandTokens, Module, Script, Statement};
-use crate::naming::normalise_var_name;
 use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
 use self::global_write_info::GlobalWriteInfo;
@@ -4428,6 +4427,24 @@ fn exact_statement_completion(
     registry.exact_invocation_completion_words(&target, arguments, query)
 }
 
+fn structural_write_roots(stmt: &Statement) -> Option<Vec<String>> {
+    let projection = crate::ir_helpers::structural_variable_write_projection(stmt);
+    if projection.opaque_variable_frame {
+        return None;
+    }
+    Some(
+        projection
+            .literal_names
+            .into_iter()
+            .map(|name| {
+                tcl_syntax::naming::split_element_ref(&name)
+                    .map_or(name.as_str(), |(root, _)| root)
+                    .to_owned()
+            })
+            .collect(),
+    )
+}
+
 /// `(must-defines, completion)` for a single statement.
 ///
 /// * assignments (`set`/`incr`/`expr`-assign) contribute their target and
@@ -4448,17 +4465,16 @@ fn flow_facts_stmt_with_classes(
     command_classes: &CfgCommandClasses,
 ) -> (BTreeSet<String>, Completion) {
     match stmt {
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. } => {
-            let mut set = BTreeSet::new();
-            let n = normalise_var_name(name);
-            if !n.is_empty() {
-                set.insert(n.to_owned());
-            }
-            (set, Completion::Normal)
-        }
+        Statement::AssignConst { .. }
+        | Statement::AssignExpr { .. }
+        | Statement::AssignValue { .. }
+        | Statement::Incr { .. } => (
+            structural_write_roots(stmt)
+                .unwrap_or_default()
+                .into_iter()
+                .collect(),
+            Completion::Normal,
+        ),
         Statement::Return { .. } => (BTreeSet::new(), Completion::ProcExit),
         Statement::Barrier { .. } => (BTreeSet::new(), command_classes.flow_completion(stmt)),
         Statement::Call { defs, .. } => (
@@ -4797,16 +4813,9 @@ impl CfgBuilder<'_> {
     /// `i = 0` binding and be wrongly judged guaranteed.
     fn init_written_names(&self, stmt: &Statement) -> Option<Vec<String>> {
         let mut names: Vec<String> = match stmt {
-            Statement::AssignValue { name, .. }
-            | Statement::AssignExpr { name, .. }
-            | Statement::Incr { name, .. } => {
-                let n = normalise_var_name(name);
-                if n.is_empty() {
-                    Vec::new()
-                } else {
-                    vec![n.to_owned()]
-                }
-            }
+            Statement::AssignValue { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::Incr { .. } => structural_write_roots(stmt)?,
             // A plain call contributes only the (augmented) defs collected
             // below.
             Statement::Call { .. } => Vec::new(),
@@ -4855,10 +4864,18 @@ impl CfgBuilder<'_> {
         };
         let mut env: crate::tcl_expr_eval::Env = std::collections::HashMap::new();
         for s in &init.statements {
-            if let Statement::AssignConst { name, value, .. } = s {
-                let n = normalise_var_name(name);
-                if !n.is_empty() {
-                    env.insert(n.to_owned(), coerce_scalar(value));
+            if let Statement::AssignConst { value, .. } = s {
+                let projection = crate::ir_helpers::structural_variable_write_projection(s);
+                if projection.opaque_variable_frame {
+                    env.clear();
+                } else {
+                    for name in projection.literal_names {
+                        if let Some((root, _)) = tcl_syntax::naming::split_element_ref(&name) {
+                            env.remove(root);
+                        } else {
+                            env.insert(name, coerce_scalar(value));
+                        }
+                    }
                 }
                 continue;
             }
@@ -5687,6 +5704,86 @@ mod tests {
             "an all-proc-exit opaque switch must not fall through, got {:?}",
             entry.terminator,
         );
+    }
+
+    #[test]
+    fn structured_cfg_writes_keep_literal_name_data_and_dynamic_unknowns() {
+        for (name, root) in [
+            ("", ""),
+            ("$counter", "$counter"),
+            ("${braced}", "${braced}"),
+            ("$array(key)", "$array"),
+        ] {
+            let statement = Statement::AssignConst {
+                span: Span::new(0, 0),
+                name: name.into(),
+                name_braced: true,
+                value: "1".into(),
+                value_span: None,
+            };
+            assert_eq!(
+                flow_facts_stmt(&statement).0,
+                BTreeSet::from([root.to_owned()])
+            );
+            let mutation = Statement::Incr {
+                span: Span::new(0, 0),
+                name: name.into(),
+                name_braced: true,
+                amount: Some("1".into()),
+                amount_braced: true,
+                safe_on_uninit: false,
+            };
+            let registry = CommandRegistry::build_default();
+            assert_eq!(
+                CfgBuilder::new(true, &registry).init_written_names(&mutation),
+                Some(vec![root.to_owned()])
+            );
+        }
+        let dynamic = Statement::Incr {
+            span: Span::new(0, 0),
+            name: "$counter".into(),
+            name_braced: false,
+            amount: Some("1".into()),
+            amount_braced: true,
+            safe_on_uninit: false,
+        };
+        assert!(flow_facts_stmt(&dynamic).0.is_empty());
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            CfgBuilder::new(true, &registry).init_written_names(&dynamic),
+            None
+        );
+    }
+
+    #[test]
+    fn for_initialisation_does_not_publish_array_elements_as_scalar_constants() {
+        let registry = CommandRegistry::build_default();
+        let builder = CfgBuilder::new(true, &registry);
+        let statement = |name: &str, condition: &str| Statement::For {
+            span: Span::new(0, 0),
+            init: Script::from_statements(vec![Statement::AssignConst {
+                span: Span::new(0, 0),
+                name: name.into(),
+                name_braced: true,
+                value: "1".into(),
+                value_span: None,
+            }]),
+            init_span: Span::new(0, 0),
+            condition: crate::parse_expr_for_profile(condition, registry.profile()),
+            condition_span: Span::new(0, 0),
+            condition_base: None,
+            next: Script::new(),
+            next_span: Span::new(0, 0),
+            body: Script::new(),
+            body_span: Span::new(0, 0),
+            raw_args: Vec::new(),
+            raw_tokens: None,
+        };
+        assert!(builder.for_runs_at_least_once(&statement("a", "$a == 1")));
+        assert!(builder.for_runs_at_least_once(&statement("$a", "${$a} == 1")));
+        assert!(builder.for_runs_at_least_once(&statement("", "${} == 1")));
+        assert!(!builder.for_runs_at_least_once(&statement("a(key)", "$a == 1")));
+        assert!(!builder.for_runs_at_least_once(&statement("$a(key)", "${$a} == 1")));
     }
 
     #[test]
