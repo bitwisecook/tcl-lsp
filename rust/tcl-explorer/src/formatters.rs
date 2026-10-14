@@ -28,6 +28,7 @@ use serde_json::{Value, json};
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::interprocedural::{ConstantReturn, ProcSummary};
 use tcl_compiler::ir::Statement;
+use tcl_compiler::optimiser::helpers::literals::format_constant;
 use tcl_compiler::shimmer::type_name;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::types::{TypeKind, TypeLattice};
@@ -348,13 +349,13 @@ pub fn format_taint(tl: &TaintLattice) -> String {
     }
 }
 
-/// `repr()`-style rendering of a single SCCP constant value.
+/// A single SCCP constant as the fold spells it (`1` for a true boolean,
+/// `1e+301` for a double), text quoted `repr()`-style, so it reads as
+/// [`format_return_shape`] reads the same value.
 fn const_value_repr(c: &ConstValue) -> String {
     match c {
-        ConstValue::Int(n) => n.to_string(),
-        ConstValue::Bool(b) => if *b { "True" } else { "False" }.to_owned(),
         ConstValue::String(s) => py_repr_str(s),
-        ConstValue::Float(f) => format!("{f:?}"),
+        _ => format_constant(c).unwrap_or_default(),
     }
 }
 
@@ -486,6 +487,21 @@ mod tests {
                 ..ProcSummary::unknown("::p")
             };
             assert_eq!(format_return_shape(&summary), shape);
+        }
+    }
+
+    #[test]
+    fn a_lattice_constant_is_spelled_as_the_fold_spells_it() {
+        for (constant, shape) in [
+            (ConstValue::Int(7), "const(7)"),
+            (ConstValue::Float(1.0), "const(1.0)"),
+            (ConstValue::Float(1e301), "const(1e+301)"),
+            (ConstValue::Float(f64::INFINITY), "const(Inf)"),
+            (ConstValue::Bool(true), "const(1)"),
+            (ConstValue::Bool(false), "const(0)"),
+            (ConstValue::String("a b".to_owned()), "const('a b')"),
+        ] {
+            assert_eq!(format_lattice(&LatticeValue::Const(constant)), shape);
         }
     }
 }
