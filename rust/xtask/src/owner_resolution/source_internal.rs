@@ -1365,39 +1365,206 @@ impl ConsumerReferences<'_> {
         };
         self.type_identity_in(module, result, declaration.owner_type)
     }
-    fn field(&self, value: TypedReference, field: &syn::Member) -> Option<TypedReference> {
-        let syn::Member::Named(field) = field else {
-            return None;
-        };
-        let identity = Self::unwrapped_pointer(&value.identity).unwrap_or(&value.identity);
+    fn declared_field_identity(
+        &self,
+        identity: &str,
+        field: &syn::Ident,
+    ) -> Option<Option<String>> {
+        let identity = Self::unwrapped_pointer(identity).unwrap_or(identity);
         let (module, owner) = identity.rsplit_once("::")?;
         let file = &self.modules.modules.get(module)?.file;
-        let mut fields = file
-            .items
+        let mut structures = file.items.iter().filter_map(|item| match item {
+            syn::Item::Struct(item) if item.ident == owner => Some(item),
+            _ => None,
+        });
+        let structure = structures.next()?;
+        if structures.next().is_some()
+            || !source_type_attrs_preserve_routes(&structure.attrs)
+            || !supported_generics(&structure.generics)
+        {
+            return None;
+        }
+        let mut fields = structure
+            .fields
             .iter()
-            .filter_map(|item| match item {
-                syn::Item::Struct(item)
-                    if item.ident == owner
-                        && source_type_attrs_preserve_routes(&item.attrs)
-                        && supported_generics(&item.generics) =>
-                {
-                    Some(item)
-                }
-                _ => None,
-            })
-            .flat_map(|item| {
-                item.fields
-                    .iter()
-                    .filter(|item| item.ident.as_ref() == Some(field))
-            });
-        let selected = fields.next()?;
+            .filter(|item| item.ident.as_ref() == Some(field));
+        let Some(selected) = fields.next() else {
+            return Some(None);
+        };
         if fields.next().is_some()
             || !super::route_attrs_are_plain(&selected.attrs)
             || !accessible(&selected.vis, module, &self.row.consumer_module)
         {
             return None;
         }
-        let identity = self.type_identity_in(module, &selected.ty, None)?;
+        Some(Some(self.type_identity_in(module, &selected.ty, None)?))
+    }
+
+    fn transparent_state_target(&self, identity: &str) -> Option<String> {
+        let (module, _) = identity.rsplit_once("::")?;
+        let file = &self.modules.modules.get(module)?.file;
+        let mut dereferences = Vec::new();
+        let mut mutable_dereferences = Vec::new();
+        for item in &file.items {
+            let syn::Item::Impl(implementation) = item else {
+                continue;
+            };
+            let Some((trait_path, _)) = &implementation.trait_ else {
+                continue;
+            };
+            if self
+                .type_identity_in(module, &implementation.self_ty, None)
+                .as_deref()
+                != Some(identity)
+            {
+                continue;
+            }
+            let destination = if self.standard_path(module, trait_path, "std::ops::Deref") {
+                &mut dereferences
+            } else if self.standard_path(module, trait_path, "std::ops::DerefMut") {
+                &mut mutable_dereferences
+            } else {
+                continue;
+            };
+            if !source_attrs_preserve_routes(&implementation.attrs)
+                || implementation.modifiers.require_empty().is_err()
+                || implementation.unsafety.is_some()
+                || !implementation.generics.params.is_empty()
+                || implementation.generics.where_clause.is_some()
+            {
+                return None;
+            }
+            destination.push(implementation);
+        }
+        let [immutable] = dereferences.as_slice() else {
+            return None;
+        };
+        let [mutable] = mutable_dereferences.as_slice() else {
+            return None;
+        };
+        if immutable.items.len() != 2 || mutable.items.len() != 1 {
+            return None;
+        }
+        let mut target = None;
+        let mut immutable_method = None;
+        for item in &immutable.items {
+            match item {
+                syn::ImplItem::Type(item)
+                    if item.ident == "Target"
+                        && super::route_attrs_are_plain(&item.attrs)
+                        && item.modifiers.require_empty().is_ok()
+                        && matches!(item.vis, syn::Visibility::Inherited)
+                        && item.generics.params.is_empty()
+                        && item.generics.where_clause.is_none() =>
+                {
+                    if target.is_some() {
+                        return None;
+                    }
+                    target = Some(self.type_identity_in(module, &item.ty, None)?);
+                }
+                syn::ImplItem::Fn(method) if immutable_method.is_none() => {
+                    immutable_method = Some(method)
+                }
+                _ => return None,
+            }
+        }
+        let target = target?;
+        let [syn::ImplItem::Fn(mutable_method)] = mutable.items.as_slice() else {
+            return None;
+        };
+        let mut selected_field = None;
+        for (method, mutable) in [(immutable_method?, false), (mutable_method, true)] {
+            let signature = &method.sig;
+            if signature.ident != if mutable { "deref_mut" } else { "deref" }
+                || !source_attrs_preserve_routes(&method.attrs)
+                || method.modifiers.require_empty().is_err()
+                || !matches!(method.vis, syn::Visibility::Inherited)
+                || signature.constness.is_some()
+                || signature.asyncness.is_some()
+                || !matches!(signature.safety, syn::Safety::Default)
+                || signature.abi.is_some()
+                || signature.variadic.is_some()
+                || !signature.generics.params.is_empty()
+                || signature.generics.where_clause.is_some()
+                || signature.inputs.len() != 1
+            {
+                return None;
+            }
+            let receiver = signature.receiver()?;
+            let syn::ReceiverKind::Reference(_, None, receiver_mutability) = &receiver.kind else {
+                return None;
+            };
+            if !super::route_attrs_are_plain(&receiver.attrs)
+                || receiver.mutability.is_some()
+                || receiver_mutability.is_some() != mutable
+            {
+                return None;
+            }
+            let syn::ReturnType::Type(_, result) = &signature.output else {
+                return None;
+            };
+            let syn::Type::Reference(result) = result.as_ref() else {
+                return None;
+            };
+            if result.mutability.is_some() != mutable || result.lifetime.is_some() {
+                return None;
+            }
+            let target_projection = matches!(result.elem.as_ref(), syn::Type::Path(path)
+                if path.qself.is_none() && path.path.leading_colon.is_none()
+                && path.path.segments.len() == 2
+                && path.path.segments[0].ident == "Self" && path.path.segments[1].ident == "Target"
+                && path.path.segments.iter().all(|segment| matches!(segment.arguments, syn::PathArguments::None)));
+            if !target_projection
+                && self.type_identity_in(module, &result.elem, None).as_deref()
+                    != Some(target.as_str())
+            {
+                return None;
+            }
+            let [syn::Stmt::Expr(syn::Expr::Reference(reference), None)] =
+                method.block.stmts.as_slice()
+            else {
+                return None;
+            };
+            if !super::route_attrs_are_plain(&reference.attrs)
+                || reference.mutability.is_some() != mutable
+            {
+                return None;
+            }
+            let syn::Expr::Field(field) = reference.expr.as_ref() else {
+                return None;
+            };
+            if !super::route_attrs_are_plain(&field.attrs)
+                || !matches!(field.base.as_ref(), syn::Expr::Path(path) if path.qself.is_none() && path.attrs.is_empty() && path.path.is_ident("self"))
+            {
+                return None;
+            }
+            let syn::Member::Named(field) = &field.member else {
+                return None;
+            };
+            if selected_field
+                .as_ref()
+                .is_some_and(|selected| selected != field)
+            {
+                return None;
+            }
+            selected_field = Some(field.clone());
+        }
+        let field_type = self.declared_field_identity(identity, &selected_field?)??;
+        (field_type == format!("Box<{target}>")).then_some(target)
+    }
+
+    fn field(&self, value: TypedReference, field: &syn::Member) -> Option<TypedReference> {
+        let syn::Member::Named(field) = field else {
+            return None;
+        };
+        let identity = match self.declared_field_identity(&value.identity, field)? {
+            Some(identity) => identity,
+            None if value.origin == "self" => {
+                let target = self.transparent_state_target(&value.identity)?;
+                self.declared_field_identity(&target, field)??
+            }
+            None => return None,
+        };
         let origin = if value.origin == "self" {
             format!("field:self.{field}")
         } else if let Some(fields) = value.origin.strip_prefix("field:self.") {
@@ -2213,6 +2380,70 @@ mod tests {
             let (modules, row) = fixture(owner, caller, "Ledger::revision", "parameter:ledger");
             assert!(modules.check_row(&row), "{caller}");
         }
+    }
+
+    #[test]
+    fn source_self_fields_require_one_exact_transparent_boxed_state_hop() {
+        let owner =
+            "pub(super) struct Ledger; impl Ledger { pub(super) fn revision(&mut self) {} }";
+        let state =
+            "struct State { ledger: super::owner::Ledger } struct Reader { state: Box<State> }";
+        let immutable = "impl std::ops::Deref for Reader { type Target = State; fn deref(&self) -> &State { &self.state } }";
+        let mutable = "impl std::ops::DerefMut for Reader { fn deref_mut(&mut self) -> &mut State { &mut self.state } }";
+        let consumer = "impl Reader { fn consume(&mut self) { self.ledger.revision(); } }";
+        let check = |caller: String| {
+            let (modules, mut row) =
+                fixture(owner, &caller, "Ledger::revision", "field:self.ledger");
+            row.consumer_entry = "Reader::consume".into();
+            modules.check_row(&row)
+        };
+        assert!(check(format!("{state} {immutable} {mutable} {consumer}")));
+        for caller in [
+            format!("{state} {immutable} {consumer}"),
+            format!("{state} {mutable} {consumer}"),
+            format!("{state} #[cfg(any())] {immutable} {mutable} {consumer}"),
+            format!("{state} {immutable} {immutable} {mutable} {consumer}"),
+            format!(
+                "{state} {} {mutable} {consumer}",
+                immutable.replace("&self.state", "read_state(self)")
+            ),
+            format!(
+                "{state} {immutable} {} {consumer}",
+                mutable.replace("self.state", "self.other")
+            ),
+            format!(
+                "{state} {} {mutable} {consumer}",
+                immutable.replace("type Target = State", "type Target = Other")
+            ),
+            format!(
+                "{} {immutable} {mutable} {consumer}",
+                state.replace("Box<State>", "Other<State>")
+            ),
+            format!("mod std {{}} {state} {immutable} {mutable} {consumer}"),
+            format!("struct Box<T>(T); {state} {immutable} {mutable} {consumer}"),
+            format!(
+                "{state} {} {mutable} {consumer}",
+                immutable.replace("fn deref", "#[cfg(any())] fn deref")
+            ),
+            format!(
+                "{state} {} {mutable} {consumer}",
+                immutable.replace("{ &self.state }", "{ let state = &self.state; state }")
+            ),
+            format!(
+                "{} {immutable} {mutable} {consumer}",
+                state.replace(
+                    "struct Reader {",
+                    "struct Fake; struct Reader { ledger: Fake,"
+                )
+            ),
+        ] {
+            assert!(!check(caller.clone()), "{caller}");
+        }
+        let mut source = format!("{state} {immutable} {mutable} {consumer}");
+        source.push_str(" struct Outer { inner: Box<Reader> } impl std::ops::Deref for Outer { type Target = Reader; fn deref(&self) -> &Reader { &self.inner } } impl std::ops::DerefMut for Outer { fn deref_mut(&mut self) -> &mut Reader { &mut self.inner } } impl Outer { fn consume(&mut self) { self.ledger.revision(); } }");
+        let (modules, mut row) = fixture(owner, &source, "Ledger::revision", "field:self.ledger");
+        row.consumer_entry = "Outer::consume".into();
+        assert!(!modules.check_row(&row));
     }
 
     #[test]

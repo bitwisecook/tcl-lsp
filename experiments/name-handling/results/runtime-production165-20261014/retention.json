@@ -1,0 +1,19 @@
+{
+  "scope": "Build-only zero selectors: Runtime/query compiled; Registry dependency compiler failed at two non-optional InvocationDialect calls using ?. Full recorded drift maps empty. No semantic acceptance.",
+  "files": {
+    "provider-02.log": "a6f4b501edb89edfd9c3d39fe8622b4002d09c89ffa9dddbd912b43d218acd25",
+    "source-after.json.gz": "b7ae869319cf4fd76a0bc54e17dbce5b5883414971582cd5cf460f4bfedfeb44",
+    "provider-06.log": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+    "provider-01.log": "605a46dde2308e1d42534bf7daa2edfa0e8991247476b5bb10d585da0a1555bb",
+    "result.json": "fe0b29cdcdc868f0ed6b19a4bad90f6a960d98450fb050914a2e2a9fc9103912",
+    "provider-05.log": "33ed691c70b778a9d19254f9cca164eb431b864e7fd956268935705de7ca1772",
+    "provider-04.log": "55213411fe291737a1c2011557164f5e3e363928ad5c1e0d1c48ca0b387538ff",
+    "capture.py": "11ef42e700842395f2c84ca3479c9540a1eac87866891cbac06e1ef9270e06b1",
+    "provider-03.log": "2a1737c1d55dc7ace51c4736ef98feec5c32c999f2b862b3372afb4732a0b08d",
+    "selected-plan.json": "92cc8c7b1e1b937d2a0a462ec552273505542c39cb8a49b8043f465740a97d50",
+    "source-before.json.gz": "a0c713553f9bc17b8cabe648fa27c2c886178ade54b1aba2dcd8fcfdd7a1ed7c",
+    "start.json": "67436e2d1cdc5f7f75c9a54ef66419ae67cf4c5d83700d451d9706d87d2f627b",
+    "registry-build.jsonl": "18d7e723fd4a457b506e30bf4afb034073b6ef5e14b8f857a89967a67969db3e",
+    "runtime-build.jsonl": "ec14a7a36c5835b64c995c1714bcd3da8bdbb09d4be65fb8baaff290e7ed635d"
+  }
+}

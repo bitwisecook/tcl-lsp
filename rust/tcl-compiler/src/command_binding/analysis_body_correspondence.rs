@@ -463,7 +463,7 @@ fn original_registry_dependency(
             tokens,
         )?;
     assistance.unanimous_command_words()?;
-    let source_dialect = advice.dialect()?;
+    let source_dialect = advice.dialect();
     for shape in &mut assistance.candidates {
         shape.with_source_schema(registry, metadata, tokens, |schema| {
             let (effects, transitions) =
@@ -673,7 +673,7 @@ fn original_native_source_registry_dependency(
             tokens,
         )?;
     assistance.unanimous_command_words()?;
-    let source_dialect = advice.dialect()?;
+    let source_dialect = advice.dialect();
     for shape in &mut assistance.candidates {
         shape.with_source_schema(registry, metadata, tokens, |schema| {
             let (effects, transitions) =
