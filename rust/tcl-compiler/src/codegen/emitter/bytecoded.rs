@@ -381,6 +381,12 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         return false;
     }
 
+    // A script word with a substitution is not compiled with the command
+    // (C's `TclCompileDictUpdateCmd`/`TclCompileDictWithCmd` decline it): its
+    // value is the script, evaluated at run time.
+    let last = args.len() - 1;
+    let script_is_literal = ctx.cmd_arg_braced.get(last).copied().unwrap_or(false)
+        || !(tcl_syntax::naming::word_is_dynamic(&args[last], false) || args[last].contains('\\'));
     match sub {
         "set" if rest.len() >= 3 => dict_set(ctx, var_name, rest),
         "unset" if rest.len() >= 2 => dict_unset(ctx, var_name, rest),
@@ -391,8 +397,10 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         // compile inline (C Tcl's `dictUpdateStart`/`dictExpand` machinery) when
         // the body is straight-line; otherwise fall through to the runtime
         // invoke. The path form of `dict with` (`rest.len() > 2`) is not inlined.
-        "update" if rest.len() >= 4 && rest.len().is_multiple_of(2) => ctx.emit_dict_update(rest),
-        "with" if rest.len() == 2 => ctx.emit_dict_with(&rest[0], &rest[1]),
+        "update" if script_is_literal && rest.len() >= 4 && rest.len().is_multiple_of(2) => {
+            ctx.emit_dict_update(rest)
+        }
+        "with" if script_is_literal && rest.len() == 2 => ctx.emit_dict_with(&rest[0], &rest[1]),
         _ => false,
     }
 }

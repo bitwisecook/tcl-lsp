@@ -55,14 +55,11 @@ impl CodegenCtx<'_> {
     /// Whether the release compiles the literal index word `word` apart from
     /// the reading its command makes as it runs (8.6's `TclIndexEncode`).
     fn literal_index_reads_apart(&self, word: &str) -> bool {
-        let release = self.vm_release();
-        !self.in_direct_command()
-            && tcl_cmd_core::index::encode(word, release, true)
-                != tcl_cmd_core::index::encode(word, release, false)
+        !self.in_direct_command() && tcl_cmd_core::index::encodes_apart(word, self.vm_release())
     }
 
     /// The release the VM runs this compile under.
-    fn vm_release(&self) -> tcl_dialect::TclVersion {
+    pub(super) fn vm_release(&self) -> tcl_dialect::TclVersion {
         self.dialect
             .map_or(tcl_dialect::TclVersion::V9_0, |profile| {
                 profile.vm_runtime_version
@@ -861,6 +858,11 @@ impl CodegenCtx<'_> {
         entered_binding: Option<tcl_runtime_api::CommandBindingIdentity>,
     ) {
         let body_start = self.instructions.len();
+        let words: Vec<(&str, bool)> = args
+            .iter()
+            .map(|(arg, braced)| (arg.as_str(), *braced))
+            .collect();
+        let compiled_script_word = self.release_compiled_script_word(cmd, &words);
         // The command name itself may be a substitution (`$Verify($opt) ...`,
         // `[lookup] ...`), so it is emitted through the same per-word path as
         // the arguments rather than as a bare literal.
@@ -874,7 +876,8 @@ impl CodegenCtx<'_> {
         } else {
             Op::INVOKE_STK4
         };
-        self.emit(op, vec![Operand::Imm(arg_count)]);
+        let invoke = self.emit(op, vec![Operand::Imm(arg_count)]);
+        self.instructions[invoke].compiled_script_word = compiled_script_word;
         // Resolve the literal head when it is pushed, before any argument word
         // can substitute, and keep it until this generic invoke.
         self.retain_entered_command(body_start, entered_binding);

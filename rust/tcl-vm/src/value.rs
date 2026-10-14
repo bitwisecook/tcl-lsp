@@ -433,6 +433,35 @@ impl Value {
         matches!(&*self.0.intrep.borrow(), IntRep::List(_))
     }
 
+    /// The canonical list a compiler built from literal words, spelt
+    /// `canonical` (C's `TclCompileListCmd` list literal). A spelling that is
+    /// not a list stays a string.
+    pub(crate) fn list_literal(canonical: &str) -> Self {
+        match list::split_list(canonical) {
+            Ok(elems) => Self::from_parts(
+                Some(Rc::from(canonical)),
+                IntRep::List(Rc::new(
+                    elems.iter().map(|c| Value::string(c.as_ref())).collect(),
+                )),
+            ),
+            Err(_) => Self::string(canonical),
+        }
+    }
+
+    /// Compile the value as a script whatever it holds, as `INST_EVAL_STK`
+    /// does: the bytecode replaces a list rep, so a canonical list is no longer
+    /// one and a later evaluation of the same value compiles it too.
+    pub(crate) fn compile_as_script(&self) {
+        if !self.is_canonical_list() {
+            return;
+        }
+        let _ = self.to_str();
+        let mut intrep = self.0.intrep.borrow_mut();
+        if let IntRep::List(items) = &*intrep {
+            *intrep = IntRep::ParsedList(Rc::clone(items));
+        }
+    }
+
     /// Canonical key/value pairs, shimmering a string/list value to a native
     /// dictionary on first access.
     pub(crate) fn dict_pairs(&self) -> Result<Vec<(Value, Value)>, TclError> {
@@ -630,6 +659,29 @@ mod tests {
         assert_eq!(script_evaluation(&[Value::empty()]), Compiled);
         let comment = Value::list(vec![Value::string("#c")]);
         assert_eq!(script_evaluation(&[list(), comment]), Compiled);
+    }
+
+    /// `TclCompileListCmd` pushes `[list …]` of literal words as its list
+    /// object, and `INST_EVAL_STK` compiling a canonical list leaves it a
+    /// string: tclsh 8.6.18 ranges nothing for `eval` of the one and the whole
+    /// string for `catch $b; eval $b` in a procedure.
+    #[test]
+    fn a_list_literal_is_canonical_until_compiled_as_a_script() {
+        use CommandEvaluation::{Compiled, Direct};
+        let literal = Value::list_literal("string range {a b}");
+        assert!(literal.is_canonical_list());
+        assert_eq!(&*literal.to_str(), "string range {a b}");
+        assert_eq!(literal.as_list().map(|items| items.len()).ok(), Some(3));
+        assert_eq!(script_evaluation(std::slice::from_ref(&literal)), Direct);
+        literal.compile_as_script();
+        assert!(!literal.is_canonical_list());
+        assert_eq!(&*literal.to_str(), "string range {a b}");
+        assert_eq!(literal.as_list().map(|items| items.len()).ok(), Some(3));
+        assert_eq!(script_evaluation(&[literal]), Compiled);
+        assert!(!Value::list_literal("a {b").is_canonical_list());
+        let parsed = Value::string("a b");
+        parsed.compile_as_script();
+        assert!(!parsed.is_canonical_list());
     }
 
     #[test]

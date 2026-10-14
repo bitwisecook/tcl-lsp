@@ -2822,6 +2822,16 @@ impl<'r> Lowerer<'r> {
                 args[0].trim_start_matches('[').trim_end_matches(']')
             };
             let synthesised = eval_list_literal_body(inner_text, self.config)?;
+            // `eval` runs the list as one command without compiling it; a word
+            // the release compiles apart stays with the runtime `eval`.
+            let release = self
+                .dialect
+                .map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+                    profile.vm_runtime_version
+                });
+            if crate::const_subst::folded_literal_reads_apart(&synthesised, release) {
+                return None;
+            }
             self.lower_script(&synthesised, namespace)
         } else {
             return None;

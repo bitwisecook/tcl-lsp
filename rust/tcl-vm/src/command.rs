@@ -786,14 +786,15 @@ fn interp_eval_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
+    let evaluation = crate::value::script_evaluation(scripts);
     if p.is_empty() {
-        return match vm.eval_source(&script) {
+        return match vm.eval_source_as(&script, evaluation) {
             Ok(c) => c,
             Err(e) => err(e.message),
         };
     }
     match vm.resolve_interp_path(&p) {
-        Ok(id) => vm.eval_in_interp(id, &script),
+        Ok(id) => vm.eval_in_interp(id, &script, evaluation),
         Err(c) => c,
     }
 }

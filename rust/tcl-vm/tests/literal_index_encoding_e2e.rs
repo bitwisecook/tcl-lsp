@@ -254,15 +254,108 @@ proc p {s} {
     list <[eval [list string range $s 0 end-2147483649]]> <[eval {string range $s 0 end-2147483649}]>
 }
 puts "proc: [p $s]"
+proc q {} {
+    list <[eval [list string range abcdefghijkl 0 end-2147483649]]> \
+        <[if 1 [list string range abcdefghijkl 0 end-2147483649]]>
+}
+puts "literal list: <[eval [list string range abcdefghijkl 0 end-2147483649]]> [q]"
 "#;
 
 const EVAL_LIST_READ: &str = "eval list: <>\neval concat: <>\neval string: <>\nuplevel: <>\n\
-catch: 0 <>\nif: <>\nnamespace eval: <>\nproc: <> <>\n";
+catch: 0 <>\nif: <>\nnamespace eval: <>\nproc: <> <>\nliteral list: <> <> <>\n";
 
 const EVAL_LIST_86: &str = "eval list: <>\neval concat: <>\neval string: <abcdefghijkl>\n\
-uplevel: <>\ncatch: 0 <>\nif: <>\nnamespace eval: <>\nproc: <> <abcdefghijkl>\n";
+uplevel: <>\ncatch: 0 <>\nif: <>\nnamespace eval: <>\nproc: <> <abcdefghijkl>\n\
+literal list: <> <> <>\n";
+
+/// The script words `lmap`, `dict map`/`update`/`with`, `try`, `switch` and
+/// `interp eval` evaluate at run time: a canonical list among them runs
+/// without being compiled, as `eval`'s does, a body `switch` splits from a
+/// string compiles, and `[list …]` of literal words is a list too, which 8.6
+/// pushes as its list object. On stdin 8.6 compiles the top-level `try $b`,
+/// which compiles `$b` and leaves it a string for every later command.
+const BODIES: &str = r#"set b [list string range abcdefghijkl 0 end-2147483649]
+set d {a 1}
+puts "lmap: <[lmap x {1} $b]> <[lmap x {1} [list string range abcdefghijkl 0 end-2147483649]]>"
+puts "dict: <[dict map {k v} $d $b]> <[dict update d a v $b]> <[dict with d $b]>"
+puts "try: <[try $b]> <[try {error x} on error {} $b]> <[try $b on ok {r} {set r}]>"
+puts "switch: <[switch a a $b]> <[switch -glob a b {} a* $b]> <[switch a [list a $b]]> <[switch a "a {$b}"]>"
+puts "interp eval: <[interp eval {} $b]>"
+proc p {b} {
+    set d {a 1}
+    set c [list string range abcdefghijkl 0 end-2147483649]
+    list <[lmap x {1} $b]> <[lmap x {1} $c]> <[dict map {k v} $d $b]> \
+        <[dict update d a v $b]> <[dict with d $b]> <[switch a a $b]> \
+        <[try {error x} on error {} $b]> <[if 1 $c]>
+}
+puts "proc: [p $b]"
+"#;
+
+const BODIES_READ: &str = "lmap: <{}> <{}>\ndict: <a {}> <> <>\ntry: <> <> <>\n\
+switch: <> <> <> <>\ninterp eval: <>\nproc: <{}> <{}> {<a {}>} <> <> <> <> <>\n";
+
+const BODIES_86_FILE: &str = "lmap: <{}> <{}>\ndict: <a {}> <> <>\ntry: <> <> <>\n\
+switch: <> <> <> <abcdefghijkl>\ninterp eval: <>\nproc: <{}> <{}> {<a {}>} <> <> <> <> <>\n";
+
+const BODIES_86_STDIN: &str = "lmap: <{}> <{}>\ndict: <a {}> <> <>\n\
+try: <abcdefghijkl> <abcdefghijkl> <abcdefghijkl>\n\
+switch: <abcdefghijkl> <abcdefghijkl> <abcdefghijkl> <abcdefghijkl>\n\
+interp eval: <abcdefghijkl>\n\
+proc: <abcdefghijkl> <{}> {<a abcdefghijkl>} <abcdefghijkl> <abcdefghijkl> <abcdefghijkl> <abcdefghijkl> <>\n";
+
+/// The script word a release compiles with its command whatever it holds
+/// (`TclCompileCmdWord`'s `INST_EVAL_STK`): `catch` with procedure-local
+/// variables or none, `try` whose handlers it compiles, and a `for` start
+/// beside literal clauses. A canonical list there compiles, and stays
+/// compiled for a later `eval` of the same value; a `trap {}` handler, a
+/// qualified variable or a script compiled outside a procedure leave it to
+/// the command, which evaluates it directly.
+const COMPILED: &str = r#"proc L {} { list string range abcdefghijkl 0 [set e end-2147483649] }
+proc p1 {b} { catch $b r; set r }
+proc p2 {b} { try $b }
+proc p3 {b} { try $b on ok {r} {set r} }
+proc p4 {b} { catch $b; eval $b }
+proc p5 {b} { for $b {0} {} {}; eval $b }
+proc p6 {b} { try $b trap {} {} {} }
+proc p7 {b} { catch $b ::r; set ::r }
+proc p8 {b} { lmap x {1} $b; eval $b }
+proc p9 {} { catch [list string range abcdefghijkl 0 end-2147483649] r; set r }
+foreach p {p1 p2 p3 p4 p5 p6 p7 p8} { lappend out <[$p [L]]> }
+puts "proc: $out <[p9]>"
+set b [L]; set t1 <[eval {try $b}]>
+set b [L]; eval {catch $b r}; set t2 <$r>
+set b [L]; catch $b; set t3 <[eval $b]>
+puts "script: $t1 $t2 $t3"
+"#;
+
+const COMPILED_READ: &str = "proc: <> <> <> <> <> <> <> <> <>\nscript: <> <> <>\n";
+
+const COMPILED_86_FILE: &str = "proc: <abcdefghijkl> <abcdefghijkl> <abcdefghijkl> \
+<abcdefghijkl> <abcdefghijkl> <> <> <> <abcdefghijkl>\nscript: <abcdefghijkl> <> <>\n";
+
+const COMPILED_86_STDIN: &str = "proc: <abcdefghijkl> <abcdefghijkl> <abcdefghijkl> \
+<abcdefghijkl> <abcdefghijkl> <> <> <> <abcdefghijkl>\n\
+script: <abcdefghijkl> <> <abcdefghijkl>\n";
 
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "bodies a command evaluates",
+        script: BODIES,
+        want: &[
+            (TclVersion::V8_6, BODIES_86_FILE, BODIES_86_STDIN),
+            (TclVersion::V9_0, BODIES_READ, BODIES_READ),
+            (TclVersion::V9_1, BODIES_READ, BODIES_READ),
+        ],
+    },
+    Vector {
+        name: "script words compiled with their command",
+        script: COMPILED,
+        want: &[
+            (TclVersion::V8_6, COMPILED_86_FILE, COMPILED_86_STDIN),
+            (TclVersion::V9_0, COMPILED_READ, COMPILED_READ),
+            (TclVersion::V9_1, COMPILED_READ, COMPILED_READ),
+        ],
+    },
     Vector {
         name: "linsert, lreplace and string replace",
         script: REPLACE,

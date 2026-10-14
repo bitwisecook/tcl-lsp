@@ -116,6 +116,34 @@ fn is_inline_local_scalar_name(name: &str) -> bool {
     crate::value_shapes::is_static_var_word(name) && !is_qualified(name)
 }
 
+/// Whether the release's compiler binds the variable name `name` to a
+/// procedure-local scalar (`TclLocalScalar`): no namespace separator anywhere
+/// and no array element.
+fn is_release_local_scalar_name(name: &str) -> bool {
+    !name.contains("::") && !super::values::is_array_ref(name)
+}
+
+/// One word of a command as the release's compiler sees it.
+#[derive(Clone, Copy)]
+struct ReleaseWord<'a> {
+    text: &'a str,
+    braced: bool,
+}
+
+impl ReleaseWord<'_> {
+    /// Known at compile time (`TclWordKnownAtCompileTime`): no variable or
+    /// command substitution.
+    fn known(self) -> bool {
+        !tcl_syntax::naming::word_is_dynamic(self.text, self.braced)
+    }
+
+    /// One text token (`TCL_TOKEN_SIMPLE_WORD`): known, and no backslash
+    /// substitution either.
+    fn simple(self) -> bool {
+        self.known() && (self.braced || !self.text.contains('\\'))
+    }
+}
+
 /// Parse a `dict for`/`dict map` variable-list word by the Tcl list grammar
 /// and return the two loop-variable names when it is exactly a two-element
 /// list of *plain* names — not qualified (`::`), not an array element (`(`),
@@ -179,6 +207,122 @@ struct DictMapPatch {
 }
 
 impl CodegenCtx<'_> {
+    /// The word of a generic invocation of `command` that the release compiles
+    /// as a script with the command, counting the command word: the script
+    /// word C's `TclCompileCatchCmd`, `TclCompileTryCmd` or `TclCompileForCmd`
+    /// compiles through `TclCompileCmdWord` when it is not one literal, whose
+    /// `INST_EVAL_STK` compiles the value whatever it holds. Measured on
+    /// tclsh 8.6.18, where a canonical list a command evaluates directly reads
+    /// a literal index apart: `catch $b r`, `try $b` and `for $b {0} {} {}` in
+    /// a procedure compile `$b`, `lmap x {1} $b` or `catch $b ::r` does not.
+    ///
+    /// The release compiles none of these in a command it evaluates directly,
+    /// and binds a handler or result variable only to a local of a procedure
+    /// body; a script `eval` compiles in a procedure frame can bind one of the
+    /// procedure's existing locals, which this compile cannot see.
+    pub(crate) fn release_compiled_script_word(
+        &mut self,
+        command: &str,
+        args: &[(&str, bool)],
+    ) -> Option<u8> {
+        if self.plain_command_dispatch || self.in_direct_command() {
+            return None;
+        }
+        let words: Vec<ReleaseWord<'_>> = args
+            .iter()
+            .map(|&(text, braced)| ReleaseWord { text, braced })
+            .collect();
+        let arg_refs: Vec<&str> = args.iter().map(|&(text, _)| text).collect();
+        // As the inline specialisations: the registry's hook for this
+        // invocation, its binding retained so a later redefinition recompiles.
+        let resolved =
+            self.registry
+                .resolve_call(command, &arg_refs, self.registry.own_surface_query())?;
+        if resolved.spec.name != command {
+            return None;
+        }
+        let hook = resolved.lowering_hook?;
+        let binding = self.command_binding_identity(command, resolved.spec.name);
+        let compiled = match hook {
+            LoweringHookId::Catch => self.release_compiles_catch(&words),
+            LoweringHookId::Try => self.release_compiles_try(command, &words, &arg_refs),
+            LoweringHookId::For => {
+                matches!(words.as_slice(), [start, test, next, body]
+                    if !start.simple() && test.simple() && next.simple() && body.simple())
+            }
+            _ => false,
+        };
+        if !compiled {
+            return None;
+        }
+        self.require_command_binding(&binding);
+        Some(1)
+    }
+
+    /// `TclCompileCatchCmd`: a result or options variable needs a procedure
+    /// local.
+    fn release_compiles_catch(&self, words: &[ReleaseWord<'_>]) -> bool {
+        let Some((body, vars)) = words.split_first() else {
+            return false;
+        };
+        !body.simple()
+            && vars.len() <= 2
+            && (vars.is_empty()
+                || (self.compiles_locals()
+                    && vars
+                        .iter()
+                        .all(|var| var.simple() && is_release_local_scalar_name(var.text))))
+    }
+
+    /// `TclCompileTryCmd`: every handler's selector and variable list known,
+    /// its variables procedure locals and its script one literal, the
+    /// `finally` script one literal, and a handler needs procedure locals of
+    /// its own for the result and options.
+    fn release_compiles_try(
+        &self,
+        command: &str,
+        words: &[ReleaseWord<'_>],
+        arg_refs: &[&str],
+    ) -> bool {
+        let Some(invocation) = self.registry.try_control_invocation(
+            command,
+            arg_refs,
+            self.registry.own_surface_query(),
+        ) else {
+            return false;
+        };
+        let word = |index: usize| words.get(index).copied();
+        if word(invocation.body_index).is_none_or(ReleaseWord::simple) {
+            return false;
+        }
+        invocation.clauses.iter().all(|clause| {
+            let body = word(clause.body_index).is_some_and(ReleaseWord::simple);
+            if clause.kind == TryClauseKind::Finally {
+                return body;
+            }
+            let selector = clause
+                .selector_index
+                .and_then(word)
+                .is_some_and(|selector| {
+                    selector.known()
+                        && (clause.kind != TryClauseKind::Trap
+                            || tcl_syntax::list::split_list(selector.text)
+                                .is_ok_and(|codes| !codes.is_empty()))
+                });
+            let variables = clause
+                .variable_list_index
+                .and_then(word)
+                .is_some_and(|list| {
+                    list.known()
+                        && tcl_syntax::list::split_list(list.text).is_ok_and(|names| {
+                            names.len() <= 2
+                                && names.iter().all(|name| is_release_local_scalar_name(name))
+                        })
+                });
+            self.compiles_locals() && body && selector && variables
+        })
+    }
+
     /// Whether the literal-body `catch` specialiser can preserve the exact
     /// source-word semantics of every argument.
     ///
@@ -1781,6 +1925,77 @@ mod tests {
             "the expansion marker must not enter argv: {:?}",
             ctx.literals.entries()
         );
+    }
+
+    /// C 8.6 compiles a substituted script word of `catch`, `try` and `for`
+    /// with the command where its compiler compiles the command, and leaves
+    /// it to the command otherwise. Measured on tclsh 8.6.18 with a canonical
+    /// list holding a literal index it compiles apart.
+    #[test]
+    fn the_release_compiles_a_substituted_catch_try_or_for_script_word() {
+        let registry = CommandRegistry::build_default();
+        let word = |is_proc: bool, command: &str, args: &[(&str, bool)]| {
+            CodegenCtx::new(is_proc, &[], &registry).release_compiled_script_word(command, args)
+        };
+        let b = ("$b", false);
+        let handler = [("on", false), ("ok", false), ("r", true), ("set r", true)];
+        let with_handler = |body| [&[body][..], &handler[..]].concat();
+        assert_eq!(word(true, "catch", &[b, ("r", false)]), Some(1));
+        assert_eq!(
+            word(true, "catch", &[b, ("r", false), ("o", false)]),
+            Some(1)
+        );
+        assert_eq!(word(false, "catch", &[b]), Some(1));
+        assert_eq!(word(false, "catch", &[b, ("r", false)]), None);
+        assert_eq!(word(true, "catch", &[b, ("::r", false)]), None);
+        assert_eq!(word(true, "catch", &[b, ("a(x)", false)]), None);
+        assert_eq!(word(true, "catch", &[b, ("$r", false)]), None);
+        assert_eq!(
+            word(true, "catch", &[("set x 1", true), ("r", false)]),
+            None
+        );
+        assert_eq!(word(false, "try", &[b]), Some(1));
+        assert_eq!(
+            word(false, "try", &[b, ("finally", false), ("", true)]),
+            Some(1)
+        );
+        assert_eq!(word(true, "try", &with_handler(b)), Some(1));
+        assert_eq!(word(false, "try", &with_handler(b)), None);
+        assert_eq!(
+            word(
+                true,
+                "try",
+                &[b, ("trap", false), ("", true), ("", true), ("", true)]
+            ),
+            None
+        );
+        assert_eq!(
+            word(
+                true,
+                "try",
+                &[b, ("on", false), ("ok", false), ("r", true), ("$h", false)]
+            ),
+            None
+        );
+        assert_eq!(
+            word(
+                true,
+                "try",
+                &[b, ("on", false), ("ok", false), ("::r", true), ("", true)]
+            ),
+            None
+        );
+        assert_eq!(
+            word(true, "try", &[b, ("finally", false), ("$f", false)]),
+            None
+        );
+        assert_eq!(
+            word(true, "for", &[b, ("0", true), ("", true), ("", true)]),
+            Some(1)
+        );
+        assert_eq!(word(true, "for", &[b, ("0", true), ("", true), b]), None);
+        assert_eq!(word(true, "lmap", &[("x", false), ("1", true), b]), None);
+        assert_eq!(word(true, "eval", &[b]), None);
     }
 
     #[test]

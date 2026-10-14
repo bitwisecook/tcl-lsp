@@ -1102,6 +1102,17 @@ impl CodegenCtx<'_> {
         // The command name may itself be a substitution (`$Verify($opt) …`,
         // `[lookup] …`); emit it through the per-word path. A plain literal name
         // still lowers to a single `push`, so normal calls are unchanged.
+        let words: Vec<(&str, bool)> = args
+            .iter()
+            .enumerate()
+            .map(|(i, a)| {
+                (
+                    a.as_str(),
+                    self.cmd_arg_braced.get(i).copied().unwrap_or(false),
+                )
+            })
+            .collect();
+        let compiled_script_word = self.release_compiled_script_word(cmd, &words);
         self.emit_cmd_word(cmd, false);
         for (i, a) in args.iter().enumerate() {
             let braced = self.cmd_arg_braced.get(i).copied().unwrap_or(false);
@@ -1116,7 +1127,8 @@ impl CodegenCtx<'_> {
         } else {
             Op::INVOKE_STK4
         };
-        self.emit_comment(op, vec![Operand::Imm(arg_count)], cmd);
+        let invoke = self.emit_comment(op, vec![Operand::Imm(arg_count)], cmd);
+        self.instructions[invoke].compiled_script_word = compiled_script_word;
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
     }

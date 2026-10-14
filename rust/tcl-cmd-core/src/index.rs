@@ -231,6 +231,15 @@ pub fn encode(spec: &str, release: TclVersion, compiled: bool) -> Option<Encoded
     (!sums_in_int || (int_min < offset && offset <= 0)).then_some(Encoded::FromEnd(offset))
 }
 
+/// Whether `release` compiles the literal index word `spec` to a reading apart
+/// from the one its command makes as it runs ([`encode`]), for some length: 8.6
+/// places an `end` offset that passes `INT_MAX` after the end, where its
+/// command wraps it before the first element.
+#[must_use]
+pub fn encodes_apart(spec: &str, release: TclVersion) -> bool {
+    encode(spec, release, true) != encode(spec, release, false)
+}
+
 /// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
 /// -index`): each spec steps one level. An out-of-range step is an error
 /// (`element <spec> missing from sublist "<list>"`); a non-list step stops,

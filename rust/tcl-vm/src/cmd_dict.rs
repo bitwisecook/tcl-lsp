@@ -462,7 +462,10 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // variable below observes actual Tcl aliases rather than our own handles.
     drop(leaf);
     drop(root_dict);
-    let outcome = vm.eval_source(&body.to_str());
+    let outcome = vm.eval_source_as(
+        &body.to_str(),
+        crate::value::script_evaluation(std::slice::from_ref(body)),
+    );
 
     // Reflect the mapped variables back into the dictionary. Re-read the
     // variable first (the body may have replaced it outright); if the body
@@ -520,6 +523,7 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         Err(c) => return c,
     };
     let body_src = body.to_str();
+    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
     for (k, v) in ps {
         if let Err(e) = vm.set_var(&kvar.to_str(), Value::string(k)) {
             return e;
@@ -527,7 +531,7 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         if let Err(e) = vm.set_var(&vvar.to_str(), v) {
             return e;
         }
-        match vm.eval_source(&body_src) {
+        match vm.eval_source_as(&body_src, evaluation) {
             Ok(c) => match c.code {
                 Code::Ok | Code::Continue => {}
                 Code::Break => break,
@@ -562,6 +566,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     let (kname, vname) = (kvar.to_str(), vvar.to_str());
     let body_src = body.to_str();
+    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
     let mut out: Vec<(String, Value)> = Vec::new();
     let mut last_options = Value::empty();
     for (k, v) in ps {
@@ -571,7 +576,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         if let Err(e) = vm.set_var(&vname, v) {
             return e;
         }
-        match vm.eval_source(&body_src) {
+        match vm.eval_source_as(&body_src, evaluation) {
             Ok(c) => match c.code {
                 Code::Ok => {
                     let key = vm.get_var(&kname).map_or(k, |kv| kv.to_str().to_string());
@@ -646,7 +651,10 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // Tcl-level aliases. Release them before the post-body COW decision.
     drop(ps);
     drop(cur);
-    let comp = match vm.eval_source(&body.to_str()) {
+    let comp = match vm.eval_source_as(
+        &body.to_str(),
+        crate::value::script_evaluation(std::slice::from_ref(body)),
+    ) {
         Ok(c) => c,
         Err(e) => return err(e.message),
     };
@@ -698,6 +706,7 @@ fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return err("must have exactly two variable names");
     };
     let body_src = body.to_str();
+    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
     let mut kept: Vec<(String, Value)> = Vec::new();
     for (k, v) in ps {
         if let Err(e) = vm.set_var(&kvar.to_str(), Value::string(k.as_str())) {
@@ -706,7 +715,7 @@ fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         if let Err(e) = vm.set_var(&vvar.to_str(), v.clone()) {
             return e;
         }
-        match vm.eval_source(&body_src) {
+        match vm.eval_source_as(&body_src, evaluation) {
             Ok(c) => match c.code {
                 Code::Ok => match c.result.as_bool() {
                     Ok(true) => kept.push((k, v)),

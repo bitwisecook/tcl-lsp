@@ -1248,6 +1248,10 @@ pub struct Instruction {
     /// so the literal pool and disassembly stay byte-stable (keeps identity
     /// stable).
     pub push_verbatim: bool,
+    /// `PUSH1`/`PUSH4` only: the representation the pushed literal carries.
+    /// Carried out-of-band so the literal pool and disassembly stay
+    /// byte-stable.
+    pub literal_rep: LiteralRep,
     /// `PUSH1`/`PUSH4` only: how the emulated release evaluates the command
     /// the word belongs to, and so a command substitution the VM makes in it.
     pub evaluation: tcl_runtime_api::CommandEvaluation,
@@ -1263,6 +1267,13 @@ pub struct Instruction {
     /// codegen emitted the C-faithful shape but relies on the VM's
     /// activation-stack unwinding instead, so `BEGIN_CATCH4` is inert.
     pub catch_target: Option<String>,
+    /// `INVOKE_STK1`/`INVOKE_STK4` only: the word, counting the command word,
+    /// that the emulated release compiles as a script with its command (C's
+    /// `TclCompileCmdWord`, whose `INST_EVAL_STK` compiles the value whatever
+    /// it holds). The VM compiles that value in place before it invokes, so a
+    /// canonical list there is no longer one. Carried out-of-band so the
+    /// disassembly stays byte-stable.
+    pub compiled_script_word: Option<u8>,
 }
 
 impl Instruction {
@@ -1287,11 +1298,25 @@ impl Instruction {
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
+            literal_rep: LiteralRep::String,
             evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             entered_command: None,
             catch_target: None,
+            compiled_script_word: None,
         }
     }
+}
+
+/// The representation a pushed literal carries.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LiteralRep {
+    /// Its string.
+    #[default]
+    String,
+    /// A list the compiler built from literal words, spelt canonically: C's
+    /// `TclCompileListCmd` pushes such a list as its list object, a canonical
+    /// list.
+    List,
 }
 
 /// A statically literal command entered before its remaining words perform

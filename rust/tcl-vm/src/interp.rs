@@ -5293,12 +5293,18 @@ impl Vm {
     /// state addressable in the arena throughout.
     /// Errors and completion codes propagate through the ordinary return path
     /// (the target's `-errorcode`/`-errorinfo` reach the caller — tclsh-pinned).
-    pub(crate) fn eval_in_interp(&mut self, id: InterpId, script: &str) -> Completion<Value> {
+    /// The script's own commands are evaluated as `evaluation` says.
+    pub(crate) fn eval_in_interp(
+        &mut self,
+        id: InterpId,
+        script: &str,
+        evaluation: CommandEvaluation,
+    ) -> Completion<Value> {
         if !self.interp_alive(id) {
             return err("could not find interpreter");
         }
         let completion = self.in_interp(id, |vm| {
-            let mut completion = match vm.eval_source(script) {
+            let mut completion = match vm.eval_source_as(script, evaluation) {
                 Ok(c) => c,
                 Err(e) => err(e.message),
             };
@@ -5660,7 +5666,7 @@ impl Vm {
                     .map(|v| v.to_str().to_string())
                     .collect::<Vec<_>>()
                     .join(" ");
-                self.eval_in_interp(id, &script)
+                self.eval_in_interp(id, &script, crate::value::script_evaluation(rest))
             }
             "issafe" => ok(Value::bool(self.st_of(id).is_some_and(|st| st.is_safe))),
             "delete" => {
@@ -12691,7 +12697,7 @@ impl Vm {
     /// raises once they have run.
     ///
     /// The compiler owns the dialect-aware split ([`ScriptCommandPlan`]); this
-    /// is the non-compiling half of [`Self::prepare_script_commands`], for
+    /// is the non-compiling half of [`Self::prepare_script_commands_as`], for
     /// callers that drive a whole module rather than a deferred activation.
     /// Falls back to the whole source when no [`CompileService`] is attached or
     /// the service hands back a boundary that is not a character boundary — the
@@ -12766,16 +12772,8 @@ impl Vm {
     /// Prepare a catchable/handleable script without rejecting a valid command
     /// prefix merely because a later command is malformed. The compiler owns
     /// the dialect-aware split; this runtime only compiles and executes the
-    /// returned prefix through its normal cache/deoptimisation path.
-    pub(crate) fn prepare_script_commands(
-        &mut self,
-        src: &str,
-    ) -> Result<PreparedScript, TclError> {
-        self.prepare_script_commands_as(src, CommandEvaluation::Compiled)
-    }
-
-    /// [`Self::prepare_script_commands`], the script's own commands evaluated
-    /// as `evaluation` says.
+    /// returned prefix through its normal cache/deoptimisation path, the
+    /// script's own commands evaluated as `evaluation` says.
     pub(crate) fn prepare_script_commands_as(
         &mut self,
         src: &str,

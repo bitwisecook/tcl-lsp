@@ -123,6 +123,23 @@ pub struct ResolvedConstSubst {
     pub site_claims: Vec<tcl_runtime_api::SiteClaim>,
     /// Registry-declared return type of the outer invocation.
     pub return_type: Option<TclType>,
+    /// Registry inline code-generation hook of the outer invocation, which
+    /// says how the release's own compiler pushes it (`list` of literal words
+    /// is a list literal).
+    pub inline_codegen_hook: Option<tcl_registry::hooks::InlineCodegenHookId>,
+}
+
+/// Whether a folded constant `value`, pushed as the literal it is spelt, can
+/// read apart from the result it stands for when a script evaluation reads it:
+/// a list result runs as one command without being compiled, where the literal
+/// is compiled, and a release that compiles a literal index apart (8.6's
+/// `TclIndexEncode`) reads such a word of it otherwise.
+pub(crate) fn folded_literal_reads_apart(value: &str, release: TclVersion) -> bool {
+    tcl_syntax::list::split_list(value).is_ok_and(|words| {
+        words
+            .iter()
+            .any(|word| tcl_cmd_core::index::encodes_apart(word, release))
+    })
 }
 
 impl ConstSubstCtx<'_> {
@@ -177,6 +194,7 @@ impl ConstSubstCtx<'_> {
                 command_bindings,
                 site_claims,
                 return_type: spec.return_type_for_call(&arg_refs),
+                inline_codegen_hook: resolved.inline_codegen_hook,
             });
         }
         let folded = if spec.subcommands.is_empty() {
@@ -211,6 +229,7 @@ impl ConstSubstCtx<'_> {
             command_bindings,
             site_claims,
             return_type: spec.return_type_for_call(&arg_refs),
+            inline_codegen_hook: resolved.inline_codegen_hook,
         })
     }
 

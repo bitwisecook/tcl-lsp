@@ -2581,7 +2581,9 @@ impl Vm {
                 // substitution — it is pushed exactly as the codegen interned
                 // it (the codegen sets this flag for braced words / `proc`
                 // bodies / constant assignments).
-                if instr.push_verbatim {
+                if instr.literal_rep == tcl_bytecode::LiteralRep::List {
+                    f.stack.push(Value::list_literal(&raw));
+                } else if instr.push_verbatim {
                     f.stack.push(Value::string(raw));
                 } else {
                     match crate::subst::subst_word(&raw, self, instr.evaluation) {
@@ -4095,6 +4097,12 @@ impl Vm {
                     return Tick::Return(err("invoke: stack underflow"));
                 }
                 let words = f.stack.split_off(f.stack.len() - argc);
+                if let Some(word) = instr
+                    .compiled_script_word
+                    .and_then(|index| words.get(usize::from(index)))
+                {
+                    word.compile_as_script();
+                }
                 let entered = f.take_entered_command();
                 match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
                     Ok(Some(call)) => return call,

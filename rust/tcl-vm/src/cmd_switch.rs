@@ -113,8 +113,9 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     while &*pairs[b].1.to_str() == "-" {
         b += 1;
     }
-    let body = pairs[b].1.to_str().to_string();
-    let completion = match vm.eval_source(&body) {
+    let body = &pairs[b].1;
+    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
+    let completion = match vm.eval_source_as(&body.to_str(), evaluation) {
         Ok(c) => c,
         Err(e) => err(e.message),
     };

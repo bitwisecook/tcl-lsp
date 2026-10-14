@@ -301,7 +301,10 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return e,
     };
     let plan = Rc::new(TryPlan { handlers, finally });
-    match vm.prepare_script_commands(&body.to_str()) {
+    match vm.prepare_script_commands_as(
+        &body.to_str(),
+        crate::value::script_evaluation(std::slice::from_ref(body)),
+    ) {
         Ok(prepared) if prepared.prefix.is_some() => {
             vm.pending.try_phase = Some(TryReq {
                 script: prepared.prefix.expect("checked above"),
@@ -403,7 +406,10 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
                 });
                 vm.publish_error(&einfo, &errorcode);
             }
-            match vm.prepare_script_commands(&plan.handlers[b].script.to_str()) {
+            match vm.prepare_script_commands_as(
+                &plan.handlers[b].script.to_str(),
+                crate::value::script_evaluation(std::slice::from_ref(&plan.handlers[b].script)),
+            ) {
                 Ok(prepared) if prepared.prefix.is_some() => TryOutcome::Push(TryReq {
                     script: prepared.prefix.expect("checked above"),
                     state: TryState {
@@ -468,7 +474,10 @@ fn finish_body_or_handler(
     // never runs before this point, so a
     // body/handler compile error is reported before `finally`'s own grammar
     // is ever touched.
-    let prepared = match vm.prepare_script_commands(&fin.to_str()) {
+    let prepared = match vm.prepare_script_commands_as(
+        &fin.to_str(),
+        crate::value::script_evaluation(std::slice::from_ref(&fin)),
+    ) {
         Ok(prepared) => prepared,
         // A `finally` parse error is `finally`'s own exception overriding the
         // prior outcome, same as a runtime error in `finally` would (chains

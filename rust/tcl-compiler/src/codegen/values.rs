@@ -87,6 +87,16 @@ impl CodegenCtx<'_> {
                     lookup_var: &lookup,
                 }
                 .fold_cmd_subst_resolved(inner)
+            })
+            .filter(|fold| {
+                // Only a list literal keeps a list result's reading as a
+                // script; any other literal leaves such a result to its
+                // command.
+                fold.inline_codegen_hook == Some(tcl_registry::hooks::InlineCodegenHookId::List)
+                    || !crate::const_subst::folded_literal_reads_apart(
+                        &fold.value,
+                        self.vm_release(),
+                    )
             });
         if let Some(fold) = fold {
             for binding in &fold.command_bindings {
@@ -109,6 +119,18 @@ impl CodegenCtx<'_> {
                 self.push_lit_no_dedup_verbatim(&fold.value);
                 self.emit(Op::DUP, vec![]);
                 self.emit(Op::VERIFY_DICT, vec![]);
+            } else if fold.inline_codegen_hook
+                == Some(tcl_registry::hooks::InlineCodegenHookId::List)
+                && !fold.value.is_empty()
+            {
+                // `TclCompileListCmd` pushes the list it builds from literal
+                // words as its list object (and `[list]` as an empty string):
+                // a canonical list, which a script evaluation reads without
+                // compiling.
+                self.push_lit_no_dedup_verbatim(&fold.value);
+                if let Some(push) = self.instructions.last_mut() {
+                    push.literal_rep = tcl_bytecode::LiteralRep::List;
+                }
             } else {
                 // A command result is already a final Tcl value. It must not
                 // be parsed as another word: `$`, `[…]`, braces, and backslash
@@ -869,6 +891,38 @@ mod tests {
             );
             assert!(ctx.instructions.is_empty(), "partial emission for {value}");
         }
+    }
+
+    /// `[list …]` of literal words is the list object C's `TclCompileListCmd`
+    /// pushes (and `[list]` its empty string), while another fold whose
+    /// literal a release would compile apart from its list result is left to
+    /// the command: on 8.6 `end-2147483649` is such a word.
+    #[test]
+    fn a_folded_list_pushes_a_list_and_a_word_read_apart_stays_unfolded() {
+        let registry = CommandRegistry::build_default();
+        let pushed = |value: &str| {
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            assert!(ctx.try_emit_constant_fold(value), "{value}");
+            ctx.instructions
+                .iter()
+                .find(|i| matches!(i.op, Op::PUSH1 | Op::PUSH4))
+                .map(|i| i.literal_rep == tcl_bytecode::LiteralRep::List)
+        };
+        assert_eq!(pushed("[list a {b c}]"), Some(true));
+        assert_eq!(pushed("[list]"), Some(false));
+        assert_eq!(pushed("[llength [list a b]]"), Some(false));
+
+        let profile = |name: &str| {
+            Some(tcl_registry::model::ingress::resolve_environment(name).analyser_profile())
+        };
+        let lrange = "[lrange {string range abc 0 end-2147483649} 0 end]";
+        let mut v86 = CodegenCtx::new(false, &[], &registry);
+        v86.dialect = profile("tcl8.6");
+        assert!(!v86.try_emit_constant_fold(lrange));
+        assert!(v86.try_emit_constant_fold("[list string range abc 0 end-2147483649]"));
+        let mut v90 = CodegenCtx::new(false, &[], &registry);
+        v90.dialect = profile("tcl9.0");
+        assert!(v90.try_emit_constant_fold(lrange));
     }
 
     #[test]
