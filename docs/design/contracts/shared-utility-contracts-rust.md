@@ -41,6 +41,7 @@ entry point, or gate moves without this contract being updated.
 | word values (brace / list axes, braced-word recognition) | `rust/tcl-syntax/src/word_rules.rs` | `WordValueRules`; `collapse_braced_word`; `split_list`; `split_list_tolerant`; `split_word_names`; `whole_braced_word` | `LexerGrammar::brace_backslash_newline` and `list_parse` per dialect, carried together because a word-shaped list asks both; brace *balance* is release-invariant, so `whole_braced_word` takes no rules | none |
 | numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-dialect/src/expr_number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `is_expr_number`; `scan_expr_number`; `scan_nan_payload`; `NumberSyntax` | `NumberSyntax` and expression-word grammar per release | `xtask-number-drift` |
 | backslash escapes | `rust/tcl-lexer/src/substitution.rs`; `rust/tcl-syntax/src/backslash.rs`; `rust/tcl-dialect/src/grammar.rs` | `backslash_subst`; `backslash_subst_in`; `decode_bytes_in`; `EscapeSyntax` | `LexerGrammar::escapes` per release | none |
+| C Tcl UTF-8 character reads | `rust/tcl-syntax/src/utf.rs` | `decode`; `decode_with`; `count_chars`; `compare_chars`; `compare_chars_with`; `NUM_UTF_CHARS_VECTORS`; `UTF_NCMP_VECTORS` | Tcl 9.0 `Tcl_UtfToUniChar` (naked trail bytes `0x80..=0x9F` read as cp1252; cut-short and overlong sequences one character per byte); Tcl 8.6 reads differently and is not emulated | none |
 | boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
 | quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at`; `braced_var_name_end` | `${...}` close rule per release (`BracedVarStyle`); tmsh brace mode per dialect | none |
 | array-index source scan | `rust/tcl-lexer/src/ranges.rs`; `rust/tcl-dialect/src/grammar.rs` | `scan_array_index`; `ArrayIndexSyntax` | `LexerGrammar::array_index` per release | none |
@@ -275,6 +276,17 @@ the alias whose expression words a later sibling evaluates.
   Deliberately **not** a consumer: `tcl-compiler`'s
   `sccp::array_element_base` is a narrower fold-safety predicate (documented
   at the site) that excludes the zero-length array name this owner admits.
+- `utf` — how C Tcl 9.0's `Tcl_UtfToUniChar` reads bytes as characters,
+  malformed ones included: a naked trail byte `0x80`–`0x9F` is its cp1252
+  character, `C0 80` is a NUL, and a cut-short or overlong sequence is one
+  character per byte. `Tcl_NumUtfChars` and `Tcl_UtfNcmp` are that decoder
+  counted and compared, and both hosts of the C API bind it: the C shim
+  (`tcl-cshim`'s `ffi.rs`) and the WASM runtime (`capi.rs`). The decoder asks for
+  bytes through a closure so a raw-pointer caller reads only what C would. The
+  vector tables `NUM_UTF_CHARS_VECTORS` and `UTF_NCMP_VECTORS` were taken from a
+  program linked with libtcl 9.0.4 and every host is held to them; they cannot
+  ride the shared `pkga` script vectors, because a script's string is
+  well-formed UTF-8 and cannot carry a malformed byte (#2355).
 - `boolean` — `Tcl_GetBoolean` word recognition (unique prefixes of
   `true`/`yes`/`on`/`false`/`no`/`off`). Its prefix rule is *not* the
   option-table matcher below — boolean words have a fixed six-word
