@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T13:57:30Z on `work`.
+Current bounded snapshot: 2026-10-14T13:58:26Z on `work`.
 
 Shared command, variable, body and source owners are integrated across compiler/CFG,
 summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
@@ -65,7 +65,9 @@ corrected. Core95 builds successfully, then the initial selector mismatch execut
 zero controls. The corrected same-binary, expected-source replay seals at13:56:53:
 92 controls,66 PASS/26 FAIL, zero source drift and no missing or empty selectors.
 The original workspace member and deep graph controls and new current-source
-outline control pass. Code-lens, completion, hover/inlay and remaining Core failures
+outline control pass. All71 original Core84 controls remain, with two gains and
+zero regressions on that common set: workspace member and qualified Logical
+variable scope. Code-lens, completion, hover/inlay and remaining Core failures
 remain visible. The distinct inputless Authored definition owner and actual header
 attachment transport are now integrated; their new controls remain unexecuted.
 
