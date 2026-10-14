@@ -1,0 +1,269 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -2174,6 +2174,94 @@
+     Some(selected)
+ }
+ 
++/// Complete immediate Plain-body commands under the unchanged Module owner.
++/// Each child retains its own original source point; no body entry is issued.
++pub(crate) fn original_immediate_body_commands_for_module(
++    module: &crate::ir::Module,
++    registry: &CommandRegistry,
++    parent: &crate::ir::CommandTokens,
++) -> Option<Vec<crate::ir::CommandTokens>> {
++    let input = module.source_metadata_input.as_ref()?;
++    input.has_logical_source_name_context().then_some(())?;
++    let binding = parent.source_binding.as_ref()?;
++    let metadata = binding.original_invocation_metadata_for_module(parent, module, registry)?;
++    if binding.original_invocation_source_purpose(parent, metadata, registry)?
++        != crate::command_binding::OriginalInvocationSourcePurpose::Logical
++    {
++        return None;
++    }
++    let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
++    let words = original_registry_words_for_supplied_tokens(&realm, input, parent)?;
++    let context = input.borrowed_context_registry();
++    let immediate = words.with_source_schema(context, |schema| {
++        let mut selected = Vec::new();
++        for &(argument, role) in words.roles()? {
++            if role != tcl_registry::ArgRole::Body {
++                continue;
++            }
++            if schema.authored_source_script_timing_at(argument)?
++                != tcl_registry::ScriptTiming::SameInvocation
++            {
++                continue;
++            }
++            if schema.semantics.body_kind != tcl_registry::BodyKind::Plain
++                || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
++            {
++                return None;
++            }
++            selected.push(words.operands().get(argument)?.as_ref()?.word()?.span());
++        }
++        Some(selected)
++    })??;
++    if immediate.is_empty() {
++        return Some(Vec::new());
++    }
++    let bodies = words.source_script_bodies_for_mutation_coverage(context)?;
++    let source = module.source.try_text().ok()?;
++    let map = tcl_lexer::SourceMap::from_image(&module.source);
++    let mut commands = Vec::new();
++    for body in bodies {
++        if !immediate.iter().any(|span| {
++            span.start() <= body.container_extent_span().start()
++                && body.container_extent_span().end() <= span.end()
++        }) {
++            continue;
++        }
++        if !body.matches_source(&module.source, input.lexer_config())
++            || !body.matches_context(context)
++        {
++            return None;
++        }
++        for original in body.original_commands(context)? {
++            let segments = crate::segmenter::segment_commands_with_offset_and_config(
++                source.get(original.span.as_range())?,
++                original.span.start(),
++                input.lexer_config(),
++            );
++            if segments.len() != 1 {
++                return None;
++            }
++            let mut child =
++                crate::ir::CommandTokens::from_segmented(&map, input.lexer_config(), &segments[0]);
++            realm.stamp_original_tokens(&mut child);
++            let binding = child.source_binding.as_ref()?;
++            binding.original_invocation_metadata_for_module(&child, module, registry)?;
++            let site = binding.invocation_site()?;
++            let actual = super::original_native_compiler_words(
++                &module.source,
++                child.words(),
++                site.offset,
++                input.lexer_config(),
++            )?;
++            if actual != original.words {
++                return None;
++            }
++            commands.push(child);
++        }
++    }
++    Some(commands)
++}
++
+ /// Authored declaration roles at the unchanged complete invocation, with
+ /// their original declaration owner and no inherited Registry implementation.
+ pub(crate) fn original_declared_words_for_tokens(
+--- a/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
+@@ -847,7 +847,11 @@
+                 collect_renamed_outer_alias_transition(alias, renamed_aliases, semantics);
+             }
+         }
+-        let embedded = source_substitutions(stmt, semantics, namespace);
++        let embedded = if semantics.logical_source() && semantics.module.is_some() {
++            crate::ir_helpers::EvaluatedCommandSubstitutions::default()
++        } else {
++            source_substitutions(stmt, semantics, namespace)
++        };
+         for words in embedded.all_commands() {
+             let Some(head) = words
+                 .first()
+@@ -883,25 +887,56 @@
+         writes.opaque_variable_frame = true;
+         return (writes, aliases);
+     };
+-    let Some(children) = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+-        tokens,
+-        semantics.config,
+-        semantics.registry,
+-        metadata,
+-    ) else {
+-        writes.opaque_variable_frame = true;
+-        return (writes, aliases);
+-    };
+-    for child in children {
+-        let Some(child) = child.tokens else {
++    let mut pending = vec![(tokens.clone(), 0_u32)];
++    let mut seen = BTreeSet::new();
++    while let Some((parent, depth)) = pending.pop() {
++        if depth > 8 {
+             writes.opaque_variable_frame = true;
+             continue;
+-        };
+-        if let Some((child_writes, child_aliases)) = semantics.logical_footprint(&child) {
+-            merge_write_projection(&mut writes, child_writes);
+-            aliases.extend(child_aliases);
+-        } else {
++        }
++        if depth != 0 {
++            let Some(site) = parent
++                .source_binding
++                .as_ref()
++                .and_then(|binding| binding.invocation_site())
++            else {
++                writes.opaque_variable_frame = true;
++                continue;
++            };
++            if !seen.insert(site.offset) {
++                continue;
++            }
++            if let Some((child_writes, child_aliases)) = semantics.logical_footprint(&parent) {
++                merge_write_projection(&mut writes, child_writes);
++                aliases.extend(child_aliases);
++            } else {
++                writes.opaque_variable_frame = true;
++            }
++            if let Some(module) = semantics.module {
++                if let Some(bodies) = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
++                    module, semantics.registry, &parent,
++                ) {
++                    pending.extend(bodies.into_iter().map(|body| (body, depth + 1)));
++                } else {
++                    writes.opaque_variable_frame = true;
++                }
++            }
++        }
++        let Some(children) = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
++            &parent,
++            semantics.config,
++            semantics.registry,
++            metadata,
++        ) else {
+             writes.opaque_variable_frame = true;
++            continue;
++        };
++        for child in children {
++            if let Some(child) = child.tokens {
++                pending.push((child, depth + 1));
++            } else {
++                writes.opaque_variable_frame = true;
++            }
+         }
+     }
+     (writes, aliases)
+@@ -1181,7 +1216,11 @@
+     let Some(command_namespace) = statement_command_namespace(stmt, namespace) else {
+         return (out, true);
+     };
+-    let embedded = source_substitutions(stmt, semantics, namespace);
++    let embedded = if semantics.logical_source() && semantics.module.is_some() {
++        crate::ir_helpers::EvaluatedCommandSubstitutions::default()
++    } else {
++        source_substitutions(stmt, semantics, namespace)
++    };
+     let direct = semantics.statement_writes(
+         stmt,
+         script.retained_source_tokens_for_statement(stmt),
+@@ -1446,6 +1485,70 @@
+     }
+ 
+     #[test]
++    fn original_immediate_body_inventory_keeps_protected_children_and_refusals() {
++        let module = module("catch {set ::hits VALUE}");
++        let registry = module.resolved_registry();
++        let parent = module
++            .top_level
++            .retained_source_tokens_for_statement(module.top_level.statements.first().unwrap())
++            .unwrap();
++        let children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
++            &module, registry, parent,
++        ).expect("complete original protected body");
++        assert_eq!(children.len(), 1);
++        assert!(module.source_entry.native_entry.is_none());
++        assert_eq!(
++            crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
++                registry,
++                crate::registry_invocation::InvocationMetadataContext::for_module(
++                    registry, &module
++                )
++                .unwrap(),
++                &children[0]
++            )
++            .unwrap()
++            .0
++            .literal_names,
++            vec!["::hits"]
++        );
++        let mut stale = parent.clone();
++        stale.argv_texts[1] = "set ::other VALUE".to_owned();
++        assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
++            &module, registry, &stale,
++        ).is_none());
++        let mut changed = module.clone();
++        changed.source_metadata_input = None;
++        assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
++            &changed, registry, parent,
++        ).is_none());
++        let dynamic = self::module("catch $script");
++        let parent = dynamic
++            .top_level
++            .retained_source_tokens_for_statement(dynamic.top_level.statements.first().unwrap())
++            .unwrap();
++        assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
++            &dynamic, dynamic.resolved_registry(), parent,
++        ).is_none());
++    }
++
++    #[test]
++    fn original_substitution_protected_bodies_share_global_write_coverage() {
++        // experiments/name-handling/results/immediate-protected-body-writes-20261014/oracles/observations.json
++        for body in [
++            "catch {incr ::hits}",
++            "catch {catch {incr ::hits}}",
++            "try {incr ::hits} finally {incr ::done}",
++        ] {
++            let module = module(&format!("proc p {{}} {{set result [{body}]}}"));
++            let info = detect_global_write_procs(&module);
++            assert!(
++                info[&summary_id(&module, "::p")].names.contains("hits"),
++                "{body}"
++            );
++        }
++    }
++
++    #[test]
+     fn standalone_frame_write_advice_keeps_unprofiled_catalogue_separate_from_missing_input() {
+         // naming.compiler.original-analysis-metadata-context
+         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md

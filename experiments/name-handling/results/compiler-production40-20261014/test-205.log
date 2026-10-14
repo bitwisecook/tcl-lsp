@@ -1,0 +1,17 @@
+
+running 1 test
+test lowering::tests::method_variable_advice_preserves_literal_names_and_captured_prefix_values ... 
+thread 'lowering::tests::method_variable_advice_preserves_literal_names_and_captured_prefix_values' (249724) panicked at rust/tcl-compiler/src/lowering/mod.rs:10217:9:
+assertion `left == right` failed
+  left: ["", "", "$counter", "$counter", "brace{name}", "brace{name}", "-dash", "-dash"]
+ right: ["", "$counter", "brace{name}", "-dash"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    lowering::tests::method_variable_advice_preserves_literal_names_and_captured_prefix_values
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.20s
+

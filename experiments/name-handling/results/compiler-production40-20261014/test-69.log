@@ -1,0 +1,17 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::recovered_procedure_without_a_published_summary_is_opaque ... 
+thread 'cfg_builder::global_write_info::tests::recovered_procedure_without_a_published_summary_is_opaque' (249308) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1401:9:
+assertion `left == right` failed: authored fixture summary "::caller" must identify one body
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::recovered_procedure_without_a_published_summary_is_opaque
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.26s
+

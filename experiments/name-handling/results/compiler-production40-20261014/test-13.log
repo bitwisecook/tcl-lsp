@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::types::original_linked_member::tests::linked_method_navigation_retains_source_schema_and_literal_target_data ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 1.56s
+

@@ -1,0 +1,8 @@
+{
+  "captured_at_utc": "2026-10-14T05:42:41.386139+00:00",
+  "exit_code": 0,
+  "timed_out": false,
+  "input_drift": [],
+  "accepted_exact_editor_tests": true,
+  "scope": "Real VS Code provider/lifecycle tests with the explicitly supplied native server binary. Source/out/binary inputs captured; actual server build provenance, Node loaded-module/host dependency closure and Native Tcl/F5 oracle acceptance remain independent obligations."
+}

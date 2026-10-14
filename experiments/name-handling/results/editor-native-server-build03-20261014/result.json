@@ -1,0 +1,10 @@
+{
+  "finished_utc": "2026-10-14T05:41:58.947781+00:00",
+  "build_exit": 0,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/tcl-lsp-server",
+    "sha256": "f232fbc0c28c712826e72252a66201f5bd3d4de5788523efc9d00af039679b38",
+    "bytes": 282197560
+  },
+  "scope": "Actual native language-server build transcript and executable hash; complete dependency/provider closure and Native/F5 acceptance are separate."
+}

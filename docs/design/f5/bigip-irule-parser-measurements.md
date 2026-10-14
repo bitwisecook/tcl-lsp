@@ -10,7 +10,7 @@
 >
 > **Methodology caveat up front:** only §3 and §4a were run under the E4 probe
 > contract ([`dialect-and-package-registry-redesign.md`](../registry/dialect-and-package-registry-redesign.md)
-> §0.2). See [§11](#11-what-the-model-takes-from-this-run) for the exact delta
+> §0.2). See [§11](#11-evidence-contracts) for the exact delta
 > before relying on any other row as E4-conforming evidence.
 
 Measured against a live appliance, not inferred from documentation.

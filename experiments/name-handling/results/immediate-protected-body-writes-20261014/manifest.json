@@ -1,0 +1,37 @@
+{
+  "patch_sha256": "75020c8096ce98bdff8c4f0a1009fed55fb15dd3954d1fd2a5d6ab4b5dcac198",
+  "depends_on": "/tmp/name-supplied-original-realm-owner-20261014/implementation.patch",
+  "sources": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "88984404a46c2ece74e9f1e9ebc2fa0ef5f31ae9b255763701599e3062500a04",
+      "after_sha256": "ccff5a1ed8f0c659f2df529a8ecab19dce5f48413f36e7f6f86d658a3780a934"
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+      "before_sha256": "d4e3a2d74f79ffe8e08fc62683e19ac93d147734314de0448ddceed0b7590d93",
+      "after_sha256": "56e6bfe8548ade536eed3b73a99faa2bcc3750289d2af562328a6086282c91f0"
+    }
+  ],
+  "purpose": "Global Logical embedded consumer delegates original full-body and lexical command owners",
+  "tests": [
+    "cfg_builder::global_write_info::tests::original_immediate_body_inventory_keeps_protected_children_and_refusals",
+    "cfg_builder::global_write_info::tests::original_substitution_protected_bodies_share_global_write_coverage"
+  ],
+  "oracles": {
+    "observations_sha256": "213511d539b536015f7cd94053172945ae2ca2ae75cdc30130f1e8964aaefd2a",
+    "providers": [
+      "C Tcl 8.4.20",
+      "8.5.19",
+      "8.6.18",
+      "9.0.4",
+      "9.1.0",
+      "retained Jim"
+    ],
+    "fresh_latest_jim_confirmation": "Parent owns upstream freshness check",
+    "tcltest": false
+  },
+  "validation": "Rustfmt parsed; scratch-only no Cargo. Production acceptance pending successor replay.",
+  "coverage_guard": "Every selected immediate operand must be represented by a checked source-body region; otherwise None. Shared coverage independently compares complete expected body content-span vector to actual retained body inventory.",
+  "coverage_guard_followon": "Separate incremental packet; original packet has only shared complete mutation coverage checks"
+}

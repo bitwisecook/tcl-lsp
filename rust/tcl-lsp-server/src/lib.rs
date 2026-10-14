@@ -19210,7 +19210,7 @@ impl Backend {
             .to_owned();
         let registry = self.registry_for_dialect("f5-irules").await;
         let context = tcl_lsp_core::context_for_dialect("f5-irules");
-        let resolved = context.resolve_spec_case_advice(&registry, &name);
+        let resolved = context.context().resolve_spec_case_advice(&registry, &name);
         let value = match resolved {
             Some(spec) => serde_json::json!({
                 "found": true,

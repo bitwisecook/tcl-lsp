@@ -2140,8 +2140,10 @@ pub(crate) fn original_registry_words_for_supplied_tokens(
     if recorded.words() != tokens.words() || segment.argv.first()?.span.start() != site.offset {
         return None;
     }
-    let retained = realm.invocation_at_source("", site.offset);
-    let (_, retained_tokens) = retained.original_recorded_command()?;
+    let mut retained_tokens = recorded;
+    realm.stamp_original_tokens(&mut retained_tokens);
+    let retained = retained_tokens.source_binding.as_ref()?;
+    retained.original_invocation_metadata_for_input(&retained_tokens, input, registry)?;
     if retained.invocation_site() != Some(site) || retained_tokens.words() != tokens.words() {
         return None;
     }
@@ -2170,6 +2172,102 @@ pub(crate) fn original_registry_words_for_supplied_tokens(
         }
     }
     Some(selected)
+}
+
+/// Complete immediate Plain-body commands under the unchanged Module owner.
+/// Each child retains its own original source point; no body entry is issued.
+pub(crate) fn original_immediate_body_commands_for_module(
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    parent: &crate::ir::CommandTokens,
+) -> Option<Vec<crate::ir::CommandTokens>> {
+    let input = module.source_metadata_input.as_ref()?;
+    input.has_logical_source_name_context().then_some(())?;
+    let binding = parent.source_binding.as_ref()?;
+    let metadata = binding.original_invocation_metadata_for_module(parent, module, registry)?;
+    if binding.original_invocation_source_purpose(parent, metadata, registry)?
+        != crate::command_binding::OriginalInvocationSourcePurpose::Logical
+    {
+        return None;
+    }
+    let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
+    let words = original_registry_words_for_supplied_tokens(&realm, input, parent)?;
+    let context = input.borrowed_context_registry();
+    let immediate = words.with_source_schema(context, |schema| {
+        let mut selected = Vec::new();
+        for &(argument, role) in words.roles()? {
+            if role != tcl_registry::ArgRole::Body {
+                continue;
+            }
+            if schema.authored_source_script_timing_at(argument)?
+                != tcl_registry::ScriptTiming::SameInvocation
+            {
+                continue;
+            }
+            if schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+                || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+            {
+                return None;
+            }
+            selected.push(words.operands().get(argument)?.as_ref()?.word()?.span());
+        }
+        Some(selected)
+    })??;
+    if immediate.is_empty() {
+        return Some(Vec::new());
+    }
+    let bodies = words.source_script_bodies_for_mutation_coverage(context)?;
+    if immediate.iter().any(|span| {
+        !bodies.iter().any(|body| {
+            span.start() <= body.container_extent_span().start()
+                && body.container_extent_span().end() <= span.end()
+        })
+    }) {
+        return None;
+    }
+    let source = module.source.try_text().ok()?;
+    let map = tcl_lexer::SourceMap::from_image(&module.source);
+    let mut commands = Vec::new();
+    for body in bodies {
+        if !immediate.iter().any(|span| {
+            span.start() <= body.container_extent_span().start()
+                && body.container_extent_span().end() <= span.end()
+        }) {
+            continue;
+        }
+        if !body.matches_source(&module.source, input.lexer_config())
+            || !body.matches_context(context)
+        {
+            return None;
+        }
+        for original in body.original_commands(context)? {
+            let segments = crate::segmenter::segment_commands_with_offset_and_config(
+                source.get(original.span.as_range())?,
+                original.span.start(),
+                input.lexer_config(),
+            );
+            if segments.len() != 1 {
+                return None;
+            }
+            let mut child =
+                crate::ir::CommandTokens::from_segmented(&map, input.lexer_config(), &segments[0]);
+            realm.stamp_original_tokens(&mut child);
+            let binding = child.source_binding.as_ref()?;
+            binding.original_invocation_metadata_for_module(&child, module, registry)?;
+            let site = binding.invocation_site()?;
+            let actual = super::original_native_compiler_words(
+                &module.source,
+                child.words(),
+                site.offset,
+                input.lexer_config(),
+            )?;
+            if actual != original.words {
+                return None;
+            }
+            commands.push(child);
+        }
+    }
+    Some(commands)
 }
 
 /// Authored declaration roles at the unchanged complete invocation, with

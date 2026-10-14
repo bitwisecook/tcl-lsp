@@ -1,0 +1,63 @@
+--- a/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
+@@ -1107,24 +1107,18 @@
+     match (alias.local.literal(), outer) {
+         (Some(local), OuterAliasTarget::Exact(outer)) => {
+             let local = literal_root(local);
+-            if !local.is_empty() && !outer.is_empty() {
+-                renamed_aliases
+-                    .targets
+-                    .entry(local.to_owned())
+-                    .or_default()
+-                    .insert(outer);
+-            }
++            renamed_aliases
++                .targets
++                .entry(local.to_owned())
++                .or_default()
++                .insert(outer);
+         }
+         (Some(local), OuterAliasTarget::Opaque) => {
+             let local = literal_root(local);
+-            if !local.is_empty() {
+-                renamed_aliases.opaque_locals.insert(local.to_owned());
+-            }
++            renamed_aliases.opaque_locals.insert(local.to_owned());
+         }
+         (None, OuterAliasTarget::Exact(outer)) => {
+-            if !outer.is_empty() {
+-                renamed_aliases.dynamic_local_targets.insert(outer);
+-            }
++            renamed_aliases.dynamic_local_targets.insert(outer);
+         }
+         (None, OuterAliasTarget::Opaque) => renamed_aliases.dynamic_local_opaque = true,
+     }
+@@ -1549,6 +1543,28 @@
+     }
+ 
+     #[test]
++    fn original_global_alias_writes_keep_empty_local_and_remote_names() {
++        // experiments/name-handling/results/global-empty-alias-cell-20261014/oracles/observations.json
++        for (body, target) in [
++            ("upvar #0 {} local; set local VALUE", ""),
++            ("upvar #0 target {}; set {} VALUE", "target"),
++            ("upvar #0 {} {}; set {} VALUE", ""),
++        ] {
++            let module = module(&format!("proc p {{}} {{{body}}}"));
++            let summaries = detect_global_write_procs(&module);
++            assert!(
++                summaries[&summary_id(&module, "::p")]
++                    .names
++                    .contains(target),
++                "{body}"
++            );
++        }
++        let module = module("proc p {name} {upvar #0 {} $name; set ordinary VALUE}");
++        let summaries = detect_global_write_procs(&module);
++        assert!(summaries[&summary_id(&module, "::p")].names.contains(""));
++    }
++
++    #[test]
+     fn standalone_frame_write_advice_keeps_unprofiled_catalogue_separate_from_missing_input() {
+         // naming.compiler.original-analysis-metadata-context
+         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md

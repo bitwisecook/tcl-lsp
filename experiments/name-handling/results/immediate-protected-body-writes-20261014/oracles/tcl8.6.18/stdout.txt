@@ -1,0 +1,3 @@
+catch 1
+nested 2
+try 3 1

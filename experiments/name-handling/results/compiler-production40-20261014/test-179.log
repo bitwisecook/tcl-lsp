@@ -1,0 +1,6 @@
+
+running 1 test
+test deferred_writes::tests::deferred_source_installers_use_actual_availability_and_refuse_missing_input ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.39s
+

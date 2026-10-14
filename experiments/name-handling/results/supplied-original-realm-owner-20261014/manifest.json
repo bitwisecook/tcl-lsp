@@ -1,0 +1,12 @@
+{
+  "patch_sha256": "84afcb56333b2d4a18b70f73ff1de21d7636105e960355a827766a252596f4d0",
+  "source_before_sha256": "5860c1ef7ba31448168c6ae7076e1618f18e7a94108bb50dfd08b935555bcc4f",
+  "source_after_sha256": "88984404a46c2ece74e9f1e9ebc2fa0ef5f31ae9b255763701599e3062500a04",
+  "purpose": "Retain actual original realm producer for supplied source word validation",
+  "evidence": "/tmp/name-compiler40-body-guards-20261014/result.json",
+  "validation": [
+    "Existing original Logical body #0/current positive guards; relative/dynamic/stale/missing owner refusal controls",
+    "Rustfmt parse and git apply --check; no Cargo; no current semantic acceptance claimed"
+  ],
+  "tests": "registry_invocation::logical_frame::tests::original_logical_body_keeps_actual_parent_and_declines_unknown_caller_scope"
+}

@@ -1,0 +1,15 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -2140,8 +2140,10 @@
+     if recorded.words() != tokens.words() || segment.argv.first()?.span.start() != site.offset {
+         return None;
+     }
+-    let retained = realm.invocation_at_source("", site.offset);
+-    let (_, retained_tokens) = retained.original_recorded_command()?;
++    let mut retained_tokens = recorded;
++    realm.stamp_original_tokens(&mut retained_tokens);
++    let retained = retained_tokens.source_binding.as_ref()?;
++    retained.original_invocation_metadata_for_input(&retained_tokens, input, registry)?;
+     if retained.invocation_site() != Some(site) || retained_tokens.words() != tokens.words() {
+         return None;
+     }

@@ -1,0 +1,7 @@
+{
+  "captured_utc": "2026-10-14T05:30:20.741338+00:00",
+  "scope": "Source inventory sampled during actual native server build; no pre-build complete closure claim. Source freeze follows inventory.",
+  "paths": 34691,
+  "build_log": "/tmp/name-editor-native-server-build-20261014.log",
+  "source_commit": "9c0a995baad7e4f684bc34356ebd6d30699430a6"
+}

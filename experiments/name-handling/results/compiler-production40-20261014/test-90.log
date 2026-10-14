@@ -1,0 +1,17 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_resolves_late_alias_prefix_write ... 
+thread 'cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_resolves_late_alias_prefix_write' (249385) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2529:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_resolves_late_alias_prefix_write
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.29s
+

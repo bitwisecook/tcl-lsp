@@ -1,0 +1,17 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::conditional_namespace_alias_keeps_global_fallback_live ... 
+thread 'cfg_builder::global_write_info::tests::conditional_namespace_alias_keeps_global_fallback_live' (249168) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1401:9:
+assertion `left == right` failed: authored fixture summary "::n::p" must identify one body
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::conditional_namespace_alias_keeps_global_fallback_live
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.27s
+

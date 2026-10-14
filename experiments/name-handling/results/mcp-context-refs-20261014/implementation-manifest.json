@@ -1,0 +1,8 @@
+{
+  "patch_sha256": "ffd6a314d482138b16991b67f475467b4f3aa9d50af83d3b7b86311a10c1ea2d",
+  "base_sha256": "6b04bf51b66812033f6c260eb6ea95462b6605e9dc179cf3f4b144e7bb50b1ce",
+  "scope": "bounded textual hook-source advice only; actual declared targetprofile fullLexerConfig threaded tosharedlexervariable referenceowner; noexecutedhook/cache proof, noNative/F5 authority",
+  "validation": "scratchrustfmt/applycheck only; noCargo/Main",
+  "controls": "original C5 barectx\u00e9 readsctx plusliteral\u00e9; latestJim barectx\u00e9 readsdifferentvariable. New positive/refusal/unit grammarcontrols, all existingassertionspreserved.",
+  "public_control": "hook_context_report_threads_the_requested_target_grammar proves actualspectcl_check requestdialect reaches source-reference owner whilecacheabilitydeclunchanged"
+}

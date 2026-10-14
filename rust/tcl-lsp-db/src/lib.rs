@@ -202,12 +202,15 @@ use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
 use tcl_compiler::cfg_builder::{
     OriginalProcedureSummaryOwners, PreparedCfgContext, build_cfg_function_with_prepared_context,
 };
+#[cfg(test)]
 use tcl_compiler::command_binding::ModuleCommandBindings;
 use tcl_compiler::compilation_unit::{
     CompilationUnit, FunctionUnit, LatticeRequest, ModuleTraceFacts, UnitBuildOptions,
 };
 use tcl_compiler::compiler_checks::{DiagCode, Diagnostic as CompilerCheck};
-use tcl_compiler::interprocedural::{InterproceduralAnalysis, ProcSummary};
+use tcl_compiler::interprocedural::InterproceduralAnalysis;
+#[cfg(test)]
+use tcl_compiler::interprocedural::ProcSummary;
 use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
 use tcl_compiler::ssa::ValueKey;

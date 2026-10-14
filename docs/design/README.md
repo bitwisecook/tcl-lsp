@@ -115,6 +115,8 @@ fails.
   semantic owners and lookup boundaries across all consumers.
 - [bigip-object-name-resolution.md](contracts/bigip-object-name-resolution.md) —
   authored slash-domain object candidates, explicit precedence and ambiguity.
+- [bpf-name-handling.md](contracts/bpf-name-handling.md) — exact command contracts and independent BPF map symbols.
+- [tcloo-linked-member-source.md](contracts/tcloo-linked-member-source.md) — original linked-member source, alias/target geometry and complete edit coverage.
 
 - [callback-surface-inventory.md](contracts/callback-surface-inventory.md) —
   registry-derived executable/callback coverage, the audited external and
@@ -329,6 +331,10 @@ declarations are written in.
   taint, side-effect, and hover consumers.
 
 ## runtime/
+
+- [native-variable-access.md](runtime/native-variable-access.md) — original variable arguments, current frame/storage and independent read/write protocols.
+- [original-command-arguments.md](runtime/original-command-arguments.md) — authentic argument origins and checked command consumers.
+- [original-container-indices.md](runtime/original-container-indices.md) — retained list/dict index operands and current container ownership.
 
 The Tcl runtime: object model, namespaces, commands, the C surface it
 exports, and the ladder toward C tcltest parity.

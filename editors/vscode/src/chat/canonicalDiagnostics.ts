@@ -52,6 +52,3 @@ export const CONVERTIBLE_CODES = new Set(diagnostics.convertible_codes);
 
 /** Human-readable descriptions of each auto-fix conversion. */
 export const CONVERSION_MAP: Record<string, string> = diagnostics.conversion_map;
-
-/** Regex to extract iRules event names from source code. */
-export const IRULES_EVENT_PATTERN = new RegExp(diagnostics.irules_event_pattern, "gm");

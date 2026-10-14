@@ -15243,12 +15243,11 @@ impl Interp {
     /// Register `cmd` under the (possibly qualified) name `name` — for the OO
     /// object/class commands.
     pub(crate) fn ns_register(&mut self, name: &[u8], cmd: Command) {
-        let ns = self
+        let (namespace, tail) = self
             .namespaces
             .borrow_mut()
-            .command_home_ns(self.current_ns.get(), name);
-        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
-        self.bind_command_replacement(ns, &tail, cmd);
+            .support_command_publication_at(self.current_ns.get(), name);
+        self.bind_command_replacement(namespace, &tail, cmd);
     }
 
     /// Commands dispatched so far (`info cmdcount`).
@@ -15840,11 +15839,9 @@ impl Interp {
                 .command_c_api_publication_at(self.current_ns.get(), &name)
                 .expect("selected native child C command registration")
         } else {
-            let namespace = self.namespaces.borrow_mut().command_home_ns(GLOBAL, &name);
-            (
-                namespace,
-                tcl_syntax::naming::written_command_tail(&name).to_vec(),
-            )
+            self.namespaces
+                .borrow_mut()
+                .support_command_publication_at(GLOBAL, &name)
         };
         self.bind_command_replacement(namespace, &tail, Command::ChildInterp(command));
         child.native_child_command_generation.set(

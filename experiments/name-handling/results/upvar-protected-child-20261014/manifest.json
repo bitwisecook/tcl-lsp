@@ -1,0 +1,13 @@
+{
+  "patch_sha256": "731597c0c85d9e583f817a88d29139756e4d14e70b39eb0855854efda0009abb",
+  "dependency": "Original immediate-body adapter 75020 plus complete selected-body guard5c75",
+  "source_before_sha256": "d68dab1ab0602ad005b0bc257568f4d1fdec32d473d30fd4a2f4612abc7dc64f",
+  "source_after_sha256": "86b77aaffb492854219d2884aebeefad279855740e471e746544ebde32b753f1",
+  "purpose": "Upvar consumes authentic lexical/Expr/protected Plain immediate child commands under complete Module ownership",
+  "guards": "Original each-child metadata/input/site; checked geometry; independent frame context; frame bodies delegated existing frame owner; dynamic/missing/unknown children widen read/write; optimiser depth limit widens",
+  "tests": [
+    "cfg_builder::upvar_info::tests::original_protected_substitution_keeps_caller_alias_pairs"
+  ],
+  "oracle_sha256": "b9b06720f31157081550118947a4966b8456aaa3782a5de7be54061d3d33a2ae",
+  "validation": "Rustfmt + applycheck only, no Cargo/current semantic acceptance; original assertions unchanged"
+}

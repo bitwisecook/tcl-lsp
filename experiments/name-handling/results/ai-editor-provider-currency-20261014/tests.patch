@@ -1,0 +1,96 @@
+--- a/editors/vscode/src/test/chatUtilities.test.ts
++++ b/editors/vscode/src/test/chatUtilities.test.ts
+@@ -22,7 +22,50 @@
+ import { extractCodeBlock } from "../chat/codeUtils";
+ import { detectIruleEvents, extractSourceSymbolDefinitions } from "../chat/contextPack";
+ import { buildTclSystemPrompt } from "../chat/tclSystemPrompt";
+-import { activate, getDocUri } from "./helper";
++import { activate, bounded, getDocUri } from "./helper";
++
++async function sourceCardsAfterProviderMutation(
++  mutate: (document: vscode.TextDocument) => Promise<void>,
++): Promise<Awaited<ReturnType<typeof extractSourceSymbolDefinitions>>> {
++  const code = "proc source_currency {value} {return $value}";
++  const document = await vscode.workspace.openTextDocument({
++    language: "tcl86",
++    content: code,
++  });
++  let entered!: () => void;
++  let release!: () => void;
++  const invoked = new Promise<void>((resolve) => {
++    entered = resolve;
++  });
++  const gate = new Promise<void>((resolve) => {
++    release = resolve;
++  });
++  const provider = vscode.languages.registerDocumentSymbolProvider(
++    { language: "tcl86", scheme: document.uri.scheme },
++    {
++      provideDocumentSymbols: async (requested) => {
++        if (requested.uri.toString() !== document.uri.toString()) return undefined;
++        entered();
++        await gate;
++        return [];
++      },
++    },
++  );
++  const result = extractSourceSymbolDefinitions(code, Number.POSITIVE_INFINITY, document, "tcl86");
++  try {
++    await bounded(invoked, "the real editor symbol query entered its gated provider", {
++      timeout: 5_000,
++    });
++    await mutate(document);
++    release();
++    return await bounded(result, "the editor symbol query completed after source mutation", {
++      timeout: 5_000,
++    });
++  } finally {
++    release();
++    provider.dispose();
++  }
++}
+ 
+ suite("Chat Utilities", () => {
+   suiteSetup(async () => {
+@@ -127,7 +170,10 @@
+ 
+   test("an explicit source dialect does not borrow the original document language", async () => {
+     const code = "when HTTP_REQUEST {}";
+-    const document = await vscode.workspace.openTextDocument({ language: "tcl86", content: code });
++    const document = await vscode.workspace.openTextDocument({
++      language: "tcl86",
++      content: code,
++    });
+     const definitions = await extractSourceSymbolDefinitions(
+       code,
+       Number.POSITIVE_INFINITY,
+@@ -140,6 +186,29 @@
+     assert.strictEqual(document.getText(), code);
+   });
+ 
++  test("source cards withdraw when the document changes during a provider query", async () => {
++    const definitions = await sourceCardsAfterProviderMutation(async (document) => {
++      const version = document.version;
++      const edit = new vscode.WorkspaceEdit();
++      edit.replace(
++        document.uri,
++        new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)),
++        "proc replacement {} {}",
++      );
++      assert.ok(await vscode.workspace.applyEdit(edit));
++      assert.ok(document.version > version);
++    });
++    assert.strictEqual(definitions, undefined);
++  });
++
++  test("source cards withdraw when the document language changes during a provider query", async () => {
++    const definitions = await sourceCardsAfterProviderMutation(async (document) => {
++      const changed = await vscode.languages.setTextDocumentLanguage(document, "markdown");
++      assert.strictEqual(changed.languageId, "markdown");
++    });
++    assert.strictEqual(definitions, undefined);
++  });
++
+   test("Tcl system prompt is Tcl-focused", () => {
+     const prompt = buildTclSystemPrompt();
+     assert.ok(prompt.includes("Tcl"));

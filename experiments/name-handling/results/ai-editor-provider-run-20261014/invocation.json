@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "xvfb-run",
+    "-a",
+    "-s",
+    "-screen 0 1280x720x24 -nolisten tcp",
+    "node",
+    "./out/test/runTest.js"
+  ],
+  "cwd": "/workspace/tcl-lsp/editors/vscode",
+  "server": "/workspace/tcl-lsp/tmp/name-target-names/debug/tcl-lsp-server",
+  "grep": "^Chat Utilities ",
+  "partition": "1/3",
+  "source_expected_count": 11
+}

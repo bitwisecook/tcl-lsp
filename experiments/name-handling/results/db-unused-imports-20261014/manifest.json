@@ -1,0 +1,6 @@
+{
+  "path": "rust/tcl-lsp-db/src/lib.rs",
+  "before_sha256": "71574d2c74c1e5198cb73fe30e07402b004fc8a40a46252443545b25c5dfdb8a",
+  "patch_sha256": "848c41dee1e8b6c8fe3202b18f262553ebf8f69d8cfd24809237ad83f1c8d85a",
+  "validation": "ModuleCommandBindings readers only test module; ProcSummary readers only cfg(test) compatibility projection and tests. No allow/Main writes/Cargo."
+}

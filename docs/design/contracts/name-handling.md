@@ -619,3 +619,13 @@ repeated declarations keep their original source sites. Consumers use checked
 slot spellings for their report interface; they do not concatenate namespace
 seed labels. Missing or stale views decline. This source query grants no
 interpreter loading, dispatch or writable edit.
+
+## Hook-context source advice
+
+MCP `spectcl_check` threads the requested target profile's complete lexer
+configuration into the shared variable-reference scanner. Bare and braced
+`ctx` names keep their exact source extents; array uses remain unattributed.
+C Tcl and Jim differ on high bytes in bare names, so consumers do not substitute
+a private ASCII boundary rule. Literal dictionary keys provide bounded textual
+advice. The hook's input declaration independently determines cacheability;
+source advice supplies no executed hook, Native binding or cache proof.

@@ -1,0 +1,7 @@
+{
+  "finished_utc": "2026-10-14T05:38:19.326770+00:00",
+  "build_exit": 101,
+  "semantic_tests": 0,
+  "failure": "server calls ResolvedContext case-advice method on ContextRegistry wrapper",
+  "scope": "Build transcript only; no pre-build closure or acceptance claim"
+}

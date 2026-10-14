@@ -1,0 +1,7 @@
+{
+  "removed_utc": "2026-10-14T05:42:55.169735+00:00",
+  "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+  "bytes": 304278472,
+  "sha256": "4d7c48266e314f30c74d551a48fcbc4c81bc9a815f7090bb075cac91d095497d",
+  "reason": "Obsolete Rust server test harness; actual current editor replay uses target/debug/tcl-lsp-server. No active replay uses this harness; source and evidence retained."
+}

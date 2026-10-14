@@ -1,0 +1,17 @@
+
+running 1 test
+test registry_invocation::logical_frame::tests::original_logical_body_keeps_actual_parent_and_declines_unknown_caller_scope ... 
+thread 'registry_invocation::logical_frame::tests::original_logical_body_keeps_actual_parent_and_declines_unknown_caller_scope' (249756) panicked at rust/tcl-compiler/src/registry_invocation/logical_frame.rs:289:13:
+assertion `left == right` failed: #0
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::logical_frame::tests::original_logical_body_keeps_actual_parent_and_declines_unknown_caller_scope
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.16s
+

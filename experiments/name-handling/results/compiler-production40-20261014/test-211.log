@@ -1,0 +1,6 @@
+
+running 1 test
+test optimiser::helpers::var_refs::tests::bareword_occurrences_needs_whole_word_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.00s
+

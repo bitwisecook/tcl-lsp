@@ -1,0 +1,7 @@
+{
+  "patch_sha256": "5c75b051e79f0258163dc7805bf95dc007027f05c6bda8bee5695ce6a727b9a9",
+  "depends_on_sha256": "75020c8096ce98bdff8c4f0a1009fed55fb15dd3954d1fd2a5d6ab4b5dcac198",
+  "source_before_sha256": "ccff5a1ed8f0c659f2df529a8ecab19dce5f48413f36e7f6f86d658a3780a934",
+  "source_after_sha256": "6950a20438088e44766d90c38cffcc4cf739b714c8db8fe9f5d05328d52e2c25",
+  "purpose": "Every selected immediate original operand must be represented by full body coverage or refuse"
+}

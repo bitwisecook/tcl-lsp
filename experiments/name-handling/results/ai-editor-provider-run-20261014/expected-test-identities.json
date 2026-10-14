@@ -1,0 +1,13 @@
+[
+  "chatUtilities.test.js:Chat Utilities detectQueryType identifies iRules command queries",
+  "chatUtilities.test.js:Chat Utilities detectQueryType identifies event queries",
+  "chatUtilities.test.js:Chat Utilities extractCodeBlock returns Tcl code payload",
+  "chatUtilities.test.js:Chat Utilities detectIruleEvents uses shared current event cards",
+  "chatUtilities.test.js:Chat Utilities extractSourceSymbolDefinitions uses shared namespace and procedure owners",
+  "chatUtilities.test.js:Chat Utilities shared source cards keep repeated same-line names and exclude inert text",
+  "chatUtilities.test.js:Chat Utilities source symbol context does not borrow a Markdown provider",
+  "chatUtilities.test.js:Chat Utilities an explicit source dialect does not borrow the original document language",
+  "chatUtilities.test.js:Chat Utilities source cards withdraw when the document changes during a provider query",
+  "chatUtilities.test.js:Chat Utilities source cards withdraw when the document language changes during a provider query",
+  "chatUtilities.test.js:Chat Utilities Tcl system prompt is Tcl-focused"
+]

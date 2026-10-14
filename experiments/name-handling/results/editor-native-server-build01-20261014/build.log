@@ -1,0 +1,119 @@
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tokio v1.53.2
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tokio-util v0.7.19
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+warning: function `known_profile_for_dialect` is never used
+  --> rust/tcl-explorer/src/environment.rs:94:8
+   |
+94 | pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `catalogue_profile_for_dialect` is never used
+   --> rust/tcl-explorer/src/environment.rs:110:8
+    |
+110 | pub fn catalogue_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-explorer` (lib) generated 2 warnings
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+warning: unused import: `tcl_compiler::command_binding::ModuleCommandBindings`
+   --> rust/tcl-lsp-db/src/lib.rs:205:5
+    |
+205 | use tcl_compiler::command_binding::ModuleCommandBindings;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ProcSummary`
+   --> rust/tcl-lsp-db/src/lib.rs:210:62
+    |
+210 | use tcl_compiler::interprocedural::{InterproceduralAnalysis, ProcSummary};
+    |                                                              ^^^^^^^^^^^
+
+warning: `tcl-lsp-db` (lib) generated 2 warnings (run `cargo fix --lib -p tcl-lsp-db` to apply 2 suggestions)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+error[E0599]: no method named `starts_with` found for reference `&&ProcedureId` in the current scope
+    --> rust/f5-xc/src/translator.rs:1613:28
+     |
+1613 |         .filter(|(k, _)| k.starts_with("::when::"))
+     |                            ^^^^^^^^^^^ method not found in `&&ProcedureId`
+
+error[E0277]: a value of type `Vec<(&std::string::String, &tcl_compiler::Procedure)>` cannot be built from an iterator over elements of type `(&ProcedureId, &tcl_compiler::Procedure)`
+    --> rust/f5-xc/src/translator.rs:1614:10
+     |
+1614 |         .collect();
+     |          ^^^^^^^ value of type `Vec<(&std::string::String, &tcl_compiler::Procedure)>` cannot be built from `std::iter::Iterator<Item=(&ProcedureId, &tcl_compiler::Procedure)>`
+     |
+help: the trait `FromIterator<(&ProcedureId, &Procedure)>` is not implemented for `Vec<(&std::string::String, &tcl_compiler::Procedure)>`
+      but trait `FromIterator<(&std::string::String, &Procedure)>` is implemented for it
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/vec/mod.rs:3993:0
+     = help: for that trait implementation, expected `std::string::String`, found `ProcedureId`
+note: the method call chain might not have had the expected associated types
+    --> rust/f5-xc/src/translator.rs:1612:10
+     |
+1610 |       let mut event_procs: Vec<(&String, &tcl_compiler::ir::Procedure)> = module
+     |  _________________________________________________________________________-
+1611 | |         .procedures
+     | |___________________- this expression has type `ProcedureInventory`
+1612 |           .iter()
+     |            ^^^^^^ `Iterator::Item` is `(&ProcedureId, &Procedure)` here
+1613 |           .filter(|(k, _)| k.starts_with("::when::"))
+     |            ------------------------------------------ `Iterator::Item` remains `(&ProcedureId, &Procedure)` here
+note: required by a bound in `collect`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/iterator.rs:2073:4
+
+error[E0599]: no method named `starts_with` found for reference `&&ProcedureId` in the current scope
+    --> rust/f5-xc/src/translator.rs:1620:29
+     |
+1620 |         .filter(|(k, _)| !k.starts_with("::when::"))
+     |                             ^^^^^^^^^^^ method not found in `&&ProcedureId`
+
+error[E0277]: a value of type `Vec<(&std::string::String, &tcl_compiler::Procedure)>` cannot be built from an iterator over elements of type `(&ProcedureId, &tcl_compiler::Procedure)`
+    --> rust/f5-xc/src/translator.rs:1621:10
+     |
+1621 |         .collect();
+     |          ^^^^^^^ value of type `Vec<(&std::string::String, &tcl_compiler::Procedure)>` cannot be built from `std::iter::Iterator<Item=(&ProcedureId, &tcl_compiler::Procedure)>`
+     |
+help: the trait `FromIterator<(&ProcedureId, &Procedure)>` is not implemented for `Vec<(&std::string::String, &tcl_compiler::Procedure)>`
+      but trait `FromIterator<(&std::string::String, &Procedure)>` is implemented for it
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/vec/mod.rs:3993:0
+     = help: for that trait implementation, expected `std::string::String`, found `ProcedureId`
+note: the method call chain might not have had the expected associated types
+    --> rust/f5-xc/src/translator.rs:1619:10
+     |
+1617 |       let mut regular_procs: Vec<(&String, &tcl_compiler::ir::Procedure)> = module
+     |  ___________________________________________________________________________-
+1618 | |         .procedures
+     | |___________________- this expression has type `ProcedureInventory`
+1619 |           .iter()
+     |            ^^^^^^ `Iterator::Item` is `(&ProcedureId, &Procedure)` here
+1620 |           .filter(|(k, _)| !k.starts_with("::when::"))
+     |            ------------------------------------------- `Iterator::Item` remains `(&ProcedureId, &Procedure)` here
+note: required by a bound in `collect`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/iterator.rs:2073:4
+
+Some errors have detailed explanations: E0277, E0599.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `f5-xc` (lib) due to 4 previous errors

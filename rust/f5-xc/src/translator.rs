@@ -26,7 +26,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
-use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, SwitchMode, when_event_name};
+use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, SwitchMode};
 use tcl_compiler::lowering::lower_to_ir_with_config;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_core_types::DiagCode;
@@ -1603,26 +1603,31 @@ pub fn translate_irule_with_registry(
 
     let mut ctx = TranslationContext::new();
 
-    // Walk each event handler (procedures keyed `::when::EVENT`), in a
-    // deterministic order (BTreeMap-sorted qualified name) so the item order
-    // is stable. The resulting item set is order-independent for
-    // diagnostics, and the differential harness compares as a multiset.
-    let mut event_procs: Vec<(&String, &tcl_compiler::ir::Procedure)> = module
-        .procedures
-        .iter()
-        .filter(|(k, _)| k.starts_with("::when::"))
-        .collect();
-    event_procs.sort_by(|a, b| a.0.cmp(b.0));
+    // Original event ownership selects handlers; display names only order output.
+    let mut event_procs = Vec::new();
+    let mut regular_procs = Vec::new();
+    for (id, procedure) in module.procedures.iter() {
+        if let Some(event) =
+            tcl_compiler::source_graph::event_body_for_procedure(&module, id, procedure, registry)
+        {
+            event_procs.push((id, procedure, event));
+        } else {
+            regular_procs.push((id, procedure));
+        }
+    }
+    event_procs.sort_by(|a, b| {
+        a.1.qualified_name
+            .cmp(&b.1.qualified_name)
+            .then(a.0.cmp(b.0))
+    });
+    regular_procs.sort_by(|a, b| {
+        a.1.qualified_name
+            .cmp(&b.1.qualified_name)
+            .then(a.0.cmp(b.0))
+    });
 
-    let mut regular_procs: Vec<(&String, &tcl_compiler::ir::Procedure)> = module
-        .procedures
-        .iter()
-        .filter(|(k, _)| !k.starts_with("::when::"))
-        .collect();
-    regular_procs.sort_by(|a, b| a.0.cmp(b.0));
-
-    for (qualified_name, proc) in event_procs {
-        let event_name = when_event_name(qualified_name).to_owned();
+    for (_, proc, event) in event_procs {
+        let event_name = event.event().to_owned();
         ctx.current_event.clone_from(&event_name);
 
         if translatable_event(&event_name).is_some() {

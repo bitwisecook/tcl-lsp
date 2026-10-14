@@ -702,6 +702,105 @@ fn walk_script(
             namespace,
             info,
         );
+        if let Some(bindings) = bindings
+            && bindings.input.has_logical_source_name_context()
+            && let Some(tokens) = script.retained_source_tokens_for_statement(stmt)
+        {
+            record_original_child_frame_effects(
+                tokens, params, registry, bindings, namespace, info,
+            );
+        }
+    }
+}
+
+fn record_original_child_frame_effects(
+    tokens: &CommandTokens,
+    params: &[String],
+    registry: &CommandRegistry,
+    bindings: UpvarBindings<'_>,
+    namespace: &str,
+    info: &mut UpvarInfo,
+) {
+    let mut pending = vec![(tokens.clone(), 0_u32)];
+    let mut seen = BTreeSet::new();
+    while let Some((parent, depth)) = pending.pop() {
+        if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
+            continue;
+        }
+        let Some(site) = parent
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.invocation_site())
+        else {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
+            continue;
+        };
+        if !seen.insert(site.offset) {
+            continue;
+        }
+        let selected = parent.source_binding.as_ref().and_then(|binding| {
+            let metadata = binding.original_invocation_metadata_for_module(
+                &parent,
+                bindings.module,
+                registry,
+            )?;
+            crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
+                registry, metadata, &parent,
+            )
+        });
+        let Some(selected) = selected else {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
+            continue;
+        };
+        if depth != 0 {
+            record_logical_frame_invocation(
+                &selected,
+                LogicalFrameScan {
+                    tokens: &parent,
+                    current: FrameContext::Own,
+                    params,
+                    registry,
+                    bindings,
+                    namespace,
+                    depth,
+                },
+                info,
+            );
+        }
+        if selected.layout().is_none() {
+            if let Some(children) = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+                bindings.module, registry, &parent,
+            ) {
+                pending.extend(children.into_iter().map(|child| (child, depth + 1)));
+            } else {
+                info.caller_frame_opaque_writes = true;
+                info.caller_frame_opaque_reads = true;
+            }
+        }
+        if let Some(children) =
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                &parent,
+                bindings.input.lexer_config(),
+                registry,
+                bindings.metadata,
+            )
+        {
+            for child in children {
+                if let Some(child) = child.tokens {
+                    pending.push((child, depth + 1));
+                } else {
+                    info.caller_frame_opaque_writes = true;
+                    info.caller_frame_opaque_reads = true;
+                }
+            }
+        } else {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
+        }
     }
 }
 
@@ -2289,6 +2388,28 @@ mod tests {
         let info = collect_upvar_targets(&body, &[]);
         assert_eq!(info.literal_targets.get("a"), Some(&"1".to_string()));
         assert_eq!(info.literal_targets.get("c"), Some(&"b".to_string()));
+    }
+
+    #[test]
+    fn original_protected_substitution_keeps_caller_alias_pairs() {
+        // experiments/name-handling/results/upvar-protected-child-20261014/oracles/observations.json
+        for command in [
+            "catch {upvar 1 target local}",
+            "catch {catch {upvar 1 target local}}",
+        ] {
+            let info = module_proc_info(
+                &format!("proc p {{}} {{set result [{command}]; set local VALUE}}"),
+                "::p",
+            );
+            assert_eq!(
+                info.literal_targets.get("local"),
+                Some(&"target".to_owned()),
+                "{command}"
+            );
+        }
+        let dynamic = module_proc_info("proc p {script} {set result [catch $script]}", "::p");
+        assert!(dynamic.caller_frame_opaque_writes);
+        assert!(dynamic.caller_frame_opaque_reads);
     }
 
     #[test]

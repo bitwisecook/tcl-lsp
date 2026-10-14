@@ -1,0 +1,8 @@
+{
+  "finished_utc": "2026-10-14T05:33:54.183031+00:00",
+  "build_exit": 101,
+  "semantic_tests": 0,
+  "changed_sources": {},
+  "failure": "f5-xc translator treats issued ProcedureId as display String in four production compile errors",
+  "scope": "during-build source sample only; not Native or complete closure acceptance"
+}

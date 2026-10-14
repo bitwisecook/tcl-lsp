@@ -1,0 +1,15 @@
+
+running 1 test
+test ssa::tests::original_literal_empty_reads_and_mutations_keep_name_data ... 
+thread 'ssa::tests::original_literal_empty_reads_and_mutations_keep_name_data' (249779) panicked at rust/tcl-compiler/src/ssa.rs:8615:13:
+"$name": [("name", Quoted)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::tests::original_literal_empty_reads_and_mutations_keep_name_data
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.48s
+

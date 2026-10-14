@@ -1,0 +1,9 @@
+{
+  "patch_sha256": "84a2aaebb8da971ceae5bb2bb47e1e99a8190e0ec2cb8986fa51b570a5bdd9a2",
+  "purpose": "Exact selected variable-cell alias maps preserve legal empty local and remote names",
+  "source_before_sha256": "56e6bfe8548ade536eed3b73a99faa2bcc3750289d2af562328a6086282c91f0",
+  "source_after_sha256": "6a500cee9d14939c12b032ef3804d0e64cae64c87224816b4c8596f6eeda76f8",
+  "oracle_sha256": "9c48ef085912f5a99bbdaecbfb6bbdeb8bffad32bbe01dae5b4a7d6da0b8c8af",
+  "providers": "Fresh actual C8.4\u20139.1 + retained Jim; empty remote, empty local, both empty, dynamic local all valid; exit0 empty stderr; binary/library drift0; no tcltest",
+  "validation": "Rustfmt and applycheck; no Cargo, successor semantic acceptance pending"
+}

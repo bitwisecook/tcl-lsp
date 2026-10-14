@@ -1,0 +1,17 @@
+
+running 1 test
+test deferred_writes::tests::a_callback_writes_through_every_shape_of_command ... 
+thread 'deferred_writes::tests::a_callback_writes_through_every_shape_of_command' (249643) panicked at rust/tcl-compiler/src/deferred_writes.rs:1089:9:
+assertion `left == right` failed
+  left: ["a", "l", "n", "s"]
+ right: ["a", "l", "n", "s", "u"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_callback_writes_through_every_shape_of_command
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.19s
+

@@ -2641,10 +2641,16 @@ impl Namespaces {
         }
     }
 
-    /// Select the holder of an authored bootstrap or support command name.
-    /// Original publication selects its own operation-specific slot.
-    pub(crate) fn command_home_ns(&mut self, current: NsId, name: &[u8]) -> NsId {
-        self.command_home_parts(current, &written_command_parts(name))
+    /// Select one authored support slot from counted written components.
+    /// The actual holder token survives ambiguous reports and dying namespaces.
+    pub(crate) fn support_command_publication_at(
+        &mut self,
+        current: NsId,
+        written: &[u8],
+    ) -> (NsId, Vec<u8>) {
+        let parts = written_command_parts(written);
+        let namespace = self.command_home_parts(current, &parts);
+        (namespace, parts.simple.to_vec())
     }
 
     fn command_home_parts(
@@ -3929,6 +3935,29 @@ mod tests {
     }
     fn is_some(c: Option<Command>) -> bool {
         c.is_some()
+    }
+
+    #[test]
+    fn support_publication_keeps_actual_relative_holders_and_counted_empty_tails() {
+        let mut namespaces = Namespaces::new();
+        let current = namespaces.ensure_child(GLOBAL, b":");
+        let child = namespaces.ensure_child(current, b"child");
+        assert_eq!(
+            namespaces.support_command_publication_at(current, b"p"),
+            (current, b"p".to_vec())
+        );
+        assert_eq!(
+            namespaces.support_command_publication_at(current, b"::p"),
+            (GLOBAL, b"p".to_vec())
+        );
+        assert_eq!(
+            namespaces.support_command_publication_at(current, b"child::\xff\0tail"),
+            (child, b"\xff\0tail".to_vec())
+        );
+        assert_eq!(
+            namespaces.support_command_publication_at(current, b"child::"),
+            (child, Vec::new())
+        );
     }
 
     #[test]

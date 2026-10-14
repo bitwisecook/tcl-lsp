@@ -847,7 +847,11 @@ fn accumulate_state(
                 collect_renamed_outer_alias_transition(alias, renamed_aliases, semantics);
             }
         }
-        let embedded = source_substitutions(stmt, semantics, namespace);
+        let embedded = if semantics.logical_source() && semantics.module.is_some() {
+            crate::ir_helpers::EvaluatedCommandSubstitutions::default()
+        } else {
+            source_substitutions(stmt, semantics, namespace)
+        };
         for words in embedded.all_commands() {
             let Some(head) = words
                 .first()
@@ -883,25 +887,56 @@ fn original_nested_footprint(
         writes.opaque_variable_frame = true;
         return (writes, aliases);
     };
-    let Some(children) = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-        tokens,
-        semantics.config,
-        semantics.registry,
-        metadata,
-    ) else {
-        writes.opaque_variable_frame = true;
-        return (writes, aliases);
-    };
-    for child in children {
-        let Some(child) = child.tokens else {
+    let mut pending = vec![(tokens.clone(), 0_u32)];
+    let mut seen = BTreeSet::new();
+    while let Some((parent, depth)) = pending.pop() {
+        if depth > 8 {
+            writes.opaque_variable_frame = true;
+            continue;
+        }
+        if depth != 0 {
+            let Some(site) = parent
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.invocation_site())
+            else {
+                writes.opaque_variable_frame = true;
+                continue;
+            };
+            if !seen.insert(site.offset) {
+                continue;
+            }
+            if let Some((child_writes, child_aliases)) = semantics.logical_footprint(&parent) {
+                merge_write_projection(&mut writes, child_writes);
+                aliases.extend(child_aliases);
+            } else {
+                writes.opaque_variable_frame = true;
+            }
+            if let Some(module) = semantics.module {
+                if let Some(bodies) = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+                    module, semantics.registry, &parent,
+                ) {
+                    pending.extend(bodies.into_iter().map(|body| (body, depth + 1)));
+                } else {
+                    writes.opaque_variable_frame = true;
+                }
+            }
+        }
+        let Some(children) = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            &parent,
+            semantics.config,
+            semantics.registry,
+            metadata,
+        ) else {
             writes.opaque_variable_frame = true;
             continue;
         };
-        if let Some((child_writes, child_aliases)) = semantics.logical_footprint(&child) {
-            merge_write_projection(&mut writes, child_writes);
-            aliases.extend(child_aliases);
-        } else {
-            writes.opaque_variable_frame = true;
+        for child in children {
+            if let Some(child) = child.tokens {
+                pending.push((child, depth + 1));
+            } else {
+                writes.opaque_variable_frame = true;
+            }
         }
     }
     (writes, aliases)
@@ -1072,24 +1107,18 @@ fn collect_renamed_outer_alias_transition(
     match (alias.local.literal(), outer) {
         (Some(local), OuterAliasTarget::Exact(outer)) => {
             let local = literal_root(local);
-            if !local.is_empty() && !outer.is_empty() {
-                renamed_aliases
-                    .targets
-                    .entry(local.to_owned())
-                    .or_default()
-                    .insert(outer);
-            }
+            renamed_aliases
+                .targets
+                .entry(local.to_owned())
+                .or_default()
+                .insert(outer);
         }
         (Some(local), OuterAliasTarget::Opaque) => {
             let local = literal_root(local);
-            if !local.is_empty() {
-                renamed_aliases.opaque_locals.insert(local.to_owned());
-            }
+            renamed_aliases.opaque_locals.insert(local.to_owned());
         }
         (None, OuterAliasTarget::Exact(outer)) => {
-            if !outer.is_empty() {
-                renamed_aliases.dynamic_local_targets.insert(outer);
-            }
+            renamed_aliases.dynamic_local_targets.insert(outer);
         }
         (None, OuterAliasTarget::Opaque) => renamed_aliases.dynamic_local_opaque = true,
     }
@@ -1181,7 +1210,11 @@ fn own_write_targets(
     let Some(command_namespace) = statement_command_namespace(stmt, namespace) else {
         return (out, true);
     };
-    let embedded = source_substitutions(stmt, semantics, namespace);
+    let embedded = if semantics.logical_source() && semantics.module.is_some() {
+        crate::ir_helpers::EvaluatedCommandSubstitutions::default()
+    } else {
+        source_substitutions(stmt, semantics, namespace)
+    };
     let direct = semantics.statement_writes(
         stmt,
         script.retained_source_tokens_for_statement(stmt),
@@ -1443,6 +1476,92 @@ mod tests {
         assert!(
             detect_global_write_procs(&dynamic)[&summary_id(&dynamic, "::p")].opaque_global_frame
         );
+    }
+
+    #[test]
+    fn original_immediate_body_inventory_keeps_protected_children_and_refusals() {
+        let module = module("catch {set ::hits VALUE}");
+        let registry = module.resolved_registry();
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(module.top_level.statements.first().unwrap())
+            .unwrap();
+        let children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+            &module, registry, parent,
+        ).expect("complete original protected body");
+        assert_eq!(children.len(), 1);
+        assert!(module.source_entry.native_entry.is_none());
+        assert_eq!(
+            crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
+                registry,
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    registry, &module
+                )
+                .unwrap(),
+                &children[0]
+            )
+            .unwrap()
+            .0
+            .literal_names,
+            vec!["::hits"]
+        );
+        let mut stale = parent.clone();
+        stale.argv_texts[1] = "set ::other VALUE".to_owned();
+        assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+            &module, registry, &stale,
+        ).is_none());
+        let mut changed = module.clone();
+        changed.source_metadata_input = None;
+        assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+            &changed, registry, parent,
+        ).is_none());
+        let dynamic = self::module("catch $script");
+        let parent = dynamic
+            .top_level
+            .retained_source_tokens_for_statement(dynamic.top_level.statements.first().unwrap())
+            .unwrap();
+        assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
+            &dynamic, dynamic.resolved_registry(), parent,
+        ).is_none());
+    }
+
+    #[test]
+    fn original_substitution_protected_bodies_share_global_write_coverage() {
+        // experiments/name-handling/results/immediate-protected-body-writes-20261014/oracles/observations.json
+        for body in [
+            "catch {incr ::hits}",
+            "catch {catch {incr ::hits}}",
+            "try {incr ::hits} finally {incr ::done}",
+        ] {
+            let module = module(&format!("proc p {{}} {{set result [{body}]}}"));
+            let info = detect_global_write_procs(&module);
+            assert!(
+                info[&summary_id(&module, "::p")].names.contains("hits"),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_global_alias_writes_keep_empty_local_and_remote_names() {
+        // experiments/name-handling/results/global-empty-alias-cell-20261014/oracles/observations.json
+        for (body, target) in [
+            ("upvar #0 {} local; set local VALUE", ""),
+            ("upvar #0 target {}; set {} VALUE", "target"),
+            ("upvar #0 {} {}; set {} VALUE", ""),
+        ] {
+            let module = module(&format!("proc p {{}} {{{body}}}"));
+            let summaries = detect_global_write_procs(&module);
+            assert!(
+                summaries[&summary_id(&module, "::p")]
+                    .names
+                    .contains(target),
+                "{body}"
+            );
+        }
+        let module = module("proc p {name} {upvar #0 {} $name; set ordinary VALUE}");
+        let summaries = detect_global_write_procs(&module);
+        assert!(summaries[&summary_id(&module, "::p")].names.contains(""));
     }
 
     #[test]

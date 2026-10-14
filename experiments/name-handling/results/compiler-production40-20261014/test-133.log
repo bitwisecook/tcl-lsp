@@ -1,0 +1,17 @@
+
+running 1 test
+test cfg_builder::upvar_info::tests::nested_relative_one_reaches_past_the_caller ... 
+thread 'cfg_builder::upvar_info::tests::nested_relative_one_reaches_past_the_caller' (249501) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2421:9:
+assertion `left == right` failed: got UpvarInfo { literal_targets: {}, param_targets: {}, args_tail_upvar: [], has_unresolvable_caller_target: false, uplevel_literal_writes: {}, uplevel_param_writes: {}, uplevel_forwarded_calls: [], caller_frame_opaque_writes: true, caller_frame_opaque_reads: true, unnameable_local_aliases: {}, frame_reach: NoFurtherThanTheCaller, plain_calls: {}, param_defaults: {} }
+  left: NoFurtherThanTheCaller
+ right: PastTheCaller
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::upvar_info::tests::nested_relative_one_reaches_past_the_caller
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.20s
+

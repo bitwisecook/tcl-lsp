@@ -1,0 +1,17 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -2217,6 +2217,14 @@
+         return Some(Vec::new());
+     }
+     let bodies = words.source_script_bodies_for_mutation_coverage(context)?;
++    if immediate.iter().any(|span| {
++        !bodies.iter().any(|body| {
++            span.start() <= body.container_extent_span().start()
++                && body.container_extent_span().end() <= span.end()
++        })
++    }) {
++        return None;
++    }
+     let source = module.source.try_text().ok()?;
+     let map = tcl_lexer::SourceMap::from_image(&module.source);
+     let mut commands = Vec::new();

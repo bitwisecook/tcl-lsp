@@ -1,0 +1,9 @@
+{
+  "integrated_utc": "2026-10-14T05:40:29.349817+00:00",
+  "source": "rust/f5-xc/src/translator.rs",
+  "source_sha256": "a957337e61dcaabdae092061231edded502948c7c7c65b1a528d61f3bcaa21ce",
+  "owner": "tcl_compiler::source_graph::event_body_for_procedure",
+  "selection": "Actual Module-issued body and original Registry-selected event declaration; display names and IDs only order output.",
+  "new_control": "event_shaped_procedure_names_do_not_select_response_event_semantics",
+  "validation": "Formatting and patch review only; fresh semantic control required. No BIG-IP or Native execution claim."
+}

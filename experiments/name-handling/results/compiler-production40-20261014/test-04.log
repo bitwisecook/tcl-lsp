@@ -1,0 +1,15 @@
+
+running 1 test
+test ssa::tests::lowered_literal_read_names_keep_empty_and_dollar_data ... 
+thread 'ssa::tests::lowered_literal_read_names_keep_empty_and_dollar_data' (249064) panicked at rust/tcl-compiler/src/ssa.rs:8583:9:
+[[("", Name)], [("name", Quoted)]]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::tests::lowered_literal_read_names_keep_empty_and_dollar_data
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9692 filtered out; finished in 0.41s
+
