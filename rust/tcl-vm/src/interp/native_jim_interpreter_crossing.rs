@@ -20,7 +20,7 @@
 
 use super::native_numeric_ops::OriginalNumericOps;
 use super::native_operation_currency::NativeOperationScope;
-use super::{Completion, InterpId, Vm};
+use super::{Completion, InterpId, Local, Vm};
 use crate::Value;
 use std::rc::Rc;
 use tcl_cmd_core::CmdError;
@@ -118,6 +118,66 @@ impl Vm {
             .collect();
         scope.check(self)?;
         Ok((Rc::new(prefix), Rc::new(words)))
+    }
+
+    pub(super) fn copy_original_jim_child_startup_variables(
+        &mut self,
+        child: InterpId,
+        initialisation: tcl_registry::special_vars::NativeChildInitialisation,
+    ) -> Result<(), CmdError> {
+        let parent = NativeOperationScope::enter(self)?;
+        for &name in initialisation.copied_parent_variables() {
+            parent.check(self)?;
+            let Some(resolved) = self.resolve_var_from_bytes(name, 0) else {
+                continue;
+            };
+            let Some(value) = self.read_variable_contents(&resolved) else {
+                continue;
+            };
+            let original = value.native_lifetime_lease();
+            drop(value);
+            let copied = self.copy_original_jim_value_to(
+                child,
+                original.value(),
+                NativeJimInterpreterCopyPurpose::ChildStartupVariable,
+            )?;
+            self.in_interp(child, |vm| {
+                let receiver = NativeOperationScope::enter(vm)?;
+                let target = vm.resolve_var_from_bytes(name, 0).ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim child global publication"),
+                )?;
+                if target.elem.is_some()
+                    || target.id.is_some_and(|id| {
+                        matches!(
+                            vm.var_arena.get(id).map(crate::vars::VarCell::state),
+                            Some(Local::Array(_))
+                        )
+                    })
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim child scalar publication",
+                    )
+                    .into());
+                }
+                let id = vm
+                    .ensure_target_var_at_binding(&target.binding, None)
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original Jim child global cell",
+                    ))?;
+                if !vm
+                    .var_arena
+                    .replace_state(id, Local::Scalar(copied.publish()))
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim child global cell retirement",
+                    )
+                    .into());
+                }
+                receiver.check(vm)
+            })?;
+            parent.check(self)?;
+        }
+        Ok(())
     }
 
     pub(super) fn eval_original_jim_child_object(

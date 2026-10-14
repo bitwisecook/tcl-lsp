@@ -571,10 +571,20 @@ fn command_reads(
         ) {
             Some(invocation) => {
                 let whole = invocation.facts().traits.contains(Traits::WHOLE_ARRAY_ARG);
-                if invocation.has_unknown_residual() {
+                if invocation.has_unknown_residual()
+                    || invocation
+                        .facts()
+                        .traits
+                        .contains(Traits::PERFORMS_SUBSTITUTION)
+                {
                     out.push(place::unknown_top());
                 }
                 for &(argument, role) in invocation.roles() {
+                    // Selected value grammars need their own component owner.
+                    // Literal word quoting alone does not make evaluated data inert.
+                    if matches!(role, ArgRole::Expr | ArgRole::Body | ArgRole::CommandPrefix) {
+                        out.push(place::unknown_top());
+                    }
                     if role != ArgRole::VarRead {
                         continue;
                     }
@@ -1774,5 +1784,35 @@ mod tests {
         let mut reads = Vec::new();
         command_reads("info exists $computed", &context, &mut reads, &registry);
         assert!(reads.iter().any(|place| place.name == "computed"));
+    }
+
+    #[test]
+    fn standalone_evaluated_data_keeps_reads_unknown_without_a_component_owner() {
+        let registry = registry();
+        let context = ResolveContext::for_function("::f");
+        for script in ["expr {$value}", "subst {$value}", "eval {puts $value}"] {
+            let mut reads = Vec::new();
+            command_reads(script, &context, &mut reads, &registry);
+            assert!(
+                reads.iter().any(|place| place.kind == PlaceKind::Unknown),
+                "{script}"
+            );
+        }
+        let mut inert = Vec::new();
+        command_reads(
+            "expr {{${value}} eq {$literal}}",
+            &context,
+            &mut inert,
+            &registry,
+        );
+        assert!(inert.iter().any(|place| place.kind == PlaceKind::Unknown));
+        assert!(
+            !inert
+                .iter()
+                .any(|place| matches!(place.name.as_str(), "value" | "literal"))
+        );
+        let mut literal = Vec::new();
+        command_reads("puts {$value}", &context, &mut literal, &registry);
+        assert!(literal.is_empty());
     }
 }

@@ -7543,50 +7543,79 @@ impl Vm {
         }
         let id = self.new_interp_slot(child, parent);
         // The child replays its constructor's inputs in its own command world.
-        self.in_interp(id, |vm| {
+        let entered = self.in_interp(id, |vm| {
             let saved = vm.active_native_profile;
             vm.active_native_profile = vm.actual_engine_profile.or(saved);
-            match vm.bootstrap.clone() {
-                NativeBootstrapPurpose::Core { protocol, inputs } => {
-                    crate::command::register_builtins_with_native_core(vm, Some(protocol));
-                    vm.bootstrap_native_core(protocol, &inputs);
-                    if protocol
-                        .child_initialisation()
-                        .initialises_jim_static_extensions()
-                    {
-                        for &library in
+            let entered = (|| -> Result<(), tcl_runtime_api::NativeExecutionError> {
+                let scope = native_operation_currency::NativeOperationScope::enter_native(vm)?;
+                match vm.bootstrap.clone() {
+                    NativeBootstrapPurpose::Core { protocol, inputs } => {
+                        crate::command::register_builtins_with_native_core(vm, Some(protocol));
+                        scope.check_native(vm)?;
+                        vm.bootstrap_native_core(protocol, &inputs);
+                        scope.check_native(vm)?;
+                        if protocol
+                            .child_initialisation()
+                            .initialises_jim_static_extensions()
+                        {
+                            for &library in
                             tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL
                         {
                             vm.install_scripted_library(library);
+                            scope.check_native(vm)?;
+                        }
                         }
                     }
+                    NativeBootstrapPurpose::Distribution => {
+                        register_builtins(vm);
+                        vm.bootstrap_globals();
+                    }
                 }
-                NativeBootstrapPurpose::Distribution => {
-                    register_builtins(vm);
-                    vm.bootstrap_globals();
+                scope.check_native(vm)?;
+                vm.enable_command_semantics_tracking();
+                if vm.authored_timers.installed {
+                    crate::retained_activation::register_provider(vm);
                 }
-            }
+                if vm.authored_rule_providers.callables
+                    || vm.authored_rule_providers.counted_strings
+                {
+                    authored_rule_callables::register_provider(vm);
+                }
+                if vm.authored_packages.is_some() {
+                    authored_package::register_provider(vm);
+                }
+                if vm.authored_tmm_static.policy.is_some() {
+                    authored_tmm_static::register_provider(vm);
+                }
+                for capability in vm.framework_builtins.clone() {
+                    vm.install_framework_builtin(capability);
+                }
+                if safe {
+                    vm.make_safe();
+                }
+                scope.check_native(vm)
+            })();
             vm.active_native_profile = saved;
-            vm.enable_command_semantics_tracking();
-            if vm.authored_timers.installed {
-                crate::retained_activation::register_provider(vm);
-            }
-            if vm.authored_rule_providers.callables || vm.authored_rule_providers.counted_strings {
-                authored_rule_callables::register_provider(vm);
-            }
-            if vm.authored_packages.is_some() {
-                authored_package::register_provider(vm);
-            }
-            if vm.authored_tmm_static.policy.is_some() {
-                authored_tmm_static::register_provider(vm);
-            }
-            for capability in vm.framework_builtins.clone() {
-                vm.install_framework_builtin(capability);
-            }
-            if safe {
-                vm.make_safe();
-            }
+            entered
         });
+        if let Err(first) = entered {
+            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first));
+            self.retire_interp(id);
+            return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
+        }
+        if let Some(initialisation) = self
+            .actual_native_invocation_dialect()
+            .native_bootstrap_protocol()
+            .map(|protocol| protocol.child_initialisation())
+            .filter(|initialisation| initialisation.initialises_jim_static_extensions())
+        {
+            if let Err(error) = self.copy_original_jim_child_startup_variables(id, initialisation) {
+                let _ = crate::command::completion_from_cmd_error(self, error);
+                self.retire_interp(id);
+                return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
+            }
+        }
+
         // The interp *path* name keys `children` as written (interp names are
         // their own universe, never namespace-parsed); the command it creates
         // in this interp is an ordinary command name, so its key qualifies.
@@ -32292,6 +32321,96 @@ mod native_child_constructor_tests {
         ));
         assert_eq!(vm.interps.len(), count);
         assert!(!vm.children.contains_key(b"child".as_slice()));
+    }
+
+    #[test]
+    fn jim_child_bootstrap_values_have_the_child_allocator_birth() {
+        let mut vm = core("jim");
+        let id = vm
+            .create_child_named_bytes(NameBytes::from(b"child"), false)
+            .unwrap();
+        let parent = vm.native_jim_object_context().unwrap();
+        vm.in_interp(id, |child| {
+            let context = child.native_jim_object_context().unwrap();
+            let value = child.get_var("tcl_patchLevel").unwrap();
+            assert!(value.bind_native_jim_context(&context).is_ok());
+            assert!(value.bind_native_jim_context(&parent).is_err());
+            assert!(child.execution_refusal.is_none());
+        });
+        assert!(vm.execution_refusal.is_none());
+    }
+
+    #[test]
+    fn jim_child_copies_only_existing_parent_globals_with_the_original_cstring_extent() {
+        let mut vm = core("jim");
+        let parent = vm.native_jim_object_context().unwrap();
+        let original = {
+            let _scope = native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
+            let original = Value::new_native_string_bytes(b"parent\0tail");
+            vm.write_scalar_raw("argv", original.clone());
+            vm.write_scalar_raw("argc", Value::new_native_string_bytes(b"9"));
+            vm.write_scalar_raw("jim::argv0", Value::new_native_string_bytes(b"\xc3\xa9"));
+            original
+        };
+        let count = original.native_object_reference_count();
+        assert!(vm.get_var("jim::lineedit").is_none());
+        let id = vm
+            .create_child_named_bytes(NameBytes::from(b"child"), false)
+            .unwrap();
+        vm.in_interp(id, |child| {
+            let context = child.native_jim_object_context().unwrap();
+            for (name, expected) in [
+                ("argv", b"parent".as_slice()),
+                ("argc", b"9".as_slice()),
+                ("jim::argv0", b"\xc3\xa9".as_slice()),
+            ] {
+                let value = child.get_var(name).unwrap();
+                assert_eq!(value.resident_string_bytes().unwrap().as_ref(), expected);
+                assert!(value.bind_native_jim_context(&context).is_ok());
+                assert!(value.bind_native_jim_context(&parent).is_err());
+                assert!(!value.is_same_object(&original));
+            }
+            assert!(child.get_var("jim::lineedit").is_none());
+        });
+        assert_eq!(original.native_object_reference_count(), count);
+        assert_eq!(
+            original.resident_string_bytes().unwrap().as_ref(),
+            b"parent\0tail"
+        );
+        assert!(vm.execution_refusal.is_none());
+    }
+
+    #[test]
+    fn child_startup_copy_ignores_parent_local_shadows_and_c_has_no_copy_recipe() {
+        let mut vm = core("jim");
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(
+                crate::environment::profile_for_dialect("jim"),
+            ),
+        ));
+        let completion = vm.try_eval_source(
+            "set argv GLOBAL; proc create_with_local {} {set argv LOCAL; interp}; create_with_local",
+        ).unwrap();
+        assert_eq!(completion.code, Code::Ok);
+        let name = completion.result.resident_string_bytes().unwrap();
+        let id = vm.child_id(std::str::from_utf8(&name).unwrap()).unwrap();
+        vm.in_interp(id, |child| {
+            assert_eq!(
+                child
+                    .get_var("argv")
+                    .unwrap()
+                    .resident_string_bytes()
+                    .unwrap()
+                    .as_ref(),
+                b"GLOBAL"
+            );
+        });
+        let mut c = core("tcl9.0");
+        c.write_scalar_raw("argv", Value::string("parent"));
+        let id = c
+            .create_child_named_bytes(NameBytes::from(b"child"), false)
+            .unwrap();
+        c.in_interp(id, |child| assert!(child.get_var("argv").is_none()));
     }
 
     #[test]

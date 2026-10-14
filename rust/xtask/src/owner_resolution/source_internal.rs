@@ -86,19 +86,19 @@ pub(super) fn validate(root: &Path, markdown: &str) -> (Coverage, Vec<String>) {
         Err(error) => return (coverage, vec![error]),
     };
     let mut errors = Vec::new();
-    let mut cached = BTreeMap::<PathBuf, CrateModules>::new();
+    let mut cached = BTreeMap::<(PathBuf, Option<(String, String, String)>), CrateModules>::new();
     for row in rows {
         let checked = (|| {
             let package_root = crate_root(&row.source)?;
             if crate_root(&row.consumer_source)? != package_root {
                 return Err("foreign consumer crate".into());
             }
-            if !cached.contains_key(&package_root) {
-                let modules =
-                    CrateModules::load(root, &package_root, [&row.module, &row.consumer_module])?;
-                cached.insert(package_root.clone(), modules);
+            let cache_key = (package_root.clone(), CrateModules::direct_self_scope(&row));
+            if !cached.contains_key(&cache_key) {
+                let modules = CrateModules::load_for_route(root, &package_root, &row)?;
+                cached.insert(cache_key.clone(), modules);
             }
-            let modules = cached.get(&package_root).ok_or("missing parsed crate")?;
+            let modules = cached.get(&cache_key).ok_or("missing parsed crate")?;
             if modules.name != row.crate_name {
                 return Err("Cargo package identity differs".into());
             }
@@ -156,6 +156,41 @@ fn crate_root(source: &str) -> Result<PathBuf, String> {
 
 impl CrateModules {
     fn load(root: &Path, crate_root: &Path, required: [&str; 2]) -> Result<Self, String> {
+        Self::load_with_scope(root, crate_root, required, false)
+    }
+
+    fn direct_self_scope(row: &Row) -> Option<(String, String, String)> {
+        let owner = row.entry.split_once("::").map(|(owner, _)| owner);
+        let consumer = row.consumer_entry.split_once("::").map(|(owner, _)| owner);
+        let direct_self = row.route == "self"
+            && row.module == row.consumer_module
+            && row.source == row.consumer_source
+            && owner.is_some()
+            && owner == consumer;
+        direct_self.then(|| {
+            (
+                row.module.clone(),
+                row.source.clone(),
+                owner.unwrap().to_owned(),
+            )
+        })
+    }
+
+    fn load_for_route(root: &Path, crate_root: &Path, row: &Row) -> Result<Self, String> {
+        Self::load_with_scope(
+            root,
+            crate_root,
+            [&row.module, &row.consumer_module],
+            Self::direct_self_scope(row).is_some(),
+        )
+    }
+
+    fn load_with_scope(
+        root: &Path,
+        crate_root: &Path,
+        required: [&str; 2],
+        direct_self: bool,
+    ) -> Result<Self, String> {
         let cargo = std::fs::read_to_string(root.join(crate_root).join("Cargo.toml"))
             .map_err(|error| error.to_string())?;
         let name = cargo
@@ -178,6 +213,7 @@ impl CrateModules {
             "crate",
             required,
             "crate",
+            direct_self,
             &mut modules,
         )?;
         Ok(Self { name, modules })
@@ -189,6 +225,7 @@ impl CrateModules {
         module: &str,
         required: [&str; 2],
         access_scope: &str,
+        direct_self: bool,
         modules: &mut BTreeMap<String, SourceModule>,
     ) -> Result<(), String> {
         if modules.len() >= 2048 {
@@ -231,6 +268,13 @@ impl CrateModules {
             if !declarations.insert(child_name.clone()) {
                 return Err(format!("duplicate module `{child_name}`"));
             }
+            if direct_self
+                && !required.iter().any(|needed| {
+                    *needed == child_name || needed.starts_with(&format!("{child_name}::"))
+                })
+            {
+                continue;
+            }
             let direct = directory.join(format!("{}.rs", child.ident));
             let nested = directory.join(child.ident.to_string()).join("mod.rs");
             let available = [direct, nested]
@@ -242,7 +286,15 @@ impl CrateModules {
             };
             let scope =
                 visibility_scope(&child.vis, module).ok_or("unsupported file-module visibility")?;
-            Self::load_module(root, path.clone(), &child_name, required, &scope, modules)?;
+            Self::load_module(
+                root,
+                path.clone(),
+                &child_name,
+                required,
+                &scope,
+                direct_self,
+                modules,
+            )?;
         }
         if modules
             .insert(
@@ -2440,6 +2492,76 @@ mod file_route_tests {
             assert!(coverage.is_empty());
             assert!(!problems.is_empty());
         }
+    }
+
+    #[test]
+    fn direct_self_module_routes_keep_the_existing_tree_bound_without_unrelated_loading() {
+        let fixture = root();
+        let source = "pub(super) struct Ledger; impl Ledger { pub(super) fn selected(&self) {} fn consume(&self) { self.selected(); } }";
+        std::fs::write(fixture.0.join("rust/a/src/shared/owner.rs"), source).unwrap();
+        let mut library = String::from("mod shared;\n");
+        for index in 0..2050 {
+            let module = format!("unrelated{index}");
+            library.push_str(&format!("mod {module};\n"));
+            std::fs::write(fixture.0.join(format!("rust/a/src/{module}.rs")), "").unwrap();
+        }
+        std::fs::write(fixture.0.join("rust/a/src/lib.rs"), library).unwrap();
+        let mut rows = parse(&manifest()).unwrap();
+        let row = rows.first_mut().unwrap();
+        row.entry = "Ledger::selected".into();
+        row.consumer_entry = "Ledger::consume".into();
+        row.consumer_module = row.module.clone();
+        row.consumer_source = row.source.clone();
+        row.route = "self".into();
+        let modules = CrateModules::load_for_route(&fixture.0, Path::new("rust/a"), row).unwrap();
+        assert!(modules.check_row(row));
+        assert!(modules.modules.len() < 2048);
+        assert!(
+            CrateModules::load(
+                &fixture.0,
+                Path::new("rust/a"),
+                [&row.module, &row.consumer_module]
+            )
+            .is_err()
+        );
+        row.consumer_entry = "Other::consume".into();
+        assert!(CrateModules::load_for_route(&fixture.0, Path::new("rust/a"), row).is_err());
+    }
+
+    #[test]
+    fn targeted_self_cache_cannot_lend_its_tree_to_full_receiver_routes() {
+        let fixture = root();
+        let mut library = String::from("mod shared;\n");
+        for index in 0..2050 {
+            let module = format!("unrelated{index}");
+            library.push_str(&format!("mod {module};\n"));
+            std::fs::write(fixture.0.join(format!("rust/a/src/{module}.rs")), "").unwrap();
+        }
+        std::fs::write(fixture.0.join("rust/a/src/lib.rs"), library).unwrap();
+        std::fs::write(fixture.0.join("rust/a/src/shared/owner.rs"),
+            "pub(super) struct Ledger; impl Ledger { pub(super) fn selected(&self) {} fn consume(&self) { self.selected(); } } fn borrow(ledger: &Ledger) { ledger.selected(); }").unwrap();
+        let self_row = "| source | `rust/a/src/shared/owner.rs` | `a` | `crate::shared::owner` | `Ledger::selected` | pub(super) | `rust/a/src/shared/owner.rs` | `crate::shared::owner` | `Ledger::consume` | `self` |";
+        let borrowed_row = self_row
+            .replace("`Ledger::consume`", "`borrow`")
+            .replace("`self`", "`parameter:ledger`");
+        let text = format!("{START}\n{self_row}\n{borrowed_row}\n{END}");
+        let (coverage, failures) = validate(&fixture.0, &text);
+        assert_eq!(coverage.len(), 1);
+        assert_eq!(failures.len(), 1);
+        assert!(failures[0].contains("source module route exceeds bound"));
+
+        // A separately loaded full mode keeps actual std shadow declarations.
+        std::fs::write(fixture.0.join("rust/a/src/lib.rs"), "mod shared; mod std;").unwrap();
+        std::fs::write(
+            fixture.0.join("rust/a/src/std.rs"),
+            "pub mod boxed { pub struct Box<T>(T); }",
+        )
+        .unwrap();
+        std::fs::write(fixture.0.join("rust/a/src/shared/owner.rs"),
+            "pub(super) struct Ledger; impl Ledger { pub(super) fn selected(&self) {} fn consume(&self) { self.selected(); } } fn borrow(ledger: &std::boxed::Box<Ledger>) { ledger.selected(); }").unwrap();
+        let (coverage, failures) = validate(&fixture.0, &text);
+        assert_eq!(coverage.len(), 1);
+        assert_eq!(failures.len(), 1);
     }
 
     #[test]
