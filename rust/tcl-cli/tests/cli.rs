@@ -296,6 +296,32 @@ fn explore_json_emits_the_contract_keys() {
     }
 }
 
+/// The SCCP view and the interprocedural view spell one constant the same
+/// way, as the fold spells it (issue #2405).
+#[test]
+fn explore_sccp_and_interprocedural_spell_a_constant_alike() {
+    let source = "proc p {} {set x [expr {1e300 * 10.0}]; return $x}\nputs [p]";
+    let out = run_tcl(&[
+        "explore",
+        "--source",
+        source,
+        "--json",
+        "--show",
+        "sccp,interprocedural",
+    ]);
+    let value: serde_json::Value = serde_json::from_slice(&out).expect("explore JSON");
+    let p_sccp = value["sccp"]
+        .as_array()
+        .and_then(|units| units.iter().find(|u| u["name"] == "::p"))
+        .expect("::p in the SCCP view");
+    let lattice = p_sccp["values"][0]["lattice"].as_str().expect("lattice");
+    let shape = value["interprocedural"][0]["returnShape"]
+        .as_str()
+        .expect("returnShape");
+    assert_eq!(lattice, "const(1e+301)");
+    assert_eq!(lattice, shape);
+}
+
 #[test]
 fn explore_summary_lists_views() {
     let out = run_tcl(&["explore", "--source", "set x 1"]);
@@ -1843,6 +1869,40 @@ fn opt_writes_a_tab_as_a_tab_under_a_redirected_stdout() {
     assert!(
         rendered.contains("a\tb"),
         "the tab in `r`'s value must survive a redirected `tcl opt`: {rendered:?}"
+    );
+}
+
+/// `tcl highlight` writes the source's tabs verbatim when stdout is not a
+/// terminal, under `--no-colour`, and as HTML; only the ANSI rendering
+/// expands them, counting source columns rather than escape-code bytes
+/// (issue #2241).
+#[test]
+fn highlight_writes_a_tab_as_a_tab_under_a_redirected_stdout() {
+    let scratch = Scratch::new("highlight-tab");
+    let source = "proc p {} {\n\tset r \"a\tb\"\n\treturn $r\n}\n";
+    let file = scratch.write("tab.tcl", source);
+    let path = file.to_str().expect("utf-8 path");
+
+    let redirected = String::from_utf8(run_tcl(&["highlight", path])).unwrap();
+    assert_eq!(
+        redirected, source,
+        "a redirected stdout carries the source verbatim"
+    );
+
+    let plain = String::from_utf8(run_tcl(&["highlight", "--no-colour", path])).unwrap();
+    assert_eq!(plain, source, "`--no-colour` carries the source verbatim");
+
+    let html = String::from_utf8(run_tcl(&["highlight", "--format", "html", path])).unwrap();
+    assert!(html.contains("a\tb"), "HTML keeps the tab: {html:?}");
+
+    let ansi = String::from_utf8(run_tcl(&["highlight", "--colour", path])).unwrap();
+    assert!(
+        !ansi.contains('\t'),
+        "the ANSI rendering expands tabs: {ansi:?}"
+    );
+    assert!(
+        ansi.contains("\"a    b\""),
+        "the tab stop counts source columns, not escape codes: {ansi:?}"
     );
 }
 
