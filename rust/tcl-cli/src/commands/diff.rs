@@ -680,8 +680,23 @@ mod tests {
         let source = "proc p {} {set value 1; return $value}; p";
         let document = DiffDocument::capture(source, &input, true).unwrap();
         let explorer = document.explorer.as_ref().unwrap();
+        let mut declarations =
+            explorer
+                .unit
+                .ir_module
+                .procedures
+                .iter()
+                .filter(|(_, procedure)| {
+                    procedure.declaration_site.as_ref().is_some_and(|site| {
+                        site.offset == 0 && site.source.source_image().bytes() == source.as_bytes()
+                    })
+                });
+        let body_id = declarations.next().map(|(&id, _)| id);
+        assert!(declarations.next().is_none());
         assert!(
-            explorer.unit.function("::p").is_some(),
+            body_id
+                .and_then(|id| explorer.unit.function_for_body(Some(id)))
+                .is_some(),
             "genuine Logical source procedure missing"
         );
         assert_eq!(document.analysis.resolved_input.as_ref(), Some(&input));

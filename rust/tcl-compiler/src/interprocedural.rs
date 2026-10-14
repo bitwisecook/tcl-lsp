@@ -285,9 +285,9 @@ pub struct MethodSummary {
 /// Result of running interprocedural analysis on a module.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct InterproceduralAnalysis {
-    /// Per-procedure summaries keyed by qualified name.
+    /// Procedure summaries keyed by their issued Module body IDs.
     pub procedures: HashMap<ProcedureId, ProcSummary>,
-    /// Per-method summaries keyed by qualified name.
+    /// Method summaries keyed by their issued Module body IDs.
     pub methods: HashMap<crate::ir::ProcedureId, MethodSummary>,
     /// Conditional object/widget class candidates from original top-level
     /// source setup, keyed by procedure. Eager calls see earlier source

@@ -120,9 +120,9 @@ impl MethodInventory {
             .values()
             .map(|method| (method.reporting_label(), method))
     }
-    /// Reporting-only selection declines when any label has multiple bodies.
-    #[must_use]
-    pub fn unique_display(&self, label: &str) -> Option<(ProcedureId, &MethodDef)> {
+    /// Select one uniquely named authored test fixture.
+    #[cfg(test)]
+    pub(crate) fn unique_display(&self, label: &str) -> Option<(ProcedureId, &MethodDef)> {
         let mut matches = self
             .0
             .iter()

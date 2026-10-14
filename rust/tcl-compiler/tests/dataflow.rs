@@ -71,6 +71,10 @@
 //! command-substitution RHS ⇒ kept because of its side effect) are the
 //! tclsh-anchored ones.
 
+#[path = "support/function_identity.rs"]
+mod function_identity;
+use function_identity::OriginalFixtureFunctions;
+
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::dataflow_graph::{
     DataFlowGraph, EdgeKind, FunctionInputs, extract_dataflow_graph, extract_function_dataflow,
@@ -101,7 +105,7 @@ fn top_fu(cu: &CompilationUnit) -> &FunctionUnit {
 
 /// A specific procedure's `FunctionUnit`.
 fn proc_fu<'a>(cu: &'a CompilationUnit, qname: &str) -> &'a FunctionUnit {
-    cu.function(qname)
+    cu.fixture_function(qname)
         .unwrap_or_else(|| panic!("function {qname} not found"))
 }
 

@@ -1,0 +1,142 @@
+{
+  "source": "/workspace/name-implementation-worktrees/runtime/experiments/name-handling/runtime-retained-import-source",
+  "destination": "/tmp/name-runtime-fixture-audit-20261014/bundle/experiments/name-handling/runtime-retained-import-source",
+  "scope": "Byte-exact restoration of saved authentic oracle capsule; no new execution or expected-output fabrication. Original captures retain their original timestamps and dependency provenance.",
+  "files": [
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.4.20/ldd.txt",
+      "sha256": "cf2a5039feec81fbb80814acdb0e73e131eaf2611b1b2e7f222b909e4235b050",
+      "size": 222
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.4.20/record.json",
+      "sha256": "8fdd1432c71a7f2588c8ccf18167b6389af24b1fffcb51f8e6fd04ebb3e075f3",
+      "size": 4425
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.4.20/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.4.20/stdout.bin",
+      "sha256": "0c272381c24201add502513e8a98049b568e7cf94ee4234abe7b45f61d44ea76",
+      "size": 90
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.5.19/ldd.txt",
+      "sha256": "4abfb67dcea2618c6db36948cd2d6470317dbdcbb63a488192ae8939a69dc529",
+      "size": 222
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.5.19/record.json",
+      "sha256": "38c843808183090545b3e05a5cd3e0033b4a235da52dfda40892565069ff4826",
+      "size": 4547
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.5.19/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.5.19/stdout.bin",
+      "sha256": "08b1221b488be3295ea4f5e4d93b9e9c8fd7bf28e0ff5d6652d501875d1c072f",
+      "size": 90
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.6.18/ldd.txt",
+      "sha256": "044cc0cbba1f29a3aa458890d0b4ead368a14fbff214e085c28e630cb71ad10d",
+      "size": 289
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.6.18/record.json",
+      "sha256": "9b14ebf67dec89e9471b77cd6f9bf3a325507bcb0f50388d8986e312792282ba",
+      "size": 4662
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.6.18/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/8.6.18/stdout.bin",
+      "sha256": "194b0dd7712f15ad2a020c776fef61896a67ac3cc4889792aa322cb6e0814d80",
+      "size": 90
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/9.0.4/ldd.txt",
+      "sha256": "a72bc7de07b2fbd1df650293605719a8614e335d521244e5371534b0a4bedb1c",
+      "size": 289
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/9.0.4/record.json",
+      "sha256": "be7991138533234f05681f1966f81e634c095c23f1f3dd22da62079aadc0017a",
+      "size": 5422
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/9.0.4/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/9.0.4/stdout.bin",
+      "sha256": "c59d7885e5e6f0002de94ef3764dfa7271f8a984624802e93fa8679bf8968bf7",
+      "size": 89
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/9.1.0/ldd.txt",
+      "sha256": "6f29362651f8a67315e6601024d96b769d058c93c5e52c0e13b4cf5e49b2c8a6",
+      "size": 289
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/9.1.0/record.json",
+      "sha256": "78fbe05430bdb1f8d650b6bcfb140ee276c6a1b566dcebfecddc872a02cdf9e5",
+      "size": 5552
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/9.1.0/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/9.1.0/stdout.bin",
+      "sha256": "1b0b01c4369dd4948471748f7cd8fdefad1038e13fa6b8e1efd8717e7d47ffc7",
+      "size": 89
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/input.tcl",
+      "sha256": "da6173cc9d7348e136dc5f5be56f544a3f99d044a17b7b482439a03fad252579",
+      "size": 1088
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/jim/ldd.txt",
+      "sha256": "e606c73f968767d5b6c5ae1c6be2e44c19237be619e947b0df019d1595c5cdcc",
+      "size": 510
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/jim/record.json",
+      "sha256": "64b2022b33783e484f3373458b83c913c2a3fe751d1b824eab69e72672271ba2",
+      "size": 9709
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/jim/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/jim/stdout.bin",
+      "sha256": "941957fbe5586fdd6be0c0507a1a6a1cc746b874b26a5427ea622a96d9a23cb6",
+      "size": 85
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/records.json",
+      "sha256": "8a0372e6c6238d1993afe9fcd8814ab1561d8be53b81861bda22ce63562aab0e",
+      "size": 35000
+    },
+    {
+      "path": "experiments/name-handling/runtime-retained-import-source/selected-control.tcl",
+      "sha256": "344ba3d0e22aac4e7f2295a96bf3d18a4926b078320dc27454dc7f788f313410",
+      "size": 967
+    }
+  ]
+}

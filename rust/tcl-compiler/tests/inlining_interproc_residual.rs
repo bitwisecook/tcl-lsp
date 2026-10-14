@@ -82,6 +82,10 @@
 
 #[path = "support/body_identity.rs"]
 mod body_identity;
+#[path = "support/function_identity.rs"]
+mod function_identity;
+use function_identity::OriginalFixtureFunctions;
+
 use body_identity::fixture_id;
 
 use std::collections::HashSet;
@@ -806,7 +810,7 @@ fn call_by_name_reads(source: &str, caller_qname: &str) -> HashSet<String> {
         None,
     );
     let index = build_proc_index_from_summaries(&ia);
-    let fu = cu.function(caller_qname).expect("caller proc");
+    let fu = cu.fixture_function(caller_qname).expect("caller proc");
     collect_call_by_name_reads(&fu.cfg, &index)
 }
 
@@ -942,7 +946,7 @@ fn call_by_name_empty_index_short_circuits() {
     // empty set without scanning (the `index.is_empty()` early return).
     let r = reg();
     let cu = CompilationUnit::build_for("proc f {} { setvar y 1 }\n", &r, false);
-    let fu = cu.function("::f").expect("proc f");
+    let fu = cu.fixture_function("::f").expect("proc f");
     let empty = ProcIndex::new();
     assert!(
         collect_call_by_name_reads(&fu.cfg, &empty).is_empty(),

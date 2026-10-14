@@ -16,36 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Per-proc summary of global/namespace variable writes.
+//! Body-keyed MAY writes to global and namespace variables.
 //!
-//! Mirrors [`super::upvar_info`]'s shape and role in the pipeline, for the
-//! complementary correctness gap: `upvar_info` tells a caller which of
-//! *its own* frame variables a callee will alias and write; this module
-//! tells a caller which *global/namespace* variables a callee will alias
-//! (via `global` / `variable` / `upvar #0`) and write, so that
-//! [`super::CfgBuilder::apply_upvar_invalidation`] can widen a call's
-//! `defs` for those too. Without this, SCCP treats a bare global/namespace
-//! name as an ordinary private local across an opaque call — unsound
-//! (`proc mutate {} { global x; set x 99 }; set x 5; mutate; expr {$x+1}`
-//! must not fold to `6`; tclsh yields `100`).
+//! The flow-insensitive scan collects every possible outer-place declaration
+//! before projecting writes, so disjoint branches conservatively share alias
+//! facts. Exact original procedure calls then propagate these summaries to a
+//! monotone fixpoint. Unknown targets widen the outer frame instead of selecting
+//! a body by its display name.
 //!
-//! ## Flow-insensitive, sound over-approximation
-//!
-//! Real Tcl style declares `global`/`variable` before using the name, but
-//! this scan does not depend on that ordering: it first unions every
-//! `global` / `variable` / `upvar #0` declaration in the whole proc body
-//! (via the shared [`crate::var_observability::stmt_gen_with_metadata_context`] recognition
-//! logic — reused, not re-derived) into one flag state, then checks every
-//! write-target name found anywhere in the body against that *complete*
-//! state. A write on a conditional branch that never executes together
-//! with the declaring branch is still counted — the goal is soundness
-//! (never *miss* a global write), not maximal precision.
-//!
-//! Dynamic command-binding transitions consume the registry's typed widening
-//! facts and make the summary opaque; literal transitions retain a per-name
-//! may-binding lattice. Dynamic `global`/`variable`/`upvar` variable targets
-//! remain governed by the shared variable-observability and caller-frame
-//! barriers rather than a second command-specific parser here.
+//! Registry variable roles and binding-transition descriptors own recognition;
+//! dynamic target and caller-frame obligations remain opaque.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -248,18 +228,8 @@ impl GlobalWriteInfo {
     }
 }
 
-/// Detect, for every proc in `module`, which outer-scope (global/
-/// namespace) variable names its body writes — see the module doc for the
-/// two-pass, flow-insensitive algorithm. Both the qualified and short
-/// forms are registered for every proc, matching
-/// [`super::detect_upvar_procs`]'s convention (the caller-side lookup at
-/// [`super::CfgBuilder::apply_upvar_invalidation`] resolves a `Statement::
-/// Call::command` by whichever spelling appears in source).
-///
-/// Then closes the per-proc summaries transitively over the direct-call
-/// graph (a proc that calls a global-writing proc also "writes" those
-/// names, recursively) via a bounded fixpoint — monotonic set-union, so
-/// Outer-place MAY facts keyed by exact retained body, with source-selected edges.
+/// Close body-keyed outer-place MAY facts over exact original call edges.
+/// Missing source ownership or a missing callee summary widens the outer frame.
 pub(crate) fn detect_global_write_bodies_with_registry(
     module: &Module,
     registry: &tcl_registry::CommandRegistry,
@@ -1475,9 +1445,7 @@ mod tests {
         assert!(detect_global_write_procs(&m).is_empty());
     }
 
-    /// Procedures sharing a short spelling both contribute to that spelling's
-    /// may-summary. A call through `run` may resolve to either definition as
-    /// namespaces and aliases change, so last-writer selection is unsound.
+    /// Equal leaf names retain independent body summaries.
     #[test]
     fn same_tailed_bodies_retain_independent_write_summaries() {
         let m = module(
@@ -1512,7 +1480,7 @@ mod tests {
                 .names
                 .contains("x")
         );
-        // Registered under both the qualified and short forms.
+        // The fixture selector accepts either display for this single body.
         assert!(
             info.get(&summary_id(&m, "mutate"))
                 .unwrap()

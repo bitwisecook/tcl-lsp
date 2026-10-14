@@ -1,0 +1,1436 @@
+[
+  {
+    "provider": "8.4.20",
+    "saved_capture_hashes_verified": true,
+    "measurement_utc": "2026-10-13T20:13:26.679189+00:00",
+    "exit_code": 0,
+    "stdout": "IDENTITY 8.4.20\nOBSERVATION retained-import 0 {{::N::y ::N::x OLD NEW OLD} ::N::x NEW {}}\n",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "/workspace/name-implementation-worktrees/runtime/experiments/name-handling/runtime-retained-import-source/input.tcl"
+    ],
+    "dependency_files": 27,
+    "current_dependencies_unavailable": 0,
+    "current_dependencies_changed": 0,
+    "dependencies": [
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/safe.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/package.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/history.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/parray.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/auto.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/ldAout.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/word.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/dde/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/optparse.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/shell.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/platform.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/http.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/http.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/msgcat.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/reg/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "interpreter_binary",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "available": true,
+        "matches_original": true
+      }
+    ]
+  },
+  {
+    "provider": "8.5.19",
+    "saved_capture_hashes_verified": true,
+    "measurement_utc": "2026-10-13T20:13:26.694952+00:00",
+    "exit_code": 0,
+    "stdout": "IDENTITY 8.5.19\nOBSERVATION retained-import 0 {{::N::y ::N::x OLD NEW OLD} ::N::x NEW {}}\n",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/workspace/name-implementation-worktrees/runtime/experiments/name-handling/runtime-retained-import-source/input.tcl"
+    ],
+    "dependency_files": 28,
+    "current_dependencies_unavailable": 0,
+    "current_dependencies_changed": 0,
+    "dependencies": [
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/safe.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tm.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/clock.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/package.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/history.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/parray.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/auto.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/word.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/dde/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/optparse.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/shell.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/platform.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/http.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/http.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/msgcat.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/reg/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "interpreter_binary",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "available": true,
+        "matches_original": true
+      }
+    ]
+  },
+  {
+    "provider": "8.6.18",
+    "saved_capture_hashes_verified": true,
+    "measurement_utc": "2026-10-13T20:13:26.711293+00:00",
+    "exit_code": 0,
+    "stdout": "IDENTITY 8.6.18\nOBSERVATION retained-import 0 {{::N::y ::N::x OLD NEW OLD} ::N::x NEW {}}\n",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/workspace/name-implementation-worktrees/runtime/experiments/name-handling/runtime-retained-import-source/input.tcl"
+    ],
+    "dependency_files": 29,
+    "current_dependencies_unavailable": 0,
+    "current_dependencies_changed": 0,
+    "dependencies": [
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/safe.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tm.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/package.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/history.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/parray.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/auto.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/word.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/dde/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/optparse.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/shell.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/platform.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/http.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/http.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/msgcat.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/reg/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "interpreter_binary",
+        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "available": true,
+        "matches_original": true
+      }
+    ]
+  },
+  {
+    "provider": "9.0.4",
+    "saved_capture_hashes_verified": true,
+    "measurement_utc": "2026-10-13T20:13:26.738492+00:00",
+    "exit_code": 0,
+    "stdout": "IDENTITY 9.0.4\nOBSERVATION retained-import 0 {{::N::y ::N::x OLD NEW OLD} ::N::x NEW {}}\n",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "/workspace/name-implementation-worktrees/runtime/experiments/name-handling/runtime-retained-import-source/input.tcl"
+    ],
+    "dependency_files": 35,
+    "current_dependencies_unavailable": 0,
+    "current_dependencies_changed": 0,
+    "dependencies": [
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/safe.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/icu.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tm.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/clock.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/install.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/package.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/foreachline.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/writefile.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/history.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/parray.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/auto.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/readfile.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/word.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/dde/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/registry/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/optparse.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/shell.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/platform.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/http.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/msgcat.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/cookiejar.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/idna.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "interpreter_binary",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "available": true,
+        "matches_original": true
+      }
+    ]
+  },
+  {
+    "provider": "9.1.0",
+    "saved_capture_hashes_verified": true,
+    "measurement_utc": "2026-10-13T20:13:26.770914+00:00",
+    "exit_code": 0,
+    "stdout": "IDENTITY 9.1.0\nOBSERVATION retained-import 0 {{::N::y ::N::x OLD NEW OLD} ::N::x NEW {}}\n",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/workspace/name-implementation-worktrees/runtime/experiments/name-handling/runtime-retained-import-source/input.tcl"
+    ],
+    "dependency_files": 36,
+    "current_dependencies_unavailable": 0,
+    "current_dependencies_changed": 0,
+    "dependencies": [
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/safe.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/icu.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tm.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/clock.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/install.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/package.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/autoexecok.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/foreachline.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/writefile.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/history.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/parray.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/auto.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/readfile.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/word.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/dde/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/registry/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/optparse.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/shell.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/platform.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/http.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/msgcat.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/cookiejar.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/idna.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/pkgIndex.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "interpreter_binary",
+        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "available": true,
+        "matches_original": true
+      }
+    ]
+  },
+  {
+    "provider": "jim",
+    "saved_capture_hashes_verified": true,
+    "measurement_utc": "2026-10-13T20:13:26.799055+00:00",
+    "exit_code": 0,
+    "stdout": "IDENTITY 0.84-9-g5bac7c9\nOBSERVATION retained-import 1 {invalid command name \"N::x\"}\n",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/name-implementation-worktrees/runtime/experiments/name-handling/runtime-retained-import-source/input.tcl"
+    ],
+    "dependency_files": 68,
+    "current_dependencies_unavailable": 0,
+    "current_dependencies_changed": 0,
+    "dependencies": [
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libssl.so.3",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libcrypto.so.3",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "linked_inputs",
+        "path": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/oo.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/rlprompt.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/parse-unidata.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/regtest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tclcompat.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jsonencode.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/bootstrap.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/stdlib.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/ensemble.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/bench.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/make-load-static-exts.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tcltest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/glob.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/make-c-ext.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/binary.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/nshelper.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tree.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/initjimsh.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples.api/print.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/autosetup/cc-db.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/autosetup/cc-shared.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/autosetup/tmake.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/autosetup/local.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/autosetup/cc-lib.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/autosetup/pkg-config.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/autosetup/cc.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/autosetup/system.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/exitpackage.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/expect.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/dummy.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/runall.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/forget-test.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/errors.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/break.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/return-break.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/testing.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/sqlite3/test-sqlite.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tools/benchtable.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/tip.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/popen.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/dnstest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/redis-async.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/client-server.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/dbgtest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/nonblocking-gets.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/vwaitsignal.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/sdlcircles.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/redis-pubsub.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/timedread.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/sdlevents.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/socket-show-filename.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/sdltest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/parray.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/dns.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/jtclsh.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/ootest.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/sqlite3test.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/redis.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/pipe.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "library_script_inputs",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/examples/metakit.tcl",
+        "available": true,
+        "matches_original": true
+      },
+      {
+        "kind": "interpreter_binary",
+        "path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "available": true,
+        "matches_original": true
+      }
+    ]
+  }
+]

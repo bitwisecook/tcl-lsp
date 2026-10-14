@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.6.18",
+  "case": "written-index-head-is-not-builtin-role",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-04/tcl8.6.18/written-index-head-is-not-builtin-role/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:11:52.720874+00:00",
+  "exit_code": 0,
+  "source_sha256": "07080097e450f7cc6321530ef6ad55c253e91977a56bd1bdf21e20b61fef1ca9",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "stdout_sha256": "e13b29b5256a4298f997b26a65cfd7a8a73b4c6d550831f5cd986cd627c6743a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

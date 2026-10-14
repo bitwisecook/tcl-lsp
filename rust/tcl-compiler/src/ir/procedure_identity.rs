@@ -95,22 +95,19 @@ impl ProcedureInventory {
             .values()
             .map(|procedure| (&procedure.qualified_name, procedure))
     }
-    /// Only unambiguous labels can participate in legacy analytical summaries.
+    /// Reporting labels appearing exactly once; this projection selects no body.
     pub fn unique_displays(&self) -> impl Iterator<Item = &String> {
         self.0
             .values()
-            .filter(|procedure| self.unique_display(&procedure.qualified_name).is_some())
+            .filter(|procedure| {
+                self.0
+                    .values()
+                    .filter(|candidate| candidate.qualified_name == procedure.qualified_name)
+                    .take(2)
+                    .count()
+                    == 1
+            })
             .map(|procedure| &procedure.qualified_name)
-    }
-    /// Borrow one presentation row only when its display is unambiguous.
-    pub fn get_mut_unique_display(&mut self, display: &str) -> Option<&mut Procedure> {
-        let id = *self.unique_display(display)?.0;
-        self.get_mut(&id)
-    }
-    /// Read one presentation row only when its display is unambiguous.
-    #[must_use]
-    pub fn get_unique_display(&self, display: &str) -> Option<&Procedure> {
-        self.unique_display(display).map(|(_, procedure)| procedure)
     }
     /// Test display presence without selecting an implementation.
     #[must_use]
@@ -119,9 +116,9 @@ impl ProcedureInventory {
             .values()
             .any(|procedure| procedure.qualified_name == display)
     }
-    /// Return a presentation row only when exactly one body shares its display.
-    #[must_use]
-    pub fn unique_display(&self, display: &str) -> Option<(&ProcedureId, &Procedure)> {
+    /// Select one uniquely named authored test fixture.
+    #[cfg(test)]
+    pub(crate) fn unique_display(&self, display: &str) -> Option<(&ProcedureId, &Procedure)> {
         let mut matching = self
             .0
             .iter()

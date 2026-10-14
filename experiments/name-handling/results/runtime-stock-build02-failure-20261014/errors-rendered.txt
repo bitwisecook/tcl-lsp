@@ -1,0 +1,107 @@
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/input.tcl`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:459:9
+    |
+459 | /         include_bytes!(
+460 | |             "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+461 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/8.4.20/stdout.bin`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:462:9
+    |
+462 | /         include_bytes!(
+463 | |             "../../../experiments/name-handling/runtime-retained-import-source/8.4.20/stdout.bin"
+464 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/input.tcl`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:473:9
+    |
+473 | /         include_bytes!(
+474 | |             "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+475 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/8.5.19/stdout.bin`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:476:9
+    |
+476 | /         include_bytes!(
+477 | |             "../../../experiments/name-handling/runtime-retained-import-source/8.5.19/stdout.bin"
+478 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/input.tcl`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:487:9
+    |
+487 | /         include_bytes!(
+488 | |             "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+489 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/8.6.18/stdout.bin`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:490:9
+    |
+490 | /         include_bytes!(
+491 | |             "../../../experiments/name-handling/runtime-retained-import-source/8.6.18/stdout.bin"
+492 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/input.tcl`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:501:9
+    |
+501 | /         include_bytes!(
+502 | |             "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+503 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/9.0.4/stdout.bin`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:504:9
+    |
+504 | /         include_bytes!(
+505 | |             "../../../experiments/name-handling/runtime-retained-import-source/9.0.4/stdout.bin"
+506 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/input.tcl`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:515:9
+    |
+515 | /         include_bytes!(
+516 | |             "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+517 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/9.1.0/stdout.bin`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:518:9
+    |
+518 | /         include_bytes!(
+519 | |             "../../../experiments/name-handling/runtime-retained-import-source/9.1.0/stdout.bin"
+520 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/input.tcl`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:529:9
+    |
+529 | /         include_bytes!(
+530 | |             "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+531 | |         ),
+    | |_________^
+
+
+error: couldn't read `tests/../../../experiments/name-handling/runtime-retained-import-source/jim/stdout.bin`: No such file or directory (os error 2)
+   --> tests/native_namespace_command_query.rs:532:9
+    |
+532 | /         include_bytes!(
+533 | |             "../../../experiments/name-handling/runtime-retained-import-source/jim/stdout.bin"
+534 | |         ),
+    | |_________^
+

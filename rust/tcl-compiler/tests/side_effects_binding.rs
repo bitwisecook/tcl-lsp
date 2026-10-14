@@ -59,6 +59,10 @@
 //! hint — pure subcommands win, so the class-lookup assertions check purity
 //! (documented at the site).
 
+#[path = "support/function_identity.rs"]
+mod function_identity;
+use function_identity::OriginalFixtureFunctions;
+
 use tcl_compiler::command_binding::{
     Binding, BindingKind, analyse_command_binding, scan_module_command_mutations,
 };
@@ -975,7 +979,7 @@ fn binding_builtins_are_builtin() {
     // With no rebinding every core name keeps its builtin binding.
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("set x 1\nputs [string length hi]\nincr x\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let (b, i) = end_point(&fu.cfg);
     for name in ["set", "string", "incr", "puts", "list", "lindex"] {
@@ -991,7 +995,7 @@ fn binding_builtins_are_builtin() {
 fn binding_user_proc_is_proc() {
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc sq {n} {return [expr {$n*$n}]}\nputs [sq 5]\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let (b, i) = end_point(&fu.cfg);
     let binding = cb.binding_at(b, i, "sq");
@@ -1006,7 +1010,7 @@ fn binding_undefined_name_is_opaque() {
     // (opaque).
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("nosuchcommand a b c\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let (b, i) = end_point(&fu.cfg);
     assert_eq!(
@@ -1023,7 +1027,7 @@ fn binding_proc_call_rename_call() {
     // the old proc body — the rename only perturbs calls that follow it.
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc a {} {return 1}\na\nrename a b\nb\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let cfg = &fu.cfg;
     let bid = cfg.entry;
@@ -1049,7 +1053,7 @@ fn binding_rename_deletion_is_opaque_not_error() {
     // tclsh: `rename foo {}` deletes foo; a later `foo` call hits `unknown`.
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc foo {} {return 1}\nrename foo {}\nfoo\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let (b, i) = end_point(&fu.cfg);
     assert_eq!(cb.binding_at(b, i, "foo").kind, BindingKind::Opaque);
@@ -1063,7 +1067,7 @@ fn binding_builtin_rename_away_then_redefine_is_proc() {
     let cu = build_top(
         "rename incr ::orig_incr\nproc incr {v} {upvar 1 $v x; ::orig_incr x 100}\nset c 0\n",
     );
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let (b, i) = end_point(&fu.cfg);
     assert_eq!(cb.binding_at(b, i, "incr").kind, BindingKind::Proc);
@@ -1081,7 +1085,7 @@ fn binding_proc_redefined_stays_proc() {
     // The later body wins; the name is still bound to *a* proc.
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc f {} {return 1}\nproc f {} {return 2}\nf\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let (b, i) = end_point(&fu.cfg);
     let binding = cb.binding_at(b, i, "f");
@@ -1095,7 +1099,7 @@ fn binding_proc_named_like_mathfunc_is_proc_not_builtin() {
     // binds a real foldable proc (must not collapse to UNKNOWN).
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc max {a b} {return $a}\nputs [max 1 2]\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let (b, i) = end_point(&fu.cfg);
     let binding = cb.binding_at(b, i, "max");
@@ -1110,7 +1114,7 @@ fn binding_alias_records_target() {
     // tclsh: `interp alias {} myset {} set` makes `myset` dispatch to `set`.
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("interp alias {} myset {} set\nmyset x 1\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let (b, i) = end_point(&fu.cfg);
     let binding = cb.binding_at(b, i, "myset");
@@ -1125,7 +1129,7 @@ fn binding_rename_in_one_arm_joins_to_unknown() {
     // A rename only on the true arm makes the merged binding ⊤ (Unknown).
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("if {$x} {rename string ::s2}\nputs [string length hi]\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let binding = binding_at_command(&cb, &fu.cfg, "puts", "string");
     assert_eq!(binding.kind, BindingKind::Unknown);
@@ -1139,7 +1143,7 @@ fn binding_rename_on_both_arms_agrees() {
     let cu = build_top(
         "if {$x} {rename string ::s2} else {rename string ::s2}\nputs [string length hi]\n",
     );
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let binding = binding_at_command(&cb, &fu.cfg, "puts", "string");
     assert_eq!(binding.kind, BindingKind::Opaque);
@@ -1151,7 +1155,7 @@ fn binding_rename_on_both_arms_agrees() {
 fn binding_dynamic_rename_makes_everything_unknown() {
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("rename $cmd foo\nputs [string length hi]\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let binding = binding_at_command(&cb, &fu.cfg, "puts", "string");
     assert_eq!(binding.kind, BindingKind::Unknown);
@@ -1161,7 +1165,7 @@ fn binding_dynamic_rename_makes_everything_unknown() {
 fn binding_dynamic_proc_name_makes_everything_unknown() {
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc $name {} {return 1}\nputs [string length hi]\n");
-    let fu = cu.function("::top").unwrap();
+    let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
     let binding = binding_at_command(&cb, &fu.cfg, "puts", "string");
     assert_eq!(binding.kind, BindingKind::Unknown);

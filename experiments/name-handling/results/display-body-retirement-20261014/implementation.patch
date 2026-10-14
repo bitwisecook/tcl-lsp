@@ -1,0 +1,987 @@
+diff --git a/rust/tcl-compiler/src/compilation_unit.rs b/rust/tcl-compiler/src/compilation_unit.rs
+index 3da85f06a..ce36e1995 100644
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -4028,15 +4028,32 @@ impl CompilationUnit {
+         self
+     }
+ 
+-    /// Return the function unit for a qualified name, searching
+-    /// top-level + procedures.
++    /// Select the current top-level unit (`None`) or a Module-issued procedure body.
++    /// Foreign IDs and function units with a mismatched body stamp are unavailable.
+     #[must_use]
+-    pub fn function(&self, name: &str) -> Option<&FunctionUnit> {
++    pub fn function_for_body(&self, body: Option<crate::ir::ProcedureId>) -> Option<&FunctionUnit> {
++        let Some(id) = body else {
++            return self.top_level.body_id.is_none().then_some(&self.top_level);
++        };
++        if !self.ir_module.procedure_ids.owns(id)
++            || !self.ir_module.procedures.contains_key(&id)
++        {
++            return None;
++        }
++        let function = self.procedures.get(&id)?;
++        (function.body_id == Some(id)).then_some(function)
++    }
++
++    /// Select a uniquely named authored test fixture, then its actual issued body.
++    #[cfg(test)]
++    pub(crate) fn function(&self, name: &str) -> Option<&FunctionUnit> {
+         if name == "::top" {
+-            return (!self.ir_module.procedures.has_display(name)).then_some(&self.top_level);
++            return (!self.ir_module.procedures.has_display(name))
++                .then(|| self.function_for_body(None))
++                .flatten();
+         }
+         let (id, _) = self.ir_module.procedures.unique_display(name)?;
+-        self.procedures.get(id)
++        self.function_for_body(Some(*id))
+     }
+ 
+     /// Iterate over every function unit in the module: the top-level unit
+@@ -4611,6 +4628,38 @@ mod tests {
+         let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+         assert!(Arc::ptr_eq(&input.context_registry(), &actual));
+         assert!(!unit.procedures.is_empty());
++        let body_id = fixture_id(&unit.ir_module.procedures, "::p");
++        assert!(std::ptr::eq(
++            unit.function_for_body(Some(body_id)).unwrap(),
++            &unit.procedures[&body_id]
++        ));
++        assert!(std::ptr::eq(
++            unit.function_for_body(None).unwrap(),
++            &unit.top_level
++        ));
++        let mut wrong_stamp = unit.clone();
++        wrong_stamp.procedures.get_mut(&body_id).unwrap().body_id = None;
++        assert!(wrong_stamp.function_for_body(Some(body_id)).is_none());
++        wrong_stamp.top_level.body_id = Some(body_id);
++        assert!(wrong_stamp.function_for_body(None).is_none());
++        let foreign_unit = CompilationUnit::build_with_context_registry(
++            &unit.source,
++            UnitBuildOptions {
++                registry: &registry,
++                defer_top_level: false,
++                config,
++                dialect: Some(profile),
++                external_call_sites: None,
++                declared_commands: None,
++            },
++            None,
++            Arc::clone(&actual),
++        );
++        let foreign_id = fixture_id(&foreign_unit.ir_module.procedures, "::p");
++        let mut foreign_owner = unit.clone();
++        foreign_owner.ir_module.procedure_ids = foreign_unit.ir_module.procedure_ids.clone();
++        assert!(foreign_owner.function_for_body(Some(body_id)).is_none());
++        assert!(unit.function_for_body(Some(foreign_id)).is_none());
+         for function in std::iter::once(&unit.top_level)
+             .chain(unit.procedures.values())
+             .chain(unit.methods.values())
+diff --git a/rust/tcl-compiler/src/cfg.rs b/rust/tcl-compiler/src/cfg.rs
+index 371051b27..e82e65c3f 100644
+--- a/rust/tcl-compiler/src/cfg.rs
++++ b/rust/tcl-compiler/src/cfg.rs
+@@ -741,17 +741,6 @@ pub struct CfgModule {
+ }
+ 
+ impl CfgModule {
+-    /// Readonly compatibility selection; repeated display names remain unavailable.
+-    #[must_use]
+-    pub fn procedure_by_display<'a>(
+-        &'a self,
+-        module: &crate::ir::Module,
+-        name: &str,
+-    ) -> Option<&'a Function> {
+-        self.procedures
+-            .get(module.procedures.unique_display(name)?.0)
+-    }
+-
+     /// `(aot_clean, total)` — how many of this module's functions (the top-level
+     /// script plus every procedure) are fully AOT-compilable per
+     /// [`Function::is_aot_clean`]. The coverage signal for "as much AOT as
+diff --git a/rust/tcl-compiler/src/native_integer_proof.rs b/rust/tcl-compiler/src/native_integer_proof.rs
+index 15b2eaa36..e80a64d13 100644
+--- a/rust/tcl-compiler/src/native_integer_proof.rs
++++ b/rust/tcl-compiler/src/native_integer_proof.rs
+@@ -269,7 +269,7 @@ impl NativeAddDecision {
+ pub enum NativeIntegerProof {
+     /// The default-off control declined without inspecting candidates.
+     Disabled,
+-    /// No function with this qualified name exists in the compilation unit.
++    /// The selected body is unavailable in the current compilation unit.
+     FunctionUnavailable,
+     /// The actual source metadata is absent or belongs to another command store.
+     SourceMetadataUnavailable,
+@@ -287,8 +287,9 @@ pub enum NativeIntegerProof {
+ /// Candidates are semantic `ExprNode::Binary(Add, Var, Var)` nodes already
+ /// produced by registry-driven lowering; this module contains no command-name
+ /// dispatch. Any other expression shape is not a candidate.
++#[cfg(test)]
+ #[must_use]
+-pub fn prove_native_integer_adds(
++pub(crate) fn prove_native_integer_adds(
+     unit: &CompilationUnit,
+     function: &str,
+     registry: &CommandRegistry,
+@@ -325,11 +326,7 @@ pub fn prove_native_integer_adds_for_body(
+     if !optimisations.is_enabled(SemanticOptimisationPassId::NativeInteger) {
+         return NativeIntegerProof::Disabled;
+     }
+-    let function_unit = match body_id {
+-        Some(id) => unit.procedures.get(&id),
+-        None => Some(&unit.top_level),
+-    };
+-    let Some(function_unit) = function_unit else {
++    let Some(function_unit) = unit.function_for_body(body_id) else {
+         return NativeIntegerProof::FunctionUnavailable;
+     };
+     let function = function_unit.name.as_str();
+diff --git a/rust/tcl-compiler/tests/support/function_identity.rs b/rust/tcl-compiler/tests/support/function_identity.rs
+new file mode 100644
+index 000000000..fdba3d0da
+--- /dev/null
++++ b/rust/tcl-compiler/tests/support/function_identity.rs
+@@ -0,0 +1,28 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
++
++pub trait OriginalFixtureFunctions {
++    fn fixture_function(&self, display: &str) -> Option<&FunctionUnit>;
++}
++
++impl OriginalFixtureFunctions for CompilationUnit {
++    fn fixture_function(&self, display: &str) -> Option<&FunctionUnit> {
++        if display == "::top" {
++            return (!self.ir_module.procedures.has_display(display))
++                .then(|| self.function_for_body(None))
++                .flatten();
++        }
++        let mut declarations = self.ir_module.procedures.iter().filter(|(_, procedure)| {
++            procedure.qualified_name == display
++                && procedure.declaration_site.as_ref().is_some_and(|site| {
++                    site.source.source_image().bytes() == self.source.as_bytes()
++                })
++        });
++        let (&id, _) = declarations.next()?;
++        assert!(declarations.next().is_none(), "authored fixture {display:?} ambiguous");
++        self.function_for_body(Some(id))
++    }
++}
+diff --git a/rust/tcl-compiler/tests/inlining_interproc_residual.rs b/rust/tcl-compiler/tests/inlining_interproc_residual.rs
+index 06b18d219..a676c92bc 100644
+--- a/rust/tcl-compiler/tests/inlining_interproc_residual.rs
++++ b/rust/tcl-compiler/tests/inlining_interproc_residual.rs
+@@ -82,6 +82,10 @@
+ 
+ #[path = "support/body_identity.rs"]
+ mod body_identity;
++#[path = "support/function_identity.rs"]
++mod function_identity;
++use function_identity::OriginalFixtureFunctions;
++
+ use body_identity::fixture_id;
+ 
+ use std::collections::HashSet;
+@@ -806,7 +810,7 @@ fn call_by_name_reads(source: &str, caller_qname: &str) -> HashSet<String> {
+         None,
+     );
+     let index = build_proc_index_from_summaries(&ia);
+-    let fu = cu.function(caller_qname).expect("caller proc");
++    let fu = cu.fixture_function(caller_qname).expect("caller proc");
+     collect_call_by_name_reads(&fu.cfg, &index)
+ }
+ 
+@@ -942,7 +946,7 @@ fn call_by_name_empty_index_short_circuits() {
+     // empty set without scanning (the `index.is_empty()` early return).
+     let r = reg();
+     let cu = CompilationUnit::build_for("proc f {} { setvar y 1 }\n", &r, false);
+-    let fu = cu.function("::f").expect("proc f");
++    let fu = cu.fixture_function("::f").expect("proc f");
+     let empty = ProcIndex::new();
+     assert!(
+         collect_call_by_name_reads(&fu.cfg, &empty).is_empty(),
+diff --git a/rust/tcl-compiler/tests/side_effects_binding.rs b/rust/tcl-compiler/tests/side_effects_binding.rs
+index eaf008e9d..0bcf07346 100644
+--- a/rust/tcl-compiler/tests/side_effects_binding.rs
++++ b/rust/tcl-compiler/tests/side_effects_binding.rs
+@@ -59,6 +59,10 @@
+ //! hint — pure subcommands win, so the class-lookup assertions check purity
+ //! (documented at the site).
+ 
++#[path = "support/function_identity.rs"]
++mod function_identity;
++use function_identity::OriginalFixtureFunctions;
++
+ use tcl_compiler::command_binding::{
+     Binding, BindingKind, analyse_command_binding, scan_module_command_mutations,
+ };
+@@ -975,7 +979,7 @@ fn binding_builtins_are_builtin() {
+     // With no rebinding every core name keeps its builtin binding.
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("set x 1\nputs [string length hi]\nincr x\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let (b, i) = end_point(&fu.cfg);
+     for name in ["set", "string", "incr", "puts", "list", "lindex"] {
+@@ -991,7 +995,7 @@ fn binding_builtins_are_builtin() {
+ fn binding_user_proc_is_proc() {
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("proc sq {n} {return [expr {$n*$n}]}\nputs [sq 5]\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let (b, i) = end_point(&fu.cfg);
+     let binding = cb.binding_at(b, i, "sq");
+@@ -1006,7 +1010,7 @@ fn binding_undefined_name_is_opaque() {
+     // (opaque).
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("nosuchcommand a b c\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let (b, i) = end_point(&fu.cfg);
+     assert_eq!(
+@@ -1023,7 +1027,7 @@ fn binding_proc_call_rename_call() {
+     // the old proc body — the rename only perturbs calls that follow it.
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("proc a {} {return 1}\na\nrename a b\nb\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let cfg = &fu.cfg;
+     let bid = cfg.entry;
+@@ -1049,7 +1053,7 @@ fn binding_rename_deletion_is_opaque_not_error() {
+     // tclsh: `rename foo {}` deletes foo; a later `foo` call hits `unknown`.
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("proc foo {} {return 1}\nrename foo {}\nfoo\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let (b, i) = end_point(&fu.cfg);
+     assert_eq!(cb.binding_at(b, i, "foo").kind, BindingKind::Opaque);
+@@ -1063,7 +1067,7 @@ fn binding_builtin_rename_away_then_redefine_is_proc() {
+     let cu = build_top(
+         "rename incr ::orig_incr\nproc incr {v} {upvar 1 $v x; ::orig_incr x 100}\nset c 0\n",
+     );
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let (b, i) = end_point(&fu.cfg);
+     assert_eq!(cb.binding_at(b, i, "incr").kind, BindingKind::Proc);
+@@ -1081,7 +1085,7 @@ fn binding_proc_redefined_stays_proc() {
+     // The later body wins; the name is still bound to *a* proc.
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("proc f {} {return 1}\nproc f {} {return 2}\nf\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let (b, i) = end_point(&fu.cfg);
+     let binding = cb.binding_at(b, i, "f");
+@@ -1095,7 +1099,7 @@ fn binding_proc_named_like_mathfunc_is_proc_not_builtin() {
+     // binds a real foldable proc (must not collapse to UNKNOWN).
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("proc max {a b} {return $a}\nputs [max 1 2]\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let (b, i) = end_point(&fu.cfg);
+     let binding = cb.binding_at(b, i, "max");
+@@ -1110,7 +1114,7 @@ fn binding_alias_records_target() {
+     // tclsh: `interp alias {} myset {} set` makes `myset` dispatch to `set`.
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("interp alias {} myset {} set\nmyset x 1\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let (b, i) = end_point(&fu.cfg);
+     let binding = cb.binding_at(b, i, "myset");
+@@ -1125,7 +1129,7 @@ fn binding_rename_in_one_arm_joins_to_unknown() {
+     // A rename only on the true arm makes the merged binding ⊤ (Unknown).
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("if {$x} {rename string ::s2}\nputs [string length hi]\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let binding = binding_at_command(&cb, &fu.cfg, "puts", "string");
+     assert_eq!(binding.kind, BindingKind::Unknown);
+@@ -1139,7 +1143,7 @@ fn binding_rename_on_both_arms_agrees() {
+     let cu = build_top(
+         "if {$x} {rename string ::s2} else {rename string ::s2}\nputs [string length hi]\n",
+     );
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let binding = binding_at_command(&cb, &fu.cfg, "puts", "string");
+     assert_eq!(binding.kind, BindingKind::Opaque);
+@@ -1151,7 +1155,7 @@ fn binding_rename_on_both_arms_agrees() {
+ fn binding_dynamic_rename_makes_everything_unknown() {
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("rename $cmd foo\nputs [string length hi]\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let binding = binding_at_command(&cb, &fu.cfg, "puts", "string");
+     assert_eq!(binding.kind, BindingKind::Unknown);
+@@ -1161,7 +1165,7 @@ fn binding_dynamic_rename_makes_everything_unknown() {
+ fn binding_dynamic_proc_name_makes_everything_unknown() {
+     let reg = static_context_for("tcl9.0").commands();
+     let cu = build_top("proc $name {} {return 1}\nputs [string length hi]\n");
+-    let fu = cu.function("::top").unwrap();
++    let fu = cu.fixture_function("::top").unwrap();
+     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
+     let binding = binding_at_command(&cb, &fu.cfg, "puts", "string");
+     assert_eq!(binding.kind, BindingKind::Unknown);
+diff --git a/rust/tcl-compiler/tests/pipeline_coverage.rs b/rust/tcl-compiler/tests/pipeline_coverage.rs
+index b563bac69..d0b9a49f6 100644
+--- a/rust/tcl-compiler/tests/pipeline_coverage.rs
++++ b/rust/tcl-compiler/tests/pipeline_coverage.rs
+@@ -63,6 +63,10 @@
+ 
+ #[path = "support/body_identity.rs"]
+ mod body_identity;
++#[path = "support/function_identity.rs"]
++mod function_identity;
++use function_identity::OriginalFixtureFunctions;
++
+ use body_identity::fixture_id_if_present;
+ 
+ use tcl_compiler::analyser::Analyser;
+@@ -665,12 +669,12 @@ mod compilation_unit_build {
+         // A proc inside `namespace eval ::a` is keyed by its fully-qualified name.
+         let cu = build("namespace eval ::a { proc helper {x} { set y $x } }");
+         assert!(
+-            cu.function("::a::helper").is_some(),
++            cu.fixture_function("::a::helper").is_some(),
+             "procedures: {:?}",
+             cu.procedures.keys().collect::<Vec<_>>()
+         );
+         // The top level always exists.
+-        assert!(cu.function("::top").is_some());
++        assert!(cu.fixture_function("::top").is_some());
+     }
+ 
+     #[test]
+@@ -678,7 +682,7 @@ mod compilation_unit_build {
+         let cu =
+             build("namespace eval ::a { namespace eval ::a::b { proc deep {} { return 1 } } }");
+         assert!(
+-            cu.function("::a::b::deep").is_some(),
++            cu.fixture_function("::a::b::deep").is_some(),
+             "procedures: {:?}",
+             cu.procedures.keys().collect::<Vec<_>>()
+         );
+@@ -687,8 +691,8 @@ mod compilation_unit_build {
+     #[test]
+     fn function_accessor_unknown_name_is_none() {
+         let cu = build("proc p {} {}");
+-        assert!(cu.function("::nope").is_none());
+-        assert!(cu.function("::p").is_some());
++        assert!(cu.fixture_function("::nope").is_none());
++        assert!(cu.fixture_function("::p").is_some());
+     }
+ 
+     #[test]
+@@ -739,8 +743,8 @@ mod compilation_unit_build {
+             "interproc summary must be populated"
+         );
+         // Procedures survive the re-run.
+-        assert!(cu.function("::f").is_some());
+-        assert!(cu.function("::src").is_some());
++        assert!(cu.fixture_function("::f").is_some());
++        assert!(cu.fixture_function("::src").is_some());
+     }
+ 
+     #[test]
+@@ -750,7 +754,7 @@ mod compilation_unit_build {
+             Some(SemanticContext::for_environment("tcl8.6")),
+         );
+         assert!(cu.top_level.memory_ssa.is_some());
+-        assert!(cu.function("::f").unwrap().memory_ssa.is_some());
++        assert!(cu.fixture_function("::f").unwrap().memory_ssa.is_some());
+     }
+ 
+     #[test]
+diff --git a/rust/tcl-compiler/tests/unused_var_tricky_features.rs b/rust/tcl-compiler/tests/unused_var_tricky_features.rs
+index eedfabfd6..a37855096 100644
+--- a/rust/tcl-compiler/tests/unused_var_tricky_features.rs
++++ b/rust/tcl-compiler/tests/unused_var_tricky_features.rs
+@@ -47,6 +47,10 @@
+ //! identically on `tclsh9.0` — the C Tcl 9 truth oracle — for every construct
+ //! here, which uses only 8.4-era scoping semantics). Citations use `// tclsh:`.
+ 
++#[path = "support/function_identity.rs"]
++mod function_identity;
++use function_identity::OriginalFixtureFunctions;
++
+ use tcl_compiler::analyser::Analyser;
+ use tcl_compiler::compilation_unit::CompilationUnit;
+ use tcl_compiler::compiler_checks::run_all_checks;
+@@ -410,7 +414,7 @@ mod read_before_set_tps {
+         // the conservative false fact before W210 consumes it.
+         let registry = CommandRegistry::build_default();
+         let cu = CompilationUnit::build_for("proc f {} { incr value }\n", &registry, false);
+-        let f = cu.function("::f").expect("procedure analysed");
++        let f = cu.fixture_function("::f").expect("procedure analysed");
+         assert!(
+             f.cfg
+                 .blocks
+diff --git a/rust/tcl-compiler/tests/compiler_analysis_residual.rs b/rust/tcl-compiler/tests/compiler_analysis_residual.rs
+index efe1640a0..61f164c89 100644
+--- a/rust/tcl-compiler/tests/compiler_analysis_residual.rs
++++ b/rust/tcl-compiler/tests/compiler_analysis_residual.rs
+@@ -65,6 +65,10 @@
+ 
+ #[path = "support/body_identity.rs"]
+ mod body_identity;
++#[path = "support/function_identity.rs"]
++mod function_identity;
++use function_identity::OriginalFixtureFunctions;
++
+ use body_identity::{fixture_id, fixture_id_if_present};
+ 
+ use tcl_compiler::analyser::Analyser;
+@@ -160,7 +164,7 @@ fn top_calls_to(module: &Module, command: &str) -> usize {
+ fn places_of(src: &str, qname: &str) -> (Vec<Place>, Vec<Place>) {
+     let r = reg();
+     let cu = CompilationUnit::build_for(src, &r, false);
+-    let fu = cu.function(qname).expect("proc not found");
++    let fu = cu.fixture_function(qname).expect("proc not found");
+     let ctx = build_resolve_context(&fu.cfg, &fu.name);
+     let mut defs = Vec::new();
+     let mut reads = Vec::new();
+@@ -679,7 +683,7 @@ fn place_must_alias_kill_suppresses_dead_element() {
+         &r,
+         false,
+     );
+-    let fu = cu.function("::f").expect("proc");
++    let fu = cu.fixture_function("::f").expect("proc");
+     let observed = element_writes_observed_by_reads(&fu.cfg, &fu.name, &r);
+     // Exactly one element write is observed-and-kept (the second `set a(k) 2`);
+     // the first is must-alias-killed so it is excluded.
+@@ -700,7 +704,7 @@ fn place_array_element_write_no_kill_is_observed() {
+         &r,
+         false,
+     );
+-    let fu = cu.function("::f").expect("proc");
++    let fu = cu.fixture_function("::f").expect("proc");
+     let observed = element_writes_observed_by_reads(&fu.cfg, &fu.name, &r);
+     assert_eq!(
+         observed.len(),
+@@ -715,7 +719,7 @@ fn place_no_array_assignment_is_empty() {
+     // an empty observed set without scanning.
+     let r = reg();
+     let cu = CompilationUnit::build_for("proc f {} { set x 1; puts $x }", &r, false);
+-    let fu = cu.function("::f").expect("proc");
++    let fu = cu.fixture_function("::f").expect("proc");
+     assert!(
+         element_writes_observed_by_reads(&fu.cfg, &fu.name, &r).is_empty(),
+         "no array assignment → empty observed set",
+@@ -758,7 +762,7 @@ fn place_namespace_upvar_alias_resolves() {
+         &r,
+         false,
+     );
+-    let fu = cu.function("::f").expect("proc");
++    let fu = cu.fixture_function("::f").expect("proc");
+     let ctx = build_resolve_context(&fu.cfg, &fu.name);
+     assert!(
+         ctx.upvar_aliases.contains_key("local"),
+@@ -783,7 +787,7 @@ fn place_trace_target_marks_observed() {
+         &r,
+         false,
+     );
+-    let fu = cu.function("::f").expect("proc");
++    let fu = cu.fixture_function("::f").expect("proc");
+     let ctx = build_resolve_context(&fu.cfg, &fu.name);
+     assert!(
+         ctx.traced.contains("g"),
+@@ -825,7 +829,7 @@ fn place_terminator_branch_condition_reads() {
+     // `[expr]`-embedded command-subst within the condition is recursed.
+     let r = reg();
+     let cu = CompilationUnit::build_for("proc f {c} { if {$c} { puts yes } }", &r, false);
+-    let fu = cu.function("::f").expect("proc");
++    let fu = cu.fixture_function("::f").expect("proc");
+     let ctx = build_resolve_context(&fu.cfg, &fu.name);
+     let mut term_reads = Vec::new();
+     for block in fu.cfg.blocks.values() {
+@@ -849,7 +853,7 @@ fn place_terminator_braced_return_is_not_a_read() {
+     let braced = CompilationUnit::build_for("proc f {} { set x 1; return {$x} }", &r, false);
+     let bare = CompilationUnit::build_for("proc g {} { set x 1; return $x }", &r, false);
+     let read_x = |cu: &CompilationUnit, q: &str| -> bool {
+-        let fu = cu.function(q).expect("proc");
++        let fu = cu.fixture_function(q).expect("proc");
+         let ctx = build_resolve_context(&fu.cfg, &fu.name);
+         fu.cfg.blocks.values().any(|b| {
+             b.terminator.as_ref().is_some_and(|t| {
+@@ -1064,8 +1068,8 @@ proc p {items} {
+     // A fresh whole-file build at the shifted position is the ground truth.
+     let cu_fresh = fresh_unit(&shifted);
+ 
+-    let got = cu_shifted.function("::p").expect("rebased proc");
+-    let want = cu_fresh.function("::p").expect("fresh proc");
++    let got = cu_shifted.fixture_function("::p").expect("rebased proc");
++    let want = cu_fresh.fixture_function("::p").expect("fresh proc");
+     assert_eq!(
+         want.sccp.selections.len(),
+         1,
+@@ -1097,8 +1101,8 @@ proc q {n} {
+     let (_b, cu_shifted) = rebased_units(body, &shifted);
+     let cu_fresh = fresh_unit(&shifted);
+     assert_span_carrying_eq(
+-        cu_shifted.function("::q").expect("rebased"),
+-        cu_fresh.function("::q").expect("fresh"),
++        cu_shifted.fixture_function("::q").expect("rebased"),
++        cu_fresh.fixture_function("::q").expect("fresh"),
+         "shifted switch/while",
+     );
+ }
+@@ -1113,8 +1117,8 @@ fn rebase_zero_delta_is_noop() {
+     let (cu_base, _shifted) = rebased_units(body, body);
+     let cu_fresh = fresh_unit(body);
+     assert_span_carrying_eq(
+-        cu_base.function("::z").expect("memoised"),
+-        cu_fresh.function("::z").expect("fresh"),
++        cu_base.fixture_function("::z").expect("memoised"),
++        cu_fresh.fixture_function("::z").expect("fresh"),
+         "zero-delta",
+     );
+ }
+@@ -1641,7 +1645,7 @@ fn unresolved_handler_barrier_blocks_scalar_constant_branch() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "unresolved handler barrier must prevent stale scalar branch folding: {:?}",
+@@ -1656,7 +1660,7 @@ fn embedded_handler_barrier_blocks_host_scalar_constant_branch() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "an embedded unresolved handler must invalidate host-following scalar facts",
+@@ -1670,7 +1674,7 @@ fn condition_handler_barrier_blocks_scalar_constant_branch() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "a condition substitution reaching the unresolved handler must invalidate following scalar facts",
+@@ -1684,7 +1688,7 @@ fn foreach_list_handler_barrier_blocks_scalar_constant_branch() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "a foreach list substitution reaching the unresolved handler must invalidate following scalar facts",
+@@ -1698,7 +1702,7 @@ fn braced_foreach_list_does_not_create_handler_barrier() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         !fu.sccp.constant_branches.is_empty(),
+         "a braced foreach list does not evaluate its bracket text",
+@@ -1713,7 +1717,7 @@ fn try_header_handler_barrier_blocks_scalar_constant_branch() {
+     let source = "proc p {} {set x 5; try {} on error [missing_command] {}; if {$x == 5} {return stale} else {return changed}}";
+     let cu = CompilationUnit::build_for(source, &registry, false);
+     assert!(
+-        cu.function("::p")
++        cu.fixture_function("::p")
+             .unwrap()
+             .sccp
+             .constant_branches
+@@ -1745,7 +1749,7 @@ fn try_header_handler_barrier_blocks_scalar_constant_branch() {
+     );
+     assert!(
+         !safe
+-            .function("::p")
++            .fixture_function("::p")
+             .unwrap()
+             .sccp
+             .constant_branches
+@@ -1760,7 +1764,7 @@ fn known_safe_registry_handler_preserves_scalar_constant_branch() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         !fu.sccp.constant_branches.is_empty(),
+         "a known safe registry handler should retain scalar precision",
+@@ -1774,7 +1778,7 @@ fn embedded_shadowed_builtin_does_not_borrow_code_running_traits() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         !fu.sccp.constant_branches.is_empty(),
+         "a user procedure named eval must not inherit eval's code-running traits",
+@@ -1788,7 +1792,7 @@ fn embedded_alias_to_user_proc_does_not_borrow_code_running_traits() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         !fu.sccp.constant_branches.is_empty(),
+         "an alias to a user procedure must not borrow its source spelling's registry traits",
+@@ -1802,7 +1806,7 @@ fn temporal_unknown_handler_keeps_auto_load_barrier() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "an auto-loaded caller-mutating generation must keep the unresolved barrier",
+@@ -1816,7 +1820,7 @@ fn embedded_user_call_makes_later_embedded_binding_opaque() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "a later embedded call must see the earlier user call's source-order binding opacity",
+@@ -1830,7 +1834,7 @@ fn embedded_rename_makes_later_embedded_binding_opaque() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "later embedded resolution must observe a preceding rename transition",
+@@ -2019,7 +2023,7 @@ fn opaque_user_call_keeps_later_builtin_resolution_barrier() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "a source-opaque user call must invalidate later direct builtin resolution",
+@@ -2033,7 +2037,7 @@ fn readable_eval_user_call_makes_later_binding_opaque() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "a readable eval body shares the source-order binding transfer",
+@@ -2047,7 +2051,7 @@ fn alias_to_unresolved_handler_keeps_terminal_barrier_effect() {
+         &reg(),
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     assert!(
+         fu.sccp.constant_branches.is_empty(),
+         "an alias reaching the registry unknown handler must keep the scalar barrier",
+@@ -2099,7 +2103,7 @@ fn seeded_parameter_result(source: &str) -> tcl_compiler::sccp::SccpResult {
+     use tcl_compiler::analyses::{ConstValue, LatticeValue};
+     let registry = reg();
+     let cu = CompilationUnit::build_for(source, &registry, false);
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     let seeds = HashMap::from([(("x".to_owned(), 0), LatticeValue::Const(ConstValue::Int(5)))]);
+     tcl_compiler::sccp::sccp(
+         &fu.cfg,
+@@ -2152,7 +2156,7 @@ fn an_unseen_call_preserves_dead_prior_and_future_definitions() {
+         &registry,
+         false,
+     );
+-    let fu = cu.function("::p").expect("procedure");
++    let fu = cu.fixture_function("::p").expect("procedure");
+     for (name, expected) in [("first", 5), ("after", 7)] {
+         let symbol = fu.ssa.var_symbol(name).expect("variable");
+         assert!(
+@@ -2179,7 +2183,7 @@ fn registry_handler_widens_array_element_read_by_terminator() {
+     ] {
+         let source = format!("proc p {{flag}} {{set a(k) 5; missing_command; {tail}}}");
+         let cu = CompilationUnit::build_for(&source, &registry, false);
+-        let fu = cu.function("::p").expect("procedure");
++        let fu = cu.fixture_function("::p").expect("procedure");
+         let symbol = fu.ssa.var_symbol("a(k)").expect("element");
+         let transitions: Vec<_> = fu
+             .ssa
+@@ -2217,7 +2221,7 @@ fn registry_handler_widens_array_element_read_by_terminator() {
+     }
+     let control =
+         CompilationUnit::build_for("proc p {} {set a(k) 5; return $a(k)}", &registry, false);
+-    let fu = control.function("::p").expect("procedure");
++    let fu = control.fixture_function("::p").expect("procedure");
+     let symbol = fu.ssa.var_symbol("a(k)").expect("element");
+     assert!(
+         fu.sccp.values.iter().any(|((var, _), value)| {
+@@ -2242,7 +2246,7 @@ fn brace_expression_handler_barrier_blocks_following_scalar_fold() {
+         );
+         let cu = CompilationUnit::build_for(&source, &reg(), false);
+         assert!(
+-            cu.function("::p")
++            cu.fixture_function("::p")
+                 .unwrap()
+                 .sccp
+                 .constant_branches
+@@ -2255,7 +2259,7 @@ fn brace_expression_handler_barrier_blocks_following_scalar_fold() {
+         false,
+     );
+     assert!(
+-        safe.function("::p")
++        safe.fixture_function("::p")
+             .unwrap()
+             .sccp
+             .constant_branches
+@@ -2467,7 +2471,7 @@ fn global_script_and_unseen_call_both_widen_seeded_parameter() {
+             "{middle}"
+         );
+         let cu = CompilationUnit::build_for(&source, &reg(), false);
+-        let fu = cu.function("::p").unwrap();
++        let fu = cu.fixture_function("::p").unwrap();
+         for marker in [
+             tcl_compiler::ir::SyntheticMarker::GlobalFrameScript,
+             tcl_compiler::ir::SyntheticMarker::UnseenCall,
+@@ -2536,7 +2540,7 @@ fn registry_handler_widens_collection_classes_before_later_updates() {
+             "oo::class create A {{}}; oo::class create B {{}}; set d [dict create k [A new]]; {middle}; dict set d k2 [A new]; set x [dict get $d k]"
+         );
+         let cu = CompilationUnit::build_for(&source, &reg(), false);
+-        let fu = cu.function("::top").unwrap();
++        let fu = cu.fixture_function("::top").unwrap();
+         let x = fu.ssa.var_symbol("x").unwrap();
+         assert!(
+             fu.types
+@@ -2557,7 +2561,7 @@ fn constructor_effects_and_redefinitions_withdraw_collection_type_precision() {
+         "oo::class create A {}; set acc [list]; missing_command; lappend acc [A new]; set x [lindex $acc 0]",
+     ] {
+         let cu = CompilationUnit::build_for(source, &reg(), false);
+-        let fu = cu.function("::top").unwrap();
++        let fu = cu.fixture_function("::top").unwrap();
+         let x = fu.ssa.var_symbol("x").unwrap();
+         let inferred: Vec<_> = fu
+             .types
+diff --git a/rust/tcl-compiler/tests/dataflow.rs b/rust/tcl-compiler/tests/dataflow.rs
+index 55fb6e9b6..4504671ef 100644
+--- a/rust/tcl-compiler/tests/dataflow.rs
++++ b/rust/tcl-compiler/tests/dataflow.rs
+@@ -71,6 +71,10 @@
+ //! command-substitution RHS ⇒ kept because of its side effect) are the
+ //! tclsh-anchored ones.
+ 
++#[path = "support/function_identity.rs"]
++mod function_identity;
++use function_identity::OriginalFixtureFunctions;
++
+ use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
+ use tcl_compiler::dataflow_graph::{
+     DataFlowGraph, EdgeKind, FunctionInputs, extract_dataflow_graph, extract_function_dataflow,
+@@ -101,7 +105,7 @@ fn top_fu(cu: &CompilationUnit) -> &FunctionUnit {
+ 
+ /// A specific procedure's `FunctionUnit`.
+ fn proc_fu<'a>(cu: &'a CompilationUnit, qname: &str) -> &'a FunctionUnit {
+-    cu.function(qname)
++    cu.fixture_function(qname)
+         .unwrap_or_else(|| panic!("function {qname} not found"))
+ }
+ 
+diff --git a/rust/tcl-compiler/tests/complexity_guard.rs b/rust/tcl-compiler/tests/complexity_guard.rs
+index a7d66e8f5..8b1a77e8a 100644
+--- a/rust/tcl-compiler/tests/complexity_guard.rs
++++ b/rust/tcl-compiler/tests/complexity_guard.rs
+@@ -52,7 +52,7 @@
+ //!     `is_complexity_guarded` + `build_ssa`.
+ //!   * The **byte** half is observed through diagnostics (`W123` suppression)
+ //!     and through `CompilationUnit::build_for`; the per-proc unit it yields
+-//!     (`cu.function("::big")`) carries the `complexity_guarded` /
++//!     (`cu.fixture_function("::big")`) carries the `complexity_guarded` /
+ //!     `ssa` / `analysis` bundle. The W123
+ //!     diagnostic-suppression surface is not re-derived here (it is an effect of
+ //!     the same flag, which is asserted directly); see the GAP note on the
+@@ -68,6 +68,10 @@
+ //!     trivial unit) is covered by [`byte_guarded_proc_skips_ssa_and_dataflow`].
+ //!     See the `// GAP:`-tagged `force_guard_*` placeholders.
+ 
++#[path = "support/function_identity.rs"]
++mod function_identity;
++use function_identity::OriginalFixtureFunctions;
++
+ use tcl_compiler::cfg::{Block, Function, Terminator};
+ use tcl_compiler::compilation_unit::CompilationUnit;
+ use tcl_compiler::ssa::{
+@@ -194,7 +198,7 @@ fn byte_huge_proc_src() -> String {
+ #[test]
+ fn normal_proc_is_not_guarded() {
+     let cu = CompilationUnit::build_for("proc small {} { set x 1 }", registry(), false);
+-    let small = cu.function("::small").expect("::small built");
++    let small = cu.fixture_function("::small").expect("::small built");
+     assert!(!small.complexity_guarded);
+     assert!(!small.ssa.blocks.is_empty(), "real SSA for a normal proc");
+     // A genuine fact is recorded for the normal proc (proof deep analysis ran):
+@@ -217,7 +221,7 @@ fn normal_proc_is_not_guarded() {
+ #[test]
+ fn byte_guarded_proc_skips_ssa_and_dataflow() {
+     let cu = CompilationUnit::build_for(&byte_huge_proc_src(), registry(), false);
+-    let big = cu.function("::big").expect("::big built");
++    let big = cu.fixture_function("::big").expect("::big built");
+ 
+     // Block-light: the block-count half would NOT fire on this body ...
+     assert!(
+@@ -242,7 +246,7 @@ fn byte_guarded_proc_skips_ssa_and_dataflow() {
+ fn guarded_proc_still_recorded() {
+     let cu = CompilationUnit::build_for(&byte_huge_proc_src(), registry(), false);
+     // The procedure is present in the unit even though its body was skipped.
+-    let big = cu.function("::big").expect("::big still recorded");
++    let big = cu.fixture_function("::big").expect("::big still recorded");
+     assert_eq!(big.name, "::big");
+     assert!(big.complexity_guarded);
+     // The trivial unit is well-formed: its SSA carries the CFG's block-name
+@@ -260,7 +264,7 @@ fn guarded_proc_still_recorded() {
+ fn guarded_proc_excluded_from_analysable_functions() {
+     let cu = CompilationUnit::build_for(&byte_huge_proc_src(), registry(), false);
+     assert!(
+-        cu.function("::big").is_some(),
++        cu.fixture_function("::big").is_some(),
+         "guarded ::big exists as a unit",
+     );
+     assert!(
+@@ -277,7 +281,7 @@ fn huge_body_does_not_crash_and_is_fast() {
+     let src = byte_huge_proc_src();
+     let t = std::time::Instant::now();
+     let cu = CompilationUnit::build_for(&src, registry(), false); // must not panic
+-    let big = cu.function("::big").expect("::big built");
++    let big = cu.fixture_function("::big").expect("::big built");
+     assert!(big.complexity_guarded);
+     assert!(
+         t.elapsed().as_secs() < 20,
+@@ -296,7 +300,7 @@ fn sub_ceiling_body_is_not_byte_guarded() {
+     assert!(small_literal.len() < DEEP_ANALYSIS_BODY_BYTES);
+     let src = format!("proc modest {{}} {{ set x \"{small_literal}\" }}");
+     let cu = CompilationUnit::build_for(&src, registry(), false);
+-    let modest = cu.function("::modest").expect("::modest built");
++    let modest = cu.fixture_function("::modest").expect("::modest built");
+     assert!(
+         !modest.complexity_guarded,
+         "a sub-ceiling body must NOT be byte-guarded"
+diff --git a/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs b/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs
+index 64aa0b79a..1a73a871e 100644
+--- a/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs
++++ b/rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs
+@@ -7,6 +7,21 @@
+ use super::*;
+ use salsa::Setter as _;
+ 
++fn original_fixture_function(
++    unit: &CompilationUnit,
++    offset: usize,
++) -> Option<&tcl_compiler::compilation_unit::FunctionUnit> {
++    let offset = u32::try_from(offset).expect("finite authored declaration offset");
++    let mut declarations = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
++        procedure.declaration_site.as_ref().is_some_and(|site| {
++            site.offset == offset && site.source.source_image().bytes() == unit.source.as_bytes()
++        })
++    });
++    let (&id, _) = declarations.next()?;
++    assert!(declarations.next().is_none(), "one authored declaration at the original site");
++    unit.function_for_body(Some(id))
++}
++
+ fn configuration(db: &TclDatabase, overlay: u64) -> AnalyserConfig {
+     AnalyserConfig::new(
+         db,
+@@ -77,8 +92,7 @@ fn tracked_source_units_share_checked_input_and_memoized_procedure_grammar() {
+             .map(tcl_dialect::DialectProfile::cache_key),
+         Some(input.unit_profile().cache_key()),
+     );
+-    let function = unit
+-        .function("::subject")
++    let function = original_fixture_function(&unit, 0)
+         .expect("genuine Logical source procedure");
+     let function_input = function.source_metadata_input().unwrap();
+     assert!(Arc::ptr_eq(
+@@ -102,7 +116,11 @@ fn tracked_source_units_share_checked_input_and_memoized_procedure_grammar() {
+         .to(format!("# shifted declaration\n{source}"));
+     let shifted = document_compilation_unit_for(&db, file, config).unwrap();
+     assert_eq!(document_analysis_input(&db, file, config).unwrap(), input);
+-    let shifted_function = shifted.function("::subject").unwrap();
++    let shifted_function = original_fixture_function(
++        &shifted,
++        shifted.source.find("proc subject").unwrap(),
++    )
++    .unwrap();
+     assert_eq!(
+         shifted_function.source_metadata_input(),
+         function.source_metadata_input()
+@@ -213,12 +231,8 @@ fn tracked_document_input_refuses_unavailable_generation_before_any_source_walk(
+     let restored = file_analysis_incremental(&db, file, config);
+     assert!(restored.analysis_context_unavailable.is_none());
+     assert!(restored.resolved_input.is_some());
+-    assert!(
+-        document_compilation_unit_for(&db, file, config)
+-            .unwrap()
+-            .function("::subject")
+-            .is_some()
+-    );
++    let restored_unit = document_compilation_unit_for(&db, file, config).unwrap();
++    assert!(original_fixture_function(&restored_unit, 0).is_some());
+ }
+ 
+ #[test]
+diff --git a/rust/tcl-lsp-core/src/original_invocation.rs b/rust/tcl-lsp-core/src/original_invocation.rs
+index 75bd3433c..d31fbe99b 100644
+--- a/rust/tcl-lsp-core/src/original_invocation.rs
++++ b/rust/tcl-lsp-core/src/original_invocation.rs
+@@ -469,7 +469,14 @@ mod original_diagnostic_value_tests {
+             known_word_contents(&unit, context.commands(), span).as_deref(),
+             Some("literal.txt")
+         );
+-        let function = unit.function("::f").unwrap();
++        let mut declarations = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
++            procedure.declaration_site.as_ref().is_some_and(|site| {
++                site.offset == 0 && site.source.source_image().bytes() == source.as_bytes()
++            })
++        });
++        let (&body_id, _) = declarations.next().expect("original authored declaration");
++        assert!(declarations.next().is_none());
++        let function = unit.function_for_body(Some(body_id)).unwrap();
+         let (statement, word) = function.word_at(span).unwrap();
+         assert!(
+             tcl_compiler::value_transfer::proven_word_value(function, statement, word, config)
+diff --git a/rust/tcl-cli/src/commands/diff.rs b/rust/tcl-cli/src/commands/diff.rs
+index f10cae2ea..467f1602b 100644
+--- a/rust/tcl-cli/src/commands/diff.rs
++++ b/rust/tcl-cli/src/commands/diff.rs
+@@ -680,8 +680,17 @@ mod tests {
+         let source = "proc p {} {set value 1; return $value}; p";
+         let document = DiffDocument::capture(source, &input, true).unwrap();
+         let explorer = document.explorer.as_ref().unwrap();
++        let mut declarations = explorer.unit.ir_module.procedures.iter().filter(|(_, procedure)| {
++            procedure.declaration_site.as_ref().is_some_and(|site| {
++                site.offset == 0 && site.source.source_image().bytes() == source.as_bytes()
++            })
++        });
++        let body_id = declarations.next().map(|(&id, _)| id);
++        assert!(declarations.next().is_none());
+         assert!(
+-            explorer.unit.function("::p").is_some(),
++            body_id
++                .and_then(|id| explorer.unit.function_for_body(Some(id)))
++                .is_some(),
+             "genuine Logical source procedure missing"
+         );
+         assert_eq!(document.analysis.resolved_input.as_ref(), Some(&input));

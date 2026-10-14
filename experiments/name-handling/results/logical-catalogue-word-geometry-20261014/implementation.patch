@@ -1,0 +1,73 @@
+--- a/rust/tcl-compiler/src/command_binding/original_name_value.rs
++++ b/rust/tcl-compiler/src/command_binding/original_name_value.rs
+@@ -1249,6 +1249,56 @@
+         }
+     }
+ 
++    /// Conditional receiver rows retain source geometry without original invocation authority.
++    fn original_logical_source_geometry_words(
++        &self,
++        input: &crate::analyser::ResolvedAnalysisInput,
++    ) -> Option<(&[crate::ir::WordExpr], tcl_lexer::LexerConfig)> {
++        input.has_logical_source_name_context().then_some(())?;
++        if self.original_written_words.is_some() || self.original_compiler_words.is_some() {
++            return self.original_recorded_name_words();
++        }
++        let site = self.invocation_site()?;
++        let rows = super::declaration_layout::original_source_catalogue_layouts(
++            self.declaration_layout_observations.as_deref()?,
++        )?;
++        let first = rows.clone().next()?;
++        let registry = input.borrowed_context_registry().commands();
++        for row in rows {
++            if !row.entry.owns_source(&site.source, site.offset)
++                || row.snapshot.state.current_source_origin.as_ref() != Some(&site.source)
++                || row.config != input.lexer_config()
++                || row.words != first.words
++            {
++                return None;
++            }
++            let owner = row
++                .snapshot
++                .state
++                .baseline
++                .metadata_context
++                .source_analysis_input()?;
++            if owner != input && owner != &input.for_nested_source() {
++                return None;
++            }
++            let metadata = row
++                .snapshot
++                .state
++                .baseline
++                .metadata_context
++                .metadata_context_for_source(registry, row.config, Some(owner.unit_profile()))?;
++            if row
++                .snapshot
++                .state
++                .retained_original_source_purpose(metadata, registry)?
++                != super::OriginalInvocationSourcePurpose::Logical
++            {
++                return None;
++            }
++        }
++        Some((&first.words, first.config))
++    }
++
+     fn original_recorded_written_name_input(
+         &self,
+         written: usize,
+@@ -1587,7 +1637,12 @@
+                 Some(origin),
+                 *offset,
+             );
+-            let Some((words, retained_config)) = binding.original_recorded_name_words() else {
++            let geometry = if let Some(input) = self.original_logical_source_name_advice_input() {
++                binding.original_logical_source_geometry_words(input)
++            } else {
++                binding.original_recorded_name_words()
++            };
++            let Some((words, retained_config)) = geometry else {
+                 continue;
+             };
+             if retained_config != config

@@ -1,0 +1,9 @@
+# Diagram source owners
+
+Diagram context retains the actual lowered Module and its complete analysis input. The convenience ingress reuses that Module's retained input and ContextRegistry; missing input is explicitly unavailable. Current source, grammar, Registry, input owner and body issuer must agree before emitting the tree.
+
+Procedure call cards use `source_graph::procedure_body_for_original_call`. Logical calls use the sealed original Logical target/argv owner; authored simulation uses the independent original declaration-call owner; Execution/Standalone calls use the genuine typed original command reference and original implementation allocation. All paths require unanimous actual issued body identity. Native names never round-trip through UTF-8 display labels. The body key reports the complete opaque issuer coordinate. Original declaration cards retain their independent allocation join; a call cannot restore a missing declaration lookup.
+
+Registry source cards use `source_graph::registry_words_for_original_call`, retaining the complete source vector and shared source-schema builder. Caller procedure labels, unpositioned Realm resolution, lexical Registry existence matching and namespace reconstruction no longer select cards. These readonly source schemas issue no Native entry or successful runtime completion. Existing completion logic and independent source applicability remain separate.
+
+The original missing-lookup/source/configuration/availability assertions remain. Added controls select two real same-label declaration bodies separately, verify full body keys, and refuse a genuinely foreign Module-issued ID, duplicate body rows, missing input and changed source. Compiler/source-graph declaration and event selectors also reject foreign issuers. Tests are pending execution; only rustfmt parsing and Main apply-check passed in this lane.

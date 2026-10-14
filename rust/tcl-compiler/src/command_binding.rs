@@ -18121,17 +18121,6 @@ fn default_binding(qname: &str, registry: &CommandRegistry) -> Binding {
     }
 }
 
-/// Record a namespace transition's effect on command *resolution*.
-///
-/// Returns `false` when the target namespace is not literal, which the caller
-/// takes as the lattice top: the transition could have landed anywhere.
-///
-/// An import binds each pattern's *tail* in the target namespace, so a
-/// literal, glob-free pattern is exact — `namespace import -force
-/// ::evil::answer` shadowing a declared `::ns::answer`. A glob (`::lib::*`)
-/// names commands this scan cannot enumerate, so only the *target* namespace
-/// becomes opaque, and a name elsewhere — including in the namespace imported
-/// *from* — stays trustworthy.
 fn apply_package_transition(
     state: &mut ModuleCommandBindings,
     transition: &tcl_registry::model::binding::PackageTransition,
@@ -18834,6 +18823,8 @@ fn forget_pattern(
     }
 }
 
+/// Project literal import tails under the retained current namespace key.
+/// Unknown patterns or targets widen lookup advice without selecting a command.
 fn collect_namespace_resolution(
     transition: &NamespaceTransition,
     site: Option<&str>,
@@ -18870,8 +18861,10 @@ fn collect_namespace_resolution(
     for pattern in patterns {
         match literal_subject(pattern) {
             Some(text) if !text.contains(['*', '?', '[']) => {
-                let tail = text.rsplit("::").next().unwrap_or(text);
-                rebound.insert(nqn(&join_ns(&target, tail)));
+                let tail =
+                    core::str::from_utf8(tcl_syntax::naming::written_command_tail(text.as_bytes()))
+                        .expect("tail of a Unicode pattern");
+                rebound.insert(tcl_syntax::naming::qualify(&target, tail));
             }
             _ => {
                 opaque.insert(target.clone());
@@ -18889,19 +18882,10 @@ fn transition_namespace(
     current: Option<&str>,
 ) -> Option<String> {
     match target {
-        tcl_registry::NamespaceTransitionTarget::Current => current.map(nqn),
+        tcl_registry::NamespaceTransitionTarget::Current => current.map(str::to_owned),
         tcl_registry::NamespaceTransitionTarget::Named(subject) => {
             literal_subject(subject).map(nqn)
         }
-    }
-}
-
-/// `ns` + `tail` as one qualified name, without doubling the separator.
-fn join_ns(ns: &str, tail: &str) -> String {
-    if ns == "::" {
-        format!("::{tail}")
-    } else {
-        format!("{ns}::{tail}")
     }
 }
 
@@ -21471,6 +21455,36 @@ Animal new",
             assert!(
                 bindings.has_opaque_domain(),
                 "a current, unknown, or command-mutating child body must fail closed: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn namespace_resolution_projection_preserves_written_runs_and_constructed_colons() {
+        for (pattern, expected) in [
+            ("::source:::tail", ":::::tail"),
+            ("::source::a:b", ":::::a:b"),
+            ("::source::", ":::::"),
+        ] {
+            let transition = NamespaceTransition::Forget {
+                namespace: tcl_registry::NamespaceTransitionTarget::Current,
+                patterns: vec![TransitionSubject::Literal(pattern.to_owned())],
+            };
+            let mut rebound = std::collections::HashSet::new();
+            let mut changed = false;
+            let mut opaque = std::collections::HashSet::new();
+            assert!(collect_namespace_resolution(
+                &transition,
+                Some(":::"),
+                &mut rebound,
+                &mut changed,
+                &mut opaque,
+            ));
+            assert!(changed);
+            assert!(opaque.is_empty());
+            assert_eq!(
+                rebound,
+                std::collections::HashSet::from([expected.to_owned()])
             );
         }
     }

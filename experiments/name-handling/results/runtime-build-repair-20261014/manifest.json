@@ -1,0 +1,13 @@
+{
+  "inputs": {
+    "runtime/rust/src/list.rs": {
+      "before": "2837982e33b05967495d135d78e55f9b8eda5bebc15f6af8e7e7fd74f466f9f7",
+      "after": "e88ca258ff5fc677e46c31dbf03b60beb192ee4070649b6bd3e2fe828354cab9"
+    },
+    "runtime/rust/src/interp/native_body_artifact.rs": {
+      "before": "747f8424a727a4b0a0c535a33f06b65120fb5c88d7573611650c2d8278bf58e1",
+      "after": "bf1a708fa504116d3c2fa9e18371e11e5302bd2074d78fcb57d3d8c5369c7edf"
+    }
+  },
+  "scope": "Observed production callback type correction retains the existing failure recorder; unused string binding removed while the same UTF-8 validation and refusal stay in place. No execution acceptance."
+}

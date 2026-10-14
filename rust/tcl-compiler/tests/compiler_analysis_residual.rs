@@ -65,6 +65,10 @@
 
 #[path = "support/body_identity.rs"]
 mod body_identity;
+#[path = "support/function_identity.rs"]
+mod function_identity;
+use function_identity::OriginalFixtureFunctions;
+
 use body_identity::{fixture_id, fixture_id_if_present};
 
 use tcl_compiler::analyser::Analyser;
@@ -160,7 +164,7 @@ fn top_calls_to(module: &Module, command: &str) -> usize {
 fn places_of(src: &str, qname: &str) -> (Vec<Place>, Vec<Place>) {
     let r = reg();
     let cu = CompilationUnit::build_for(src, &r, false);
-    let fu = cu.function(qname).expect("proc not found");
+    let fu = cu.fixture_function(qname).expect("proc not found");
     let ctx = build_resolve_context(&fu.cfg, &fu.name);
     let mut defs = Vec::new();
     let mut reads = Vec::new();
@@ -679,7 +683,7 @@ fn place_must_alias_kill_suppresses_dead_element() {
         &r,
         false,
     );
-    let fu = cu.function("::f").expect("proc");
+    let fu = cu.fixture_function("::f").expect("proc");
     let observed = element_writes_observed_by_reads(&fu.cfg, &fu.name, &r);
     // Exactly one element write is observed-and-kept (the second `set a(k) 2`);
     // the first is must-alias-killed so it is excluded.
@@ -700,7 +704,7 @@ fn place_array_element_write_no_kill_is_observed() {
         &r,
         false,
     );
-    let fu = cu.function("::f").expect("proc");
+    let fu = cu.fixture_function("::f").expect("proc");
     let observed = element_writes_observed_by_reads(&fu.cfg, &fu.name, &r);
     assert_eq!(
         observed.len(),
@@ -715,7 +719,7 @@ fn place_no_array_assignment_is_empty() {
     // an empty observed set without scanning.
     let r = reg();
     let cu = CompilationUnit::build_for("proc f {} { set x 1; puts $x }", &r, false);
-    let fu = cu.function("::f").expect("proc");
+    let fu = cu.fixture_function("::f").expect("proc");
     assert!(
         element_writes_observed_by_reads(&fu.cfg, &fu.name, &r).is_empty(),
         "no array assignment → empty observed set",
@@ -758,7 +762,7 @@ fn place_namespace_upvar_alias_resolves() {
         &r,
         false,
     );
-    let fu = cu.function("::f").expect("proc");
+    let fu = cu.fixture_function("::f").expect("proc");
     let ctx = build_resolve_context(&fu.cfg, &fu.name);
     assert!(
         ctx.upvar_aliases.contains_key("local"),
@@ -783,7 +787,7 @@ fn place_trace_target_marks_observed() {
         &r,
         false,
     );
-    let fu = cu.function("::f").expect("proc");
+    let fu = cu.fixture_function("::f").expect("proc");
     let ctx = build_resolve_context(&fu.cfg, &fu.name);
     assert!(
         ctx.traced.contains("g"),
@@ -825,7 +829,7 @@ fn place_terminator_branch_condition_reads() {
     // `[expr]`-embedded command-subst within the condition is recursed.
     let r = reg();
     let cu = CompilationUnit::build_for("proc f {c} { if {$c} { puts yes } }", &r, false);
-    let fu = cu.function("::f").expect("proc");
+    let fu = cu.fixture_function("::f").expect("proc");
     let ctx = build_resolve_context(&fu.cfg, &fu.name);
     let mut term_reads = Vec::new();
     for block in fu.cfg.blocks.values() {
@@ -849,7 +853,7 @@ fn place_terminator_braced_return_is_not_a_read() {
     let braced = CompilationUnit::build_for("proc f {} { set x 1; return {$x} }", &r, false);
     let bare = CompilationUnit::build_for("proc g {} { set x 1; return $x }", &r, false);
     let read_x = |cu: &CompilationUnit, q: &str| -> bool {
-        let fu = cu.function(q).expect("proc");
+        let fu = cu.fixture_function(q).expect("proc");
         let ctx = build_resolve_context(&fu.cfg, &fu.name);
         fu.cfg.blocks.values().any(|b| {
             b.terminator.as_ref().is_some_and(|t| {
@@ -1064,8 +1068,8 @@ proc p {items} {
     // A fresh whole-file build at the shifted position is the ground truth.
     let cu_fresh = fresh_unit(&shifted);
 
-    let got = cu_shifted.function("::p").expect("rebased proc");
-    let want = cu_fresh.function("::p").expect("fresh proc");
+    let got = cu_shifted.fixture_function("::p").expect("rebased proc");
+    let want = cu_fresh.fixture_function("::p").expect("fresh proc");
     assert_eq!(
         want.sccp.selections.len(),
         1,
@@ -1097,8 +1101,8 @@ proc q {n} {
     let (_b, cu_shifted) = rebased_units(body, &shifted);
     let cu_fresh = fresh_unit(&shifted);
     assert_span_carrying_eq(
-        cu_shifted.function("::q").expect("rebased"),
-        cu_fresh.function("::q").expect("fresh"),
+        cu_shifted.fixture_function("::q").expect("rebased"),
+        cu_fresh.fixture_function("::q").expect("fresh"),
         "shifted switch/while",
     );
 }
@@ -1113,8 +1117,8 @@ fn rebase_zero_delta_is_noop() {
     let (cu_base, _shifted) = rebased_units(body, body);
     let cu_fresh = fresh_unit(body);
     assert_span_carrying_eq(
-        cu_base.function("::z").expect("memoised"),
-        cu_fresh.function("::z").expect("fresh"),
+        cu_base.fixture_function("::z").expect("memoised"),
+        cu_fresh.fixture_function("::z").expect("fresh"),
         "zero-delta",
     );
 }
@@ -1641,7 +1645,7 @@ fn unresolved_handler_barrier_blocks_scalar_constant_branch() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "unresolved handler barrier must prevent stale scalar branch folding: {:?}",
@@ -1656,7 +1660,7 @@ fn embedded_handler_barrier_blocks_host_scalar_constant_branch() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "an embedded unresolved handler must invalidate host-following scalar facts",
@@ -1670,7 +1674,7 @@ fn condition_handler_barrier_blocks_scalar_constant_branch() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "a condition substitution reaching the unresolved handler must invalidate following scalar facts",
@@ -1684,7 +1688,7 @@ fn foreach_list_handler_barrier_blocks_scalar_constant_branch() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "a foreach list substitution reaching the unresolved handler must invalidate following scalar facts",
@@ -1698,7 +1702,7 @@ fn braced_foreach_list_does_not_create_handler_barrier() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         !fu.sccp.constant_branches.is_empty(),
         "a braced foreach list does not evaluate its bracket text",
@@ -1713,7 +1717,7 @@ fn try_header_handler_barrier_blocks_scalar_constant_branch() {
     let source = "proc p {} {set x 5; try {} on error [missing_command] {}; if {$x == 5} {return stale} else {return changed}}";
     let cu = CompilationUnit::build_for(source, &registry, false);
     assert!(
-        cu.function("::p")
+        cu.fixture_function("::p")
             .unwrap()
             .sccp
             .constant_branches
@@ -1745,7 +1749,7 @@ fn try_header_handler_barrier_blocks_scalar_constant_branch() {
     );
     assert!(
         !safe
-            .function("::p")
+            .fixture_function("::p")
             .unwrap()
             .sccp
             .constant_branches
@@ -1760,7 +1764,7 @@ fn known_safe_registry_handler_preserves_scalar_constant_branch() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         !fu.sccp.constant_branches.is_empty(),
         "a known safe registry handler should retain scalar precision",
@@ -1774,7 +1778,7 @@ fn embedded_shadowed_builtin_does_not_borrow_code_running_traits() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         !fu.sccp.constant_branches.is_empty(),
         "a user procedure named eval must not inherit eval's code-running traits",
@@ -1788,7 +1792,7 @@ fn embedded_alias_to_user_proc_does_not_borrow_code_running_traits() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         !fu.sccp.constant_branches.is_empty(),
         "an alias to a user procedure must not borrow its source spelling's registry traits",
@@ -1802,7 +1806,7 @@ fn temporal_unknown_handler_keeps_auto_load_barrier() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "an auto-loaded caller-mutating generation must keep the unresolved barrier",
@@ -1816,7 +1820,7 @@ fn embedded_user_call_makes_later_embedded_binding_opaque() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "a later embedded call must see the earlier user call's source-order binding opacity",
@@ -1830,7 +1834,7 @@ fn embedded_rename_makes_later_embedded_binding_opaque() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "later embedded resolution must observe a preceding rename transition",
@@ -2019,7 +2023,7 @@ fn opaque_user_call_keeps_later_builtin_resolution_barrier() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "a source-opaque user call must invalidate later direct builtin resolution",
@@ -2033,7 +2037,7 @@ fn readable_eval_user_call_makes_later_binding_opaque() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "a readable eval body shares the source-order binding transfer",
@@ -2047,7 +2051,7 @@ fn alias_to_unresolved_handler_keeps_terminal_barrier_effect() {
         &reg(),
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     assert!(
         fu.sccp.constant_branches.is_empty(),
         "an alias reaching the registry unknown handler must keep the scalar barrier",
@@ -2099,7 +2103,7 @@ fn seeded_parameter_result(source: &str) -> tcl_compiler::sccp::SccpResult {
     use tcl_compiler::analyses::{ConstValue, LatticeValue};
     let registry = reg();
     let cu = CompilationUnit::build_for(source, &registry, false);
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     let seeds = HashMap::from([(("x".to_owned(), 0), LatticeValue::Const(ConstValue::Int(5)))]);
     tcl_compiler::sccp::sccp(
         &fu.cfg,
@@ -2152,7 +2156,7 @@ fn an_unseen_call_preserves_dead_prior_and_future_definitions() {
         &registry,
         false,
     );
-    let fu = cu.function("::p").expect("procedure");
+    let fu = cu.fixture_function("::p").expect("procedure");
     for (name, expected) in [("first", 5), ("after", 7)] {
         let symbol = fu.ssa.var_symbol(name).expect("variable");
         assert!(
@@ -2179,7 +2183,7 @@ fn registry_handler_widens_array_element_read_by_terminator() {
     ] {
         let source = format!("proc p {{flag}} {{set a(k) 5; missing_command; {tail}}}");
         let cu = CompilationUnit::build_for(&source, &registry, false);
-        let fu = cu.function("::p").expect("procedure");
+        let fu = cu.fixture_function("::p").expect("procedure");
         let symbol = fu.ssa.var_symbol("a(k)").expect("element");
         let transitions: Vec<_> = fu
             .ssa
@@ -2217,7 +2221,7 @@ fn registry_handler_widens_array_element_read_by_terminator() {
     }
     let control =
         CompilationUnit::build_for("proc p {} {set a(k) 5; return $a(k)}", &registry, false);
-    let fu = control.function("::p").expect("procedure");
+    let fu = control.fixture_function("::p").expect("procedure");
     let symbol = fu.ssa.var_symbol("a(k)").expect("element");
     assert!(
         fu.sccp.values.iter().any(|((var, _), value)| {
@@ -2242,7 +2246,7 @@ fn brace_expression_handler_barrier_blocks_following_scalar_fold() {
         );
         let cu = CompilationUnit::build_for(&source, &reg(), false);
         assert!(
-            cu.function("::p")
+            cu.fixture_function("::p")
                 .unwrap()
                 .sccp
                 .constant_branches
@@ -2255,7 +2259,7 @@ fn brace_expression_handler_barrier_blocks_following_scalar_fold() {
         false,
     );
     assert!(
-        safe.function("::p")
+        safe.fixture_function("::p")
             .unwrap()
             .sccp
             .constant_branches
@@ -2467,7 +2471,7 @@ fn global_script_and_unseen_call_both_widen_seeded_parameter() {
             "{middle}"
         );
         let cu = CompilationUnit::build_for(&source, &reg(), false);
-        let fu = cu.function("::p").unwrap();
+        let fu = cu.fixture_function("::p").unwrap();
         for marker in [
             tcl_compiler::ir::SyntheticMarker::GlobalFrameScript,
             tcl_compiler::ir::SyntheticMarker::UnseenCall,
@@ -2536,7 +2540,7 @@ fn registry_handler_widens_collection_classes_before_later_updates() {
             "oo::class create A {{}}; oo::class create B {{}}; set d [dict create k [A new]]; {middle}; dict set d k2 [A new]; set x [dict get $d k]"
         );
         let cu = CompilationUnit::build_for(&source, &reg(), false);
-        let fu = cu.function("::top").unwrap();
+        let fu = cu.fixture_function("::top").unwrap();
         let x = fu.ssa.var_symbol("x").unwrap();
         assert!(
             fu.types
@@ -2557,7 +2561,7 @@ fn constructor_effects_and_redefinitions_withdraw_collection_type_precision() {
         "oo::class create A {}; set acc [list]; missing_command; lappend acc [A new]; set x [lindex $acc 0]",
     ] {
         let cu = CompilationUnit::build_for(source, &reg(), false);
-        let fu = cu.function("::top").unwrap();
+        let fu = cu.fixture_function("::top").unwrap();
         let x = fu.ssa.var_symbol("x").unwrap();
         let inferred: Vec<_> = fu
             .types

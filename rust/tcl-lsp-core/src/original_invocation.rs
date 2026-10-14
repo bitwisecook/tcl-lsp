@@ -469,7 +469,14 @@ mod original_diagnostic_value_tests {
             known_word_contents(&unit, context.commands(), span).as_deref(),
             Some("literal.txt")
         );
-        let function = unit.function("::f").unwrap();
+        let mut declarations = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
+            procedure.declaration_site.as_ref().is_some_and(|site| {
+                site.offset == 0 && site.source.source_image().bytes() == source.as_bytes()
+            })
+        });
+        let (&body_id, _) = declarations.next().expect("original authored declaration");
+        assert!(declarations.next().is_none());
+        let function = unit.function_for_body(Some(body_id)).unwrap();
         let (statement, word) = function.word_at(span).unwrap();
         assert!(
             tcl_compiler::value_transfer::proven_word_value(function, statement, word, config)

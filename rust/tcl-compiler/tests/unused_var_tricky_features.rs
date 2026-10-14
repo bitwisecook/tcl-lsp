@@ -47,6 +47,10 @@
 //! identically on `tclsh9.0` — the C Tcl 9 truth oracle — for every construct
 //! here, which uses only 8.4-era scoping semantics). Citations use `// tclsh:`.
 
+#[path = "support/function_identity.rs"]
+mod function_identity;
+use function_identity::OriginalFixtureFunctions;
+
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;
@@ -410,7 +414,7 @@ mod read_before_set_tps {
         // the conservative false fact before W210 consumes it.
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for("proc f {} { incr value }\n", &registry, false);
-        let f = cu.function("::f").expect("procedure analysed");
+        let f = cu.fixture_function("::f").expect("procedure analysed");
         assert!(
             f.cfg
                 .blocks

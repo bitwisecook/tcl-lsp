@@ -1618,7 +1618,9 @@ pub(crate) fn replace_prepared_native_range_original_using<E>(
             obj::duplicate_with_stage_check::<tcl_syntax::value::ValueError>(
                 original,
                 &mut || stage(),
-                &mut |first| retain(first.clone()),
+                &mut |first| {
+                    retain(first.clone());
+                },
             )
         })?;
         let copied = obj::Owned::fresh(copied);

@@ -4528,48 +4528,9 @@ impl<'r> Lowerer<'r> {
         })
     }
 
-    /// `apply {{params} body ?ns?} ?arg ...?` — an anonymous lambda.
-    ///
-    /// The body runs in a *separate* frame (its own locals, bound parameters),
-    /// so — like `namespace eval` — the `apply` itself stays a runtime
-    /// [`Statement::Barrier`]: codegen executes it via the runtime `apply` and
-    /// the body's frame-local effects are conservatively opaque to the caller's
-    /// CFG. But a braced literal body is still walked through [`Self::lower_body`]
-    /// (in a fresh const-map / proc-depth frame, as `lower_proc` does) so nested
-    /// `proc` definitions and other module-level effects register — where the
-    /// old `lower_default` barrier discarded the body wholesale, losing them.
-    ///
-    /// A `$var` / `[cmd]` lambda, or a lambda whose body element is not a braced
-    /// literal, stays fully opaque (nothing statically walkable).
-    ///
-    /// The body is walked in the *lambda's* namespace — element 2 of the lambda
-    /// if present, else the global namespace `::` — not the caller's namespace,
-    /// so a nested `proc` registers under the same qualified name Tcl's runtime
-    /// `apply` would give it (per the `apply` manual).
-    /// Register an already-lowered fresh-frame body (an `apply` lambda or a
-    /// `namespace eval` block) as a synthetic *body unit* in
-    /// [`Module::body_units`], so the static-analysis pipeline reaches inside
-    /// it. `label` names the construct (`apply` / `namespace-eval`), `params`
-    /// are the frame's bound names (empty for `namespace eval`), and `span`
-    /// covers the body text (used by the complexity guard). Purely additive —
-    /// the caller still emits the runtime `Statement::Barrier` that executes
-    /// the body, so bytecode is unchanged.
-    /// `label` is either a bare marker (`"apply"`, reducing to the global
-    /// namespace once `#N`-suffixed — matching `apply`'s own default
-    /// resolution namespace for the common 2-element-lambda form) or an
-    /// already-namespace-qualified prefix (`"::ns::namespace-eval"`, from
-    /// [`Self::lower_namespace_eval`]) — so the resulting `qualified` name's
-    /// *enclosing* namespace (everything before the last `::`, the same
-    /// convention every proc/method qname uses) is the namespace this body
-    /// actually executes in, not always the global namespace. This is what
-    /// lets [`crate::compilation_unit::build_extra_call_site_scan_contexts`]
-    /// resolve a bare call inside the body against the *correct* namespace
-    /// via [`crate::interprocedural::resolve_internal_call`], rather than
-    /// silently defaulting every body unit to global.
-    ///
-    /// `is_lambda` marks the frame as a closed one whose parameter list binds
-    /// locals (`apply`), recording it in [`Module::lambda_body_units`]; a
-    /// `namespace eval` body is not.
+    /// Retain a synthetic analysis body under its issued Module ID.
+    /// Labels are displays; the body retains its own namespace/source receipt.
+    /// Lambda parameters bind a fresh frame, while namespace bodies do not.
     fn register_body_unit(
         &mut self,
         label: &str,
@@ -4582,10 +4543,7 @@ impl<'r> Lowerer<'r> {
         self.body_unit_count += 1;
         let prefix = label.strip_prefix("::").unwrap_or(label);
         let qualified = format!("::{prefix}#{n}");
-        // `name` stays the short leaf marker (`"apply"` / `"namespace-eval"`)
-        // even when `label` carries a namespace prefix — matching every
-        // other `Procedure::name`'s "short name" contract.
-        let short_name = prefix.rsplit("::").next().unwrap_or(prefix).to_string();
+        let short_name = tcl_syntax::naming::key_tail(label).to_owned();
         let id = self.module.retain_body_unit(Procedure {
             name: short_name,
             qualified_name: qualified,

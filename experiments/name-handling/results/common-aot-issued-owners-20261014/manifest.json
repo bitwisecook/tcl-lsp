@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/common_aot_plan.rs",
+      "before_sha256": "54d34ae1c5a88fed45419cdc776da6d8ec0b1d435e6d85f5bfe6b4d369c76727",
+      "after_sha256": "85c91c6575db51266994e5d421d53b40fb06ec2729fad1201c8e6f5086f9a015"
+    },
+    {
+      "path": "rust/tcl-compiler/src/native_integer_proof.rs",
+      "before_sha256": "90aafdc1c6911c63a76301aeb0bcc3ee7f2192c5df4505dd6e918a814889ce9c",
+      "after_sha256": "4e9b589cf027322cc6508390f020ae2a32274bbef1a6bc3c630832f5a2f762a9"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/wasm/native_add.rs",
+      "before_sha256": "c370404c393821ad50c9789216f612a61694d42acfe7cb0309f3d86179ddfabb",
+      "after_sha256": "1d5bceba0a8cd45f5046550e5cadd69463fb77a58aeecbfa353d9fa870550fc2"
+    }
+  ],
+  "patch_sha256": "d339c92026c57e984204d57ecc3150b488bf37dfcac13248a3a5598f9308635d",
+  "validation": "Apply-check only; no Cargo/Main edits. Original assertions retained, authentic foreign root controls added."
+}

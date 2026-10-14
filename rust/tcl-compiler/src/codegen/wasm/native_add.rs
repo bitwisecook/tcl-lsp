@@ -722,10 +722,14 @@ mod tests {
 
     #[test]
     fn a_rejected_body_records_each_premise_it_takes_down() {
-        let plan = plan_of(
-            SEALED,
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect(SEALED, &registry, false, "tcl9.0");
+        let plan = compile_wasm(
+            &unit,
+            &registry,
             options(&without(SemanticOptimisationPassId::NativeInteger)),
-        );
+        )
+        .plan;
         assert_eq!(
             summary(&plan),
             [
@@ -736,6 +740,7 @@ mod tests {
             ]
         );
         let site = DirectCallSiteId {
+            module_id: unit.ir_module.procedure_ids.module_id(),
             body_id: None,
             function: "::top".to_owned(),
             block: crate::cfg::BlockId(0),

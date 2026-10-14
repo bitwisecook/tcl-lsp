@@ -49,6 +49,8 @@ pub use declared_arguments::{
 /// substitution nested in one argument of the enclosing statement.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DirectCallSiteId {
+    /// Genuine retained Module issuer, including the top-level body owner.
+    pub module_id: tcl_core_types::ProcedureModuleId,
     /// Actual retained caller body; `None` denotes the top level.
     pub body_id: Option<crate::ir::ProcedureId>,
     /// Caller display, retained separately from body identity.
@@ -78,6 +80,8 @@ pub struct ProcedureIdentity {
 /// Stable identity of one SSA value in one procedure.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SsaValueIdentity {
+    /// Genuine retained Module issuer, including the top-level body owner.
+    pub module_id: tcl_core_types::ProcedureModuleId,
     /// Actual retained body owning the local SSA namespace.
     pub body_id: Option<crate::ir::ProcedureId>,
     /// Body display; local symbols are joined through `body_id`.
@@ -1065,6 +1069,7 @@ fn function_units(unit: &CompilationUnit) -> impl Iterator<Item = (&str, &Functi
 }
 
 fn call_sites<'a>(
+    unit: &CompilationUnit,
     caller: &str,
     function: &'a FunctionUnit,
     lexer_config: tcl_lexer::LexerConfig,
@@ -1099,6 +1104,7 @@ fn call_sites<'a>(
             let statement_index = u32::try_from(index).unwrap_or(u32::MAX);
             out.push(CallCandidate {
                 id: DirectCallSiteId {
+                    module_id: unit.ir_module.procedure_ids.module_id(),
                     body_id: function.body_id,
                     function: caller.to_owned(),
                     block: *block,
@@ -1121,6 +1127,7 @@ fn call_sites<'a>(
                 };
                 out.push(CallCandidate {
                     id: DirectCallSiteId {
+                        module_id: unit.ir_module.procedure_ids.module_id(),
                         body_id: function.body_id,
                         function: caller.to_owned(),
                         block: *block,
@@ -1179,7 +1186,7 @@ fn collect_direct_calls(
     let mut propagated: HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>> =
         HashMap::new();
     for (caller_name, function) in function_units(unit) {
-        for site in call_sites(caller_name, function, function.source_lexer_config()) {
+        for site in call_sites(unit, caller_name, function, function.source_lexer_config()) {
             let binding = site
                 .tokens
                 .as_deref()
@@ -1282,7 +1289,7 @@ fn collect_semantic_calls(
 ) -> BTreeMap<DirectCallSiteId, SemanticCallDecision> {
     let mut decisions = BTreeMap::new();
     for (caller, function) in function_units(unit) {
-        for site in call_sites(caller, function, function.source_lexer_config()) {
+        for site in call_sites(unit, caller, function, function.source_lexer_config()) {
             if site.id.nested_argument.is_some() {
                 continue;
             }
@@ -1373,6 +1380,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         .is_some()
         {
             let nested = DirectCallSiteId {
+                module_id: input.site.id.module_id,
                 body_id: input.site.id.body_id,
                 function: input.site.id.function.clone(),
                 block: input.site.block,
@@ -1488,6 +1496,7 @@ fn closed_constant_store(
         return false;
     };
     let site = DirectCallSiteId {
+        module_id: input.unit.ir_module.procedure_ids.module_id(),
         body_id: input.function.body_id,
         function: input.function.name.clone(),
         block: input.function.cfg.entry,
@@ -1566,6 +1575,7 @@ fn cover_closed_constant_store(
     }
     let (symbol, version) = ssa.defs.iter().find_map(|(symbol, version)| {
         let value = SsaValueIdentity {
+            module_id: input.unit.ir_module.procedure_ids.module_id(),
             body_id: input.function.body_id,
             function: input.function.name.clone(),
             symbol: *symbol,
@@ -1580,6 +1590,7 @@ fn cover_closed_constant_store(
     Some(ClosedProgramStatementEvidence::DirectActualConstant {
         statement: statement_id,
         value: SsaValueIdentity {
+            module_id: input.unit.ir_module.procedure_ids.module_id(),
             body_id: input.function.body_id,
             function: input.function.name.clone(),
             symbol,
@@ -1609,6 +1620,7 @@ fn cover_closed_statement(
         return None;
     };
     let site = DirectCallSiteId {
+        module_id: input.unit.ir_module.procedure_ids.module_id(),
         body_id: input.function.body_id,
         function: input.function.name.clone(),
         block: input.function.cfg.entry,
@@ -2047,7 +2059,7 @@ fn direct_body_decision(
             return decline(DirectProcBodyDecline::InternalExecutionTrace { operation });
         }
     }
-    let Some(callee) = input.unit.function(input.callee_name) else {
+    let Some(callee) = input.unit.function_for_body(Some(input.callee_id)) else {
         return decline(DirectProcBodyDecline::UnsupportedBodyShape);
     };
     let Some(operations) = original_direct_expression_body_operations(
@@ -2119,6 +2131,10 @@ fn actual_fact(
     registry: &tcl_registry::CommandRegistry,
     module: &crate::ir::Module,
 ) -> (TypeLattice, DirectActualValue) {
+    if site.id.module_id != module.procedure_ids.module_id() || site.id.body_id != function.body_id
+    {
+        return (TypeLattice::unknown(), DirectActualValue::Unproven);
+    }
     let read = site
         .tokens
         .as_deref()
@@ -2159,6 +2175,7 @@ fn actual_fact(
         return (
             ty,
             DirectActualValue::Ssa(SsaValueIdentity {
+                module_id: module.procedure_ids.module_id(),
                 body_id: function.body_id,
                 function: function.name.clone(),
                 symbol,
@@ -2181,7 +2198,10 @@ fn direct_call_tokens<'a>(
     unit: &'a CompilationUnit,
     id: &DirectCallSiteId,
 ) -> Option<std::borrow::Cow<'a, CommandTokens>> {
-    let function = unit.function(&id.function)?;
+    if id.module_id != unit.ir_module.procedure_ids.module_id() {
+        return None;
+    }
+    let function = unit.function_for_body(id.body_id)?;
     let statement = function
         .ssa
         .blocks
@@ -2210,7 +2230,10 @@ pub(crate) fn direct_call_argument_read(
     id: &DirectCallSiteId,
     argument: usize,
 ) -> Option<crate::ssa::SsaReadReference> {
-    let function = unit.function(&id.function)?;
+    if id.module_id != unit.ir_module.procedure_ids.module_id() {
+        return None;
+    }
+    let function = unit.function_for_body(id.body_id)?;
     let tokens = direct_call_tokens(unit, id)?;
     let word = tokens.words().get(argument.checked_add(1)?)?;
     let view = crate::ssa::SsaSourceView::at_statement(
@@ -2342,6 +2365,7 @@ fn collect_materialisable_slots(
                 .and_then(|id| unit.ir_module.procedures.get(&id)),
         ) {
             let identity = SsaValueIdentity {
+                module_id: unit.ir_module.procedure_ids.module_id(),
                 body_id: function.body_id,
                 function: qname.clone(),
                 symbol: key.0,
@@ -3156,7 +3180,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
-        let unit = logical_unit("set result VALUE", context);
+        let unit = logical_unit("set result VALUE", std::sync::Arc::clone(&context));
         let (block, index) = unit
             .top_level
             .ssa
@@ -3174,6 +3198,7 @@ mod tests {
             })
             .expect("original source store retains a structural statement");
         let id = DirectCallSiteId {
+            module_id: unit.ir_module.procedure_ids.module_id(),
             body_id: None,
             function: "::top".into(),
             block,
@@ -3189,6 +3214,11 @@ mod tests {
             direct_call_tokens(&unit, &id).unwrap().argv_texts,
             ["set", "result", "VALUE"],
         );
+        let foreign = logical_unit("set result VALUE", context);
+        assert_ne!(id.module_id, foreign.ir_module.procedure_ids.module_id());
+        assert!(direct_call_tokens(&foreign, &id).is_none());
+        assert!(direct_call_argument_read(&foreign, &id, 0).is_none());
+        assert!(direct_call_argument_value(&foreign, &id, 0).is_none());
         let mut missing = unit.clone();
         missing.top_level.cfg.command_binding_sites.clear();
         assert!(direct_call_tokens(&missing, &id).is_none());
@@ -3220,7 +3250,7 @@ mod tests {
             .procedures
             .get(&fixture_id(&unit.procedures, "::q"))
             .expect("authored fixture body");
-        let candidates = call_sites("::q", function, function.source_lexer_config());
+        let candidates = call_sites(&unit, "::q", function, function.source_lexer_config());
         let nested = candidates
             .iter()
             .find(|site| site.command == "p")
@@ -3229,6 +3259,7 @@ mod tests {
         assert_eq!(nested.args, ["$x"]);
         assert_eq!(nested.tokens.as_ref().unwrap().argv_texts, ["p", "$x"]);
         let top = call_sites(
+            &unit,
             "::top",
             &unit.top_level,
             unit.top_level.source_lexer_config(),
@@ -3249,7 +3280,7 @@ mod tests {
             }
         }
         assert!(
-            call_sites("::q", &missing, missing.source_lexer_config())
+            call_sites(&unit, "::q", &missing, missing.source_lexer_config())
                 .iter()
                 .all(|site| site.command != "p")
         );
@@ -3615,7 +3646,7 @@ mod tests {
             })
         );
         let function = &unit.top_level;
-        let site = call_sites("::top", function, function.source_lexer_config())
+        let site = call_sites(&unit, "::top", function, function.source_lexer_config())
             .into_iter()
             .find(|site| site.command == "p")
             .unwrap();

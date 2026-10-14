@@ -1,0 +1,17 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner ... 
+thread 'definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner' (198282) panicked at rust/tcl-lsp-core/src/definition.rs:9014:13:
+assertion `left == right` failed: uplevel 0 {puts $Target::x
+  left: None
+ right: Some("::N::Target::x")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3023 filtered out; finished in 0.76s
+

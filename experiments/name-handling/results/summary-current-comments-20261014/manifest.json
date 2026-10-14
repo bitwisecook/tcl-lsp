@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+      "before_sha256": "70c3c4996fc4b84dc7616c139a20737bb1af317422cf598cf2e8c05927ef19b6",
+      "after_sha256": "0e2cf7a6bc5733e36cb593c28b7df2fac26efc811eb15c2e4b936c34f8107edf",
+      "meaningful_tokens_unchanged": 13615
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "0b8c37843dff8fde2a0d7d1e0222dcc794ed1956e6eb85ab3d3cce4eee7652ba",
+      "after_sha256": "c8adb0febd7320acaef34a5d4e0319a151693664b39822201427f6f8b08f4d25",
+      "meaningful_tokens_unchanged": 40181
+    }
+  ],
+  "patch_sha256": "b69c1e379fcccf5941e47037db19a0bc1475d1ec95521ff3b73266b77a18bba4"
+}

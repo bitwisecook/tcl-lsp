@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.6.18",
+  "case": "2260-empty-variable-name",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-04/tcl8.6.18/2260-empty-variable-name/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:11:52.718259+00:00",
+  "exit_code": 0,
+  "source_sha256": "b58df3f50a1896509e8978590618735af4bbfddd98e92f333f1ae74059c786fd",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "stdout_sha256": "8534165fea148918f7bebbf0a5bf2c645101d615fabc520e86469f25ac28b53c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

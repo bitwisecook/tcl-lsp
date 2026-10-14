@@ -102,15 +102,11 @@ pub struct LatticeRequest<'a> {
     pub command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// The procedure's declared parameters.
     pub params: &'a [String],
-    /// Module-wide `proc -> upvar summary` context (from
-    /// [`crate::cfg_builder::prepare_cfg_context`]), the resolved command surface,
-    /// and whether command dispatch is trace-visible.
+    /// Body-keyed caller-frame summaries from [`crate::cfg_builder::prepare_cfg_context`].
     pub upvar_procs: &'a HashMap<crate::ir::ProcedureId, crate::cfg_builder::upvar_info::UpvarInfo>,
-    /// Module-wide `proc -> params` context (from
-    /// [`crate::cfg_builder::prepare_cfg_context`]).
+    /// Original parameter lists keyed by the same issued body IDs.
     pub proc_params: &'a HashMap<crate::ir::ProcedureId, Vec<String>>,
-    /// Module-wide `proc -> outer-scope write summary` context (from
-    /// [`crate::cfg_builder::prepare_cfg_context`]).
+    /// Outer-place MAY summaries keyed by the same issued body IDs.
     pub global_write_procs:
         &'a HashMap<crate::ir::ProcedureId, crate::cfg_builder::global_write_info::GlobalWriteInfo>,
     /// Closed module command state used to resolve effective direct-call
@@ -4032,15 +4028,30 @@ impl CompilationUnit {
         self
     }
 
-    /// Return the function unit for a qualified name, searching
-    /// top-level + procedures.
+    /// Select the current top-level unit (`None`) or a Module-issued procedure body.
+    /// Foreign IDs and function units with a mismatched body stamp are unavailable.
     #[must_use]
-    pub fn function(&self, name: &str) -> Option<&FunctionUnit> {
+    pub fn function_for_body(&self, body: Option<crate::ir::ProcedureId>) -> Option<&FunctionUnit> {
+        let Some(id) = body else {
+            return self.top_level.body_id.is_none().then_some(&self.top_level);
+        };
+        if !self.ir_module.procedure_ids.owns(id) || !self.ir_module.procedures.contains_key(&id) {
+            return None;
+        }
+        let function = self.procedures.get(&id)?;
+        (function.body_id == Some(id)).then_some(function)
+    }
+
+    /// Select a uniquely named authored test fixture, then its actual issued body.
+    #[cfg(test)]
+    pub(crate) fn function(&self, name: &str) -> Option<&FunctionUnit> {
         if name == "::top" {
-            return (!self.ir_module.procedures.has_display(name)).then_some(&self.top_level);
+            return (!self.ir_module.procedures.has_display(name))
+                .then(|| self.function_for_body(None))
+                .flatten();
         }
         let (id, _) = self.ir_module.procedures.unique_display(name)?;
-        self.procedures.get(id)
+        self.function_for_body(Some(*id))
     }
 
     /// Iterate over every function unit in the module: the top-level unit
@@ -4615,6 +4626,38 @@ mod tests {
         let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
         assert!(Arc::ptr_eq(&input.context_registry(), &actual));
         assert!(!unit.procedures.is_empty());
+        let body_id = fixture_id(&unit.ir_module.procedures, "::p");
+        assert!(std::ptr::eq(
+            unit.function_for_body(Some(body_id)).unwrap(),
+            &unit.procedures[&body_id]
+        ));
+        assert!(std::ptr::eq(
+            unit.function_for_body(None).unwrap(),
+            &unit.top_level
+        ));
+        let mut wrong_stamp = unit.clone();
+        wrong_stamp.procedures.get_mut(&body_id).unwrap().body_id = None;
+        assert!(wrong_stamp.function_for_body(Some(body_id)).is_none());
+        wrong_stamp.top_level.body_id = Some(body_id);
+        assert!(wrong_stamp.function_for_body(None).is_none());
+        let foreign_unit = CompilationUnit::build_with_context_registry(
+            &unit.source,
+            UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            Arc::clone(&actual),
+        );
+        let foreign_id = fixture_id(&foreign_unit.ir_module.procedures, "::p");
+        let mut foreign_owner = unit.clone();
+        foreign_owner.ir_module.procedure_ids = foreign_unit.ir_module.procedure_ids.clone();
+        assert!(foreign_owner.function_for_body(Some(body_id)).is_none());
+        assert!(unit.function_for_body(Some(foreign_id)).is_none());
         for function in std::iter::once(&unit.top_level)
             .chain(unit.procedures.values())
             .chain(unit.methods.values())

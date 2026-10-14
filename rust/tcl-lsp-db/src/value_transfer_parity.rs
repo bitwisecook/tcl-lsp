@@ -64,14 +64,20 @@ fn fixture_function<'a>(
     unit: &'a CompilationUnit,
     display: &str,
 ) -> &'a tcl_compiler::compilation_unit::FunctionUnit {
-    let (body, _) = unit
-        .ir_module
-        .procedures
-        .unique_display(display)
+    let mut declarations = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
+        procedure.qualified_name == display
+            && procedure
+                .declaration_site
+                .as_ref()
+                .is_some_and(|site| site.source.source_image().bytes() == unit.source.as_bytes())
+    });
+    let (&body, _) = declarations
+        .next()
         .expect("fixture retains one original declaration for this display");
-    assert!(unit.ir_module.procedure_ids.owns(*body));
-    let function = unit.procedures.get(body).expect(display);
-    assert_eq!(function.body_id, Some(*body));
+    assert!(declarations.next().is_none());
+    assert!(unit.ir_module.procedure_ids.owns(body));
+    let function = unit.function_for_body(Some(body)).expect(display);
+    assert_eq!(function.body_id, Some(body));
     function
 }
 

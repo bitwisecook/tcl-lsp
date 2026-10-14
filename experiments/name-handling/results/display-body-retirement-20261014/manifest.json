@@ -1,0 +1,76 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "c8adb0febd7320acaef34a5d4e0319a151693664b39822201427f6f8b08f4d25",
+      "after_sha256": "1fa2746ae877454a2b6cea36f386ba8edb0200d8a4a8eca21c4cf1f20814688f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg.rs",
+      "before_sha256": "adc36ad0852783a5a9f3764ecd9e9ab68ee5616336a9b1082ac3da3193caaa10",
+      "after_sha256": "80e557f8f130b8a924c8b57e58bb569a062361d36e54e39650492a343ecc86be"
+    },
+    {
+      "path": "rust/tcl-compiler/src/native_integer_proof.rs",
+      "before_sha256": "bb5501b8a58c90593ae574e262f6bf62411dccde333adb7bed53fb51b285f9b2",
+      "after_sha256": "90aafdc1c6911c63a76301aeb0bcc3ee7f2192c5df4505dd6e918a814889ce9c"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/support/function_identity.rs",
+      "before_sha256": null,
+      "after_sha256": "181476987a6e32a05d257e4b3daa3486b9331369a9ef68b880f256351ebd1df1"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/inlining_interproc_residual.rs",
+      "before_sha256": "e4e4253c5277384186d39156d2e4957f93233538c189a344acdd2951f7fcb6c4",
+      "after_sha256": "04df2a0988b2821b0a17eec8dd799575edd0e496271cd13226c7506b3c2bbd9f"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/side_effects_binding.rs",
+      "before_sha256": "2dfdc93f54b2b7b3378f96e9abee5a597988efa8c3e828cafdef53bff4193fd7",
+      "after_sha256": "0859084830c7e77c2af2aab6afeff9b58ea1d635fd2da8bf7e62b89e7841633b"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/pipeline_coverage.rs",
+      "before_sha256": "eb209f794df3ed5e0827d07e040cd3f7ef8672a222cdcd45ff584ab381c98653",
+      "after_sha256": "f2cd756461ff765cd2da767794a7c5a03252c7181be8835078a310ce7c9ebe1e"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/unused_var_tricky_features.rs",
+      "before_sha256": "edf7ceb2aba65946c039e15befc66ab7f9d99dd24f3bc76db8ea636ddb0b356a",
+      "after_sha256": "13808aa5d7697fa48bc57be48a1ff1339b87119e7150b4a24c4d49b4382a6e22"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/compiler_analysis_residual.rs",
+      "before_sha256": "d84ace393773bc1374fb56ddc95b391ac04356452de27cc9d31a7ed95aed7911",
+      "after_sha256": "019115fb966c51fea25a4b055c12c6c316c1bdac818a6f6c391693aad1077426"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/dataflow.rs",
+      "before_sha256": "ded896231e111aeb111b0ddb16eb948a7c665805824db3198002a50caf77f53c",
+      "after_sha256": "44589083c4db825ff48bd6707b0c83eff01ac17a8c73e4b067e5460a80905145"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/complexity_guard.rs",
+      "before_sha256": "148dc0c0ebb175680ccd26afe63abfd7e07f23fe85549416aa7d402a4ca8f012",
+      "after_sha256": "251bfea15dc8278510145effc9c6db060564ce78fbce66ffc5415daec001fdfd"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs",
+      "before_sha256": "48884bbd2b5c5eea8bf30937efa164622c6d1f36912da6002fd84ebe13550599",
+      "after_sha256": "ad9ebd8ccc9e59dc83eabcefb4ce46657514a39a32bac2030dfbfa87f7a5dab8"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_invocation.rs",
+      "before_sha256": "f2acb596d82079353262dba943a2b6daa9e6a1d3f43432227fca9a47c5a89d56",
+      "after_sha256": "6028f4423daebe2a95ffb5a3a39c112c2db6effb7c15bcb3dfe3481a8d01e55c"
+    },
+    {
+      "path": "rust/tcl-cli/src/commands/diff.rs",
+      "before_sha256": "75760100ac75159a26b8952182b0e45177c0c9da9899936e364a13b5726b531b",
+      "after_sha256": "597c8ce03bfd72f7dffc9f9d99d8aba515915d66725bca58ee6f371111e54403"
+    }
+  ],
+  "patch_sha256": "d4260e212f5800bfc9665ab3cb55e4b0ff1c804c414d9695d42aa31cd6b652a8",
+  "verification": "git apply --check only; no Cargo or Main writes; original assertions unchanged"
+}

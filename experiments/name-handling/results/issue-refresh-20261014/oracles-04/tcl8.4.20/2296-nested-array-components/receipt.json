@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.4.20",
+  "case": "2296-nested-array-components",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-04/tcl8.4.20/2296-nested-array-components/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:11:51.916723+00:00",
+  "exit_code": 0,
+  "source_sha256": "97a8c90392f56a52c38b797368d65691b3d5783c03243a65d69855585b1c5885",
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "stdout_sha256": "e13b29b5256a4298f997b26a65cfd7a8a73b4c6d550831f5cd986cd627c6743a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

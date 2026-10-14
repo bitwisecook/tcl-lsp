@@ -4890,6 +4890,27 @@ mod tests {
         id
     }
 
+    fn original_test_named_body_id(
+        unit: &CompilationUnit,
+        display: &str,
+    ) -> tcl_compiler::ir::ProcedureId {
+        let mut declarations = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
+            procedure.qualified_name == display
+                && procedure.declaration_site.as_ref().is_some_and(|site| {
+                    site.source.source_image().bytes() == unit.source.as_bytes()
+                })
+        });
+        let (&id, _) = declarations
+            .next()
+            .expect("original authored fixture declaration");
+        assert!(
+            declarations.next().is_none(),
+            "one authored fixture declaration"
+        );
+        assert!(unit.ir_module.procedure_ids.owns(id));
+        id
+    }
+
     #[test]
     fn original_procedure_facts_retain_each_current_declaration_site() {
         use salsa::Setter as _;
@@ -8159,18 +8180,8 @@ p\uD801 ordinary";
                 )
             })
             .collect();
-        let provider_id = *cu
-            .ir_module
-            .procedures
-            .unique_display("::producer")
-            .expect("fixture retains one actual provider declaration")
-            .0;
-        let caller_id = *cu
-            .ir_module
-            .procedures
-            .unique_display(&caller)
-            .expect("fixture retains one actual caller declaration")
-            .0;
+        let provider_id = original_test_named_body_id(&cu, "::producer");
+        let caller_id = original_test_named_body_id(&cu, &caller);
         let provider = tcl_compiler::taint_interproc::infer_proc_summary(
             &cu,
             provider_id,

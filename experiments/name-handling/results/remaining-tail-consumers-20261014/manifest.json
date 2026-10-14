@@ -1,0 +1,38 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/dynamic_names.rs",
+      "before_sha256": "f460592cd66322b4b982b7f82b3b7592352defa3486294e5adb0a2d7d86d1a88",
+      "after_sha256": "e019b65d8e9d3d866badd0aca7519e0b586791a606f67b02fe1a61213daa7564"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "01acf109a4a3511f1819d9d91088f5a0f0f26681cd1296f994dcd7ba6ab52896",
+      "after_sha256": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/validity.rs",
+      "before_sha256": "88a5bf2d038c6c824d4a10e8aa0ca6ea506a7b3db4e2c9ebde721a32f0373a01",
+      "after_sha256": "61976a0b7075399ce89478dc770d1b3586e25bb984b5736160fa1e09ab87473e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "before_sha256": "12989e1909c9c7fc3b9a010eee907c7ab3287375bee319da2c9a88d5b84821cf",
+      "after_sha256": "c135d3059d70d78c75ad7a81c0a1f2f73b37cc6ff46ce5f7c25af09d6ce5429b"
+    },
+    {
+      "path": "rust/tcl-compiler/examples/mro_interproc.rs",
+      "before_sha256": "fcfd4c49d6b87f8f059a96cac566aa5f8ae3c3fa6423e4840fd8abb42da1f208",
+      "after_sha256": "f40c7c2447d758df4eea47e1b02f2e3038dd627aece8f6524dca54cad5600d01"
+    },
+    {
+      "path": "rust/tcl-compiler/src/interprocedural.rs",
+      "before_sha256": "e2080f7868f89e85c70676daf6fe7670102c7ae0bee1235f9dd4832206050f80",
+      "after_sha256": "3a9c3117fd843d384eb72e7696abe72c0cbeeb871ee3b9689068dd25087d6d0f"
+    }
+  ],
+  "compiled_acceptance": "unexecuted; Root owns all Cargo/Main builds",
+  "purpose": "written-tail lexical/diagnostic advice versus constructed-key displays; retained original current namespace remains verbatim; no Native authority",
+  "patch_sha256": "077b17c7a798fad5d651194f8a18c7929dc088ccb98b132f28b71ae2c8aa4c45",
+  "parse_format": "Scratch Rustfmt PASS, edition2024, skip_children=true; no Cargo."
+}

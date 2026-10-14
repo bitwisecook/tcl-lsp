@@ -1,0 +1,13 @@
+{
+  "validation": "rustfmt parsed; Main apply-check only; no Cargo executed",
+  "apply_check": 0,
+  "patch_sha256": "9dafbdfb820e19acbce5dcf3fe05f9c6bc8552fcc7428b133ee75912bc285431",
+  "before": {
+    "rust/tcl-compiler/src/source_graph.rs": "1e6e3281734879121f2d266da40f760514b1a7754ca2f01e33e20c55ef27da93",
+    "rust/tcl-diagram/src/data.rs": "696b151415a82de744a094872bc5645e51a451fc290aa30f08ecbab1f621cca8"
+  },
+  "after": {
+    "rust/tcl-compiler/src/source_graph.rs": "ea39034dcc85f4d794f064ae2796946cb9779e8a380cb161a3cf9560ad525be7",
+    "rust/tcl-diagram/src/data.rs": "90c28522387b7e48ee7015bc58da8910e4ff543ca7a159ee60dce5bb9028b5c2"
+  }
+}

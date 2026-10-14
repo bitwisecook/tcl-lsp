@@ -52,7 +52,7 @@
 //!     `is_complexity_guarded` + `build_ssa`.
 //!   * The **byte** half is observed through diagnostics (`W123` suppression)
 //!     and through `CompilationUnit::build_for`; the per-proc unit it yields
-//!     (`cu.function("::big")`) carries the `complexity_guarded` /
+//!     (`cu.fixture_function("::big")`) carries the `complexity_guarded` /
 //!     `ssa` / `analysis` bundle. The W123
 //!     diagnostic-suppression surface is not re-derived here (it is an effect of
 //!     the same flag, which is asserted directly); see the GAP note on the
@@ -67,6 +67,10 @@
 //!     observable end-state (a byte-huge but block-light proc gets a
 //!     trivial unit) is covered by [`byte_guarded_proc_skips_ssa_and_dataflow`].
 //!     See the `// GAP:`-tagged `force_guard_*` placeholders.
+
+#[path = "support/function_identity.rs"]
+mod function_identity;
+use function_identity::OriginalFixtureFunctions;
 
 use tcl_compiler::cfg::{Block, Function, Terminator};
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -194,7 +198,7 @@ fn byte_huge_proc_src() -> String {
 #[test]
 fn normal_proc_is_not_guarded() {
     let cu = CompilationUnit::build_for("proc small {} { set x 1 }", registry(), false);
-    let small = cu.function("::small").expect("::small built");
+    let small = cu.fixture_function("::small").expect("::small built");
     assert!(!small.complexity_guarded);
     assert!(!small.ssa.blocks.is_empty(), "real SSA for a normal proc");
     // A genuine fact is recorded for the normal proc (proof deep analysis ran):
@@ -217,7 +221,7 @@ fn normal_proc_is_not_guarded() {
 #[test]
 fn byte_guarded_proc_skips_ssa_and_dataflow() {
     let cu = CompilationUnit::build_for(&byte_huge_proc_src(), registry(), false);
-    let big = cu.function("::big").expect("::big built");
+    let big = cu.fixture_function("::big").expect("::big built");
 
     // Block-light: the block-count half would NOT fire on this body ...
     assert!(
@@ -242,7 +246,7 @@ fn byte_guarded_proc_skips_ssa_and_dataflow() {
 fn guarded_proc_still_recorded() {
     let cu = CompilationUnit::build_for(&byte_huge_proc_src(), registry(), false);
     // The procedure is present in the unit even though its body was skipped.
-    let big = cu.function("::big").expect("::big still recorded");
+    let big = cu.fixture_function("::big").expect("::big still recorded");
     assert_eq!(big.name, "::big");
     assert!(big.complexity_guarded);
     // The trivial unit is well-formed: its SSA carries the CFG's block-name
@@ -260,7 +264,7 @@ fn guarded_proc_still_recorded() {
 fn guarded_proc_excluded_from_analysable_functions() {
     let cu = CompilationUnit::build_for(&byte_huge_proc_src(), registry(), false);
     assert!(
-        cu.function("::big").is_some(),
+        cu.fixture_function("::big").is_some(),
         "guarded ::big exists as a unit",
     );
     assert!(
@@ -277,7 +281,7 @@ fn huge_body_does_not_crash_and_is_fast() {
     let src = byte_huge_proc_src();
     let t = std::time::Instant::now();
     let cu = CompilationUnit::build_for(&src, registry(), false); // must not panic
-    let big = cu.function("::big").expect("::big built");
+    let big = cu.fixture_function("::big").expect("::big built");
     assert!(big.complexity_guarded);
     assert!(
         t.elapsed().as_secs() < 20,
@@ -296,7 +300,7 @@ fn sub_ceiling_body_is_not_byte_guarded() {
     assert!(small_literal.len() < DEEP_ANALYSIS_BODY_BYTES);
     let src = format!("proc modest {{}} {{ set x \"{small_literal}\" }}");
     let cu = CompilationUnit::build_for(&src, registry(), false);
-    let modest = cu.function("::modest").expect("::modest built");
+    let modest = cu.fixture_function("::modest").expect("::modest built");
     assert!(
         !modest.complexity_guarded,
         "a sub-ceiling body must NOT be byte-guarded"

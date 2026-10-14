@@ -1,0 +1,13 @@
+{
+  "patch_sha256": "b11c6f3fc0e26dbc7f472f8e81aab1855f150f914ce93a50e9c1841b371c8223",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "before_sha256": "9b60a0a9a58061c7a02899719b4c8e0eed62a96a94d20df061531163ecb8bb0f",
+      "after_sha256": "47bf063e1c0cd79cf877d4bf8690953e80ff8f473447a53dda4a818db3be55c6"
+    }
+  ],
+  "rust_status": "unexecuted",
+  "scope": "Geometry purpose admits independently retained Logical conditional receiver rows under exact context/config/source/fullvector guards; original invocation and Native name receivers unchanged",
+  "test": "command_binding::original_name_value::tests::logical_original_word_geometry_includes_genuine_declaration_vectors"
+}

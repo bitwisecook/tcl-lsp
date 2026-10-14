@@ -1,0 +1,9 @@
+{
+  "direct_callee_body": "DirectInputs.callee_id through CU::function_for_body",
+  "direct_caller_body": "DirectCallSiteId.body_id through CU::function_for_body",
+  "root_owner": "DirectCallSiteId.module_id retains actual ProcedureIdIssuer::module_id, checked before fetching current tokens or SSA reads",
+  "ssa_owner": "SsaValueIdentity.module_id retains the same genuine Module issuer",
+  "display_purpose": "function and callee labels are presentation/mutation obligations; they never select the FU",
+  "foreign_root_control": "independently lowered same source and indices cannot donate current source tokens/argument reads/values",
+  "native_proof": "all independent native/source guards unchanged"
+}

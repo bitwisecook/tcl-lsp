@@ -1,0 +1,31 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/ir/procedure_identity.rs",
+      "before_sha256": "4cf7e63aa71958d859f88fc2f2027dff6251fd5383f6d8fee79490499c9beb3e",
+      "after_sha256": "1bd60112bd89d0b4b6deb42823333da1f5d62cbcde62f4a9037139f4d0235977"
+    },
+    {
+      "path": "rust/tcl-compiler/src/ir/method_identity.rs",
+      "before_sha256": "04c3059259f29982979e966275b2e5bed4755b9613c6d4381cfe19f03cbf4065",
+      "after_sha256": "b70bc764f6e26cdd0849b083d909ec9acf89c4e8ea6b845ebc452d291a8189d5"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/value_transfer_parity.rs",
+      "before_sha256": "d93fcdcb3f4985c6ad943758bb8c2f7686a74483a65809b7a721db6bddd4d612",
+      "after_sha256": "28c629e33ef224a73aa4dfc8f7ee1b1f12f83f8709247d911554849f74a9d76a"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "8965df006c90005afc91a91d6e8e0cccaef02e5dfd8540d334ca45532ffab1fa",
+      "after_sha256": "867e84054420439696ee227be2d078703b6f06219ddeac745728e50de9e7b3d1"
+    },
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "before_sha256": "090330fe4a872f9a90c1f32ae527d759f0680e9ac18558ba27e43eaea01673b1",
+      "after_sha256": "b8a987479172fc3274ae0f014380ef35936a2c3f4ca3d6169300f4626bec6a93"
+    }
+  ],
+  "patch_sha256": "e2dd189d6b8cb7e353f0d428c33e4f2c7c026e5aa0331c9e9b885dd352fd626d",
+  "validation": "Apply-check only; no Cargo/Main edits. W128 singleton label multiplicity unchanged; original test assertions retained."
+}

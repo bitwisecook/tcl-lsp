@@ -1,0 +1,2 @@
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+error: could not compile `tcl-runtime` (test "native_namespace_command_query") due to 12 previous errors

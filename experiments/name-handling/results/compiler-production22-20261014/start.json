@@ -1,0 +1,27 @@
+{
+  "started_utc": "2026-10-14T01:13:28.934574+00:00",
+  "label": "compiler22-issued-summary-display-retirement-index-components",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34679,
+  "plan": {
+    "filters": [
+      "logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+      "retained_upframe_namespaces_do_not_parse_the_procedure_display_label",
+      "original_name_operand_publishes_a_body_without_borrowing_the_head_lookup",
+      "original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants",
+      "configured_source_ingress_retains_one_input_for_entry_and_module",
+      "logical_original_word_geometry_includes_genuine_declaration_vectors",
+      "logical_recorded_name_operands_use_the_checked_source_purpose",
+      "rebound_candidates_include_relative_qualified_names",
+      "cfg_builder::global_write_info::tests::",
+      "cfg_builder::upvar_info::tests::",
+      "deferred_writes::tests::",
+      "var_refs::tests::"
+    ],
+    "scope": "Production exact original publication/correspondence and typed CFG/deferred effects; no temporary diagnostic or Native admission claim. Original test assertions retained."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "2260-empty-variable-name",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-04/jim/2260-empty-variable-name/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:11:53.895683+00:00",
+  "exit_code": 0,
+  "source_sha256": "b58df3f50a1896509e8978590618735af4bbfddd98e92f333f1ae74059c786fd",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "8534165fea148918f7bebbf0a5bf2c645101d615fabc520e86469f25ac28b53c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

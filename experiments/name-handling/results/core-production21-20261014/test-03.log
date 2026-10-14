@@ -1,0 +1,24 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct ... 
+thread 'definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct' (198276) panicked at rust/tcl-lsp-core/src/definition.rs:8968:13:
+assertion `left == right` failed: set x ROOT
+proc outer {} {uplevel #0 {
+ proc inner {} {
+  set x INNER
+  puts $x
+ }
+}}
+
+  left: []
+ right: [3]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3023 filtered out; finished in 1.54s
+

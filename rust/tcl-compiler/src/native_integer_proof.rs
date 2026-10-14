@@ -269,7 +269,7 @@ impl NativeAddDecision {
 pub enum NativeIntegerProof {
     /// The default-off control declined without inspecting candidates.
     Disabled,
-    /// No function with this qualified name exists in the compilation unit.
+    /// The selected body is unavailable in the current compilation unit.
     FunctionUnavailable,
     /// The actual source metadata is absent or belongs to another command store.
     SourceMetadataUnavailable,
@@ -287,8 +287,9 @@ pub enum NativeIntegerProof {
 /// Candidates are semantic `ExprNode::Binary(Add, Var, Var)` nodes already
 /// produced by registry-driven lowering; this module contains no command-name
 /// dispatch. Any other expression shape is not a candidate.
+#[cfg(test)]
 #[must_use]
-pub fn prove_native_integer_adds(
+pub(crate) fn prove_native_integer_adds(
     unit: &CompilationUnit,
     function: &str,
     registry: &CommandRegistry,
@@ -325,11 +326,7 @@ pub fn prove_native_integer_adds_for_body(
     if !optimisations.is_enabled(SemanticOptimisationPassId::NativeInteger) {
         return NativeIntegerProof::Disabled;
     }
-    let function_unit = match body_id {
-        Some(id) => unit.procedures.get(&id),
-        None => Some(&unit.top_level),
-    };
-    let Some(function_unit) = function_unit else {
+    let Some(function_unit) = unit.function_for_body(body_id) else {
         return NativeIntegerProof::FunctionUnavailable;
     };
     let function = function_unit.name.as_str();
@@ -1352,6 +1349,7 @@ mod tests {
             })
             .unwrap();
         let site = crate::common_aot_plan::DirectCallSiteId {
+            module_id: unit.ir_module.procedure_ids.module_id(),
             body_id: None,
             function: caller.name.clone(),
             block,
@@ -1411,6 +1409,7 @@ mod tests {
                         continue;
                     }
                     let site = crate::common_aot_plan::DirectCallSiteId {
+                        module_id: unit.ir_module.procedure_ids.module_id(),
                         body_id: None,
                         function: unit.top_level.name.clone(),
                         block: *block,

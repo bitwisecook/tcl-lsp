@@ -1,0 +1,35 @@
+{
+  "body_selection": {
+    "public": "CompilationUnit::function_for_body(Option<ProcedureId>)",
+    "guards": [
+      "current Module issuer",
+      "retained Module procedure",
+      "matching current FunctionUnit body ID",
+      "top-level FunctionUnit has no procedure ID"
+    ],
+    "purpose": "Borrow retained analytical unit; no command target or execution grant"
+  },
+  "native_integer": "prove_native_integer_adds_for_body retains independent Native/source proof prerequisites",
+  "inventory_selection": [
+    "issued ProcedureId",
+    "actual original declaration allocation"
+  ],
+  "reporting_only": [
+    "display_entries",
+    "unique_displays",
+    "has_display"
+  ],
+  "test_only": [
+    "CompilationUnit::function",
+    "prove_native_integer_adds",
+    "ProcedureInventory::unique_display",
+    "MethodInventory::unique_display"
+  ],
+  "absent_public": [
+    "CfgModule::procedure_by_display",
+    "ProcedureInventory::get_unique_display",
+    "ProcedureInventory::get_mut_unique_display"
+  ],
+  "external_fixture_selection": "Checked original source declaration, unambiguous authored fixture, current issued body ID",
+  "documentation": "docs/design/compiler/name-resolution-implementer-guide.md#retain-body-identity-through-consumers"
+}

@@ -62,6 +62,20 @@ source declaration before selecting the body. Reporting names, rendered
 namespaces and ordinals cannot recover that identity. Reports keep IDs and
 labels in separate fields and preserve duplicate labels.
 
+Use `CompilationUnit::function_for_body(Some(id))` to borrow the retained
+procedure analysis; `None` selects that unit's actual top-level analysis. The
+selector checks the Module issuer, retained procedure and `FunctionUnit` body
+stamp. Foreign IDs, foreign issuers and mismatched stamps return unavailable.
+`prove_native_integer_adds_for_body` uses the same selection before its
+independent source and native proof checks. Selecting an analysis supplies no
+command lookup or execution permission.
+
+Public procedure and method inventories join bodies by issued IDs or original
+allocation receipts. `display_entries`, `unique_displays` and `has_display`
+serve presentation and label multiplicity; they cannot select an implementation.
+Authored-name body selectors are confined to test fixtures. External fixtures
+retain the actual original source declaration before using its issued ID.
+
 `ConnectionScope::handlers` retains each original event body by `ProcedureId`.
 Use `handler_source_names` for source protection and `observes_cross_event_place`
 for the selected handler's resolved cell. `summaries` is an event-label reporting

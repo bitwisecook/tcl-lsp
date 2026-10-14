@@ -925,7 +925,7 @@ impl Builder<'_> {
             }
         };
         let dialect = self.interp.native_invocation_dialect();
-        let identity = std::str::from_utf8(&identity)
+        std::str::from_utf8(&identity)
             .map_err(|_| unavailable("native body registered compiler identity"))?;
         // Private workers belong to the captured compiler recipe. Callable
         // origin following supplies only that separately checked dependency.

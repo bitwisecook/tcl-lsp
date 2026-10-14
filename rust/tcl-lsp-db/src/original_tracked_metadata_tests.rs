@@ -7,6 +7,24 @@
 use super::*;
 use salsa::Setter as _;
 
+fn original_fixture_function(
+    unit: &CompilationUnit,
+    offset: usize,
+) -> Option<&tcl_compiler::compilation_unit::FunctionUnit> {
+    let offset = u32::try_from(offset).expect("finite authored declaration offset");
+    let mut declarations = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
+        procedure.declaration_site.as_ref().is_some_and(|site| {
+            site.offset == offset && site.source.source_image().bytes() == unit.source.as_bytes()
+        })
+    });
+    let (&id, _) = declarations.next()?;
+    assert!(
+        declarations.next().is_none(),
+        "one authored declaration at the original site"
+    );
+    unit.function_for_body(Some(id))
+}
+
 fn configuration(db: &TclDatabase, overlay: u64) -> AnalyserConfig {
     AnalyserConfig::new(
         db,
@@ -77,9 +95,7 @@ fn tracked_source_units_share_checked_input_and_memoized_procedure_grammar() {
             .map(tcl_dialect::DialectProfile::cache_key),
         Some(input.unit_profile().cache_key()),
     );
-    let function = unit
-        .function("::subject")
-        .expect("genuine Logical source procedure");
+    let function = original_fixture_function(&unit, 0).expect("genuine Logical source procedure");
     let function_input = function.source_metadata_input().unwrap();
     assert!(Arc::ptr_eq(
         &function_input.context_registry(),
@@ -102,7 +118,8 @@ fn tracked_source_units_share_checked_input_and_memoized_procedure_grammar() {
         .to(format!("# shifted declaration\n{source}"));
     let shifted = document_compilation_unit_for(&db, file, config).unwrap();
     assert_eq!(document_analysis_input(&db, file, config).unwrap(), input);
-    let shifted_function = shifted.function("::subject").unwrap();
+    let shifted_function =
+        original_fixture_function(&shifted, shifted.source.find("proc subject").unwrap()).unwrap();
     assert_eq!(
         shifted_function.source_metadata_input(),
         function.source_metadata_input()
@@ -213,12 +230,8 @@ fn tracked_document_input_refuses_unavailable_generation_before_any_source_walk(
     let restored = file_analysis_incremental(&db, file, config);
     assert!(restored.analysis_context_unavailable.is_none());
     assert!(restored.resolved_input.is_some());
-    assert!(
-        document_compilation_unit_for(&db, file, config)
-            .unwrap()
-            .function("::subject")
-            .is_some()
-    );
+    let restored_unit = document_compilation_unit_for(&db, file, config).unwrap();
+    assert!(original_fixture_function(&restored_unit, 0).is_some());
 }
 
 #[test]

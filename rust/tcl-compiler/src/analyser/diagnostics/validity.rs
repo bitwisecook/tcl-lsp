@@ -757,7 +757,10 @@ impl UserResolutionFacts {
         enforce_order: bool,
         call_off: u32,
     ) -> bool {
-        let bare = cmd_name.rsplit("::").next().unwrap_or(cmd_name);
+        let bare = core::str::from_utf8(tcl_syntax::naming::written_command_tail(
+            cmd_name.as_bytes(),
+        ))
+        .expect("tail of a Unicode command");
         let candidates = qualify_candidates_with_path(ns, cmd_name, path);
         candidates.iter().any(|c| {
             self.non_proc_qnames.contains(c.as_str())
@@ -1535,7 +1538,10 @@ impl Analyser {
         // exactly like the registry path's own abstention rules).
         let user_pending = std::mem::take(&mut self.pending_user_call_arity);
         for cand in user_pending {
-            let bare = cand.cmd_name.rsplit("::").next().unwrap_or(&cand.cmd_name);
+            let bare = core::str::from_utf8(tcl_syntax::naming::written_command_tail(
+                cand.cmd_name.as_bytes(),
+            ))
+            .expect("tail of a Unicode command");
             if facts.stub_names.contains(bare) {
                 continue;
             }
@@ -3378,6 +3384,33 @@ mod w117_tests {
             );
         }
         assert!(!is_irules_only_expr_op("notanoperator"));
+    }
+}
+
+#[cfg(test)]
+mod stub_name_geometry_tests {
+    use super::UserResolutionFacts;
+
+    #[test]
+    fn document_stub_suppression_uses_written_tail_geometry() {
+        let facts = UserResolutionFacts {
+            non_proc_qnames: Default::default(),
+            proc_offsets: Default::default(),
+            rename_offsets: Default::default(),
+            stub_names: ["known", "a:b"].into_iter().map(str::to_owned).collect(),
+        };
+        for name in ["known", "::ns:::known", "::ns::::known", "::ns::a:b"] {
+            assert!(
+                facts.resolves_to_user(name, "::other", &[], true, 0),
+                "{name}"
+            );
+        }
+        for name in ["::ns::other", "::ns::", "::ns::a::b"] {
+            assert!(
+                !facts.resolves_to_user(name, "::other", &[], true, 0),
+                "{name}"
+            );
+        }
     }
 }
 

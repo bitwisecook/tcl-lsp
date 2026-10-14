@@ -741,17 +741,6 @@ pub struct CfgModule {
 }
 
 impl CfgModule {
-    /// Readonly compatibility selection; repeated display names remain unavailable.
-    #[must_use]
-    pub fn procedure_by_display<'a>(
-        &'a self,
-        module: &crate::ir::Module,
-        name: &str,
-    ) -> Option<&'a Function> {
-        self.procedures
-            .get(module.procedures.unique_display(name)?.0)
-    }
-
     /// `(aot_clean, total)` — how many of this module's functions (the top-level
     /// script plus every procedure) are fully AOT-compilable per
     /// [`Function::is_aot_clean`]. The coverage signal for "as much AOT as

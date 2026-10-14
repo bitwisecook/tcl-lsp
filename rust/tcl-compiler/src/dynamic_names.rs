@@ -210,8 +210,8 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
         return false;
     }
     let base = literal_variable_root(word);
-    let tail = base.rsplit("::").next().unwrap_or(base);
-    tail.contains('$') || tail.contains('[')
+    let tail = tcl_syntax::naming::written_command_tail(base.as_bytes());
+    tail.contains(&b'$') || tail.contains(&b'[')
 }
 
 /// Explicit standalone authored-C lexical bound. It grants no actual target,

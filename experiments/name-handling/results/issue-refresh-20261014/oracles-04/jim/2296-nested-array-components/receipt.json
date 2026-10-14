@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "2296-nested-array-components",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-04/jim/2296-nested-array-components/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:11:53.888035+00:00",
+  "exit_code": 0,
+  "source_sha256": "97a8c90392f56a52c38b797368d65691b3d5783c03243a65d69855585b1c5885",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "e13b29b5256a4298f997b26a65cfd7a8a73b4c6d550831f5cd986cd627c6743a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

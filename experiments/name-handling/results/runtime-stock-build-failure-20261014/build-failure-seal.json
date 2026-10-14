@@ -1,0 +1,6 @@
+{
+  "recorded_utc": "2026-10-14T01:18:03.985692+00:00",
+  "runner_sha256": "a77ed315b97b93783cdb082ae8d96093aa4ab480c07d2de1774cdd5ead3ed1cb",
+  "source_drift": {},
+  "scope": "Failed before artifact/selector admission; no tests executed. Original inputs restored by checked hashes for this after-inventory following a failed collector invocation without provider environment; no execution acceptance."
+}
