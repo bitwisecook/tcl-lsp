@@ -39,14 +39,22 @@
 //!   to an explicit allow-list (so tokens, SSH keys and cloud credentials never
 //!   leak), the working directory is pinned to a caller-supplied root, output is
 //!   captured, and a wall-clock timeout kills runaway children.
-//! * **OS-native** (layered on top where the host provides it): on Linux,
-//!   Landlock confines the filesystem to the profile's [`Profile::fs_read`] and
-//!   [`Profile::fs_write`] grant and a seccomp filter refuses internet sockets
-//!   when the network is denied. Every other platform — Seatbelt on macOS,
-//!   `pledge`/`unveil` on OpenBSD, Capsicum on FreeBSD, restricted tokens and
-//!   Job Objects on Windows — runs at Baseline: those tiers are not built, and
-//!   [`detect_confinement`] answers [`Baseline`] there, as it does on a Linux
-//!   kernel without either mechanism.
+//! * **OS-native** (layered on top where the host provides it), confining the
+//!   filesystem to the profile's [`Profile::fs_read`] and [`Profile::fs_write`]
+//!   grant and denying the network:
+//!   - Linux: Landlock for the filesystem, a seccomp filter refusing internet
+//!     sockets for the network.
+//!   - macOS: Seatbelt, by running the program under `sandbox-exec` with a
+//!     profile written from the grant.
+//!   - Windows: an app container, whose process reaches only what is granted to
+//!     its package SID and has no network capability unless granted one, inside
+//!     a Job Object that takes the whole tree down when the run ends. It
+//!     applies to a profile that names paths; one that names none runs at
+//!     Baseline, since an app container cannot leave the filesystem open.
+//!
+//!   `pledge`/`unveil` on OpenBSD and Capsicum on FreeBSD are not built, and
+//!   [`detect_confinement`] answers [`Baseline`] there, as it does wherever the
+//!   host lacks the mechanism.
 //!
 //! Execution reports what was actually enforced ([`Outcome::isolation`],
 //! [`Outcome::enforced`]), never what was merely requested, so a policy floor that demands more than the host
@@ -56,7 +64,7 @@
 //! crates that encapsulate the raw syscalls, honouring the workspace
 //! `unsafe_code = "forbid"` lint.
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
@@ -66,6 +74,10 @@ use serde::{Deserialize, Serialize};
 pub mod capability;
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(windows)]
+mod windows;
 
 pub use capability::Capability;
 
@@ -434,20 +446,109 @@ impl Grant {
 pub trait Confinement {
     /// The isolation level this tier represents.
     fn level(&self) -> IsolationLevel;
-    /// Whether this tier can actually prevent network egress.
-    fn enforces_network_deny(&self) -> bool;
-    /// Whether this tier can actually confine the filesystem to a grant.
-    fn enforces_filesystem(&self) -> bool {
+    /// Whether this tier prevents network egress for a child under `grant`
+    /// that is denied the network.
+    fn enforces_network_deny(&self, grant: &Grant) -> bool;
+    /// Whether this tier confines the filesystem of a child under `grant`;
+    /// never true for a grant without a filesystem confinement.
+    fn enforces_filesystem(&self, _grant: &Grant) -> bool {
         false
     }
-    /// Spawn `cmd` (environment and working directory already applied) under
-    /// `grant`, as far as this tier enforces it.
+    /// The command that runs `profile`'s program under `grant`: the program
+    /// itself, or for a tier that confines by wrapping, its wrapper.
+    fn command(&self, profile: &Profile, _grant: &Grant) -> Command {
+        let mut cmd = Command::new(&profile.program);
+        cmd.args(&profile.args);
+        cmd
+    }
+    /// Spawn `cmd` (environment, working directory and the standard streams
+    /// `profile` asks for already applied) under `grant`, as far as this tier
+    /// enforces it.
     ///
     /// # Errors
     /// The spawn's own failure, or a restriction this tier reported it could
     /// enforce and then could not.
-    fn spawn(&self, cmd: &mut Command, _grant: &Grant) -> std::io::Result<Child> {
-        cmd.spawn()
+    fn spawn(
+        &self,
+        cmd: &mut Command,
+        _profile: &Profile,
+        _grant: &Grant,
+    ) -> std::io::Result<Spawned> {
+        cmd.spawn().map(Spawned::from)
+    }
+}
+
+/// A child a [`Confinement`] spawned.
+pub struct Spawned(Process);
+
+enum Process {
+    Std(Child),
+    #[cfg(windows)]
+    Container(windows::Container),
+}
+
+impl From<Child> for Spawned {
+    fn from(child: Child) -> Self {
+        Self(Process::Std(child))
+    }
+}
+
+/// How a child ended: its exit code (`None` when killed), whether it
+/// succeeded, and whether the timeout killed it.
+struct Ended {
+    code: Option<i32>,
+    success: bool,
+    timed_out: bool,
+}
+
+impl Spawned {
+    fn take_stdin(&mut self) -> Option<Box<dyn Write + Send>> {
+        match &mut self.0 {
+            Process::Std(child) => child
+                .stdin
+                .take()
+                .map(|sink| Box::new(sink) as Box<dyn Write + Send>),
+            #[cfg(windows)]
+            Process::Container(container) => container.take_stdin(),
+        }
+    }
+
+    fn take_stdout(&mut self) -> Option<Box<dyn Read + Send>> {
+        match &mut self.0 {
+            Process::Std(child) => child
+                .stdout
+                .take()
+                .map(|source| Box::new(source) as Box<dyn Read + Send>),
+            #[cfg(windows)]
+            Process::Container(container) => container.take_stdout(),
+        }
+    }
+
+    fn take_stderr(&mut self) -> Option<Box<dyn Read + Send>> {
+        match &mut self.0 {
+            Process::Std(child) => child
+                .stderr
+                .take()
+                .map(|source| Box::new(source) as Box<dyn Read + Send>),
+            #[cfg(windows)]
+            Process::Container(container) => container.take_stderr(),
+        }
+    }
+
+    /// Wait for the child, killing it if `timeout` elapses.
+    fn wait(self, timeout: Option<Duration>) -> std::io::Result<Ended> {
+        match self.0 {
+            Process::Std(mut child) => {
+                let (status, timed_out) = wait_with_timeout(&mut child, timeout)?;
+                Ok(Ended {
+                    code: status.and_then(|s| s.code()),
+                    success: status.is_some_and(|s| s.success()),
+                    timed_out,
+                })
+            }
+            #[cfg(windows)]
+            Process::Container(container) => container.wait(timeout),
+        }
     }
 }
 
@@ -460,18 +561,27 @@ impl Confinement for Baseline {
     fn level(&self) -> IsolationLevel {
         IsolationLevel::Baseline
     }
-    fn enforces_network_deny(&self) -> bool {
+    fn enforces_network_deny(&self, _grant: &Grant) -> bool {
         false
     }
 }
 
-/// Return the strongest confinement tier available on this host: on Linux,
-/// Landlock and seccomp as far as the kernel provides them (probed once per
-/// process); [`Baseline`] everywhere else.
+/// Return the strongest confinement tier available on this host, probed once
+/// per process: Landlock and seccomp on Linux as far as the kernel provides
+/// them, Seatbelt on macOS, an app container on Windows; [`Baseline`] where
+/// none is available.
 #[must_use]
 pub fn detect_confinement() -> Box<dyn Confinement> {
     #[cfg(target_os = "linux")]
     if let Some(tier) = linux::Linux::detect() {
+        return Box::new(tier);
+    }
+    #[cfg(target_os = "macos")]
+    if let Some(tier) = macos::Seatbelt::detect() {
+        return Box::new(tier);
+    }
+    #[cfg(windows)]
+    if let Some(tier) = windows::AppContainer::detect() {
         return Box::new(tier);
     }
     Box::new(Baseline)
@@ -573,8 +683,8 @@ fn run_with(
     // the network AND the active confinement tier can provably prevent egress.
     // The portable baseline cannot, so on a baseline-only host this is always
     // `false` for a default-deny child — which the guards below act on.
-    let network_enforced = !want_network && confinement.enforces_network_deny();
-    let filesystem_enforced = grant.filesystem.is_some() && confinement.enforces_filesystem();
+    let network_enforced = !want_network && confinement.enforces_network_deny(&grant);
+    let filesystem_enforced = grant.filesystem.is_some() && confinement.enforces_filesystem(&grant);
 
     // Hard operator denial (`deny_network`) is a floor, not a hint: when the
     // operator forces the network off, a real restriction MUST result. If the
@@ -608,8 +718,7 @@ fn run_with(
         (None, None) => None,
     };
 
-    let mut cmd = Command::new(&profile.program);
-    cmd.args(&profile.args);
+    let mut cmd = confinement.command(profile, &grant);
     cmd.env_clear();
     for (k, v) in &env {
         cmd.env(k, v);
@@ -626,13 +735,13 @@ fn run_with(
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
     }
-    let mut child = confinement.spawn(&mut cmd, &grant)?;
+    let mut child = confinement.spawn(&mut cmd, profile, &grant)?;
 
     // Feed stdin on a thread so a large payload cannot deadlock against the
-    // child filling its stdout while we are still writing.
-    let stdin_handle = match (child.stdin.take(), profile.stdin_data.clone()) {
+    // child filling its stdout while we are still writing. A pipe with
+    // nothing to feed is closed at once.
+    let stdin_handle = match (child.take_stdin(), profile.stdin_data.clone()) {
         (Some(mut sink), Some(data)) => Some(std::thread::spawn(move || {
-            use std::io::Write;
             let _ = sink.write_all(&data);
             // Dropping `sink` closes the pipe, signalling EOF.
         })),
@@ -641,10 +750,10 @@ fn run_with(
 
     // Drain pipes on threads so a chatty child cannot deadlock against a full
     // pipe buffer while we wait on the timeout.
-    let stdout_handle = child.stdout.take().map(drain_thread);
-    let stderr_handle = child.stderr.take().map(drain_thread);
+    let stdout_handle = child.take_stdout().map(drain_thread);
+    let stderr_handle = child.take_stderr().map(drain_thread);
 
-    let (status, timed_out) = wait_with_timeout(&mut child, timeout)?;
+    let ended = child.wait(timeout)?;
 
     if let Some(h) = stdin_handle {
         let _ = h.join();
@@ -657,11 +766,11 @@ fn run_with(
         .unwrap_or_default();
 
     Ok(Outcome {
-        code: status.and_then(|s| s.code()),
-        success: status.is_some_and(|s| s.success()) && !timed_out,
+        code: ended.code,
+        success: ended.success && !ended.timed_out,
         stdout,
         stderr,
-        timed_out,
+        timed_out: ended.timed_out,
         isolation: if network_enforced || filesystem_enforced {
             confinement.level()
         } else {
@@ -674,10 +783,7 @@ fn run_with(
     })
 }
 
-fn drain_thread<R>(mut r: R) -> std::thread::JoinHandle<Vec<u8>>
-where
-    R: Read + Send + 'static,
-{
+fn drain_thread(mut r: Box<dyn Read + Send>) -> std::thread::JoinHandle<Vec<u8>> {
     std::thread::spawn(move || {
         let mut buf = Vec::new();
         let _ = r.read_to_end(&mut buf);
@@ -899,10 +1005,10 @@ mod tests {
 
     /// A scratch directory of its own under the temporary directory, removed
     /// when dropped.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     struct Scratch(PathBuf);
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     impl Scratch {
         fn new(name: &str) -> Self {
             let dir =
@@ -913,15 +1019,25 @@ mod tests {
         }
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     impl Drop for Scratch {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
     }
 
+    /// A grant denied the network, with or without a filesystem confinement,
+    /// to ask the host's tier what it enforces.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    fn probe_grant(filesystem: bool) -> Grant {
+        Grant {
+            network: false,
+            filesystem: filesystem.then(FsGrant::default),
+        }
+    }
+
     /// Run `script` under `sh` with `profile`'s grant, from `cwd`.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     fn sh(cwd: &std::path::Path, script: &str, adjust: impl FnOnce(Profile) -> Profile) -> Outcome {
         let profile = adjust(
             Profile::new("t", tool("sh"), cwd)
@@ -936,7 +1052,7 @@ mod tests {
     /// and no others: it reads what it was granted to read, writes only where
     /// it was granted to write, and cannot read a sibling it was not granted.
     /// Without Landlock it says so rather than claim the confinement.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn the_filesystem_grant_is_enforced_where_the_kernel_can() {
         let root = Scratch::new("fs");
@@ -962,7 +1078,7 @@ mod tests {
             granted,
         );
         assert!(write.success, "{write:?}");
-        let enforced = detect_confinement().enforces_filesystem();
+        let enforced = detect_confinement().enforces_filesystem(&probe_grant(true));
         assert_eq!(read.enforced.filesystem, enforced);
         assert_eq!(
             read.isolation == IsolationLevel::Os,
@@ -989,7 +1105,7 @@ mod tests {
     /// On a kernel with seccomp, a child denied the network cannot open an
     /// internet socket — `connect` never gets as far as being refused — while
     /// one allowed it can. Without seccomp it says so.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn network_denial_is_enforced_where_the_kernel_can() {
         let root = Scratch::new("net");
@@ -1007,7 +1123,7 @@ mod tests {
                 .timeout(Some(Duration::from_secs(10)));
             run(&profile, &SandboxPolicy::default()).expect("runs")
         };
-        let enforced = detect_confinement().enforces_network_deny();
+        let enforced = detect_confinement().enforces_network_deny(&probe_grant(false));
         let denied = attempt(false);
         assert_eq!(denied.enforced.network, enforced);
         let stderr = String::from_utf8_lossy(&denied.stderr);

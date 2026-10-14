@@ -120,9 +120,10 @@ $ tcl pkg audit --lines 20
 ## Notes
 
 - The sandbox always applies a portable baseline (environment scrubbed of
-  credentials, working-directory confinement, timeouts). On Linux it adds
-  Landlock filesystem confinement and a seccomp network block where the kernel
-  provides them; other platforms run at the baseline. Where a restriction
+  credentials, working-directory confinement, timeouts). It adds filesystem
+  and network confinement where the host provides it: Landlock and seccomp on
+  Linux, Seatbelt on macOS, an AppContainer on Windows (for commands that name
+  the paths they may reach). The BSDs run at the baseline. Where a restriction
   cannot be enforced, `fail-closed` policies refuse rather than run
   under-confined, and the audit log records the isolation level and which
   restrictions (`network_enforced`, `filesystem_enforced`) were enforced.

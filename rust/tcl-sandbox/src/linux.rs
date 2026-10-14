@@ -28,7 +28,7 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::Command;
 use std::sync::OnceLock;
 
 use landlock::{
@@ -40,7 +40,7 @@ use seccompiler::{
     SeccompRule, TargetArch,
 };
 
-use crate::{Confinement, FsGrant, Grant, IsolationLevel};
+use crate::{Confinement, FsGrant, Grant, IsolationLevel, Profile, Spawned};
 
 /// The Landlock ABI the rules are written against; an older kernel enforces
 /// the subset it knows.
@@ -97,19 +97,19 @@ impl Confinement for Linux {
         IsolationLevel::Os
     }
 
-    fn enforces_network_deny(&self) -> bool {
+    fn enforces_network_deny(&self, _grant: &Grant) -> bool {
         self.seccomp
     }
 
-    fn enforces_filesystem(&self) -> bool {
-        self.landlock
+    fn enforces_filesystem(&self, grant: &Grant) -> bool {
+        self.landlock && grant.filesystem.is_some()
     }
 
-    fn spawn(&self, cmd: &mut Command, grant: &Grant) -> io::Result<Child> {
+    fn spawn(&self, cmd: &mut Command, _profile: &Profile, grant: &Grant) -> io::Result<Spawned> {
         let filesystem = grant.filesystem.as_ref().filter(|_| self.landlock);
         let network = !grant.network && self.seccomp;
         if filesystem.is_none() && !network {
-            return cmd.spawn();
+            return cmd.spawn().map(Spawned::from);
         }
         let filesystem = filesystem.map(|fs| with_system_paths(fs, cmd));
         on_own_thread(move || {
@@ -119,7 +119,7 @@ impl Confinement for Linux {
             if network {
                 deny_network()?;
             }
-            cmd.spawn()
+            cmd.spawn().map(Spawned::from)
         })
     }
 }

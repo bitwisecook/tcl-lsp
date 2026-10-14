@@ -97,9 +97,29 @@ child under the strongest available **confinement tier**:
   keeps its authority. Each mechanism is probed once per process on a
   throwaway thread, so a kernel without it reports Baseline for it rather
   than claiming it.
-- **Other platforms:** Seatbelt on macOS, `pledge`/`unveil` on OpenBSD,
-  Capsicum on FreeBSD and restricted tokens + Job Objects on Windows are not
-  built; `detect_confinement()` answers `Baseline` there.
+- **OS-native (macOS):** Seatbelt. The program runs under
+  `/usr/bin/sandbox-exec` with a profile written from the grant: everything
+  allowed by default, then the network denied but for Unix-domain sockets,
+  writes denied outside the write paths and the standard devices, and reading
+  file contents denied outside the read and write paths, the system trees
+  (`/System`, `/usr`, `/Library`, `/private/etc`, `/private/var/db`, `/dev`,
+  `/opt/homebrew`, …), the `PATH` directories and the program's installation;
+  metadata stays readable so lookups through an ungranted directory resolve.
+  Paths reach the profile as `-D` parameters, never spliced into its text, and
+  each is granted as named and as resolved (`/tmp` is `/private/tmp`).
+- **OS-native (Windows):** an AppContainer, through the `rappct` crate (which
+  holds the Win32 calls), for a profile that names paths. The read paths and
+  the program's installation are granted read/execute and the write paths full
+  access for the one `tcl-lsp.sandbox` package SID — access-control entries
+  that persist on those directories and admit no process outside that
+  container — and the child holds `internetClient` and
+  `privateNetworkClientServer` only when it may use the network. It runs in a
+  Job Object that kills the whole tree when the run ends or times out. A
+  profile that names no path runs as an ordinary process, its network not
+  denied either: an AppContainer cannot leave the filesystem open.
+- **Other platforms:** `pledge`/`unveil` on OpenBSD and Capsicum on FreeBSD are
+  not built; `detect_confinement()` answers `Baseline` there, and wherever the
+  host lacks the mechanism (probed once per process).
 
 `Outcome::isolation` is `Os` only when the OS layer enforced something for that
 run, and `Outcome::enforced` says which (`network`, `filesystem`); the audit log
@@ -230,7 +250,7 @@ enforces it, with the achieved isolation level reported.
 
 - `tcl-sandbox` unit tests cover env scrubbing (including the sensitive-name
   denylist), the fail-closed path, the timeout kill, capability merging, and —
-  on Linux — that a granted path is reachable and an ungranted one is not, and
+  on Linux and macOS — that a granted path is reachable and an ungranted one is not, and
   that a child denied the network cannot open an internet socket (each
   asserting the outcome reports what the kernel actually enforced),
   without mutating the process environment (an injectable env lookup keeps the
@@ -250,14 +270,21 @@ enforces it, with the achieved isolation level reported.
 These are the edges of what the sandbox promises, and they matter when
 reasoning about a threat:
 
-- **OS-native isolation is Linux-only, and partial there.** Elsewhere the
+- **OS-native isolation is partial, and absent on the BSDs.** There the
   enforced confinement is environment scrubbing, cwd pinning, output capture
   and the wall-clock timeout. On Linux, Landlock does not govern every
   operation (sockets, signals, `ioctl` on already-open files, and on older
   kernels truncation and renames across directories), and the seccomp filter
   refuses internet sockets but not a local socket that a daemon outside the
-  sandbox could forward; a profile that names no path is not filesystem
-  confined at all. A policy that needs more must set `fail-closed`.
+  sandbox could forward; macOS likewise leaves Unix-domain sockets open and
+  file metadata readable, and `sandbox-exec` is deprecated by Apple though
+  still shipped; Windows confines only a profile that names paths, and leaves
+  its ACL grants in place. A profile that names no path is not filesystem
+  confined anywhere. A policy that needs more must set `fail-closed`.
+- **The macOS and Windows tiers are compile-checked here and exercised on
+  those hosts' runners.** The enforcement tests in `tcl-sandbox` run on Linux
+  and macOS; Windows has the command-line quoting test, and its enforcement
+  is verified on a Windows host.
 - **Only the project's own build script runs.** The resolver does not read
   a dependency's manifest for a declared build phase, so a dependency's
   `build` directive is inert.
