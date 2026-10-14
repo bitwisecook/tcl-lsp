@@ -5409,6 +5409,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                             req.proc_params.clone(),
                             req.global_write_procs.clone(),
                             req.command_bindings.clone(),
+                            req.procedure_summary_owners.clone(),
                         ),
                         tcl_lexer::LexerConfig::default(),
                     );
@@ -5529,6 +5530,7 @@ fn memoized_compilation_unit_shift_correctness() {
                         req.proc_params.clone(),
                         req.global_write_procs.clone(),
                         req.command_bindings.clone(),
+                        req.procedure_summary_owners.clone(),
                     ),
                     tcl_lexer::LexerConfig::default(),
                 );

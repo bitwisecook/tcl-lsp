@@ -1,0 +1,8 @@
+{
+  "path": "rust/tcl-spec-studio/src/infer/extension.rs",
+  "before_sha256": "85d05a382feb00c257b56a68c20140062e5d252f8e1de116786f969c77c3234c",
+  "after_sha256": "af5906d14609fe9346979236c9c35882897d9cbb00c00ef662de89d2cff50f8d",
+  "patch_sha256": "6985c46495cd63c58a53be527d3c75f5f22cea1ece46486c8152cc04c2cc2b11",
+  "selector": "infer::extension::tests::probe_descriptor_projection_keeps_colon_components_separate",
+  "scope": "One existing expected-array correction. Original3 supplied report strings, row-count/exact-string comparison, source/input bytes, production implementation and assertions remain intact. Expected sorted reports now preserve each full supplied string; this authored report control supplies no Native registration/lookup or executed assertion result."
+}

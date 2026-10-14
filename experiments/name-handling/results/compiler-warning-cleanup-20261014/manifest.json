@@ -1,0 +1,17 @@
+{
+  "validation": "rustfmt parsed; no Cargo/test execution",
+  "apply_check": 0,
+  "before": {
+    "rust/tcl-compiler/src/optimiser/manager.rs": "8903f5da095ba15b01cf58a71bd5fa95c1d1b5322bd69d01beb617a9e4817539",
+    "rust/tcl-compiler/src/interprocedural.rs": "72002ec0b20d41db731312f0c8bbd7475761a1efc64897bad7ca2e7374fdc3e3",
+    "rust/tcl-compiler/src/cfg_builder/upvar_info.rs": "1919d1730ed0183b4fea8d654f506da924984b99d9f2bd062f242fb04a649dab",
+    "rust/tcl-compiler/src/command_binding.rs": "d112adcad2ee351d61cf5ab931281c53c2f38b2be0bf9ea79d001d14fcb8db81"
+  },
+  "after": {
+    "rust/tcl-compiler/src/optimiser/manager.rs": "96bcabe4117b9d3fa816d7483477403405aeb45cb7e99a48c06baaa05d03172d",
+    "rust/tcl-compiler/src/interprocedural.rs": "e2080f7868f89e85c70676daf6fe7670102c7ae0bee1235f9dd4832206050f80",
+    "rust/tcl-compiler/src/cfg_builder/upvar_info.rs": "81f489cda06a93792ac59f2277778714698d6b9962b443aa00b57293b860fdee",
+    "rust/tcl-compiler/src/command_binding.rs": "01acf109a4a3511f1819d9d91088f5a0f0f26681cd1296f994dcd7ba6ab52896"
+  },
+  "patch_sha256": "5f4216d0e28d73e1a806f9b74ff8d1c992d1b199ab2b401ab68459cc67368f33"
+}

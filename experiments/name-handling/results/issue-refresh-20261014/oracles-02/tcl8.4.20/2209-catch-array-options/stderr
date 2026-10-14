@@ -1,0 +1,4 @@
+wrong # args: should be "catch command ?varName?"
+    while executing
+"catch {set x ok} result options(key)"
+    (file "/tmp/name-issues-refresh-20261014/oracles-02/tcl8.4.20/2209-catch-array-options/source.tcl" line 1)

@@ -1,0 +1,20 @@
+error[E0433]: cannot find `test_body_identity` in the crate root
+    --> rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2615:30
+     |
+2615 |         let body_id = crate::test_body_identity::fixture_id(&module.procedures, "::helper");
+     |                              ^^^^^^^^^^^^^^^^^^ unresolved import
+     |
+help: a similar path exists
+     |
+2615 |         let body_id = crate::interprocedural::test_body_identity::fixture_id(&module.procedures, "::helper");
+     |                              +++++++++++++++++
+help: consider importing this module
+     |
+1904 +     use crate::interprocedural::test_body_identity;
+     |
+help: if you import `test_body_identity`, refer to it directly
+     |
+2615 -         let body_id = crate::test_body_identity::fixture_id(&module.procedures, "::helper");
+2615 +         let body_id = test_body_identity::fixture_id(&module.procedures, "::helper");
+     |
+

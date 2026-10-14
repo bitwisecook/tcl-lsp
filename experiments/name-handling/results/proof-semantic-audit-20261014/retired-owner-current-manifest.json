@@ -1,0 +1,52 @@
+{
+  "base_manifest_sha256": "d154d7492b61a3e3172532321b67d8d473542386e107e30e737b93fdae804cda",
+  "patch_sha256": "e20217bdfb7484251767a1c110fe889dcdbe5d90c622d5d26f52b2f9fa1917d6",
+  "record_changes": [
+    {
+      "id": "naming.analysis.constructed-key-consumer-projections",
+      "fields": [
+        "conclusion",
+        "scope",
+        "tests",
+        "owners"
+      ],
+      "provider_and_evidence_fields_unchanged": true
+    },
+    {
+      "id": "naming.analysis.reported-qname-namespace-prefix",
+      "fields": [
+        "conclusion",
+        "scope",
+        "owners"
+      ],
+      "provider_and_evidence_fields_unchanged": true
+    },
+    {
+      "id": "naming.embedding.original-host-publication-and-fact-transport",
+      "fields": [
+        "conclusion",
+        "owners"
+      ],
+      "provider_and_evidence_fields_unchanged": true
+    },
+    {
+      "id": "naming.grammar.shared-written-name-boundaries",
+      "fields": [
+        "conclusion",
+        "scope",
+        "tests",
+        "owners"
+      ],
+      "provider_and_evidence_fields_unchanged": true
+    },
+    {
+      "id": "naming.source.original-callback-procedure-target",
+      "fields": [
+        "conclusion",
+        "owners"
+      ],
+      "provider_and_evidence_fields_unchanged": true
+    }
+  ],
+  "scope": "Current semantic owner/consumer descriptions and exact existing test-definition meanings; no Native/provider observation, evidence/implementation/census digest, source assertion or code implementation renewed. Current execution acceptance remains independently pending."
+}

@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.4.20",
+  "case": "2218-dynamic-proc-head-rebinding",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-03/tcl8.4.20/2218-dynamic-proc-head-rebinding/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:46:37.540491+00:00",
+  "exit_code": 0,
+  "source_sha256": "57396d7c041ad7025e5eb9d536b27ae71669f4dae395a27e0a6e1163d19c8c92",
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "stdout_sha256": "5b17a86760b5894673c3068bb5b77c03be58b438f68d0611bc10efc13b3dd9b4",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

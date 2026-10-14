@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "2255-array-index-outer-mask",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-03/jim/2255-array-index-outer-mask/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:46:39.793428+00:00",
+  "exit_code": 0,
+  "source_sha256": "76f8a5fd96fa967b41633106d1aead794014e588003d55e100855f9de396640e",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "80076180faa346e7858e9e9b3c68586f18c14ab4d7322393d0e96a87a0ac05de",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

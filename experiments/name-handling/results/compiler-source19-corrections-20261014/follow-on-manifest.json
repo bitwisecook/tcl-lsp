@@ -1,0 +1,19 @@
+{
+  "validation": "rustfmt parse and Main git apply --check only; no Cargo executed",
+  "inputs": {
+    "rust/tcl-compiler/src/analyser/diagnostics/tests.rs": "0f7379249f43b07cecc56996f30f1bd49df719cf0df9c927c3ee550d70f38956",
+    "rust/tcl-compiler/src/cfg_builder/global_write_info.rs": "b2409c2ad19ddfd211a9592b99959b1b39bf455be02a046afe0a4e04b03fbc52",
+    "rust/tcl-compiler/src/cfg_builder/mod.rs": "3a797bf6770a9fd3dff43225b79ec2d96b2c100b9019ae8e71be688dae9bb717",
+    "rust/tcl-compiler/src/cfg_builder/upvar_info.rs": "d2578024cb48a789bfe6bdb47405efb23e6e68af1be03089942e484c85d18e06",
+    "rust/tcl-compiler/src/command_binding.rs": "75275ee5c5740334d2021c80b2b3f59dd13b2866121b23a582c9a8d371cb4813",
+    "rust/tcl-compiler/src/compilation_unit.rs": "bc70b69ab19d769f8fad0181aa7c2925a9b6413b329a864c7c871c2b7fc333c3"
+  },
+  "outputs": {
+    "rust/tcl-compiler/src/analyser/diagnostics/tests.rs": "abad1bc855472767dd1506b89992e18b166d7fa4436f0000464db659047363b8",
+    "rust/tcl-compiler/src/cfg_builder/global_write_info.rs": "7ade6c9dae04d3229c928ebe19e37182fdd46966d27420a99516c8cbc282bace",
+    "rust/tcl-compiler/src/cfg_builder/mod.rs": "5b29fe7e7d45d7c48213575719434deb9f1e970ff3ceb059ad14369496e2aa41",
+    "rust/tcl-compiler/src/cfg_builder/upvar_info.rs": "1919d1730ed0183b4fea8d654f506da924984b99d9f2bd062f242fb04a649dab",
+    "rust/tcl-compiler/src/command_binding.rs": "d112adcad2ee351d61cf5ab931281c53c2f38b2be0bf9ea79d001d14fcb8db81",
+    "rust/tcl-compiler/src/compilation_unit.rs": "0b8c37843dff8fde2a0d7d1e0222dcc794ed1956e6eb85ab3d3cce4eee7652ba"
+  }
+}

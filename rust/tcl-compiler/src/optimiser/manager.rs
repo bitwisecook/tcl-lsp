@@ -558,7 +558,6 @@ fn couple_const_dead_store_chain(
 ) -> Option<Optimisation> {
     use crate::analyses::LatticeValue;
     use crate::def_use::{DefKind, UseKind};
-    use std::collections::HashSet;
 
     let CoupleCtx {
         fu,

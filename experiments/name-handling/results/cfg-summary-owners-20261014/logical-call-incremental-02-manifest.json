@@ -1,0 +1,10 @@
+{
+  "paths": [
+    "rust/tcl-compiler/src/cfg_builder/mod.rs",
+    "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+    "rust/tcl-compiler/src/cfg_builder/summary_candidates.rs"
+  ],
+  "sha256": "84cac837d31702ecd6607fd984d84a0217b0bbeac62692fe3b6546bec8dfefe1",
+  "depends": "implementation-01.patch",
+  "validation": "rustfmt only, no Cargo or tests"
+}

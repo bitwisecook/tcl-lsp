@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.4.20",
+  "case": "2289-child-created-in-procedure",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-02/tcl8.4.20/2289-child-created-in-procedure/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:38:52.512199+00:00",
+  "exit_code": 0,
+  "source_sha256": "84179fb6007371a776ff781575256c462abe7cf7f3539a215473bcb1e672d55f",
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "stdout_sha256": "35a587ec4688c2240c2d6bef6ab2a7a3efca8633217ffff4b7affa7cb0521c61",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

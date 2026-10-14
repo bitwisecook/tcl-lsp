@@ -1,0 +1,14 @@
+{
+  "provider": "tcl9.0.4",
+  "case": "2419-tcllib-variable-writers",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-02/tcl9.0.4/2419-tcllib-variable-writers/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:38:53.804263+00:00",
+  "exit_code": 0,
+  "source_sha256": "25d50438174ffcdd4e90cdfa4ee0cef323737afa1261553064ffef054daeb233",
+  "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+  "stdout_sha256": "0e4d035ceab1bbc1ab4cb0607d44d97eae180e1d55820222f37df5df0fc372f8",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

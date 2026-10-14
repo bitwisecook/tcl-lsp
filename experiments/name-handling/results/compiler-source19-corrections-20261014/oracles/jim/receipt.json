@@ -1,0 +1,19 @@
+{
+  "provider": "jim",
+  "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "binary_unchanged": true,
+  "source_sha256": "88c7ffb26a07063f777285bb5fb4e7e2f6af16995f1bad9c100a9f083fd66a5f",
+  "started_utc": "2026-10-14T01:05:02.851418+00:00",
+  "exit_code": 0,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-compiler19-corrections-20261014/oracles/jim/source.tcl"
+  ],
+  "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+  "uses_tcltest": false,
+  "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/jim/provider-identity/receipt.json",
+  "stdout": "GLOBAL LOCAL 0\n",
+  "stderr": "",
+  "prior_complete_provider_inventory_sha256": "cf6f6e12953ad6d6a462defe498136d4f4f6fb867cc03e13c3be77f5286f03c0"
+}

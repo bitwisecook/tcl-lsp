@@ -1,0 +1,14 @@
+{
+  "provider": "tcl9.1.0",
+  "case": "2268-unknown-and-distinct-array-key",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-02/tcl9.1.0/2268-unknown-and-distinct-array-key/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:38:54.204358+00:00",
+  "exit_code": 0,
+  "source_sha256": "1393985397327774af3eea76165a528b7f2a4e8e69bfb3f8a45a52ee14b5f98f",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "stdout_sha256": "355d0e91fb476df16e679765fe8f0254b324d04bb2ab3c0327aaffccd78c09a4",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

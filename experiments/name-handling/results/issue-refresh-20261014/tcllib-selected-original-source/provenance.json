@@ -1,0 +1,44 @@
+{
+  "upstream": "https://github.com/tcltk/tcllib",
+  "tag": "tcllib-2-0",
+  "revision": "2a63bf212cc6423efb7a39958596ae2a2333c266",
+  "archive_sha256": "c239f54cedc2fc11eb9fd5a7bbf2df1e12965937cd7fd1110e17383ec8f5e632",
+  "exact_original_files": [
+    {
+      "path": "modules/struct/pkgIndex.tcl",
+      "sha256": "763f067be288691833c34a61145b97346aaeefe8d4d1ee4bffd95b02d4dbcbd1",
+      "bytes": 1654
+    },
+    {
+      "path": "modules/struct/sets.tcl",
+      "sha256": "590756023544ab34b151ad91096e74579dc19ef9170be0132623a6099f34e878",
+      "bytes": 4031
+    },
+    {
+      "path": "modules/struct/sets_tcl.tcl",
+      "sha256": "0e99ba805ae52d2024965a75483ca9d46813ed9d65e7cc1f2c4e5e36d3ced61a",
+      "bytes": 9615
+    },
+    {
+      "path": "modules/struct/list.tcl",
+      "sha256": "d42645ecc6e0696d77d5c155ee6a11919a26e86ea34ae07c492c672e0b71c4cf",
+      "bytes": 48934
+    },
+    {
+      "path": "modules/cmdline/pkgIndex.tcl",
+      "sha256": "b2766b3999f6b025b3958584aaf8e4872c89d709094712faa85cd3aad3098d49",
+      "bytes": 138
+    },
+    {
+      "path": "modules/cmdline/cmdline.tcl",
+      "sha256": "dcf1ab9c581484eb9219728594d9d2e35dd07fa4e63c844927990e147285a1d6",
+      "bytes": 31122
+    },
+    {
+      "path": "license.terms",
+      "sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c",
+      "bytes": 2155
+    }
+  ],
+  "scope": "Selected original interpreted package files and license only; no byte changes. Whole upstream archive is retained separately in delivery workspace, with all source inputs hashed by capture runner. Source package files are not replacement Native provider receipts."
+}

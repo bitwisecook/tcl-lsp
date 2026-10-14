@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "2143-materialised-factory",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-03/jim/2143-materialised-factory/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:46:39.813745+00:00",
+  "exit_code": 0,
+  "source_sha256": "451c832399b295ae24b86eb2433cf267eb3fdefa0e1c5540c2df3be6ec4015a8",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "5eab4b7190201cf7f6308297ef8eae74089aae672402847a0c8af46370ca365c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

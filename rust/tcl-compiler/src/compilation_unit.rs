@@ -105,17 +105,19 @@ pub struct LatticeRequest<'a> {
     /// Module-wide `proc -> upvar summary` context (from
     /// [`crate::cfg_builder::prepare_cfg_context`]), the resolved command surface,
     /// and whether command dispatch is trace-visible.
-    pub upvar_procs: &'a HashMap<String, crate::cfg_builder::upvar_info::UpvarInfo>,
+    pub upvar_procs: &'a HashMap<crate::ir::ProcedureId, crate::cfg_builder::upvar_info::UpvarInfo>,
     /// Module-wide `proc -> params` context (from
     /// [`crate::cfg_builder::prepare_cfg_context`]).
-    pub proc_params: &'a HashMap<String, Vec<String>>,
+    pub proc_params: &'a HashMap<crate::ir::ProcedureId, Vec<String>>,
     /// Module-wide `proc -> outer-scope write summary` context (from
     /// [`crate::cfg_builder::prepare_cfg_context`]).
     pub global_write_procs:
-        &'a HashMap<String, crate::cfg_builder::global_write_info::GlobalWriteInfo>,
+        &'a HashMap<crate::ir::ProcedureId, crate::cfg_builder::global_write_info::GlobalWriteInfo>,
     /// Closed module command state used to resolve effective direct-call
     /// targets and `interp alias` argument prefixes.
     pub command_bindings: &'a crate::command_binding::ModuleCommandBindings,
+    /// Actual original Module/source owner for procedure-effect selection.
+    pub procedure_summary_owners: &'a crate::cfg_builder::OriginalProcedureSummaryOwners,
     /// Complete original metadata input for the shared body CFG owner.
     /// Absence refuses metadata; labels cannot recreate availability or scope.
     pub source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
@@ -2714,7 +2716,7 @@ impl<'a> ProcedureBuildContext<'a> {
 /// ([`crate::interprocedural::ModuleProcedures`]), over the unit's lowering,
 /// its prepared frame and global-write facts, and its command trust.
 fn module_procedures<'a>(
-    (ir_module, cfg_module, prepared): (&'a IrModule, &'a CfgModule, &'a PreparedCfgContext),
+    (ir_module, cfg_module, _prepared): (&'a IrModule, &'a CfgModule, &'a PreparedCfgContext),
     (mutations, projection): (
         &'a crate::command_binding::ModuleCommandMutations,
         &'a crate::command_binding::ProcBindingTrustProjection,
@@ -2878,7 +2880,13 @@ fn build_procedure_units(
             (
                 Some(memo),
                 Some(proc),
-                Some((upvar_procs, proc_params, global_write_procs, command_bindings)),
+                Some((
+                    upvar_procs,
+                    proc_params,
+                    global_write_procs,
+                    command_bindings,
+                    procedure_summary_owners,
+                )),
                 Some(encoded_pc),
                 false,
                 Some(source),
@@ -2903,6 +2911,7 @@ fn build_procedure_units(
                     proc_params,
                     global_write_procs,
                     command_bindings,
+                    procedure_summary_owners,
                     source_metadata_input: memo_input.as_ref(),
                     lexer_config: memo_config,
                     dialect: ctx.dialect,
@@ -5035,6 +5044,7 @@ mod tests {
                 req.proc_params.clone(),
                 req.global_write_procs.clone(),
                 req.command_bindings.clone(),
+                req.procedure_summary_owners.clone(),
             ),
             registry,
             req.source_metadata_input,
@@ -5433,25 +5443,23 @@ mod tests {
         assert!(std::ptr::eq(facts, unit.semantic_values().unwrap()));
     }
 
-    /// Regression: a *short* procedure name shared by two procedures must resolve
-    /// in `prepare_cfg_context` deterministically (qualified-name-sorted-last
-    /// wins), not by `HashMap` iteration order — otherwise the `function_lattice`
-    /// memo key flakes and the per-procedure lattice cache hits or misses by
-    /// random seed (found via the offset-invariance experiments).
     #[test]
-    fn prepare_cfg_context_short_name_collision_is_deterministic() {
+    fn prepare_cfg_context_retains_same_tailed_body_parameters() {
         let reg = registry();
         let src = "namespace eval ::a { proc x {p1} { set q $p1 } }
-                   namespace eval ::b { proc x {p2 extra} { set q $p2 } }
+namespace eval ::b { proc x {p2 extra} { set q $p2 } }
 ";
         let m =
             crate::lowering::lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
-        let (_, proc_params, _, _) = crate::cfg_builder::prepare_cfg_context(&m);
-        // `::b::x` sorts after `::a::x`, so the short name `x` deterministically
-        // resolves to `::b::x`'s parameters on every run.
+        let (_, proc_params, _, _, _) = crate::cfg_builder::prepare_cfg_context(&m);
+        let a = fixture_id(&m.procedures, "::a::x");
+        let b = fixture_id(&m.procedures, "::b::x");
+        assert_ne!(a, b);
+        assert_eq!(proc_params.len(), 2);
+        assert_eq!(proc_params.get(&a), Some(&vec!["p1".to_string()]));
         assert_eq!(
-            proc_params.get("x"),
-            Some(&vec!["p2".to_string(), "extra".to_string()]),
+            proc_params.get(&b),
+            Some(&vec!["p2".to_string(), "extra".to_string()])
         );
     }
 

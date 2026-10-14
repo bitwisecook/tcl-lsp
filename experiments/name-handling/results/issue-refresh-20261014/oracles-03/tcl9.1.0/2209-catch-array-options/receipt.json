@@ -1,0 +1,14 @@
+{
+  "provider": "tcl9.1.0",
+  "case": "2209-catch-array-options",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-03/tcl9.1.0/2209-catch-array-options/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:46:39.333828+00:00",
+  "exit_code": 0,
+  "source_sha256": "9b9f1f1fc81b54b444fa6f5afdfa61b61d368ae5733fbfb7c7a819a668d77c30",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "stdout_sha256": "c792c625b71f9321230a89f493778ba4fece811fa6230852ea0925203ad789f7",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

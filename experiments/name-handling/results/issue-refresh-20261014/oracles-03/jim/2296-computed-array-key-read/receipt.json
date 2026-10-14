@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "2296-computed-array-key-read",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-03/jim/2296-computed-array-key-read/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:46:39.780297+00:00",
+  "exit_code": 0,
+  "source_sha256": "3e9f6addf113812f25678bd66fc4546e57a83ce69de870631449297fffc9c12b",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

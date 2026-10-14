@@ -1,0 +1,497 @@
+error[E0425]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1252:51
+     |
+1252 |     fn module_with_registry(src: &str, registry: &CommandRegistry) -> Module {
+     |                                                   ^^^^^^^^^^^^^^^ not found in this scope
+
+
+error[E0422]: cannot find struct, variant or union type `CommandSpec` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1420:25
+     |
+1420 |         registry.insert(CommandSpec {
+     |                         ^^^^^^^^^^^ not found in this scope
+
+
+error[E0422]: cannot find struct, variant or union type `CommandSpec` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1663:25
+     |
+1663 |         registry.insert(CommandSpec {
+     |                         ^^^^^^^^^^^ not found in this scope
+
+
+error[E0422]: cannot find struct, variant or union type `CommandSpec` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2096:25
+     |
+2096 |         registry.insert(CommandSpec {
+     |                         ^^^^^^^^^^^ not found in this scope
+
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5407:25
+     |
+5401 |                       let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
+     |                                 ------------------------------------------------------------- arguments to this function are incorrect
+...
+5407 | /                         (
+5408 | |                             req.upvar_procs.clone(),
+5409 | |                             req.proc_params.clone(),
+5410 | |                             req.global_write_procs.clone(),
+5411 | |                             req.command_bindings.clone(),
+5412 | |                         ),
+     | |_________________________^ expected a tuple with 5 elements, found one with 4 elements
+     |
+     = note: expected tuple `(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`
+                found tuple `(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _)`
+note: function defined here
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:3665:8
+     |
+3665 | pub fn build_cfg_function_with_upvars_and_config(
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+3671 |     context: CfgContext,
+     |     -------------------
+     = note: the full name for the type has been written to '/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f.long-type-16393162163753192111.txt'
+     = note: consider using `--verbose` to print the full type name to the console
+
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5527:21
+     |
+5521 |                   let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
+     |                             ------------------------------------------------------------- arguments to this function are incorrect
+...
+5527 | /                     (
+5528 | |                         req.upvar_procs.clone(),
+5529 | |                         req.proc_params.clone(),
+5530 | |                         req.global_write_procs.clone(),
+5531 | |                         req.command_bindings.clone(),
+5532 | |                     ),
+     | |_____________________^ expected a tuple with 5 elements, found one with 4 elements
+     |
+     = note: expected tuple `(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`
+                found tuple `(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _)`
+note: function defined here
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:3665:8
+     |
+3665 | pub fn build_cfg_function_with_upvars_and_config(
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+3671 |     context: CfgContext,
+     |     -------------------
+     = note: the full name for the type has been written to '/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f.long-type-16393162163753192111.txt'
+     = note: consider using `--verbose` to print the full type name to the console
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1249:36
+     |
+1249 |         module_with_registry(src, &CommandRegistry::build_default())
+     |                                    ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1280:24
+     |
+1280 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1329:24
+     |
+1329 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1379:24
+     |
+1379 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1419:28
+     |
+1419 |         let mut registry = CommandRegistry::build_default();
+     |                            ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `ArgRole` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1423:30
+     |
+1423 |             arg_roles: &[(0, ArgRole::VarWrite)],
+     |                              ^^^^^^^ use of undeclared type `ArgRole`
+
+
+error[E0433]: cannot find type `CommandSpec` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1424:15
+     |
+1424 |             ..CommandSpec::DEFAULT
+     |               ^^^^^^^^^^^ use of undeclared type `CommandSpec`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1635:24
+     |
+1635 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1650:24
+     |
+1650 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1662:28
+     |
+1662 |         let mut registry = CommandRegistry::build_default();
+     |                            ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `ArgRole` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1665:30
+     |
+1665 |             arg_roles: &[(0, ArgRole::VarWrite)],
+     |                              ^^^^^^^ use of undeclared type `ArgRole`
+
+
+error[E0433]: cannot find type `StateTransitionDescriptor` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1666:37
+     |
+1666 |             state_transitions: Some(StateTransitionDescriptor::EMPTY),
+     |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^ use of undeclared type `StateTransitionDescriptor`
+
+
+error[E0433]: cannot find type `CommandSpec` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1676:15
+     |
+1676 |             ..CommandSpec::DEFAULT
+     |               ^^^^^^^^^^^ use of undeclared type `CommandSpec`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1688:24
+     |
+1688 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1696:24
+     |
+1696 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1707:24
+     |
+1707 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1718:24
+     |
+1718 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1733:24
+     |
+1733 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1748:24
+     |
+1748 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1762:24
+     |
+1762 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1780:24
+     |
+1780 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1795:24
+     |
+1795 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1810:24
+     |
+1810 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1825:24
+     |
+1825 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1836:24
+     |
+1836 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1852:24
+     |
+1852 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1872:24
+     |
+1872 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1893:24
+     |
+1893 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1919:24
+     |
+1919 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1936:24
+     |
+1936 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1951:24
+     |
+1951 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1967:24
+     |
+1967 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1982:24
+     |
+1982 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1998:24
+     |
+1998 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2014:24
+     |
+2014 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2032:24
+     |
+2032 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2050:24
+     |
+2050 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2065:24
+     |
+2065 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2080:24
+     |
+2080 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2095:28
+     |
+2095 |         let mut registry = CommandRegistry::build_default();
+     |                            ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `ArgRole` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2098:30
+     |
+2098 |             arg_roles: &[(0, ArgRole::VarWrite)],
+     |                              ^^^^^^^ use of undeclared type `ArgRole`
+
+
+error[E0433]: cannot find type `CommandSpec` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2099:15
+     |
+2099 |             ..CommandSpec::DEFAULT
+     |               ^^^^^^^^^^^ use of undeclared type `CommandSpec`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2171:24
+     |
+2171 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2183:24
+     |
+2183 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2318:24
+     |
+2318 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2337:24
+     |
+2337 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2370:24
+     |
+2370 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2386:24
+     |
+2386 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2402:24
+     |
+2402 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2428:24
+     |
+2428 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2486:24
+     |
+2486 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2502:24
+     |
+2502 |         let registry = CommandRegistry::build_default();
+     |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2617:22
+     |
+2617 |             selected["::helper"]
+     |                      ^^^^^^^^^^ expected `&ProcedureId`, found `&str`
+     |
+     = note: expected reference `&tcl_runtime_api::ProcedureId`
+                found reference `&'static str`
+
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2636:33
+     |
+2636 |             assert!(unavailable["::helper"].caller_frame_opaque_writes);
+     |                                 ^^^^^^^^^^ expected `&ProcedureId`, found `&str`
+     |
+     = note: expected reference `&tcl_runtime_api::ProcedureId`
+                found reference `&'static str`
+
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2640:25
+     |
+2640 |         assert!(missing["::helper"].caller_frame_opaque_writes);
+     |                         ^^^^^^^^^^ expected `&ProcedureId`, found `&str`
+     |
+     = note: expected reference `&tcl_runtime_api::ProcedureId`
+                found reference `&'static str`
+
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2641:25
+     |
+2641 |         assert!(missing["::helper"].caller_frame_opaque_reads);
+     |                         ^^^^^^^^^^ expected `&ProcedureId`, found `&str`
+     |
+     = note: expected reference `&tcl_runtime_api::ProcedureId`
+                found reference `&'static str`
+
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2642:26
+     |
+2642 |         assert!(!missing["::helper"].is_empty());
+     |                          ^^^^^^^^^^ expected `&ProcedureId`, found `&str`
+     |
+     = note: expected reference `&tcl_runtime_api::ProcedureId`
+                found reference `&'static str`
+

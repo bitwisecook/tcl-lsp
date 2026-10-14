@@ -199,7 +199,9 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::body_analysis_capsule::{BodyLatticeCommandBindings, BodyLatticeInputs};
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
-use tcl_compiler::cfg_builder::{PreparedCfgContext, build_cfg_function_with_prepared_context};
+use tcl_compiler::cfg_builder::{
+    OriginalProcedureSummaryOwners, PreparedCfgContext, build_cfg_function_with_prepared_context,
+};
 use tcl_compiler::command_binding::ModuleCommandBindings;
 use tcl_compiler::compilation_unit::{
     CompilationUnit, FunctionUnit, LatticeRequest, ModuleTraceFacts, UnitBuildOptions,
@@ -2642,18 +2644,21 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
 /// CFG is built under. Interned once per build and shared by every
 /// [`FnLatticeKey`] so a procedure's key stays small and the per-build
 /// interning cost is `O(procs)`, not `O(procs²)`. The entry vecs are sorted
-/// by name before interning so an equal context (regardless of hash-map
+/// by actual body coordinate before interning so an equal context (regardless of hash-map
 /// iteration order) yields the same id.
 #[salsa::interned]
 pub struct CfgContext<'db> {
     #[returns(ref)]
-    pub upvar_ctx: Vec<(String, UpvarInfo)>,
+    pub upvar_ctx: Vec<(tcl_compiler::ir::ProcedureId, UpvarInfo)>,
     #[returns(ref)]
-    pub proc_params: Vec<(String, Vec<String>)>,
+    pub proc_params: Vec<(tcl_compiler::ir::ProcedureId, Vec<String>)>,
     #[returns(ref)]
-    pub global_write_ctx: Vec<(String, GlobalWriteInfo)>,
+    pub global_write_ctx: Vec<(tcl_compiler::ir::ProcedureId, GlobalWriteInfo)>,
     #[returns(ref)]
     pub command_bindings: tcl_compiler::body_analysis_capsule::BodyLatticeCommandBindings,
+    /// Genuine Module/source owner of every procedure-effect coordinate.
+    #[returns(ref)]
+    pub procedure_summary_owners: OriginalProcedureSummaryOwners,
 }
 
 /// Exact selected compiler inputs shared by lattice and body memo identities.
@@ -2822,10 +2827,11 @@ pub struct FnLatticeKey<'db> {
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<FunctionUnit> {
     let context = key.context(db);
-    let upvar: HashMap<String, UpvarInfo> = context.upvar_ctx(db).iter().cloned().collect();
-    let proc_params: HashMap<String, Vec<String>> =
+    let upvar: HashMap<tcl_compiler::ir::ProcedureId, UpvarInfo> =
+        context.upvar_ctx(db).iter().cloned().collect();
+    let proc_params: HashMap<tcl_compiler::ir::ProcedureId, Vec<String>> =
         context.proc_params(db).iter().cloned().collect();
-    let global_write_procs: HashMap<String, GlobalWriteInfo> =
+    let global_write_procs: HashMap<tcl_compiler::ir::ProcedureId, GlobalWriteInfo> =
         context.global_write_ctx(db).iter().cloned().collect();
     let registry = key.snapshot(db).registry.registry();
     // The request's exact grammar, not one reconstructed from the registry or
@@ -2837,6 +2843,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
             proc_params,
             global_write_procs,
             context.command_bindings(db).bindings().clone(),
+            context.procedure_summary_owners(db).clone(),
         ),
         registry,
         key.entry(db).source_metadata_input.as_ref(),
@@ -3064,22 +3071,22 @@ fn build_unit_with_keys_and_input<'db>(
         HashMap::new();
     let mut lattice_memo = |req: &LatticeRequest<'_>| -> FunctionUnit {
         let context = *context.get_or_insert_with(|| {
-            let mut upvar: Vec<(String, UpvarInfo)> = req
+            let mut upvar: Vec<(tcl_compiler::ir::ProcedureId, UpvarInfo)> = req
                 .upvar_procs
                 .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .map(|(id, value)| (*id, value.clone()))
                 .collect();
             upvar.sort_by(|a, b| a.0.cmp(&b.0));
-            let mut proc_params: Vec<(String, Vec<String>)> = req
+            let mut proc_params: Vec<(tcl_compiler::ir::ProcedureId, Vec<String>)> = req
                 .proc_params
                 .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .map(|(id, value)| (*id, value.clone()))
                 .collect();
             proc_params.sort_by(|a, b| a.0.cmp(&b.0));
-            let mut global_write: Vec<(String, GlobalWriteInfo)> = req
+            let mut global_write: Vec<(tcl_compiler::ir::ProcedureId, GlobalWriteInfo)> = req
                 .global_write_procs
                 .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .map(|(id, value)| (*id, value.clone()))
                 .collect();
             global_write.sort_by(|a, b| a.0.cmp(&b.0));
             CfgContext::new(
@@ -3088,6 +3095,7 @@ fn build_unit_with_keys_and_input<'db>(
                 proc_params,
                 global_write,
                 BodyLatticeCommandBindings::from(req.command_bindings.clone()),
+                req.procedure_summary_owners.clone(),
             )
         });
         let template = req.body_source.and_then(|body_source| {
@@ -3114,6 +3122,7 @@ fn build_unit_with_keys_and_input<'db>(
                 Vec::new(),
                 Vec::new(),
                 BodyLatticeCommandBindings::from(template.command_bindings),
+                OriginalProcedureSummaryOwners::default(),
             );
             let key = lattice_request_key(
                 db,
@@ -3140,10 +3149,11 @@ fn build_unit_with_keys_and_input<'db>(
             if let Some(bindings) = inputs.command_bindings() {
                 let analytical_context = CfgContext::new(
                     db,
-                    context.upvar_ctx(db).clone(),
-                    context.proc_params(db).clone(),
-                    context.global_write_ctx(db).clone(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
                     bindings,
+                    OriginalProcedureSummaryOwners::default(),
                 );
                 let key = lattice_request_key(
                     db,
@@ -5773,6 +5783,7 @@ p\uD801 ordinary";
             Vec::new(),
             Vec::new(),
             BodyLatticeCommandBindings::from(ModuleCommandBindings::default()),
+            OriginalProcedureSummaryOwners::default(),
         );
         let snapshot = CompilerMemoSnapshot {
             profile: Some(tcl_dialect::DialectProfile::irules().cache_key()),
@@ -5860,6 +5871,7 @@ p\uD801 ordinary";
         );
         let changed_unit = compilation_unit(&db, changed_file, config_key, 0)
             .expect("zero overlay selects the retained stock F5 Registry");
+        let changed_body_id = original_test_body_id(&changed_unit, 0);
         let foreign = make_key(
             procedure.body.clone(),
             config,
@@ -5867,7 +5879,7 @@ p\uD801 ordinary";
             changed_unit
                 .ir_module
                 .irules_event_bodies
-                .get(qname)
+                .get(&changed_body_id)
                 .cloned(),
         );
         assert!(
@@ -5909,7 +5921,7 @@ p\uD801 ordinary";
         input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
     ) -> FnLatticeKey<'db> {
         let registry = module.resolved_registry();
-        let (upvars, params, globals, bindings) =
+        let (upvars, params, globals, bindings, owners) =
             tcl_compiler::cfg_builder::prepare_cfg_context_with_registry(module, registry);
         assert!(upvars.is_empty() && params.is_empty() && globals.is_empty());
         let context = CfgContext::new(
@@ -5918,6 +5930,7 @@ p\uD801 ordinary";
             Vec::new(),
             Vec::new(),
             BodyLatticeCommandBindings::from(bindings),
+            owners,
         );
         FnLatticeKey::new(
             db,
@@ -6112,6 +6125,7 @@ p\uD801 ordinary";
             Vec::new(),
             Vec::new(),
             BodyLatticeCommandBindings::from(ModuleCommandBindings::default()),
+            OriginalProcedureSummaryOwners::default(),
         );
         let make_key = |config: tcl_lexer::LexerConfig| {
             FnLatticeKey::new(

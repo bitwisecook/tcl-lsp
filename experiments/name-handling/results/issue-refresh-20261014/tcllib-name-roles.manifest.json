@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-registry/src/commands/tcllib/struct__list.rs",
+      "before_sha256": "e768fb67674fa19c44c0c3e56ddd96accdf708833858b482917fc49df333b257",
+      "after_sha256": "8bbc5d39ac85bac1d97a95b56df180ea654ba3fc0fda9ed5191a8552d922c658"
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcllib/struct__set.rs",
+      "before_sha256": "2f3ef2e5b5e0870b8704d88d5971e4d9ba5875197a645ee2d14f0939d0ad533a",
+      "after_sha256": "3c4e5a6911d2bfc19384081b99c0b9a8c134210b9f6b9fbdb59826b95caadf25"
+    },
+    {
+      "path": "rust/tcl-registry/src/value_transfer/tcllib.rs",
+      "before_sha256": "44728e61ff18f28e7395f5391dce5012c5dabaa700d323894231cc26a2c792df",
+      "after_sha256": "576e1342dfca4c7f0dd0ddf153a36beee4f43fdee73c795ddb4153d266e50fd4"
+    }
+  ],
+  "patch_sha256": "3e5e968d942d2670b85ab50cf08a8323b84d41dff03fe7097c27d00a51c25468",
+  "authority": "Original tcllib2.0 source and actual C85/86/90/91 outputs; conservative WRITES_UNAUTHORED/LOOP_CALLBACK reused; no new value-fold route. PURE moved fromensemble tovalue-onlymembers, callbacks/randomshuffle/writers declined. Rustfmt only, no Cargo."
+}

@@ -51,7 +51,7 @@ pub(super) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
 struct SourceScan<'a> {
     module: &'a Module,
     registry: &'a CommandRegistry,
-    procedures: OnceCell<HashMap<String, GlobalWriteInfo>>,
+    procedures: OnceCell<HashMap<crate::ir::ProcedureId, GlobalWriteInfo>>,
     out: DeferredWrites,
 }
 
@@ -329,6 +329,10 @@ impl SourceScan<'_> {
             state,
             &namespace,
             procedures,
+            &crate::cfg_builder::OriginalProcedureSummaryOwners::for_module(
+                self.module,
+                self.registry,
+            ),
             Some(context.metadata),
             config,
         );

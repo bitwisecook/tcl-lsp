@@ -176,8 +176,9 @@ impl CommandSemantics for Base32Semantics {
 
 /// A tcllib procedure that computes what it writes into a caller's
 /// variable from its words alone, for which no route is authored yet:
-/// `base32::core::define` and `valid`, and `cmdline`'s option readers,
-/// each writing scalars.
+/// `base32::core::define` and `valid`, `cmdline`'s option readers, and
+/// `struct::set` / `struct::list` variable mutators. The named cell receives
+/// a scalar value; an element destination retains its containing array.
 pub static WRITES_UNAUTHORED: MayWriteSemantics = MayWriteSemantics {
     targets: &[ArgRole::VarWrite],
     reason: NoRouteReason::Unauthored,

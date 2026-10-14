@@ -19,40 +19,84 @@
 //! `struct::list` command.
 use crate::prelude::*;
 
+const JOIN_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-keys",
+        value: OptionValue::Takes(OptionArg {
+            role: ArgRole::VarWrite,
+            hint: "varname",
+            ..OptionArg::DEFAULT
+        }),
+        detail: "Variable to receive the joined keys when the join produces rows.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-inner",
+        value: OptionValue::flag(),
+        detail: "Return rows with keys present in every table.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-left",
+        value: OptionValue::flag(),
+        detail: "Keep keys from the first table.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-right",
+        value: OptionValue::flag(),
+        detail: "Keep keys from the last table.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-full",
+        value: OptionValue::flag(),
+        detail: "Keep keys from every table.",
+        ..OptionSpec::DEFAULT
+    },
+];
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "assign",
+        traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
+        repeated_args: &[RepeatedArgLayout::every(ArgRole::VarWrite, 1)],
         arity: Arity::at_least(2),
         detail: "Assign list elements to variables.",
         synopsis: "struct::list assign sequence var ?var ...?",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "dbJoin",
+        traits: Traits::CONDITIONAL_VARIABLE_WRITE,
+        options: JOIN_OPTIONS,
         arity: Arity::at_least(2),
         detail: "Perform a relational join on two lists.",
         synopsis: "struct::list dbJoin ?-inner|-left|-right|-full? ?-keys varname? keyedList1 keyedList2",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "dbJoinKeyed",
+        traits: Traits::CONDITIONAL_VARIABLE_WRITE,
+        options: JOIN_OPTIONS,
         arity: Arity::at_least(2),
         detail: "Relational join on keyed lists.",
         synopsis: "struct::list dbJoinKeyed ?options? keyedList1 keyedList2",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "equal",
+        traits: Traits::PURE,
         arity: Arity::at_least(2),
         detail: "Test if two lists are structurally equal.",
         synopsis: "struct::list equal ?-simple? a b",
@@ -84,6 +128,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "flatten",
+        traits: Traits::PURE,
         arity: Arity::at_least(1),
         detail: "Flatten nested lists by one or more levels.",
         synopsis: "struct::list flatten ?-full? ?--? sequence",
@@ -115,6 +160,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "iota",
+        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Generate a list of integers 0..n-1.",
         synopsis: "struct::list iota n",
@@ -125,6 +171,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "lcsInvert",
+        traits: Traits::PURE,
         arity: Arity::exact(3),
         detail: "Invert a longest-common-subsequence result.",
         synopsis: "struct::list lcsInvert lcsData len1 len2",
@@ -135,6 +182,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "longestCommonSubsequence",
+        traits: Traits::PURE,
         arity: Arity::new(2, 3),
         detail: "Find the longest common subsequence of two lists.",
         synopsis: "struct::list longestCommonSubsequence list1 list2 ?maxOccurs?",
@@ -169,6 +217,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "repeat",
+        traits: Traits::PURE,
         arity: Arity::at_least(2),
         detail: "Create a list by repeating elements.",
         synopsis: "struct::list repeat count element ?element ...?",
@@ -179,6 +228,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "reverse",
+        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Reverse the order of a list.",
         synopsis: "struct::list reverse sequence",
@@ -189,11 +239,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "shift",
+        traits: Traits::READS_BEFORE_WRITE,
+        arg_roles: &[(0, ArgRole::VarWrite)],
         arity: Arity::exact(1),
         detail: "Remove and return the first element.",
         synopsis: "struct::list shift listVar",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
@@ -207,16 +259,19 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "swap",
+        traits: Traits::READS_BEFORE_WRITE,
+        arg_roles: &[(0, ArgRole::VarWrite)],
         arity: Arity::exact(3),
         detail: "Swap two elements in a list.",
         synopsis: "struct::list swap listVar i j",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "longestCommonSubsequence2",
+        traits: Traits::PURE,
         arity: Arity::new(2, 3),
         detail: "Find the longest common subsequence (alternate algorithm).",
         synopsis: "struct::list longestCommonSubsequence2 list1 list2 ?maxOccurs?",
@@ -227,6 +282,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "lcsInvertMerge",
+        traits: Traits::PURE,
         arity: Arity::exact(3),
         detail: "Invert and merge a longest-common-subsequence result.",
         synopsis: "struct::list lcsInvertMerge lcsData len1 len2",
@@ -237,6 +293,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "split",
+        traits: Traits::CONDITIONAL_VARIABLE_WRITE,
+        arg_roles: &[(2, ArgRole::VarWrite), (3, ArgRole::VarWrite)],
         arity: Arity::new(2, 4),
         detail: "Split a list using a command prefix as filter.",
         synopsis: "struct::list split sequence cmdprefix ?passVar? ?failVar?",
@@ -244,23 +302,24 @@ const SUBCOMMANDS: &[SubCommand] = &[
         // appended arg.  `passVar`/`failVar` are result out-variables, not
         // prefixes.
         command_prefixes: &[(1, AppendedArity::Exactly(1))],
-        semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
-        ),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::LOOP_CALLBACK),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "delete",
+        traits: Traits::READS_BEFORE_WRITE,
+        arg_roles: &[(0, ArgRole::VarWrite)],
         arity: Arity::exact(2),
         detail: "Delete an element from a list variable by value.",
         synopsis: "struct::list delete listVar item",
         semantics: SemanticsDeclaration::Declared(
-            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
         ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "repeatn",
+        traits: Traits::PURE,
         arity: Arity::at_least(1),
         detail: "Create a (nested) list by repeating a value.",
         synopsis: "struct::list repeatn value count ?count ...?",
@@ -271,6 +330,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "firstperm",
+        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Return the first permutation of a list.",
         synopsis: "struct::list firstperm list",
@@ -281,6 +341,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "nextperm",
+        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Return the next permutation in lexicographic order.",
         synopsis: "struct::list nextperm perm",
@@ -291,6 +352,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "permutations",
+        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Return all permutations of a list.",
         synopsis: "struct::list permutations list",
@@ -314,7 +376,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "struct::list",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {

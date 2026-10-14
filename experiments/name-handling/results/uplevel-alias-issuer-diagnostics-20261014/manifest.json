@@ -1,0 +1,22 @@
+{
+  "patch_sha256": "c9605f2279c2e5f0f93e6a01d5b7d79ba9a9caf2dbb42939762a25d50ec40e95",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+      "before_sha256": "b72a2fb29ddf6ba90dd0f6734d7a87fa86d14081dbd6a4e3535f800348d699e7",
+      "after_sha256": "af97f037dbc2e8ce6bea17e046c944a33b4bfa273705606246c0834b0d0d2cda"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "6c80a3b2399bddaf14225ca34e622bca9b0bd4160a0420dce9d34a35e16367e6",
+      "after_sha256": "a2c4a387324512c439f8d06a786cdd9b5ee65337e5d8f9b5bbf366b6b37e40ba"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "288f1e08f341ecab64e77450b8b83dec6bf89ab5db37d66aac63d1f934282400",
+      "after_sha256": "674bfc105b0690ce413e806a8ba118771e60c131b2c0bc63aa8a9a045a32aa35"
+    }
+  ],
+  "rust_status": "unexecuted",
+  "scope": "cfg(test)-only missing tape/target stage traces; corrected genuine original catalogue segment in qualified final-word probe"
+}

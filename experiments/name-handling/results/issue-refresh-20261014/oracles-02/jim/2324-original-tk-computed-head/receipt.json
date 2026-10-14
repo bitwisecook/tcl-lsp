@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "2324-original-tk-computed-head",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-02/jim/2324-original-tk-computed-head/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:38:54.698423+00:00",
+  "exit_code": 1,
+  "source_sha256": "f14c5a32af23b17786eddaf74b65f794f9c12a86bc7ae2b6de10732ed8bc9255",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "255c3a0f39473f4efb528560f1c8527f62450fc1e9aac13041166ee3dd874f87"
+}

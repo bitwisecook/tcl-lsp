@@ -1,0 +1,14 @@
+{
+  "provider": "tcl9.1.0",
+  "case": "2399-global-read-store-before-unset",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-02/tcl9.1.0/2399-global-read-store-before-unset/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:38:54.265367+00:00",
+  "exit_code": 0,
+  "source_sha256": "d33eebbb82c3f0afb837a3cc045eb35d4c278f3081fd69837ccaaf177904a901",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "stdout_sha256": "eb0559d0c42615543bf69498169f99eaa768350d06c869f2f6d992048df69d46",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

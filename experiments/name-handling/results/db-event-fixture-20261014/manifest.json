@@ -1,0 +1,9 @@
+{
+  "files": [
+    "rust/tcl-lsp-db/src/lib.rs"
+  ],
+  "before_sha256": "a8ec9e60c3899fa949168ba77b194aee61f998c57e90b7503d6cfb6943a5d751",
+  "after_sha256": "8965df006c90005afc91a91d6e8e0cccaef02e5dfd8540d334ca45532ffab1fa",
+  "patch_sha256": "6524425567b6d47c63ab135bd71d7eccee272d52bb7db2b173688a2526305047",
+  "scope": "Test-only foreign event/source receipt uses current changed source declaration ID. Original assertions unchanged. No Cargo executed."
+}

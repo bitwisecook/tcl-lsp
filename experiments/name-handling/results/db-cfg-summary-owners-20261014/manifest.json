@@ -1,0 +1,9 @@
+{
+  "path": "rust/tcl-lsp-db/src/lib.rs",
+  "before_sha256": "4d541f37cde1557c89d2aa3444b7c2940888c66aea0ac164bfcfe8786cbe53a7",
+  "after_sha256": "a8ec9e60c3899fa949168ba77b194aee61f998c57e90b7503d6cfb6943a5d751",
+  "patch_sha256": "e162da5e347e38cd05b9ebf3b3be9b69a1b1c18d01884bf6d9d9219907473f1d",
+  "dependency": "Compiler cfg_builder::OriginalProcedureSummaryOwners fifth tuple field + ProcedureId maps + LatticeRequest.procedure_summary_owners",
+  "validation": "rustfmt only; uncompiled; no lease; no Main edit",
+  "contract": "raw contexts retain actual IDs and immutable original Module/source owner; independently certified registry-only Native/analytical branches omit unused procedure maps and use explicit unavailable owner; original fixture assertions unchanged"
+}

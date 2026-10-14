@@ -1,0 +1,4 @@
+can't find package Tk
+    while executing
+"package require Tk"
+    (file "/tmp/name-issues-refresh-20261014/oracles-03/tcl8.6.18/2324-original-tk-computed-head/source.tcl" line 1)

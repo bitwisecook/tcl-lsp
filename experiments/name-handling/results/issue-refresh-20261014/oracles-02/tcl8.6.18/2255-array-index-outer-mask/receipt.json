@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.6.18",
+  "case": "2255-array-index-outer-mask",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-02/tcl8.6.18/2255-array-index-outer-mask/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:38:53.297381+00:00",
+  "exit_code": 0,
+  "source_sha256": "76f8a5fd96fa967b41633106d1aead794014e588003d55e100855f9de396640e",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "stdout_sha256": "80076180faa346e7858e9e9b3c68586f18c14ab4d7322393d0e96a87a0ac05de",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

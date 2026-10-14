@@ -1,0 +1,110 @@
+[
+  {
+    "provider": "tcl8.4.20",
+    "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "binary_unchanged": true,
+    "source_sha256": "88c7ffb26a07063f777285bb5fb4e7e2f6af16995f1bad9c100a9f083fd66a5f",
+    "started_utc": "2026-10-14T01:05:02.811561+00:00",
+    "exit_code": 0,
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "/tmp/name-compiler19-corrections-20261014/oracles/tcl8.4.20/source.tcl"
+    ],
+    "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "uses_tcltest": false,
+    "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/tcl8.4.20/provider-identity/receipt.json",
+    "stdout": "GLOBAL LOCAL 0\n",
+    "stderr": ""
+  },
+  {
+    "provider": "tcl8.5.19",
+    "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "binary_unchanged": true,
+    "source_sha256": "88c7ffb26a07063f777285bb5fb4e7e2f6af16995f1bad9c100a9f083fd66a5f",
+    "started_utc": "2026-10-14T01:05:02.815931+00:00",
+    "exit_code": 0,
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/tmp/name-compiler19-corrections-20261014/oracles/tcl8.5.19/source.tcl"
+    ],
+    "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "uses_tcltest": false,
+    "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/tcl8.5.19/provider-identity/receipt.json",
+    "stdout": "GLOBAL LOCAL 0\n",
+    "stderr": ""
+  },
+  {
+    "provider": "tcl8.6.18",
+    "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "binary_unchanged": true,
+    "source_sha256": "88c7ffb26a07063f777285bb5fb4e7e2f6af16995f1bad9c100a9f083fd66a5f",
+    "started_utc": "2026-10-14T01:05:02.820789+00:00",
+    "exit_code": 0,
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/tmp/name-compiler19-corrections-20261014/oracles/tcl8.6.18/source.tcl"
+    ],
+    "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "uses_tcltest": false,
+    "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/tcl8.6.18/provider-identity/receipt.json",
+    "stdout": "GLOBAL LOCAL 0\n",
+    "stderr": ""
+  },
+  {
+    "provider": "tcl9.0.4",
+    "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+    "binary_unchanged": true,
+    "source_sha256": "88c7ffb26a07063f777285bb5fb4e7e2f6af16995f1bad9c100a9f083fd66a5f",
+    "started_utc": "2026-10-14T01:05:02.828756+00:00",
+    "exit_code": 0,
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "/tmp/name-compiler19-corrections-20261014/oracles/tcl9.0.4/source.tcl"
+    ],
+    "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "uses_tcltest": false,
+    "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/tcl9.0.4/provider-identity/receipt.json",
+    "stdout": "GLOBAL LOCAL 0\n",
+    "stderr": ""
+  },
+  {
+    "provider": "tcl9.1.0",
+    "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+    "binary_unchanged": true,
+    "source_sha256": "88c7ffb26a07063f777285bb5fb4e7e2f6af16995f1bad9c100a9f083fd66a5f",
+    "started_utc": "2026-10-14T01:05:02.842034+00:00",
+    "exit_code": 0,
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/tmp/name-compiler19-corrections-20261014/oracles/tcl9.1.0/source.tcl"
+    ],
+    "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "uses_tcltest": false,
+    "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/tcl9.1.0/provider-identity/receipt.json",
+    "stdout": "GLOBAL LOCAL 0\n",
+    "stderr": ""
+  },
+  {
+    "provider": "jim",
+    "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+    "binary_unchanged": true,
+    "source_sha256": "88c7ffb26a07063f777285bb5fb4e7e2f6af16995f1bad9c100a9f083fd66a5f",
+    "started_utc": "2026-10-14T01:05:02.851418+00:00",
+    "exit_code": 0,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/tmp/name-compiler19-corrections-20261014/oracles/jim/source.tcl"
+    ],
+    "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "uses_tcltest": false,
+    "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/jim/provider-identity/receipt.json",
+    "stdout": "GLOBAL LOCAL 0\n",
+    "stderr": ""
+  }
+]

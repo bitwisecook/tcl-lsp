@@ -1,0 +1,6 @@
+inc: a
+exc: b
+add: a b
+sub: b
+shf: b c
+asg: 1

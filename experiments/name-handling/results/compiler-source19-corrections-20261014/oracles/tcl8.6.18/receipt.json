@@ -1,0 +1,19 @@
+{
+  "provider": "tcl8.6.18",
+  "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "binary_unchanged": true,
+  "source_sha256": "88c7ffb26a07063f777285bb5fb4e7e2f6af16995f1bad9c100a9f083fd66a5f",
+  "started_utc": "2026-10-14T01:05:02.820789+00:00",
+  "exit_code": 0,
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-compiler19-corrections-20261014/oracles/tcl8.6.18/source.tcl"
+  ],
+  "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "uses_tcltest": false,
+  "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/tcl8.6.18/provider-identity/receipt.json",
+  "stdout": "GLOBAL LOCAL 0\n",
+  "stderr": "",
+  "prior_complete_provider_inventory_sha256": "6183d3c0dff2ac516ff9f47f7637f2a562a01ed30f74b68b8306ec68a22573f8"
+}

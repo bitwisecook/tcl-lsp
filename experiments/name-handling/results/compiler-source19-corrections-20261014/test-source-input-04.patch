@@ -1,0 +1,31 @@
+--- a/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
+@@ -1150,11 +1150,8 @@
+     }
+ }
+ 
+-/// Direct-call targets in `body` — the command name of every
+-/// direct statement and evaluated `[…]` substitution, recursed into every
+-/// nested body. Used to build the call graph for the transitive-closure step;
+-/// resolution against `module.procedures` (qualified vs. short name) happens
+-/// at the lookup site in [`detect_global_write_procs`].
++/// Original issued callees in direct statements, substitutions and nested bodies.
++/// Incomplete source receipts leave an opaque edge in the summary graph.
+ pub(super) fn direct_call_targets(
+     body: &Script,
+     owners: &super::OriginalProcedureSummaryOwners,
+@@ -1264,12 +1261,9 @@
+             std::sync::Arc::new(context),
+             config,
+         );
+-        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
++        let lowerer = crate::lowering::Lowerer::with_config(registry, config)
+             .with_dialect(Some(profile))
+-            .with_context_registry(input.context_registry());
+-        lowerer.set_source_analysis_options(
+-            crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+-        );
++            .with_resolved_analysis_input(input);
+         crate::lowering::lower_to_ir_with(lowerer, src)
+     }
+ 

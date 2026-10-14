@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.4.20",
+  "case": "2419-sibling-variable-writers",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-03/tcl8.4.20/2419-sibling-variable-writers/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:46:37.522908+00:00",
+  "exit_code": 1,
+  "source_sha256": "24bca463d4c4af3c3bdcdd1a827f1472163b2f70992ef0bc4d74b23e2f3e305e",
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "bb6cf7660302d13c1b7cccb15c96f59b218e8acedbb94e8495ef923a5364f8dd"
+}

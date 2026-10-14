@@ -359,14 +359,24 @@ fn a_qualified_nested_cell_update_is_a_global_write() {
         let module = lower_to_ir(&format!("proc bump {{}} {{{body}; return $y}}\n"), registry);
         let writes = detect_global_write_procs(&module);
         assert!(
-            writes["bump"].names.contains("::hits"),
+            writes[&fixture_id(&module.procedures, "::bump")]
+                .names
+                .contains("::hits"),
             "{body}: {writes:?}"
         );
-        assert!(writes["bump"].names.contains("hits"), "{body}: {writes:?}");
+        assert!(
+            writes[&fixture_id(&module.procedures, "::bump")]
+                .names
+                .contains("hits"),
+            "{body}: {writes:?}"
+        );
     }
     let module = lower_to_ir("proc bump {} {set y [incr hits]; return $y}\n", registry);
     let writes = detect_global_write_procs(&module);
-    assert!(writes["bump"].is_empty(), "{writes:?}");
+    assert!(
+        writes[&fixture_id(&module.procedures, "::bump")].is_empty(),
+        "{writes:?}"
+    );
 
     let source = "set hits 0\nproc bump {} {set y [incr ::hits]; return $y}\nbump\nputs $hits\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {

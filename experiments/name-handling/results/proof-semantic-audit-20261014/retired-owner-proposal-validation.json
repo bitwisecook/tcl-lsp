@@ -1,0 +1,71 @@
+{
+  "schema_errors": [],
+  "current_document_fields": [
+    {
+      "id": "naming.analysis.constructed-key-consumer-projections",
+      "exact_document_fields": true,
+      "provider_statuses": [
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested"
+      ]
+    },
+    {
+      "id": "naming.analysis.reported-qname-namespace-prefix",
+      "exact_document_fields": true,
+      "provider_statuses": [
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested"
+      ]
+    },
+    {
+      "id": "naming.embedding.original-host-publication-and-fact-transport",
+      "exact_document_fields": true,
+      "provider_statuses": [
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested"
+      ]
+    },
+    {
+      "id": "naming.grammar.shared-written-name-boundaries",
+      "exact_document_fields": true,
+      "provider_statuses": [
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested"
+      ]
+    },
+    {
+      "id": "naming.source.original-callback-procedure-target",
+      "exact_document_fields": true,
+      "provider_statuses": [
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested",
+        "not-tested"
+      ]
+    }
+  ],
+  "scope": "Schema and exact record/document correspondence only. No current Rust tests, owner xtask or strict current corpus gate executed."
+}

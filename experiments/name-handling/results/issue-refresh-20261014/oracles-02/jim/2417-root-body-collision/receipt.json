@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "2417-root-body-collision",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-02/jim/2417-root-body-collision/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:38:54.677351+00:00",
+  "exit_code": 0,
+  "source_sha256": "90d752862ed541af9a65ea29649a91cbde30fcc96f3447ae4660ea9781bb98c0",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "2dd118853612a1a7e83af728b092f85a8f3234d79ea49de67e45383fee29df70",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

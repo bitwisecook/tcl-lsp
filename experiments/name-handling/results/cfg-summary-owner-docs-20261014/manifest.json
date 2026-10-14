@@ -1,0 +1,30 @@
+{
+  "files": [
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "8c831c5c9c442236ed12131db1df792bb0a49b4e610b1a74ca23139d95c37b75",
+      "after_sha256": "0dafc6e50a55a05f4e9227e16bd5ba116d4152f76e3a191aa7fbb967bf0699bf",
+      "meaningful_rust_tokens_unchanged": null
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "872e25f121ca541e5b9f6d1bb4045c60ff95d460c9cd4622bb13abbaf2351917",
+      "after_sha256": "4ab3944a4851ff5d7ecaccc04fbd0b819377615a01292917cf8ff5a68cb0812f",
+      "meaningful_rust_tokens_unchanged": null
+    },
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "before_sha256": "874b09e1d5caf9a50802193cdc3ad1366d60f29e459571447a9fec4e6aff8d36",
+      "after_sha256": "090330fe4a872f9a90c1f32ae527d759f0680e9ac18558ba27e43eaea01673b1",
+      "meaningful_rust_tokens_unchanged": null
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "before_sha256": "5b29fe7e7d45d7c48213575719434deb9f1e970ff3ceb059ad14369496e2aa41",
+      "after_sha256": "c7819376b6a474ea9b82a3f5624331f289d4cd88c5cad2dbe31bccb26cdf6a7b",
+      "meaningful_rust_tokens_unchanged": 39132
+    }
+  ],
+  "patch_sha256": "6b3b8e7fa3530f17cb8380a73f39d07f6a1105332ac42cf5c05ac7b52ebdfdf5",
+  "checks": "Exact unique replacement; original public declarations and consumers read; RustLexer preserves attributes and all non-comment tokens. No compiled acceptance claimed."
+}

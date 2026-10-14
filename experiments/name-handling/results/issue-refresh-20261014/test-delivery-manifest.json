@@ -1,0 +1,101 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/tests/name_lookup_issue_witnesses.rs",
+      "sha256": "9763e85415447e72a9c32e7be7342f67fc0227b6975e5223ea36ef35172eb10a",
+      "bytes": 7427
+    },
+    {
+      "path": "rust/tcl-registry/tests/name_lookup_issue_witnesses.rs",
+      "sha256": "14ab02be9222c8d55b14aaa047ada4d84ab47b077c525011f2700f9839d2ea1f",
+      "bytes": 3951
+    },
+    {
+      "path": "rust/tcl-spec-studio/tests/name_lookup_issue_witnesses.rs",
+      "sha256": "87f1bc2658486f135bdec36865916fdd5ad30b79634cca5a437869566f7b0acb",
+      "bytes": 1808
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2143-materialised-factory.tcl",
+      "sha256": "451c832399b295ae24b86eb2433cf267eb3fdefa0e1c5540c2df3be6ec4015a8",
+      "bytes": 148
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2209-catch-array-options.tcl",
+      "sha256": "9b9f1f1fc81b54b444fa6f5afdfa61b61d368ae5733fbfb7c7a819a668d77c30",
+      "bytes": 115
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2209-catch-array-result.tcl",
+      "sha256": "ebe7026f3383912b4fdbe834bde30e48fe34f9ca2f2cffd3be3424f45c1f745a",
+      "bytes": 237
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2218-dynamic-proc-head-rebinding.tcl",
+      "sha256": "57396d7c041ad7025e5eb9d536b27ae71669f4dae395a27e0a6e1163d19c8c92",
+      "bytes": 193
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2235-braced-incr-amount.tcl",
+      "sha256": "cf73c40260e39faaee7ffa845c4c3fb0b1bed5262fe795fad2fbaaa64d31dea2",
+      "bytes": 80
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2255-array-index-outer-mask.tcl",
+      "sha256": "76f8a5fd96fa967b41633106d1aead794014e588003d55e100855f9de396640e",
+      "bytes": 148
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2268-unknown-and-distinct-array-key.tcl",
+      "sha256": "1393985397327774af3eea76165a528b7f2a4e8e69bfb3f8a45a52ee14b5f98f",
+      "bytes": 84
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2289-child-created-in-procedure.tcl",
+      "sha256": "84179fb6007371a776ff781575256c462abe7cf7f3539a215473bcb1e672d55f",
+      "bytes": 266
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2296-computed-array-key-read.tcl",
+      "sha256": "3e9f6addf113812f25678bd66fc4546e57a83ce69de870631449297fffc9c12b",
+      "bytes": 38
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2324-original-tk-computed-head.tcl",
+      "sha256": "f14c5a32af23b17786eddaf74b65f794f9c12a86bc7ae2b6de10732ed8bc9255",
+      "bytes": 71
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2332-external-global-reads.tcl",
+      "sha256": "8b9e335bc77b550306a979ad1bee05649fc8475318cdf5319e7048a8dcaee813",
+      "bytes": 233
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2339-assignment-name-evaluation.tcl",
+      "sha256": "3ba83a7a53f0f88c105e9511c13e99768fbd0e901f848a82e6559c9100f19163",
+      "bytes": 98
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2399-global-read-store-before-unset.tcl",
+      "sha256": "d33eebbb82c3f0afb837a3cc045eb35d4c278f3081fd69837ccaaf177904a901",
+      "bytes": 107
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2417-root-body-collision.tcl",
+      "sha256": "90d752862ed541af9a65ea29649a91cbde30fcc96f3447ae4660ea9781bb98c0",
+      "bytes": 55
+    },
+    {
+      "path": "rust/tcl-test-support/tests/data/name_lookup_issues/2419-tcllib-variable-writers.tcl",
+      "sha256": "25d50438174ffcdd4e90cdfa4ee0cef323737afa1261553064ffef054daeb233",
+      "bytes": 480
+    },
+    {
+      "path": "rust/tcl-vm/tests/name_lookup_issue_witnesses.rs",
+      "sha256": "55cfbab09c9775464d0cf609ab9bc52366e36733015c89353fc2a8232b8eaa1f",
+      "bytes": 2839
+    }
+  ],
+  "patch_sha256": "2dac22fcd15d1d308c83853facc1b56ef3a8ff88cd0cb096ca4ddc06a331c27b",
+  "validation": "Rustfmt only; no Cargo; original expected outputs captured in oracles-02/oracles-03."
+}

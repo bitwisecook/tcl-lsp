@@ -13689,7 +13689,11 @@ impl ModuleCommandBindings {
             return;
         };
         if let SourceNamespaceKey::Authored(namespace) = context.as_ref() {
-            insert_rebound_candidates(name, namespace, &mut self.proc_rebound_names);
+            self.proc_rebound_names.extend(
+                tcl_syntax::naming::bareword_resolution_candidates(namespace, name)
+                    .into_iter()
+                    .map(|candidate| nqn(&candidate)),
+            );
             return;
         }
         let Ok(candidates) = self.source_keys_checked(name, context.as_ref()) else {
@@ -14484,18 +14488,6 @@ impl ModuleCommandBindings {
             }
         });
         projection
-    }
-
-    /// Every source spelling explicitly represented by the closed may-state.
-    #[must_use]
-    pub(crate) fn source_spellings(&self) -> Vec<String> {
-        let mut names: Vec<_> = self
-            .bindings
-            .keys()
-            .filter_map(|key| self.callable_spelling_for_key(key))
-            .collect();
-        names.sort_unstable();
-        names
     }
 
     /// Current changed cells and retained mutation history exclude the
@@ -19641,28 +19633,6 @@ fn builtin_shadowed_by_qualified_definition(
     (default_binding(tail, registry).kind == BindingKind::Builtin).then(|| nqn(tail))
 }
 
-/// Record every name a bare `rename` / `interp alias` argument could
-/// resolve to when it runs inside `namespace` — Tcl resolves an
-/// unqualified command name against the *current* namespace at the point
-/// the `rename`/`interp alias` executes, not the global namespace (a
-/// `proc ::ns::doit {} { rename triple double }` renames `::ns::triple`
-/// to `::ns::double`, not `::triple`/`::double` — confirmed against
-/// tclsh 9.0.4). This scan is flow-insensitive and doesn't know whether a
-/// same-named command already exists in `namespace` at that point, so it
-/// conservatively records BOTH the namespace-relative and the
-/// global-rooted candidate for a bare name — the same sound
-/// over-approximation [`collect_tampered_builtins`] already applies.
-/// A name that already contains `::` resolves unambiguously (rooted at
-/// `::`, matching the optimiser's own `resolve_proc_qname` simplified
-/// qualification rule), so only one candidate is recorded for it.
-fn insert_rebound_candidates(name: &str, namespace: &str, rebound: &mut impl Extend<String>) {
-    if name.contains("::") || namespace == "::" {
-        rebound.extend([nqn(name)]);
-        return;
-    }
-    rebound.extend([nqn(&format!("{namespace}::{name}")), nqn(name)]);
-}
-
 /// Whether `script` declares anything that could change what a command name
 /// resolves to, at any nesting depth.
 ///
@@ -22535,6 +22505,24 @@ Animal new",
         );
         let m = scan_module_command_mutations(&cu.ir_module, &reg);
         assert!(m.trusts("expr"), "an unrelated qualified proc keeps trust");
+    }
+
+    #[test]
+    fn rebound_candidates_include_relative_qualified_names() {
+        let namespace = crate::ir::ExecutionNamespace::exact("::ns");
+        for (written, expected) in [
+            ("inner::p", vec!["inner::p", "ns::inner::p"]),
+            ("p", vec!["ns::p", "p"]),
+            ("::inner::p", vec!["inner::p"]),
+        ] {
+            let mut bindings = ModuleCommandBindings::default();
+            bindings.record_proc_rebound_candidates(written, &namespace);
+            assert_eq!(
+                bindings.proc_rebound_names,
+                expected.into_iter().map(String::from).collect()
+            );
+            assert!(bindings.bindings.is_empty());
+        }
     }
 
     #[test]

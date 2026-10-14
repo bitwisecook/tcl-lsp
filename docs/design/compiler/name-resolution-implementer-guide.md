@@ -3162,6 +3162,16 @@ and a successful literal scan require the shared normal transfer to prove the
 actual assignments. Do not restore an assumption that a possible loop ran to
 make diagnostics silent.
 
+Tcllib list/set calls use this same selected schema. `struct::list assign`
+declares repeated destinations; `shift`, `swap`, `delete` and
+`struct::set include`/`exclude` declare read-before-write variables. Join
+`-keys` operands and `split` result variables are conditional outputs; `split`
+also retains its independent callback prefix. Consume the shared role/layout
+queries with original effective operands, including alias captures, rather than
+recognising those spellings in a consumer. Purity is declared on individual
+subcommands: the list/set umbrella supplies no blanket purity, and writer or
+callback roles cannot establish normal assignment or safe erasure.
+
 An unknown caught command is a separate uncertainty: it can write the
 caller's variables through `uplevel` before throwing. A test for an unrelated
 missing read should use a known handler such as `error stop`, and pair it with
@@ -8615,6 +8625,25 @@ recreate an absent `ResolvedAnalysisInput`.
 | Supplied analysis | `PreparedCfgContext::from_source_input(context, registry, Some(input))` | Uses full retained availability; a foreign command store withdraws metadata. |
 | Unavailable analysis | `PreparedCfgContext::from_source_input(context, registry, None)` | Keeps metadata unavailable; does not enter standalone mode. |
 | Explicit standalone body | `build_cfg_function_with_upvars_and_config` | Uses the caller's independently selected Registry context and exact lexer configuration. This contract cannot fill missing document input. |
+
+`CfgContext` carries five fields: `ProcedureId`-keyed upvar summaries,
+parameter lists and global-write summaries, the module command bindings, and
+`OriginalProcedureSummaryOwners`. Obtain the tuple from
+`prepare_cfg_context_with_registry`; keep its fifth field intact when passing
+it through `PreparedCfgContext` or a `LatticeRequest`.
+`OriginalProcedureSummaryOwners::for_module` retains only a Module whose
+original source bindings match that Module and Registry. A default owner is
+unavailable and cannot recover procedure identity from a display name.
+
+CFG direct calls and their retained command-substitution children select the
+actual original procedure allocation and frozen effective arguments through
+this owner. Caller-frame parameter binding and outer-write propagation use the
+same issued `ProcedureId`. Deferred own-frame scans join the same original
+summaries. Unresolved calls or missing, changed and foreign source owners widen
+effects; a genuine selected registry operation has no procedure-summary edge.
+Raw memo equality retains the actual owner allocation; registry-only certified
+templates apply their independent reuse boundary. These are conditional source
+effects, not proof of an entered frame, committed write or Native call.
 
 Prepare module facts once and share the same `PreparedCfgContext` across its
 ordinary and method CFGs. The public ordinary-body entry is

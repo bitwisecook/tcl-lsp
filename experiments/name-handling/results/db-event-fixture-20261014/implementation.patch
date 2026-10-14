@@ -1,0 +1,21 @@
+diff --git a/rust/tcl-lsp-db/src/lib.rs b/rust/tcl-lsp-db/src/lib.rs
+index df2117563..224691784 100644
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -5871,6 +5871,7 @@ p\uD801 ordinary";
+         );
+         let changed_unit = compilation_unit(&db, changed_file, config_key, 0)
+             .expect("zero overlay selects the retained stock F5 Registry");
++        let changed_body_id = original_test_body_id(&changed_unit, 0);
+         let foreign = make_key(
+             procedure.body.clone(),
+             config,
+@@ -5878,7 +5879,7 @@ p\uD801 ordinary";
+             changed_unit
+                 .ir_module
+                 .irules_event_bodies
+-                .get(qname)
++                .get(&changed_body_id)
+                 .cloned(),
+         );
+         assert!(

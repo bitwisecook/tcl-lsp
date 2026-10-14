@@ -91,7 +91,9 @@ pub(crate) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
     if module.source_metadata_input.is_some()
         || !module.source_entry.metadata_context.is_standalone()
     {
-        return supplied::scan_module(module, registry);
+        let mut effects = supplied::scan_module(module, registry);
+        include_original_callback_procedure_writes(module, registry, &mut effects);
+        return effects;
     }
     let mut scan = Scan {
         module,
@@ -111,7 +113,76 @@ pub(crate) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
     {
         scan.registrations(script);
     }
+    include_original_callback_procedure_writes(module, registry, &mut scan.out);
     scan.out
+}
+
+/// Conditional original registration targets contribute MAY writes without
+/// selecting a reached callback or removing unknown future-table residuals.
+fn include_original_callback_procedure_writes(
+    module: &Module,
+    registry: &CommandRegistry,
+    effects: &mut DeferredWrites,
+) {
+    let Some(input) = module.source_metadata_input.as_ref() else {
+        return;
+    };
+    let Some(realm) = crate::realm::document_realm_bindings_for_module(module, registry) else {
+        return;
+    };
+    let writes = OnceCell::new();
+    let mut pending = vec![&module.top_level];
+    pending.extend(module.procedures.values().map(|procedure| &procedure.body));
+    pending.extend(module.methods.values().map(|method| &method.body));
+    pending.extend(module.body_units.values().map(|body| &body.body));
+    while let Some(script) = pending.pop() {
+        for statement in &script.statements {
+            pending.extend(statement.child_scripts());
+            let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
+                continue;
+            };
+            let Some(rows) = realm.original_source_callback_targets_for_tokens(input, tokens)
+            else {
+                continue;
+            };
+            for row in rows {
+                if row.prefix().scope() != Some(tcl_registry::ScriptLookupScope::GlobalFrame) {
+                    continue;
+                }
+                let Some(target) = row.target() else {
+                    continue;
+                };
+                let Some(declaration) = target.declaration() else {
+                    continue;
+                };
+                let Some(id) = target.original_ir_procedure_id(&module.procedures) else {
+                    continue;
+                };
+                let Some(procedure) = module.procedures.get(&id) else {
+                    continue;
+                };
+                if !module.procedure_ids.owns(id)
+                    || procedure.declaration_site.as_ref() != Some(declaration.site())
+                    || !module
+                        .retained_source_bindings
+                        .as_ref()
+                        .is_some_and(|owner| owner.matches_original_procedure(procedure))
+                {
+                    continue;
+                }
+                let summaries = writes
+                    .get_or_init(|| detect_global_write_procs_with_registry(module, registry));
+                let Some(summary) = summaries.get(&id) else {
+                    effects.any = true;
+                    continue;
+                };
+                effects.any |= summary.opaque_global_frame;
+                for name in &summary.names {
+                    Scan::note_name(effects, name);
+                }
+            }
+        }
+    }
 }
 
 /// One word of an invocation, as far as the scan can read it.
@@ -165,7 +236,7 @@ struct Scan<'r> {
     config: LexerConfig,
     /// What each procedure of the module writes in the global frame, taken
     /// the first time a callback names one.
-    procedure_writes: OnceCell<HashMap<String, GlobalWriteInfo>>,
+    procedure_writes: OnceCell<HashMap<crate::ir::ProcedureId, GlobalWriteInfo>>,
     /// What the module binds each command name to, taken the first time a
     /// callback command that is no procedure of the module needs placing.
     bindings: OnceCell<ModuleCommandBindings>,
@@ -616,6 +687,10 @@ impl Scan<'_> {
                     bindings,
                     &namespace,
                     procedures,
+                    &crate::cfg_builder::OriginalProcedureSummaryOwners::for_module(
+                        self.module,
+                        self.registry,
+                    ),
                     Some(metadata),
                     config,
                 ),
@@ -625,6 +700,10 @@ impl Scan<'_> {
                     bindings,
                     &namespace,
                     procedures,
+                    &crate::cfg_builder::OriginalProcedureSummaryOwners::for_module(
+                        self.module,
+                        self.registry,
+                    ),
                     config,
                 ),
             };
@@ -666,28 +745,9 @@ impl Scan<'_> {
     /// what the body writes in the global frame changes when the callback
     /// fires.
     fn procedure(&mut self, head: &str) {
-        let is_procedure = self.module.procedures.unique_displays().any(|qualified| {
-            crate::cfg_builder::qualified_lookup_keys(qualified)
-                .iter()
-                .any(|key| key == head)
-        });
-        if !is_procedure {
-            // What a command that is neither a procedure of the module nor a
-            // command of the registry runs is code the module does not contain.
-            self.out.any |= !self.is_unbound_registry_command(head);
-            return;
-        }
-        let writes = self
-            .procedure_writes
-            .get_or_init(|| detect_global_write_procs_with_registry(self.module, self.registry));
-        let Some(info) = writes.get(head) else {
-            return;
-        };
-        self.out.any |= info.opaque_global_frame;
-        let names = info.names.clone();
-        for name in &names {
-            self.note(name);
-        }
+        // A materialized callback head carries no original future lookup.
+        // It cannot select a body summary from a name or reporting label.
+        self.out.any |= !self.is_unbound_registry_command(head);
     }
 
     /// Whether `head`, run at the global level, is a command of the registry
@@ -834,14 +894,21 @@ mod tests {
     }
 
     fn writes(source: &str) -> DeferredWrites {
-        let registry = CommandRegistry::build_default();
-        let module = crate::lowering::lower_to_ir_with_dialect(
-            source,
-            &registry,
-            LexerConfig::for_profile(registry.profile()),
-            registry.profile(),
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = crate::environment_ingress::resolve_environment("tcl8.6").unit_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            LexerConfig::for_file_grammar(profile.grammar),
         );
-        scan_module(&module, &registry)
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input),
+            source,
+        );
+        scan_module(&module, context.commands())
     }
 
     fn names(source: &str) -> Vec<String> {

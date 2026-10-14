@@ -1,0 +1,328 @@
+rust/xtask/src/owner_resolution.rs:210:        let declared_name = declared.rsplit("::").next().unwrap_or(&declared);
+rust/xtask/src/owner_resolution.rs:270:                            .split_once("::")
+rust/xtask/src/owner_resolution.rs:1808:    let (owner, name) = entry.split_once("::")?;
+rust/xtask/src/owner_resolution.rs:1867:    let Some((owner_type, member)) = row.entry.split_once("::") else {
+rust/xtask/src/owner_resolution.rs:1873:    let Some((consumer_type, _)) = row.consumer_entry.split_once("::") else {
+rust/xtask/src/owner_resolution.rs:1890:        || row.receiver.split_once("::").map(|(name, _)| name)
+rust/xtask/src/owner_resolution.rs:1891:            != row.consumer_entry.split_once("::").map(|(name, _)| name)
+rust/xtask/src/owner_resolution.rs:2089:        .rsplit_once("::")
+rust/xtask/src/owner_resolution.rs:2091:            (Some(owner.rsplit("::").next().unwrap_or(owner)), ident)
+rust/xtask/src/owner_resolution.rs:2896:            r#"fn helper(name:&str) { name.rsplit_once("::"); }"#,
+rust/xtask/src/owner_resolution.rs:2901:            r#"#[cfg(test)] mod tests { fn fixture(){ s.split("::"); } }
+rust/xtask/src/owner_resolution.rs:2902:               fn later(name:&str){ name.split_once("::"); }"#,
+rust/xtask/src/owner_resolution.rs:2907:            // name.split("::");
+rust/xtask/src/owner_resolution.rs:2908:            fn source_fixture(){ let fixture = r#"name.split("::")"#; }
+rust/xtask/src/owner_resolution.rs:2909:            #[cfg(test)] mod tests { fn fixture(){ s.split("::"); } }
+rust/xtask/src/gen_irule_test_data.rs:189:        let mock = format!("::itest::cmd::{}", publication.suffix());
+rust/tcl-vm/tests/native_mathfunc_bootstrap.rs:134:            vm.registered_command_token_bytes(format!("::tcl::mathfunc::{}", spec.name).as_bytes())
+rust/tcl-vm/tests/native_mathfunc_bootstrap.rs:148:            let name = format!("::tcl::mathfunc::{}", spec.name);
+rust/tcl-vm/tests/run_script.rs:781:/// of 3+ colons is one separator (C semantics); `rsplit("::")` alone
+rust/tcl-vm/tests/namespace_colon_runs_e2e.rs:26://! `rsplit("::")`/`strip_prefix("::")` site would diverge on every one of these
+rust/tcl-vm/tests/namespace_colon_runs_e2e.rs:402:/// on this shape (`rsplit_once("::").unwrap()` over `x`).
+scripts/dev/check-name-resolution-proofs.py:381:        (binding["path"], binding["selector"].split("::")[-1], record["id"])
+scripts/dev/check-name-resolution-proofs.py:697:                    binding["selector"].split("::")[-1],
+scripts/dev/check-name-resolution-proofs.py:711:                leaf = owner["symbol"].split("::")[-1]
+rust/tcl-vm/tests/cmd_collections_e2e.rs:643:    assert_eq!(run(&format!("::tcl::dict::info {{{DICT}}}")).1, STATS);
+editors/vscode/src/scaffold.ts:86:    .split("::")
+rust/tcl-vm/src/interp/authored_tmm_static.rs:810:                            &format!("::tmm::_timer_context_enter RULE_INIT {owner}")
+runtime/rust/src/interp.rs:6602:            self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
+runtime/rust/src/interp.rs:6609:            self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
+runtime/rust/src/interp.rs:8290:            self.var_unset_at(format!("::{name}").as_bytes(), 0);
+runtime/rust/src/interp.rs:15717:        let name = format!("::interp.handle{}", self.interp_counter.get()).into_bytes();
+runtime/rust/src/interp.rs:16514:            self.var_unset(format!("::{name}").as_bytes());
+rust/tcl-vm/src/interp/native_cache_tests.rs:144:                raw_hook(&vm, identity.trim_start_matches("::")),
+runtime/rust/src/engine.rs:244:        let procedure = format!("::spectcl::unit::{}", self.units);
+runtime/rust/src/cmd_clock.rs:421:                let token = interp.resolve_cmd_token(format!("::{identity}").as_bytes());
+runtime/rust/src/cmd_clock.rs:676:            let name = format!("::tcl::clock::{member}");
+runtime/rust/src/cmd_clock.rs:693:                .resolve_cmd_token(format!("::tcl::clock::{member}").as_bytes())
+runtime/rust/src/cmd_clock.rs:1127:                .resolve_cmd_token(format!("::tcl::clock::{worker}").as_bytes())
+runtime/rust/src/cmd_clock.rs:1167:                .resolve_cmd_token(format!("::tcl::clock::{worker}").as_bytes())
+runtime/rust/src/cmd_clock.rs:1279:                .resolve_cmd_token(format!("::tcl::clock::{worker}").as_bytes())
+runtime/rust/src/cmd_oo.rs:2513:                format!("::oo::Obj{n}").into_bytes()
+runtime/rust/src/cmd_oo.rs:6523:            format!("::oo::Obj{number}")
+runtime/rust/src/cmd_oo.rs:6545:                let name = format!("::oo::Obj{}", self.oo.borrow().counter);
+rust/tcl-vm/src/cmd_dict.rs:188:        let target = format!("::tcl::dict::{member}");
+rust/tcl-vm/src/cmd_dict.rs:334:        .map_or_else(|| format!("::tcl::dict::{sub}"), str::to_owned);
+rust/tcl-vm/src/cmd_array.rs:59:        let target = format!("::tcl::array::{member}");
+rust/tcl-vm/src/interp.rs:4643:                    NameBytes::from(format!("::{identity}")),
+rust/tcl-vm/src/interp.rs:7316:        let name = format!("::interp.handle{}", self.interp_counter);
+rust/tcl-vm/src/interp.rs:8771:            let _ = self.unset_one(&format!("::tcl_platform({key})"), false);
+rust/tcl-vm/src/interp.rs:8775:            let _ = self.unset_one(&format!("::{name}"), false);
+rust/tcl-vm/src/interp.rs:9856:        let rooted = format!("::{source_namespace}");
+rust/tcl-vm/src/interp.rs:11887:    /// bogus `a:`, which a plain `rsplit_once("::")` would produce.
+rust/tcl-vm/src/interp.rs:26339:        let display = format!("::{}", self.command_display_key(&key));
+rust/tcl-vm/src/interp.rs:26696:            format!("::{canonical}")
+rust/tcl-vm/src/interp.rs:28695:                        && value == &[Some(NameBytes::from(format!("::tcl::{root}::{member}")))]));
+rust/tcl-vm/src/cmd_string.rs:54:        let target = format!("::tcl::string::{member}");
+rust/tcl-vm/src/cmd_oo.rs:401:    format!("::{canonical}")
+rust/tcl-vm/src/cmd_oo.rs:1411:    vm.declare_namespace(&format!("::{ns}"));
+rust/tcl-vm/src/cmd_oo.rs:4735:    vm.activate_namespace_written(&format!("::{class_namespace}"));
+rust/tcl-vm/src/cmd_namespace.rs:130:        let target = format!("::tcl::namespace::{member}");
+rust/tcl-vm/src/cmd_mathop.rs:90:        vm.register_stock_builtin(&format!("::tcl::mathop::{op}"), mathop);
+rust/tcl-vm/src/cmd_mathop.rs:279:            let full = format!("::tcl::mathop::{spelling}");
+rust/tcl-vm/src/cmd_mathop.rs:298:            let full = format!("::tcl::mathop::{spelling}");
+rust/tcl-vm/src/cmd_info.rs:58:        let target = format!("::tcl::info::{member}");
+rust/tcl-vm/src/cmd_info.rs:754:    vm.get_var(&format!("::{name}")).map_or_else(
+rust/tcl-vm/src/cmd_file.rs:66:        let target = format!("::tcl::file::{member}");
+rust/tcl-irule-test/src/session.rs:89:                    format!("::orch::load_irule {}", list_element(&self.source))
+rust/tcl-irule-test/src/session.rs:91:                    format!("::orch::load_rule {{}} {} 0", list_element(&self.source))
+rust/tcl-irule-test/src/pure_functions.rs:96:        let table = format!("::itest::cmd::_stub_actions({})", self.mock);
+rust/tcl-irule-test/src/pure_functions.rs:137:        let name = format!("::itest::cmd::{mock}");
+rust/tcl-irule-test/src/live.rs:554:        self.eval(&format!("::orch::load_irule {}", list_element(source)))
+rust/tcl-irule-test/src/live.rs:628:        self.eval(&format!("::orch::run_http_request {args}"))
+rust/tcl-irule-test/src/live.rs:639:        self.eval(&format!("::orch::fire {event}"))
+rust/tcl-irule-test/src/live.rs:660:        self.eval(&format!("::orch::fire_sequence {}", list_element(&joined)))
+rust/tcl-irule-test/src/live.rs:836:                .eval(&format!("::orch::tmm_select {worker}"))
+rust/tcl-irule-test/src/live.rs:841:                    .eval(&format!("::orch::tmm_get_static {worker} message"))
+rust/tcl-irule-test/src/live.rs:1817:                .eval(&format!("::orch::tmm_select {worker}"))
+rust/tcl-irule-test/src/live.rs:1823:                    .eval(&format!("::orch::tmm_get_static {worker} seen"))
+rust/tcl-irule-test/src/live.rs:1883:                session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{set ::root_only}}")).unwrap(),
+rust/tcl-irule-test/src/live.rs:1917:                        session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{list [info exists ::global_value] [info exists ::static::value] [llength [info procs bump]]}}")).unwrap(),
+rust/tcl-irule-test/src/live.rs:1924:                session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{set ::seed {seed}; set ::initialisations 0}}")).unwrap();
+rust/tcl-irule-test/src/live.rs:1929:                    .eval(&format!("::orch::tmm_select {worker}"))
+rust/tcl-irule-test/src/live.rs:1938:                    session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{list $::global_value $::static::value $::static::initialisations}}")).unwrap(),
+rust/tcl-irule-test/src/live.rs:2052:            session.eval(&format!("::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters {worker}] {{set ::seed {seed}}}")).unwrap();
+rust/tcl-irule-test/src/live.rs:2184:                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+rust/tcl-irule-test/src/live.rs:2193:                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+rust/tcl-irule-test/src/live.rs:2201:                .eval(&format!("::orch::tmm_select {worker}"))
+rust/tcl-irule-test/src/live.rs:2205:                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+rust/tcl-irule-test/src/live.rs:2214:                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+rust/tcl-irule-test/src/live.rs:2316:                .eval(&format!("::orch::tmm_select {worker}"))
+rust/tcl-irule-test/src/live.rs:2322:                    .eval(&format!("::orch::tmm_get_static {worker} seen"))
+rust/tcl-irule-test/src/live.rs:2328:                    .eval(&format!("::orch::tmm_get_static {worker} second"))
+rust/tcl-irule-test/src/live.rs:2395:                    .eval(&format!("::orch::tmm_select {worker}"))
+rust/tcl-irule-test/src/live.rs:2404:                        .eval(&format!("::orch::tmm_get_static {worker} owner_result"))
+rust/tcl-explorer/src/coverage.rs:258:                artifact.artifact.split_once("::"),
+rust/tcl-syntax/src/naming/native.rs:2684:    let spelling = format!("::{}", components.join("::"));
+rust/tcl-syntax/src/naming/native.rs:2697:    let spelling = format!("::{namespace}");
+rust/tcl-engine-wasm/src/lib.rs:426:        let procedure = format!("::spectcl::unit::{key}");
+rust/tcl-syntax/src/naming/reporting.rs:29:            qname.strip_prefix("::").unwrap_or(qname)
+rust/tcl-syntax/src/naming/reporting.rs:43:        format!("::{prefix}")
+rust/tcl-engine-tclvm/src/lib.rs:2134:        let procedure = format!("::spectcl::unit::{}", self.units);
+rust/tcl-syntax/src/naming.rs:398:        return format!("::{}{trailing}", segs.join("::"));
+rust/tcl-syntax/src/naming.rs:571:        format!("::{key}")
+rust/tcl-syntax/src/naming.rs:1112:    let s = name.strip_prefix("::").unwrap_or(name);
+rust/tcl-syntax/src/naming.rs:1116:    for segment in s.split("::") {
+rust/tcl-syntax/src/naming.rs:1221:    format!("::{}", parts.join("::"))
+rust/tcl-syntax/src/naming.rs:1250:    let p = prefix.strip_prefix("::").unwrap_or(prefix);
+rust/tcl-syntax/src/naming.rs:1257:        return format!("::{canonical}");
+rust/tcl-syntax/src/naming.rs:1259:    format!("::{p}::{canonical}")
+rust/tcl-syntax/src/naming.rs:1277:            format!("::{relative}")
+rust/tcl-syntax/src/naming.rs:1328:    format!("::{key}")
+rust/tcl-syntax/src/naming.rs:1344:    key.strip_prefix("::")
+rust/tcl-syntax/src/naming.rs:1466:                format!("::{canonical_entry}")
+rust/tcl-syntax/src/naming.rs:1470:                format!("::{namespace}::{canonical_entry}")
+rust/tcl-syntax/src/naming.rs:1478:            CommandLookupBase::Root => format!("::{canonical_cmd}"),
+rust/tcl-syntax/src/naming.rs:1480:                format!("::{canonical_cmd}")
+rust/tcl-syntax/src/naming.rs:1485:            CommandLookupBase::Context(base) => format!("::{base}::{canonical_cmd}"),
+rust/tcl-syntax/src/naming.rs:1511:            CommandLookupBase::Root => format!("::{command}"),
+rust/tcl-syntax/src/naming.rs:1513:                format!("::{command}")
+rust/tcl-syntax/src/naming.rs:1518:            CommandLookupBase::Context(context) => format!("::{context}::{command}"),
+rust/tcl-syntax/src/event_handler.rs:58:        head.trim_start_matches("::") == "when"
+rust/tcl-spec-studio/src/render_spectcl.rs:1146:    text.trim().rsplit("::").next().unwrap_or("").trim()
+rust/tcl-spec-studio/src/render_spectcl.rs:1191:        let key = part.trim().rsplit("::").next()?;
+rust/tcl-spec-studio/src/render_spectcl.rs:1469:    let variant = expr[..open].rsplit("::").next()?.trim();
+rust/tcl-compiler/tests/checks.rs:3128:            let src = format!("::tcl::{}::sub arg", ns.namespace);
+rust/tcl-compiler/tests/analyser.rs:2190:            .filter_map(|k| k.split("::").find(|s| s.starts_with("@interp@")))
+rust/tcl-runtime-api/src/command_identity.rs:26:        format!("::{}", path.join("::"))
+rust/tcl-runtime-api/src/command_identity.rs:35:        format!("::{simple}", simple = slot.simple)
+rust/tcl-registry/tests/registry_commands.rs:2205:            !reg.resolves_only_in_method_context(&format!("::{name}")),
+rust/tcl-registry/tests/registry_commands.rs:2334:            !reg.requires_oo_method_frame(&format!("::{name}")),
+rust/tcl-compiler/src/auto_path_eval/path_constants.rs:648:        let head = head.strip_prefix("::").unwrap_or(head);
+rust/tcl-compiler/src/provider_fixtures/snit.rs:206:        registry_identity: format!("::{name}"),
+rust/tcl-compiler/src/command_binding/linked_definition.rs:131:            let slot = format!("::chain{index}");
+rust/tcl-compiler/src/command_binding/linked_definition.rs:137:                format!("::chain{}", index - 1)
+rust/tcl-registry/src/source_name_ownership.rs:61:        SourceVariableNameOwnership::include(names, &format!("::{name}"));
+rust/tcl-registry/src/native_handler_path.rs:86:            assert_eq!(selected[1].slot, format!("::tcl::binary::encode::{format}"));
+rust/tcl-registry/src/native_handler_path.rs:227:            let head = format!("::tcl::binary::encode::{format}");
+rust/tcl-compiler/src/command_binding/namespace_context.rs:140:        format!("::{}", components.join("::"))
+rust/tcl-registry/src/native_mathop_compilation/tests.rs:181:                &format!("::tcl::mathop::{spelling}"),
+rust/tcl-compiler/src/command_binding/runtime_entry.rs:452:        format!("::{}", components.join("::"))
+rust/tcl-compiler/src/command_binding/runtime_entry.rs:1886:                    identity: format!("::{name}"),
+rust/tcl-compiler/src/command_binding/runtime_entry.rs:2505:            let private = format!("::tcl::file::{member}");
+rust/tcl-registry/src/native_compilation.rs:5993:                                &format!("::tcl::namespace::{}", member.name),
+rust/tcl-registry/src/native_argument_role_hook.rs:26:        let (owner, field) = id.rsplit_once("::")?;
+rust/tcl-registry/src/native_argument_role_hook.rs:34:        let (command, member) = owner.rsplit_once("::")?;
+rust/tcl-compiler/src/command_binding/definition_reference_inventory.rs:282:            reference.worker().command.trim_start_matches("::"),
+rust/tcl-compiler/src/command_binding/original_command_table.rs:552:            let qualified = catalogue_input(&format!("::{name}"), config, policy);
+rust/tcl-compiler/src/command_binding/namespace_slots.rs:153:                    format!("::{simple}")
+rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs:381:            .map(|n| (format!("::memo_capacity_{n}"), format!("memo_capacity_{n}"))),
+rust/tcl-compiler/src/command_binding/deferred_method.rs:2541:                            .trim_start_matches("::"),
+rust/tcl-compiler/src/command_binding/deferred_method.rs:2965:                && target.command.trim_start_matches("::") == "global")
+rust/tcl-compiler/src/command_binding/source_declared_command.rs:611:            let name = format!("::{}::check", expected.join("::"));
+rust/tcl-registry/src/registry.rs:7422:                    format!("::{name}")
+rust/tcl-registry/src/registry.rs:7484:                            format!("::{variable}")
+rust/tcl-registry/src/registry.rs:9094:                    registry.native_compilation_for_registration(&format!("::{key}"), dialect),
+rust/tcl-registry/src/registry.rs:9623:                            .native_compilation_for_registration(&format!("::{identity}"), dialect)
+rust/tcl-registry/src/registry.rs:9815:                registry.method_dispatch_keyword(&format!("::{head}")),
+rust/tcl-registry/src/registry.rs:9856:            let rooted = format!("::{head}");
+rust/tcl-registry/src/private_tcl_namespaces.rs:271:            let cmd = format!("::tcl::{}::sub", ns.namespace);
+rust/tcl-registry/src/f5/rule_identity.rs:109:        let (rule, procedure) = target.rsplit_once("::")?;
+rust/tcl-registry/src/f5/rule_identity.rs:126:        let (rule, procedure) = if let Some((rule, procedure)) = target.rsplit_once("::") {
+rust/tcl-registry/src/definer.rs:2683:            implementation: format!("::oo::define::{}", member.keyword),
+rust/tcl-registry/src/definer.rs:2705:            lookup.implementation = format!("::oo::objdefine::{}", member.keyword);
+rust/tcl-registry/src/definer.rs: WARNING: stopped searching binary file after match (found "\0" byte around offset 221820)
+rust/tcl-compiler/src/var_escape/slot_resolution.rs:104:    cmd.strip_prefix("::").unwrap_or(cmd)
+rust/tcl-compiler/src/var_escape/helpers.rs:204:    head.strip_prefix("::").unwrap_or(head)
+rust/tcl-compiler/src/value_transfer.rs:1456:                    .get(head.strip_prefix("::").unwrap_or(head))
+rust/tcl-compiler/src/uri_split.rs:342:        shape.command().trim_start_matches("::").to_owned(),
+rust/tcl-compiler/src/unit_scope.rs:1614:        .get(word.strip_prefix("::").unwrap_or(word))
+rust/tcl-compiler/src/unit_scope.rs:3758:                    format!("::dispatch{}", index - 1)
+rust/tcl-compiler/src/unit_scope.rs:3764:                    next.record_call(format!("::dispatch{index}"), &[value.to_owned()]);
+rust/tcl-compiler/src/taint.rs:3333:            return (input, format!("::{proc_prefix}"));
+rust/tcl-compiler/src/taint.rs:3662:            (format!("::{input_var}"), TaintLattice::tainted()),
+rust/tcl-compiler/src/taint.rs:5142:            seeds.insert(format!("::{seed}"), taint);
+rust/tcl-compiler/src/taint.rs:5252:            rebindings.push((head, format!("::proc {quoted_head} args {{}}\n")));
+rust/tcl-compiler/src/taint.rs:5258:                rebindings.push((head, format!("::proc {quoted_head} args {{}}\n")));
+rust/tcl-compiler/src/ssa.rs:2635:                        format!("::{name}")
+rust/tcl-compiler/src/ssa.rs:5150:                        format!("::{declared}")
+rust/tcl-compiler/src/ssa.rs:5152:                    let bare = global.strip_prefix("::")?;
+rust/tcl-compiler/src/ssa.rs:5232:                        format!("::{name}")
+rust/tcl-compiler/src/ssa.rs:5242:                            && let Some(bare) = name.strip_prefix("::")
+rust/tcl-compiler/src/ssa.rs:6364:            || (func.name == "::top" && !source.contains("::") && *display == format!("::{source}"))
+rust/tcl-compiler/src/signature_scan/types.rs:588:            format!("::{tail}")
+rust/tcl-compiler/src/signature_scan/handlers.rs:832:        format!("::{source_ns_raw}")
+rust/tcl-compiler/src/signature_scan/ctx.rs:648:        namespace.strip_prefix("::").unwrap_or(namespace).as_bytes(),
+rust/tcl-compiler/src/sccp.rs:5379:                    if command.trim_start_matches("::") == "puts")
+rust/tcl-compiler/src/sccp.rs:5793:                .function(&format!("::{name}"))
+rust/tcl-compiler/src/registry_invocation.rs:4348:                    .strip_prefix("::")
+rust/tcl-compiler/src/registry_invocation.rs:4454:                .strip_prefix("::")
+rust/tcl-compiler/src/place_bridge.rs:1510:                                            && target.command.trim_start_matches("::") == "array"
+rust/tcl-compiler/src/optimiser/store_packing.rs:85:            || binding.command != format!("::{command}")
+rust/tcl-compiler/src/optimiser/manager.rs:590:        || traced.contains(var.trim_start_matches("::"))
+rust/tcl-compiler/src/optimiser/helpers/naming.rs:48:    format!("::{}", prefix.join("::"))
+rust/tcl-registry/src/commands/tcl/mathop_generated.rs:240:                format!("::tcl::mathop::{op}"),
+rust/tcl-compiler/src/optimiser/elimination.rs:426:                .is_some_and(|t| t.contains(base.trim_start_matches("::")))
+rust/tcl-compiler/src/optimiser/elimination.rs:1156:    }) || module_traced.is_some_and(|names| names.contains(base.trim_start_matches("::")))
+rust/tcl-compiler/src/optimiser/chain_fold.rs:617:                    && !protected.contains(write_var(&other).trim_start_matches("::")) =>
+rust/tcl-compiler/src/optimiser/chain_fold.rs:630:        || protected.contains(var.trim_start_matches("::"))
+rust/tcl-compiler/src/optimiser/chain_fold.rs:861:                    && opt.replacement == format!("::set {expected} AB")),
+rust/tcl-registry/src/commands/tcl/info_.rs:1487:                    &format!("::tcl::info::{name}"),
+rust/tcl-compiler/src/native_lowering/lower.rs:1478:        let bare = name.strip_prefix("::").unwrap_or(name);
+rust/tcl-compiler/src/native_lowering/elide.rs:148:                .contains(base.strip_prefix("::").unwrap_or(base))
+rust/tcl-compiler/src/native_lowering/elide.rs:149:            || self.traced.contains(&format!("::{base}"))
+rust/tcl-registry/src/commands/tcl/dict.rs:1162:                get(&format!("::tcl::dict::{bare}")).semantics,
+rust/tcl-registry/src/commands/tcl/dict.rs:1220:                    .any(|s| s.name == format!("::tcl::dict::{}", sub.name)),
+rust/tcl-compiler/src/lowering/execution_regions.rs:96:                    registry_identity: format!("::{head}"),
+rust/tcl-compiler/src/lowering/installed_bodies.rs:104:            format!("::original-declaration-body#{}", self.body_unit_count)
+rust/tcl-compiler/src/lowering/mod.rs:510:    c.strip_prefix("::").unwrap_or(c) == bare
+rust/tcl-compiler/src/lowering/mod.rs:840:        let name = raw_name.strip_prefix("::").unwrap_or(raw_name);
+rust/tcl-compiler/src/lowering/mod.rs:2719:                            .strip_prefix("::")
+rust/tcl-compiler/src/lowering/mod.rs:3202:                    .strip_prefix("::")
+rust/tcl-compiler/src/lowering/mod.rs:3585:        let resolved_name = resolved_name.strip_prefix("::").unwrap_or(&resolved_name);
+rust/tcl-compiler/src/lowering/mod.rs:3708:            resolved_name.strip_prefix("::").unwrap_or(resolved_name),
+rust/tcl-compiler/src/lowering/mod.rs:3752:        // (`"a::".split("::")` filters the empty trailing element),
+rust/tcl-compiler/src/lowering/mod.rs:4253:            format!("::when::{event_name}")
+rust/tcl-compiler/src/lowering/mod.rs:4255:            format!("::when::{event_name}#{n}")
+rust/tcl-compiler/src/lowering/mod.rs:4583:        let prefix = label.strip_prefix("::").unwrap_or(label);
+rust/tcl-compiler/src/lowering/mod.rs:4584:        let qualified = format!("::{prefix}#{n}");
+rust/tcl-compiler/src/lowering/mod.rs:4588:        let short_name = prefix.rsplit("::").next().unwrap_or(prefix).to_string();
+rust/tcl-compiler/src/lowering/mod.rs:5072:            .strip_prefix("::")
+rust/tcl-compiler/src/lowering/mod.rs:5201:                    Some(format!("::{name}"))
+rust/tcl-compiler/src/lowering/mod.rs:5464:            format!("::@objdefine@::{tail}")
+rust/tcl-compiler/src/lowering/mod.rs:7057:            .trim_start_matches("::")
+rust/tcl-compiler/src/lowering/mod.rs:9806:        // `command.trim_start_matches("::")` lookup hits.
+rust/tcl-compiler/src/irules_checks.rs:4271:            function.name = format!("::ordinary::report{index}");
+rust/tcl-compiler/src/ir.rs:3072:                format!("::{}", segments.join("::"))
+rust/tcl-compiler/src/interprocedural.rs:631:        format!("::{}", ns_parts.join("::"))
+rust/tcl-compiler/src/interprocedural.rs:2313:        .get(resolved.strip_prefix("::").unwrap_or(resolved))
+rust/tcl-compiler/src/interprocedural.rs:5128:        // `qualifier_segments` split, where a naive `split("::")` would keep
+rust/tcl-compiler/src/interprocedural/transfer.rs:1919:        format!("::{variable}")
+rust/tcl-compiler/src/interprocedural/transfer.rs:2039:    let global = format!("::{name}");
+rust/tcl-compiler/src/dynamic_names.rs:213:    let tail = base.rsplit("::").next().unwrap_or(base);
+rust/tcl-compiler/src/deferred_writes.rs:770:            && target.command.trim_start_matches("::") == head.trim_start_matches("::")
+rust/tcl-compiler/src/deferred_writes.rs:864:        let name = name.strip_prefix("::").unwrap_or(name);
+rust/tcl-compiler/src/compile_service.rs:2341:                .is_ok_and(|text| text.strip_prefix("::").unwrap_or(text) == "tcl::string::equal")
+rust/tcl-compiler/src/command_binding.rs:11552:                absolute.trim_start_matches("::").to_owned(),
+rust/tcl-compiler/src/command_binding.rs:11585:                source_binding(state, absolute.trim_start_matches("::"), namespace)
+rust/tcl-compiler/src/command_binding.rs:17634:            canonical.strip_prefix("::").unwrap_or(&canonical),
+rust/tcl-compiler/src/command_binding.rs:18123:    let bare = qname.strip_prefix("::").unwrap_or(qname);
+rust/tcl-compiler/src/command_binding.rs:18885:                let tail = text.rsplit("::").next().unwrap_or(text);
+rust/tcl-compiler/src/command_binding.rs:18914:        format!("::{tail}")
+rust/tcl-compiler/src/command_binding.rs:19411:        let bare = prefix.strip_prefix("::").unwrap_or(prefix);
+rust/tcl-compiler/src/command_binding.rs:19413:            let canonical = name.strip_prefix("::").unwrap_or(name);
+rust/tcl-compiler/src/codegen/cmd_subst.rs:2282:        self.push_lit(&format!("::tcl::string::{target_subcmd}"));
+rust/tcl-compiler/src/cfg_builder/execution_regions.rs:222:                        .strip_prefix("::")
+rust/tcl-compiler/src/cfg_builder/mod.rs:1717:        let base = |name: &str| normalise_var_name(name).trim_start_matches("::").to_owned();
+rust/tcl-compiler/src/cfg_builder/mod.rs:2853:            let qual_cmd = format!("::tcl::dict::{sub}");
+rust/tcl-compiler/src/cfg_builder/mod.rs:5530:            for spelling in [command.clone(), format!("::{command}")] {
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1018:    if let Some(relative) = name.strip_prefix("::")
+rust/tcl-compiler/src/analyser/interp_visibility.rs:39:            format!("::{}", self.label)
+rust/tcl-compiler/src/analyser/interp_visibility.rs:41:            format!("::{}::{suffix}", self.label)
+rust/tcl-compiler/src/analyser/interp_visibility.rs:48:        Some(format!("::{}::{suffix}", self.label))
+rust/tcl-compiler/src/analyser/snapshot.rs:240:            qualified_name: format!("::{name}"),
+rust/tcl-compiler/src/analyser/scope.rs:101:        format!("::{joined}")
+rust/tcl-compiler/src/analyser/scope.rs:1213:                format!("::{}", v.name)
+rust/tcl-compiler/src/analyser/scope.rs:1377:            .unwrap_or_else(|| format!("::{cmd_name}"))
+rust/tcl-compiler/src/analyser/scope.rs:1711:                let mathfunc_suffix = format!("::tcl::mathfunc::{}", inv.name);
+rust/tcl-compiler/src/analyser/scope.rs:1727:                let global = format!("::tcl::mathfunc::{}", inv.name);
+rust/tcl-compiler/src/analyser/scope.rs:1749:            let suffix = format!("::{}", inv.name);
+rust/tcl-compiler/src/analyser/per_item.rs:2310:    // char-pattern trim + `split("::")` would collapse it.
+rust/tcl-compiler/src/analyser/oo.rs:1585:                            let key = name.trim_start_matches("::").to_string();
+rust/tcl-compiler/src/analyser/oo.rs:1591:                                .entry(name.trim_start_matches("::").to_string())
+rust/tcl-compiler/src/analyser/oo.rs:1820:        // trim or `rsplit("::")` would collapse a lone-colon name.
+rust/tcl-compiler/src/analyser/oo.rs:2235:        // trim or `rsplit("::")` would collapse a lone-colon name.
+rust/tcl-compiler/src/analyser/irules_event_checks.rs:358:        let head = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
+rust/tcl-compiler/src/analyser/irules_event_checks.rs:1006:            &format!("::when::{event}"),
+rust/tcl-compiler/src/analyser/handlers.rs:2796:        // an `rsplit("::")` here would collapse a lone-colon name.
+rust/tcl-compiler/src/analyser/handlers.rs:4224:            .map_or_else(String::new, |frame| format!("::{}", frame.domain))
+rust/tcl-compiler/src/analyser/handlers.rs:4262:        Some(format!("::{}", self.interp_domain_name(&key)))
+rust/tcl-compiler/src/analyser/handlers.rs:5889:            return Some(format!("::{base}"));
+rust/tcl-compiler/src/analyser/handlers.rs:6495:            format!("::@objdefine@::{obj_name}")
+rust/tcl-compiler/src/analyser/handlers.rs:7616:                let name_word = word.strip_prefix("::").unwrap_or(word);
+rust/tcl-compiler/src/analyser/handlers.rs:10462:        let cmd_name = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
+rust/tcl-compiler/src/analyser/handlers.rs:11675:            format!("::{stripped}")
+rust/tcl-compiler/src/analyser/handlers.rs:11684:            format!("::{alias}")
+rust/tcl-compiler/src/analyser/handlers.rs:13041:                Some(format!("::{name}").as_str()),
+rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:1249:        let bare = head.trim_start_matches("::");
+rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:1250:        let qualified = format!("::{bare}");
+rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:1825:    let tail = after.strip_prefix("::")?;
+rust/tcl-compiler/src/analyser/diagnostics/validity.rs:760:        let bare = cmd_name.rsplit("::").next().unwrap_or(cmd_name);
+rust/tcl-compiler/src/analyser/diagnostics/validity.rs:1538:            let bare = cand.cmd_name.rsplit("::").next().unwrap_or(&cand.cmd_name);
+rust/tcl-compiler/src/analyser/diagnostics/tests.rs:1129:                .any(|v| v.starts_with("apply@") && v.ends_with(&format!("::{want}"))),
+rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14266:                reporting.strip_prefix("::").unwrap_or(reporting).to_owned(),
+rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14890:                        == Some(format!("::{target}").as_str())),
+rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14991:                        == Some(format!("::{target}").as_str())),
+rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15168:                        == Some(format!("::{name}").as_str())
+rust/tcl-compiler/src/analyser/diagnostics/helpers.rs:402:    normalised.strip_prefix("::").unwrap_or(normalised)
+rust/tcl-compiler/src/analyser/diagnostics/helpers.rs:424:            .strip_prefix("::")
+rust/tcl-compiler/src/analyser/commands.rs:7338:                            == Some(&format!("::tcl::mathfunc::{f}"))
+rust/tcl-compiler/src/analyser/class_lattice.rs:1293:            name: qname.trim_start_matches("::").to_string(),
+rust/tcl-compiler/src/analyser/bounds_checks.rs:307:                .map(|name| name.trim_start_matches("::").to_owned())
+rust/tcl-compiler/src/analyser/bounds_checks.rs:316:        self.any || self.names.contains(var.trim_start_matches("::"))
+rust/tcl-compiler/src/analyser/bounds_checks.rs:600:    let head = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
+rust/tcl-compiler/src/analyser/bounds_checks.rs:683:    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+rust/tcl-compiler/src/analyser/bounds_checks.rs:710:    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+rust/tcl-compiler/src/analyser/bounds_checks.rs:1046:    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+rust/tcl-compiler/src/analyser/bounds_checks.rs:1268:    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+rust/tcl-compiler/src/analyser/bounds_checks.rs:1327:    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+rust/tcl-compiler/src/analyser/bounds_checks.rs:1359:    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+rust/tcl-compiler/examples/mro_interproc.rs:303:    let q = format!("::{head}");
+rust/tcl-compiler/examples/mro_interproc.rs:307:    let bare = head.rsplit("::").next().unwrap_or(head);
+rust/tcl-compiler/examples/mro_interproc.rs:366:        let bare = qn.rsplit("::").next().unwrap_or(qn).to_string();
+rust/tcl-compiler/examples/mro_interproc.rs:396:        let bare = head.trim_start_matches("::");
+rust/tcl-compiler/examples/mro_interproc.rs:397:        let cand = format!("::{bare}");
+rust/tcl-cmd-core/src/namespace.rs:83:/// qualifier `foo` and an empty tail), where a naive `rsplit("::")` diverges.
+rust/tcl-cmd-core/src/namespace.rs:1065:        // `rsplit("::")` the VM used yielded `:` for the tail here).
+rust/tcl-mcp/src/irule_gen.rs:778:        result.push(format!("::itest::fire_event {event_name}"));
+rust/tcl-mcp/src/irule_gen.rs:781:        result.push(format!("::itest::fire_event {event_name}"));
+rust/tcl-mcp/src/irule_gen.rs:783:        result.push(format!("::itest::fire_event {event_name}"));
+rust/tcl-mcp/src/irule_gen.rs:937:            body.push(format!("::orch::assert_that pool_selected equals \"{p}\""));
+rust/tcl-mcp/src/irule_gen.rs:942:            body.push(format!("::orch::assert_that pool_selected equals \"{p}\""));
+rust/tcl-mcp/src/irule_gen.rs:1294:                !script.contains(&format!("::orch::configure_static {inert} ")),
+rust/tcl-mcp/src/irule_gen.rs:1455:                    && !script.contains(&format!("::orch::add_pool {inert}")),
+rust/tcl-mcp/src/irule_gen.rs:1461:                !script.contains(&format!("::orch::configure_static {inert}")),
+rust/tcl-lsp-server/tests/e2e/tcl91.rs:362:            &scoped_family_doc(&format!("::oo::Helpers::{word} Foo\n")),
+rust/bpf-tcl-ir/src/frontend.rs:282:        &format!("::bpf::{event}"),
+rust/tcl-lsp-core/src/workspace_index.rs:5210:        let qualified = format!("::{name}");
+rust/tcl-lsp-core/src/workspace_index.rs:5225:        let qualified = format!("::{name}");
+rust/tcl-lsp-core/src/workspace_index.rs:9497:        // Mutation guard: `rsplit_once("::")` sees the final two
+rust/tcl-lsp-core/src/rename.rs:1903:        format!("::{new_name}")
+rust/bigip-report-gen/frontend/src/pages/topology.ts:1090:    var halves = ip.split("::");
+rust/bigip-report-gen/frontend/dist/topology.js:1716:      var halves = ip.split("::");
+rust/tcl-lsp-core/src/minify.rs:938:        format!("::{child_name}")
+rust/tcl-lsp-core/src/definition.rs:2766:                && (c.name == word || qname.as_str() == word || *qname == &format!("::{word}"))
+rust/tcl-lsp-core/src/declaration.rs:449:    s.strip_prefix("::").unwrap_or(s)
+rust/tcl-lsp-core/src/code_actions.rs:1110:    let (namespace, _rest) = qualified.split_once("::")?;
+rust/tcl-lsp-core/src/code_actions.rs:1301:            format!("::ffff:{addr}"),
+rust/tcl-lsp-core/examples/tcloo_diag.rs:203:            let q = format!("::{}", cmd.trim_start_matches("::"));

@@ -1,0 +1,4 @@
+/tmp/name-issues-refresh-20261014/oracles-03/jim/2324-original-tk-computed-head/source.tcl:1: Error: Can't load package Tk
+Traceback (most recent call last):
+  File "/tmp/name-issues-refresh-20261014/oracles-03/jim/2324-original-tk-computed-head/source.tcl", line 1
+    package require Tk

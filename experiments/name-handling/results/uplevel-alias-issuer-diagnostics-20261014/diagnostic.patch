@@ -1,0 +1,217 @@
+--- a/rust/tcl-compiler/src/command_binding/source_read_scope.rs
++++ b/rust/tcl-compiler/src/command_binding/source_read_scope.rs
+@@ -186,6 +186,28 @@
+         return false;
+     };
+     for target in &binding.targets {
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            let target_descriptor = context
++                .context()
++                .resolve_spec(context.commands(), &target.command)
++                .is_some_and(|selected| std::ptr::eq(selected, descriptor));
++            let actual_prefix = target
++                .prepended
++                .iter()
++                .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
++                .collect::<Option<Vec<_>>>();
++            let inputs = target.original_prepended_name_inputs();
++            eprintln!(
++                "ISSUER_TARGET offset={} command={:?} registry={} descriptor={target_descriptor} prefix={} retained_inputs={:?} expected_prefix={}",
++                advice.site().offset,
++                target.command,
++                target.registry_backed,
++                actual_prefix.as_deref() == Some(prefix.as_slice()),
++                inputs.map(|inputs| inputs.len()),
++                prefix.len()
++            );
++        }
+         if !target.registry_backed
+             || !context
+                 .context()
+@@ -216,6 +238,13 @@
+                     let Some(captured) = word.input.as_ref() else {
+                         return true;
+                     };
++                    #[cfg(test)]
++                    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++                        match captured {
++                            crate::command_binding::SourceAdviceNameInput::Native(original) => eprintln!("ISSUER_CAPTURE offset={} kind=Native same={}", advice.site().offset, original == input),
++                            crate::command_binding::SourceAdviceNameInput::Logical(original) => eprintln!("ISSUER_CAPTURE offset={} kind=Logical authority={:?} original_key={} bytes={} word={} image={} config={} span={} group={} tokens={}", advice.site().offset, input.policy().authority(), input.original_word_key().is_some(), input.bytes() == original.bytes(), input.original_word_key().is_some_and(|key| key.original_word() == original.original_word()), input.original_word_key().is_some_and(|key| key.original_word().image() == original.original_word().image()), input.original_word_key().is_some_and(|key| key.original_word().config() == original.original_word().config()), input.original_word_key().is_some_and(|key| key.original_word().span() == original.original_word().span()), input.original_word_key().is_some_and(|key| key.original_word().group() == original.original_word().group()), input.original_word_key().is_some_and(|key| key.original_word().tokens() == original.original_word().tokens())),
++                        }
++                    }
+                     match captured {
+                         crate::command_binding::SourceAdviceNameInput::Native(original) => {
+                             original != input
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -1870,7 +1870,16 @@
+             return Some(());
+         };
+         self.retain_original_operand_constructor_calls(tape, graph, &invocation.words, None);
+-        if self.retain_original_source_receiver(tape, graph, &invocation.words, &written) {
++        let receiver =
++            self.retain_original_source_receiver(tape, graph, &invocation.words, &written);
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_TAPE stage=receiver offset={} selected={receiver}",
++                invocation.words[0].span().start()
++            );
++        }
++        if receiver {
+             return Some(());
+         }
+         let handle = self.before_operand_handle_binding(graph, &invocation.words, &written);
+@@ -1908,6 +1917,30 @@
+             return Some(());
+         }
+         let selected = original_selection.or_else(|| graph.resolve(&head));
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            let cell = graph
++                .lookup_head_key(head.bytes())
++                .and_then(|key| graph.cells.get(&key))
++                .map(|cell| match cell {
++                    AdviceCell::Descriptor(_, _) => "descriptor",
++                    AdviceCell::Alias { .. } => "alias",
++                    AdviceCell::Shadowed => "shadowed",
++                    AdviceCell::Deleted => "deleted",
++                    AdviceCell::CreatedInterpreter(_) => "interpreter",
++                    AdviceCell::RegisteredInstance(_) => "registered",
++                    AdviceCell::SourceClass(_) => "class",
++                    AdviceCell::ClassInstance(_) => "instance",
++                    AdviceCell::SourceProcedure(_) => "procedure",
++                    AdviceCell::Declared(_) => "declared",
++                });
++            eprintln!(
++                "ISSUER_TAPE stage=selection offset={} head={:?} cell={cell:?} selected={} barrier={original_barrier}",
++                invocation.words[0].span().start(),
++                head.bytes(),
++                selected.is_some()
++            );
++        }
+         let Some((command, mut arguments, lineage)) = selected else {
+             graph.widen(&invocation.words);
+             return Some(());
+@@ -1931,6 +1964,14 @@
+                 .with_dialect(self.dialect),
+                 tcl_dialect::model::InvocationRealm::RuleLoader,
+             );
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_TAPE stage=schema offset={} command={command:?} selected={}",
++                invocation.words[0].span().start(),
++                resolution.resolved().is_some()
++            );
++        }
+         let Some(schema) = resolution.resolved() else {
+             graph.widen(&invocation.words);
+             return Some(());
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -3022,6 +3022,103 @@
+ 
+     use super::*;
+ 
++    #[test]
++    fn logical_source_issuer_probe_preserves_actual_write_and_body_consumers() {
++        let fixtures: &[(&str, &[&str])] = &[
++            (
++                "namespace eval N {variable x FIRST; set x AGAIN; puts $x}\n",
++                &["set x AGAIN"],
++            ),
++            (
++                "set x ROOT\nproc p {} {set x FIRST; set x AGAIN; set N::x QUALIFIED}\n",
++                &["set x AGAIN", "set N::x QUALIFIED"],
++            ),
++            (
++                "set x ROOT\nnamespace eval N {\n variable x NAMESPACE\n proc p {} {\n  set x PROCEDURE\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n  uplevel 1 {puts $x}\n }\n}\n",
++                &["uplevel #0", "uplevel 0", "uplevel 1"],
++            ),
++            (
++                "set root ROOT\nnamespace eval $unknown {\n set local OWN\n puts $local\n puts $Target::x\n}\n",
++                &["namespace eval"],
++            ),
++            (
++                "interp alias {} branch {} if 1\nbranch {puts $value}",
++                &["branch {puts"],
++            ),
++        ];
++        let mut failures = Vec::new();
++        for &(source, needles) in fixtures {
++            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
++            let input = analysis.resolved_input.as_ref().unwrap();
++            let realm = analysis.retained_command_realm().unwrap();
++            let image = tcl_lexer::SourceImage::document(source);
++            eprintln!(
++                "ISSUER_FIXTURE source={source:?} cards={:?}",
++                analysis
++                    .original_variable_write_advice
++                    .iter()
++                    .map(|card| card.span())
++                    .collect::<Vec<_>>()
++            );
++            for &needle in needles {
++                let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
++                let segment = realm
++                    .original_source_catalogue_segment_at(input, offset)
++                    .unwrap_or_else(|| {
++                        crate::segmenter::segment_commands_with_offset_and_config(
++                            &source[usize::try_from(offset).unwrap()..],
++                            offset,
++                            input.lexer_config().nested(),
++                        )
++                        .into_iter()
++                        .next()
++                        .unwrap()
++                    });
++                let words = source_registry_words(source, &analysis, &segment);
++                let schema = words.as_ref().and_then(|words| {
++                    words.with_source_schema(input.borrowed_context_registry(), |schema| {
++                        let (roles, complete) = schema.authored_source_argument_roles();
++                        (roles, complete)
++                    })
++                });
++                let bodies = words.as_ref().map(|words| {
++                    words
++                        .source_script_bodies(input.borrowed_context_registry())
++                        .iter()
++                        .map(|body| body.content_span())
++                        .collect::<Vec<_>>()
++                });
++                eprintln!(
++                    "ISSUER_CALL needle={needle:?} offset={offset} source_words={} schema={schema:?} bodies={bodies:?}",
++                    words.is_some()
++                );
++                if needle.starts_with("set ") {
++                    let token = segment.argv.get(1).unwrap();
++                    let original = realm.original_written_word_at_span_in_source(
++                        &image,
++                        token.span,
++                        input.lexer_config(),
++                    );
++                    let card = analysis
++                        .original_variable_write_advice
++                        .iter()
++                        .any(|card| card.span() == token.span);
++                    eprintln!(
++                        "ISSUER_WRITE span={:?} original_word={} card={card}",
++                        token.span,
++                        original.is_some()
++                    );
++                    if !card {
++                        failures.push(format!("missing write card: {needle}"));
++                    }
++                } else if bodies.as_ref().is_none_or(|bodies| bodies.is_empty()) {
++                    failures.push(format!("missing body: {needle}"));
++                }
++            }
++        }
++        assert!(failures.is_empty(), "{failures:?}");
++    }
++
+     fn original_selector_analysis(source: &str) -> crate::analyser::AnalysisResult {
+         let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+         let profile = environment.analyser_profile();

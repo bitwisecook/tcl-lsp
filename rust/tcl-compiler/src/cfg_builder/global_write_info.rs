@@ -211,23 +211,6 @@ fn merge_write_projection(
     }
 }
 
-fn opaque_procedure_summaries(module: &Module) -> HashMap<String, GlobalWriteInfo> {
-    module
-        .procedures
-        .display_entries()
-        .flat_map(|(name, _)| registered_keys(name))
-        .map(|name| {
-            (
-                name,
-                GlobalWriteInfo {
-                    opaque_global_frame: true,
-                    ..GlobalWriteInfo::default()
-                },
-            )
-        })
-        .collect()
-}
-
 fn literal_root(name: &str) -> &str {
     tcl_syntax::naming::split_element_ref(name).map_or(name, |(root, _)| root)
 }
@@ -283,8 +266,9 @@ pub(crate) fn detect_global_write_bodies_with_registry(
 ) -> HashMap<crate::ir::ProcedureId, GlobalWriteInfo> {
     let bindings = ModuleCommandBindings::analyse(module, registry);
     let semantics = GlobalWriteSemantics::from_module(module, registry, &bindings);
+    let owners = super::OriginalProcedureSummaryOwners::for_module(module, registry);
     let mut rows = HashMap::new();
-    let mut edges = HashMap::<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>>::new();
+    let mut edges = HashMap::new();
     for (id, procedure) in module.procedures.iter() {
         let namespace = procedure
             .body
@@ -292,7 +276,13 @@ pub(crate) fn detect_global_write_bodies_with_registry(
             .as_deref()
             .and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
         let mut info = match (semantics.as_ref(), namespace) {
-            (Some(semantics), Some(namespace)) => {
+            (Some(semantics), Some(namespace))
+                if module.procedure_ids.owns(*id)
+                    && module
+                        .retained_source_bindings
+                        .as_ref()
+                        .is_some_and(|owner| owner.matches_original_procedure(procedure)) =>
+            {
                 own_body_global_writes(&procedure.body, semantics, &namespace)
             }
             _ => GlobalWriteInfo {
@@ -300,41 +290,9 @@ pub(crate) fn detect_global_write_bodies_with_registry(
                 opaque_global_frame: true,
             },
         };
-        crate::ir::for_each_statement(&procedure.body, &mut |statement| {
-            let Statement::Call {
-                command, tokens, ..
-            } = statement
-            else {
-                return;
-            };
-            let Some(tokens) = tokens.as_ref() else {
-                info.opaque_global_frame = true;
-                return;
-            };
-            let Some(binding) = tokens.source_binding.as_ref() else {
-                info.opaque_global_frame = true;
-                return;
-            };
-            if binding
-                .original_invocation_metadata_for_module(tokens, module, registry)
-                .is_none()
-            {
-                info.opaque_global_frame = true;
-                return;
-            }
-            let lookup = binding.lookup_command_word(command);
-            info.opaque_global_frame |= lookup.unknown || lookup.may_be_absent;
-            for target in &lookup.targets {
-                if target.registry_backed {
-                    continue;
-                }
-                if let Some((callee, _)) = module.source_procedure_for_target(target) {
-                    edges.entry(*id).or_default().insert(callee);
-                } else {
-                    info.opaque_global_frame = true;
-                }
-            }
-        });
+        let (calls, opaque) = direct_call_targets(&procedure.body, &owners, registry);
+        info.opaque_global_frame |= opaque;
+        edges.insert(*id, calls);
         rows.insert(*id, info);
     }
     loop {
@@ -342,10 +300,11 @@ pub(crate) fn detect_global_write_bodies_with_registry(
         for (id, callees) in &edges {
             let row = rows.get_mut(id).expect("retained body row");
             for callee in callees {
-                if let Some(facts) = prior.get(callee) {
-                    row.union_from(facts);
-                } else {
-                    row.opaque_global_frame = true;
+                match prior.get(callee) {
+                    Some(facts) => {
+                        row.union_from(facts);
+                    }
+                    None => row.opaque_global_frame = true,
                 }
             }
         }
@@ -356,144 +315,28 @@ pub(crate) fn detect_global_write_bodies_with_registry(
     rows
 }
 
-/// recursive/mutually-recursive cycles terminate safely.
+/// Outer-place MAY facts for each retained body, with original source-selected edges.
 #[must_use]
-pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWriteInfo> {
-    let registry = module.resolved_registry();
-    detect_global_write_procs_with_registry(module, registry)
+pub fn detect_global_write_procs(
+    module: &Module,
+) -> HashMap<crate::ir::ProcedureId, GlobalWriteInfo> {
+    detect_global_write_procs_with_registry(module, module.resolved_registry())
 }
 
-/// Detect global/namespace writes against the exact registry that lowered the
-/// module.
-///
-/// Besides release-specific core descriptors, this preserves custom and pack
-/// command argument roles used by constructed or embedded scripts.  The
-/// default wrapper above is retained for standalone structural callers; the
-/// whole-module CFG path always enters here.
+/// Outer-place MAY writes under the Module's exact retained registry.
 #[must_use]
 pub fn detect_global_write_procs_with_registry(
     module: &Module,
     registry: &tcl_registry::CommandRegistry,
-) -> HashMap<String, GlobalWriteInfo> {
-    let bindings = ModuleCommandBindings::analyse(module, registry);
-    detect_global_write_procs_with_bindings(module, registry, &bindings)
-}
-
-/// Detect global/namespace writes using the module binding summary already
-/// prepared by the whole-module CFG pipeline.
-pub(crate) fn detect_global_write_procs_with_bindings(
-    module: &Module,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
-) -> HashMap<String, GlobalWriteInfo> {
-    let Some(semantics) = GlobalWriteSemantics::from_module(module, registry, aliases) else {
-        return opaque_procedure_summaries(module);
-    };
-    let semantics = &semantics;
-    let mut own: HashMap<String, GlobalWriteInfo> = HashMap::new();
-    let mut direct_calls: HashMap<String, BTreeSet<String>> = HashMap::new();
-    // Qualified ordering keeps shared short-name unions and the complete
-    // per-procedure memo input independent of HashMap traversal order.
-    let mut entries: Vec<(&String, &crate::ir::Procedure)> =
-        module.procedures.display_entries().collect();
-    entries.sort_by(|a, b| a.0.cmp(b.0));
-    for (qname, proc) in &entries {
-        let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-        let namespace = if holder.is_empty() { "::" } else { holder };
-        let mut info = own_body_global_writes(&proc.body, semantics, namespace);
-        let (calls, calls_opaque) = direct_call_targets(&proc.body, semantics, namespace);
-        info.opaque_global_frame |= calls_opaque;
-        for key in registered_keys(qname) {
-            own.entry(key.clone()).or_default().union_from(&info);
-            direct_calls.entry(key).or_default().extend(calls.clone());
-        }
-    }
-
-    // Multiple live generations currently share one qualified-name summary
-    // key while only one body is retained in Module::procedures. Preserve
-    // soundness until generation identities are carried end to end.
-    for qname in &module.redefined_procedures {
-        let opaque = GlobalWriteInfo {
-            names: BTreeSet::new(),
-            opaque_global_frame: true,
-        };
-        for key in registered_keys(qname) {
-            own.entry(key).or_default().union_from(&opaque);
-        }
-    }
-
-    // Transitive closure: monotonic union over direct-callee summaries.
-    // Bounded by the number of registered names, so an adversarial call
-    // graph still terminates.
-    //
-    // Walk the callers in sorted order too: the union itself is order-independent,
-    // but the `guard` bound can cut the fixpoint short on an adversarial graph, and
-    // a truncated result must at least be the *same* truncated result every run.
-    let mut callers: Vec<String> = direct_calls.keys().cloned().collect();
-    callers.sort();
-    let mut changed = true;
-    let mut guard = 0usize;
-    while changed && guard <= own.len() {
-        changed = false;
-        guard += 1;
-        let snapshot = own.clone();
-        for caller in &callers {
-            let Some(callee_names) = direct_calls.get(caller) else {
-                continue;
-            };
-            let Some(target_summary) = own.get_mut(caller) else {
-                continue;
-            };
-            for callee in callee_names {
-                let Some(source_summary) = snapshot.get(callee) else {
-                    // A terminal recovered procedure can be present in the
-                    // binding lattice without a retained Module::procedures
-                    // body. It is not an effect-free call.
-                    target_summary.opaque_global_frame = true;
-                    continue;
-                };
-                // An opaque global-frame script is transitive the same way
-                // the names are: a caller of `setter` clobbers whatever
-                // `setter`'s `uplevel #0 $body` clobbers.
-                changed |= target_summary.union_from(source_summary);
-            }
-        }
-    }
-
-    // Publish every statically enumerable source spelling into the same
-    // summary map the CFG builder consumes.  A procedure body can have been
-    // lowered before a later `interp alias`/`rename` establishes the spelling,
-    // so its `Statement::Call` may not carry a lower-time canonical target.
-    // Keeping this projection here makes direct and embedded call sites share
-    // the module-wide may-binding result instead of re-deriving alias facts.
-    let closed = own.clone();
-    for binding_key in aliases.source_spellings() {
-        let mut projected = own.get(&binding_key).cloned().unwrap_or_default();
-        for target in aliases.targets(&binding_key, "::") {
-            if let Some(summary) = closed.get(&target.command) {
-                projected.union_from(summary);
-            } else if !target.registry_backed {
-                projected.opaque_global_frame = true;
-            }
-        }
-        projected.opaque_global_frame |=
-            aliases.target_resolution_may_be_unknown(&binding_key, "::");
-        if projected.is_empty() {
-            continue;
-        }
-        for key in registered_keys(&binding_key) {
-            own.entry(key).or_default().union_from(&projected);
-        }
-    }
-
-    own
+) -> HashMap<crate::ir::ProcedureId, GlobalWriteInfo> {
+    detect_global_write_bodies_with_registry(module, registry)
 }
 
 /// What `body`, run in a frame of its own whose commands resolve in
 /// `namespace` — a lambda's body, as `apply` runs it — writes in the global
 /// frame: what a procedure body's summary states of its own statements
 /// ([`own_body_global_writes`]), unioned with the summary of each procedure it
-/// calls (`procedures`, the map [`detect_global_write_procs_with_bindings`]
+/// calls (`procedures`, the map [`detect_global_write_procs_with_registry`]
 /// builds), a called procedure the map does not hold making it opaque, as a
 /// procedure's transitive closure does.
 pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
@@ -501,7 +344,8 @@ pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
     registry: &'a tcl_registry::CommandRegistry,
     aliases: &'a ModuleCommandBindings,
     namespace: &str,
-    procedures: &HashMap<String, GlobalWriteInfo>,
+    procedures: &HashMap<crate::ir::ProcedureId, GlobalWriteInfo>,
+    owners: &super::OriginalProcedureSummaryOwners,
     metadata: Option<InvocationMetadataContext<'a>>,
     config: tcl_lexer::LexerConfig,
 ) -> GlobalWriteInfo {
@@ -529,7 +373,7 @@ pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
         config,
         input: metadata.source_analysis_input(),
     };
-    frame_global_writes(body, &semantics, namespace, procedures)
+    frame_global_writes(body, &semantics, namespace, procedures, owners)
 }
 
 /// Explicit source-only catalogue compatibility. An unprofiled catalogue has
@@ -539,7 +383,8 @@ pub(crate) fn own_frame_global_writes_standalone(
     registry: &tcl_registry::CommandRegistry,
     aliases: &ModuleCommandBindings,
     namespace: &str,
-    procedures: &HashMap<String, GlobalWriteInfo>,
+    procedures: &HashMap<crate::ir::ProcedureId, GlobalWriteInfo>,
+    owners: &super::OriginalProcedureSummaryOwners,
     config: tcl_lexer::LexerConfig,
 ) -> GlobalWriteInfo {
     let semantics = GlobalWriteSemantics {
@@ -553,17 +398,18 @@ pub(crate) fn own_frame_global_writes_standalone(
         config,
         input: None,
     };
-    frame_global_writes(body, &semantics, namespace, procedures)
+    frame_global_writes(body, &semantics, namespace, procedures, owners)
 }
 
 fn frame_global_writes(
     body: &Script,
     semantics: &GlobalWriteSemantics<'_>,
     namespace: &str,
-    procedures: &HashMap<String, GlobalWriteInfo>,
+    procedures: &HashMap<crate::ir::ProcedureId, GlobalWriteInfo>,
+    owners: &super::OriginalProcedureSummaryOwners,
 ) -> GlobalWriteInfo {
     let mut info = own_body_global_writes(body, semantics, namespace);
-    let (calls, calls_opaque) = direct_call_targets(body, semantics, namespace);
+    let (calls, calls_opaque) = direct_call_targets(body, owners, semantics.registry);
     info.opaque_global_frame |= calls_opaque;
     for callee in calls {
         match procedures.get(&callee) {
@@ -574,14 +420,6 @@ fn frame_global_writes(
         }
     }
     info
-}
-
-/// Every call-site spelling of `qname`, from the one helper
-/// [`super::detect_upvar_procs`] and [`super::prepare_cfg_context`] also
-/// use — the three maps are looked up by the same key at the same call
-/// site, so they must agree on what keys exist.
-fn registered_keys(qname: &str) -> Vec<String> {
-    super::qualified_lookup_keys(qname)
 }
 
 /// Pass 1: union every `global` / `variable` declaration in `body` into one
@@ -1312,146 +1150,98 @@ fn project_script_writes(
     }
 }
 
-/// Direct-call targets in `body` — the command name of every
-/// direct statement and evaluated `[…]` substitution, recursed into every
-/// nested body. Used to build the call graph for the transitive-closure step;
-/// resolution against `module.procedures` (qualified vs. short name) happens
-/// at the lookup site in [`detect_global_write_procs`].
-fn direct_call_targets(
+/// Original issued callees in direct statements, substitutions and nested bodies.
+/// Incomplete source receipts leave an opaque edge in the summary graph.
+pub(super) fn direct_call_targets(
     body: &Script,
-    semantics: &GlobalWriteSemantics<'_>,
-    namespace: &str,
-) -> (BTreeSet<String>, bool) {
+    owners: &super::OriginalProcedureSummaryOwners,
+    registry: &tcl_registry::CommandRegistry,
+) -> (BTreeSet<crate::ir::ProcedureId>, bool) {
     let mut calls = BTreeSet::new();
     let mut opaque = false;
-    collect_direct_calls(
-        body,
-        semantics,
-        &crate::ir_helpers::ExecutionNamespace::exact(namespace),
-        &mut calls,
-        &mut opaque,
-        0,
-    );
-    (calls, opaque)
-}
-
-fn collect_direct_calls(
-    script: &Script,
-    semantics: &GlobalWriteSemantics<'_>,
-    namespace: &crate::ir_helpers::ExecutionNamespace,
-    calls: &mut BTreeSet<String>,
-    opaque: &mut bool,
-    depth: u32,
-) {
-    let aliases = semantics.aliases;
-    fn collect_resolved_head(
-        head: &str,
-        command_namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
-        aliases: &ModuleCommandBindings,
-        calls: &mut BTreeSet<String>,
-        opaque: &mut bool,
-    ) {
-        // Publish only terminal identities selected by the shared binding
-        // lattice.  Retaining the raw short spelling as well can accidentally
-        // attach a sibling namespace's same-tailed procedure summary after an
-        // enclosing `uplevel` selected a different frame.
-        calls.extend(
-            aliases
-                .targets(head, command_namespace)
-                .into_iter()
-                // Registry-backed effects are projected directly from their
-                // descriptors. Only user procedures participate in the
-                // procedure-summary call graph; treating every builtin as a
-                // missing procedure body makes ordinary calls spuriously
-                // opaque.
-                .filter(|target| !target.registry_backed)
-                .map(|target| target.command),
-        );
-        *opaque |= aliases.target_resolution_may_be_unknown(head, command_namespace);
-    }
-
-    if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
-        *opaque = true;
-        return;
-    }
-    for stmt in &script.statements {
-        if let Statement::Call {
-            command, tokens, ..
-        }
-        | Statement::Barrier {
-            command, tokens, ..
-        } = stmt
-        {
-            let command_namespace = namespace.for_head_context(command);
-            match tokens.as_ref() {
-                Some(tokens) if tokens.synthetic.is_some() => {}
-                Some(tokens) => match tokens
-                    .words()
-                    .first()
-                    .map(|head| crate::registry_invocation::invocation_word(head))
-                {
-                    Some(tcl_registry::InvocationWord::Literal(_)) | None => {
-                        let Some(command_namespace) = command_namespace else {
-                            *opaque = true;
-                            continue;
-                        };
-                        collect_resolved_head(
-                            command,
-                            command_namespace.as_ref(),
-                            aliases,
-                            calls,
-                            opaque,
-                        );
-                    }
-                    Some(_) => *opaque = true,
-                },
-                None => {
-                    let Some(command_namespace) = command_namespace else {
-                        *opaque = true;
-                        continue;
-                    };
-                    collect_resolved_head(
-                        command,
-                        command_namespace.as_ref(),
-                        aliases,
-                        calls,
-                        opaque,
-                    );
+    let mut pending = vec![body];
+    while let Some(script) = pending.pop() {
+        for statement in &script.statements {
+            pending.extend(statement.child_scripts());
+            let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
+                if statement.is_executable_invocation() {
+                    opaque = true;
+                }
+                continue;
+            };
+            if statement.is_executable_invocation() {
+                match owners.calls(tokens, registry) {
+                    Some(selected) => calls.extend(selected.into_iter().map(|(id, _)| id)),
+                    None => opaque = true,
                 }
             }
-        }
-        let embedded = source_substitutions(stmt, semantics, namespace);
-        *opaque |= embedded.opaque;
-        for words in embedded.all_commands() {
-            let Some(head) = words.first() else {
-                continue;
-            };
-            let Some(head_name) = head.literal() else {
-                *opaque = true;
-                continue;
-            };
-            let Some(command_namespace) = namespace.for_head_context(head_name) else {
-                *opaque = true;
-                continue;
-            };
-            collect_resolved_head(
-                head_name,
-                command_namespace.as_ref(),
-                aliases,
-                calls,
-                opaque,
-            );
-        }
-        for (body, body_namespace) in crate::ir_helpers::nested_execution_bodies(stmt, namespace) {
-            collect_direct_calls(body, semantics, &body_namespace, calls, opaque, depth + 1);
+            match owners.children(tokens, registry) {
+                Some(children) => {
+                    for child in children {
+                        match owners.calls(&child, registry) {
+                            Some(selected) => calls.extend(selected.into_iter().map(|(id, _)| id)),
+                            None => opaque = true,
+                        }
+                    }
+                }
+                None if tokens
+                    .words()
+                    .iter()
+                    .any(|word| word.legacy_text().contains('[')) =>
+                {
+                    opaque = true
+                }
+                None => {}
+            }
         }
     }
+    (calls, opaque)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tcl_registry::{ArgRole, CommandRegistry, CommandSpec, StateTransitionDescriptor};
+    fn summary_id(module: &Module, label: &str) -> crate::ir::ProcedureId {
+        let mut matching: Vec<_> = module
+            .procedures
+            .iter()
+            .filter(|(_, procedure)| procedure.qualified_name == label || procedure.name == label)
+            .map(|(id, _)| *id)
+            .collect();
+        if matching.is_empty() {
+            let registry = module.resolved_registry();
+            let owners = super::super::OriginalProcedureSummaryOwners::for_module(module, registry);
+            for script in std::iter::once(&module.top_level)
+                .chain(module.procedures.values().map(|procedure| &procedure.body))
+            {
+                for statement in &script.statements {
+                    let Some(tokens) = script.retained_source_tokens_for_statement(statement)
+                    else {
+                        continue;
+                    };
+                    if super::super::summary_candidates::original_head(tokens).as_deref()
+                        == Some(label)
+                    {
+                        for (id, _) in owners
+                            .calls(tokens, registry)
+                            .expect("original fixture call is closed")
+                        {
+                            if !matching.contains(&id) {
+                                matching.push(id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            matching.len(),
+            1,
+            "authored fixture summary {label:?} must identify one body"
+        );
+        matching[0]
+    }
 
     fn module(src: &str) -> Module {
         module_with_registry(src, &CommandRegistry::build_default())
@@ -1471,12 +1261,9 @@ mod tests {
             std::sync::Arc::new(context),
             config,
         );
-        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+        let lowerer = crate::lowering::Lowerer::with_config(registry, config)
             .with_dialect(Some(profile))
-            .with_context_registry(input.context_registry());
-        lowerer.set_source_analysis_options(
-            crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
-        );
+            .with_resolved_analysis_input(input);
         crate::lowering::lower_to_ir_with(lowerer, src)
     }
 
@@ -1496,6 +1283,7 @@ mod tests {
             &bindings,
             "::",
             &procedures,
+            &super::super::OriginalProcedureSummaryOwners::for_module(&module, &registry),
             module.lexer_config,
         );
         assert!(compatible.names.contains("::standalone"));
@@ -1506,6 +1294,7 @@ mod tests {
             &bindings,
             "::",
             &procedures,
+            &super::super::OriginalProcedureSummaryOwners::for_module(&module, &registry),
             None,
             module.lexer_config,
         );
@@ -1519,6 +1308,7 @@ mod tests {
             &bindings,
             "::",
             &procedures,
+            &super::super::OriginalProcedureSummaryOwners::for_module(&module, &registry),
             Some(foreign.as_ref().into()),
             module.lexer_config,
         );
@@ -1557,7 +1347,9 @@ mod tests {
             let module = module_with_registry(source, &registry);
             let information = detect_global_write_procs_with_registry(&module, &registry);
             assert!(
-                information["::p"].names.contains(expected),
+                information[&summary_id(&module, "::p")]
+                    .names
+                    .contains(expected),
                 "{source}: {information:?}"
             );
         }
@@ -1567,7 +1359,8 @@ mod tests {
         ] {
             let module = module_with_registry(source, &registry);
             assert!(
-                !detect_global_write_procs_with_registry(&module, &registry)["::p"]
+                !detect_global_write_procs_with_registry(&module, &registry)
+                    [&summary_id(&module, "::p")]
                     .names
                     .contains("hidden")
             );
@@ -1581,14 +1374,17 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let module = module_with_registry("proc p {} {uplevel #0 {set g VALUE}}", &registry);
         assert!(
-            detect_global_write_procs_with_registry(&module, &registry)["::p"]
+            detect_global_write_procs_with_registry(&module, &registry)
+                [&summary_id(&module, "::p")]
                 .names
                 .contains("g")
         );
         let mut missing = module.clone();
         missing.source_metadata_input = None;
         assert!(
-            detect_global_write_procs_with_registry(&missing, &registry)["::p"].opaque_global_frame
+            detect_global_write_procs_with_registry(&missing, &registry)
+                [&summary_id(&missing, "::p")]
+                .opaque_global_frame
         );
         let mut foreign = module.clone();
         let input = module.source_metadata_input.as_ref().unwrap();
@@ -1599,12 +1395,15 @@ mod tests {
             input.lexer_config(),
         ));
         assert!(
-            detect_global_write_procs_with_registry(&foreign, &registry)["::p"].opaque_global_frame
+            detect_global_write_procs_with_registry(&foreign, &registry)
+                [&summary_id(&foreign, "::p")]
+                .opaque_global_frame
         );
         let mut stale = module;
         stale.lexer_config.expand_syntax = !stale.lexer_config.expand_syntax;
         assert!(
-            detect_global_write_procs_with_registry(&stale, &registry)["::p"].opaque_global_frame
+            detect_global_write_procs_with_registry(&stale, &registry)[&summary_id(&stale, "::p")]
+                .opaque_global_frame
         );
     }
 
@@ -1664,7 +1463,7 @@ mod tests {
             "proc mutate {} {global g; set g VALUE; return 0}; proc p {} {return [expr {[mutate]}]}",
         );
         assert!(
-            detect_global_write_procs(&module)["::p"]
+            detect_global_write_procs(&module)[&summary_id(&module, "::p")]
                 .names
                 .contains("g")
         );
@@ -1680,25 +1479,26 @@ mod tests {
     /// may-summary. A call through `run` may resolve to either definition as
     /// namespaces and aliases change, so last-writer selection is unsound.
     #[test]
-    fn short_name_collision_unions_every_qualified_summary() {
+    fn same_tailed_bodies_retain_independent_write_summaries() {
         let m = module(
             "proc ::b::run {} { global bbb; set bbb 1 }\n\
              proc ::a::run {} { global aaa; set aaa 1 }\n",
         );
         let info = detect_global_write_procs(&m);
-        assert_eq!(
-            info.get("run").expect("short key registered").names,
-            BTreeSet::from(["aaa".to_owned(), "bbb".to_owned()]),
-        );
-        assert!(info["run"].names.contains("bbb"));
-        assert!(info["run"].names.contains("aaa"));
+        let a = summary_id(&m, "::a::run");
+        let b = summary_id(&m, "::b::run");
+        assert_ne!(a, b);
+        assert_eq!(info[&a].names, BTreeSet::from(["aaa".to_owned()]));
+        assert_eq!(info[&b].names, BTreeSet::from(["bbb".to_owned()]));
+        let union: BTreeSet<_> = info[&a].names.union(&info[&b].names).cloned().collect();
+        assert_eq!(union, BTreeSet::from(["aaa".to_owned(), "bbb".to_owned()]));
     }
 
     #[test]
     fn proc_with_no_global_write_is_empty() {
         let m = module("proc ::p {} { set x 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().is_empty());
+        assert!(info.get(&summary_id(&m, "::p")).unwrap().is_empty());
     }
 
     #[test]
@@ -1706,34 +1506,71 @@ mod tests {
         // The `mutate` repro: global x; set x 99.
         let m = module("proc ::mutate {} { global x; set x 99 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::mutate").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::mutate"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
         // Registered under both the qualified and short forms.
-        assert!(info.get("mutate").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "mutate"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
     fn variable_namespace_write_recorded() {
         let m = module("proc ::ns::p {} { variable v; set v 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::ns::p").unwrap().names.contains("v"));
+        assert!(
+            info.get(&summary_id(&m, "::ns::p"))
+                .unwrap()
+                .names
+                .contains("v")
+        );
     }
 
     #[test]
     fn upvar_hash_zero_counts_as_global() {
         let m = module("proc ::p {} { upvar #0 g local; set local 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("g"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("g")
+        );
         // Not the local alias name — recording "local" would be a no-op at
         // the caller (no such caller-frame variable), missing the real "g".
-        assert!(!info.get("::p").unwrap().names.contains("local"));
+        assert!(
+            !info
+                .get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("local")
+        );
     }
 
     #[test]
     fn namespace_upvar_rename_resolves_to_outer_name() {
         let m = module("proc ::ns::p {} { namespace upvar ::ns nsvar localvar\nset localvar 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::ns::p").unwrap().names.contains("nsvar"));
-        assert!(!info.get("::ns::p").unwrap().names.contains("localvar"));
+        assert!(
+            info.get(&summary_id(&m, "::ns::p"))
+                .unwrap()
+                .names
+                .contains("nsvar")
+        );
+        assert!(
+            !info
+                .get(&summary_id(&m, "::ns::p"))
+                .unwrap()
+                .names
+                .contains("localvar")
+        );
     }
 
     #[test]
@@ -1741,7 +1578,7 @@ mod tests {
         let m = module("proc ::p {c} { if {$c} { upvar #0 a x } else { upvar #0 b x }; set x 1 }");
         let info = detect_global_write_procs(&m);
         assert_eq!(
-            info["::p"].names,
+            info[&summary_id(&m, "::p")].names,
             BTreeSet::from(["a".to_owned(), "b".to_owned()])
         );
     }
@@ -1750,14 +1587,22 @@ mod tests {
     fn dynamic_outer_alias_target_widens_the_global_frame() {
         let m = module("proc ::p {name} { upvar #0 $name x; set x 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame, "got {:?}", info["::p"]);
+        assert!(
+            info[&summary_id(&m, "::p")].opaque_global_frame,
+            "got {:?}",
+            info[&summary_id(&m, "::p")]
+        );
     }
 
     #[test]
     fn dynamic_namespace_alias_target_widens_the_global_frame() {
         let m = module("proc ::p {ns} { namespace upvar $ns x local; set local 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame, "got {:?}", info["::p"]);
+        assert!(
+            info[&summary_id(&m, "::p")].opaque_global_frame,
+            "got {:?}",
+            info[&summary_id(&m, "::p")]
+        );
     }
 
     #[test]
@@ -1766,7 +1611,7 @@ mod tests {
         // must not be treated as an outer-scope write.
         let m = module("proc ::p {} { upvar 1 caller_x local; set local 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().is_empty());
+        assert!(info.get(&summary_id(&m, "::p")).unwrap().is_empty());
     }
 
     #[test]
@@ -1774,9 +1619,9 @@ mod tests {
         let m = module("proc ::p {} { global x; puts $x }");
         let info = detect_global_write_procs(&m);
         assert!(
-            info.get("::p").unwrap().is_empty(),
+            info.get(&summary_id(&m, "::p")).unwrap().is_empty(),
             "read-only declaration produced effects: {:?}",
-            info.get("::p").unwrap()
+            info.get(&summary_id(&m, "::p")).unwrap()
         );
     }
 
@@ -1789,7 +1634,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1801,7 +1649,7 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::p"].is_empty());
+        assert!(info[&summary_id(&m, "::p")].is_empty());
     }
 
     #[test]
@@ -1824,7 +1672,10 @@ mod tests {
         });
         let m = module_with_registry("proc ::p {} { variable x; global x value }", &registry);
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1832,7 +1683,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry("proc ::p {} { variable x }", &registry);
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::p"].is_empty());
+        assert!(info[&summary_id(&m, "::p")].is_empty());
     }
 
     #[test]
@@ -1840,7 +1691,10 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry("proc ::p {} { variable x 1 }", &registry);
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1848,7 +1702,10 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry("proc ::p {} { variable x 1 y }", &registry);
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1860,7 +1717,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1872,7 +1732,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1883,7 +1746,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1898,7 +1764,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1910,7 +1779,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::n::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::n::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1922,7 +1794,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1934,7 +1809,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1945,7 +1823,7 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::p"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -1958,7 +1836,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::outer"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::outer")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1971,8 +1852,14 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["call_mutate"].names, BTreeSet::from(["x".to_owned()]));
-        assert_eq!(info["::outer"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "call_mutate")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert_eq!(
+            info[&summary_id(&m, "::outer")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -1986,8 +1873,14 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["call_mutate"].names, BTreeSet::from(["x".to_owned()]));
-        assert_eq!(info["::outer"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "call_mutate")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert_eq!(
+            info[&summary_id(&m, "::outer")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2001,13 +1894,19 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
         // Summaries deliberately use the module-wide may-state: `g` was a live
         // binding at one executable point, so a stored body calling it remains
         // conservative even though this particular definition follows the
         // rename. Lifetime-sensitive procedure reachability is not encoded in
         // the summary key.
-        assert_eq!(info["::old_name"].names, BTreeSet::from(["y".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::old_name")].names,
+            BTreeSet::from(["y".to_owned()])
+        );
     }
 
     #[test]
@@ -2021,7 +1920,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2032,8 +1934,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["g".to_owned()]));
-        assert!(!info["::p"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["g".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -2045,8 +1950,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["g".to_owned()]));
-        assert!(!info["::p"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["g".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -2057,8 +1965,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
-        assert!(!info["::p"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -2071,7 +1982,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::n::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::n::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2084,7 +1998,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2099,7 +2016,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::n::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::n::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2114,7 +2034,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2126,7 +2049,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2138,7 +2064,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2150,7 +2079,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2167,7 +2099,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2176,7 +2111,12 @@ mod tests {
         // an `if` still counts even though it may not always execute.
         let m = module("proc ::p {} { global x\nif {$c} { set x 1 } }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
@@ -2184,21 +2124,31 @@ mod tests {
         // Flow-insensitive union: order within the body doesn't matter.
         let m = module("proc ::p {} { set x 1\nglobal x }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
     fn embedded_incr_in_command_substitution_recorded() {
         let m = module("proc ::p {} { global x\nset y [incr x] }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
     fn expanded_global_write_target_widens_the_global_frame() {
         let m = module("proc ::p {names} { global {*}$names; set x 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -2208,7 +2158,7 @@ mod tests {
              proc ::outer {} { set result \"value=[mutate]\" }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::outer"].names.contains("x"));
+        assert!(info[&summary_id(&m, "::outer")].names.contains("x"));
     }
 
     #[test]
@@ -2220,7 +2170,7 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::caller"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::caller")].opaque_global_frame);
     }
 
     #[test]
@@ -2234,8 +2184,8 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::p"].opaque_global_frame);
-        assert!(info["::caller"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::caller")].opaque_global_frame);
     }
 
     #[test]
@@ -2245,7 +2195,7 @@ mod tests {
              proc ::outer {} { return [mutate] }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::outer"].names.contains("x"));
+        assert!(info[&summary_id(&m, "::outer")].names.contains("x"));
     }
 
     #[test]
@@ -2256,8 +2206,8 @@ mod tests {
              proc ::expr_eval {} { expr {[mutate] + 1} }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::assign_expr"].names.contains("x"));
-        assert!(info["::expr_eval"].names.contains("x"));
+        assert!(info[&summary_id(&m, "::assign_expr")].names.contains("x"));
+        assert!(info[&summary_id(&m, "::expr_eval")].names.contains("x"));
     }
 
     #[test]
@@ -2268,8 +2218,8 @@ mod tests {
              proc ::loop {} { while {[mutate]} { break } }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::conditional"].names.contains("x"));
-        assert!(info["::loop"].names.contains("x"));
+        assert!(info[&summary_id(&m, "::conditional")].names.contains("x"));
+        assert!(info[&summary_id(&m, "::loop")].names.contains("x"));
     }
 
     #[test]
@@ -2284,7 +2234,7 @@ mod tests {
              outer {interp alias {} late {} mutate}",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::outer"].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::outer")].opaque_global_frame);
     }
 
     #[test]
@@ -2293,7 +2243,12 @@ mod tests {
         // summary must include `x` too (transitive).
         let m = module("proc ::mutate {} { global x; set x 99 }\nproc ::outer {} { mutate }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::outer").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::outer"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
@@ -2302,15 +2257,30 @@ mod tests {
             "proc ::p {n} { if {$n == 0} { return }\n global x\n incr x\n p [expr {$n-1}] }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
     fn mutually_recursive_procs_share_the_write() {
         let m = module("proc ::a {} { global x; set x 1; b }\nproc ::b {} { a }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::a").unwrap().names.contains("x"));
-        assert!(info.get("::b").unwrap().names.contains("x"));
+        assert!(
+            info.get(&summary_id(&m, "::a"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
+        assert!(
+            info.get(&summary_id(&m, "::b"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
     }
 
     #[test]
@@ -2320,8 +2290,18 @@ mod tests {
         // really is 99 afterwards).
         let m = module("proc ::setter {} { uplevel #0 { set x 99 } }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::setter").unwrap().names.contains("x"));
-        assert!(!info.get("::setter").unwrap().opaque_global_frame);
+        assert!(
+            info.get(&summary_id(&m, "::setter"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
+        assert!(
+            !info
+                .get(&summary_id(&m, "::setter"))
+                .unwrap()
+                .opaque_global_frame
+        );
     }
 
     #[test]
@@ -2337,8 +2317,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::setter"].names, BTreeSet::from(["x".to_owned()]));
-        assert!(!info["::setter"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::setter")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -2354,8 +2337,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::setter"].names, BTreeSet::from(["x".to_owned()]));
-        assert!(!info["::setter"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::setter")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -2364,8 +2350,14 @@ mod tests {
         // returning to the defining procedure's frame.
         let m = module("proc ::setter {} { uplevel #0 { uplevel 0 { ::set g 1 } } }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::setter"].names.contains("g"), "got {info:?}");
-        assert!(!info["::setter"].opaque_global_frame, "got {info:?}");
+        assert!(
+            info[&summary_id(&m, "::setter")].names.contains("g"),
+            "got {info:?}"
+        );
+        assert!(
+            !info[&summary_id(&m, "::setter")].opaque_global_frame,
+            "got {info:?}"
+        );
     }
 
     #[test]
@@ -2377,8 +2369,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::setter"].names, BTreeSet::from(["g".to_owned()]));
-        assert!(!info["::setter"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::setter")].names,
+            BTreeSet::from(["g".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -2390,8 +2385,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::setter"].names, BTreeSet::from(["g".to_owned()]));
-        assert!(!info["::setter"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::setter")].names,
+            BTreeSet::from(["g".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -2406,12 +2404,18 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info["::n::setter"].names.contains("global_hit"));
         assert!(
-            !info["::n::setter"].names.contains("namespaced_hit"),
+            info[&summary_id(&m, "::n::setter")]
+                .names
+                .contains("global_hit")
+        );
+        assert!(
+            !info[&summary_id(&m, "::n::setter")]
+                .names
+                .contains("namespaced_hit"),
             "a transparent block must not restore its lowering-time namespace: {info:?}"
         );
-        assert!(!info["::n::setter"].opaque_global_frame);
+        assert!(!info[&summary_id(&m, "::n::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -2427,11 +2431,11 @@ mod tests {
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
         assert_eq!(
-            info["::n::setter"].names,
+            info[&summary_id(&m, "::n::setter")].names,
             BTreeSet::from(["x".to_owned()]),
             "a transparent Block inherits the selected global command namespace"
         );
-        assert!(!info["::n::setter"].opaque_global_frame);
+        assert!(!info[&summary_id(&m, "::n::setter")].opaque_global_frame);
     }
 
     #[test]
@@ -2439,16 +2443,26 @@ mod tests {
         // `uplevel #0 [list set k 77]` — tclsh 9.0.4: the global `k` is 77.
         let m = module("proc ::s3 {} { uplevel #0 [list set k 77] }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::s3").unwrap().names.contains("k"));
-        assert!(!info.get("::s3").unwrap().opaque_global_frame);
+        assert!(
+            info.get(&summary_id(&m, "::s3"))
+                .unwrap()
+                .names
+                .contains("k")
+        );
+        assert!(
+            !info
+                .get(&summary_id(&m, "::s3"))
+                .unwrap()
+                .opaque_global_frame
+        );
     }
 
     #[test]
     fn constructed_global_body_with_dynamic_operand_is_opaque() {
         let m = module("proc ::p {name} { uplevel #0 [list set $name 1] }");
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame);
-        assert!(info["::p"].names.is_empty());
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].names.is_empty());
     }
 
     #[test]
@@ -2458,8 +2472,8 @@ mod tests {
              proc ::p {} { uplevel #0 [list set claimed 1] }",
         );
         let info = detect_global_write_procs(&m);
-        assert!(info["::p"].opaque_global_frame);
-        assert!(info["::p"].names.is_empty());
+        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
+        assert!(info[&summary_id(&m, "::p")].names.is_empty());
     }
 
     #[test]
@@ -2471,8 +2485,11 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::p"].names, BTreeSet::from(["x".to_owned()]));
-        assert!(!info["::p"].opaque_global_frame);
+        assert_eq!(
+            info[&summary_id(&m, "::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
+        assert!(!info[&summary_id(&m, "::p")].opaque_global_frame);
     }
 
     #[test]
@@ -2485,7 +2502,10 @@ mod tests {
             &registry,
         );
         let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert_eq!(info["::n::p"].names, BTreeSet::from(["x".to_owned()]));
+        assert_eq!(
+            info[&summary_id(&m, "::n::p")].names,
+            BTreeSet::from(["x".to_owned()])
+        );
     }
 
     #[test]
@@ -2493,15 +2513,23 @@ mod tests {
         // `uplevel #0 $body` — any global may be written or read.
         let m = module("proc ::s2 {body} { uplevel #0 $body }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::s2").unwrap().opaque_global_frame);
-        assert!(!info.get("::s2").unwrap().is_empty());
+        assert!(
+            info.get(&summary_id(&m, "::s2"))
+                .unwrap()
+                .opaque_global_frame
+        );
+        assert!(!info.get(&summary_id(&m, "::s2")).unwrap().is_empty());
     }
 
     #[test]
     fn uplevel_hash_zero_opaqueness_is_transitive() {
         let m = module("proc ::s2 {body} { uplevel #0 $body }\nproc ::outer {body} { s2 $body }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::outer").unwrap().opaque_global_frame);
+        assert!(
+            info.get(&summary_id(&m, "::outer"))
+                .unwrap()
+                .opaque_global_frame
+        );
     }
 
     #[test]
@@ -2510,7 +2538,7 @@ mod tests {
         // [list puts hi]`) contributes neither names nor opaqueness.
         let m = module("proc ::shout {} { uplevel #0 [list puts hi] }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::shout").unwrap().is_empty());
+        assert!(info.get(&summary_id(&m, "::shout")).unwrap().is_empty());
     }
 
     #[test]
@@ -2521,7 +2549,7 @@ mod tests {
         // writing procedure and must therefore widen this summary.
         let m = module("proc ::p {} { uplevel 1 { ::set n 1 } }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().is_empty());
+        assert!(info.get(&summary_id(&m, "::p")).unwrap().is_empty());
     }
 
     #[test]
@@ -2530,7 +2558,11 @@ mod tests {
         // name is not.
         let m = module("proc ::p {n} { uplevel #0 \"set $n 1\" }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().opaque_global_frame);
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .opaque_global_frame
+        );
     }
 
     #[test]
@@ -2538,7 +2570,18 @@ mod tests {
         let m =
             module("proc ::mutate_y {} { global y; set y 1 }\nproc ::p {} { global x; set x 1 }");
         let info = detect_global_write_procs(&m);
-        assert!(info.get("::p").unwrap().names.contains("x"));
-        assert!(!info.get("::p").unwrap().names.contains("y"));
+        assert!(
+            info.get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("x")
+        );
+        assert!(
+            !info
+                .get(&summary_id(&m, "::p"))
+                .unwrap()
+                .names
+                .contains("y")
+        );
     }
 }

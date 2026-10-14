@@ -1,0 +1,85 @@
+--- a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+@@ -5409,6 +5409,7 @@
+                             req.proc_params.clone(),
+                             req.global_write_procs.clone(),
+                             req.command_bindings.clone(),
++                            req.procedure_summary_owners.clone(),
+                         ),
+                         tcl_lexer::LexerConfig::default(),
+                     );
+@@ -5529,6 +5530,7 @@
+                         req.proc_params.clone(),
+                         req.global_write_procs.clone(),
+                         req.command_bindings.clone(),
++                        req.procedure_summary_owners.clone(),
+                     ),
+                     tcl_lexer::LexerConfig::default(),
+                 );
+--- a/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
+@@ -1204,6 +1204,7 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use tcl_registry::{ArgRole, CommandRegistry, CommandSpec, StateTransitionDescriptor};
+     fn summary_id(module: &Module, label: &str) -> crate::ir::ProcedureId {
+         let mut matching: Vec<_> = module
+             .procedures
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -1482,7 +1482,6 @@
+     fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
+         let Statement::Call {
+             command,
+-            canonical_command,
+             span,
+             tokens,
+             ..
+--- a/rust/tcl-compiler/src/cfg_builder/upvar_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/upvar_info.rs
+@@ -2612,12 +2612,9 @@
+             &input,
+         )
+         .ir_module;
++        let body_id = crate::test_body_identity::fixture_id(&module.procedures, "::helper");
+         let selected = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+-        assert!(
+-            selected["::helper"]
+-                .uplevel_literal_writes
+-                .contains("target")
+-        );
++        assert!(selected[&body_id].uplevel_literal_writes.contains("target"));
+         let original = module.source_metadata_input.as_ref().unwrap().clone();
+         let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+             .with_command_store(std::sync::Arc::clone(registry));
+@@ -2633,12 +2630,12 @@
+             ));
+             let unavailable =
+                 crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+-            assert!(unavailable["::helper"].caller_frame_opaque_writes);
++            assert!(unavailable[&body_id].caller_frame_opaque_writes);
+         }
+         module.source_metadata_input = None;
+         let missing = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+-        assert!(missing["::helper"].caller_frame_opaque_writes);
+-        assert!(missing["::helper"].caller_frame_opaque_reads);
+-        assert!(!missing["::helper"].is_empty());
+-    }
+-}
++        assert!(missing[&body_id].caller_frame_opaque_writes);
++        assert!(missing[&body_id].caller_frame_opaque_reads);
++        assert!(!missing[&body_id].is_empty());
++    }
++}
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -2716,7 +2716,7 @@
+ /// ([`crate::interprocedural::ModuleProcedures`]), over the unit's lowering,
+ /// its prepared frame and global-write facts, and its command trust.
+ fn module_procedures<'a>(
+-    (ir_module, cfg_module, prepared): (&'a IrModule, &'a CfgModule, &'a PreparedCfgContext),
++    (ir_module, cfg_module, _prepared): (&'a IrModule, &'a CfgModule, &'a PreparedCfgContext),
+     (mutations, projection): (
+         &'a crate::command_binding::ModuleCommandMutations,
+         &'a crate::command_binding::ProcBindingTrustProjection,

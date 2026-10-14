@@ -1306,7 +1306,6 @@ fn build_method_summaries(
             scan_method_body_facts(
                 body_def,
                 MethodScan {
-                    mqname: &mqname,
                     method_known: &method_known,
                     registry,
                     dialect,
@@ -1414,7 +1413,6 @@ fn build_method_summaries(
 /// body, so the summary joins over every body a dispatch may run.
 #[derive(Clone, Copy)]
 struct MethodScan<'a> {
-    mqname: &'a str,
     method_known: &'a HashSet<ProcedureId>,
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
@@ -1433,7 +1431,6 @@ fn scan_method_body_facts(
     written_ivars: &mut HashSet<String>,
 ) {
     let MethodScan {
-        mqname,
         method_known,
         registry,
         dialect,
@@ -1460,7 +1457,6 @@ fn scan_method_body_facts(
         facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
     }
     let ctx = ScanCtx {
-        caller: mqname,
         known: method_known,
         registry,
         dialect,
@@ -1780,11 +1776,9 @@ fn scan_all_procs(
             .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
     let mut local: HashMap<ProcedureId, LocalFacts> = HashMap::with_capacity(known.len());
     for (id, proc) in ir_module.procedures.iter() {
-        let qname = proc.qualified_name.as_str();
         local.insert(
             *id,
             scan_proc(ProcScan {
-                qname,
                 proc,
                 known,
                 registry,
@@ -1805,7 +1799,6 @@ fn scan_all_procs(
 /// signature.
 #[derive(Clone, Copy)]
 struct ProcScan<'a> {
-    qname: &'a str,
     proc: &'a crate::ir::Procedure,
     known: &'a HashSet<ProcedureId>,
     registry: &'a tcl_registry::CommandRegistry,
@@ -2149,7 +2142,6 @@ impl Default for LocalFacts {
 
 fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
     let ProcScan {
-        qname,
         proc,
         known,
         registry,
@@ -2168,7 +2160,6 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
     };
     let params: HashSet<String> = proc.params.iter().cloned().collect();
     let ctx = ScanCtx {
-        caller: qname,
         known,
         registry,
         dialect,
@@ -2207,7 +2198,6 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
 /// argument limit.
 #[derive(Clone, Copy)]
 struct ScanCtx<'a> {
-    caller: &'a str,
     known: &'a HashSet<ProcedureId>,
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
@@ -2298,9 +2288,8 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     // query below reads it, so a call through a proven `interp alias` /
     // `rename` gets the target's traits, prefixes, and effect profile, and a
     // spelling whose binding was provably taken over gets none of them.  The
-    // *written* head stays in use where the word is not a command binding at
-    // all: `resolve_internal_call` matches a procedure qname, and the
-    // instance-dispatch arm reads a `$receiver` variable out of it.
+    // The written head retains a `$receiver` variable for instance dispatch;
+    // procedure targets require their original source receipts.
     let resolved: &str = identities.resolve_unpositioned(command).spec_name();
     // Resolve internal-proc call targets first.  A command the registry marks
     // `INVOKES_USER_PROC` (the iRules `call PROC ?args?` form) invokes the
@@ -3631,28 +3620,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
                 && let Some(body_text) =
                     source.get(body_span.start() as usize..body_span.end() as usize)
             {
-                // A lambda body runs in a fresh call frame whose current
-                // namespace is the lambda's own (optional) third element, or
-                // the global namespace when omitted — never the enclosing
-                // procedure's namespace. Build a synthetic "caller" qname
-                // carrying that namespace so `resolve_internal_call` (which
-                // derives its search namespace from the caller qname's own
-                // namespace prefix) resolves bare calls inside the lambda the
-                // same way Tcl itself would, instead of relative to
-                // `ctx.caller`'s enclosing namespace: an `apply {{} {helper}}`
-                // inside `::ns::f` calls `::helper`, not `::ns::helper`.
-                let lambda_caller = match elems
-                    .namespace
-                    .and_then(|ns| source.get(ns.start() as usize..ns.end() as usize))
-                {
-                    Some(ns) => format!("{ns}::<apply>"),
-                    None => "<apply>".to_owned(),
-                };
-                let lambda_ctx = ScanCtx {
-                    caller: &lambda_caller,
-                    ..ctx
-                };
-                scan_source_for_calls(body_text, lambda_ctx, facts, depth + 1);
+                scan_source_for_calls(body_text, ctx, facts, depth + 1);
             }
         }
         // Recurse into EXPR-role args. `expr {…}` (and the registry's other
@@ -4957,7 +4925,6 @@ mod tests {
         let source_module = crate::ir::Module::default();
         let params: HashSet<String> = ["x".to_owned()].into_iter().collect();
         let ctx = ScanCtx {
-            caller: "::top",
             known: &known,
             registry: &registry,
             dialect: None,

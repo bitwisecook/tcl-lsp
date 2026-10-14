@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.5.19",
+  "case": "2324-original-tk-computed-head",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-03/tcl8.5.19/2324-original-tk-computed-head/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:46:37.976218+00:00",
+  "exit_code": 1,
+  "source_sha256": "f14c5a32af23b17786eddaf74b65f794f9c12a86bc7ae2b6de10732ed8bc9255",
+  "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "936b6d935eda5a5eeb68cbcac1e32e127df6c1a1a0f9c5bd8c29300b3adbf16c"
+}

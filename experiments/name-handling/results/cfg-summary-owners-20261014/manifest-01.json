@@ -1,0 +1,17 @@
+{
+  "paths": [
+    "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+    "rust/tcl-compiler/src/cfg_builder/mod.rs",
+    "rust/tcl-compiler/src/cfg_builder/summary_candidates.rs",
+    "rust/tcl-compiler/src/compilation_unit.rs",
+    "rust/tcl-compiler/src/deferred_writes.rs",
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs",
+    "rust/tcl-compiler/tests/value_transfer_witnesses.rs"
+  ],
+  "patch_sha256": "438973cdb4326c7d0222e85be9eaa322b4a64435363c901263e8aaab3030e750",
+  "apply_check": {
+    "exit": 0,
+    "stderr": ""
+  },
+  "validation": "rustfmt parsing only; no Cargo or tests. Seven production/fixture owners; DB separate cfg-owners-07 patch. Known potential deferred callback future precision failures retained; no accepted behavior."
+}

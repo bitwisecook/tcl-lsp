@@ -197,6 +197,33 @@ pub(crate) fn select_navigation<'a>(
     if let Some(template) = alias_template_at_offset(source, analysis, config, offset) {
         return ControlFlow::Break(Some(NavigationVariable::Alias(Box::new(template))));
     }
+    if let Some(advice) = analysis.logical_variable_scope_advice(
+        &tcl_lexer::SourceImage::document(source),
+        config,
+        offset,
+    ) {
+        // Original variable roots retain syntax independently of Native table symbols.
+        if let Some(reference) =
+            crate::source_structure::original_variable_reference_at(source, analysis, offset)
+        {
+            return if advice.variable_definition(reference.root).is_some() {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(None)
+            };
+        }
+        if analysis
+            .original_variable_root_in_source(
+                &tcl_lexer::SourceImage::document(source),
+                config,
+                offset,
+            )
+            .is_some()
+        {
+            return ControlFlow::Break(None);
+        }
+        return ControlFlow::Continue(());
+    }
     if analysis.allows_lexical_declaration_advice() {
         return selected.map_break(|selected| selected.map(NavigationVariable::Original));
     }
@@ -440,6 +467,77 @@ pub fn hover_text(
 mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_navigation_uses_the_current_source_table_without_writable_symbol_permission() {
+        let source = "namespace eval $unknown {set local OWN; puts $local}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.rfind("$local").unwrap() + 1).unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        assert!(
+            analysis
+                .original_variable_root_in_source(
+                    &image,
+                    analysis.body_lexer_config.unwrap(),
+                    offset,
+                )
+                .is_some()
+        );
+        assert!(matches!(
+            select(source, &analysis, 0, offset),
+            ControlFlow::Break(None)
+        ));
+        assert!(matches!(
+            select_navigation(
+                source,
+                &analysis,
+                0,
+                offset,
+                crate::definition::CallResolution::document_only()
+            ),
+            ControlFlow::Continue(())
+        ));
+        assert!(matches!(
+            select(source, &analysis, 0, offset),
+            ControlFlow::Break(None)
+        ));
+        assert_eq!(
+            crate::definition::definition(source, 0, offset, &analysis).len(),
+            1
+        );
+        assert!(matches!(
+            select_navigation(
+                &(source.to_owned() + " "),
+                &analysis,
+                0,
+                offset,
+                crate::definition::CallResolution::document_only()
+            ),
+            ControlFlow::Break(None)
+        ));
+    }
+
+    #[test]
+    fn logical_navigation_refuses_a_source_reference_without_a_declaration() {
+        let source = "puts $missing";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find("$missing").unwrap() + 1).unwrap();
+        assert!(
+            crate::source_structure::original_variable_reference_at(source, &analysis, offset)
+                .is_some()
+        );
+        assert!(matches!(
+            select_navigation(
+                source,
+                &analysis,
+                0,
+                offset,
+                crate::definition::CallResolution::document_only()
+            ),
+            ControlFlow::Break(None)
+        ));
+        assert!(crate::definition::definition(source, 0, offset, &analysis).is_empty());
+    }
 
     #[test]
     fn original_alias_navigation_joins_name_templates_without_original_cell_selection() {

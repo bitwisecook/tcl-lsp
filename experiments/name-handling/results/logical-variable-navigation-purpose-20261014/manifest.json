@@ -1,0 +1,18 @@
+{
+  "patch_sha256": "331e1b1e88c1f86d040af62cd03f3e3b6185e41b6f9dd3f4b6918884168be102",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+      "before_sha256": "68a9f560418213001cce36c0060ac4c3fd8185bcdf40ad85698ce347a696fe54",
+      "after_sha256": "696f4ebaddfd2aedebd0c26b4397830b87c4974cc25ed88d95b4814089fc300e"
+    }
+  ],
+  "rust_status": "unexecuted",
+  "scope": "Readonly navigation uses positively selected Logical scope and applicable original reference instead of missing Native symbol as a terminal blocker. Writable/select paths unchanged.",
+  "tests": [
+    "definition::logical_variable_scope_owner_tests::logical_unknown_namespace_retains_body_tables_without_a_coordinate",
+    "definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table",
+    "variable_symbol::tests::logical_navigation_uses_the_current_source_table_without_writable_symbol_permission",
+    "variable_symbol::tests::logical_navigation_refuses_a_source_reference_without_a_declaration"
+  ]
+}

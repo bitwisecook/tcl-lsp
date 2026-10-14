@@ -1,0 +1,55 @@
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -3194,6 +3194,7 @@
+     detect_upvar_procs_with_registry(module, module.resolved_registry())
+ }
+ 
++/// Caller-frame facts under the Module's exact retained registry.
+ #[must_use]
+ pub fn detect_upvar_procs_with_registry(
+     module: &Module,
+--- a/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
+@@ -323,6 +323,7 @@
+     detect_global_write_procs_with_registry(module, module.resolved_registry())
+ }
+ 
++/// Outer-place MAY writes under the Module's exact retained registry.
+ #[must_use]
+ pub fn detect_global_write_procs_with_registry(
+     module: &Module,
+--- a/rust/tcl-compiler/src/cfg_builder/summary_candidates.rs
++++ b/rust/tcl-compiler/src/cfg_builder/summary_candidates.rs
+@@ -63,15 +63,25 @@
+     > {
+         let binding = tokens.source_binding.as_ref()?;
+         let module = self.module(registry);
+-        match module {
++        let metadata = match module {
+             Some(module) => {
+-                binding.original_invocation_metadata_for_module(tokens, module, registry)?;
++                binding.original_invocation_metadata_for_module(tokens, module, registry)?
+             }
+-            None => {
+-                binding
+-                    .original_source_metadata_for_advice(tokens, registry)
+-                    .ok()?;
+-            }
++            None => binding
++                .original_source_metadata_for_advice(tokens, registry)
++                .ok()??,
++        };
++        if binding.original_invocation_source_purpose(tokens, metadata, registry)?
++            == crate::command_binding::OriginalInvocationSourcePurpose::Logical
++        {
++            if crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
++                registry, metadata, tokens).is_some() { return Some(Vec::new()); }
++            return crate::registry_invocation::original_logical_procedure_calls_for_module(
++                tokens, module?, registry,
++            )?
++            .into_iter()
++            .map(|call| Some((call.id(), call.effective_arguments().clone())))
++            .collect();
+         }
+         let head = original_head(tokens)?;
+         let lookup = binding.lookup_command_word(&head);

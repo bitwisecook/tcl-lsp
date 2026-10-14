@@ -1,0 +1,101 @@
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -37,6 +37,7 @@
+ | Authored F5 configuration object paths | `rust/tcl-bigip/src/object_names.rs` | `ObjectNamePolicy`; `ObjectNameCandidates`; `object_name_candidates`; `ObjectNameCandidates::first_in_order`; `ObjectNameCandidates::first_exact_in_order_or_unique`; `ObjectNameCandidates::unique`; `owner_partition_reference_paths`; `reference_without_numeric_service`; `EmptyServiceSuffix` | literal authored slash-domain paths; caller-filtered actual configuration/module/type and input order; explicit exact, partition/Common, suffix and leaf policies; ordered selections retain duplicate exact rows without unique identity, unique fallback declines ambiguity; service suffix grammar remains purpose-specific; independent of Tcl namespace paths, C/Jim lookup and unmeasured BIG-IP execution | `xtask-owner-resolution` |
+ | incomplete variable completion source geometry | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-lsp-core/src/completion.rs` | `array_variable_completion_prefix` | editor fragment already excludes the substitution opener; preserves name/index source prefixes without stripping arbitrary braces; supplies no evaluated variable name, complete reference, cell or read proof | `xtask-owner-resolution` |
+ | Logical variable source-scope eligibility | `rust/tcl-compiler/src/analyser/scope.rs`; `rust/tcl-compiler/src/analyser/types.rs`; `rust/tcl-compiler/src/analyser/handlers.rs`; `rust/tcl-lsp-core/src/definition.rs`; `rust/tcl-lsp-core/src/completion.rs`; `rust/tcl-lsp-core/src/rename.rs` | `LogicalVariableScopeAdvice`; `AnalysisResult::logical_variable_scope_advice`; `LogicalVariableScopeAdvice::eligible_scopes`; `LogicalVariableScopeAdvice::root_names_require_qualification` | independently retained Logical input, exact whole image/channel/configuration and checked cursor; shared smallest-body descent and Registry frame-level grammar; distinct namespace/local/root/current/unknown-caller source tables; missing namespace coordinates retain only their own body tables without guessed qualification or bare root fallback; interpreter source bodies and foreign domain owners decline document-root borrowing; consumers retain table/cell selection and independent edit checks; Native/hosted bodies and original readonly aliases cannot issue this source-only selector | `xtask-owner-resolution` |
++| Original procedure summary ownership | `rust/tcl-compiler/src/cfg_builder/summary_candidates.rs`; `rust/tcl-compiler/src/cfg_builder/mod.rs`; `rust/tcl-compiler/src/compilation_unit.rs` | `OriginalProcedureSummaryOwners`; `OriginalProcedureSummaryOwners::for_module`; `CfgContext`; `PreparedCfgContext`; `PreparedCfgContext::from_source_input`; `LatticeRequest` | the fifth CFG context field retains the matching original Module and Registry; upvar, parameter and outer-write maps use issued ProcedureId coordinates; exact original call targets and effective operands select summaries, including retained child calls; missing, changed or foreign owners widen effects rather than joining display names; raw memo identity retains the Arc owner independently of certified registry-only templates; no Native entry, entered frame, committed write or completion grant | `xtask-owner-resolution` |
+ | Retained source body identity | `rust/tcl-core-types/src/body_identity.rs`; `rust/tcl-compiler/src/ir/procedure_identity.rs`; `rust/tcl-compiler/src/ir.rs`; `rust/tcl-compiler/src/source_graph.rs` | `ProcedureId`; `ProcedureIdIssuer`; `ProcedureInventory`; `Module::retain_procedure`; `Module::retain_body_unit`; `procedure_body_for_declaration` | private source_procedure_for_target and source_procedure_for_allocation select original allocating owners; module-scoped opaque body IDs retain repeated displays; clones share issuance, separate modules cannot join equal ordinals; exact allocating instruction/source/image/configuration and independently retained implementation body select originals; ordinal is presentation only, never Native lookup or entry authority | `xtask-owner-resolution` |
+ | Original source-read catalogue | `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/command_binding/source_read_scope.rs`; `rust/tcl-compiler/src/command_binding/source_transition_advice.rs`; `rust/tcl-compiler/src/realm/source_transition_advice.rs`; `rust/tcl-compiler/src/registry_invocation/declaration_flow.rs` | `SourceCommandBindings`; `OriginalSourceCommandTransitionAdvice`; `OriginalSourceCommandTransitionAdvice::matches_source`; `OriginalSourceCommandTransitionAdvice::matches_context` | private SourceReadScope, OriginalSourceCataloguePurpose and DeclarationSchemaOrigin retain completed-prefix source schemas with genuine body issuers, original argv and current Registry/context/image/configuration; they cannot override actually selected targets or issue reached runtime applicability, current stores or entered frames | `xtask-owner-resolution` |
+ | Checked namespace emission geometry | `rust/tcl-syntax/src/naming.rs` | `checked_namespace_path_key` | exact retained byte namespace components; UTF-8 and a lossless constructed-key round trip are required; opaque or colliding components decline, and the report key grants no Native lookup, namespace liveness or compiler entry | `xtask-owner-resolution` |
+--- a/docs/design/contracts/naming-consumer-matrix.md
++++ b/docs/design/contracts/naming-consumer-matrix.md
+@@ -440,11 +440,13 @@
+ | Current conditional CFG purpose | Shared owner | Consumer boundary |
+ | --- | --- | --- |
+ | Module/body CFG source metadata | `PreparedCfgContext::from_source_input`; `Module::source_metadata_input`; complete actual availability/store | Supplied, unavailable and explicit standalone ingress remain distinct. Missing/foreign current input withholds conditional completion rather than selecting profile-default metadata; source CFG facts do not grant a reached Native worker or body. |
++| Original procedure effect summaries | `OriginalProcedureSummaryOwners::for_module`; fifth `CfgContext` field; `ProcedureId`-keyed upvar, parameter and global-write maps | CFG direct calls, command-substitution children and deferred own-frame scans select actual original call receipts and frozen effective operands through the retained Module. Missing/foreign/changed owners or unresolved targets widen caller/global effects; equal display names cannot select a body. Raw memo keys retain owner identity separately from registry-only certified reuse. No executed frame or committed write is established. |
+ | Function-lattice request currency | `FnLatticeEntry::source_metadata_input`; `function_lattice`; shared prepared CFG owner | Complete genuine input participates in memo identity. Exact current requests reuse their Arc; unavailable/missing/foreign requests preserve the following statement instead of borrowing completion. No entered frame, storage or Native effect is issued. |
+ 
+ 
+ | Current selected source operand purpose | Shared owner | Consumer boundary |
+ | --- | --- | --- |
++| Tcllib list/set variable roles | Selected `struct::list`/`struct::set` subcommand schema; shared argument-role and possible-variable-name projections | Assign destinations, read-before-write variables, join `-keys` outputs and split outputs retain their selected positions and original effective-word origins. Conditional output roles remain MAY writes, callbacks retain separate reach, and purity belongs to the selected subcommand rather than the umbrella command. |
+ | Lowered script and option metadata | Actual retained Lowerer input; `ResolvedStatementInvocation::with_metadata_schema`; `authored_source_option_variable_scope_at` | Whole effective argv, selected source realm, current store and actual availability retain timing/option ordinals. Missing Driver input cannot borrow standalone with_dialect advice; foreign/dynamic/terminated options grant no callback frame, execution or variable cell. |
+ | Logical upvar scalar/element targets | Syntax `split_element_ref`; `Analyser::upvar_link_target`; positive retained Logical input | A final closing parenthesis distinguishes literal elements from unmatched scalar names. Substitution sigils stay intact; dynamic/empty bases and unqualified relative-frame targets refuse. Source target paths install no Native link or caller-frame value. |
+ | Constructed OO original controls | Selected existing OO name purpose and actual software holder materialiser; complete original public comparison sources | Returned reports do not identify a publication slot. Runtime creation/collision/copy controls retain every original setup failure independently; VM creation controls grant no copy interface or Native private identity. |
+--- a/docs/design/compiler/name-resolution-implementer-guide.md
++++ b/docs/design/compiler/name-resolution-implementer-guide.md
+@@ -3162,6 +3162,16 @@
+ actual assignments. Do not restore an assumption that a possible loop ran to
+ make diagnostics silent.
+ 
++Tcllib list/set calls use this same selected schema. `struct::list assign`
++declares repeated destinations; `shift`, `swap`, `delete` and
++`struct::set include`/`exclude` declare read-before-write variables. Join
++`-keys` operands and `split` result variables are conditional outputs; `split`
++also retains its independent callback prefix. Consume the shared role/layout
++queries with original effective operands, including alias captures, rather than
++recognising those spellings in a consumer. Purity is declared on individual
++subcommands: the list/set umbrella supplies no blanket purity, and writer or
++callback roles cannot establish normal assignment or safe erasure.
++
+ An unknown caught command is a separate uncertainty: it can write the
+ caller's variables through `uplevel` before throwing. A test for an unrelated
+ missing read should use a known handler such as `error stop`, and pair it with
+@@ -8616,6 +8626,25 @@
+ | Unavailable analysis | `PreparedCfgContext::from_source_input(context, registry, None)` | Keeps metadata unavailable; does not enter standalone mode. |
+ | Explicit standalone body | `build_cfg_function_with_upvars_and_config` | Uses the caller's independently selected Registry context and exact lexer configuration. This contract cannot fill missing document input. |
+ 
++`CfgContext` carries five fields: `ProcedureId`-keyed upvar summaries,
++parameter lists and global-write summaries, the module command bindings, and
++`OriginalProcedureSummaryOwners`. Obtain the tuple from
++`prepare_cfg_context_with_registry`; keep its fifth field intact when passing
++it through `PreparedCfgContext` or a `LatticeRequest`.
++`OriginalProcedureSummaryOwners::for_module` retains only a Module whose
++original source bindings match that Module and Registry. A default owner is
++unavailable and cannot recover procedure identity from a display name.
++
++CFG direct calls and their retained command-substitution children select the
++actual original procedure allocation and frozen effective arguments through
++this owner. Caller-frame parameter binding and outer-write propagation use the
++same issued `ProcedureId`. Deferred own-frame scans join the same original
++summaries. Unresolved calls or missing, changed and foreign source owners widen
++effects; a genuine selected registry operation has no procedure-summary edge.
++Raw memo equality retains the actual owner allocation; registry-only certified
++templates apply their independent reuse boundary. These are conditional source
++effects, not proof of an entered frame, committed write or Native call.
++
+ Prepare module facts once and share the same `PreparedCfgContext` across its
+ ordinary and method CFGs. The public ordinary-body entry is
+ `build_cfg_function_with_prepared_context`; module builders retain the same
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -649,9 +649,8 @@
+             .variable_write_projection(stmt, self.registry, namespace.as_ref())
+     }
+ 
+-    /// Resolve the caller-frame effects of every retained user procedure a
+-    /// direct source invocation may reach. Command identity and alias-prefix
+-    /// composition come exclusively from [`ModuleCommandBindings`].
++    /// Join caller-frame summaries through exact original call receipts and
++    /// their frozen effective arguments.
+     fn direct_upvar_effects(&self, stmt: &Statement) -> ResolvedUpvarEffects {
+         if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
+             return ResolvedUpvarEffects::default();
+@@ -3244,12 +3243,9 @@
+     summaries
+ }
+ 
+-/// Module-wide CFG-determining context: the upvar-procs map, the
+-/// parameter-list map, the global-write-procs map, and the closed command
+-/// binding state
+-/// ([`global_write_info::detect_global_write_procs`]) [`prepare_cfg_context`]
+-/// returns. The single canonical definition [`crate::compilation_unit`]
+-/// reuses for its own `CfgContext` alias, so the two never drift apart.
++/// Body-keyed caller-frame, parameter and outer-write summaries, closed
++/// command bindings, and the original Module owner selecting summary edges.
++/// [`crate::compilation_unit`] shares this canonical tuple.
+ pub type CfgContext = (
+     HashMap<crate::ir::ProcedureId, UpvarInfo>,
+     HashMap<crate::ir::ProcedureId, Vec<String>>,

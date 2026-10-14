@@ -1833,72 +1833,6 @@ pub(super) fn name_param_defaults(
     }
 }
 
-/// Compose a callee's caller-frame effects into `info`, for a
-/// `uplevel <caller frame> [list callee ARG…]` forward.
-///
-/// The callee's `upvar 1` binds a name in *its* caller's frame — which,
-/// because the constructed script runs in `info`'s own caller's frame, is
-/// that same frame.  So each of the callee's caller-frame names becomes one
-/// of `info`'s, translated through the constructed argument list:
-/// every retained constructor argument is a source-proven literal Tcl value;
-/// a simple value contributes that literal name and anything outside the
-/// summary's name grammar widens.
-///
-/// tclsh 9.0.4 / 8.6.14, identical: with
-/// `proc worker {nvar} {upvar 1 $nvar v; set v WORKED}` and
-/// `proc wrapper {} {uplevel 1 [list worker target]}`, calling `wrapper`
-/// leaves `target` set in *wrapper's* caller — while the
-/// plain-call spelling `proc wrapper2 {nvar} {worker $nvar}` raises
-/// `can't read "target": no such variable`.
-pub(super) fn compose_forwarded(
-    callee: &UpvarInfo,
-    callee_params: &[String],
-    constructed: &[String],
-    info: &mut UpvarInfo,
-) {
-    if callee.has_unresolvable_caller_target
-        || callee.caller_frame_opaque_writes
-        || !callee.args_tail_upvar.is_empty()
-    {
-        info.caller_frame_opaque_writes = true;
-    }
-    if callee.caller_frame_opaque_reads {
-        info.caller_frame_opaque_reads = true;
-    }
-    for name in callee
-        .literal_targets
-        .values()
-        .chain(callee.uplevel_literal_writes.iter())
-    {
-        info.uplevel_literal_writes.insert(name.clone());
-    }
-    for param_name in callee
-        .param_targets
-        .values()
-        .chain(callee.uplevel_param_writes.iter())
-    {
-        let Some(idx) = callee_params.iter().position(|p| p == param_name) else {
-            continue;
-        };
-        let arg = match constructed.get(idx) {
-            Some(arg) => arg.as_str(),
-            None => match callee.default_name(param_name) {
-                OmittedName::Names(name) => name,
-                OmittedName::Unplaceable => {
-                    info.caller_frame_opaque_writes = true;
-                    continue;
-                }
-                OmittedName::Raises => continue,
-            },
-        };
-        if is_literal_name(arg) {
-            info.uplevel_literal_writes.insert(arg.to_owned());
-        } else {
-            info.caller_frame_opaque_writes = true;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2612,12 +2546,10 @@ mod tests {
             &input,
         )
         .ir_module;
+        let body_id =
+            crate::interprocedural::test_body_identity::fixture_id(&module.procedures, "::helper");
         let selected = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
-        assert!(
-            selected["::helper"]
-                .uplevel_literal_writes
-                .contains("target")
-        );
+        assert!(selected[&body_id].uplevel_literal_writes.contains("target"));
         let original = module.source_metadata_input.as_ref().unwrap().clone();
         let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
             .with_command_store(std::sync::Arc::clone(registry));
@@ -2633,12 +2565,12 @@ mod tests {
             ));
             let unavailable =
                 crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
-            assert!(unavailable["::helper"].caller_frame_opaque_writes);
+            assert!(unavailable[&body_id].caller_frame_opaque_writes);
         }
         module.source_metadata_input = None;
         let missing = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
-        assert!(missing["::helper"].caller_frame_opaque_writes);
-        assert!(missing["::helper"].caller_frame_opaque_reads);
-        assert!(!missing["::helper"].is_empty());
+        assert!(missing[&body_id].caller_frame_opaque_writes);
+        assert!(missing[&body_id].caller_frame_opaque_reads);
+        assert!(!missing[&body_id].is_empty());
     }
 }
