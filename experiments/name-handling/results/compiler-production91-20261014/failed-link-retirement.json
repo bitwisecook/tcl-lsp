@@ -1,0 +1,7 @@
+{
+  "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tmp46461e5",
+  "size": 385327208,
+  "sha256": "a1a6e18455a08e799eb3053da381dce29b94df70db48304a3cbcaa5f3ebcd246",
+  "reason": "Failed Compiler91 linker temporary output; sealed build receipt and source snapshots retained. Not an executable semantic receipt.",
+  "utc": "2026-10-14T12:58:35.019722+00:00"
+}

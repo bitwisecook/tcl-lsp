@@ -1,0 +1,11 @@
+{
+  "case": "current-name-list",
+  "exe": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "exe_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "source_sha256": "a7f06620725e4875746d9221a7fefd126745e02fa69ba366f651537d0f875501",
+  "exit_code": 0,
+  "stdout_sha256": "e376d63b1f664644bdc60e3831828b20f1435194fc8bf0becad217311fadf7a5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "1 fail {Q stdin 1 {error fail} {} stdin 2 {P 1}}\n",
+  "stderr": ""
+}

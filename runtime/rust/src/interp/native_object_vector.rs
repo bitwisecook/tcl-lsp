@@ -55,9 +55,9 @@ impl Interp {
             let mut frames = self.jim_evaluation_frames.borrow_mut();
             let previous_len = frames.len();
             let script = frames.last().and_then(|parent| parent.script.clone());
-            frames.push(tcl_runtime_api::jim_error_stack::JimEvaluationFrame {
+            frames.push(super::OriginalJimEvaluationFrame {
                 procedure_level: self.jim_procedure_level.get(),
-                command_name: None,
+                command: None,
                 is_procedure: false,
                 script,
                 invocation: Vec::new(),

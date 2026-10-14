@@ -141,6 +141,7 @@ use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::expr_ast::render_expr;
+#[cfg(test)]
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
 #[cfg(test)]
@@ -149,7 +150,9 @@ use tcl_compiler::taint::TaintColour;
 #[cfg(test)]
 use tcl_compiler::taint::TaintLattice;
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr_for_profile};
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType, close_quote_offset};
+#[cfg(test)]
+use tcl_lexer::close_quote_offset;
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 /// Depth cap for [`minify_body`]'s recursion over nested control-flow
@@ -2448,6 +2451,7 @@ fn fold_static_substrings(
         let cx = FoldContext {
             fu,
             style: dialect.grammar.braced_var,
+            view: None,
         };
         collect_folds_for_scope(source, cx, &mut edits, &mut fold_map);
     }
@@ -2475,6 +2479,7 @@ fn fold_static_substrings(
 struct FoldContext<'a> {
     fu: &'a FunctionUnit,
     style: tcl_dialect::BracedVarStyle,
+    view: Option<tcl_compiler::ssa::SsaSourceView<'a>>,
 }
 
 /// Collect static-fold edits for one function scope.
@@ -2493,19 +2498,23 @@ fn collect_folds_for_scope(
         if !fu.sccp.executable_blocks.contains(block_id) {
             continue;
         }
-        let mut block_vars: HashMap<String, Version> = ssa_block
-            .entry_versions
-            .iter()
-            .map(|(sym, ver)| (fu.ssa.var_name(*sym).to_owned(), *ver))
-            .collect();
+        let mut block_vars = ssa_block.entry_versions.clone();
         for (stmt_idx, stmt) in block.statements.iter().enumerate() {
             let Some(ssa_stmt) = ssa_block.statements.get(stmt_idx) else {
                 continue;
             };
             let mut uses = block_vars.clone();
-            for (name, ver) in &ssa_stmt.uses {
-                uses.insert(fu.ssa.var_name(*name).to_owned(), *ver);
-            }
+            uses.extend(
+                ssa_stmt
+                    .uses
+                    .iter()
+                    .map(|(&symbol, &version)| (symbol, version)),
+            );
+            let view = tcl_compiler::ssa::SsaSourceView::at_statement(&fu.ssa, *block_id, stmt_idx);
+            let cx = FoldContext {
+                view: Some(view),
+                ..cx
+            };
             match stmt {
                 Statement::AssignValue {
                     span,
@@ -2528,10 +2537,9 @@ fn collect_folds_for_scope(
                             continue;
                         }
                         if let Some(folded) =
-                            fold_string_via_sccp(content, &uses, &fu.sccp.values, &fu.ssa, style)
+                            fold_string_via_sccp(content, &uses, &fu.sccp.values, view, style)
                         {
-                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints, &fu.ssa, style)
-                            {
+                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints, view, style) {
                                 continue;
                             }
                             if let Some(close) = close_quote_offset(source, arg_off) {
@@ -2548,7 +2556,7 @@ fn collect_folds_for_scope(
                 _ => {}
             }
             for (name, ver) in &ssa_stmt.defs {
-                block_vars.insert(fu.ssa.var_name(*name).to_owned(), *ver);
+                block_vars.insert(*name, *ver);
             }
         }
     }
@@ -2561,16 +2569,19 @@ fn try_fold_region(
     source: &str,
     span: Span,
     value: &str,
-    uses: &HashMap<String, Version>,
+    uses: &HashMap<tcl_compiler::ssa::Symbol, Version>,
     cx: FoldContext<'_>,
     edits: &mut Vec<Edit>,
     fold_map: &mut BTreeMap<String, String>,
 ) {
     let (fu, style) = (cx.fu, cx.style);
-    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values, &fu.ssa, style) else {
+    let Some(view) = cx.view else {
         return;
     };
-    if has_unsafe_tainted_inputs(value, uses, &fu.taints, &fu.ssa, style) {
+    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values, view, style) else {
+        return;
+    };
+    if has_unsafe_tainted_inputs(value, uses, &fu.taints, view, style) {
         return;
     }
     let (start, end) = (span.start() as usize, span.end() as usize);
@@ -2596,9 +2607,9 @@ fn try_fold_region(
 #[cfg(test)]
 fn fold_string_via_sccp(
     content: &str,
-    uses: &HashMap<String, Version>,
+    uses: &HashMap<tcl_compiler::ssa::Symbol, Version>,
     values: &HashMap<(tcl_compiler::ssa::Symbol, Version), LatticeValue>,
-    ssa: &tcl_compiler::ssa::SsaFunction,
+    view: tcl_compiler::ssa::SsaSourceView<'_>,
     style: tcl_dialect::BracedVarStyle,
 ) -> Option<String> {
     let bytes = content.as_bytes();
@@ -2611,11 +2622,12 @@ fn fold_string_via_sccp(
             b'$' => {
                 let (end, name) = parse_var_ref(content, pos, style);
                 let name = name?;
-                let ver = uses.get(name).copied().unwrap_or(0);
+                let symbol = view.symbol(name)?;
+                let ver = uses.get(&symbol).copied().unwrap_or(0);
                 if ver == 0 {
                     return None;
                 }
-                let lv = values.get(&(ssa.var_symbol(name)?, ver))?;
+                let lv = values.get(&(symbol, ver))?;
                 let LatticeValue::Const(cv) = lv else {
                     return None;
                 };
@@ -2658,9 +2670,9 @@ fn const_to_string(cv: &ConstValue) -> Option<String> {
 #[cfg(test)]
 fn has_unsafe_tainted_inputs(
     content: &str,
-    uses: &HashMap<String, Version>,
+    uses: &HashMap<tcl_compiler::ssa::Symbol, Version>,
     taints: &HashMap<(tcl_compiler::ssa::Symbol, Version), TaintLattice>,
-    ssa: &tcl_compiler::ssa::SsaFunction,
+    view: tcl_compiler::ssa::SsaSourceView<'_>,
     style: tcl_dialect::BracedVarStyle,
 ) -> bool {
     let safe = safe_taint_colours();
@@ -2670,10 +2682,12 @@ fn has_unsafe_tainted_inputs(
         if bytes[pos] == b'$' {
             let (end, name) = parse_var_ref(content, pos, style);
             if let Some(name) = name {
-                let ver = uses.get(name).copied().unwrap_or(0);
+                let Some(symbol) = view.symbol(name) else {
+                    return true;
+                };
+                let ver = uses.get(&symbol).copied().unwrap_or(0);
                 if ver > 0
-                    && let Some(sym) = ssa.var_symbol(name)
-                    && let Some(t) = taints.get(&(sym, ver))
+                    && let Some(t) = taints.get(&(symbol, ver))
                     && t.is_tainted()
                     && !t.colours.intersects(safe)
                 {

@@ -366,8 +366,8 @@ pub(super) fn transfer_instance_statement(
                         state.remove(crate::naming::split_array_name_braced(name, true).0);
                     }
                 }
-                Statement::AssignValue { name, .. } => {
-                    state.remove(crate::naming::split_array_name_braced(name, true).0);
+                Statement::AssignValue { .. } => {
+                    invalidate_structural_instance_names(state, statement);
                 }
                 _ => unreachable!(),
             }
@@ -376,19 +376,34 @@ pub(super) fn transfer_instance_statement(
                 state.insert(name, HashSet::from([class]));
             }
         }
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. } => {
+        Statement::AssignConst { .. } | Statement::AssignExpr { .. } | Statement::Incr { .. } => {
             if let Some(tokens) = tokens {
                 apply_original_substitutions(state, registry, source, tokens);
             } else if !matches!(statement, Statement::AssignConst { .. }) {
                 state.clear();
             }
-            state.remove(crate::naming::split_array_name_braced(name, true).0);
+            invalidate_structural_instance_names(state, statement);
         }
         Statement::Barrier { .. } | Statement::NativeCall { .. } => state.clear(),
         _ => {}
     }
+}
+
+fn invalidate_structural_instance_names(
+    state: &mut InstanceClassState,
+    statement: &Statement,
+) -> bool {
+    let projection = crate::ir_helpers::structural_variable_write_projection(statement);
+    if projection.opaque_variable_frame {
+        state.clear();
+        return false;
+    }
+    for name in projection.literal_names {
+        let root =
+            tcl_syntax::naming::split_element_ref(&name).map_or(name.as_str(), |(root, _)| root);
+        state.remove(root);
+    }
+    true
 }
 
 fn standalone_factory_class<'a>(
@@ -434,7 +449,9 @@ fn standalone_transfer_instance_statement(
             // A registry-known write to a handle variable invalidates the old
             // type unless this very statement installs a fresh factory fact.
             for name in defs {
-                state.remove(crate::naming::normalise_var_name(name));
+                let root = tcl_syntax::naming::split_element_ref(name)
+                    .map_or(name.as_str(), |(root, _)| root);
+                state.remove(root);
             }
             if let Some(spec) = registry.get(command)
                 && let Some(index) = spec.creates_instance_at
@@ -455,21 +472,21 @@ fn standalone_transfer_instance_statement(
             }
         }
         Statement::AssignValue { name, value, .. } => {
-            let name = crate::naming::normalise_var_name(name);
-            state.remove(name);
+            if !invalidate_structural_instance_names(state, statement)
+                || tcl_syntax::naming::split_element_ref(name).is_some()
+            {
+                return;
+            }
             if let Some((head, args)) = crate::value_shapes::parse_command_substitution_with_config(
                 value.trim(),
                 tcl_lexer::LexerConfig::for_profile(registry.profile()),
             ) && let Some(class) = standalone_factory_class(registry, &head, &args)
-                && let Some(name) = literal_receiver(name)
             {
-                state.insert(name.to_owned(), HashSet::from([class.to_owned()]));
+                state.insert(name.clone(), HashSet::from([class.to_owned()]));
             }
         }
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. } => {
-            state.remove(crate::naming::normalise_var_name(name));
+        Statement::AssignConst { .. } | Statement::AssignExpr { .. } | Statement::Incr { .. } => {
+            invalidate_structural_instance_names(state, statement);
         }
         _ => {}
     }
@@ -567,6 +584,45 @@ mod tests {
     use tcl_dialect::DialectProfile;
     use tcl_lexer::LexerConfig;
     use tcl_registry::model::ContextRegistry;
+
+    #[test]
+    fn instance_candidate_invalidation_keeps_literal_names_and_unknown_targets() {
+        let registry = CommandRegistry::build_default();
+        for (name, removed) in [
+            ("", ""),
+            ("$handle", "$handle"),
+            ("${braced}", "${braced}"),
+            ("array(key)", "array"),
+        ] {
+            let mut state: InstanceClassState = ["", "$handle", "handle", "${braced}", "array"]
+                .into_iter()
+                .map(|name| (name.to_owned(), HashSet::from(["C".to_owned()])))
+                .collect();
+            let statement = Statement::AssignConst {
+                span: tcl_lexer::Span::new(0, 0),
+                name: name.into(),
+                name_braced: true,
+                value: "OTHER".into(),
+                value_span: None,
+            };
+            standalone_transfer_instance_statement(&mut state, &statement, &registry);
+            assert!(!state.contains_key(removed));
+            assert!(state.contains_key("handle"));
+            assert_eq!(state.len(), 4);
+        }
+        let mut state: InstanceClassState = [("handle".into(), HashSet::from(["C".into()]))]
+            .into_iter()
+            .collect();
+        let statement = Statement::AssignConst {
+            span: tcl_lexer::Span::new(0, 0),
+            name: "$target".into(),
+            name_braced: false,
+            value: "OTHER".into(),
+            value_span: None,
+        };
+        standalone_transfer_instance_statement(&mut state, &statement, &registry);
+        assert!(state.is_empty());
+    }
 
     fn receiver_context() -> Arc<ContextRegistry> {
         let base = tcl_registry::model::ingress::static_context_for("tcl8.6");

@@ -434,6 +434,7 @@ struct NativeCommandNode {
     placement: Option<(NsId, Vec<u8>)>,
     namespace: NsId,
     deletion_started: bool,
+    jim_command_name: Option<crate::obj::NativeObjectLifetime>,
 }
 
 /// The original creation entry, retained across re-entrant delete callbacks.
@@ -555,6 +556,51 @@ impl Namespaces {
             .iter()
             .flat_map(|namespace| std::mem::take(&mut *namespace.commands.retired.borrow_mut()))
             .collect()
+    }
+
+    /// Observe the actual found Jim hash key before retiring the lookup object's
+    /// old primary. The allocation lease adds no native object reference.
+    pub(crate) fn observe_original_jim_command_name(
+        &mut self,
+        generation: u64,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim command name",
+            ));
+        }
+        let (namespace, simple) = self.native_command_slot_at_node(generation).ok_or(
+            ValueError::CommandProtocolUnavailable("original Jim command slot"),
+        )?;
+        let original = self.arena[namespace]
+            .commands
+            .entries
+            .get(&simple)
+            .and_then(|entry| entry.original_jim_key.as_ref())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim command hash key",
+            ))?
+            .as_ptr();
+        crate::obj::check_native_liveness(original)?;
+        let observation = crate::obj::NativeObjectLifetime::retain(original);
+        self.native_command_nodes
+            .get_mut(&generation)
+            .expect("checked current command slot")
+            .jim_command_name = Some(observation);
+        Ok(())
+    }
+
+    /// Borrow the last cold lookup's key, including an allocation whose native
+    /// owner has retired. A reached value reader must check native liveness.
+    pub(crate) fn original_jim_command_name_observation(
+        &self,
+        generation: u64,
+    ) -> Option<&crate::obj::NativeObjectLifetime> {
+        self.native_command_nodes
+            .get(&generation)?
+            .jim_command_name
+            .as_ref()
     }
 
     #[cfg(test)]
@@ -1437,6 +1483,7 @@ impl Namespaces {
                 placement: Some((ns, simple.clone())),
                 namespace: ns,
                 deletion_started: false,
+                jim_command_name: None,
             },
         );
         let jim_table_key = entry.jim_table_key.clone();

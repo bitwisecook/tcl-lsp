@@ -13487,6 +13487,130 @@ mod original_analysis_definition_selector_tests {
     }
 
     #[test]
+    fn original_analysis_word_geometry_keeps_current_input_vector_and_owner() {
+        let source = "set value 42\n";
+        let (unit, context) = unit(source);
+        let function = &unit.top_level;
+        let (block, index) = function
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements.iter().enumerate().find_map(|(index, _)| {
+                    SsaSourceView::at_statement(&function.ssa, block, index)
+                        .source_tokens()
+                        .filter(|tokens| tokens.synthetic.is_none())
+                        .map(|_| (block, index))
+                })
+            })
+            .expect("genuine original source operation");
+        let original = original_analysis_words_for_statement(
+            &unit,
+            function,
+            block,
+            index,
+            context.commands(),
+        )
+        .expect("genuine current original word geometry");
+        assert_eq!(
+            original
+                .words()
+                .iter()
+                .map(|word| word.bytes())
+                .collect::<Vec<_>>(),
+            vec![b"set".as_slice(), b"value".as_slice(), b"42".as_slice()]
+        );
+        assert_eq!(
+            original.config(),
+            unit.ir_module
+                .source_metadata_input
+                .as_ref()
+                .unwrap()
+                .lexer_config()
+        );
+        assert!(
+            original_analysis_words_for_statement(
+                &unit,
+                function,
+                block,
+                usize::MAX,
+                context.commands()
+            )
+            .is_none()
+        );
+        assert!(
+            original_analysis_words_for_statement(
+                &unit,
+                function,
+                block,
+                index,
+                &CommandRegistry::build_default()
+            )
+            .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.top_level.source_metadata_input = None;
+        assert!(
+            original_analysis_words_for_statement(
+                &missing,
+                &missing.top_level,
+                block,
+                index,
+                context.commands()
+            )
+            .is_none()
+        );
+        let mut stale = unit.clone();
+        stale.source.push(' ');
+        assert!(
+            original_analysis_words_for_statement(
+                &stale,
+                &stale.top_level,
+                block,
+                index,
+                context.commands()
+            )
+            .is_none()
+        );
+        let (other, _) = self::unit(source);
+        let originals = other
+            .top_level
+            .ssa
+            .point_contexts
+            .as_ref()
+            .unwrap()
+            .source_token_inventory()
+            .values()
+            .filter_map(|tokens| {
+                tokens
+                    .words()
+                    .first()
+                    .map(|word| (word.source().span.start(), tokens.clone()))
+            })
+            .collect();
+        let mut foreign = unit.clone();
+        assert!(
+            foreign
+                .top_level
+                .ssa
+                .point_contexts
+                .as_mut()
+                .unwrap()
+                .restore_source_tokens(&originals)
+        );
+        assert!(
+            original_analysis_words_for_statement(
+                &foreign,
+                &foreign.top_level,
+                block,
+                index,
+                context.commands()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
     fn original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner() {
         let source = "set value TOP\nproc p {} {set value 123; set value TEXT; return $value}\n";
         let (unit, context) = unit(source);

@@ -1,0 +1,8 @@
+{
+  "exe": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "exe_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "source_sha256": "1cbffd110af82b62a0e5d2ce800a62c1fa7738fd66ae43429c23e0f4bae2bc35",
+  "exit_code": 0,
+  "stdout": "code 1 result fail\nQ stdin 1 {error fail} {} stdin 2 {P 1}\n",
+  "stderr": ""
+}

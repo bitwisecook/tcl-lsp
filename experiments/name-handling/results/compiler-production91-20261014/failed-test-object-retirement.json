@@ -1,0 +1,91 @@
+{
+  "utc": "2026-10-14T13:02:52.706336+00:00",
+  "reason": "Failed Compiler91 test objects after ENOSPC/SIGBUS. Sealed source/build preserved; clean test rebuild required. Saved original Compiler88 executable retained.",
+  "files": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.13.rcgu.o",
+      "bytes": 54129232,
+      "sha256": "232a796a47ce76ba86d7ea8170a0f52c78886540a2991e4c1cce03910ce409b7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.12.rcgu.o",
+      "bytes": 28191416,
+      "sha256": "533079b34510b469f76e48b14530478890cdce70bda65dafd54b5f0e97465bbe"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.07.rcgu.o",
+      "bytes": 29969088,
+      "sha256": "3514c7399d1e9c0a43d8a793684f7a43b5dc58173bdd11cb2a84f1f0fcdced12"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.2396zlvdo8ika7xqew2r4vt23.rcgu.o",
+      "bytes": 2528,
+      "sha256": "4eed924a017301b91764bcc3f5670d1b501d184157c4a1e4299de4d6578fd2ce"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.14.rcgu.o",
+      "bytes": 25442392,
+      "sha256": "54d67f772585c2ef658c45bf19c6cc16f9ef5c967f2c4c7d35e90ef54168f1b0"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.03.rcgu.o",
+      "bytes": 25852368,
+      "sha256": "09ca93beb7b50ba4a6e42b88ed36d742e2357640f580bf36f6e876b522290079"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.05.rcgu.o",
+      "bytes": 33157048,
+      "sha256": "8821fcf053c421ac4272f5015bb171b06ef2acbc84991a4e4481453d13f00326"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.04.rcgu.o",
+      "bytes": 27065928,
+      "sha256": "92a4638a0a2bf0649238beb3d8ffc0e3daef1c67a9ea8d5fecfe8a9a5d553145"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.00.rcgu.o",
+      "bytes": 36559784,
+      "sha256": "b04c5c2f28f818b113af05730e932c7133c54f535cbc8fcd4649d552343ba2c2"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.10.rcgu.o",
+      "bytes": 25005688,
+      "sha256": "65e4fa2f4dd903cb84c9e9013dd06dd2e57b842a0d2db80056f80be7a5e48d67"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.01.rcgu.o",
+      "bytes": 22515344,
+      "sha256": "c73ed4ef2b556479a3c1481b25bf9dad5c9530a012cd4728b345bb4b1073199c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.09.rcgu.o",
+      "bytes": 39443048,
+      "sha256": "5ac20b4443d681a9822bae30d944e49efc18ef4d5722d311c2a4915168d0a638"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.15.rcgu.o",
+      "bytes": 51597608,
+      "sha256": "93babd7d614309c3bd4bc91b0d1fa30d34d4910e1cd9558a17164eaa0f303939"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.02.rcgu.o",
+      "bytes": 47966048,
+      "sha256": "56f1ff5a6b52c9b0950035dc35d12269600b5d0ae9eeaff2179c9d8ed16f9a16"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.11.rcgu.o",
+      "bytes": 29536224,
+      "sha256": "2174c00fa823685b96e6b333e653071d8610195ee8dae67a0dcc277639839cc6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.06.rcgu.o",
+      "bytes": 29716776,
+      "sha256": "cc766e511be113ca91b010d245c63da36af7c628e370a8e81238e4ee286b7212"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.tcl_compiler.2ef54e2b04743a3a-cgu.08.rcgu.o",
+      "bytes": 30525760,
+      "sha256": "b37bdeb640e7a18875ecca8b2f42375d94810f011017e176d6f0c600a3e7fbf9"
+    }
+  ]
+}

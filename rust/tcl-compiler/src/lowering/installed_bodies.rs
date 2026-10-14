@@ -162,9 +162,16 @@ impl Lowerer<'_> {
             .and_then(|bindings| card.source_children(bindings));
         let previous_children = std::mem::replace(&mut self.native_source_children, children);
         let previous = std::mem::replace(&mut self.readonly_native_declaration_body, true);
-        let mut body = self
-            .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
-                lowerer.lower_body(&text, span.start(), &namespace)
+        let mut body =
+            self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+                lowerer.lower_original_source_body(
+                    &text,
+                    span.start(),
+                    &namespace,
+                    super::source_body_syntax::SourceBodySyntaxOwner::Native(
+                        std::sync::Arc::clone(&card),
+                    ),
+                )
             });
         self.readonly_native_declaration_body = previous;
         self.native_source_children = previous_children;
@@ -223,9 +230,16 @@ impl Lowerer<'_> {
             return;
         };
         let previous = std::mem::replace(&mut self.readonly_logical_body, true);
-        let mut body = self
-            .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
-                lowerer.lower_body(&text, span.start(), &namespace)
+        let mut body =
+            self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+                lowerer.lower_original_source_body(
+                    &text,
+                    span.start(),
+                    &namespace,
+                    super::source_body_syntax::SourceBodySyntaxOwner::Logical(
+                        std::sync::Arc::clone(&card),
+                    ),
+                )
             });
         self.readonly_logical_body = previous;
         body.namespace_context = Some(Box::new(

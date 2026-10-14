@@ -1,0 +1,226 @@
+    Checking libc v0.2.190
+    Checking zeroize v1.9.0
+    Checking cfg-if v1.0.5
+    Checking subtle v2.6.1
+    Checking num-traits v0.2.19
+    Checking rand_core v0.10.1
+    Checking typenum v1.20.1
+    Checking hybrid-array v0.4.15
+    Checking cmov v0.5.4
+    Checking ctutils v0.4.2
+    Checking getrandom v0.4.3
+    Checking const-oid v0.10.2
+    Checking crypto-common v0.2.2
+   Compiling syn v3.0.6
+    Checking block-buffer v0.12.1
+    Checking digest v0.11.3
+   Compiling thiserror-impl v2.0.21
+    Checking thiserror v2.0.21
+    Checking num-integer v0.1.47
+    Checking base64ct v1.8.3
+    Checking memchr v2.8.3
+    Checking pem-rfc7468 v1.0.0
+    Checking cpubits v0.1.1
+    Checking crypto-bigint v0.7.5
+    Checking der v0.8.2
+    Checking tcl-core-types v0.1.0 (/workspace/tcl-lsp/rust/tcl-core-types)
+    Checking bitflags v2.13.2
+    Checking tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+    Checking bytecount v0.6.9
+    Checking cpufeatures v0.3.1
+    Checking tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+    Checking libm v0.2.16
+    Checking spki v0.8.0
+    Checking num-bigint v0.5.1
+    Checking ff v0.14.0
+    Checking tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+    Checking sha2 v0.11.0
+    Checking tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+    Checking group v0.14.0
+    Checking pkcs8 v0.11.0
+    Checking smallvec v1.16.2
+    Checking base16ct v1.0.0
+    Checking equivalent v1.0.2
+    Checking minimal-lexical v0.2.1
+    Checking foldhash v0.2.0
+    Checking allocator-api2 v0.2.21
+    Checking hashbrown v0.17.1
+    Checking nom v7.1.3
+    Checking sec1 v0.8.1
+    Checking sha1 v0.11.0
+    Checking md-5 v0.11.0
+    Checking tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+    Checking deranged v0.5.8
+    Checking time-core v0.1.9
+    Checking powerfmt v0.2.0
+    Checking num-conv v0.2.2
+   Compiling serde_core v1.0.229
+    Checking time v0.3.55
+   Compiling cc v1.6.0
+    Checking tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+    Checking elliptic-curve v0.14.1
+    Checking rusticata-macros v4.1.0
+    Checking primefield v0.14.0
+    Checking aho-corasick v1.1.5
+    Checking hmac v0.13.0
+    Checking signature v3.0.0
+   Compiling displaydoc v0.2.7
+    Checking regex-syntax v0.8.11
+    Checking rustc-hash v2.1.3
+    Checking regex-automata v0.4.18
+    Checking asn1-rs v0.7.2
+    Checking rfc6979 v0.6.0
+    Checking wnaf v0.14.1
+    Checking tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling ring v0.17.14
+    Checking indexmap v2.14.2
+    Checking tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+    Checking primeorder v0.14.0
+    Checking ecdsa v0.17.0
+    Checking regex v1.13.1
+    Checking unicode-general-category v1.1.0
+    Checking zmij v1.0.23
+    Checking tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+    Checking num-bigint v0.4.8
+   Compiling serde_derive v1.0.229
+    Checking getrandom v0.2.17
+    Checking untrusted v0.9.0
+    Checking itoa v1.0.18
+    Checking serde_json v1.0.151
+    Checking serde v1.0.229
+    Checking der-parser v10.0.0
+    Checking tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+warning: unused import: `AuthoredSourceStructuredInvocation`
+  --> rust/tcl-compiler/src/registry_invocation.rs:50:5
+   |
+50 |     AuthoredSourceStructuredInvocation, original_authored_source_structure,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `is_dynamic_token`
+  --> rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs:39:51
+   |
+39 | use crate::var_escape::helpers::{is_dynamic_name, is_dynamic_token, is_name_first_command};
+   |                                                   ^^^^^^^^^^^^^^^^
+
+warning: unused variable: `source`
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:1979:13
+     |
+1979 |     let (_, source) = substitution?;
+     |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_source`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `handle_introspection` is never used
+   --> rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs:110:15
+    |
+110 | pub(crate) fn handle_introspection(
+    |               ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 4 warnings (run `cargo fix --lib -p tcl-compiler` to apply 3 suggestions)
+    Checking oid-registry v0.8.1
+    Checking pkcs1 v0.8.0-rc.4
+    Checking crypto-primes v0.7.2
+    Checking data-encoding v2.11.1
+   Compiling parking_lot_core v0.9.12
+   Compiling crossbeam-utils v0.8.23
+    Checking lazy_static v1.5.1
+    Checking x509-parser v0.18.1
+    Checking rsa v0.10.0-rc.18
+    Checking p256 v0.14.0
+    Checking p384 v0.14.0
+    Checking scopeguard v1.2.0
+   Compiling portable-atomic v1.15.0
+    Checking base64 v0.23.1
+    Checking once_cell v1.21.4
+   Compiling typeid v1.0.3
+    Checking tracing-core v0.1.36
+    Checking tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+    Checking lock_api v0.4.14
+    Checking tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+    Checking pin-project-lite v0.2.17
+    Checking ipnet v2.12.2
+    Checking tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+    Checking tracing v0.1.44
+    Checking crossbeam-queue v0.3.14
+    Checking parking_lot v0.12.5
+    Checking hashlink v0.12.2
+   Compiling salsa-macros v0.28.5
+    Checking thin-vec v0.2.20
+    Checking inventory v0.3.24
+    Checking intrusive-collections v0.10.3
+    Checking salsa-macro-rules v0.28.5
+    Checking boxcar v0.2.14
+    Checking salsa v0.28.5
+    Checking tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+warning: unused import: `tcl_compiler::ir::Statement`
+   --> rust/tcl-lsp-core/src/minify.rs:144:5
+    |
+144 | use tcl_compiler::ir::Statement;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `close_quote_offset`
+   --> rust/tcl-lsp-core/src/minify.rs:152:72
+    |
+152 | use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType, close_quote_offset};
+    |                                                                        ^^^^^^^^^^^^^^^^^^
+
+warning: field `element_label` is never read
+   --> rust/tcl-lsp-core/src/source_structure.rs:186:16
+    |
+184 | pub(crate) struct SourceVariableReference<'a> {
+    |                   ----------------------- field in this struct
+185 |     pub(crate) root: &'a str,
+186 |     pub(crate) element_label: &'a str,
+    |                ^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-core` (lib) generated 3 warnings (run `cargo fix --lib -p tcl-lsp-core` to apply 2 suggestions)
+    Checking tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+error[E0063]: missing field `taint_replays` in initializer of `CheckSolve`
+    --> rust/tcl-lsp-db/src/lib.rs:3598:14
+     |
+3598 |     Arc::new(CheckSolve {
+     |              ^^^^^^^^^^ missing `taint_replays`
+
+error[E0560]: struct `CompilerDiagnostics` has no field named `taint_replays`
+    --> rust/tcl-lsp-db/src/lib.rs:4007:9
+     |
+4007 |         taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
+     |         ^^^^^^^^^^^^^ `CompilerDiagnostics` does not have this field
+     |
+     = note: all struct fields are already assigned
+
+error[E0560]: struct `CompilerDiagnostics` has no field named `taint_replays`
+    --> rust/tcl-lsp-db/src/lib.rs:4310:9
+     |
+4310 |         taint_replays: report.taint_replays,
+     |         ^^^^^^^^^^^^^ `CompilerDiagnostics` does not have this field
+     |
+     = note: all struct fields are already assigned
+
+error[E0560]: struct `CompilerDiagnostics` has no field named `taint_replays`
+    --> rust/tcl-lsp-db/src/lib.rs:4367:9
+     |
+4367 |         taint_replays,
+     |         ^^^^^^^^^^^^^ `CompilerDiagnostics` does not have this field
+     |
+     = note: all struct fields are already assigned
+
+error[E0560]: struct `CompilerDiagnostics` has no field named `taint_replays`
+    --> rust/tcl-lsp-db/src/lib.rs:4482:13
+     |
+4482 |             taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
+     |             ^^^^^^^^^^^^^ `CompilerDiagnostics` does not have this field
+     |
+     = note: all struct fields are already assigned
+
+Some errors have detailed explanations: E0063, E0560.
+For more information about an error, try `rustc --explain E0063`.
+error: could not compile `tcl-lsp-db` (lib) due to 5 previous errors

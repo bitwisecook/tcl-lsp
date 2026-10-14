@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original pinned Jim name objects, active command leases and weak VarVal caches.
 
-use super::{native_arguments::OriginalArguments, Code, Command, Interp};
+use super::{Code, Command, Interp, native_arguments::OriginalArguments};
 use crate::{
     frame::JimVariableRead,
     namespace::NsId,
@@ -130,6 +130,9 @@ impl Interp {
             other => return Ok(other),
         };
         if let Some(token) = token {
+            self.namespaces
+                .borrow_mut()
+                .observe_original_jim_command_name(token)?;
             let (namespace, epoch) = {
                 let world = self.namespaces.borrow();
                 let namespace = world.jim_namespace_original_owner(current).ok_or(
@@ -684,9 +687,11 @@ mod tests {
             ] {
                 let original = name(spelling);
                 let pointer = unsafe { (*original.as_ptr()).bytes };
-                assert!(interp
-                    .read_original_named_variable(original.as_ptr())
-                    .is_err());
+                assert!(
+                    interp
+                        .read_original_named_variable(original.as_ptr())
+                        .is_err()
+                );
                 assert!(obj::obj_type_ptr(original.as_ptr()).is_null());
                 interp
                     .store_original_named_variable(original.as_ptr(), value.as_ptr())
@@ -724,9 +729,11 @@ mod tests {
                 assert_eq!(unsafe { (*original.as_ptr()).bytes }, pointer);
                 assert!(interp.var_unset(spelling));
                 assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
-                assert!(interp
-                    .read_original_named_variable(original.as_ptr())
-                    .is_err());
+                assert!(
+                    interp
+                        .read_original_named_variable(original.as_ptr())
+                        .is_err()
+                );
                 assert_eq!(
                     obj::with_jim_variable_cache(original.as_ptr(), |cache| cache.frame),
                     Some(cache.0)
@@ -753,9 +760,11 @@ mod tests {
             .unwrap();
         let first = obj::with_jim_variable_cache(original.as_ptr(), |cache| cache.frame).unwrap();
         interp.frames.borrow_mut().push(GLOBAL);
-        assert!(interp
-            .read_original_named_variable(original.as_ptr())
-            .is_err());
+        assert!(
+            interp
+                .read_original_named_variable(original.as_ptr())
+                .is_err()
+        );
         assert_eq!(
             obj::with_jim_variable_cache(original.as_ptr(), |cache| cache.frame),
             Some(first)
@@ -777,6 +786,159 @@ mod tests {
             obj::with_jim_variable_cache(original.as_ptr(), |cache| cache.frame),
             Some(interp.frames.borrow().native_jim_frame_id(false))
         );
+    }
+
+    #[test]
+    fn jim_command_name_observation_preserves_hot_lookup_and_native_key_ownership() {
+        let mut interp = jim();
+        interp.bind_command_replacement(GLOBAL, b"p", Command::Builtin(worker));
+        let key = interp
+            .namespaces
+            .borrow()
+            .original_jim_command_key(GLOBAL, b"p")
+            .unwrap();
+        let before = unsafe { (*key).ref_count };
+        let original = name(b"p");
+        let (_, generation) = interp
+            .resolve_original_command(original.as_ptr())
+            .unwrap()
+            .unwrap();
+        let generation = generation.unwrap();
+        assert_eq!(unsafe { (*key).ref_count }, before);
+        assert_eq!(
+            interp
+                .namespaces
+                .borrow()
+                .original_jim_command_name_observation(generation)
+                .unwrap()
+                .as_ptr(),
+            key
+        );
+        interp
+            .resolve_original_command(original.as_ptr())
+            .unwrap()
+            .unwrap();
+        assert_eq!(unsafe { (*key).ref_count }, before);
+        assert_eq!(
+            interp
+                .namespaces
+                .borrow()
+                .original_jim_command_name_observation(generation)
+                .unwrap()
+                .as_ptr(),
+            key
+        );
+        let native_owner = Owned::retain(key);
+        assert_eq!(
+            interp.rename_command(b"p", b"q"),
+            crate::namespace::RenameOutcome::Renamed
+        );
+        assert!(obj::check_native_liveness(key).is_ok());
+        assert_eq!(
+            interp
+                .namespaces
+                .borrow()
+                .original_jim_command_name_observation(generation)
+                .unwrap()
+                .as_ptr(),
+            key
+        );
+        let renamed = name(b"q");
+        let (_, actual) = interp
+            .resolve_original_command(renamed.as_ptr())
+            .unwrap()
+            .unwrap();
+        assert_eq!(actual, Some(generation));
+        let new_key = interp
+            .namespaces
+            .borrow()
+            .original_jim_command_key(GLOBAL, b"q")
+            .unwrap();
+        assert_ne!(key, new_key);
+        assert_eq!(
+            interp
+                .namespaces
+                .borrow()
+                .original_jim_command_name_observation(generation)
+                .unwrap()
+                .as_ptr(),
+            new_key
+        );
+        assert_eq!(obj::bytes_of(native_owner.as_ptr()), b"p");
+    }
+
+    #[test]
+    fn jim_command_name_observation_does_not_revive_a_retired_key() {
+        let mut interp = jim();
+        interp.bind_command_replacement(GLOBAL, b"p", Command::Builtin(worker));
+        let original = name(b"p");
+        let (_, generation) = interp
+            .resolve_original_command(original.as_ptr())
+            .unwrap()
+            .unwrap();
+        let generation = generation.unwrap();
+        let observation = interp
+            .namespaces
+            .borrow()
+            .original_jim_command_name_observation(generation)
+            .unwrap()
+            .clone();
+        assert_eq!(
+            interp.rename_command(b"p", b"q"),
+            crate::namespace::RenameOutcome::Renamed
+        );
+        assert!(obj::check_native_liveness(observation.as_ptr()).is_err());
+        interp.bind_command_replacement(GLOBAL, b"p", Command::Builtin(worker));
+        let replacement = interp
+            .namespaces
+            .borrow()
+            .original_jim_command_key(GLOBAL, b"p")
+            .unwrap();
+        assert_ne!(observation.as_ptr(), replacement);
+        assert!(obj::check_native_liveness(observation.as_ptr()).is_err());
+        let original_name = interp
+            .namespaces
+            .borrow()
+            .original_jim_command_name_observation(generation)
+            .unwrap()
+            .as_ptr();
+        assert_eq!(original_name, observation.as_ptr());
+    }
+
+    #[test]
+    fn jim_automatic_error_frame_reads_the_last_original_cold_lookup_name() {
+        let profile = crate::environment::profile_for_dialect("jim");
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        // Original Jim observation: jim-command-name-error-frames-20261014.
+        let source = b"proc P {n} {if {$n} {rename P Q; Q 0; error fail}; return ok}\nset c [catch {P 1} result options]\nlist $c $result [dict get $options -errorinfo]";
+        assert_eq!(interp.eval_sourced(source, b"stdin"), Code::Ok);
+        assert_eq!(
+            interp.result_bytes(),
+            b"1 fail {Q stdin 1 {error fail} {} stdin 2 {P 1}}"
+        );
+        assert!(!interp.host_refusal_pending());
+    }
+
+    #[test]
+    fn jim_automatic_capture_does_not_read_an_unselected_retired_command_key() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jim"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let source = b"proc P {} {rename eval {}; error fail}\nset c [catch {eval {P}} result options]\nlist $c $result [dict get $options -errorinfo]";
+        assert_eq!(interp.eval_sourced(source, b"stdin"), Code::Ok);
+        assert_eq!(
+            interp.result_bytes(),
+            b"1 fail {P stdin 1 {error fail} {} stdin 2 P}"
+        );
+        assert!(!interp.host_refusal_pending());
     }
 
     #[test]
@@ -820,10 +982,12 @@ mod tests {
             interp.namespaces.borrow().jim_procedure_epoch(),
             replacement.0
         );
-        assert!(interp
-            .resolve_original_command(original.as_ptr())
-            .unwrap()
-            .is_none());
+        assert!(
+            interp
+                .resolve_original_command(original.as_ptr())
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(
             obj::with_jim_command_cache(original.as_ptr(), |cache| (cache.epoch, cache.token)),
             Some(replacement)
@@ -845,10 +1009,12 @@ mod tests {
             .borrow_mut()
             .retain_jim_namespace(name(b""), std::rc::Rc::from(&b""[..]));
         assert_ne!(namespace, GLOBAL);
-        assert!(interp
-            .resolve_original_command_at(namespace, original.as_ptr())
-            .unwrap()
-            .is_some());
+        assert!(
+            interp
+                .resolve_original_command_at(namespace, original.as_ptr())
+                .unwrap()
+                .is_some()
+        );
         assert_eq!(obj::internal_rep(original.as_ptr()), primary);
     }
 
@@ -860,10 +1026,12 @@ mod tests {
             Some(before)
         );
         let fresh = name(b"active");
-        assert!(interp
-            .resolve_original_command(fresh.as_ptr())
-            .unwrap()
-            .is_none());
+        assert!(
+            interp
+                .resolve_original_command(fresh.as_ptr())
+                .unwrap()
+                .is_none()
+        );
         Code::Ok
     }
     #[test]
@@ -881,10 +1049,12 @@ mod tests {
             Code::Ok
         );
         assert_eq!(interp.namespaces.borrow().jim_procedure_epoch(), epoch);
-        assert!(interp
-            .resolve_original_command(original.as_ptr())
-            .unwrap()
-            .is_none());
+        assert!(
+            interp
+                .resolve_original_command(original.as_ptr())
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(
             obj::with_jim_command_cache(original.as_ptr(), |cache| cache.epoch),
             Some(epoch)
@@ -902,9 +1072,11 @@ mod tests {
             .store_original_named_variable(variable.as_ptr(), value.as_ptr())
             .unwrap();
         let primary = obj::internal_rep(variable.as_ptr());
-        assert!(second
-            .read_original_named_variable(variable.as_ptr())
-            .is_err());
+        assert!(
+            second
+                .read_original_named_variable(variable.as_ptr())
+                .is_err()
+        );
         assert_eq!(obj::internal_rep(variable.as_ptr()), primary);
         assert!(second.host_refusal_pending());
         let command = name(b"set");

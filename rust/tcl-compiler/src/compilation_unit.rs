@@ -2527,6 +2527,7 @@ fn lower_and_build_cfg(
     source: &str,
     options: UnitBuildOptions<'_>,
     body_cache: Option<&BodyLoweringCache<'_>>,
+    source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
     source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
     context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     input: Option<&crate::analyser::ResolvedAnalysisInput>,
@@ -2579,6 +2580,9 @@ fn lower_and_build_cfg(
         .flatten();
     if let Some(entry) = source_entry.or(supplied_entry.as_ref()) {
         lowerer.set_source_analysis_options(entry.options());
+    }
+    if let Some(cache) = source_body_cache {
+        lowerer = lowerer.with_source_body_syntax_cache(cache);
     }
     let mut ir_module = match body_cache {
         Some(bc) => crate::lowering::lower_to_ir_with(lowerer.with_body_cache(bc), source),
@@ -3352,6 +3356,30 @@ impl CompilationUnit {
         )
     }
 
+    /// Memoise conditional source syntax under the original complete driver
+    /// input and entry. Execution-oriented body lowering remains independent.
+    #[must_use]
+    pub fn build_memoized_with_source_body_syntax_cache(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: &mut ProcLatticeCache<'_>,
+        body_cache: &BodyLoweringCache<'_>,
+        source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
+        Self::build_with_retained_entry_and_source_syntax(
+            source,
+            options,
+            Some(cache),
+            Some(body_cache),
+            entry,
+            None,
+            input,
+            Some(source_body_cache),
+        )
+    }
+
     /// Build with the driver's retained runtime and package-provider entry.
     /// The entry supplies execution provenance independently of catalogue metadata.
     #[must_use]
@@ -3412,11 +3440,26 @@ impl CompilationUnit {
     fn build_with_retained_entry(
         source: &str,
         options: UnitBuildOptions<'_>,
+        cache: Option<&mut ProcLatticeCache<'_>>,
+        body_cache: Option<&BodyLoweringCache<'_>>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
+        Self::build_with_retained_entry_and_source_syntax(
+            source, options, cache, body_cache, entry, context, input, None,
+        )
+    }
+
+    fn build_with_retained_entry_and_source_syntax(
+        source: &str,
+        options: UnitBuildOptions<'_>,
         mut cache: Option<&mut ProcLatticeCache<'_>>,
         body_cache: Option<&BodyLoweringCache<'_>>,
         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
         context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
+        source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
     ) -> Self {
         let UnitBuildOptions {
             registry, dialect, ..
@@ -3426,7 +3469,15 @@ impl CompilationUnit {
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase("initial");
         let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
-            lower_and_build_cfg(source, options, body_cache, entry, context, input);
+            lower_and_build_cfg(
+                source,
+                options,
+                body_cache,
+                source_body_cache,
+                entry,
+                context,
+                input,
+            );
         #[cfg(any(test, debug_assertions))]
         {
             phase_trace.procedures = ir_module.procedures.len();
@@ -5074,7 +5125,7 @@ mod tests {
             declared_commands: None,
         };
         let (module, cfg, _, prepared) =
-            lower_and_build_cfg(source, options, None, None, None, None);
+            lower_and_build_cfg(source, options, None, None, None, None, None);
         assert!(crate::realm::document_realm_bindings_for_module(&module, registry).is_some());
         let (actual, _, _) = resolve_unit_scope(&module, &cfg, Some(&prepared), options);
         assert_eq!(

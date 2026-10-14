@@ -32,6 +32,16 @@ A Native Source-schema correspondence certificate validates the actual current i
 and injective relative extents; recorded uncertainty is not a quiet-world proof.
 Unsupported effects, lineage, foreign/out-of-body operations or expansion refuse comparison. Positioned Native ReadFlow retains its separate collector. Full capsule comparison additionally validates the current FunctionUnit and unique original name policy/slot while retaining function, summary, module and semantic facts. `BodyLatticeInputs::certified_native_source_body_id` returns only that retained issued body coordinate; reuse restores the current body ID and source/variable proofs. Neither the private comparison nor this coordinate selects an executable body.
 
+`SourceBodySyntaxRequest` is issued before lowering from an actual current
+Native, Logical or Authored declaration card and original body scope. Only complete
+literal generic-call syntax with no selected lowering/body/variable/frame/factory
+or transition dependencies qualifies. The separate neutral template contains no
+old source/runtime receipts. Its independent input/entry/configuration/store and
+syntax dependencies must agree before exact shape validation restores the current
+request's original tokens and source offset. Unsupported syntax lowers fresh;
+this memo cannot borrow the execution-oriented body cache or use computed output
+as its key.
+
 Raw memo inputs retain actual identities and complete dependencies. Private correspondence certificates can permit reuse only for their supported source and dependency cases. Cached facts rebind to the current original owner, and the current prepared CFG must still agree. Neither equality nor an unchanged display name supplies callable, variable-cell, compiler, object, frame or execution authority.
 
 Variable-escape source name protection uses the actual immutable command store

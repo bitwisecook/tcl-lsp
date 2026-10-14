@@ -1298,20 +1298,24 @@ fn collect_constant_branches(
 /// against.  A `Call`'s `defs` cover the commands that define a name without
 /// an assignment statement (`global` / `variable` / `upvar`, `regexp -inline`
 /// match vars, …).
-fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&str>) {
+fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&str>, bool) {
     let mut defined: FxHashSet<String> = FxHashSet::default();
     let mut unset: FxHashSet<&str> = FxHashSet::default();
+    let mut unknown_writes = false;
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             match stmt {
-                Statement::AssignConst { name, .. }
-                | Statement::AssignExpr { name, .. }
-                | Statement::AssignValue { name, .. }
-                | Statement::Incr { name, .. } => {
-                    let n = crate::naming::normalise_var_name(name);
-                    if !n.is_empty() {
-                        defined.insert(n.to_string());
-                    }
+                Statement::AssignConst { .. }
+                | Statement::AssignExpr { .. }
+                | Statement::AssignValue { .. }
+                | Statement::Incr { .. } => {
+                    let projection = crate::ir_helpers::structural_variable_write_projection(stmt);
+                    unknown_writes |= projection.opaque_variable_frame;
+                    defined.extend(projection.literal_names.into_iter().map(|name| {
+                        tcl_syntax::naming::split_element_ref(&name)
+                            .map_or(name.as_str(), |(root, _)| root)
+                            .to_owned()
+                    }));
                 }
                 Statement::Call {
                     command,
@@ -1330,7 +1334,7 @@ fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&s
             }
         }
     }
-    (defined, unset)
+    (defined, unset, unknown_writes)
 }
 
 /// The entry facts one function frame contributes to the existence fold
@@ -1631,7 +1635,8 @@ pub fn existence_constant_branches_with_metadata_context(
     }) {
         return out;
     }
-    let (defined, unset) = scan_defined_and_unset(cfg);
+    let (defined, unset, unknown_writes) = scan_defined_and_unset(cfg);
+    let unknown_writes = dynamic_names.writes || unknown_writes;
     // Locals bound to out-of-frame storage (`global` / `variable` / `upvar` /
     // `namespace upvar`): whether such a name exists depends on the *linked*
     // variable, which this function cannot see, so its existence query must
@@ -1744,7 +1749,7 @@ pub fn existence_constant_branches_with_metadata_context(
             // reason about unset-and-remake shapes.
             if aliased.contains(base)
                 || frame.params.iter().any(|p| p == base)
-                || dynamic_names.writes
+                || unknown_writes
                 || defined
                     .iter()
                     .any(|d| d == base || d.strip_prefix(base).is_some_and(|r| r.starts_with('(')))
@@ -1790,7 +1795,7 @@ pub fn existence_constant_branches_with_metadata_context(
             } else if !defined.contains(&var) {
                 // `set $switch {}` may have defined exactly this name — the
                 // argparse idiom.
-                if dynamic_names.writes {
+                if unknown_writes {
                     continue;
                 }
                 false
@@ -3571,6 +3576,54 @@ mod tests {
     use crate::interprocedural::test_body_identity::fixture_id;
 
     use super::*;
+
+    #[test]
+    fn existence_inventory_keeps_literal_destination_names_and_unknown_targets() {
+        let mut cfg = CfgFunction::new("source body", "entry");
+        let entry = cfg.entry;
+        for name in ["", "$literal", "${braced}", "$array(key)"] {
+            cfg.blocks
+                .get_mut(&entry)
+                .unwrap()
+                .statements
+                .push(Statement::AssignConst {
+                    span: tcl_lexer::Span::new(0, 0),
+                    name: name.into(),
+                    name_braced: true,
+                    value: "1".into(),
+                    value_span: None,
+                });
+        }
+        let (defined, _, unknown) = scan_defined_and_unset(&cfg);
+        assert_eq!(
+            defined,
+            FxHashSet::from_iter(
+                ["", "$literal", "${braced}", "$array"]
+                    .into_iter()
+                    .map(str::to_owned)
+            )
+        );
+        assert!(!unknown);
+        assert!(
+            !defined.contains("literal")
+                && !defined.contains("braced")
+                && !defined.contains("array")
+        );
+        cfg.blocks
+            .get_mut(&entry)
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: tcl_lexer::Span::new(0, 0),
+                name: "$target".into(),
+                name_braced: false,
+                value: "1".into(),
+                value_span: None,
+            });
+        let (defined, _, unknown) = scan_defined_and_unset(&cfg);
+        assert!(unknown);
+        assert!(!defined.contains("target"));
+    }
 
     fn logical_callback_unit(
         source: &str,

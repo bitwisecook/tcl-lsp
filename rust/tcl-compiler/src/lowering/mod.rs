@@ -54,6 +54,10 @@ mod execution_regions;
 pub(crate) mod hooks;
 mod hosted_source_bodies;
 mod installed_bodies;
+mod source_body_syntax;
+pub use source_body_syntax::{
+    SourceBodySyntaxCache, SourceBodySyntaxRequest, SourceBodySyntaxTemplate,
+};
 #[cfg(test)]
 mod native_body_context_tests;
 #[cfg(test)]
@@ -1165,6 +1169,9 @@ pub struct Lowerer<'r> {
     /// `oo::`, `when`, or nested `proc`) where isolated lowering is byte-identical;
     /// `None` ⇒ the normal whole-file lowering.  See [`lower_to_ir_with_body_cache`].
     body_cache: Option<&'r BodyCacheFn<'r>>,
+    source_body_syntax_cache: Option<&'r SourceBodySyntaxCache<'r>>,
+    #[cfg(test)]
+    verify_source_body_syntax_cache: bool,
     /// Current `lower_script` / `lower_body` recursion depth, bounded by
     /// [`MAX_LOWER_NEST_DEPTH`] so deeply-nested bodies cannot overflow the
     /// stack. Mirrors [`crate::cfg_builder::CfgBuilder`]'s `depth` field —
@@ -1350,6 +1357,9 @@ impl<'r> Lowerer<'r> {
             metadata_origin: LoweringMetadataOrigin::Standalone,
             target: CompileTarget::Analysis,
             body_cache: None,
+            source_body_syntax_cache: None,
+            #[cfg(test)]
+            verify_source_body_syntax_cache: false,
             nest_depth: 0,
             source: String::new(),
             word_space: WordSpace::new("", 0, tcl_lexer::SourceChannel::Document),
@@ -1459,6 +1469,13 @@ impl<'r> Lowerer<'r> {
     #[must_use]
     pub fn with_body_cache(mut self, cache: &'r BodyCacheFn<'r>) -> Self {
         self.body_cache = Some(cache);
+        self
+    }
+
+    /// Cache certified conditional source syntax without borrowing executed-body proofs.
+    #[must_use]
+    pub fn with_source_body_syntax_cache(mut self, cache: &'r SourceBodySyntaxCache<'r>) -> Self {
+        self.source_body_syntax_cache = Some(cache);
         self
     }
 
@@ -5186,18 +5203,7 @@ impl<'r> Lowerer<'r> {
             .and_then(|binding| binding.proved_execution_target())
             .filter(|target| target.registry_backed)
         else {
-            return Statement::Call {
-                span: seg.span,
-                command: cmd_name.into(),
-                canonical_command: None,
-                args: args.to_vec(),
-                defs: vec![],
-                reads: vec![],
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: Some(tokens),
-                foreach_groups: None,
-            };
+            return source_body_syntax::generic_call(seg.span, cmd_name, args, Some(tokens));
         };
         let Some(role_cmd) = self.retained_metadata_descriptor_label(&tokens) else {
             return Statement::Call {

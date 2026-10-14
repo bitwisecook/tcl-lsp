@@ -36,9 +36,16 @@ impl Lowerer<'_> {
         let scope = card.create_source_scope(&self.module);
         let previous_scope = std::mem::replace(&mut self.authored_source_scope, scope.clone());
         let previous = std::mem::replace(&mut self.readonly_authored_body, true);
-        let mut body = self
-            .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
-                lowerer.lower_body(&text, span.start(), &body_namespace)
+        let mut body =
+            self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+                lowerer.lower_original_source_body(
+                    &text,
+                    span.start(),
+                    &body_namespace,
+                    super::source_body_syntax::SourceBodySyntaxOwner::Authored(
+                        std::sync::Arc::new(card.clone()),
+                    ),
+                )
             });
         self.readonly_authored_body = previous;
         self.authored_source_scope = previous_scope;

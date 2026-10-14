@@ -29,7 +29,7 @@ pub struct JimScriptLocation<T> {
 pub struct JimEvaluationFrame<T> {
     /// Procedure nesting depth; uplevel does not change this axis.
     pub procedure_level: u32,
-    /// Resolved command slot name; unavailable for a failed command lookup.
+    /// Last cold lookup's original command key; absent before a found lookup.
     pub command_name: Option<T>,
     /// Whether the actual selected command is a procedure.
     pub is_procedure: bool,
@@ -53,6 +53,48 @@ pub struct JimErrorFrame<T> {
     pub invocation: T,
 }
 
+/// Actual frame coordinates selected by Jim's automatic error capture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JimErrorFrameSelection {
+    /// Evaluation frame supplying the script location and invocation.
+    pub frame: usize,
+    /// Caller procedure supplying its last observed original hash key.
+    pub procedure: Option<usize>,
+}
+
+/// Select frame coordinates without reading or retaining native values. Adapters
+/// materialize only these original objects while the evaluation still owns argv.
+#[must_use]
+pub fn select_jim_error_frame_sources<T>(
+    procedure_level: u32,
+    frames: &[JimEvaluationFrame<T>],
+) -> Option<Vec<JimErrorFrameSelection>> {
+    let mut result = Vec::new();
+    for level in (0..=procedure_level).rev() {
+        let index = if level == procedure_level {
+            0
+        } else {
+            frames
+                .iter()
+                .position(|frame| frame.procedure_level == level)?
+        };
+        let frame = frames.get(index)?;
+        let procedure = if index == 0 || frame.command_name.is_some() {
+            frames[index + 1..]
+                .iter()
+                .position(|caller| caller.is_procedure && caller.command_name.is_some())
+                .map(|relative| index + 1 + relative)
+        } else {
+            None
+        };
+        result.push(JimErrorFrameSelection {
+            frame: index,
+            procedure,
+        });
+    }
+    Some(result)
+}
+
 /// Capture Jim's first automatic error stack before evaluation frames unwind.
 /// `script_failure` is supplied only by a script parser's failure boundary.
 /// A missing procedure-level frame abstains; it never invents a caller frame.
@@ -73,37 +115,26 @@ pub fn capture_jim_error_frames<T: Clone>(
             invocation: empty.clone(),
         }]);
     }
-    let mut result = Vec::new();
-    for level in (0..=procedure_level).rev() {
-        let index = if level == procedure_level {
-            0
-        } else {
-            frames
-                .iter()
-                .position(|frame| frame.procedure_level == level)?
-        };
-        let frame = frames.get(index)?;
-        let procedure = if index == 0 || frame.command_name.is_some() {
-            frames[index + 1..].iter().find_map(|caller| {
-                caller
-                    .is_procedure
-                    .then_some(caller.command_name.as_ref())
-                    .flatten()
-            })
-        } else {
-            None
-        };
-        result.push(JimErrorFrame {
-            procedure: procedure.unwrap_or(empty).clone(),
-            file: frame
-                .script
-                .as_ref()
-                .map_or(empty, |script| &script.file)
-                .clone(),
-            line: frame.script.as_ref().map_or(1, |script| script.line),
-            invocation: frame.invocation.clone(),
-        });
-    }
+    let selections = select_jim_error_frame_sources(procedure_level, frames)?;
+    let result = selections
+        .into_iter()
+        .map(|selection| {
+            let frame = &frames[selection.frame];
+            let procedure = selection
+                .procedure
+                .and_then(|index| frames[index].command_name.as_ref());
+            JimErrorFrame {
+                procedure: procedure.unwrap_or(empty).clone(),
+                file: frame
+                    .script
+                    .as_ref()
+                    .map_or(empty, |script| &script.file)
+                    .clone(),
+                line: frame.script.as_ref().map_or(1, |script| script.line),
+                invocation: frame.invocation.clone(),
+            }
+        })
+        .collect();
     Some(result)
 }
 
@@ -303,6 +334,39 @@ mod tests {
                 .map(|entry| entry.invocation.as_str())
                 .collect::<Vec<_>>(),
             ["error BOOM", "inner BOOM", "savedOuter"]
+        );
+    }
+
+    #[test]
+    fn frame_selection_reads_only_actual_selected_coordinates() {
+        let frames = [
+            frame(2, "error", false, "error fail"),
+            frame(2, "retired-eval", false, "eval {error fail}"),
+            frame(1, "Q", true, "P 1"),
+            frame(0, "catch", false, "catch {P 1}"),
+        ];
+        assert_eq!(
+            select_jim_error_frame_sources(2, &frames),
+            Some(vec![
+                JimErrorFrameSelection {
+                    frame: 0,
+                    procedure: Some(2)
+                },
+                JimErrorFrameSelection {
+                    frame: 2,
+                    procedure: None
+                },
+                JimErrorFrameSelection {
+                    frame: 3,
+                    procedure: None
+                },
+            ])
+        );
+        let mut missing = frames;
+        missing[2].command_name = None;
+        assert_eq!(
+            select_jim_error_frame_sources(2, &missing).unwrap()[0].procedure,
+            None
         );
     }
 

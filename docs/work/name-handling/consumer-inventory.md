@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T12:42:10Z on `work`.
+Current bounded snapshot: 2026-10-14T12:59:10Z on `work`.
 
 Shared command, variable, body and source owners are integrated across compiler/CFG,
 summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
@@ -126,6 +126,11 @@ Compiler90 seals12:44:33 with build101, zero semantic controls and zero source
 drift. Minifier borrows a Registry through a temporary context Arc (E0716); the
 repair must retain that actual context or use its existing borrowed accessor.
 No current consumer assertion has run in this scope.
+
+Compiler91 seals12:56:51 with build101 after Rust compilation reaches linking;
+ld terminates with SIGBUS. Zero semantic controls execute and source drift is
+zero. The genuine held-context lifetime repair is integrated; fresh linking and
+original/new assertion execution remain required.
 
 Compiler88 builds and seals113 controls:96 PASS/17 nonpassing (13 assertion failures,
 three depth SIGABRTs and one analyser-cap timeout), zero source drift and no missing

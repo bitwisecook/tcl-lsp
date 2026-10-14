@@ -1,0 +1,76 @@
+{
+  "utc": "2026-10-14T13:07:55.138849+00:00",
+  "reason": "Affected compiler package clean per KCS after disk-full/SIGBUS; original capture source/raw provenance and saved88 executable retained. Clean isolated rebuild required before conclusions.",
+  "files": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-0ddc6207e90fbe77.rlib",
+      "bytes": 443192546,
+      "sha256": "60169a38a19cddd92c830f52c1e3eb530dfc936994be1305d7659afc46c46c52"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-92891d60bf6d3a9b.d",
+      "bytes": 115160,
+      "sha256": "77488acc4b70392333f9f2544f30c1e4165cc3fb0b51f9398f2b5382671c6679"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-0ddc6207e90fbe77.d",
+      "bytes": 115160,
+      "sha256": "3f77620d28398122728bfb777d9fb58cc483e78387cf4f1f8362e9b68d677fbc"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4.d",
+      "bytes": 123277,
+      "sha256": "a17c1832ceaccebfda061cad0d8f0e552c640e00c490943115d12951361476ca"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-355d248fdb098624.d",
+      "bytes": 114907,
+      "sha256": "c4518b4cca83a0d66e27f11d361c717bb5c99cb718e45bfa1a41da55d33a554f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-d3753ea929bb6cdf.rmeta",
+      "bytes": 39055326,
+      "sha256": "36b4e7d1a55cd53db1a44f385c92a1fef306a0e9ae2a6b22d0207f149615eee8"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-a59cda291b26055b.d",
+      "bytes": 112494,
+      "sha256": "39423c638b0c89c2ec91263b78c7e0bbb8220d0b91cd287103e73ca335fd57b1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-355d248fdb098624.rmeta",
+      "bytes": 39554550,
+      "sha256": "2911865bc75dad0b4a508b145aba1b17d6f46749376384b42a99de50f91af3d1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-d3753ea929bb6cdf.d",
+      "bytes": 114140,
+      "sha256": "62f97ac5892fa4a4f52f05bf59f61b75520fc88b75d597b3ceb2c23e5d8d2584"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-299301a775b526ff.d",
+      "bytes": 86647,
+      "sha256": "f1b89f15e2094710b94e5dc1f2526e662717dba0bc3a9763f5b02b741e049a6e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-355d248fdb098624.rlib",
+      "bytes": 441533678,
+      "sha256": "314b6db21c2df50d53f8dbce90a9d95f610eb17fd0794427f344d117b40aad36"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-3bc41eb171866366.d",
+      "bytes": 112494,
+      "sha256": "ea88801c175beee0b29ec4cb1c3a8d4c4396c78d89b04391da0cd765de1e435d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-299301a775b526ff.rmeta",
+      "bytes": 30426551,
+      "sha256": "c2b79f58eba517a84023ab1c048aa012f83ceb715fc6b5c1224f84dce836ad24"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-0ddc6207e90fbe77.rmeta",
+      "bytes": 39653319,
+      "sha256": "2a221f5fa6688e0f81b20e3b96ea1890ebb7c630d125dde556a3558fa726c848"
+    }
+  ]
+}

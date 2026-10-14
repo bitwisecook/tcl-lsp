@@ -2947,6 +2947,22 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
     ))
 }
 
+/// Dependency-certified original source syntax request.
+#[salsa::interned]
+pub struct SourceProcBodyKey<'db> {
+    #[returns(ref)]
+    pub request: tcl_compiler::lowering::SourceBodySyntaxRequest,
+}
+
+/// Lower neutral call syntax from genuine pre-lowering source dependencies.
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn lower_proc_body_source<'db>(
+    db: &'db dyn TclDb,
+    key: SourceProcBodyKey<'db>,
+) -> tcl_compiler::lowering::SourceBodySyntaxTemplate {
+    key.request(db).lower_neutral()
+}
+
 /// Build a `CompilationUnit` (with interprocedural summary applied) whose
 /// per-procedure baseline lattices are memoised by the salsa-native
 /// [`function_lattice`] query.
@@ -3197,22 +3213,19 @@ fn build_unit_with_keys_and_input<'db>(
             );
             (*lower_proc_body(db, key)).clone()
         };
-        match input {
-            Some(input) => CompilationUnit::build_memoized_with_analysis_input(
-                source,
-                options,
-                &mut lattice_memo,
-                &body_memo,
-                None,
-                input,
-            ),
-            None => CompilationUnit::build_for_memoized_with_body_cache(
-                source,
-                options,
-                &mut lattice_memo,
-                &body_memo,
-            ),
-        }
+        let source_body_memo = |request: &tcl_compiler::lowering::SourceBodySyntaxRequest| {
+            let key = SourceProcBodyKey::new(db, request.clone());
+            lower_proc_body_source(db, key)
+        };
+        CompilationUnit::build_memoized_with_source_body_syntax_cache(
+            source,
+            options,
+            &mut lattice_memo,
+            &body_memo,
+            &source_body_memo,
+            None,
+            input,
+        )
     };
     lattice_keys.retain(|id, key| {
         cu.accepts_original_procedure_lattice(*id, &function_lattice(db, *key), registry)
@@ -3411,9 +3424,6 @@ pub struct CheckSolve {
     /// tail (or the whole-module `optimise_unit` fallback).  Byte-identical to a
     /// bare `optimise_unit`.
     pub optimisations: Vec<Optimisation>,
-    /// Command-head replay availability for compiler checks, independent of warning count.
-    /// Stored callbacks belong to the separate whole-unit taint report.
-    pub taint_replays: tcl_compiler::taint::TaintReplayAnalysis,
 }
 
 /// The checks-path memoised solve for one document.
@@ -4274,6 +4284,9 @@ pub struct CompilerDiagnostics {
     pub checks: Vec<CompilerCheck>,
     /// `optimise_unit` rewrites (`O1xx`), surfaced as HINT-severity suggestions.
     pub optimisations: Vec<Optimisation>,
+    /// Command-head replay availability for compiler checks, independent of warning count.
+    /// Stored callbacks belong to the separate whole-unit taint report.
+    pub taint_replays: tcl_compiler::taint::TaintReplayAnalysis,
 }
 
 /// Run the compiler-checks + optimiser passes over a built unit.  Shared by the

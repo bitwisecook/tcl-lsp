@@ -1,0 +1,2 @@
+code 1 result fail
+Q stdin 1 {error fail} {} stdin 2 {P 1}

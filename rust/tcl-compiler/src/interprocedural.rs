@@ -30,7 +30,7 @@ use tcl_registry::value_transfer::ExactValue;
 
 use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::ir::ProcedureId;
-use crate::naming::{normalise_var_name, split_array_name};
+use crate::naming::normalise_var_name;
 use crate::side_effects::EffectRegion;
 
 mod completion;
@@ -1653,10 +1653,18 @@ fn collect_instance_var_writes(
     }
     for stmt in &script.statements {
         match stmt {
-            Statement::AssignConst { name, .. }
-            | Statement::AssignExpr { name, .. }
-            | Statement::AssignValue { name, .. }
-            | Statement::Incr { name, .. } => check_ivar_write(name, ivars, out),
+            Statement::AssignConst { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::AssignValue { .. }
+            | Statement::Incr { .. } => {
+                let projection = crate::ir_helpers::structural_variable_write_projection(stmt);
+                if projection.opaque_variable_frame {
+                    out.extend(ivars.iter().cloned());
+                }
+                for name in &projection.literal_names {
+                    check_ivar_write(name, ivars, out);
+                }
+            }
             Statement::Call { defs, tokens, .. }
                 if tokens
                     .as_ref()
@@ -1753,10 +1761,7 @@ fn collect_instance_var_writes(
 /// array element `arr(idx)` compares on `arr`) is a declared instance
 /// var.
 fn check_ivar_write(raw: &str, ivars: &HashSet<String>, out: &mut HashSet<String>) {
-    if raw.is_empty() {
-        return;
-    }
-    let base = split_array_name(normalise_var_name(raw)).0;
+    let base = tcl_syntax::naming::split_element_ref(raw).map_or(raw, |(root, _)| root);
     if ivars.contains(base) {
         out.insert(base.to_owned());
     }
@@ -6140,6 +6145,37 @@ mod tests {
                 caller.calls,
             );
         }
+    }
+
+    #[test]
+    fn instance_write_candidates_keep_literal_destinations_and_dynamic_unknowns() {
+        let ivars: HashSet<_> = ["", "$field", "field", "${braced}", "$array"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let mut writes = HashSet::new();
+        for name in ["", "$field", "${braced}", "$array(key)"] {
+            check_ivar_write(name, &ivars, &mut writes);
+        }
+        assert_eq!(
+            writes,
+            HashSet::from_iter(
+                ["", "$field", "${braced}", "$array"]
+                    .into_iter()
+                    .map(str::to_owned)
+            )
+        );
+        assert!(!writes.contains("field"));
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let dynamic = crate::ir::Script::from_statements(vec![crate::ir::Statement::AssignConst {
+            span: tcl_lexer::Span::new(0, 0),
+            name: "$target".into(),
+            name_braced: false,
+            value: "1".into(),
+            value_span: None,
+        }]);
+        collect_instance_var_writes(&dynamic, &ivars, &registry, &mut writes, 0);
+        assert_eq!(writes, ivars);
     }
 
     /// `collect_instance_var_writes`

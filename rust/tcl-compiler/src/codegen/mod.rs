@@ -1121,8 +1121,36 @@ impl<'r> CodegenCtx<'r> {
         tcl_registry::hooks::LoweringHookId,
         tcl_runtime_api::CommandBindingIdentity,
     )> {
-        if self.plain_command_dispatch || !self.trusts_builtin(command) {
+        if self.plain_command_dispatch
+            || !self.invocation_specialisation_proved()
+            || !self.trusts_builtin(command)
+        {
             return None;
+        }
+        if let Some(tokens) = self.invocation_tokens.as_deref()
+            && tokens.source_binding.is_some()
+        {
+            if !tokens.words_align_with_argv_text()
+                || tokens.argv_texts.first().is_none_or(|head| head != command)
+                || tokens.argv_texts.len() != args.len().checked_add(1)?
+                || tokens
+                    .argv_texts
+                    .iter()
+                    .skip(1)
+                    .zip(args)
+                    .any(|(original, operand)| original.as_str() != *operand)
+            {
+                return None;
+            }
+            let admitted = crate::registry_invocation::admitted_native_compiler_invocation(
+                self.registry,
+                None,
+                tokens,
+            )?;
+            return Some((
+                admitted.lowering_hook()?,
+                self.command_binding_identity(command, admitted.canonical_registration_name()),
+            ));
         }
         let resolved =
             self.registry
@@ -1497,6 +1525,37 @@ pub(crate) struct SiteBinding {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inline_lowering_declines_unavailable_scope_and_retained_unknown_source() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["target"], &registry);
+        assert_eq!(
+            ctx.inline_lowering_hook("set", &["target", "value"])
+                .unwrap()
+                .0,
+            tcl_registry::hooks::LoweringHookId::Set
+        );
+        ctx.resolution_namespace.key = None;
+        assert!(
+            ctx.inline_lowering_hook("set", &["target", "value"])
+                .is_none()
+        );
+        let mut ctx = CodegenCtx::new(true, &["target"], &registry);
+        let mut tokens = ctx.original_inline_syntax("set target value").unwrap();
+        tokens.source_binding = Some(crate::command_binding::SourceInvocationBinding::unknown());
+        ctx.with_invocation_tokens(Some(&tokens), |ctx| {
+            assert!(
+                ctx.inline_lowering_hook("set", &["target", "value"])
+                    .is_none()
+            );
+            assert!(
+                ctx.inline_lowering_hook("set", &["other", "value"])
+                    .is_none()
+            );
+            assert!(ctx.command_binding_requirements.is_empty());
+        });
+    }
 
     fn fixed_preparation(generation: u64) -> crate::command_binding::SourceExpressionPreparation {
         use std::sync::Arc;

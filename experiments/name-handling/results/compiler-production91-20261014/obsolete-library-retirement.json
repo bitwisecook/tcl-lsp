@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-14T13:02:11.017918+00:00",
+  "reason": "Obsolete compiler library archive used by sealed MCP89; source/provider snapshots and complete failed build preserved. Current0dd library, original F5 library, saved Compiler88 executable retained. No active Cargo.",
+  "files": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-92891d60bf6d3a9b.rlib",
+      "bytes": 443137338,
+      "sha256": "095f016234eaf693910a0bc1cf5c0c9ea18be9af8ab2d2b078780e770ee5ec8b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-92891d60bf6d3a9b.rmeta",
+      "bytes": 39811991,
+      "sha256": "2beeb6da9cd3ee138d331c8d4adf1a70946baf5e4a80241f46e3772719779713"
+    }
+  ]
+}
