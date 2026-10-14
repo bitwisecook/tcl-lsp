@@ -40,6 +40,27 @@ pub struct LogicalSourceMemberDeclaration {
     method: MethodDef,
 }
 
+/// Original static member-name data and its independently quoted source word.
+/// This readonly suggestion supplies no method dispatch or editing permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalSourceMemberInsertion {
+    name: String,
+    word: String,
+}
+impl LogicalSourceMemberInsertion {
+    /// Exact original static name, independent of a display-map key.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// One quoted word under the retained original source grammar.
+    #[must_use]
+    pub fn source_word(&self) -> &str {
+        &self.word
+    }
+}
+
 impl LogicalSourceClassDeclaration {
     pub(crate) fn capture(
         image: SourceImage,
@@ -101,6 +122,39 @@ impl LogicalSourceClassDeclaration {
 }
 
 impl AnalysisResult {
+    /// A current selected member and genuine whole name word supply insertion data.
+    /// Computed/generated names without a static original operand remain unavailable.
+    #[must_use]
+    pub fn logical_source_member_insertion(
+        &self,
+        class: &ClassDef,
+        side: MemberSide,
+        method: &MethodDef,
+    ) -> Option<LogicalSourceMemberInsertion> {
+        let class_owner = self.logical_source_class_declaration(class)?;
+        let members = match side {
+            MemberSide::Instance => &class.methods,
+            MemberSide::ClassObject => &class.class_methods,
+        };
+        members
+            .values()
+            .any(|current| std::ptr::eq(current, method))
+            .then_some(())?;
+        class_owner.member(side, method)?;
+        let config = class_owner.input.lexer_config();
+        let original = class
+            .original_members
+            .logical_name_operand(side, method, &class_owner.input, &class_owner.image)?
+            .clone();
+        let value = tcl_syntax::word_rules::original_static_word_ascii_presentation(&original)?;
+        if value.contains(&0) || value.as_slice() != method.name.as_bytes() {
+            return None;
+        }
+        let name = String::from_utf8(value).ok()?;
+        let word = tcl_syntax::word_rules::lexical_ascii_source_word(&name, config)?;
+        Some(LogicalSourceMemberInsertion { name, word })
+    }
+
     /// A current actual class must still agree with the completed source walk.
     /// Reporting qualified labels are excluded; altered member metadata declines.
     #[must_use]
@@ -125,6 +179,62 @@ impl AnalysisResult {
 mod tests {
     use super::*;
     use crate::analyser::Analyser;
+
+    #[test]
+    fn logical_member_insertions_keep_literal_name_data_and_current_side_owner() {
+        let source = "oo::class create C {method {$literal} {} {}; method {two words} {} {}; method dynamic$name {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let class = &analysis.all_classes["::C"];
+        for (name, expected) in [("$literal", "{$literal}"), ("two words", "{two words}")] {
+            let method = &class.methods[name];
+            let insertion = analysis
+                .logical_source_member_insertion(class, MemberSide::Instance, method)
+                .expect("actual static Logical method-name operand");
+            assert_eq!(insertion.name(), name);
+            assert_eq!(insertion.source_word(), expected);
+            assert!(
+                analysis
+                    .logical_source_member_insertion(class, MemberSide::ClassObject, method)
+                    .is_none()
+            );
+            assert!(
+                analysis
+                    .logical_source_member_insertion(class, MemberSide::Instance, &method.clone())
+                    .is_none()
+            );
+        }
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::C")
+            .unwrap()
+            .methods
+            .get_mut("$literal")
+            .unwrap()
+            .body_span = tcl_lexer::Span::new(0, 1);
+        let class = &changed.all_classes["::C"];
+        assert!(
+            changed
+                .logical_source_member_insertion(
+                    class,
+                    MemberSide::Instance,
+                    &class.methods["$literal"]
+                )
+                .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let class = &missing.all_classes["::C"];
+        assert!(
+            missing
+                .logical_source_member_insertion(
+                    class,
+                    MemberSide::Instance,
+                    &class.methods["$literal"]
+                )
+                .is_none()
+        );
+    }
 
     #[test]
     fn logical_member_declarations_keep_actual_side_source_and_current_metadata() {

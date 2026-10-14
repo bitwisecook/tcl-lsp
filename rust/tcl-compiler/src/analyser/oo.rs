@@ -1285,6 +1285,117 @@ impl Analyser {
         bodies
     }
 
+    fn retain_logical_member_name_operand(
+        &self,
+        grammar: &DefinitionBodyGrammar,
+        cmd: &crate::segmenter::SegmentedCommand,
+        class: &mut ClassDef,
+    ) {
+        if !self.selected_logical_declaration_advice() || cmd.is_partial {
+            return;
+        }
+        let input = self.resolved_analysis_input();
+        let Some(image) = self
+            .result
+            .retained_command_realm()
+            .filter(|realm| realm.matches_resolved_analysis_input(&input))
+            .and_then(|realm| realm.original_source_image())
+            .filter(|image| image.bytes() == self.source.as_bytes())
+        else {
+            return;
+        };
+        let config = self.file_lexer_config().nested();
+        let context = self.analysis_context();
+        let Some(statement) = MemberStatement::read(
+            grammar,
+            &cmd.texts,
+            &cmd.argv,
+            Some(context.context().authoring_query()),
+        ) else {
+            return;
+        };
+        let MemberEffect::Callable {
+            name_slot: Some(name_slot),
+            ..
+        } = statement.row.effect
+        else {
+            return;
+        };
+        let (Some(name), Some(side), Some(body)) = (
+            statement.row.name.as_ref(),
+            member_side(statement.row.receiver),
+            statement.row.body,
+        ) else {
+            return;
+        };
+        let name_ordinal = statement.row.keyword_index + 1 + usize::from(name_slot);
+        let surface = Some(context.context().authoring_query());
+        let mut names =
+            statement
+                .member
+                .indices_for_call_in(statement.args(), surface, ArgRole::Name);
+        let mut bodies =
+            statement
+                .member
+                .indices_for_call_in(statement.args(), surface, ArgRole::Body);
+        if names.next() != Some(usize::from(name_slot))
+            || names.next().is_some()
+            || bodies
+                .next()
+                .map(|index| statement.row.keyword_index + 1 + index)
+                != Some(body.0)
+            || bodies.next().is_some()
+            || config != input.lexer_config().nested()
+        {
+            return;
+        }
+        let groups = tcl_lexer::group_commands_bytes(&cmd.all_tokens, image.bytes(), config);
+        let [group] = groups.as_slice() else {
+            return;
+        };
+        if group.words.len() != cmd.argv.len() || group.words.iter().any(|word| word.expand) {
+            return;
+        }
+        let Ok(words) = group
+            .words
+            .iter()
+            .map(|group| {
+                tcl_lexer::NativeWord::from_group(image.clone(), config, &cmd.all_tokens, group)
+            })
+            .collect::<Result<Vec<_>, _>>()
+        else {
+            return;
+        };
+        let Some(word) = words.get(name_ordinal) else {
+            return;
+        };
+        if tcl_syntax::word_rules::original_static_word_ascii_presentation(word).as_deref()
+            != Some(name.as_bytes())
+        {
+            return;
+        }
+        let methods = match side {
+            MemberSide::Instance => &class.methods,
+            MemberSide::ClassObject => &class.class_methods,
+        };
+        let Some(method) = methods.get(name) else {
+            return;
+        };
+        if cmd.argv.get(name_ordinal).map(|token| token.span) != Some(method.name_span)
+            || cmd.argv.get(body.0).map(|token| token.span) != Some(method.body_span)
+        {
+            return;
+        }
+        let method = method.clone();
+        class.original_members.retain_logical_name_operand(
+            input,
+            words,
+            name_ordinal,
+            side,
+            &method,
+        );
+    }
+
     /// Selected source-member formal applicability and exact authored ordinals.
     /// The original class ledger supplies any lifecycle body; representative
     /// tokens and reporting strings cannot stand in for that whole word.
@@ -1415,6 +1526,9 @@ impl Analyser {
                     rules: self.word_rules(),
                 },
             );
+            if spliced.is_none() && expanded.is_none() {
+                self.retain_logical_member_name_operand(grammar, cmd, class_def);
+            }
             self.retain_class_relation_lookups(texts, class_def, scope_path);
             self.record_member_command_references(grammar, texts, argv, scope_path);
             if let Some(method) = collect_method_body(
@@ -4564,6 +4678,89 @@ mod tests {
                     .with_command_store(std::sync::Arc::clone(supplied.context.commands())),
             );
             assert!(!original.matches_source(&image, &foreign));
+        }
+    }
+
+    #[test]
+    fn logical_method_name_operands_require_selected_original_named_members() {
+        let source = "oo::class create C {method {$literal} {} {}; self method {with space} {} {}; method known $formals {}; constructor {} {}; foreach n {generated} {method $n {} {}}; method {*}{expanded} {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let class = &analysis.all_classes["::C"];
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = analysis
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        for (side, method) in [
+            (MemberSide::Instance, &class.methods["$literal"]),
+            (MemberSide::Instance, &class.methods["known"]),
+            (MemberSide::ClassObject, &class.class_methods["with space"]),
+        ] {
+            let word = class
+                .original_members
+                .logical_name_operand(side, method, input, image)
+                .unwrap();
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_ascii_presentation(word).unwrap(),
+                method.name.as_bytes(),
+            );
+            assert!(
+                class
+                    .original_members
+                    .logical_name_operand(
+                        match side {
+                            MemberSide::Instance => MemberSide::ClassObject,
+                            MemberSide::ClassObject => MemberSide::Instance,
+                        },
+                        method,
+                        input,
+                        image,
+                    )
+                    .is_none()
+            );
+            let mut changed = method.clone();
+            changed.name_span = tcl_lexer::Span::new(0, 1);
+            assert!(
+                class
+                    .original_members
+                    .logical_name_operand(side, &changed, input, image)
+                    .is_none()
+            );
+            let foreign = tcl_lexer::SourceImage::document("different source");
+            assert!(
+                class
+                    .original_members
+                    .logical_name_operand(side, method, input, &foreign)
+                    .is_none()
+            );
+            let mut changed_input = input.clone();
+            changed_input.unit_profile = Analyser::new()
+                .analyse(source, "tcl8.6")
+                .resolved_input
+                .unwrap()
+                .unit_profile;
+            assert!(
+                class
+                    .original_members
+                    .logical_name_operand(side, method, &changed_input, image)
+                    .is_none()
+            );
+        }
+        assert!(
+            class
+                .original_members
+                .logical_name_operand(MemberSide::Instance, &class.constructors[0], input, image)
+                .is_none()
+        );
+        for name in ["generated", "expanded"] {
+            let method = &class.methods[name];
+            assert!(
+                class
+                    .original_members
+                    .logical_name_operand(MemberSide::Instance, method, input, image)
+                    .is_none()
+            );
         }
     }
 

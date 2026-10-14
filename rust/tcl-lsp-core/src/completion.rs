@@ -1389,26 +1389,9 @@ fn method_completions(
     (!fuzzy && !items.is_empty()).then_some(items)
 }
 
-/// Every method item callable on `class_q` in the given `bucket`
-/// (label-sorted) — gathered across the whole MRO so **inherited** methods
-/// appear, not just the receiver class's own.  Overridden methods appear
-/// once (the most-derived provider wins).  Only public methods are
-/// offered (an external dispatch cannot reach private / unexported ones);
-/// `destroy` is added as a universal instance method.  A class unknown to
-/// the analysis falls through to the registry (`ObjectClassSpec` / a
-/// self-referential Tk widget spec), which models no
-/// class/instance distinction, so `bucket` is moot there.  The candidate
-/// universe behind [`method_completions`] and [`fuzzy_command_fallback`].
-///
-/// Instance dispatch (`$obj method` / a bound `CLASS create NAME` command
-/// — [`MethodBucket::Instance`]) reaches *instance* methods only.
-/// Class-command dispatch (`CLASS method` —
-/// [`MethodBucket::Class`]) reaches class-side methods only, and an
-/// ancestor-provided `self method` (not `ooutil`'s `classmethod`, which
-/// does propagate — see [`crate::definition::MethodBucket`]'s doc) only
-/// from the exact class that declared it.  Each bucket excludes the
-/// other's methods to avoid suggesting one that would error at the
-/// receiver's dispatch site.
+/// Readonly method suggestions preserve source side, provider order and visibility.
+/// Named source members require their current selected original name operand;
+/// registry, generated and per-object suggestions retain separate producers.
 fn method_items(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
@@ -1466,14 +1449,20 @@ fn method_items(
                 }
             })
         };
-        let mut methods: Vec<(&String, &str)> = bucketed
+        let side = match bucket {
+            MethodBucket::Instance => tcl_compiler::analyser::MemberSide::Instance,
+            MethodBucket::Class => tcl_compiler::analyser::MemberSide::ClassObject,
+        };
+        let mut methods = bucketed
             .into_iter()
-            .filter(|(n, m)| flipped(n, m.visibility == "public"))
-            .map(|(n, _)| (n, cls.as_str()))
-            .collect();
-        methods.sort_by(|a, b| a.0.cmp(b.0));
-        for (name, provider) in methods {
-            if !seen.insert(name.clone()) {
+            .filter(|(name, method)| flipped(name, method.visibility == "public"))
+            .filter_map(|(_, method)| analysis.logical_source_member_insertion(cd, side, method))
+            .collect::<Vec<_>>();
+        methods.sort_by(|left, right| left.name().cmp(right.name()));
+        for method in methods {
+            let name = method.name();
+            let provider = cls.as_str();
+            if !seen.insert(name.to_owned()) {
                 continue;
             }
             let detail = if provider == class_q {
@@ -1482,8 +1471,8 @@ fn method_items(
                 format!("method — inherited from {provider}")
             };
             items.push(CompletionItem {
-                label: name.clone(),
-                insert_text: name.clone(),
+                label: name.to_owned(),
+                insert_text: method.source_word().to_owned(),
                 kind: CompletionKind::Function,
                 detail: Some(detail),
                 ..CompletionItem::default()
@@ -6363,6 +6352,51 @@ mod original_source_instance_completion_tests {
 mod configured_receiver_completion_tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_member_completion_quotes_actual_selected_name_data() {
+        let source = "oo::class create C {method {$literal} {} {}; export {$literal}; method {two words} {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let items = method_items(
+            &analysis,
+            analysis.resolved_registry(),
+            "::C",
+            crate::definition::MethodBucket::Instance,
+            None,
+            analysis.resolved_profile().unwrap(),
+        )
+        .unwrap();
+        for (name, expected) in [("$literal", "{$literal}"), ("two words", "{two words}")] {
+            let item = items
+                .iter()
+                .find(|item| item.label == name)
+                .expect("actual selected method name");
+            assert_eq!(item.insert_text, expected);
+        }
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::C")
+            .unwrap()
+            .methods
+            .get_mut("$literal")
+            .unwrap()
+            .body_span = tcl_lexer::Span::new(0, 1);
+        let items = method_items(
+            &changed,
+            changed.resolved_registry(),
+            "::C",
+            crate::definition::MethodBucket::Instance,
+            None,
+            changed.resolved_profile().unwrap(),
+        )
+        .unwrap();
+        assert!(
+            items
+                .iter()
+                .all(|item| item.label != "$literal" && item.label != "two words")
+        );
+    }
 
     #[test]
     fn logical_method_completion_keeps_whole_scalar_heads_and_current_source() {

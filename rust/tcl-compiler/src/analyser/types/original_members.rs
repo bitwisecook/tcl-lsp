@@ -369,15 +369,71 @@ enum Operation {
     Effect(OriginalSourceMemberEffect),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LogicalSourceMemberNameOperand {
+    input: crate::analyser::ResolvedAnalysisInput,
+    words: Vec<tcl_lexer::NativeWord>,
+    name_ordinal: usize,
+    side: MemberSide,
+    name_span: tcl_lexer::Span,
+    body_span: tcl_lexer::Span,
+}
+
 /// Ordered original member metadata. Unknown/computed input remains an
 /// explicit coverage gap; the compatibility String table supplies no names.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OriginalSourceMemberLedger {
     operations: Vec<Operation>,
+    logical_names: Vec<LogicalSourceMemberNameOperand>,
     unavailable: bool,
 }
 
 impl OriginalSourceMemberLedger {
+    pub(crate) fn retain_logical_name_operand(
+        &mut self,
+        input: crate::analyser::ResolvedAnalysisInput,
+        words: Vec<tcl_lexer::NativeWord>,
+        name_ordinal: usize,
+        side: MemberSide,
+        method: &MethodDef,
+    ) {
+        self.logical_names.push(LogicalSourceMemberNameOperand {
+            input,
+            words,
+            name_ordinal,
+            side,
+            name_span: method.name_span,
+            body_span: method.body_span,
+        });
+    }
+
+    /// Selected original name operands remain separate from native declarations.
+    pub(crate) fn logical_name_operand(
+        &self,
+        side: MemberSide,
+        method: &MethodDef,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+    ) -> Option<&tcl_lexer::NativeWord> {
+        input.has_logical_source_name_context().then_some(())?;
+        let mut matching = self.logical_names.iter().filter(|entry| {
+            entry.input == *input
+                && entry.side == side
+                && entry.name_span == method.name_span
+                && entry.body_span == method.body_span
+                && entry.words.iter().all(|word| {
+                    word.image() == image && word.config() == input.lexer_config().nested()
+                })
+                && entry.words.get(entry.name_ordinal).is_some_and(|word| {
+                    tcl_syntax::word_rules::original_static_word_ascii_presentation(word)
+                        .is_some_and(|name| name == method.name.as_bytes())
+                })
+        });
+        let selected = matching.next()?;
+        matching.next().is_none().then_some(())?;
+        selected.words.get(selected.name_ordinal)
+    }
+
     pub(crate) fn withdraw(&mut self) {
         self.unavailable = true;
     }
@@ -390,6 +446,11 @@ impl OriginalSourceMemberLedger {
     }
     pub(crate) fn absorb(&mut self, other: &Self, other_ran_second: bool) {
         self.unavailable |= other.unavailable;
+        for name in &other.logical_names {
+            if !self.logical_names.contains(name) {
+                self.logical_names.push(name.clone());
+            }
+        }
         let mut operations = if other_ran_second {
             std::mem::take(&mut self.operations)
         } else {

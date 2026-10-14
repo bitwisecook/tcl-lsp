@@ -1,0 +1,20 @@
+
+running 1 test
+test interp::native_jim_lookup::tests::automatic_error_frames_follow_original_cold_rename_and_selected_key_lifetimes ... 
+thread 'interp::native_jim_lookup::tests::automatic_error_frames_follow_original_cold_rename_and_selected_key_lifetimes' (382659) panicked at rust/tcl-vm/src/interp/native_jim_lookup.rs:1209:13:
+assertion `left == right` failed: proc P {n} {if {$n} {rename P Q; Q 0; error fail}; return ok}
+set c [catch {P 1} result options]
+puts [list $c $result [dict get $options -errorinfo]]
+
+  left: [49, 32, 102, 97, 105, 108, 32, 123, 81, 32, 123, 125, 32, 49, 32, 123, 101, 114, 114, 111, 114, 32, 102, 97, 105, 108, 125, 32, 123, 125, 32, 123, 125, 32, 49, 32, 123, 80, 32, 49, 125, 125, 10]
+ right: [49, 32, 102, 97, 105, 108, 32, 123, 81, 32, 115, 116, 100, 105, 110, 32, 49, 32, 123, 101, 114, 114, 111, 114, 32, 102, 97, 105, 108, 125, 32, 123, 125, 32, 115, 116, 100, 105, 110, 32, 50, 32, 123, 80, 32, 49, 125, 125, 10]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_jim_lookup::tests::automatic_error_frames_follow_original_cold_rename_and_selected_key_lifetimes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1246 filtered out; finished in 0.17s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_result_tests::jim_original_vector_captures_error_arguments_before_releasing_argv ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1246 filtered out; finished in 0.14s
+

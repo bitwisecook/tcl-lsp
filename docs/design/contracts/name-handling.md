@@ -207,6 +207,7 @@ existence of a structured type does not establish a consumer's ownership.
 | Operation | Existing entry point / owner |
 | --- | --- |
 | Scan a source variable extent | `tcl_core_types::naming::scan_var_name_end_with`, selected by the dialect grammar |
+| Conditional substitution variable candidates | `tcl_syntax::naming::substitution_variable_candidates` consumes independently selected text and its complete `LexerConfig`; shared executable parts retain nested array-index/command references, order, duplicates and literal empty/sigil names. Syntax, depth or byte-name gaps retain an unknown residual. Candidates grant no cell/read/frame authority and cannot establish mitigation closure. |
 | Parse colon runs and written command names | `tcl_syntax::naming::{qualifier_segments, canonical_written_command, written_command_tail}` |
 | Checked constructed namespace report | `naming::checked_namespace_path_key` validates UTF-8 and exact constructed component roundtrip; it supplies no native namespace allocation |
 | UTF-8 compatibility qualification | `naming::qualify`; only with its documented constructed-prefix precondition |

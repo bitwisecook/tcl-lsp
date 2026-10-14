@@ -1,0 +1,15 @@
+
+running 1 test
+test jim_child_handle_aliases_keep_original_parent_lookup_and_retirement ... 
+thread 'jim_child_handle_aliases_keep_original_parent_lookup_and_retirement' (383205) panicked at rust/tcl-vm/tests/common/mod.rs:41:5:
+jim: Error: invalid command name "namespace info"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    jim_child_handle_aliases_keep_original_parent_lookup_and_retirement
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.23s
+

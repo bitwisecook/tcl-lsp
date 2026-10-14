@@ -1,0 +1,23 @@
+{
+  "input_sha256": "4f9e024aa780ca539937e61dd8181646806c25432d619dbd344ee1ab4655add8",
+  "scope": "Original written substitution name grammar and direct values; separate subst observations retained; no compiler, frame, trace or F5 acceptance",
+  "controls": {
+    "nested": [
+      "Array index command read index",
+      "Array root arr",
+      "Duplicate tail reads",
+      "Literal sigil scalar $literal",
+      "Empty scalar name"
+    ],
+    "escaped": [
+      "Escaped dollar inert",
+      "Double-backslash then live tail"
+    ],
+    "written_closer": {
+      "C8.4-C8.6/Jim": "a{b",
+      "C9.0-C9.1": "a{b}c"
+    }
+  },
+  "compiler_selectors": "../compiler-selectors.json",
+  "syntax_selectors": "../syntax-selectors.json"
+}

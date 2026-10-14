@@ -1032,10 +1032,10 @@ fn ns_import_source_names(
                 );
             }
         };
-        let keys = match interp
+        let enumerated = interp
             .namespaces()
-            .original_jim_command_enumeration_keys(&names)
-        {
+            .original_jim_command_enumeration_keys(&names);
+        let keys = match enumerated {
             Ok(keys) => keys,
             Err(error) => return interp.report_cmd_error(error.into()),
         };

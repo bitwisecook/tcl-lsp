@@ -57,6 +57,20 @@ impl SourceCommandBindings {
         let mut prepared = PreparedSourceArguments::boxed(words.len());
         let mut written_arguments = Vec::with_capacity(words.len());
         for word in &words[selected] {
+            if let Some(frozen) = self.prepare_literal_source_argument(
+                word,
+                state,
+                context.config,
+                context.registry,
+                &mut prepared,
+            ) {
+                let Ok(frozen) = frozen else {
+                    publish_argument_error(&mut prepared, state);
+                    return prepared;
+                };
+                written_arguments.push(frozen);
+                continue;
+            }
             let substitutions = self.walk_substitutions(
                 word,
                 source,
@@ -132,6 +146,46 @@ impl SourceCommandBindings {
         prepared.written_arguments = written_arguments.into();
         prepared.ready = true;
         prepared
+    }
+
+    /// Literal operands leave the source branch unchanged; preserve their
+    /// original value projections without cloning and republishing that branch.
+    fn prepare_literal_source_argument(
+        &self,
+        word: &crate::ir::WordExpr,
+        state: &mut ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+        prepared: &mut PreparedSourceArguments,
+    ) -> Option<Result<crate::registry_invocation::EffectiveInvocationWord, ()>> {
+        if !matches!(
+            word,
+            crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+        ) {
+            return None;
+        }
+        let name_value =
+            super::original_name_value::capture_word(word, state, config).map(Arc::new);
+        let frozen =
+            match frozen_arguments::freeze_word(word, None, name_value.as_deref(), state, registry)
+            {
+                Ok(frozen) => frozen,
+                Err(()) => return Some(Err(())),
+            };
+        prepared
+            .effective
+            .extend(frozen_arguments::runtime_words(&frozen));
+        prepared.written_values.push(None);
+        prepared.written_name_values.push(name_value);
+        prepared
+            .written_representations
+            .push(stored_representation(None, word, state));
+        prepared.written_objects.push(None);
+        prepared.written_method_prefixes.push(None);
+        prepared
+            .written_variable_reads
+            .push(self.prepared_argument_read(word, state, registry, None));
+        Some(Ok(frozen))
     }
 
     fn prepared_argument_read(

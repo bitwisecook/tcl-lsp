@@ -34,7 +34,9 @@ pub use original_linked_member::{
 mod logical_procedures;
 pub use logical_procedures::LogicalSourceProcedureDeclaration;
 mod logical_members;
-pub use logical_members::{LogicalSourceClassDeclaration, LogicalSourceMemberDeclaration};
+pub use logical_members::{
+    LogicalSourceClassDeclaration, LogicalSourceMemberDeclaration, LogicalSourceMemberInsertion,
+};
 mod original_member_context;
 mod original_members;
 mod original_properties;

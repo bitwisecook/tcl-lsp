@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_lookup::tests::original_publication_header_survives_replacement_without_lookup_references ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1246 filtered out; finished in 0.17s
+

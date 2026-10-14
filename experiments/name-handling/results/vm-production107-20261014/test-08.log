@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::jim_local::tests::local_frames_and_nested_upcalls_match_original_native_lineage ... 
+thread 'interp::jim_local::tests::local_frames_and_nested_upcalls_match_original_native_lineage' (382567) panicked at rust/tcl-vm/src/interp/jim_local.rs:624:52:
+called `Result::unwrap()` on an `Err` value: Host(Execution(ValueAccessRefusal(CommandProtocolUnavailable("original Jim local cleanup selected binding"))))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::jim_local::tests::local_frames_and_nested_upcalls_match_original_native_lineage
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1246 filtered out; finished in 1.84s
+

@@ -1,0 +1,17 @@
+{
+  "object": "47195c42830b13768b5901e3da4bc667270b6f29",
+  "verified_object_count": 1,
+  "reason": "Only an unstaged oversized duplicate diagnostic blob; no refs/reflogs or current index reference this object. Exact original log is preserved losslessly as tracked xz with raw SHA verification.",
+  "files": [
+    {
+      "path": ".git/objects/pack/pack-6fa2cd02ea31f6cbc42e757779f823e5b73db849.pack",
+      "bytes": 707081206,
+      "sha256": "f0ccbd6529350f2b67318eac1dd7f286606804ab16088a92b3f7d6e64a6c663b"
+    },
+    {
+      "path": ".git/objects/pack/pack-6fa2cd02ea31f6cbc42e757779f823e5b73db849.idx",
+      "bytes": 1100,
+      "sha256": "ca3cdc66fab0f18b721913685861879ca6062fcf17221ab9d9bf5665042d8e94"
+    }
+  ]
+}

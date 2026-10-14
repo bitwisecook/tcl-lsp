@@ -1,0 +1,5 @@
+{
+  "utc": "2026-10-14T15:19:34.033224+00:00",
+  "error": "Harness package omitted provider-check.json before snapshot/build; no providers/builds/tests executed.",
+  "scope": "Unexecuted capture startup; no acceptance."
+}

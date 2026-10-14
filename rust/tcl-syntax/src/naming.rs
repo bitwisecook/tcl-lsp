@@ -33,6 +33,10 @@ pub use authored_source::{
     authored_source_command_candidates, authored_source_command_slot,
     authored_source_command_spelling, authored_source_namespace_path,
 };
+mod substitution_candidates;
+pub use substitution_candidates::{
+    SubstitutionVariableCandidates, substitution_variable_candidates,
+};
 mod aliases;
 mod execution_policy;
 mod vendor_source;
