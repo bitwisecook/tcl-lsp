@@ -2432,7 +2432,7 @@ mod tests {
 
     /// `lset` takes an index equal to the list's length as an append from 8.6;
     /// tclsh 8.4.20 and 8.5.19 raise `list index out of range` there, as does
-    /// JimTcl (measured, with the empty list's `0`).
+    /// `JimTcl` (measured, with the empty list's `0`).
     #[test]
     fn w231_reads_the_length_as_an_append_only_from_8_6() {
         for src in [
