@@ -1,0 +1,115 @@
+{
+  "completed_analysis_cycles": [
+    {
+      "bytes": 1380,
+      "ms": 10110
+    },
+    {
+      "bytes": 1380,
+      "ms": 11580
+    }
+  ],
+  "completed_cfg_emissions": 2,
+  "last_phase": "SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=4 outcomes=0 layouts=33",
+  "source_preparation_starts": 14,
+  "source_preparation_completes": 13,
+  "last_completed_owner_work": {
+    "branch": {
+      "calls": 8781,
+      "inclusive_us": 110269
+    },
+    "frame": {
+      "calls": 20,
+      "inclusive_us": 3147
+    },
+    "snapshot": {
+      "calls": 107,
+      "inclusive_us": 4045
+    },
+    "fingerprint": {
+      "calls": 0,
+      "inclusive_us": 0
+    },
+    "equality": {
+      "calls": 0,
+      "inclusive_us": 0
+    },
+    "preflight": {
+      "calls": 107,
+      "inclusive_us": 296901
+    },
+    "layout": {
+      "calls": 373,
+      "inclusive_us": 19440
+    },
+    "body": {
+      "calls": 512,
+      "inclusive_us": 11311
+    },
+    "receiver-body": {
+      "calls": 169,
+      "inclusive_us": 230
+    },
+    "deferred-entry": {
+      "calls": 20,
+      "inclusive_us": 3968997
+    },
+    "source-segmentation": {
+      "calls": 241,
+      "inclusive_us": 17326
+    },
+    "source-word-tokens": {
+      "calls": 788,
+      "inclusive_us": 47099
+    },
+    "compiler-selection": {
+      "calls": 564,
+      "inclusive_us": 283880
+    },
+    "source-arguments": {
+      "calls": 373,
+      "inclusive_us": 11107179
+    },
+    "native-invocation-preparation": {
+      "calls": 311,
+      "inclusive_us": 72722
+    },
+    "point-capture": {
+      "calls": 351,
+      "inclusive_us": 296787
+    },
+    "continuation-capture": {
+      "calls": 340,
+      "inclusive_us": 2489
+    },
+    "selected-command": {
+      "calls": 351,
+      "inclusive_us": 15176065
+    },
+    "preflight-publication": {
+      "calls": 107,
+      "inclusive_us": 1446
+    },
+    "source-publication": {
+      "calls": 241,
+      "inclusive_us": 28111
+    },
+    "lexical-memo": {
+      "calls": 17686,
+      "inclusive_us": 211367
+    },
+    "lexical-capture": {
+      "calls": 1204,
+      "inclusive_us": 128699
+    },
+    "body-math": {
+      "calls": 42,
+      "inclusive_us": 95219
+    },
+    "body-expression": {
+      "calls": 42,
+      "inclusive_us": 159
+    }
+  },
+  "interpretation": "Two full analysis/CFG-diagnostic cycles completed; original test remains incomplete at30s. Third cycle completed analyser walk, then was inside repeated whole-source lowering/source preparation deferred entries at cutoff. No initial realm crash or infinite loop established. Counters are thread-cumulative inclusive and overlap; no exclusive-time sum or whole-test semantic acceptance."
+}

@@ -1,0 +1,60 @@
+{
+  "reason": "Obsolete registry cache variants excluded from exact compiler101 compiler-artifact closure; retained source receipts and all executed test binaries unchanged.",
+  "files": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-02672b25474dafdf.rlib",
+      "bytes": 150074818,
+      "sha256": "66afa9fb8d85c4f32c1b71249b157b09cf4fa981dc2eba206be317986655d3ae"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-02672b25474dafdf.rmeta",
+      "bytes": 57904064,
+      "sha256": "803f1004e92e8fc4c32acbb7ae3610970df98e42bb50ddb63c084fa1dc395f41"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-03377ca215f980cd.rlib",
+      "bytes": 150063582,
+      "sha256": "d24b98a96b77f3a043a0d869c4312e2e041fddb46e3d7b7df3440b9879033f39"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-03377ca215f980cd.rmeta",
+      "bytes": 57880275,
+      "sha256": "1111035d93e3be9dadfc7a2e3116ea7c92c60278e09fde56384e9a3ba2cbace5"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-6f8ccb9f47f48568.rmeta",
+      "bytes": 54606808,
+      "sha256": "d0b687429605bd14b69f6413f6f4e093073ce862c38ea52e6d8e31bc976235f4"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-95dc7ac1a402c89a.rlib",
+      "bytes": 150006070,
+      "sha256": "6875d5c65ab2412699e15e7bc241d5eaadba965fa2272ca3ecf23157c42fdc8e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-95dc7ac1a402c89a.rmeta",
+      "bytes": 57895920,
+      "sha256": "09cf17835fac27401af1b95f0a0560ff12150869c2dcd33e0754416437550949"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-e03e390b1f86dca8.rlib",
+      "bytes": 150048746,
+      "sha256": "90018acb000d26f29aa85e89904f5e797bed2526c36f45d98450ed9105a373ab"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-e03e390b1f86dca8.rmeta",
+      "bytes": 57899950,
+      "sha256": "a71e7cfd876855e19d464f75659525f3ff8bb8c2d84330e67144f6ee41595019"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-fe15989f70abbab8.rlib",
+      "bytes": 130841336,
+      "sha256": "31c658550b8a0e43d2af85cd03fe603150adcdfdc6db31ddbef6ec4d2ac09302"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_registry-fe15989f70abbab8.rmeta",
+      "bytes": 57880275,
+      "sha256": "b0cc75f6209c9b38f363d7fb48ef9527c4318ca00df8b4f678664ccbadf63b58"
+    }
+  ]
+}

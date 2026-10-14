@@ -1,0 +1,24 @@
+{
+  "started_utc": "2026-10-14T14:31:42.054876+00:00",
+  "selector": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+  "command": [
+    "/workspace/tcl-lsp/tmp/name-depth-budget92-compiler-ELF",
+    "--exact",
+    "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "binary_receipt": "/workspace/tcl-lsp/experiments/name-handling/results/compiler-production92-20261014/depth-executable.json",
+  "compiled_snapshot": "/tmp/name-compiler-production92-20261014/source-before.json.gz",
+  "binary_before": "75e068f01cd663855aa1cae49cf6fc2e0a2fb0a0b896a4401d884035e6b8a48f",
+  "binary_after": "75e068f01cd663855aa1cae49cf6fc2e0a2fb0a0b896a4401d884035e6b8a48f",
+  "source_changes": [],
+  "fixture_sha256": "82f6602d5492c1b321f6a26186f80741e5fd4b1a3f9c4a9f09d05dae508911ef",
+  "compiled_fixture_sha256": "82f6602d5492c1b321f6a26186f80741e5fd4b1a3f9c4a9f09d05dae508911ef",
+  "timeout_seconds": 30,
+  "timed_out": true,
+  "exit_code": -9,
+  "elapsed_seconds": 30.011717601999408,
+  "trace_flag": "TCL_LSP_TRACE_SOURCE_PHASES",
+  "scope": "Historical Compiler92 phase diagnosis only. Original assertion retained. No current-source or semantic acceptance from a bounded incomplete run."
+}

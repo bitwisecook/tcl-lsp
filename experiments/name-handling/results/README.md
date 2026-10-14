@@ -21,3 +21,5 @@ A result document records:
 `local-tcl8.6.16` is an exploratory observation from an installed system
 interpreter. It is outside the pinned 8.6.18 reference and does not establish
 a completed C release gate or Jim/F5 agreement.
+
+[Compiler101](compiler-production101-20261014/README.md) preserves the unexecuted linker failure; [Compiler102](compiler-production102-20261014/interruption.json) preserves the interrupted original equality assertion output. The [retained92 phase probe](compiler-production92-phase-20261014/README.md) diagnoses #2286 without semantic acceptance.
