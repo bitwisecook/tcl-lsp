@@ -1275,8 +1275,9 @@ pub(crate) fn variable_write_effects_from_commands<'a>(
             .skip(1)
             .map(CommandWord::invocation_word)
             .collect();
-        let projection = registry
-            .variable_write_projection(InvocationWords::structured(head.invocation_word(), &args));
+        let projection = registry.variable_write_projection_for_source_words(
+            InvocationWords::structured(head.invocation_word(), &args),
+        );
         out.opaque |= projection.opaque_variable_frame;
         for name in projection.read_before_write_names {
             if !out.read_names.contains(&name) {
@@ -3140,12 +3141,20 @@ mod tests {
             config,
         );
         let registry = context.commands();
-        let module = crate::lowering::lower_to_ir_with(
-            crate::lowering::Lowerer::with_config(registry, config)
-                .for_bytecode_backend()
-                .with_resolved_analysis_input(input),
-            "set counter 0",
-        );
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(native)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+            .for_bytecode_backend()
+            .with_resolved_analysis_input(input);
+        lowerer.set_source_analysis_options(entry.options());
+        let module = crate::lowering::lower_to_ir_with(lowerer, "set counter 0");
+        assert!(module.source_entry.native_entry.is_some());
         let statement = &module.top_level.statements[0];
         let tokens = module
             .top_level

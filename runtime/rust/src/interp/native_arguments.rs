@@ -7,8 +7,8 @@
 //! stage and keeps this context alive through subsequent effects and cleanup.
 
 use super::{
-    native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
     Code, Interp,
+    native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
 };
 use crate::obj::{self, NativeObjectLifetime, TclObj};
 use std::rc::Rc;
@@ -143,9 +143,9 @@ impl OriginalArguments {
                 ValueError::CommandProtocolUnavailable("original argument index").into(),
             )
         })?;
-        obj::check_native_liveness(original.as_ptr())
-            .map_err(|error| self.retain_refusal(error.into()))?;
-        Ok(original.as_ptr())
+        original
+            .checked_ptr()
+            .map_err(|error| self.retain_refusal(error.into()))
     }
 
     /// Original neutral currency, independent of getter/frame/name purpose.

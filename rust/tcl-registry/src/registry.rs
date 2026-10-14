@@ -7261,6 +7261,24 @@ impl CommandRegistry {
         self.variable_write_projection_for_query(words, query, false)
     }
 
+    /// Possible output names from independently supplied source words.
+    /// The retained catalogue owns nominal selection and provider admission;
+    /// this supplies no live lookup, executed write, cell or frame proof.
+    #[must_use]
+    pub fn variable_write_projection_for_source_words(
+        &self,
+        words: InvocationWords<'_>,
+    ) -> VariableWriteProjection {
+        let Some(invocation) = self.effect_invocation_for_query(words, self.effect_query(words))
+        else {
+            return VariableWriteProjection {
+                opaque_variable_frame: true,
+                ..Default::default()
+            };
+        };
+        Self::variable_write_projection_for_selected_source(&invocation)
+    }
+
     /// Source write footprint under independently retained complete availability.
     /// Unknown or unavailable metadata stays opaque, never a successful store.
     #[must_use]
@@ -19120,6 +19138,48 @@ mod declaration_key_tests {
 
 #[cfg(test)]
 mod source_empty_write_projection_tests {
+    #[test]
+    fn nominal_source_write_names_preserve_data_and_require_available_providers() {
+        let mut registry = super::CommandRegistry::build_default();
+        for name in ["", "$literal", "${literal}", "(key)"] {
+            let arguments = [
+                crate::InvocationWord::Literal(name),
+                crate::InvocationWord::Literal("VALUE"),
+            ];
+            let projection = registry.variable_write_projection_for_source_words(
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("set"),
+                    &arguments,
+                ),
+            );
+            assert_eq!(projection.literal_names, [name]);
+            assert!(!projection.opaque_variable_frame);
+        }
+        let arguments = [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("VALUE"),
+        ];
+        let dynamic = registry.variable_write_projection_for_source_words(
+            crate::InvocationWords::structured(crate::InvocationWord::Literal("set"), &arguments),
+        );
+        assert!(dynamic.literal_names.is_empty() && dynamic.opaque_variable_frame);
+        let mut setter = *registry.get("set").unwrap();
+        setter.name = "Source::setter";
+        setter.required_package = Some("SourceUnavailable");
+        registry.insert(setter);
+        let arguments = [
+            crate::InvocationWord::Literal(""),
+            crate::InvocationWord::Literal("VALUE"),
+        ];
+        let unavailable = registry.variable_write_projection_for_source_words(
+            crate::InvocationWords::structured(
+                crate::InvocationWord::Literal("Source::setter"),
+                &arguments,
+            ),
+        );
+        assert!(unavailable.literal_names.is_empty() && unavailable.opaque_variable_frame);
+    }
+
     #[test]
     fn selected_source_write_keeps_empty_scalar_and_array_names_but_refuses_dynamic_names() {
         // experiments/name-handling/results/source-empty-write-projection-20261014/oracles/observations.json
