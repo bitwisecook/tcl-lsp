@@ -1,0 +1,53 @@
+{
+  "started_utc": "2026-10-14T11:42:51.901334+00:00",
+  "label": "Production shared Native Authored Hosted SSA occurrences and configured codegen consumers original budgets and assertions",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014",
+  "source_paths": 34707,
+  "plan": {
+    "exact": [
+      "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+      "command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners",
+      "registry_invocation::authored_source_bodies::tests::authored_declaration_cards_retain_actual_source_bodies_without_publication",
+      "ssa::native_source_definition_tests::native_source_definitions_select_actual_body_symbols_without_physical_store_grants",
+      "ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner",
+      "command_binding::generated_procedures::original_native_body_tests::native_source_children_refuse_original_expansion_cardinality",
+      "command_binding::generated_procedures::original_native_body_tests::native_source_declaration_birth_requires_complete_actual_input",
+      "registry_invocation::source_body_names::tests::original_evaluated_body_names_remain_candidates_without_frame_entry",
+      "var_escape::walker::tests::eval_body_escapes_a_name_inside_a_brace_quoted_word",
+      "var_escape::walker::tests::uplevel_zero_walks_body_like_eval",
+      "registry_invocation::authored_controls::tests::authored_control_bodies_keep_source_scope_without_execution_owners",
+      "registry_invocation::authored_controls::tests::authored_control_source_owner_refuses_changed_words_store_and_bytecode",
+      "registry_invocation::authored_controls::tests::authored_control_grammar_refuses_original_expansions_and_non_immediate_descriptors",
+      "registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission",
+      "word_subst::readonly_logical_substitution_tests::readonly_logical_input_inventory_keeps_real_expr_and_lexical_children",
+      "depth_guard::tests::proved_structured_bodies_fit_the_shared_stack_budget",
+      "depth_guard::tests::source_bindings_with_computed_conditions_fit_the_shared_stack_budget",
+      "depth_guard::tests::the_analyser_stops_at_the_shared_cap",
+      "depth_guard::tests::the_source_walk_cap_fits_its_stack_budget",
+      "var_escape::helpers::tests::authored_body_scope_substitutions_keep_actual_expr_names_and_unknown_execution",
+      "var_escape::helpers::tests::authored_substitution_expansions_cannot_relabel_original_name_words",
+      "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+      "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+      "word_subst::tests::single_command_parts_keep_selected_grammar_and_original_word_geometry"
+    ],
+    "filters": [
+      "codegen::cmd_subst::tests::",
+      "codegen::control_flow::tests::"
+    ],
+    "scope": "Current production Native parents, Authored control/substitution owners, Hosted cases and original unchanged fixed stack budgets; same real assertion positives/refusals.",
+    "priority_filters": [
+      "command_binding::generated_procedures",
+      "registry_invocation::authored_controls",
+      "registry_invocation::hosted_structure",
+      "ssa::original_analysis",
+      "depth_guard::"
+    ]
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "4c5410f7a221df31b95d78e96699b3bb21e5c3de6c3d634287bb67fbc6278030",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

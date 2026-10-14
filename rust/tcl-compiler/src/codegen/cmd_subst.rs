@@ -162,7 +162,7 @@ pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> boo
 /// Default Tcl lexical projection for standalone callers.
 #[must_use]
 pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
-    parse_cmd_parts_with_config(text, tcl_lexer::LexerConfig::default()).unwrap_or_default()
+    parse_cmd_parts_with_config(text.trim(), tcl_lexer::LexerConfig::default()).unwrap_or_default()
 }
 
 pub(super) fn parse_cmd_parts_with_config(
@@ -224,7 +224,8 @@ pub(super) fn parse_script_parts_expand_with_config(
 /// Default Tcl lexical projection preserving expansion markers.
 #[must_use]
 pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
-    parse_cmd_parts_expand_with_config(text, tcl_lexer::LexerConfig::default()).unwrap_or_default()
+    parse_cmd_parts_expand_with_config(text.trim(), tcl_lexer::LexerConfig::default())
+        .unwrap_or_default()
 }
 
 pub(super) fn parse_cmd_parts_expand_with_config(
@@ -885,6 +886,49 @@ impl CodegenCtx<'_> {
         // was fixed: this is the emitter a proc's `return` value goes through,
         // so `proc p {} { return "{abc}" }` answered `abc`.
         self.push_word_value(value);
+    }
+
+    /// Wrapping metadata follows the same actual selected invocation as hooks.
+    pub(super) fn selected_invocation_traits(
+        &self,
+        command: &str,
+        args: &[(String, bool)],
+    ) -> Option<tcl_registry::Traits> {
+        if !self.invocation_specialisation_proved() {
+            return None;
+        }
+        if let Some(tokens) = self.invocation_tokens.as_deref()
+            && tokens.source_binding.is_some()
+        {
+            if !tokens.words_align_with_argv_text()
+                || tokens.argv_texts.first().is_none_or(|head| head != command)
+                || tokens.argv_texts.len() != args.len().checked_add(1)?
+                || tokens
+                    .argv_texts
+                    .iter()
+                    .skip(1)
+                    .zip(args)
+                    .any(|(original, (text, _))| original != text)
+            {
+                return None;
+            }
+            return Some(
+                crate::registry_invocation::admitted_native_compiler_invocation(
+                    self.registry,
+                    None,
+                    tokens,
+                )?
+                .traits(),
+            );
+        }
+        let arguments = args
+            .iter()
+            .map(|(text, _)| text.as_str())
+            .collect::<Vec<_>>();
+        let selected =
+            self.registry
+                .resolve_call(command, &arguments, self.invocation_surface_query())?;
+        (selected.spec.name == command).then_some(selected.spec.traits)
     }
 
     /// Resolve the registry-stamped [`InlineCodegenHookId`] for a
@@ -3654,6 +3698,43 @@ mod tests {
     // parse_cmd_parts.
 
     #[test]
+    fn standalone_default_source_parts_preserve_outer_presentation_whitespace() {
+        assert_eq!(
+            parse_cmd_parts(" \t[list {a [inert]}]\n"),
+            vec![("list".into(), false), ("a [inert]".into(), true),]
+        );
+        assert_eq!(
+            parse_cmd_parts_expand(" \t[list {*}$args]\n"),
+            vec![("list".into(), false, false), ("$args".into(), false, true),]
+        );
+        let actual =
+            parse_cmd_parts_with_config(" \t[list a]\n", tcl_lexer::LexerConfig::default())
+                .unwrap();
+        assert_eq!(actual, vec![("[list a]".into(), false)]);
+    }
+
+    #[test]
+    fn unavailable_configured_word_projection_keeps_the_actual_script_for_eval() {
+        let registry = tcl_registry::model::ingress::static_context_for("jimtcl").commands();
+        let mut context = CodegenCtx::new(false, &[], registry);
+        context.ingress_lexer_config = Some(tcl_lexer::LexerConfig::for_file_grammar(
+            registry
+                .profile()
+                .expect("selected Jim fixture profile")
+                .grammar,
+        ));
+        context.emit_inline_cmd_subst(r#"[capture "a"b]"#);
+        assert!(
+            context
+                .instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::EVAL_STK)
+        );
+        assert_eq!(context.literals.entries(), &[r#"capture "a"b"#.to_owned()]);
+        assert!(context.command_binding_requirements.is_empty());
+    }
+
+    #[test]
     fn parse_simple_cmd() {
         let parts = parse_cmd_parts("[set x 42]");
         assert_eq!(parts.len(), 3);
@@ -4116,11 +4197,7 @@ mod tests {
 
     // Registry drift: inline codegen hook stamping.
 
-    /// The registry-stamped inline-hook set must equal the command set
-    /// the retired hardcoded `match cmd.as_str()` dispatch (plus the
-    /// catch-body dispatch in `control_flow`) special-cased — so a
-    /// future spec change is a conscious decision, not a silent
-    /// bytecode change.
+    /// Registry inline hooks match the supported emitter set and dispatch purpose.
     #[test]
     fn registry_inline_hook_stamping_matches_previous_hardcoded_dispatch() {
         use tcl_registry::hooks::InlineCodegenHookId as H;
@@ -4218,9 +4295,7 @@ mod tests {
         }
     }
 
-    /// A `::`-qualified head word keeps the generic-invoke path — the
-    /// retired dispatch keyed on the raw word, so `[::expr …]` never
-    /// took the inline expression emitter and must not start to.
+    /// Qualified expression heads retain generic invocation.
     #[test]
     fn qualified_head_word_stays_generic() {
         let registry = CommandRegistry::build_default();
@@ -4234,9 +4309,7 @@ mod tests {
         );
     }
 
-    /// Hooks the value-position dispatcher does not specialise
-    /// (`Break` is catch-body-only) fall to the generic invoke, as the
-    /// retired dispatch did for `[break]`.
+    /// Catch-body-only hooks use generic invocation in value position.
     #[test]
     fn catch_body_only_hooks_stay_generic_in_value_position() {
         let registry = CommandRegistry::build_default();

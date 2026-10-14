@@ -1,0 +1,5 @@
+
+running 1 test
+test depth_guard::tests::source_bindings_with_computed_conditions_fit_the_shared_stack_budget ... 
+thread '<unknown>' (346036) has overflowed its stack
+fatal runtime error: stack overflow, aborting

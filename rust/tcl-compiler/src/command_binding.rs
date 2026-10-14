@@ -3358,9 +3358,32 @@ struct FixedMathObservation {
 
 type ImplicitFixedMathInvocations = BTreeMap<ImplicitMathSite, Vec<FixedMathObservation>>;
 
+#[derive(Debug, Clone)]
+pub(crate) struct OriginalSourceAnalysisOwner {
+    source: Arc<SourceOriginId>,
+    metadata: crate::registry_invocation::OwnedInvocationMetadataContext,
+    config: tcl_lexer::LexerConfig,
+}
+impl OriginalSourceAnalysisOwner {
+    pub(crate) fn matches(
+        &self,
+        bindings: &SourceCommandBindings,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        bindings
+            .source_origin()
+            .is_some_and(|source| Arc::ptr_eq(source, &self.source))
+            && bindings.lexer_config == Some(self.config)
+            && input.lexer_config() == self.config
+            && self.metadata.source_analysis_input() == Some(input)
+            && bindings.source_metadata_owner().source_analysis_input() == Some(input)
+    }
+}
+
 /// Retained source-point command and substitution proofs for one analysed script.
 #[derive(Debug, Clone, Default)]
 pub struct SourceCommandBindings {
+    original_analysis_owner: Option<Arc<OriginalSourceAnalysisOwner>>,
     declaration_preview_depth: usize,
     compilation_scope: tcl_runtime_api::SourceCompilationScope,
     lexer_config: Option<tcl_lexer::LexerConfig>,
@@ -6519,6 +6542,10 @@ fn trace_source_original_queries(
 }
 
 impl SourceCommandBindings {
+    pub(crate) fn original_analysis_owner(&self) -> Option<&Arc<OriginalSourceAnalysisOwner>> {
+        self.original_analysis_owner.as_ref()
+    }
+
     /// Borrow the original analysis availability ingress, including terminal
     /// supplied-missing ownership. This creates no source or execution entry.
     pub(crate) fn source_metadata_owner(
@@ -6671,7 +6698,13 @@ impl SourceCommandBindings {
         let memo_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
             image, frame, config, registry, options, purpose,
         );
-        if let Some(bindings) = memo_key.as_ref().and_then(source_analysis_cache::lookup) {
+        if let Some(mut bindings) = memo_key.as_ref().and_then(source_analysis_cache::lookup) {
+            // Reused source facts retain a distinct attachment to this analysis call.
+            bindings.original_analysis_owner = bindings
+                .original_analysis_owner
+                .as_deref()
+                .cloned()
+                .map(Arc::new);
             #[cfg(any(test, debug_assertions))]
             trace_source_analysis(phase_start, "memo", source.len(), &bindings);
             return bindings;
@@ -6690,6 +6723,13 @@ impl SourceCommandBindings {
         bindings
             .root_origin
             .clone_from(&state.current_source_origin);
+        bindings.original_analysis_owner = state.current_source_origin.as_ref().map(|source| {
+            Arc::new(OriginalSourceAnalysisOwner {
+                source: Arc::clone(source),
+                metadata: state.baseline.metadata_context.clone(),
+                config,
+            })
+        });
         let namespace_key = frame
             .namespace_identity()
             .cloned()

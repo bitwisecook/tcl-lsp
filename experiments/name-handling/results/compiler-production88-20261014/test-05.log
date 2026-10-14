@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::authored_controls::tests::authored_control_grammar_refuses_original_expansions_and_non_immediate_descriptors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9784 filtered out; finished in 0.34s
+

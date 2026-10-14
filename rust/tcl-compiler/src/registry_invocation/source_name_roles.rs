@@ -108,7 +108,9 @@ pub(crate) fn original_source_name_roles(
         .original_source_metadata_for_advice(tokens, registry)
         .ok()?;
     if let Some(invocation) =
-        super::resolved_tokens_invocation_with_metadata_context(registry, metadata, tokens)
+        super::resolved_tokens_invocation_with_metadata_context(registry, metadata, tokens).or_else(
+            || super::resolved_handler_invocation_with_metadata_context(registry, metadata, tokens),
+        )
     {
         return Some(SourceNameRoleInventory::from_selected(
             invocation,

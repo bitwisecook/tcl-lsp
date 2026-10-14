@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub(crate) struct OriginalNativeSourceDeclaration {
+    analysis_owner: Arc<crate::command_binding::OriginalSourceAnalysisOwner>,
     input: crate::analyser::ResolvedAnalysisInput,
     tape: Arc<super::OriginalSourceTransitionAdviceTape>,
     procedure: Arc<OriginalSourceProcedureBody>,
@@ -22,7 +23,8 @@ pub(crate) struct OriginalNativeSourceDeclaration {
 }
 impl PartialEq for OriginalNativeSourceDeclaration {
     fn eq(&self, other: &Self) -> bool {
-        self.input == other.input
+        Arc::ptr_eq(&self.analysis_owner, &other.analysis_owner)
+            && self.input == other.input
             && Arc::ptr_eq(&self.tape, &other.tape)
             && self.procedure == other.procedure
             && self.name == other.name
@@ -113,6 +115,8 @@ impl SourceCommandBindings {
         {
             return None;
         }
+        let analysis_owner = self.original_analysis_owner()?;
+        analysis_owner.matches(self, input).then_some(())?;
         let seed = self.original_source_transition_seed()?;
         let tape = Arc::new(seed.prepare_for(
             input.borrowed_context_registry(),
@@ -167,6 +171,7 @@ impl SourceCommandBindings {
                 };
                 let namespace = SourceNamespaceKey::authored(scope.display()?);
                 let card = OriginalNativeSourceDeclaration {
+                    analysis_owner: Arc::clone(analysis_owner),
                     input: input.clone(),
                     tape: Arc::clone(&tape),
                     procedure: Arc::clone(procedure),
@@ -219,7 +224,11 @@ impl OriginalNativeSourceDeclaration {
         bindings: &SourceCommandBindings,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<Arc<OriginalNativeSourceBodyChildren>> {
-        if bindings.source_metadata_owner().source_analysis_input() != Some(input)
+        if bindings
+            .original_analysis_owner()
+            .is_none_or(|owner| !Arc::ptr_eq(owner, &self.analysis_owner))
+            || !self.analysis_owner.matches(bindings, input)
+            || bindings.source_metadata_owner().source_analysis_input() != Some(input)
             || !Arc::ptr_eq(bindings.source_origin()?, &self.site().source)
             || !self.matches_source(bindings.source_origin()?.source_image(), input)
         {

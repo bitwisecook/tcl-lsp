@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T11:42:07Z on `work`.
+Current bounded snapshot: 2026-10-14T12:00:18Z on `work`.
 
 The integrated consumers use shared original command, variable, body and source
 owners across compiler/CFG, summaries, DB, LSP navigation/hover, server libraries,
@@ -220,9 +220,20 @@ These implementation changes require their original/new actual captures.
 
 Compiler87 seals build101 with zero semantic controls and zero source drift at
 three new test-only script-timing resolver signatures. The genuine
-InvocationArguments API correction preserves assertions. Compiler88 controls
-are planned but have no execution result in this snapshot. The latest completed
+InvocationArguments API correction preserves assertions. Compiler88 builds and seals 113 controls: 96 PASS/17 nonpassing (13 assertion
+failures, three depth SIGABRTs and one analyser-cap timeout), zero source drift
+and no missing/empty selectors. The latest completed
 results remain Compiler82:194 PASS/46 nonpassing across240, focused83:6 PASS/6 FAIL
 across12, Core84:48 PASS/23 FAIL across71. All original Core68 are retained and
 new minifier/linked controls pass. Native/certificate/source SSA producers,
 original #2286 timeout/import failure, depth budgets and DB reuse remain open.
+
+The post88 source batch integrates the explicit Authored clause reader, checked
+handler-role readers, exact inlay definition Symbol/Version selection, descriptor
+controlled global-body name exclusion, selected invocation wrapping traits,
+actual Jim fixture profile and standalone wrapper compatibility corrections.
+The Native child producer reaches the real foreign-attachment guard; a private
+analysis attachment now distinguishes genuinely independent cache-hit analyses
+without changing semantic cache keys or weakening current input/source checks.
+Current source is formatted. These fixes await their next actual captures;
+minifier erasure migration remains under review and is not integrated here.

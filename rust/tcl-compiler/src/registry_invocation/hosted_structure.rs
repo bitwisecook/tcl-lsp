@@ -263,6 +263,21 @@ impl SourceStructuredInvocation {
         self.with_metadata_schema(registry, context, realm, apply)
     }
 
+    /// Independently owned Authored source grammar needs no external context.
+    /// Other purposes retain their existing complete supplied metadata checks.
+    pub(crate) fn with_lowering_source_schema<T>(
+        &self,
+        registry: &CommandRegistry,
+        context: Option<InvocationMetadataContext<'_>>,
+        realm: tcl_dialect::model::InvocationRealm,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        if let Self::Authored(selected) = self {
+            return selected.with_source_schema(registry, apply);
+        }
+        self.with_original_source_schema(registry, context?, realm, apply)
+    }
+
     pub(crate) fn lowering_hook(&self) -> Option<tcl_registry::hooks::LoweringHookId> {
         match self {
             Self::Logical(selected) => selected.lowering_hook(),

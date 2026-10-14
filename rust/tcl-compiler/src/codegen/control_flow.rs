@@ -1196,14 +1196,7 @@ impl CodegenCtx<'_> {
         // Return code stays on the stack as value of catch.
     }
 
-    /// Compile a single-command catch body inline.
-    ///
-    /// Both classifications here are registry data: the
-    /// `startCommand`-wrapping set is [`Traits::NEEDS_START_CMD`] and
-    /// the per-command inline emitters dispatch on the spec's
-    /// [`InlineCodegenHookId`]. The spec-name equality check keeps
-    /// `::`-qualified spellings (`catch {::error x}`) on the generic
-    /// path, exactly as the retired raw-word `match` did.
+    /// Compile one catch command using selected wrapping and emitter metadata.
     pub fn emit_catch_body(&mut self, body: &str) {
         // The resolved script keeps its own configured argument-expansion phase.
         if self.recognises_expand_syntax() && body.contains("{*}") {
@@ -1232,13 +1225,9 @@ impl CodegenCtx<'_> {
         let body_cmd = &body_parts[0].0;
         let body_args = &body_parts[1..];
 
-        let spec = self
-            .registry
-            .get(body_cmd)
-            .filter(|s| s.name == body_cmd.as_str());
-
-        // Commands that need startCommand wrapping.
-        let needs_start_cmd = spec.is_some_and(|s| s.traits.contains(Traits::NEEDS_START_CMD));
+        let needs_start_cmd = self
+            .selected_invocation_traits(body_cmd, body_args)
+            .is_some_and(|traits| traits.contains(Traits::NEEDS_START_CMD));
 
         let sc_label = if needs_start_cmd {
             let label = self.fresh_label("catch_body_end");
@@ -2789,6 +2778,30 @@ mod tests {
     /// `break` in a catch body keeps its inline `break` opcode under a
     /// `startCommand` wrap (hook + trait both registry-resolved).
     #[test]
+    fn catch_body_wrapping_declines_an_unavailable_compilation_scope() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.resolution_namespace.key = None;
+        ctx.emit_catch_body("break");
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::INVOKE_STK1)
+        );
+        assert!(
+            !ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::START_CMD)
+        );
+        assert!(
+            !ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::BREAK)
+        );
+        assert!(ctx.command_binding_requirements.is_empty());
+    }
+
+    #[test]
     fn catch_body_break_emits_break_op() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
@@ -2801,10 +2814,7 @@ mod tests {
         );
     }
 
-    /// `::error` resolves in the registry (leading `::` falls back to
-    /// the bare spec), but the retired dispatch keyed on the raw word —
-    /// the qualified spelling must keep the generic invoke and no
-    /// startCommand wrap.
+    /// Qualified `::error` uses generic invocation without a startCommand wrap.
     #[test]
     fn catch_body_qualified_error_stays_generic() {
         let registry = CommandRegistry::build_default();

@@ -386,14 +386,14 @@ impl Lowerer<'_> {
         seg: &SegmentedCommand,
     ) -> Option<Result<ClausePlan, ClauseAbstention>> {
         let tokens = self.cmd_tokens(seg);
-        let context = self.invocation_metadata_context()?;
+        let context = self.invocation_metadata_context();
         let invocation = self.logical_structured_invocation(&tokens)?;
         let realm = tokens
             .source_binding
             .as_ref()
             .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
             .unwrap_or(self.invocation_realm);
-        invocation.with_metadata_schema(self.registry, context, realm, |selected| {
+        invocation.with_lowering_source_schema(self.registry, context, realm, |selected| {
             selected.clause_walk()
         })
     }
@@ -1066,14 +1066,14 @@ impl Lowerer<'_> {
     /// option rows — `case` has none, so no word of it is an option.
     fn case_list_of(&self, seg: &SegmentedCommand) -> Option<(CaseListSpec, bool)> {
         let tokens = self.cmd_tokens(seg);
-        let context = self.invocation_metadata_context()?;
+        let context = self.invocation_metadata_context();
         let invocation = self.logical_structured_invocation(&tokens)?;
         let realm = tokens
             .source_binding
             .as_ref()
             .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
             .unwrap_or(self.invocation_realm);
-        invocation.with_original_source_schema(self.registry, context, realm, |selected| {
+        invocation.with_lowering_source_schema(self.registry, context, realm, |selected| {
             Some((
                 *selected.semantics.options.case_list?,
                 !selected.semantics.options.base.is_empty()

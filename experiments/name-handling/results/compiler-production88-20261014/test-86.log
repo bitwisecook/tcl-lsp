@@ -1,0 +1,15 @@
+
+running 1 test
+test codegen::control_flow::tests::catch_inline_multicommand_body_preserves_each_command_boundary ... 
+thread 'codegen::control_flow::tests::catch_inline_multicommand_body_preserves_each_command_boundary' (346611) panicked at rust/tcl-compiler/src/codegen/control_flow.rs:2358:9:
+native catch lowering must survive a suspended child: Some((Unknown, None))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    codegen::control_flow::tests::catch_inline_multicommand_body_preserves_each_command_boundary
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9784 filtered out; finished in 0.21s
+

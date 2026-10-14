@@ -1,0 +1,15 @@
+
+running 1 test
+test ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner ... 
+thread 'ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner' (345981) panicked at rust/tcl-compiler/src/ssa.rs:13409:22:
+exact genuine source definition
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9784 filtered out; finished in 2.70s
+

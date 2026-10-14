@@ -585,6 +585,13 @@ fn collect_original_expression_calls(
             Some(metadata),
             tokens,
         )
+        .or_else(|| {
+            crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                tokens,
+            )
+        })
     };
     let (roles, traits) = if let Some(invocation) = invocation {
         let roles = if logical_source {
@@ -1721,7 +1728,11 @@ mod tests {
     fn single_command_parts_keep_selected_grammar_and_original_word_geometry() {
         let tcl = tcl_lexer::LexerConfig::default();
         let jim = tcl_lexer::LexerConfig::for_file_grammar(
-            tcl_dialect::DialectProfile::find("jimtcl").unwrap().grammar,
+            tcl_registry::model::ingress::static_context_for("jimtcl")
+                .commands()
+                .profile()
+                .expect("selected Jim fixture profile")
+                .grammar,
         );
         let tcl_parts = single_command_source_parts(
             "[list a\u{b}b]",

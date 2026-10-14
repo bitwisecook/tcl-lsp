@@ -1,0 +1,6 @@
+
+running 1 test
+test codegen::cmd_subst::tests::registry_inline_hook_stamping_matches_previous_hardcoded_dispatch ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9784 filtered out; finished in 0.02s
+

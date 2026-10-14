@@ -1121,6 +1121,12 @@ impl AdmittedNativeCompilerInvocation {
     pub fn descriptor_key(&self) -> tcl_registry::CanonicalCommandDescriptorKey<'_> {
         self.invocation.facts.descriptor_key()
     }
+    /// Compiler metadata from the already admitted original descriptor.
+    /// This does not establish successful-handler effects.
+    #[must_use]
+    pub fn traits(&self) -> tcl_registry::Traits {
+        self.invocation.facts.traits
+    }
     /// Statement emitter metadata; admission remains an independent premise.
     #[must_use]
     pub fn codegen_hook(&self) -> Option<tcl_registry::hooks::CodegenHookId> {

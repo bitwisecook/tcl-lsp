@@ -19,6 +19,15 @@ pub(crate) fn original_authored_body_name_candidates(
 ) -> Option<OriginalBodyNameCandidates> {
     let source = super::original_authored_source_structure(tokens, registry)?;
     let bodies = source.with_source_schema(registry, |schema| {
+        if schema.semantics.frame_effect.is_some_and(|frame| {
+            frame.layout == tcl_registry::FrameArgLayout::ScriptInSelectedFrame
+        }) && matches!(
+            schema.authored_logical_source_frame_argument_layout(),
+            Some(tcl_registry::FrameArgumentResolution::Valid { level, .. })
+                if level.is_global_frame()
+        ) {
+            return Some(Vec::new());
+        }
         Some(
             schema
                 .authored_source_plain_script_arguments()?
@@ -162,6 +171,45 @@ fn collect(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn source_global_body_names_do_not_name_current_frame_locals() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir("uplevel #0 {set x 2}", &registry);
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        assert!(original_authored_body_name_candidates(tokens, &registry).is_none());
+        for source in ["uplevel 0 {set x 2}", "uplevel $level {set x 2}"] {
+            let module = crate::lowering::lower_to_ir(source, &registry);
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(&module.top_level.statements[0])
+                .unwrap();
+            let candidates = original_authored_body_name_candidates(tokens, &registry)
+                .expect("current or unknown source frame retains possible local names");
+            assert!(candidates.names.contains("x"));
+            assert!(candidates.unknown_residual);
+        }
+        let mut replaced = CommandRegistry::build_default();
+        replaced.insert(tcl_registry::CommandSpec {
+            name: "uplevel",
+            arity: tcl_registry::Arity::exact(2),
+            arg_roles: &[(1, tcl_registry::ArgRole::Body)],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let module = crate::lowering::lower_to_ir("uplevel #0 {set x 2}", &replaced);
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        let candidates = original_authored_body_name_candidates(tokens, &replaced)
+            .expect("spelling cannot donate the old frame descriptor");
+        assert!(candidates.names.contains("x"));
+        assert!(candidates.unknown_residual);
+        assert!(original_authored_body_name_candidates(tokens, &registry).is_none());
+    }
+
     #[test]
     fn original_evaluated_body_names_remain_candidates_without_frame_entry() {
         let registry = CommandRegistry::build_default();

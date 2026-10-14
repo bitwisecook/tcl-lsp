@@ -1321,8 +1321,8 @@ mod tests {
         let altered = format!("{source} ");
         assert!(words_at(&altered, &analysis, "uplevel 1 {puts $::Target::x}").is_none());
         for source in [
-            "namespace eval N {}; rename ::if ::N::routed; namespace eval N {proc p {} {uplevel 1 {}; routed 1 {puts $::Target::x}}}",
-            "namespace eval N {}; rename ::if ::N::routed; namespace eval N {namespace export routed}; namespace eval Use {namespace import ::N::routed; proc p {} {uplevel 1 {}; routed 1 {puts $::Target::x}}}",
+            "namespace eval N {}; rename ::if ::N::routed; namespace eval N {proc p {} {routed 1 {puts $::Target::x}}}",
+            "namespace eval N {}; rename ::if ::N::routed; namespace eval N {namespace export routed}; namespace eval Use {namespace import ::N::routed; proc p {} {routed 1 {puts $::Target::x}}}",
         ] {
             let analysis = analyse_source(source);
             let selected = words_at(source, &analysis, "routed 1 {puts $::Target::x}").unwrap();
@@ -1332,6 +1332,43 @@ mod tests {
             };
             assert!(!advice.lineage().is_empty());
         }
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "N::uplevel",
+            arity: tcl_registry::Arity::exact(2),
+            arg_roles: &[(0, tcl_registry::ArgRole::Body)],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::context_for_profile(profile)
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "namespace eval N {proc p {} {unknown; uplevel 1 {puts $::Target::x}}}";
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "presentation");
+        let words = words_at(source, &analysis, "uplevel 1 {puts $::Target::x}").unwrap();
+        assert_eq!(words.command(), "N::uplevel");
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        assert_eq!(
+            words.roles(),
+            Some([(0, tcl_registry::ArgRole::Body)].as_slice())
+        );
+        let root_body = words.operands()[1].as_ref().unwrap().word().unwrap();
+        assert!(
+            words
+                .source_script_bodies(&context)
+                .iter()
+                .all(|body| body.original_container() != root_body),
+            "local descriptor never borrows the root uplevel Body operand"
+        );
         for source in [
             "namespace eval N {proc p {} {uplevel 1 {}; proc uplevel args {}; uplevel 1 {puts $::Target::x}}}",
             "namespace eval N {proc p {} {uplevel 1 {}; unregistered 1 {puts $::Target::x}}}",

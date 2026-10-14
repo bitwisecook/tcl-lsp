@@ -29,12 +29,11 @@
 //!
 //! Type hints use a checked [`CompilationUnit`]. Exact original SSA
 //! definitions must match declaration inputs/spans; the explicitly admitted
-//! Logical branch joins scope declarations to issued bodies before projecting types.
+//! Logical branch selects each written definition's actual body, symbol and version.
 //! Unknown or overdefined types do not produce annotations.
 //!
 //! Method-call parameter hints inside class bodies are not provided.
 
-use rustc_hash::FxHashMap;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ir::ProcedureId;
@@ -411,34 +410,15 @@ fn collect_type_hints(
         return;
     }
 
-    let types_for = |function: &tcl_compiler::compilation_unit::FunctionUnit| {
-        let mut types = FxHashMap::default();
-        for ((name, _version), lattice) in function.types.iter() {
-            if let Some(display) = type_display(lattice) {
-                types.insert(function.ssa.var_name(*name).to_owned(), display);
-            }
-        }
-        types
-    };
-    let mut by_function = FxHashMap::default();
-    for (&body_id, function) in cu.procedures.iter().chain(cu.body_units.iter()) {
-        if cu
-            .function_for_body(Some(body_id))
-            .is_some_and(|retained| std::ptr::eq(retained, function))
-        {
-            by_function.insert(body_id, types_for(function));
-        }
-    }
-    let Some(top) = cu.function_for_body(None) else {
+    if analysis.resolved_input.as_ref() != cu.ir_module.source_metadata_input.as_ref() {
         return;
-    };
-    let top_types = types_for(top);
+    }
     walk_scope_type_hints(
         &analysis.global_scope,
         analysis,
         cu,
-        &by_function,
-        &top_types,
+        registry,
+        cu.function_for_body(None),
         range,
         source,
         line_index,
@@ -474,16 +454,14 @@ fn scope_body_id(
     bodies.next().is_none().then_some(selected)
 }
 
-/// Recursively emit type hints for every variable definition in `scope`
-/// (and its children) whose name carries a known type and whose
-/// definition falls within `range`.
+/// Project each declaration's exact represented version in its original body.
 #[allow(clippy::too_many_arguments)]
 fn walk_scope_type_hints(
     scope: &Scope,
     analysis: &AnalysisResult,
     cu: &CompilationUnit,
-    by_function: &FxHashMap<ProcedureId, FxHashMap<String, String>>,
-    type_map: &FxHashMap<String, String>,
+    registry: &CommandRegistry,
+    function: Option<&tcl_compiler::compilation_unit::FunctionUnit>,
     range: LspRange,
     source: &str,
     line_index: &LineIndex,
@@ -494,13 +472,29 @@ fn walk_scope_type_hints(
         return;
     }
     for var_def in scope.variables.values() {
-        let Some(type_str) = type_map.get(&var_def.name) else {
+        let Some(function) = function else {
             continue;
         };
-        let start = line_index.position_at_utf16(var_def.definition_span.start(), source);
-        let end = line_index.position_at_utf16(var_def.definition_span.end(), source);
-        // The hint sits immediately after the variable name; skip when the
-        // definition falls entirely outside the requested range.
+        let Some(definition) = tcl_compiler::ssa::original_analysis_definition_at_unit(
+            cu,
+            var_def.definition_span,
+            registry,
+        ) else {
+            continue;
+        };
+        if !std::ptr::eq(definition.function(), function) {
+            continue;
+        }
+        let Some(type_str) = definition
+            .function()
+            .types
+            .get(&(definition.symbol(), definition.version()))
+            .and_then(type_display)
+        else {
+            continue;
+        };
+        let start = line_index.position_at_utf16(definition.span().start(), source);
+        let end = line_index.position_at_utf16(definition.span().end(), source);
         if end.line < range.start_line || start.line > range.end_line {
             continue;
         }
@@ -512,23 +506,19 @@ fn walk_scope_type_hints(
             padding_left: true,
         });
     }
-    let empty = FxHashMap::default();
     for child in &scope.children {
-        // A new local frame needs its own retained body; namespace scopes
-        // keep the current frame's type map.
-        let child_map = if matches!(child.kind, ScopeKind::Proc | ScopeKind::Method) {
+        let child_function = if matches!(child.kind, ScopeKind::Proc | ScopeKind::Method) {
             scope_body_id(source, analysis, cu, child)
-                .and_then(|body_id| by_function.get(&body_id))
-                .unwrap_or(&empty)
+                .and_then(|body| cu.function_for_body(Some(body)))
         } else {
-            type_map
+            function
         };
         walk_scope_type_hints(
             child,
             analysis,
             cu,
-            by_function,
-            child_map,
+            registry,
+            child_function,
             range,
             source,
             line_index,
@@ -3079,6 +3069,73 @@ mod retained_hint_context_tests {
             crate::registry_for_dialect("tcl8.6"),
         );
         assert!(!out.iter().any(|hint| hint.label == "int"), "{out:?}");
+    }
+
+    #[test]
+    fn logical_type_hints_select_the_original_definition_version() {
+        let source = "set value 42\nset value TEXT\nputs $value\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let hints = inlay_hints(
+            source,
+            analysis.resolved_profile().unwrap(),
+            whole_document_range(source),
+            Some(&analysis),
+            analysis.resolved_registry(),
+            true,
+            false,
+        );
+        assert!(
+            hints.iter().any(|hint| hint.kind == InlayHintKind::Type
+                && hint.position_line == 0
+                && hint.label == ": int"),
+            "{hints:?}"
+        );
+        assert!(
+            hints
+                .iter()
+                .all(|hint| hint.position_line != 0 || hint.label != ": str"),
+            "{hints:?}"
+        );
+    }
+
+    #[test]
+    fn logical_type_hints_refuse_a_same_named_definition_from_another_body() {
+        let source = "proc first {} {set value 42}\nproc second {} {set value TEXT}\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let scopes = &mut analysis.global_scope.children;
+        assert_eq!(scopes.len(), 2);
+        let foreign_span = scopes[1].variables["value"].definition_span;
+        scopes[0]
+            .variables
+            .get_mut("value")
+            .unwrap()
+            .definition_span = foreign_span;
+        let hints = inlay_hints(
+            source,
+            analysis.resolved_profile().unwrap(),
+            whole_document_range(source),
+            Some(&analysis),
+            analysis.resolved_registry(),
+            true,
+            false,
+        );
+        assert!(
+            hints
+                .iter()
+                .all(|hint| hint.kind != InlayHintKind::Type || hint.position_line != 0),
+            "{hints:?}"
+        );
+        assert_eq!(
+            hints
+                .iter()
+                .filter(|hint| hint.kind == InlayHintKind::Type && hint.position_line == 1)
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>(),
+            vec![": str"],
+            "{hints:?}"
+        );
     }
 
     #[test]
