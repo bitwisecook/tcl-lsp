@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T12:59:10Z on `work`.
+Current bounded snapshot: 2026-10-14T13:13:18Z on `work`.
 
 Shared command, variable, body and source owners are integrated across compiler/CFG,
 summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
@@ -132,6 +132,15 @@ ld terminates with SIGBUS. Zero semantic controls execute and source drift is
 zero. The genuine held-context lifetime repair is integrated; fresh linking and
 original/new assertion execution remain required.
 
+Current source integrates SCCP and instance-variable typed destination consumers,
+positioned test-fixture minifier symbols, actual inline codegen admission, Jim cold
+original-key/error-frame selection, and the declaration source syntax memo with
+explicit original expansion refusal. Neutral syntax restores current receipts;
+all original DB cold/edit/equivalence and Runtime controls remain required.
+Compiler92 starts13:12 UTC on fresh current source and is RUNNING. Its plan retains
+original controls and budgets, including the unchanged nine Tcltest cases; the
+harness timeout is600 seconds. No semantic result is available.
+
 Compiler88 builds and seals113 controls:96 PASS/17 nonpassing (13 assertion failures,
 three depth SIGABRTs and one analyser-cap timeout), zero source drift and no missing
 or empty selectors. Current source also integrates scalar-only CFG name-data projection and nonrecursive
@@ -151,9 +160,9 @@ These results establish no complete consumer acceptance.
 Original #2286 C8.4 still records1 versus2, W210 at bytes160–167; unchanged82 times
 out after180 seconds. Namespace import remains0 versus1. Original matching
 Tcltest programs, all forty alias setup cases, assertions and raw results are
-preserved. DB61 retains ten original failures, including cold0 versus3: readonly
-Native-card lowering still needs an authentic source-body syntax request before
-its memo callback, independently of lattice/full-capsule equality. Runtime09 retains
+preserved. DB61 retains ten original failures, including cold0 versus3. The genuine source-body
+syntax request/callback is now integrated; actual cold/edit/uncached equivalence
+replay is required independently of lattice/full-capsule equality. Runtime09 retains
 78 PASS/1 FAIL with all original77 PASS. F5 production53 retains9 PASS/23 FAIL across32
 and one actual experiment receipt delta; appliance answers remain outstanding.
 
