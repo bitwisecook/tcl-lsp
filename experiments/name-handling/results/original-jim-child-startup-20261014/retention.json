@@ -1,0 +1,15 @@
+{
+  "files": {
+    "result.json": "24a312b878ca6a0218870b3f0c494870f065e01106c7f04452f1a1b4159412c9",
+    "startup-missing.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "startup-missing.stdout": "84623a99f930d354d2a0363d0b0976b710996d9c4b35d6cbf9e8db06ee9601bd",
+    "startup-missing.tcl": "b2f87054d1b59455b7ba26fa347824d026529aa1d38452c77dc322b16642eef4",
+    "startup-global-scope.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "startup-global-scope.stdout": "23e0e748e7e717504297f09080f24bd6475a8af02639ee6d60cc3fc1d566e1b8",
+    "startup-global-scope.tcl": "349e1399c7277efb306409ec3111a736cbfc4015e518747b43901cf062fee85f",
+    "startup-cstring.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "startup-cstring.stdout": "27c876d16234ba4c86a704aa84170c69a0593299b7315cf25dc6fe3f0725d0e3",
+    "startup-cstring.tcl": "0993ac86c99159f1be12bb3ccabd3741ec70440ef1091b0817c622c675ca93a7"
+  },
+  "scope": "Original Jim child startup scripts and raw stdout/stderr; provider and original source hashes verified. No C Tcl/F5/runtime replay claim."
+}

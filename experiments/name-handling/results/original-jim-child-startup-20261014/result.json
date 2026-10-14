@@ -1,0 +1,35 @@
+{
+  "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "executable_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "original_source": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-interp.c",
+  "original_source_sha256": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+  "cases": [
+    {
+      "case": "startup-cstring",
+      "returncode": 0,
+      "source_sha256": "0993ac86c99159f1be12bb3ccabd3741ec70440ef1091b0817c622c675ca93a7",
+      "stdout_sha256": "27c876d16234ba4c86a704aa84170c69a0593299b7315cf25dc6fe3f0725d0e3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout": "parent 6 9 \u00e9 0\n11\n",
+      "stderr": ""
+    },
+    {
+      "case": "startup-global-scope",
+      "returncode": 0,
+      "source_sha256": "349e1399c7277efb306409ec3111a736cbfc4015e518747b43901cf062fee85f",
+      "stdout_sha256": "23e0e748e7e717504297f09080f24bd6475a8af02639ee6d60cc3fc1d566e1b8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout": "GLOBAL\nGLOBAL\n",
+      "stderr": ""
+    },
+    {
+      "case": "startup-missing",
+      "returncode": 0,
+      "source_sha256": "b2f87054d1b59455b7ba26fa347824d026529aa1d38452c77dc322b16642eef4",
+      "stdout_sha256": "84623a99f930d354d2a0363d0b0976b710996d9c4b35d6cbf9e8db06ee9601bd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout": "0 0 0 0 0 0\n",
+      "stderr": ""
+    }
+  ]
+}
