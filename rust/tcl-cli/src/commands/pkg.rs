@@ -1486,6 +1486,43 @@ fn run_search(query: &str, json: bool, offline: bool) -> anyhow::Result<u8> {
     Ok(0)
 }
 
+/// The build script's sandbox profile. Deprivileged: network denied unless
+/// declared (and still policy-clamped), environment scrubbed of secrets, output
+/// streamed, and a throwaway HOME keeping the script away from the user's
+/// dotfiles. Where the OS-native tier can, the script reaches the project, the
+/// temporary directory, the interpreter's installation and the Tcl libraries it
+/// was handed, and nothing else of the operator's.
+fn build_profile(
+    tclsh: &Path,
+    project_dir: &Path,
+    script: &Path,
+    network: bool,
+) -> tcl_sandbox::Profile {
+    let build_home = project_dir.join(".tclpkg-build-home");
+    let _ = std::fs::create_dir_all(&build_home);
+    let mut profile = tcl_sandbox::Profile::new("pkg-build", tclsh, project_dir)
+        .arg(script.to_string_lossy())
+        .network(network)
+        .capture(false)
+        .set_env("HOME", build_home.to_string_lossy())
+        .set_env("TCLPKG_BUILD", "1");
+    for name in ["PATH", "TCL_LIBRARY", "TCLLIBPATH", "TMPDIR"] {
+        profile = profile.pass_env(name);
+    }
+    profile.fs_write = vec![project_dir.to_path_buf(), std::env::temp_dir()];
+    profile.fs_read = tcl_pkg::venv::tclsh_installation(tclsh)
+        .into_iter()
+        .chain(std::env::var_os("TCL_LIBRARY").map(PathBuf::from))
+        .chain(
+            std::env::var("TCLLIBPATH")
+                .unwrap_or_default()
+                .split_whitespace()
+                .map(PathBuf::from),
+        )
+        .collect();
+    profile
+}
+
 fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
     let colour = ui::use_colour_for_json(common.json);
@@ -1542,23 +1579,7 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
         return Ok(1);
     }
 
-    // Deprivileged: network denied unless declared (and still policy-clamped),
-    // environment scrubbed of secrets, confined to the project directory, output
-    // streamed. A throwaway HOME keeps the script away from the user's dotfiles.
-    let build_home = project_dir.join(".tclpkg-build-home");
-    let _ = std::fs::create_dir_all(&build_home);
-    let mut profile = tcl_sandbox::Profile::new("pkg-build", &tclsh, &project_dir)
-        .arg(script.to_string_lossy())
-        .network(manifest.build.network)
-        .capture(false)
-        .set_env("HOME", build_home.to_string_lossy())
-        .set_env("TCLPKG_BUILD", "1");
-    for name in ["PATH", "TCL_LIBRARY", "TCLLIBPATH", "TMPDIR"] {
-        profile = profile.pass_env(name);
-    }
-    profile.fs_write = vec![project_dir.clone()];
-    profile.fs_read = vec![project_dir.clone()];
-
+    let profile = build_profile(&tclsh, &project_dir, &script, manifest.build.network);
     println!(
         "{}",
         ui::dim(
@@ -1571,11 +1592,11 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     );
     let code = match tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy()) {
         Ok(out) => {
-            if out.isolation == tcl_sandbox::IsolationLevel::Baseline {
+            if !out.enforced.filesystem || !(out.enforced.network || manifest.build.network) {
                 eprintln!(
                     "{}",
                     ui::warn(
-                        "build ran with baseline isolation only (no OS-native filesystem/network confinement on this host)",
+                        "build ran without full OS-native confinement (filesystem or network not enforced on this host)",
                         colour
                     )
                 );

@@ -67,7 +67,11 @@ fn audit(profile: &Profile, outcome: Option<&Outcome>, error: Option<&str>) {
         obj.insert("isolation".into(), o.isolation.as_str().into());
         obj.insert(
             "network_enforced".into(),
-            serde_json::Value::Bool(o.network_enforced),
+            serde_json::Value::Bool(o.enforced.network),
+        );
+        obj.insert(
+            "filesystem_enforced".into(),
+            serde_json::Value::Bool(o.enforced.filesystem),
         );
         obj.insert("success".into(), serde_json::Value::Bool(o.success));
         obj.insert("timed_out".into(), serde_json::Value::Bool(o.timed_out));

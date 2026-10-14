@@ -19,7 +19,7 @@
 [package]
 name = "tcl-sandbox"
 publish.workspace = true
-description = "Portable, deprivileged execution sandbox for the tcl package manager: a capability/policy-floor model over a portable baseline (environment scrubbing, working-directory confinement, wall-clock timeouts) with OS-native confinement layered on per platform."
+description = "Portable, deprivileged execution sandbox for the tcl package manager: a capability/policy-floor model over a portable baseline (environment scrubbing, working-directory confinement, wall-clock timeouts) with Landlock and seccomp confinement layered on where Linux provides them."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -30,6 +30,11 @@ authors.workspace = true
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 wait-timeout = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"
+libc = "0.2"
+seccompiler = "0.5"
 
 [lints]
 workspace = true
