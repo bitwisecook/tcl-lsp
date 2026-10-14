@@ -737,6 +737,137 @@ pub fn original_source_definition_at_unit<'a>(
     selected
 }
 
+/// An original read mapped to its current function's own SSA symbol.
+/// This readonly association supplies no successful read, physical value or edit authority.
+pub struct OriginalSourceSsaRead<'a> {
+    function: &'a crate::compilation_unit::FunctionUnit,
+    span: tcl_lexer::Span,
+    reference: SsaReadReference,
+}
+impl<'a> OriginalSourceSsaRead<'a> {
+    /// Actual current compilation owner of this read.
+    #[must_use]
+    pub const fn function(&self) -> &'a crate::compilation_unit::FunctionUnit {
+        self.function
+    }
+    /// Complete unchanged original substitution extent.
+    #[must_use]
+    pub const fn span(&self) -> tcl_lexer::Span {
+        self.span
+    }
+    /// Canonical symbol retained by this function's original read producer.
+    #[must_use]
+    pub const fn symbol(&self) -> Symbol {
+        self.reference.symbol
+    }
+    /// Represented contents version, when independently available.
+    #[must_use]
+    pub const fn version(&self) -> Option<Version> {
+        self.reference.version
+    }
+}
+
+/// Select an original read by exact document geometry and actual compilation ownership.
+/// Missing read provenance never falls back to a variable or function display name.
+#[must_use]
+pub fn original_source_read_at_unit<'a>(
+    unit: &'a crate::compilation_unit::CompilationUnit,
+    span: tcl_lexer::Span,
+    registry: &CommandRegistry,
+) -> Option<OriginalSourceSsaRead<'a>> {
+    let module = &unit.ir_module;
+    if module.source.try_text().ok()? != unit.source {
+        return None;
+    }
+    let input = module.source_metadata_input.as_ref()?;
+    let retained = module.retained_source_bindings.as_deref()?;
+    let positioned = retained.positioned_for_module(module, registry)?;
+    let origin = positioned.source_origin()?;
+    let mut selected: Option<OriginalSourceSsaRead<'a>> = None;
+    for function in unit.all_body_function_units() {
+        if unit
+            .function_for_body(function.body_id)
+            .is_none_or(|current| !std::ptr::eq(current, function))
+            || function
+                .invocation_metadata_context_for_module(registry, module)
+                .is_none()
+            || function
+                .source_metadata_input()
+                .is_none_or(|held| held != input && held != &input.for_nested_source())
+        {
+            continue;
+        }
+        if let Some(body) = function.body_id {
+            let Some(procedure) = unit.original_procedure_for_body(body) else {
+                continue;
+            };
+            if !retained.matches_original_procedure_summary(body, procedure)
+                || unit.original_procedure_cfg_for_body(body) != Some(&function.cfg)
+            {
+                continue;
+            }
+        } else if function.cfg != unit.cfg_module.top_level {
+            continue;
+        }
+        for ((block, index, source, spelling), reference) in &function.ssa.read_references {
+            if source.provenance != crate::ir::Provenance::Source {
+                continue;
+            }
+            let start =
+                u32::try_from(i64::from(source.span.start()).checked_add(function.base_offset)?)
+                    .ok()?;
+            let end =
+                u32::try_from(i64::from(source.span.end()).checked_add(function.base_offset)?)
+                    .ok()?;
+            if tcl_lexer::Span::new(start, end) != span
+                || unit.source.get(span.as_range()) != Some(spelling.as_str())
+            {
+                continue;
+            }
+            let view = SsaSourceView::at_statement(&function.ssa, *block, *index);
+            let Some(tokens) = view.source_tokens() else {
+                continue;
+            };
+            let mut original = tokens.clone();
+            crate::lattice_rebase::rebase_command_tokens(&mut original, function.base_offset);
+            let Some(binding) = original.source_binding.as_ref() else {
+                continue;
+            };
+            let owner = if binding.has_original_native_source_command() {
+                function.body_id.is_some_and(|body| {
+                    binding.original_native_source_owner_for_body(&original, module, body, registry)
+                }) && binding
+                    .original_native_source_words(&original, input, registry)
+                    .is_some()
+            } else if binding.has_original_logical_source_advice() {
+                binding.original_logical_source_words(&original, input, registry).is_some_and(|words| {
+                    matches!(words.source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+                        if std::sync::Arc::ptr_eq(&advice.site().source, origin))
+                })
+            } else {
+                retained.owns_original_tokens(&original)
+                    && binding
+                        .invocation_site()
+                        .is_some_and(|site| std::sync::Arc::ptr_eq(&site.source, origin))
+            };
+            if !owner {
+                continue;
+            }
+            if selected.as_ref().is_some_and(|old| {
+                !std::ptr::eq(old.function, function) || old.reference != *reference
+            }) {
+                return None;
+            }
+            selected = Some(OriginalSourceSsaRead {
+                function,
+                span,
+                reference: *reference,
+            });
+        }
+    }
+    selected
+}
+
 /// Read-only SSA source-name lookup at an optional exact execution point.
 /// Unpositioned compatibility queries succeed only for a unique proved binding.
 #[derive(Clone, Copy)]
@@ -12783,5 +12914,77 @@ mod native_source_definition_tests {
             )
             .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_source_read_selector_tests {
+    use super::*;
+
+    #[test]
+    fn source_read_selector_uses_original_occurrence_and_current_function_owner() {
+        let source = "set same TOP; puts $same\nproc a {} {set same 123; return $same}\nproc b {} {set same TEXT; return $same}\n";
+        let (context, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let reads = source
+            .match_indices("$same")
+            .map(|(offset, _)| {
+                original_source_read_at_unit(
+                    &unit,
+                    tcl_lexer::Span::new(offset as u32, offset as u32 + 5),
+                    context.commands(),
+                )
+                .expect("actual original read has its own current source/SSA producer")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(reads.len(), 3);
+        assert!(std::ptr::eq(reads[0].function(), &unit.top_level));
+        assert!(!std::ptr::eq(reads[0].function(), reads[1].function()));
+        assert!(!std::ptr::eq(reads[1].function(), reads[2].function()));
+        for read in &reads {
+            assert_eq!(read.function().ssa.var_name(read.symbol()), "same");
+            assert!(std::ptr::eq(
+                unit.function_for_body(read.function().body_id).unwrap(),
+                read.function()
+            ));
+        }
+        let span = reads[1].span();
+        let body = reads[1].function().body_id.unwrap();
+        assert!(
+            original_source_read_at_unit(
+                &unit,
+                tcl_lexer::Span::new(span.start() + 1, span.end()),
+                context.commands()
+            )
+            .is_none()
+        );
+        let mut stale = unit.clone();
+        stale.source.push(' ');
+        assert!(original_source_read_at_unit(&stale, span, context.commands()).is_none());
+        for formals in [false, true] {
+            let mut changed = unit.clone();
+            let procedure = changed
+                .ir_module
+                .procedures
+                .get_mut(&body)
+                .or_else(|| changed.ir_module.body_units.get_mut(&body))
+                .unwrap();
+            if formals {
+                procedure.params.push("added".into());
+            } else {
+                procedure.body_source = Some("return OTHER".into());
+            }
+            assert!(original_source_read_at_unit(&changed, span, context.commands()).is_none());
+        }
+        let mut missing = unit.clone();
+        if let Some(function) = missing
+            .procedures
+            .get_mut(&body)
+            .or_else(|| missing.body_units.get_mut(&body))
+        {
+            function.source_metadata_input = None;
+        } else {
+            panic!("actual original procedure function");
+        }
+        assert!(original_source_read_at_unit(&missing, span, context.commands()).is_none());
     }
 }

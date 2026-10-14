@@ -46,6 +46,60 @@ struct BodyWalk<'context, 'source> {
     catalogue_body: Option<super::OriginalSourceCatalogueBody>,
 }
 
+struct PreparedBodyRegionBranch {
+    graph: AdviceGraph,
+    logical_scope: Option<Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>>,
+}
+
+// Keep materialisation frames outside recursive source-body descent.
+#[inline(never)]
+fn boxed_body_resolution<'r: 'w, 'w>(
+    context: &'r tcl_registry::model::ContextRegistry,
+    dialect: tcl_registry::InvocationDialect,
+    command: &'w str,
+    words: &'w [tcl_registry::InvocationWord<'w>],
+) -> Box<tcl_registry::StructuredInvocationResolution<'r, 'w>> {
+    Box::new(
+        tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(command),
+                words,
+            )
+            .with_dialect(dialect),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        ),
+    )
+}
+
+#[inline(never)]
+fn boxed_body_advice(
+    context: &AdviceInvocationContext<'_>,
+    invocation: AdviceInvocation<'_>,
+    graph: &AdviceGraph,
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<Box<OriginalSourceCommandTransitionAdvice>> {
+    context
+        .schema_advice(invocation, graph, schema)
+        .map(Box::new)
+}
+
+#[inline(never)]
+fn boxed_region_words(
+    context: &AdviceInvocationContext<'_>,
+    advice: &OriginalSourceCommandTransitionAdvice,
+) -> Option<Box<crate::registry_invocation::source_structure::OriginalRegistryWords>> {
+    let source = context.origin.source_image().try_text().ok()?;
+    crate::registry_invocation::source_structure::source_transition_words_from_advice(
+        source,
+        context.config,
+        context.context,
+        advice.clone(),
+    )
+    .map(Box::new)
+}
+
 /// Original substitution order, omitting descendants visited with their parent.
 pub(super) enum OriginalOperandEffect {
     Command(Span),
@@ -503,14 +557,7 @@ impl BodyWalk<'_, '_> {
         if depth > MAX_DEPTH {
             return None;
         }
-        let source = self.context.origin.source_image().try_text().ok()?;
-        let words =
-            crate::registry_invocation::source_structure::source_transition_words_from_advice(
-                source,
-                self.context.config,
-                self.context.context,
-                advice.clone(),
-            );
+        let words = boxed_region_words(self.context, advice);
         #[cfg(test)]
         trace_body_inventory(
             "regions.original_vector",
@@ -562,63 +609,8 @@ impl BodyWalk<'_, '_> {
             let span = region.content_span();
             // Changing namespace source coordinates retain their independently
             // selected policy; no frame or body execution follows.
-            let mut branch = original.clone();
-            let mut child_scope = self.logical_scope.clone();
-            if span.start() != span.end()
-                && schema.semantics.body_kind != tcl_registry::BodyKind::Plain
-                && !lifecycle
-            {
-                let invocation = AdviceInvocation {
-                    native: advice.original_words(),
-                    head: advice.original_head(),
-                    arguments: advice.arguments(),
-                    lineage: advice.lineage(),
-                };
-                match self.context.policy {
-                    AdviceNamingPolicy::Logical(input) => {
-                        if schema.semantics.frame_effect.is_some_and(|frame| {
-                            frame.layout == tcl_registry::FrameArgLayout::ScriptInSelectedFrame
-                        }) {
-                            let scope = self.logical_scope.as_ref()?;
-                            if !scope.matches_input(input)
-                                || !scope.owns_words(advice.original_words())
-                                || original.logical_namespace.as_ref()
-                                    != Some(scope.namespace_recipe())
-                            {
-                                return None;
-                            }
-                            let tcl_registry::frame_effect::FrameArgumentResolution::Valid {
-                                level,
-                                ..
-                            } = schema.authored_logical_source_frame_argument_layout()?
-                            else {
-                                return None;
-                            };
-                            let body = Arc::new(region.clone());
-                            let child = if level.is_global_frame() {
-                                scope.with_global_body(body)?
-                            } else if level.is_current_frame() {
-                                scope.with_body(body)?
-                            } else {
-                                return None;
-                            };
-                            branch.logical_namespace = Some(child.namespace_recipe().clone());
-                            child_scope = Some(Arc::new(child));
-                        } else {
-                            let selected = self
-                                .context
-                                .logical_namespace_scope(&original, invocation, schema)?;
-                            branch.logical_namespace = Some(selected.namespace().clone());
-                        }
-                    }
-                    AdviceNamingPolicy::Native(_) => {
-                        branch.c_source_namespace = Some(
-                            self.context
-                                .c_source_namespace_scope(&original, invocation, schema)?,
-                        );
-                    }
-                }
-            }
+            let mut prepared =
+                self.prepare_region_branch(&original, advice, schema, &region, lifecycle)?;
             let catalogue = self.catalogue_body.clone();
             if catalogue.is_some()
                 && (schema.semantics.body_kind != tcl_registry::BodyKind::Plain
@@ -634,18 +626,106 @@ impl BodyWalk<'_, '_> {
             }
             let source_body = (self.inventory.is_some()
                 && (schema.semantics.body_kind == tcl_registry::BodyKind::Plain
-                    || branch.c_source_namespace.is_some()))
+                    || prepared.graph.c_source_namespace.is_some()))
             .then(|| Arc::new(region));
             let parent = std::mem::replace(&mut self.source_body, source_body);
-            let parent_scope = std::mem::replace(&mut self.logical_scope, child_scope);
-            let walked = self.script(&mut branch, span, depth);
+            let parent_scope =
+                std::mem::replace(&mut self.logical_scope, prepared.logical_scope.take());
+            let walked = self.script(&mut prepared.graph, span, depth);
             self.logical_scope = parent_scope;
             self.source_body = parent;
             self.catalogue_body = catalogue;
             walked?;
-            Self::retain_possible_effects(graph, &original, branch, advice.original_words());
+            Self::retain_prepared_region_effects(
+                graph,
+                &original,
+                prepared,
+                advice.original_words(),
+            );
         }
         Some(())
+    }
+
+    #[inline(never)]
+    fn prepare_region_branch(
+        &self,
+        original: &AdviceGraph,
+        advice: &OriginalSourceCommandTransitionAdvice,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        region: &crate::registry_invocation::OriginalSourceScriptBody,
+        lifecycle: bool,
+    ) -> Option<Box<PreparedBodyRegionBranch>> {
+        let span = region.content_span();
+        let mut branch = original.clone();
+        let mut child_scope = self.logical_scope.clone();
+        if span.start() != span.end()
+            && schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+            && !lifecycle
+        {
+            let invocation = AdviceInvocation {
+                native: advice.original_words(),
+                head: advice.original_head(),
+                arguments: advice.arguments(),
+                lineage: advice.lineage(),
+            };
+            match self.context.policy {
+                AdviceNamingPolicy::Logical(input) => {
+                    if schema.semantics.frame_effect.is_some_and(|frame| {
+                        frame.layout == tcl_registry::FrameArgLayout::ScriptInSelectedFrame
+                    }) {
+                        let scope = self.logical_scope.as_ref()?;
+                        if !scope.matches_input(input)
+                            || !scope.owns_words(advice.original_words())
+                            || original.logical_namespace.as_ref() != Some(scope.namespace_recipe())
+                        {
+                            return None;
+                        }
+                        let tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+                            level,
+                            ..
+                        } = schema.authored_logical_source_frame_argument_layout()?
+                        else {
+                            return None;
+                        };
+                        let body = Arc::new(region.clone());
+                        let child = if level.is_global_frame() {
+                            scope.with_global_body(body)?
+                        } else if level.is_current_frame() {
+                            scope.with_body(body)?
+                        } else {
+                            return None;
+                        };
+                        branch.logical_namespace = Some(child.namespace_recipe().clone());
+                        child_scope = Some(Arc::new(child));
+                    } else {
+                        let selected = self
+                            .context
+                            .logical_namespace_scope(original, invocation, schema)?;
+                        branch.logical_namespace = Some(selected.namespace().clone());
+                    }
+                }
+                AdviceNamingPolicy::Native(_) => {
+                    branch.c_source_namespace = Some(
+                        self.context
+                            .c_source_namespace_scope(original, invocation, schema)?,
+                    );
+                }
+            }
+        }
+        Some(Box::new(PreparedBodyRegionBranch {
+            graph: branch,
+            logical_scope: child_scope,
+        }))
+    }
+
+    #[inline(never)]
+    fn retain_prepared_region_effects(
+        graph: &mut AdviceGraph,
+        original: &AdviceGraph,
+        prepared: Box<PreparedBodyRegionBranch>,
+        operation: &[NativeWord],
+    ) {
+        Self::retain_possible_effects(graph, original, prepared.graph, operation);
     }
 
     fn retain_possible_effects(
@@ -925,16 +1005,7 @@ impl BodyWalk<'_, '_> {
         arguments.extend(written.into_iter().skip(1));
         let words = registry_words(&arguments);
         let resolution =
-            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
-                self.context.context.commands(),
-                Some(self.context.context.context()),
-                tcl_registry::InvocationWords::structured(
-                    tcl_registry::InvocationWord::Literal(&command),
-                    &words,
-                )
-                .with_dialect(self.context.dialect),
-                tcl_dialect::model::InvocationRealm::RuleLoader,
-            );
+            boxed_body_resolution(self.context.context, self.context.dialect, &command, &words);
         let Some(schema) = resolution.resolved() else {
             graph.record_uncertainty(&native.words);
             return Some(());
@@ -977,7 +1048,7 @@ impl BodyWalk<'_, '_> {
                 .semantics
                 .traits
                 .contains(tcl_registry::Traits::DEFERS_BODY);
-        let advice = self.context.schema_advice(invocation, graph, &schema)?;
+        let advice = boxed_body_advice(self.context, invocation, graph, &schema)?;
         if self.expressions(graph, &advice, &schema, depth).is_none() {
             graph.widen(&native.words);
         }

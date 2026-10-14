@@ -366,9 +366,13 @@ fn decompose_region(
     }
     regions.count += 1;
     for component in arena.list(arena.root()) {
-        let token_span = arena
-            .source_span(component)
-            .ok_or("component source extent unavailable")?;
+        let token_span = if matches!(component.part, ExecutablePart::Command { .. }) {
+            component.span
+        } else {
+            arena
+                .source_span(component)
+                .ok_or("component source extent unavailable")?
+        };
         let offset = regions
             .base
             .checked_add(u32::try_from(start).map_err(|_| "component extent out of range")?)
@@ -535,5 +539,56 @@ mod expression_source_tests {
                 ..(word.source().span.end() - base) as usize],
             "{*}[change]",
         );
+    }
+
+    #[test]
+    fn command_substitution_sites_retain_the_exact_whole_component() {
+        let config = LexerConfig::default();
+        for base in [0, 71] {
+            for (source, expected) in [
+                ("list [puts $payload] ; # after", "[puts $payload]"),
+                ("list [] ; # after", "[]"),
+                (
+                    "list \"prefix[puts $payload]suffix\" ; # after",
+                    "[puts $payload]",
+                ),
+                (
+                    "list pre[list [puts $payload]] ; # after",
+                    "[list [puts $payload]]",
+                ),
+            ] {
+                let command =
+                    crate::segmenter::segment_commands_with_offset_and_config(source, base, config)
+                        .remove(0);
+                let words = crate::ir::CommandTokens::from_segmented(
+                    &SourceMap::new(source).with_base(base, 0, 0),
+                    config,
+                    &command,
+                );
+                let word = words.word_exprs.last().unwrap();
+                let components = match word {
+                    WordExpr::CommandSubstitution { spelling, source } => vec![(spelling, source)],
+                    WordExpr::Template { parts, .. } => parts
+                        .iter()
+                        .filter_map(|part| {
+                            if let WordPart::CommandSubstitution { spelling, source } = part {
+                                Some((spelling, source))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                    _ => panic!("original command substitution must be retained"),
+                };
+                assert_eq!(components.len(), 1);
+                let (spelling, site) = components[0];
+                assert_eq!(spelling, expected);
+                assert_eq!(site.provenance, crate::ir::Provenance::Source);
+                assert_eq!(
+                    &source[(site.span.start() - base) as usize..(site.span.end() - base) as usize],
+                    expected
+                );
+            }
+        }
     }
 }

@@ -1,0 +1,30 @@
+    fn whole_unit_warning_query_requires_its_retained_positioned_source_owner() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        // Source-warning ownership only; no external evaluation is performed.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let (_owner, unit) = retained_warning_unit("regexp -- $payload haystack", &current);
+        let positive = find_taint_warnings_for_cu_base(&unit, registry, None);
+        assert!(
+            positive
+                .iter()
+                .any(|warning| { warning.code == DiagCode::T103 && warning.variable == "payload" }),
+            "the actual original source keeps its warning: {positive:?}"
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        let mut changed = unit.clone();
+        changed.ir_module.source = tcl_lexer::SourceImage::document("regexp -- fixed haystack");
+        let mut missing_snapshot = unit.clone();
+        missing_snapshot.ir_module.registry_snapshot = None;
+        for refused in [missing, changed, missing_snapshot] {
+            assert!(find_taint_warnings_for_cu_base(&refused, registry, None).is_empty());
+        }
+        assert_eq!(
+            find_taint_warnings_for_cu_base(&unit, registry, None),
+            positive
+        );
+    }
+

@@ -47,6 +47,7 @@ struct NativeSourceSchemaDependency {
     namespace: Option<tcl_core_types::ByteNamespacePath>,
     path: Option<Vec<tcl_core_types::ByteNamespacePath>>,
     obligations: Vec<super::SourceCommandTransitionObligation>,
+    uncertain_operations: Vec<Vec<(tcl_lexer::Span, Arc<[u8]>)>>,
     observers: Arc<super::command_observers::SourceCommandObservers>,
     source_step_observed: bool,
 }
@@ -758,7 +759,6 @@ fn original_native_source_schema_dependency(
         || offset < scope.executable_body_offset
         || u64::from(offset) >= end
         || !advice.lineage().is_empty()
-        || !advice.uncertain_operations().is_empty()
         || advice
             .original_words()
             .iter()
@@ -769,6 +769,32 @@ fn original_native_source_schema_dependency(
     {
         return None;
     }
+    let uncertain_operations = advice
+        .uncertain_operations()
+        .iter()
+        .map(|operation| {
+            operation
+                .iter()
+                .map(|word| {
+                    let span = word.span();
+                    if word.image() != &module.source
+                        || word.config() != input.lexer_config()
+                        || span.start() < scope.executable_body_offset
+                        || u64::from(span.end()) > end
+                    {
+                        return None;
+                    }
+                    Some((
+                        tcl_lexer::Span::new(
+                            span.start().checked_sub(scope.original_body_offset)?,
+                            span.end().checked_sub(scope.original_body_offset)?,
+                        ),
+                        Arc::from(word.image().bytes().get(span.as_range())?),
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()?;
     words.with_source_schema(input.borrowed_context_registry(), |schema| {
         use tcl_registry::world_effect::{CallbackKinds, WorldStateDomain};
         let effects = schema.effects();
@@ -807,6 +833,7 @@ fn original_native_source_schema_dependency(
         namespace: advice.conditional_c_source_namespace().cloned(),
         path: advice.conditional_c_source_path().map(<[_]>::to_vec),
         obligations: advice.obligations().to_vec(),
+        uncertain_operations,
         observers: Arc::clone(&bindings.command_observers),
         source_step_observed: bindings.source_step_observed(),
     })

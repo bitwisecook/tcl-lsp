@@ -1,0 +1,14 @@
+{
+  "release": "8.4.20",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/tcltest-shared-frame/probe.tcl"
+  ],
+  "process_returncode": 0,
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "input_sha256": "82f6602d5492c1b321f6a26186f80741e5fd4b1a3f9c4a9f09d05dae508911ef",
+  "init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+  "tcltest_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+  "stdout_sha256": "04cf397ffc21ae4f8d2ece398087433d90c460616fd393572b0de66bedd732f5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -50,6 +50,10 @@ pub use vendor_source::{
 };
 mod alias_chain;
 pub use alias_chain::alias_chain_loops;
+mod import_wrapper_hint;
+pub use import_wrapper_hint::{
+    AuthoredImportAliasSpelling, AuthoredImportWrapperHint, authored_import_wrapper_hint,
+};
 mod autoload;
 pub use autoload::{autoload_command_candidates, native_autoload_command_candidates};
 mod command_geometry;

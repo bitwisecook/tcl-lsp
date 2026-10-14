@@ -1,0 +1,10 @@
+{
+  "test": "taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner",
+  "original_source": "regexp -- $payload haystack",
+  "current_source": "set payload [gets stdin]\nregexp -- $payload haystack",
+  "assertions": "Exact T103 and payload positive; all missing retained owner, changed source, missing snapshot and restored positive equality assertions unchanged.",
+  "original_failure": "/tmp/name-compiler-production71-20261014/test-15.log",
+  "oracle_manifest": "/tmp/name-remaining-consumers-20261014/taint-warning-input-oracles/manifest.json",
+  "observed": "C84/85/86/90/91/Jim actual missing variable errors before regexp entry; explicit stdin ingress reaches regexp normally in all six. Baselines plus separate handler witnesses retained.",
+  "consumer_scope": "Whole-unit source-flow analysis requires a genuine tainted SSA value. Conservative :: version0 global seeding is explicitly suppressed by existing reporting logic; the standalone original operand helper remains independently pessimistic. Oracle completion does not establish T103 classification."
+}

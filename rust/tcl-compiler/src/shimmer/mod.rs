@@ -591,22 +591,23 @@ mod tests {
 
     #[test]
     fn first_use_symbols_keep_the_actual_function_and_refuse_missing_input() {
-        let registry = registry();
-        let unit = crate::compilation_unit::CompilationUnit::build_for(
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let unit = byte_array::retained_representation_unit(
             "set value {1 2 3}; llength $value",
-            &registry,
-            false,
+            std::sync::Arc::clone(&context),
         );
-        let original = first_use_commitments_for_function(&unit.top_level, &registry);
+        let original = first_use_commitments_for_function(&unit.top_level, registry);
         assert!(original.values().any(|value| *value == TclType::List));
         let mut renamed = unit.top_level.clone();
         renamed.name = "unrelated reporting label".to_owned();
         assert_eq!(
-            first_use_commitments_for_function(&renamed, &registry),
+            first_use_commitments_for_function(&renamed, registry),
             original
         );
         renamed.source_metadata_input = None;
-        assert!(first_use_commitments_for_function(&renamed, &registry).is_empty());
+        assert!(first_use_commitments_for_function(&renamed, registry).is_empty());
         let mut foreign = CommandRegistry::build_default();
         let mut changed = foreign.get("set").unwrap().clone();
         changed.name = "unrelated";

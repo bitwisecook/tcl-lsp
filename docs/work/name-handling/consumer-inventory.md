@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T10:10:13Z. The [outstanding audit](outstanding-consumer-audit.md)
+Current bounded snapshot: 2026-10-14T10:26:23Z. The [outstanding audit](outstanding-consumer-audit.md)
 and machine inventory retain original issue and source observations.
 
 The current shared consumers retain complete original source, analysis input,
@@ -264,16 +264,15 @@ child substitutions independently. Keyed retained procedure snapshot plus actual
 current inventory ID/pointer preserves source/formal/kind/publication/site truth.
 
 Diagnostic72 builds and seals both original Native-child/Hosted positives FAIL
-with zero source drift and an accurate temporary-instrumentation receipt. The
+with zero source drift and accurate temporary-instrumentation receipt. The
 trace-only source changes are removed exactly before production checkpoint. The separate Native Source-schema lattice and
 full-capsule correspondence packets complete source review with full current
 input/entry/body/card/ID, real namespace policy/slot, authentic source dependencies
-and actual observer/source-step state; both are integrated, execution remains pending.
+and actual observer/source-step state; integrated, execution remains pending.
 Private comparison clears only authenticated carriers after dependency capture
 and restores current original proofs/issued IDs. Original DB10 counts/assertions
-remain mandatory. Authored declaration transport integrates the exact original header-span guard,
-whole source/card/Script and retained closed-grammar dependency union. Child
-source schema ownership remains a separate unfinished consumer producer.
+remain mandatory. Authored declaration transport integrates the exact original header-span guard
+and current closed source grammar; child schema is a separate unfinished producer.
 
 The shared architecture is used by the integrated compiler/CFG, source inventory,
 SSA definition, Core navigation, server library, MCP/AI metadata, source reports
@@ -281,3 +280,40 @@ and codegen consumers described above. The remaining original failures, absent
 readonly source-read selector, namespace path/import dependency completeness,
 cache reuse/full owner manifest and all-target runtime gates still prevent a
 complete-consumer claim.
+
+DB73 and Compiler74 retain build-only failures, zero semantic controls and zero
+source drift. Their actual NativeWord image and bytecode-backend accessor
+corrections preserve all original ownership and fixture assertions. Diagnostic72
+builds and seals two original Native/Hosted positives FAIL/source drift zero;
+its temporary instrumentation is accurately labelled and removed exactly before
+production checkpoints. Compiler71 remains the current focused 9 PASS/8 FAIL
+result, independently of the broader Compiler67 union.
+
+Authored closed-grammar/card transport and Native Source-schema lattice/full
+capsule comparison are integrated with current public API contracts; no current
+reuse acceptance is claimed. Original uncertainty records now preserve ordered
+authentic body-local words/configuration/bytes/relative geometry, with unchanged
+obligations and unsupported effect refusal. Shared source-read selection is
+integrated with a private genuine read producer, exact original source extent,
+current FunctionUnit/input/configuration/store/origin, keyed retained procedure
+truth and terminal source-purpose refusal. It supplies no successful read,
+physical value or editing permission. Its Core hover consumer still needs the
+actual shared selector; equal variable labels cannot join another function.
+
+BodyWalk stack factoring preserves the existing namespace/frame guards, exact
+self restoration, possible effects and depth budgets. Command substitutions
+retain the authentic whole component extent; consumer widening of nested native
+span conventions remains under audit. Shared import-wrapper hint geometry
+preserves separately authored Written/Canonical spelling and conjectural-only
+metadata. Shimmer's new representation fixture uses an actual retained interpreter
+owner; it does not establish frameless source-body representation. The whole-unit
+taint fixture now retains actual stdin ingress, with all original T103/current
+owner/refusal assertions and six-provider raw observations preserved.
+
+Source name-role/scanner migration is held for complete-role pessimism and
+terminal selection of a present source purpose. Strong Native/Normal metadata
+cannot be supplied by source roles or expansion. Authored child grammar and
+scalar-slot consumer work remain unfinished. Fresh unchanged #2286 C5 oracle
+programs retain matching original init/tcltest files and their hashes; original
+nine compiler controls, including both '$absent' expectations, remain required.
+No issue closure or whole-codebase acceptance is inferred from source review.

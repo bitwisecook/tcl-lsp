@@ -1308,6 +1308,11 @@ impl SourceInvocationBinding {
             || self.declaration_layout_observations.is_some()
     }
 
+    /// Whether an original Logical source owner requires its own terminal query.
+    pub(crate) fn has_original_logical_source_advice(&self) -> bool {
+        self.original_logical_source_advice.is_some()
+    }
+
     pub(crate) fn retain_original_logical_source_advice(
         &mut self,
         advice: OriginalSourceCommandTransitionAdvice,

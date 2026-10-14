@@ -8588,11 +8588,14 @@ mod tests {
     fn whole_unit_warning_query_requires_its_retained_positioned_source_owner() {
         // naming.source.retained-positioned-command-realm
         // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
-        // Source-warning ownership only; no external evaluation is performed.
+        // Explicit source ingress supplies the tainted value; no external evaluation is performed.
         let current =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let registry = current.commands();
-        let (_owner, unit) = retained_warning_unit("regexp -- $payload haystack", &current);
+        let (_owner, unit) = retained_warning_unit(
+            "set payload [gets stdin]\nregexp -- $payload haystack",
+            &current,
+        );
         let positive = find_taint_warnings_for_cu_base(&unit, registry, None);
         assert!(
             positive

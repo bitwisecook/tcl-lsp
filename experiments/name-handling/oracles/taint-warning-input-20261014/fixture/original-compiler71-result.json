@@ -1,0 +1,547 @@
+{
+  "started_utc": "2026-10-14T09:58:02.080190+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 379.3792594080005,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+    "sha256": "68f2a3902d8668f521a481dd754f36cb92e035f9311b7df650288fc4a5cf50fa",
+    "bytes": 382016264
+  },
+  "selected_tests": [
+    "codegen::emitter::terminator::tests::scalar_command_conditions_use_result_geometry_without_command_name_classification",
+    "command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners",
+    "registry_invocation::authored_source_structure::tests::authored_source_roles_require_the_actual_store_and_complete_original_vector",
+    "registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission",
+    "registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership",
+    "registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_retain_colliding_and_dynamic_source_alternatives",
+    "registry_invocation::original_procedure_call::logical_may_named_descriptor_tests::logical_may_named_descriptors_keep_shadow_and_unknown_handler_dependencies_open",
+    "shimmer::tests::first_use_symbols_keep_the_actual_function_and_refuse_missing_input",
+    "ssa::native_source_definition_tests::native_source_definitions_select_actual_body_symbols_without_physical_store_grants",
+    "taint::tests::callback_unavailable_spans_require_bounded_original_correspondence",
+    "taint::tests::public_report_keeps_constructor_refusal_beside_an_independent_warning",
+    "taint::tests::required_replay_empty_success_differs_from_withdrawn_source_owner",
+    "taint::tests::scaffold_constructors_require_actual_selected_descriptor_identity",
+    "taint::tests::unavailable_nested_replay_retains_original_site_and_independent_warnings",
+    "taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner",
+    "var_escape::api::tests::implicit_escape_driver_uses_the_retained_actual_registry",
+    "var_escape::known_names::tests::original_authored_name_roles_preserve_empty_and_literal_sigils"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "codegen::emitter::terminator::tests::scalar_command_conditions_use_result_geometry_without_command_name_classification",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.03203868899436202,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "codegen::emitter::terminator::tests::scalar_command_conditions_use_result_geometry_without_command_name_classification",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.3149312689929502,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "registry_invocation::authored_source_structure::tests::authored_source_roles_require_the_actual_store_and_complete_original_vector",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.11436317399784457,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "registry_invocation::authored_source_structure::tests::authored_source_roles_require_the_actual_store_and_complete_original_vector",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.21464624800137244,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "registry_invocation::hosted_structure::tests::hosted_source_controls_keep_authentic_grammar_without_native_or_logical_admission",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 3.376129664000473,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_retain_colliding_and_dynamic_source_alternatives",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.4659801020025043,
+      "log": "test-06.log",
+      "timed_out": false,
+      "test": "registry_invocation::original_procedure_call::logical_may_dependency_tests::logical_may_dependencies_retain_colliding_and_dynamic_source_alternatives",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "registry_invocation::original_procedure_call::logical_may_named_descriptor_tests::logical_may_named_descriptors_keep_shadow_and_unknown_handler_dependencies_open",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.6665930679882877,
+      "log": "test-07.log",
+      "timed_out": false,
+      "test": "registry_invocation::original_procedure_call::logical_may_named_descriptor_tests::logical_may_named_descriptors_keep_shadow_and_unknown_handler_dependencies_open",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "shimmer::tests::first_use_symbols_keep_the_actual_function_and_refuse_missing_input",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.16451778401096817,
+      "log": "test-08.log",
+      "timed_out": false,
+      "test": "shimmer::tests::first_use_symbols_keep_the_actual_function_and_refuse_missing_input",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ssa::native_source_definition_tests::native_source_definitions_select_actual_body_symbols_without_physical_store_grants",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4152831630053697,
+      "log": "test-09.log",
+      "timed_out": false,
+      "test": "ssa::native_source_definition_tests::native_source_definitions_select_actual_body_symbols_without_physical_store_grants",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "taint::tests::callback_unavailable_spans_require_bounded_original_correspondence",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.8192942739988212,
+      "log": "test-10.log",
+      "timed_out": false,
+      "test": "taint::tests::callback_unavailable_spans_require_bounded_original_correspondence",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "taint::tests::public_report_keeps_constructor_refusal_beside_an_independent_warning",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 2.3207852670020657,
+      "log": "test-11.log",
+      "timed_out": false,
+      "test": "taint::tests::public_report_keeps_constructor_refusal_beside_an_independent_warning",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "taint::tests::required_replay_empty_success_differs_from_withdrawn_source_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.7242692760046339,
+      "log": "test-12.log",
+      "timed_out": false,
+      "test": "taint::tests::required_replay_empty_success_differs_from_withdrawn_source_owner",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "taint::tests::scaffold_constructors_require_actual_selected_descriptor_identity",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.11481998200179078,
+      "log": "test-13.log",
+      "timed_out": false,
+      "test": "taint::tests::scaffold_constructors_require_actual_selected_descriptor_identity",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "taint::tests::unavailable_nested_replay_retains_original_site_and_independent_warnings",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 2.4723697940062266,
+      "log": "test-14.log",
+      "timed_out": false,
+      "test": "taint::tests::unavailable_nested_replay_retains_original_site_and_independent_warnings",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.8191370610002195,
+      "log": "test-15.log",
+      "timed_out": false,
+      "test": "taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "var_escape::api::tests::implicit_escape_driver_uses_the_retained_actual_registry",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.1141537649964448,
+      "log": "test-16.log",
+      "timed_out": false,
+      "test": "var_escape::api::tests::implicit_escape_driver_uses_the_retained_actual_registry",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "var_escape::known_names::tests::original_authored_name_roles_preserve_empty_and_literal_sigils",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.16422916699957568,
+      "log": "test-17.log",
+      "timed_out": false,
+      "test": "var_escape::known_names::tests::original_authored_name_roles_preserve_empty_and_literal_sigils",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T10:04:40.544017+00:00",
+  "changed_sources": {}
+}

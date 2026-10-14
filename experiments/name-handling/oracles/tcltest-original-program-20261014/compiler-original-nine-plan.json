@@ -1,0 +1,34 @@
+{
+  "scope": "Exact inherited nine Tcltest controls; run each exact nonempty selector from fresh same-source binary, preserving original program two $absent warnings across C5. Full compiler corpus remains separate.",
+  "original_selectors": [
+    "analyser::diagnostics::tests::tcltest_import_is_namespace_scoped",
+    "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+    "analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque",
+    "analyser::diagnostics::tests::tcltest_test_body_is_walked_when_imported",
+    "lowering::tests::immediate_tcltest_body_remains_a_runtime_barrier",
+    "ssa::tests::structural_body_indices_tcltest_via_registry",
+    "analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque",
+    "analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads",
+    "analyser::diagnostics::tests::tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads"
+  ],
+  "additional_current_producer_controls": [
+    "provider_fixtures::tests::provider_read_domain_requires_the_same_current_complete_input",
+    "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate"
+  ],
+  "original_expected": {
+    "tcltest_oracle_program_keeps_missing_reads_and_setup_completion": "Exactly2 W210, both source spans $absent, for C84/85/86/90/91. No assertion change."
+  },
+  "source_flow": [
+    "analyser::diagnostics::dataflow::emit_read_before_set_diagnostics",
+    "script_binds::authored_procedure_read_advice",
+    "SourceCommandBindings::original_procedure_read_declaration",
+    "native_procedure_read_recipe::OriginalBraced",
+    "SourceCommandBindings::original_procedure_read_flow",
+    "SourceCommandBindings::original_procedure_read_flow_entry",
+    "procedure_read_flow_for_target",
+    "OriginalProcedureReadFlowEntry::owns_original_procedure",
+    "declaration_flow::Builder",
+    "declaration_potential_read_spans"
+  ],
+  "historical_refusal": "Original source.origin mismatch was measured Oct13. Current Main now owns proper OriginalBraced correspondence; historical result does not establish current failure boundary. Need current exact control before diagnostic edits."
+}

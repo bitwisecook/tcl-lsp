@@ -1,0 +1,1 @@
+case missing witness 1 code 1 result {can't read "payload": no such variable} entered 0 payloadExists 0 errorCode {TCL LOOKUP VARNAME payload}

@@ -812,32 +812,23 @@ pub(super) fn maybe_handle_import_wrapper(
     ns_prefix: &str,
     result: &mut SignatureScanResult,
 ) {
-    if !head.ends_with("::import") {
+    let [_, alias] = texts else {
         return;
-    }
-    if texts.len() < 2 {
-        return;
-    }
-    let alias = &texts[1];
-    if alias.is_empty() || alias.contains('$') || alias.contains('[') {
-        return;
-    }
-    if texts.len() > 2 {
-        return;
-    }
-    let source_ns_raw = &head[..head.len() - "::import".len()];
-    let source_ns = if source_ns_raw.starts_with("::") {
-        source_ns_raw.to_string()
-    } else {
-        format!("::{source_ns_raw}")
     };
-    let alias_ns = qualify(ns_prefix, alias);
+    let Some(hint) = crate::naming::authored_import_wrapper_hint(
+        head,
+        alias,
+        ns_prefix,
+        crate::naming::AuthoredImportAliasSpelling::Canonical,
+    ) else {
+        return;
+    };
     result.namespace_imports.push(SignatureNamespaceImport {
-        ns: alias_ns,
-        pattern: format!("{source_ns}::*"),
+        ns: hint.alias_namespace,
+        pattern: hint.pattern,
         source: Some(SignatureNamespaceImportSource {
             native_source: None,
-            namespace: crate::naming::qualify_namespace(ns_prefix, source_ns_raw),
+            namespace: hint.source_namespace,
             tail_pattern: "*".to_owned(),
         }),
         range: argv[0].span,

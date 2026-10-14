@@ -1,0 +1,15 @@
+
+running 1 test
+test taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner ... 
+thread 'taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner' (321158) panicked at rust/tcl-compiler/src/taint.rs:8597:9:
+the actual original source keeps its warning: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9758 filtered out; finished in 1.76s
+

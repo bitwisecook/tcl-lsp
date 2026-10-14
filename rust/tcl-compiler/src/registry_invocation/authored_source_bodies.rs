@@ -60,7 +60,7 @@ pub(crate) fn original_authored_procedure_body(
     let body_word = grammar.original_body_word(positions.body)?.clone();
     let body_span = super::source_scoped_body::original_written_script_body_span(&body_word)?;
     let site = tokens.source_binding.as_ref()?.invocation_site()?.clone();
-    (site.source.source_image() == body_word.source_image()).then_some(())?;
+    (site.source.source_image() == body_word.image()).then_some(())?;
     Some(OriginalAuthoredProcedureBody {
         header: tokens.clone(),
         site,
@@ -125,7 +125,7 @@ impl OriginalAuthoredProcedureBody {
                 .is_some_and(|owner| owner.semantic_key() == self.registry)
             || self.config != module.native_lexer_config()
             || self.registry != module.resolved_registry().snapshot().semantic_key()
-            || self.body_word.source_image() != &module.source
+            || self.body_word.image() != &module.source
             || procedure.body_kind != ProcedureBodyKind::OriginalDeclaration
             || procedure.publication.is_some()
             || procedure.declaration_site.as_ref() != Some(&self.site)
@@ -241,7 +241,7 @@ mod tests {
             );
         }
         let bytecode = crate::lowering::lower_to_ir_with(
-            crate::lowering::Lowerer::new(&registry).bytecode(),
+            crate::lowering::Lowerer::new(&registry).for_bytecode_backend(),
             source,
         );
         assert!(bytecode.original_authored_declaration_body_units.is_empty());

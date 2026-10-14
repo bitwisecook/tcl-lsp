@@ -11659,48 +11659,26 @@ impl Analyser {
         args: &[String],
         scope_path: &[usize],
     ) {
-        // Wrapper shape: ``X::import <alias>`` with exactly one
-        // static argument.  Tcl's own ``namespace import`` is
-        // handled separately and never falls into this branch
-        // because ``cmd_name`` is ``namespace``, not ``…::import``.
-        if !cmd_name.ends_with("::import") {
+        let [alias] = args else {
             return;
-        }
-        if args.len() != 1 {
-            return;
-        }
-        let alias = &args[0];
-        if alias.is_empty() || alias.contains('$') || alias.contains('[') {
-            return;
-        }
-        // Strip the trailing ``::import`` to get the source
-        // namespace; absolute-prefix it if missing the leading
-        // ``::``.
-        let stripped = &cmd_name[..cmd_name.len() - "::import".len()];
-        let source_ns = if stripped.starts_with("::") {
-            stripped.to_string()
-        } else {
-            format!("::{stripped}")
         };
-        // Relative aliases live under the current namespace —
-        // ``namespace eval outer { some::ns::import vt }``
-        // creates ``::outer::vt``, not ``::vt``.
         let current_ns = self.command_resolution_namespace(scope_path);
-        let alias_ns = if alias.starts_with("::") {
-            alias.clone()
-        } else if current_ns == "::" {
-            format!("::{alias}")
-        } else {
-            format!("{current_ns}::{alias}")
+        let Some(hint) = crate::naming::authored_import_wrapper_hint(
+            cmd_name,
+            alias,
+            &current_ns,
+            crate::naming::AuthoredImportAliasSpelling::Written,
+        ) else {
+            return;
         };
         self.result.namespace_imports.push(
             crate::signature_scan::types::SignatureNamespaceImport {
-                ns: alias_ns,
-                pattern: format!("{source_ns}::*"),
+                ns: hint.alias_namespace,
+                pattern: hint.pattern,
                 source: Some(
                     crate::signature_scan::types::SignatureNamespaceImportSource {
                         native_source: None,
-                        namespace: crate::naming::qualify_namespace(&current_ns, stripped),
+                        namespace: hint.source_namespace,
                         tail_pattern: "*".to_owned(),
                     },
                 ),

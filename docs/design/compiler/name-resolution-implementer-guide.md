@@ -90,7 +90,13 @@ and command state. A private closed correspondence may compare unchanged
 analysis dependencies across edits; `rebind_cached` restores the current body's
 source and variable proofs before reuse. Missing correspondence keeps exact
 inputs or recomputes. A cached result supplies no native entry, command identity,
-frame or executable body.
+frame or executable body. Native Source-schema comparison retains its own actual
+input/entry/card/ID and child-tape dependency certificate, including original
+namespace/path/applicability and actual command-observer/source-step state.
+Use `BodyLatticeInputs::certified_native_source_body_id` only for the genuine
+readonly declaration lattice; its source proofs and issued ID must be restored
+to the current request. Full capsule comparisons retain actual function,
+summary, module and semantic facts, while unsupported dependencies recompute.
 
 ## Project source values and APL conventions at their owners
 
