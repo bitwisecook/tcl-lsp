@@ -1,0 +1,66 @@
+{
+  "program_sha256": "7cea4543d4d656eb8bd28eb282febf8536ff8bb9ee22096381596e26dc8353c2",
+  "rows": [
+    {
+      "interpreter": "c84",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit_code": 0,
+      "stdout_sha256": "96e520768e181064e29ef2436518f1cb45656ebe69c04ca180024acb42674b39",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_count": 104,
+      "input_drift": false
+    },
+    {
+      "interpreter": "c85",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit_code": 0,
+      "stdout_sha256": "96e520768e181064e29ef2436518f1cb45656ebe69c04ca180024acb42674b39",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_count": 828,
+      "input_drift": false
+    },
+    {
+      "interpreter": "c86",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit_code": 0,
+      "stdout_sha256": "1aad9122e72195db89253471b56d7418b5e80f76b9944293c8c5ab332630557d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_count": 834,
+      "input_drift": false
+    },
+    {
+      "interpreter": "c90",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit_code": 0,
+      "stdout_sha256": "1aad9122e72195db89253471b56d7418b5e80f76b9944293c8c5ab332630557d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_count": 842,
+      "input_drift": false
+    },
+    {
+      "interpreter": "c91",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit_code": 0,
+      "stdout_sha256": "1aad9122e72195db89253471b56d7418b5e80f76b9944293c8c5ab332630557d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_count": 843,
+      "input_drift": false
+    },
+    {
+      "interpreter": "jim",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "executable_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit_code": 0,
+      "stdout_sha256": "96e520768e181064e29ef2436518f1cb45656ebe69c04ca180024acb42674b39",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_count": 2,
+      "input_drift": false
+    }
+  ],
+  "purpose": "Original TclOO namespace relation resolution observations, not actual Core selector validation. No tcltest used. Colon class setup is an observed caught preflight refusal, not an accepted relation. Existing Jim snapshot not independently refreshed latest upstream here."
+}

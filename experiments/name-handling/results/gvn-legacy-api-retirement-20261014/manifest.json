@@ -1,0 +1,22 @@
+{
+  "path": "rust/tcl-compiler/src/gvn.rs",
+  "before_sha256": "ab71ab80616ac7f619af99a01a55c40163e562390e1d7f4b04ccbf48a04e6b6e",
+  "after_sha256": "d946c39d74c5a65d1277316f28848401b34ef911c7f31856252a3e83c5fc5ae7",
+  "status": "Uncompiled/parsed. Retires public self-only zero-production-caller label purity API and its six body classifier/two name adapter tests; production GVN/registry behavior unchanged. Shared original-source purity/actual ProcedureId controls remain in optimiser/elimination/source_purity.rs. No replacement String adapter or allow annotation.",
+  "retired_api": [
+    "PureProcs",
+    "find_pure_procs",
+    "is_pure_with_procs",
+    "is_worth_reporting_with_procs"
+  ],
+  "retired_selectors": [
+    "find_pure_procs_identifies_empty_body",
+    "find_pure_procs_identifies_pure_body",
+    "find_pure_procs_rejects_body_with_barrier",
+    "find_pure_procs_rejects_global_write",
+    "find_pure_procs_mutual_recursion_stays_pure",
+    "find_pure_procs_impurity_propagates_to_callers",
+    "is_pure_with_procs_accepts_user_proc",
+    "is_worth_reporting_with_procs_accepts_pure_user_proc"
+  ]
+}

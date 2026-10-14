@@ -5,13 +5,9 @@
 
 //! Conservative bridge from common Tcl semantic facts to the BPF-Tcl subset.
 //!
-//! BPF-Tcl has always been a typed Tcl *front end*, rather than a Tcl runtime
-//! embedded in eBPF.  Its existing lowerer therefore consumes the
-//! registry-owned [`BpfOpSpec`] descriptor and emits BPF-IR directly.  This
-//! module is a deliberately disconnected migration adapter: it audits the
-//! common [`SemanticAnalysisBundle`] before a future eBPF backend uses those
-//! facts for selection.  It does not alter the established frontend, typed
-//! lowerer, BPF-IR, or emitter.
+//! The typed BPF-Tcl lowerer consumes registry-owned [`BpfOpSpec`] descriptors
+//! and emits BPF-IR. This independent audit checks common
+//! [`SemanticAnalysisBundle`] facts for the no-runtime eBPF subset.
 //!
 //! The common [`SemanticOperationId`] currently has no BPF-Tcl operation
 //! variants: BPF command specs resolve to the generic `Invoke` identity.  A
@@ -19,8 +15,7 @@
 //! Consequently this bridge derives a private, descriptor-based operation key
 //! from the registry's `BpfOpSpec`, and only assesses that key *after* it has
 //! proved that common completion, transition, callback, and world-effect facts
-//! are closed.  Once BPF operations gain shared semantic-operation identities,
-//! this adapter can be replaced without changing the BPF lowerer.
+//! are closed.
 //!
 //! The explicit BPF dialect selects the sealed syntax and descriptor-dispatch
 //! policy while the source is compiled.  A BPF-Tcl program does not run inside

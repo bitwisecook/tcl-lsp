@@ -2787,7 +2787,7 @@ mod tests {
                 if procedures.as_slice() == [procedure.clone()]));
         assert!(
             crate::native_compilation_admission::script_requires_admission(
-                module
+                &module
                     .procedures
                     .get(&fixture_id(&module.procedures, "::p"))
                     .expect("authored fixture body")
@@ -3395,13 +3395,19 @@ mod tests {
         // it narrows the parameter to `Int` — while the caller-scope constant
         // for the very same slot is the declined site's `abc`.  A materialised
         // slot must not be selected from that contradiction.
-        let plan = plan(
-            "proc p {x} { return [expr {$x + 1}] }\n\
-             proc risky {} { try { p abc } on error {} {} }\n\
-             set d 7\nputs [p $d]\n",
-            enabled(),
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc p {x} { return [expr {$x + 1}] }\nproc risky {} { try { p abc } on error {} {} }\nset d 7\nputs [p $d]\n",
+            std::sync::Arc::clone(&context),
         );
-        assert!(plan.has_declined_direct_call_to("::p"));
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert!(plan.has_declined_direct_call_to(fixture_id(&unit.ir_module.procedures, "::p")));
         for (id, decision) in plan.materialisable_slots() {
             assert!(
                 id.function != "::p" || matches!(decision, MaterialisableSlotDecision::Declined(_)),
@@ -4076,7 +4082,7 @@ mod tests {
                 && evidence.callee.qualified_name == "::add"
             {
                 selected_callers += 1;
-                propagate_actual_types(&mut propagated, "::add", decision);
+                propagate_actual_types(&mut propagated, evidence.callee.id, decision);
             }
         }
         assert_eq!(
@@ -4087,7 +4093,7 @@ mod tests {
             original_formal_diagnostics(&unit, "::add"),
         );
         let actual = propagated
-            .get(&("::add".to_owned(), 1))
+            .get(&(fixture_id(&unit.ir_module.procedures, "::add"), 1))
             .expect("both callers recorded");
         assert!(
             actual
@@ -4148,7 +4154,18 @@ mod tests {
 
     #[test]
     fn direct_calls_retain_native_argv_expansion_at_the_generic_boundary() {
-        let proof = plan("proc p {x y} {return $x}; p {*}{2 4}", enabled());
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
+            "proc p {x y} {return $x}; p {*}{2 4}",
+            std::sync::Arc::clone(&context),
+        );
+        let proof = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
         assert!(
             proof.direct_calls().any(|(_, decision)| matches!(
                 decision,
@@ -4156,7 +4173,7 @@ mod tests {
             )),
             "{proof:#?}"
         );
-        assert!(proof.has_declined_direct_call_to("::p"));
+        assert!(proof.has_declined_direct_call_to(fixture_id(&unit.ir_module.procedures, "::p")));
     }
 
     #[test]

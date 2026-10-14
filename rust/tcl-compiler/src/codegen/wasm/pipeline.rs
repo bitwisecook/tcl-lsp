@@ -933,7 +933,8 @@ mod tests {
         );
         assert!(
             crate::native_compilation_admission::script_requires_admission(
-                unit.ir_module
+                &unit
+                    .ir_module
                     .procedures
                     .get(&fixture_id(&unit.ir_module.procedures, "::bad"))
                     .expect("authored fixture body")

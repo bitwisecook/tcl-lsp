@@ -169,8 +169,8 @@ impl ExplorerResult {
             .unit
             .methods
             .iter()
-            .map(|(name, unit)| FunctionSnapshot {
-                name,
+            .map(|(_, unit)| FunctionSnapshot {
+                name: &unit.name,
                 kind: FunctionSnapshotKind::Method,
                 unit,
             })

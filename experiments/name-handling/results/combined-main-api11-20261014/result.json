@@ -1,0 +1,50 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--offline",
+    "-j",
+    "1",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-explorer",
+    "-p",
+    "tcl-diagram",
+    "-p",
+    "tcl-spec-studio",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-cli",
+    "-p",
+    "tcl-bigip",
+    "-p",
+    "tcl-irules",
+    "-p",
+    "tcl-lsp-server",
+    "-p",
+    "tcl-debugger",
+    "--message-format=json"
+  ],
+  "started_utc": "2026-10-14T00:02:14.510742+00:00",
+  "finished_utc": "2026-10-14T00:03:37.977939+00:00",
+  "exit_code": 101,
+  "seconds": 83.46713429399824,
+  "source_paths": 34655,
+  "changed_sources": {},
+  "errors": [
+    "error[E0283]: type annotations needed\n    --> rust/tcl-lsp-db/src/lib.rs:3089:46\n     |\n3084 |             CfgContext::new(\n     |             ---------------\n     |             |\n     |             required by a bound introduced by this call\n     |             required by a bound introduced by this call\n     |             required by a bound introduced by this call\n...\n3089 |                 req.command_bindings.clone().into(),\n     |                                              ^^^^\n     |\n     = note: multiple `impl`s satisfying `_: salsa::Lookup<BodyLatticeCommandBindings>` found in the `salsa` crate:\n             - impl<T> salsa::Lookup<T> for &T\n               where T: Clone;\n             - impl<T> salsa::Lookup<T> for Cow<'_, T>\n               where T: Clone;\n             - impl<T> salsa::Lookup<T> for T;\n     = note: the type must also implement `std::hash::Hash`\n     = note: multiple `impl`s satisfying `BodyLatticeCommandBindings: HashEqLike<_>` found in the `salsa` crate:\n             - impl<T> HashEqLike<&T> for T\n               where T: std::hash::Hash, T: std::cmp::Eq;\n             - impl<T> HashEqLike<Cow<'_, T>> for T\n               where T: std::hash::Hash, T: std::cmp::Eq, T: Clone;\n             - impl<T> HashEqLike<T> for T\n               where T: std::hash::Hash, T: std::cmp::Eq;\nnote: required by a bound in `_::<impl CfgContext<'db>>::new`\n    --> rust/tcl-lsp-db/src/lib.rs:2646:1\n     |\n2646 | #[salsa::interned]\n     | ^^^^^^^^^^^^^^^^^^ required by this bound in `_::<impl CfgContext<'db>>::new`\n2647 | pub struct CfgContext<'db> {\n     |            ---------- required by a bound in this associated function\nnote: required by a bound in `_::<impl CfgContext<'db>>::new`\n    --> rust/tcl-lsp-db/src/lib.rs:2646:1\n     |\n2646 | #[salsa::interned]\n     | ^^^^^^^^^^^^^^^^^^ required by this bound in `_::<impl CfgContext<'db>>::new`\n2647 | pub struct CfgContext<'db> {\n     |            ---------- required by a bound in this associated function\nnote: required by a bound in `_::<impl CfgContext<'db>>::new`\n    --> rust/tcl-lsp-db/src/lib.rs:2646:1\n     |\n2646 | #[salsa::interned]\n     | ^^^^^^^^^^^^^^^^^^ required by this bound in `_::<impl CfgContext<'db>>::new`\n2647 | pub struct CfgContext<'db> {\n     |            ---------- required by a bound in this associated function\n     = note: this error originates in the macro `salsa::plumbing::setup_interned_struct` which comes from the expansion of the attribute macro `salsa::interned` (in Nightly builds, run with -Z macro-backtrace for more info)\nhelp: try using a fully qualified path to specify the expected types\n     |\n3089 -                 req.command_bindings.clone().into(),\n3089 +                 <ModuleCommandBindings as Into<T>>::into(req.command_bindings.clone()),\n     |\nhelp: consider removing this method call, as the receiver has type `ModuleCommandBindings` and `ModuleCommandBindings: std::hash::Hash` trivially holds\n     |\n3089 -                 req.command_bindings.clone().into(),\n3089 +                 req.command_bindings.clone(),\n     |\n\n",
+    "error[E0283]: type annotations needed\n    --> rust/tcl-lsp-db/src/lib.rs:3115:43\n     |\n3110 |             let template_context = CfgContext::new(\n     |                                    ---------------\n     |                                    |\n     |                                    required by a bound introduced by this call\n     |                                    required by a bound introduced by this call\n     |                                    required by a bound introduced by this call\n...\n3115 |                 template.command_bindings.into(),\n     |                                           ^^^^\n     |\n     = note: multiple `impl`s satisfying `_: salsa::Lookup<BodyLatticeCommandBindings>` found in the `salsa` crate:\n             - impl<T> salsa::Lookup<T> for &T\n               where T: Clone;\n             - impl<T> salsa::Lookup<T> for Cow<'_, T>\n               where T: Clone;\n             - impl<T> salsa::Lookup<T> for T;\n     = note: the type must also implement `std::hash::Hash`\n     = note: cannot satisfy `BodyLatticeCommandBindings: HashEqLike<_>`\nnote: required by a bound in `_::<impl CfgContext<'db>>::new`\n    --> rust/tcl-lsp-db/src/lib.rs:2646:1\n     |\n2646 | #[salsa::interned]\n     | ^^^^^^^^^^^^^^^^^^ required by this bound in `_::<impl CfgContext<'db>>::new`\n2647 | pub struct CfgContext<'db> {\n     |            ---------- required by a bound in this associated function\nnote: required by a bound in `_::<impl CfgContext<'db>>::new`\n    --> rust/tcl-lsp-db/src/lib.rs:2646:1\n     |\n2646 | #[salsa::interned]\n     | ^^^^^^^^^^^^^^^^^^ required by this bound in `_::<impl CfgContext<'db>>::new`\n2647 | pub struct CfgContext<'db> {\n     |            ---------- required by a bound in this associated function\nnote: required by a bound in `_::<impl CfgContext<'db>>::new`\n    --> rust/tcl-lsp-db/src/lib.rs:2646:1\n     |\n2646 | #[salsa::interned]\n     | ^^^^^^^^^^^^^^^^^^ required by this bound in `_::<impl CfgContext<'db>>::new`\n2647 | pub struct CfgContext<'db> {\n     |            ---------- required by a bound in this associated function\n     = note: this error originates in the macro `salsa::plumbing::setup_interned_struct` which comes from the expansion of the attribute macro `salsa::interned` (in Nightly builds, run with -Z macro-backtrace for more info)\nhelp: try using a fully qualified path to specify the expected types\n     |\n3115 -                 template.command_bindings.into(),\n3115 +                 <ModuleCommandBindings as Into<T>>::into(template.command_bindings),\n     |\nhelp: consider removing this method call, as the receiver has type `ModuleCommandBindings` and `ModuleCommandBindings: std::hash::Hash` trivially holds\n     |\n3115 -                 template.command_bindings.into(),\n3115 +                 template.command_bindings,\n     |\n\n",
+    "error[E0308]: mismatched types\n    --> rust/tcl-lsp-db/src/lib.rs:3600:37\n     |\n3600 |             cu.method_instance_vars(&fu.name),\n     |                -------------------- ^^^^^^^^ expected `Option<ProcedureId>`, found `&String`\n     |                |\n     |                arguments to this method are incorrect\n     |\n     = note:   expected enum `std::option::Option<ProcedureId>`\n             found reference `&std::string::String`\nnote: method defined here\n    --> rust/tcl-compiler/src/compilation_unit.rs:4106:12\n     |\n4106 |     pub fn method_instance_vars(\n     |            ^^^^^^^^^^^^^^^^^^^^\n\n"
+  ],
+  "scope": "Combined current Main consumer API typecheck; captured authored source hashes, not complete external dependency/oracle closure. No executed tests or Native/VM/Runtime conformance acceptance.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-names",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

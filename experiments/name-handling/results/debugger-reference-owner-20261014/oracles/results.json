@@ -1,0 +1,80 @@
+[
+  {
+    "provider": "TCL_LSP_JIMSH",
+    "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "library": null,
+    "exit": 0,
+    "files": 8,
+    "drift": false,
+    "input_sha256": "53fcbdcad8d458fc9f9ca02154de0b156593b8c2bb46841d403655786b4ecd2a",
+    "stdout_sha256": "0e8d1fdbbc74bf35b49f541f82a31a915a174805439a5694e0df6bd721868224",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 0.84-9-g5bac7c9\nscalar 0 SCALAR\nbracedScalar 0 SCALAR\nspace 0 SPACE\nliteralDollar 0 CASH\nunmatchedOpen 0 OPEN\nnestedBraces 1 can't\\ read\\ \\\"a\\{b\\\":\\ no\\ such\\ variable\nemptyScalar 0 EMPTY\nbareArray 0 ELEMENT\nbracedArray 0 ELEMENT\ncompound 0 SCALARsuffix\ndynamicIndex 1 {can't read \"a(SCALAR)\": no such element in array}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH84",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "exit": 0,
+    "files": 106,
+    "drift": false,
+    "input_sha256": "53fcbdcad8d458fc9f9ca02154de0b156593b8c2bb46841d403655786b4ecd2a",
+    "stdout_sha256": "dc867711c2a4f747365b75fee4f84ce6f391bb78192ea7d577132c13a69ebba5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.4.20\nscalar 0 SCALAR\nbracedScalar 0 SCALAR\nspace 0 SPACE\nliteralDollar 0 CASH\nunmatchedOpen 0 OPEN\nnestedBraces 1 can't\\ read\\ \\\"a\\{b\\\":\\ no\\ such\\ variable\nemptyScalar 0 EMPTY\nbareArray 0 ELEMENT\nbracedArray 0 ELEMENT\ncompound 0 SCALARsuffix\ndynamicIndex 1 {can't read \"a(SCALAR)\": no such element in array}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH85",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "exit": 0,
+    "files": 830,
+    "drift": false,
+    "input_sha256": "53fcbdcad8d458fc9f9ca02154de0b156593b8c2bb46841d403655786b4ecd2a",
+    "stdout_sha256": "f5fb3e49497b1562d10eec36b48266eeb3f5aff04c0a7e2d53c44bb180ec268d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.5.19\nscalar 0 SCALAR\nbracedScalar 0 SCALAR\nspace 0 SPACE\nliteralDollar 0 CASH\nunmatchedOpen 0 OPEN\nnestedBraces 1 can't\\ read\\ \\\"a\\{b\\\":\\ no\\ such\\ variable\nemptyScalar 0 EMPTY\nbareArray 0 ELEMENT\nbracedArray 0 ELEMENT\ncompound 0 SCALARsuffix\ndynamicIndex 1 {can't read \"a(SCALAR)\": no such element in array}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH86",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "exit": 0,
+    "files": 837,
+    "drift": false,
+    "input_sha256": "53fcbdcad8d458fc9f9ca02154de0b156593b8c2bb46841d403655786b4ecd2a",
+    "stdout_sha256": "007b226bd7088d7b05442ef97883d01d9bd42a15449c07cb925dc4c83be958a2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.6.18\nscalar 0 SCALAR\nbracedScalar 0 SCALAR\nspace 0 SPACE\nliteralDollar 0 CASH\nunmatchedOpen 0 OPEN\nnestedBraces 1 can't\\ read\\ \\\"a\\{b\\\":\\ no\\ such\\ variable\nemptyScalar 0 EMPTY\nbareArray 0 ELEMENT\nbracedArray 0 ELEMENT\ncompound 0 SCALARsuffix\ndynamicIndex 1 {can't read \"a(SCALAR)\": no such element in array}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH90",
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit": 0,
+    "files": 845,
+    "drift": false,
+    "input_sha256": "53fcbdcad8d458fc9f9ca02154de0b156593b8c2bb46841d403655786b4ecd2a",
+    "stdout_sha256": "cf94d53e6f65985ef4a80538f7d64396cbfdf47ae9e166955770edd924984e9d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 9.0.4\nscalar 0 SCALAR\nbracedScalar 0 SCALAR\nspace 0 SPACE\nliteralDollar 0 CASH\nunmatchedOpen 0 OPEN\nnestedBraces 0 NESTED\nemptyScalar 0 EMPTY\nbareArray 0 ELEMENT\nbracedArray 0 ELEMENT\ncompound 0 SCALARsuffix\ndynamicIndex 1 {can't read \"a(SCALAR)\": no such element in array}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH91",
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "exit": 0,
+    "files": 846,
+    "drift": false,
+    "input_sha256": "53fcbdcad8d458fc9f9ca02154de0b156593b8c2bb46841d403655786b4ecd2a",
+    "stdout_sha256": "94c1bab7634921a0641bc6b5b109fc227c96f09a3121d9b2fad33a682654b01b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 9.1.0\nscalar 0 SCALAR\nbracedScalar 0 SCALAR\nspace 0 SPACE\nliteralDollar 0 CASH\nunmatchedOpen 0 OPEN\nnestedBraces 0 NESTED\nemptyScalar 0 EMPTY\nbareArray 0 ELEMENT\nbracedArray 0 ELEMENT\ncompound 0 SCALARsuffix\ndynamicIndex 1 {can't read \"a(SCALAR)\": no such element in array}\n",
+    "stderr": ""
+  }
+]

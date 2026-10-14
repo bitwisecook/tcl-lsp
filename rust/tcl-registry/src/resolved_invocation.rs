@@ -3552,6 +3552,15 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         Some(formats)
     }
 
+    /// Priority grammar of the command selected by this original source schema.
+    #[must_use]
+    pub fn authored_event_handler_priority(&self) -> Option<crate::events::EventHandlerPriority> {
+        self.semantics
+            .script_metadata
+            .command
+            .event_handler_priority
+    }
+
     /// Selected signature and count axis at authentic effective operands.
     /// Dedicated structural arity checkers and unresolved selectors decline.
     /// Package windows remain explicit for consumers that decide floors later.

@@ -881,7 +881,7 @@ oo::class create C {
     );
 }
 
-/// TP (formerly FP-SH-15): a plain positional parameter oscillated by the
+/// A plain positional parameter oscillated by the
 /// loop body IS thunking — the per-iteration cost (`expr` re-parses the
 /// string arm; `string range` re-stringifies the int arm) is invariant of
 /// what the caller passed in, so the unknown (OVERDEFINED) *entry* type is

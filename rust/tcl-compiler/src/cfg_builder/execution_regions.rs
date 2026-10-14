@@ -797,8 +797,6 @@ impl CfgBuilder<'_> {
 mod tests {
     use crate::interprocedural::test_body_identity::fixture_id;
 
-    use crate::interprocedural::test_body_identity::fixture_id;
-
     use super::*;
     use crate::execution_region::RegionSelection;
     use crate::ssa::build_ssa;

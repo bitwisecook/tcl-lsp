@@ -1,0 +1,8 @@
+{
+  "path": "rust/tcl-lsp-db/src/lib.rs",
+  "before_sha256": "45a7397a815b44eadc53fe67879eaa1f290f374c8729180be500501f5e469bb3",
+  "after_sha256": "4d541f37cde1557c89d2aa3444b7c2940888c66aea0ac164bfcfe8786cbe53a7",
+  "patch_sha256": "80e8454ffebf3e36348744a62bbc311fd658722f864e3ab2b783318996a1133a",
+  "validation": "rustfmt only; actual API11 raw errors retained; uncompiled no Cargo lease",
+  "contract": "Salsa constructors use explicit body/world wrapper types in production and fixtures; method facts selected by actual retained body_id"
+}

@@ -1,0 +1,646 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-10-14T00:03:19.015039+00:00",
+  "head": "51ad3ca418483961c18624a2036d8ebec16dbdfa",
+  "scope": "Bounded final consumer reconciliation: exact inspected callsites only. No entire-workspace completion, conformance, build or runtime acceptance claim. Main source was not frozen by this read-only audit; hashes describe endpoint bytes, not a source-stable test capture.",
+  "oracle_execution": "none",
+  "rows": [
+    {
+      "id": "irules-effective-priority",
+      "path": "rust/tcl-irules/src/event_handlers.rs",
+      "symbol": "extract_irules_event_handlers",
+      "disposition": "migration_required",
+      "source_evidence": "Top-level segmented command name goes directly to registry.get and arg_indices_for_role; consumed by tcl-bigip validator BIGIP6012 and BIGIP6038.",
+      "remaining_task": "Route retained OriginalIrulesSourceContext source_vectors through OriginalRegistryWords.with_source_schema under actual context/store; preserve literal original operands and unknown inherited priority. Capture once per rule or reuse actual current retained analysis. Expose conditional authored report only.",
+      "positive_assertions": [
+        "Default / literal top-level / inline priority precedence"
+      ],
+      "negative_assertions": [
+        "Computed or expanded priority withdraws inherited certainty",
+        "Inert commands do not become handlers",
+        "Missing original source schema does not fall back to registry label",
+        "Changed source/config/store withdraws reused context"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "logical-method-ancestry",
+      "path": "rust/tcl-lsp-core/src/implementation.rs",
+      "symbol": "is_descendant_of",
+      "disposition": "migration_required",
+      "source_evidence": "Logical method implementation path walks raw superclass/mixin strings and local qname_eq. Class implementation path already uses analysis.class_hierarchy().subclasses.",
+      "remaining_task": "Use shared resolved relation hierarchy for transitive method descendant query; keep original_implementation declaration inventory unchanged.",
+      "positive_assertions": [
+        "Namespaced bare superclass and mixin select descendant override"
+      ],
+      "negative_assertions": [
+        "Same-tail class in unrelated namespace does not donate ancestor",
+        "Literal-colon relation collision remains separate",
+        "Native/hosted path does not enter Logical name walk"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "debugger-variable-query",
+      "path": "rust/tcl-debugger/src/backend.rs",
+      "symbol": "VmBackend::evaluate",
+      "disposition": "migration_required_assigned_debugger_names_finish",
+      "source_evidence": "Current snapshot variable is selected after expression.strip_prefix(\"$\"); caller contract offers simple variable references. Shared parser needed at ingress, exact snapshot labels afterward.",
+      "remaining_task": "Dedicated debugger agent owns migration; do not infer actual runtime cell from snapshot label.",
+      "positive_assertions": [
+        "Bare captured label and shared supported reference form agree"
+      ],
+      "negative_assertions": [
+        "Malformed/incomplete reference refuses",
+        "Braced literal-dollar name differs from decorated expression",
+        "Unknown snapshot variable refuses"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "legacy-gvn-purity-api",
+      "path": "rust/tcl-compiler/src/gvn.rs",
+      "symbol": "PureProcs/find_pure_procs/is_pure_with_procs/is_worth_reporting_with_procs",
+      "disposition": "public_legacy_api_no_current_production_callers",
+      "source_evidence": "Name set is rebuilt from ID-keyed CFG labels; duplicate labels decline. Caller search finds definitions and gvn.rs tests only.",
+      "remaining_task": "Retire unused public label-only API after compatibility review or convert to ID/retained-call owner if retained. Do not report an executing optimiser bug from these self-only tests.",
+      "positive_assertions": [
+        "Real body IDs retained if API survives"
+      ],
+      "negative_assertions": [
+        "Duplicate labels and foreign IDs cannot select purity"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "f5-object-lint",
+      "path": "rust/tcl-bigip/src/lint.rs",
+      "symbol": "resolve_name",
+      "disposition": "f5_domain_migration_required",
+      "source_evidence": "Independent exact/default-partition/Common/suffix-first object lookup over actual configuration container. This is F5 object selection, not Tcl namespace lookup.",
+      "remaining_task": "One reusable F5 configuration object lookup owner with explicit caller order and ambiguity policy; preserve current report policy until appliance results authorise semantic changes. Do not route through Tcl canonicalisation.",
+      "positive_assertions": [
+        "Exact full path wins",
+        "Default partition precedes Common under selected existing policy"
+      ],
+      "negative_assertions": [
+        "Duplicate short names retain explicit ambiguity/order policy",
+        "F5 object slash grammar is not Tcl colon grammar"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "f5-object-graph",
+      "path": "rust/tcl-bigip/src/graph.rs",
+      "symbol": "resolve_name",
+      "disposition": "f5_domain_migration_required",
+      "source_evidence": "Independent exact/default-partition/Common/suffix-first object lookup over actual configuration container. This is F5 object selection, not Tcl namespace lookup.",
+      "remaining_task": "One reusable F5 configuration object lookup owner with explicit caller order and ambiguity policy; preserve current report policy until appliance results authorise semantic changes. Do not route through Tcl canonicalisation.",
+      "positive_assertions": [
+        "Exact full path wins",
+        "Default partition precedes Common under selected existing policy"
+      ],
+      "negative_assertions": [
+        "Duplicate short names retain explicit ambiguity/order policy",
+        "F5 object slash grammar is not Tcl colon grammar"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "f5-object-convert",
+      "path": "rust/tcl-bigip/src/convert.rs",
+      "symbol": "resolve_name",
+      "disposition": "f5_domain_migration_required",
+      "source_evidence": "Independent exact/default-partition/Common/suffix-first object lookup over actual configuration container. This is F5 object selection, not Tcl namespace lookup.",
+      "remaining_task": "One reusable F5 configuration object lookup owner with explicit caller order and ambiguity policy; preserve current report policy until appliance results authorise semantic changes. Do not route through Tcl canonicalisation.",
+      "positive_assertions": [
+        "Exact full path wins",
+        "Default partition precedes Common under selected existing policy"
+      ],
+      "negative_assertions": [
+        "Duplicate short names retain explicit ambiguity/order policy",
+        "F5 object slash grammar is not Tcl colon grammar"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "f5-object-pcap_enrich",
+      "path": "rust/tcl-bigip/src/pcap_enrich.rs",
+      "symbol": "resolve_name",
+      "disposition": "f5_domain_migration_required",
+      "source_evidence": "Independent exact/default-partition/Common/suffix-first object lookup over actual configuration container. This is F5 object selection, not Tcl namespace lookup.",
+      "remaining_task": "One reusable F5 configuration object lookup owner with explicit caller order and ambiguity policy; preserve current report policy until appliance results authorise semantic changes. Do not route through Tcl canonicalisation.",
+      "positive_assertions": [
+        "Exact full path wins",
+        "Default partition precedes Common under selected existing policy"
+      ],
+      "negative_assertions": [
+        "Duplicate short names retain explicit ambiguity/order policy",
+        "F5 object slash grammar is not Tcl colon grammar"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "f5-object-wireshark_profile",
+      "path": "rust/tcl-bigip/src/wireshark_profile.rs",
+      "symbol": "resolve_name",
+      "disposition": "f5_domain_migration_required",
+      "source_evidence": "Independent exact/default-partition/Common/suffix-first object lookup over actual configuration container. This is F5 object selection, not Tcl namespace lookup.",
+      "remaining_task": "One reusable F5 configuration object lookup owner with explicit caller order and ambiguity policy; preserve current report policy until appliance results authorise semantic changes. Do not route through Tcl canonicalisation.",
+      "positive_assertions": [
+        "Exact full path wins",
+        "Default partition precedes Common under selected existing policy"
+      ],
+      "negative_assertions": [
+        "Duplicate short names retain explicit ambiguity/order policy",
+        "F5 object slash grammar is not Tcl colon grammar"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "f5-object-irule_context",
+      "path": "rust/tcl-bigip/src/irule_context.rs",
+      "symbol": "resolve_in",
+      "disposition": "f5_domain_migration_required",
+      "source_evidence": "Independent exact/default-partition/Common/suffix-first object lookup over actual configuration container. This is F5 object selection, not Tcl namespace lookup.",
+      "remaining_task": "One reusable F5 configuration object lookup owner with explicit caller order and ambiguity policy; preserve current report policy until appliance results authorise semantic changes. Do not route through Tcl canonicalisation.",
+      "positive_assertions": [
+        "Exact full path wins",
+        "Default partition precedes Common under selected existing policy"
+      ],
+      "negative_assertions": [
+        "Duplicate short names retain explicit ambiguity/order policy",
+        "F5 object slash grammar is not Tcl colon grammar"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "f5-topology-virtual",
+      "path": "rust/tcl-irule-test/src/topology.rs",
+      "symbol": "resolve_virtual",
+      "disposition": "f5_domain_migration_required",
+      "source_evidence": "Full exact match then first source-order short/Common match differs from lint partition ordering.",
+      "remaining_task": "Use same F5-domain owner with explicitly selected simulator report policy. Preserve source-order behavior unless intentionally changed with evidence.",
+      "positive_assertions": [
+        "Exact full path remains first"
+      ],
+      "negative_assertions": [
+        "Duplicate short names across partitions cannot silently borrow another policy"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "f5-tls-reference",
+      "path": "rust/tcl-bigip/src/tls.rs",
+      "symbol": "resolve_reference/lookup_key_material",
+      "disposition": "f5_domain_migration_required",
+      "source_evidence": "TLS profile reference requires unique matching leaf; certificate/key helpers choose first matching leaf. These purpose differences are real and must remain explicit.",
+      "remaining_task": "Central F5-domain owner must provide exact/unique-leaf and ordered-leaf report modes separately; keep key material identities independent.",
+      "positive_assertions": [
+        "Unique leaf and exact reference resolve under own mode"
+      ],
+      "negative_assertions": [
+        "Ambiguous unique-leaf profile refuses",
+        "One mode cannot donate first-match acceptance to another"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "f5-gtm-reference",
+      "path": "rust/tcl-bigip/src/pcap_enrich.rs",
+      "symbol": "resolve_gtm_path/resolve_gtm_server",
+      "disposition": "f5_domain_migration_required",
+      "source_evidence": "Independent GTM exact/Common/suffix-first lookup; no default-partition argument.",
+      "remaining_task": "Route through central F5-domain owner with existing GTM purpose ordering; retain separate appliance questions.",
+      "positive_assertions": [
+        "Exact then Common GTM lookup"
+      ],
+      "negative_assertions": [
+        "Namespace-like colon bytes remain literal F5 object text"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "runtime-command-policy",
+      "path": "runtime/rust/src/namespace.rs",
+      "symbol": "home_of/resolve/destination_of/command_publication_at/var_home",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "home_of selects NativeNameProtocol command_lookup_projection then lookup_bases over actual namespace token arena; Jim uses jim_command_lookup_keys. destination_of uses rename_destination_projection. var_home uses variable_namespace_projection. Publication uses command_publication_projection.",
+      "remaining_task": null,
+      "positive_assertions": [
+        "Existing actual release/token controls remain necessary"
+      ],
+      "negative_assertions": [
+        "Display collision cannot replace generation or slot",
+        "Jim cannot borrow C publication/lookup protocol"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "runtime-variable-base-policy",
+      "path": "runtime/rust/src/vars.rs",
+      "symbol": "qualified_home_using/ns_scope_fallback_using",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "Both source paths reuse tcl_syntax::naming::variable_namespace_lookup_bases; actual frame/local/home/cell distinction remains Runtime-owned.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Declared undefined primary cell must block fallback",
+        "Procedure local and namespace query purposes remain distinct"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "runtime-namespace-address",
+      "path": "runtime/rust/src/state_traits.rs",
+      "symbol": "find_namespace_bytes_checked",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "Original checked path selects NativeNameProtocol.namespace_address_path before actual namespace token traversal.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Empty relative namespace outside root remains purpose-specific failure",
+        "Cached dying namespace token differs from fresh visible lookup"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "runtime-support-namespace",
+      "path": "runtime/rust/src/namespace.rs",
+      "symbol": "command_home_ns/ensure_command_owned_namespace/find_namespace/ensure_namespace",
+      "disposition": "shared_geometry_storage_adapter",
+      "source_evidence": "written_command_parts and split_qualifier imported directly from Syntax naming; remaining loop traverses actual arena children/dying_children and performs physical creation.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Native operations use their checked purpose entry before support helper",
+        "Do not flatten dying token to display FQN"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "cshim-command-publication",
+      "path": "rust/tcl-cshim/src/state.rs",
+      "symbol": "prepare/create_command/delete_command/command",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "CommandPublicationService prepares original purpose; command map keyed engine-issued CommandPublicationKey, command_names reports exact original NameBytes.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "No live publication service refuses",
+        "Foreign or retired publication key cannot select command"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "wasm-engine-receipt",
+      "path": "runtime/rust/src/engine_abi/command_receipts.rs",
+      "symbol": "tcl_engine_command_receipt_current",
+      "disposition": "shared_live_owner_guard_inspected",
+      "source_evidence": "Owner/interpreter identity and actual resolve_cmd_token(name)==generation guard precede typed engine invocation. Reporting bytes alone cannot validate generation.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Foreign interpreter or replacement generation refuses",
+        "Same report bytes without actual selected token cannot validate"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "wasm-host-inventory",
+      "path": "rust/tcl-engine-wasm/src/extension_host.rs",
+      "symbol": "command_inventory",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "Actual inventory row slot checked by checked_command_slot_utf8; original root_operand must equal native_command_root_source_spelling under retained actual release.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Missing root operand or opaque transport refuses",
+        "Inventory label alone cannot create callable receipt"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "runtime-abi-rooted-adapter",
+      "path": "rust/tcl-runtime-api/src/lib.rs",
+      "symbol": "in_rooted_namespace",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "Exactly one constructed root marker delegated to Syntax unroot_rooted_key, preserving remainder literal bytes.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Written colon-run normalisation cannot replace constructed-key projection"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "registry-mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "symbol": "global_command_bare_name/is_in_mathfunc_namespace",
+      "disposition": "shared_owner_routing_inspected_stale_inventory_reconciled",
+      "source_evidence": "Functions now use shared key_holder_and_tail and unroot_rooted_key. Prior consumer-inventory trim/rsplit migration row is stale.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Constructed ::tcl::mathfunc:::f does not become sin/f function slot"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "registry-private-namespace",
+      "path": "rust/tcl-registry/src/private_tcl_namespaces.rs",
+      "symbol": "classify_private_tcl_namespace_call",
+      "disposition": "shared_owner_routing_inspected_stale_inventory_reconciled",
+      "source_evidence": "Uses qualifier_component_extents, canonical_written_command, actual registry package exclusions; explicitly declines Jim C-private namespace claim.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Literal-colon and public tcllib command exclusions remain",
+        "No native identity issued by source diagnostic"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "registry-dialect-hint",
+      "path": "rust/tcl-registry/src/dialects.rs",
+      "symbol": "is_script_body_command",
+      "disposition": "shared_geometry_bounded_hint",
+      "source_evidence": "Uses canonical_written_command plus unroot_rooted_key before bootstrap script-body vocabulary. This is bounded pre-dialect source hint, not actual binding selection.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Hint cannot become original command receipt"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "registry-descriptor-native_compilation",
+      "path": "rust/tcl-registry/src/native_compilation.rs",
+      "symbol": "namespace_*_grammar/info_level_grammar/array_compilation_grammar",
+      "disposition": "shared_descriptor_projection_inspected_stale_inventory_reconciled",
+      "source_evidence": "Prior private root stripping now uses Syntax unroot_rooted_key under selected descriptor/registration context. Native source/currentness/prerequisites remain independently required.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Descriptor equality cannot supply selected native worker or source admission"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "registry-descriptor-native_string_compilation",
+      "path": "rust/tcl-registry/src/native_string_compilation.rs",
+      "symbol": "selected native descriptor facade",
+      "disposition": "shared_descriptor_projection_inspected_stale_inventory_reconciled",
+      "source_evidence": "Prior private root stripping now uses Syntax unroot_rooted_key under selected descriptor/registration context. Native source/currentness/prerequisites remain independently required.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Descriptor equality cannot supply selected native worker or source admission"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "registry-descriptor-native_tcloo_registration",
+      "path": "rust/tcl-registry/src/native_tcloo_registration.rs",
+      "symbol": "compilation",
+      "disposition": "shared_descriptor_projection_inspected_stale_inventory_reconciled",
+      "source_evidence": "Prior private root stripping now uses Syntax unroot_rooted_key under selected descriptor/registration context. Native source/currentness/prerequisites remain independently required.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Descriptor equality cannot supply selected native worker or source admission"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "registry-descriptor-value_transfer/reference_body",
+      "path": "rust/tcl-registry/src/value_transfer/reference_body.rs",
+      "symbol": "reference descriptor equality",
+      "disposition": "shared_descriptor_projection_inspected_stale_inventory_reconciled",
+      "source_evidence": "Prior private root stripping now uses Syntax unroot_rooted_key under selected descriptor/registration context. Native source/currentness/prerequisites remain independently required.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Descriptor equality cannot supply selected native worker or source admission"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "registry-role-hook-id",
+      "path": "rust/tcl-registry/src/native_argument_role_hook.rs",
+      "symbol": "native_argument_role_hook",
+      "disposition": "separate_central_metadata_grammar",
+      "source_evidence": "Registry-owned exact command/member hook ID grammar uses rsplit_once on Rust catalogue identifier; exact qualified command precedes member interpretation, including exact command with missing hook.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Rust metadata hook ID is not written Tcl name",
+        "Absent exact hook must not fall through to another member"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "spectcl-denied-vocabulary",
+      "path": "rust/tcl-spec-hooks/src/pack_eval.rs",
+      "symbol": "denied_axis",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "Canonical written vocabulary classifier delegates Syntax canonical_written_command/unroot_rooted_key after actual unknown dispatch; does not select a live target.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Unknown dispatch remains independent of denied vocabulary"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "lsp-definition-procedure",
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "symbol": "proc_visible_from_namespace",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "Original name inputs select original namespace scope and procedures_for_original_name with unanimity; Logical fallback requires allows_lexical_declaration_advice and shared command_resolution_candidates_from_namespace_keys.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Original missing owner cannot enter Logical fallback",
+        "Multiple original candidates refuse"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "lsp-type-hierarchy",
+      "path": "rust/tcl-lsp-core/src/type_hierarchy.rs",
+      "symbol": "resolve_class/prepare/related_from_inventory",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "Logical class resolution uses retained relation_lookups and compiler class_hierarchy shared resolver; Original uses sealed OriginalDeclarationIdentity and complete current document inventory.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Foreign source or same-tail class cannot replace identity"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "lsp-code-lens-qname",
+      "path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "symbol": "lens_qname_exists",
+      "disposition": "logical_presentation_admission_adapter",
+      "source_evidence": "Legacy qname prefix/member matching supplies only existence boolean. Server codeLens resolve rejects non-Logical advice before this adapter, then obtains locations from actual cursor reference_locations_at, not decoded qname.",
+      "remaining_task": "Optional retire legacy report existence helper if all lenses acquire exact source identities; do not classify current Native lookup bypass.",
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Original profile with forged qname must not enter Logical resolver",
+        "Existence boolean cannot select edit or references target"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "lsp-core-graph-body-join",
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "symbol": "resolve_invocation_target/build_nodes",
+      "disposition": "shared_body_id_routing_inspected",
+      "source_evidence": "ProcedureId maps and body_key reporting retained; original declarations join through original::compiled_body_id; Logical invocation correspondence requires actual body source offset.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Foreign body ID and duplicate report names cannot donate effects"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "mcp-procedure-documents",
+      "path": "rust/tcl-mcp/src/tools.rs",
+      "symbol": "generate_docstring/read_proc_docs/update_docstrings",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "Uses Core procedure_symbol::for_literal_name/declarations; source spans select original documents, not independent name scan.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Multiple literal matches decline selection",
+        "Changed original source cannot authorise old span edit"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "mcp-irule-ai-source",
+      "path": "rust/tcl-mcp/src/irule_gen.rs",
+      "symbol": "SourceInventory::capture",
+      "disposition": "shared_owner_routing_inspected",
+      "source_evidence": "OriginalIrulesSourceContext capture supplies presentation commands; label rows cannot recover target or runtime binding.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Unsupported source operands remain source candidates",
+        "AI report is not BIG-IP execution evidence"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "irules-variable-report",
+      "path": "rust/tcl-irules/src/source_context.rs",
+      "symbol": "source_variable_label/presentation_commands",
+      "disposition": "presentation_only_private_decoration",
+      "source_evidence": "Decoration is applied only after shared original executable variable extent capture, then emitted in presentation_commands variable_names. It is not cell or target lookup.",
+      "remaining_task": "Optional use shared variable reporting decoration if current public representation contract matches; no Native or rename authority from label.",
+      "positive_assertions": [],
+      "negative_assertions": [
+        "Presentation label cannot enter actual cell selector"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "editor-package-scaffold",
+      "path": "editors/vscode/src/scaffold.ts",
+      "symbol": "namespaceFromPackageName",
+      "disposition": "authored_identifier_generation_not_lookup",
+      "source_evidence": "Splits user package label and sanitises into new scaffold namespace identifiers; does not resolve existing Tcl namespace or command.",
+      "remaining_task": null,
+      "positive_assertions": [
+        "Generated identifiers remain legal under authored scaffold convention"
+      ],
+      "negative_assertions": [
+        "Generated scaffold namespace must not select existing original namespace"
+      ],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "studio-spectcl-rust-identifiers",
+      "path": "rust/tcl-spec-studio/src/render_spectcl.rs",
+      "symbol": "Rust enum/field rendering parser",
+      "disposition": "non_tcl_identifier_grammar",
+      "source_evidence": "rsplit(\"::\") calls inspect Rust enum variants and field/type source, not Tcl namespace lookup.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "owner-resolution-symbols",
+      "path": "rust/xtask/src/owner_resolution.rs",
+      "symbol": "Rust symbol selection",
+      "disposition": "non_tcl_identifier_grammar",
+      "source_evidence": ":: splitting identifies Rust source symbols and gate declarations; separate from Tcl names.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    },
+    {
+      "id": "mcp-data-group-suggestion",
+      "path": "rust/tcl-mcp/src/datagroup.rs",
+      "symbol": "normalise_dg_name",
+      "disposition": "authored_suggestion_not_lookup",
+      "source_evidence": "ASCII underscore/lowercase transforms descriptive text into newly suggested data-group name; never resolves an existing F5 object.",
+      "remaining_task": null,
+      "positive_assertions": [],
+      "negative_assertions": [],
+      "validation": "source_inspection_only; no builds, tests or oracle execution by this audit"
+    }
+  ],
+  "source_endpoint_sha256": {
+    "editors/vscode/src/scaffold.ts": "147a45a77bcce963822c4dc6e3292f379650bb3520f114c7aba83c4b236847d1",
+    "runtime/rust/src/engine_abi/command_receipts.rs": "31c8d6ee6c4665e304e538735e29f5cd232b8f873958ba92d6ec25f71035533c",
+    "runtime/rust/src/namespace.rs": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b",
+    "runtime/rust/src/state_traits.rs": "432756fbe0407e613e8a2baa31f08d222f0192ecc8800ae1b05272d6b93344f5",
+    "runtime/rust/src/vars.rs": "0cb5ef1085175a3294d911c5518390203e9c54a044fd27a192223ec77d4ad607",
+    "rust/tcl-bigip/src/convert.rs": "551f4c4ddb31b7ab232c6db46834bf03a1df1b81931fb0c0435d4dd9d2660318",
+    "rust/tcl-bigip/src/graph.rs": "2a3550e5c999f02ad8de54725dfb0696fe8f5177c5ceb1e5a890d369c0581b02",
+    "rust/tcl-bigip/src/irule_context.rs": "04286d414000fbc1f26ead467edfb6785cd73567d0d62d7ff030bb4e5bcc60d2",
+    "rust/tcl-bigip/src/lint.rs": "45e1e36c6ffb8383e9655405657d35ca94f8ad174e9bf1de7f3d644be3744c7c",
+    "rust/tcl-bigip/src/pcap_enrich.rs": "b2695a1a3bb87b1460aebadeb5f79e2a31722dcfb3278b37b2353fda5993b5e2",
+    "rust/tcl-bigip/src/tls.rs": "3d2cb62ac331dce0d058f039fb9ebce47ea45eecc928ffbdd120d6681a7d9c6b",
+    "rust/tcl-bigip/src/wireshark_profile.rs": "574604ae7757cdeb91b14b5d3af03a5da07f1b8de4c74d89149931b8afd775c5",
+    "rust/tcl-compiler/src/gvn.rs": "ab71ab80616ac7f619af99a01a55c40163e562390e1d7f4b04ccbf48a04e6b6e",
+    "rust/tcl-cshim/src/state.rs": "437d00da6f74aa6fb8f7927791c603474dbba3c4b1c0da3b9ddb7f803b1aa327",
+    "rust/tcl-debugger/src/backend.rs": "352b32e6ee5351f97c0d09549577ef30e72d53dd4d5d626bd7ceca59a93b5629",
+    "rust/tcl-engine-wasm/src/extension_host.rs": "f641b3ef86926fe4ae6b52b33302419727dc76d6df5bf5168f493f17f65b88af",
+    "rust/tcl-irule-test/src/topology.rs": "e2f349c37ab0d0f0e630043603da97609dda533fe4c0a9a00f73f201fb754b61",
+    "rust/tcl-irules/src/event_handlers.rs": "6f50846b4b09f5b626c0ce34498527740693bcbbb4e25e88cb44f5f8139c00d2",
+    "rust/tcl-irules/src/source_context.rs": "af7ff3c968646417956d9e9cda9a54f69a404a762d8625a352fa3fbf5d597577",
+    "rust/tcl-lsp-core/src/code_lens.rs": "3ba67c08c9d3379d221166ee2d85c6e47947c2c749f66a59153caf91d372284a",
+    "rust/tcl-lsp-core/src/definition.rs": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2",
+    "rust/tcl-lsp-core/src/graphs.rs": "e85c43afee7bfca7afe8d397600e4bce2d93043d2cd72a279d0b84ff4b0bea96",
+    "rust/tcl-lsp-core/src/implementation.rs": "d9ff90fd0d8b4190fa045711830c23ac46366d3a3e840104a0505c15d81394c5",
+    "rust/tcl-lsp-core/src/type_hierarchy.rs": "45eee7ef9a95cade17dc9e12ad58b11909ce827072ff39c3e01bd341a8b9a886",
+    "rust/tcl-mcp/src/datagroup.rs": "c75e39e628cbefb399a3a38ef0c222a4ab9ac297661732eb6ecad8268834ae74",
+    "rust/tcl-mcp/src/irule_gen.rs": "db83e63cb52238c77fa41061b51dc0bc3839cf4eb673ac9587cff5f61001a931",
+    "rust/tcl-mcp/src/tools.rs": "fd114232db002cc84b1752c4ef96409b634b953206edc4a50dcba1c861e1aad2",
+    "rust/tcl-registry/src/dialects.rs": "7ec3a5ca805cbc2b5c0a314a101d8b088fbe324e42becb7415db23d3f50b1c51",
+    "rust/tcl-registry/src/mathfunc.rs": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+    "rust/tcl-registry/src/native_argument_role_hook.rs": "d6a7c9c56f9467f6261ef18ac6db933cc6eb6f635da32dec697eaf7496bf0860",
+    "rust/tcl-registry/src/native_compilation.rs": "75023b6cf571affc1c5f33c108bdb3892a3165870a7b28683cbbb6eba7ad1a5d",
+    "rust/tcl-registry/src/native_string_compilation.rs": "9e1745f3031d04f9eeebb3f494376b00a4baaa8f0e95e67931ce50c79882ee61",
+    "rust/tcl-registry/src/native_tcloo_registration.rs": "d036287a3968c05a23ad40667e49da157f5f13626e905a36fe6f3872e83e2108",
+    "rust/tcl-registry/src/private_tcl_namespaces.rs": "5c52f19a45a840940ff87f58f0348080a1cf05ae91908b7f2989a1c31808824c",
+    "rust/tcl-registry/src/value_transfer/reference_body.rs": "ff92d3114a0002c0434c1eb2cd63f90e024404d8bf93a3ca60208bca8e62a0c3",
+    "rust/tcl-runtime-api/src/lib.rs": "1b8983a9fa01de4eaf7a595e16581f06710587a282a55362e99498ef4de02ba1",
+    "rust/tcl-spec-hooks/src/pack_eval.rs": "99be908bd539260baefeb62f6cf532ffb90b23a2db7f3db3715c886f7343d295",
+    "rust/tcl-spec-studio/src/render_spectcl.rs": "9863a8f576b07777f1f5d2b090b59dd475fe3bfbef978fdac261dcc7386d66af",
+    "rust/xtask/src/owner_resolution.rs": "6a1a966ec72eeeff1856a15d03a70de1fbd2803a1b730f689e013528878373a6"
+  },
+  "remaining_scope": [
+    "Compiler general residual descriptor/purity/trace-policy functions need per-callsite audit; lexical matches alone do not prove executing naming consumer.",
+    "Compiler and WASM body migrations, DB memo and report joins are separately assigned.",
+    "F5 original appliance lookups remain unanswered unless a same-branch real answer document exists.",
+    "Full editor/AI/script semantic inventory acceptance requires current owner-resolution and generator gates plus explicit source dispositions; this bounded reconciliation does not replace those gates."
+  ]
+}

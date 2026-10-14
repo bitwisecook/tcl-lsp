@@ -1330,7 +1330,7 @@ mod tests {
 
 #[cfg(test)]
 mod reported_namespace_tests {
-    use super::namespace_of;
+    use tcl_syntax::naming::{ReportedQNameNamespacePurpose, reported_qname_namespace};
 
     #[test]
     fn uplevel_caller_reporting_namespace_roots_relative_prefixes() {
@@ -1345,7 +1345,10 @@ mod reported_namespace_tests {
             ("::n::", "::n"),
             ("é::λ", "::é"),
         ] {
-            assert_eq!(namespace_of(qname), expected);
+            assert_eq!(
+                reported_qname_namespace(qname, ReportedQNameNamespacePurpose::RootRelativePrefix),
+                expected
+            );
         }
     }
 }

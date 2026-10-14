@@ -243,8 +243,7 @@ fn original_argument_list_concat_checks_source_free_before_target_mutation_and_f
 fn original_neutral_list_helpers_keep_actual_alias_copy_and_reference_roles() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // Exact old neutral helper ports have zero production callers after migration.
-    // Their real alias/copy roles remain a software comparator, not Native authority.
+    // Neutral alias/copy roles are software controls, without Native authority.
     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
     let empty = fixture::string(b"");
     let range = crate::list::native_full_list_range(empty.as_ptr(), protocol).unwrap();

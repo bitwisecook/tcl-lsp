@@ -285,12 +285,12 @@ mod tests {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let summary = ["::pure".to_owned()].into_iter().collect();
         let original = unit(
             "proc pure {x} {return $x}; interp alias {} called {} pure; set unused [called VALUE]",
             &context,
             profile,
         );
+        let summary = HashSet::from([fixture_id(&original.ir_module.procedures, "::pure")]);
         assert!(check_with_procedure_summary(
             &original,
             context.commands(),
@@ -363,7 +363,7 @@ mod tests {
                 .original_invocation_source_purpose(registry, metadata),
             Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
         );
-        let pure = HashSet::from(["::pure".to_owned()]);
+        let pure = HashSet::from([fixture_id(&native.ir_module.procedures, "::pure")]);
         let statement = native.ir_module.top_level.statements.last().unwrap();
         let tokens = native
             .ir_module
@@ -400,6 +400,7 @@ mod tests {
             &logical.ir_module,
         )
         .unwrap();
+        let pure = HashSet::from([fixture_id(&logical.ir_module.procedures, "::pure")]);
         let statement = logical.ir_module.top_level.statements.last().unwrap();
         let tokens = logical
             .ir_module

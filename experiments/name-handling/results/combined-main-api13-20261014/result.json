@@ -1,0 +1,49 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--offline",
+    "-j",
+    "1",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-explorer",
+    "-p",
+    "tcl-diagram",
+    "-p",
+    "tcl-spec-studio",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-cli",
+    "-p",
+    "tcl-bigip",
+    "-p",
+    "tcl-irules",
+    "-p",
+    "tcl-lsp-server",
+    "-p",
+    "tcl-debugger",
+    "--message-format=json"
+  ],
+  "started_utc": "2026-10-14T00:07:06.602628+00:00",
+  "finished_utc": "2026-10-14T00:07:56.862397+00:00",
+  "exit_code": 101,
+  "seconds": 50.259767630996066,
+  "source_paths": 34655,
+  "changed_sources": {},
+  "errors": [
+    "error[E0308]: mismatched types\n    --> rust/tcl-bigip/src/validator.rs:1155:50\n     |\n1155 |     check_virtual_rule_priority_conflicts(&view, &event_handlers, &mut out);\n     |     -------------------------------------        ^^^^^^^^^^^^^^^ expected `&BTreeMap<String, Vec<_>>`, found `&BTreeMap<&str, Vec<IrulesEventHandler>>`\n     |     |\n     |     arguments to this function are incorrect\n     |\n     = note: expected reference `&BTreeMap<std::string::String, _>`\n                found reference `&BTreeMap<&str, _>`\nnote: function defined here\n    --> rust/tcl-bigip/src/validator.rs:454:4\n     |\n 454 | fn check_virtual_rule_priority_conflicts(\n     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n 455 |     view: &ModelView<'_>,\n 456 |     event_handlers: &BTreeMap<String, Vec<IrulesEventHandler>>,\n     |     ----------------------------------------------------------\n\n",
+    "error[E0308]: mismatched types\n    --> rust/tcl-bigip/src/validator.rs:1158:46\n     |\n1158 |     check_virtual_event_profile_graph(&view, &event_handlers, &mut out);\n     |     ---------------------------------        ^^^^^^^^^^^^^^^ expected `&BTreeMap<String, Vec<_>>`, found `&BTreeMap<&str, Vec<IrulesEventHandler>>`\n     |     |\n     |     arguments to this function are incorrect\n     |\n     = note: expected reference `&BTreeMap<std::string::String, _>`\n                found reference `&BTreeMap<&str, _>`\nnote: function defined here\n    --> rust/tcl-bigip/src/validator.rs:586:4\n     |\n 586 | fn check_virtual_event_profile_graph(\n     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n 587 |     view: &ModelView<'_>,\n 588 |     event_handlers: &BTreeMap<String, Vec<IrulesEventHandler>>,\n     |     ----------------------------------------------------------\n\n"
+  ],
+  "scope": "Combined current Main consumer API typecheck; captured authored source hashes, not complete external dependency/oracle closure. No executed tests or Native/VM/Runtime conformance acceptance.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-names",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

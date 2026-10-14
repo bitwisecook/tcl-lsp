@@ -46,8 +46,7 @@ use crate::util::repo_root;
 /// Applies-to tags accepted on diagnostic KCS pages. Keep this in lockstep
 /// with the tables in `docs/kcs/STYLE.md` and the short vocabulary in
 /// `AGENTS.md`. Diagnostic pages are deliberately checked here rather than
-/// relying on the CLI help builder, which only indexes feature pages and
-/// historically accepted arbitrary tokens.
+/// relying on the CLI help builder, which only indexes feature pages.
 ///
 /// This is the complete vocabulary from STYLE.md: editor, tool, KCS type,
 /// content, and compiler-pass tags. A diagnostic page may use any of these

@@ -118,8 +118,8 @@ pub trait DebugBackend {
     /// If the backend is not paused at a statement.
     fn variables(&self, frame_id: u32) -> Result<Vec<Variable>, DebugError>;
 
-    /// Evaluate a simple variable reference (`$name` / `name`) at the current
-    /// step.
+    /// Read a captured variable by its label or a complete Tcl variable
+    /// reference. Array-index substitutions are unsupported.
     ///
     /// # Errors
     /// [`DebugError::Unsupported`] for anything but a captured variable.
@@ -323,17 +323,34 @@ impl DebugBackend for VmBackend {
     }
 
     fn evaluate(&mut self, expression: &str) -> Result<String, DebugError> {
-        let name = expression.strip_prefix('$').unwrap_or(expression);
         let snap = self.current().ok_or(DebugError::Finished)?;
+        let unsupported = || {
+            DebugError::Unsupported(format!(
+                "replay evaluate only resolves captured variables, not {expression:?}"
+            ))
+        };
+        let name = if expression.starts_with('$') {
+            let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
+            let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+            let reference = tcl_lexer::word_parts::whole_var_ref(expression.as_bytes(), config)
+                .ok()
+                .flatten()
+                .ok_or_else(unsupported)?;
+            if reference.index.is_some_and(|index| {
+                !std::str::from_utf8(index).is_ok_and(tcl_syntax::naming::array_key_is_literal)
+            }) {
+                return Err(unsupported());
+            }
+            // The parsed spelling selects a captured label, never a live variable cell.
+            tcl_syntax::naming::var_reference_for_style(expression, config.braced_var)
+        } else {
+            expression
+        };
         snap.variables
             .iter()
             .find(|v| v.name == name)
             .map(|v| v.value.clone())
-            .ok_or_else(|| {
-                DebugError::Unsupported(format!(
-                    "replay evaluate only resolves captured variables, not {expression:?}"
-                ))
-            })
+            .ok_or_else(unsupported)
     }
 
     fn terminate(&mut self) {
@@ -424,6 +441,52 @@ mod tests {
             "{vars:?}"
         );
         assert_eq!(b.evaluate("$x").unwrap(), "1");
+    }
+
+    #[test]
+    fn evaluate_uses_whole_original_variable_references() {
+        let mut b = launched(
+            "set x SCALAR\nset {odd name} SPACE\nset {cash$name} CASH\n\
+             set {scalar(open} OPEN\nset {a{b}c} NESTED\nset {} EMPTY\nset after 1\n",
+        );
+        for _ in 0..6 {
+            b.step_in().expect("reach the captured assignments");
+        }
+        for (expression, value) in [
+            ("x", "SCALAR"),
+            ("$x", "SCALAR"),
+            ("${x}", "SCALAR"),
+            ("odd name", "SPACE"),
+            ("${odd name}", "SPACE"),
+            ("cash$name", "CASH"),
+            ("${cash$name}", "CASH"),
+            ("${scalar(open}", "OPEN"),
+            ("${a{b}c}", "NESTED"),
+            ("${}", "EMPTY"),
+        ] {
+            assert_eq!(b.evaluate(expression).unwrap(), value, "{expression}");
+        }
+        for expression in ["$x suffix", "${x}suffix", "${missing", "$x(k)", "$x($i)"] {
+            assert!(
+                matches!(b.evaluate(expression), Err(DebugError::Unsupported(_))),
+                "{expression}"
+            );
+        }
+    }
+
+    #[test]
+    fn evaluate_does_not_promote_array_roots_to_element_values() {
+        let mut b = launched("set a(k) ELEMENT\nset x SCALAR\nset after 1\n");
+        for _ in 0..2 {
+            b.step_in().expect("reach the captured assignments");
+        }
+        for expression in ["a(k)", "$a(k)", "${a(k)}", "$a($x)", "${a}(k)"] {
+            assert!(
+                matches!(b.evaluate(expression), Err(DebugError::Unsupported(_))),
+                "{expression}"
+            );
+        }
+        assert_eq!(b.evaluate("$x").unwrap(), "SCALAR");
     }
 
     #[test]

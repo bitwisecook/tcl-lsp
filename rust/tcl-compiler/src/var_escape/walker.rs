@@ -921,7 +921,7 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let module = lower_to_ir("proc p {} {global g}", registry);
         let summary = analyse_script_with_registry(
-            module
+            &module
                 .procedures
                 .get(&fixture_id(&module.procedures, "::p"))
                 .expect("authored fixture body")

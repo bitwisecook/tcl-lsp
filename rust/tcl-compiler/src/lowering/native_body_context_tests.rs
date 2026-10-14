@@ -134,7 +134,7 @@ fn original_event_body_keeps_conditional_frame_without_claiming_entry() {
         .with_dialect(Some(profile)),
         source,
     );
-    let body = module
+    let body = &module
         .procedures
         .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST"))
         .expect("authored fixture body")

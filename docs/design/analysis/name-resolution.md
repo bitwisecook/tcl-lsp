@@ -436,18 +436,21 @@ Three contexts abstain rather than link:
 - **`upvar ?level? otherVar local`** defines the local alias with **no**
   `link_target`: the caller frame is statically unknown, so it never
   mis-links.
-- **Non-`#0` `uplevel N {…}`** opens an isolated `Uplevel` child scope tagged
-  with the level word. `uplevel_hides_scope` resolves `#0` outward to the
-  global frame, but a non-`#0` level resolves **only within the body**,
-  abstaining on both the enclosing proc and the global. Completion abstains
-  the same way — the enclosing proc's locals are genuinely not in scope
-  inside `uplevel 1`, so offering them would suggest out-of-scope variables.
+- **Unknown caller-level `uplevel N {…}`** retains an isolated source
+  boundary. The shared `logical_variable_scope_advice` distinguishes relative
+  zero, which retains the source caller's tables, from absolute zero, which
+  selects independently retained root tables. Unknown caller levels borrow
+  neither enclosing locals nor global declarations. Definition, completion and
+  rename consume the same eligible tables; no entered frame follows.
 - **Dynamic declaration names.** `variable $dyn` records nothing; every
   declaration handler is gated on `naming::is_dynamic_word`, the same `$`/`[`
   test `rename` and `proc` use.
 
-`dict with` binds keys only for a literal dict word; `dict update` binds its
-alias variables with no key link. Both are honest misses, not wrong edits.
+`dict with` can retain keys from a current scalar dictionary value under the
+shared original source/value owner. Key masks and writes invalidate conflicting
+outer value facts; inferred keys are metadata, not editable declarations.
+`dict update` records alias variables without inventing a key cell or completed
+link.
 
 ### 4.2 TclOO instance variables
 
@@ -484,19 +487,19 @@ Three layers honour it:
   as 8.6 does.
 - **Analyser** — `record_var_read` attaches a bare namespace-frame read to
   the *global* cell under 8.x only, never to an intermediate namespace;
-  `lookup_var_in_scope_chain` applies C's two-table rule at namespace frames
-  (own table, then global iff 8.x); completion only forces `$::g`
-  qualification at namespace scope under 9.0+ semantics. Proc, method, and
-  uplevel contexts keep the documented lenient outward walk — a navigation
-  choice that predates versioning and is unchanged.
+  `logical_variable_scope_advice` selects the applicable declaration tables.
+  Procedure and method source boundaries retain local tables, relative zero
+  keeps the source caller, and unknown caller levels decline outward tables.
+  Independent root completion candidates require rooted insertion when the
+  selected scope cannot use their bare names.
 
 Pinned by vectors run through the VM at both `V8_6` and `V9_0` *and*
 executed under real `tclsh8.6` / `tclsh9.0`, so the table cannot drift.
 
-### 4.4 Four data models, one rule set — deliberately not unified
+### 4.4 Shared rules with purpose-specific data models
 
-Variable resolution has four implementations, and that is the decision, not a
-defect:
+The shared variable owners expose purpose-specific projections to four storage
+and source models:
 
 | Layer | Shape | Consumer |
 |---|---|---|

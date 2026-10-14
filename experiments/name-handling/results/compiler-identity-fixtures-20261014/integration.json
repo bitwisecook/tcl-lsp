@@ -1,0 +1,5 @@
+{
+  "excluded_path": "rust/tcl-compiler/src/gvn.rs",
+  "reason": "Zero production caller legacy API retired with its eight self-only controls in separate reviewed patch; fixture repair targets the retained actual consumers.",
+  "rust_execution": "Pending actual new no-run and execution; earlier112diagnostics retained."
+}

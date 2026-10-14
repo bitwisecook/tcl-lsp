@@ -1,0 +1,10 @@
+:::::Leaf does not refer to an object
+    while executing
+"oo::class create Leaf {superclass 茶}"
+    (in namespace eval ":::" script line 3)
+    invoked from within
+"namespace eval : {
+    oo::class create 茶 {method run {} {return COLON}}
+    oo::class create Leaf {superclass 茶}
+    puts "COLON [info class supe..."
+    (file "/tmp/name-implementation-hierarchy-20261014/oracle/relations.tcl" line 28)

@@ -1,0 +1,17 @@
+{
+  "started_utc": "2026-10-13T23:57:26.999373+00:00",
+  "label": "Current Main compiler fixture compilation and source ownership controls",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34658,
+  "plan": {
+    "filters": [
+      "logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+      "retained_upframe_namespaces_do_not_parse_the_procedure_display_label"
+    ],
+    "scope": "Fresh Main original compiler test compilation and two new source-owner controls; no broad consumer or Native conformance acceptance."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

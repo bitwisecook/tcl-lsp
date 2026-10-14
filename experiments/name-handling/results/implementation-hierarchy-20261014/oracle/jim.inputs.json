@@ -1,0 +1,11 @@
+{
+  "before": {
+    "/tmp/name-implementation-hierarchy-20261014/oracle/relations.tcl": "7cea4543d4d656eb8bd28eb282febf8536ff8bb9ee22096381596e26dc8353c2",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+  },
+  "after": {
+    "/tmp/name-implementation-hierarchy-20261014/oracle/relations.tcl": "7cea4543d4d656eb8bd28eb282febf8536ff8bb9ee22096381596e26dc8353c2",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+  },
+  "changed": []
+}

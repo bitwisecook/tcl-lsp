@@ -2828,10 +2828,16 @@ mod tests {
             let (context, unit) =
                 crate::interprocedural::logical_completion_unit(source, environment);
             let module = ModuleProcedures::of_unit(&unit, context.commands());
-            let grammar = module.formals("::optional").unwrap().1;
+            let grammar = module
+                .formals(&fixture_id(&unit.ir_module.procedures, "::optional"))
+                .unwrap()
+                .1;
             if grammar == tcl_dialect::ParameterGrammar::Jim {
                 let values = module
-                    .parameter_values("::optional", &[Some(ExactValue::from_literal("B"))])
+                    .parameter_values(
+                        &fixture_id(&unit.ir_module.procedures, "::optional"),
+                        &[Some(ExactValue::from_literal("B"))],
+                    )
                     .unwrap();
                 assert_eq!(
                     values,
@@ -2845,7 +2851,12 @@ mod tests {
                     .map(|value| Some(ExactValue::from_literal(value)))
                     .collect();
                 assert_eq!(
-                    module.parameter_values("::middle", &arguments).unwrap(),
+                    module
+                        .parameter_values(
+                            &fixture_id(&unit.ir_module.procedures, "::middle"),
+                            &arguments
+                        )
+                        .unwrap(),
                     [
                         Some(ExactValue::from_literal("A")),
                         Some(ExactValue::from_literal("B C")),
@@ -2854,7 +2865,10 @@ mod tests {
                 );
                 assert!(
                     module
-                        .parameter_values("::linked", &[Some(ExactValue::from_literal("caller"))])
+                        .parameter_values(
+                            &fixture_id(&unit.ir_module.procedures, "::linked"),
+                            &[Some(ExactValue::from_literal("caller"))]
+                        )
                         .is_none()
                 );
                 assert!(
@@ -2865,12 +2879,18 @@ mod tests {
                 assert_eq!(grammar, tcl_dialect::ParameterGrammar::Tcl);
                 assert!(
                     module
-                        .parameter_values("::optional", &[Some(ExactValue::from_literal("B"))])
+                        .parameter_values(
+                            &fixture_id(&unit.ir_module.procedures, "::optional"),
+                            &[Some(ExactValue::from_literal("B"))]
+                        )
                         .is_none()
                 );
                 assert_eq!(
                     module
-                        .parameter_values("::linked", &[Some(ExactValue::from_literal("value"))])
+                        .parameter_values(
+                            &fixture_id(&unit.ir_module.procedures, "::linked"),
+                            &[Some(ExactValue::from_literal("value"))]
+                        )
                         .unwrap(),
                     [Some(ExactValue::from_literal("value"))]
                 );

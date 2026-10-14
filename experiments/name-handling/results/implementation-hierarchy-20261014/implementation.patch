@@ -1,0 +1,209 @@
+--- a/rust/tcl-lsp-core/src/implementation.rs
++++ b/rust/tcl-lsp-core/src/implementation.rs
+@@ -69,19 +69,8 @@
+ 
+     let cursor = byte_offset_at(&line_index, source, line, character);
+ 
+-    // Case 1: the word names a class — resolve the single class the cursor
+-    // denotes namespace-aware (declaration under the cursor, else the
+-    // caller-namespace candidate order), not every same-named class across
+-    // namespaces, then list its direct subclasses as the implementations.
+-    //
+-    // The subclass edges come from the shared class-hierarchy index rather
+-    // than a local `superclasses`/`mixins` scan: those fields hold the names
+-    // *as written* (a bare `superclass Shape` inside `::A` stays `"Shape"`),
+-    // so a leading-`::`-only tail comparison never matches the resolved
+-    // `::A::Shape` target and every namespaced subclass is missed.  The index
+-    // already resolves each written super/mixin owner-aware (the same
+-    // `normalise` the MRO builder uses) and unions super + mixin edges, so
+-    // it is the single source of truth `type_hierarchy::subtypes` shares.
++    // Class targets and direct subclass edges share the namespace-aware
++    // declaration resolver and retained class hierarchy.
+     if let Some((target_qname, _target)) = crate::definition::resolve_class_target_at(
+         analysis,
+         source,
+@@ -116,13 +105,16 @@
+         // the overrides defined in its descendants.  Ancestor
+         // definitions are skipped (go-to-definition reaches those).
+         Some(enclosing_qname) => {
+-            for cd in analysis.all_classes.values() {
++            let descendants = analysis
++                .class_hierarchy()
++                .transitive_subtypes
++                .get(enclosing_qname);
++            for (class_key, cd) in &analysis.all_classes {
+                 let Some(span) = method_span(cd, &word) else {
+                     continue;
+                 };
+-                let is_self = qname_eq(&cd.qualified_name, enclosing_qname);
+-                let is_descendant =
+-                    !is_self && is_descendant_of(analysis, &cd.qualified_name, enclosing_qname);
++                let is_self = class_key.as_str() == enclosing_qname;
++                let is_descendant = descendants.is_some_and(|classes| classes.contains(class_key));
+                 if is_self || is_descendant {
+                     spans.insert((span.start(), span.end()));
+                 }
+@@ -310,23 +302,6 @@
+         .collect()
+ }
+ 
+-/// Iterate a class's direct parents — superclasses then mixins.
+-fn parents_of(cd: &ClassDef) -> impl Iterator<Item = &str> {
+-    cd.superclasses
+-        .iter()
+-        .chain(cd.mixins.iter())
+-        .map(String::as_str)
+-}
+-
+-fn qname_eq(a: &str, b: &str) -> bool {
+-    unrooted_metadata_key(a) == unrooted_metadata_key(b)
+-}
+-
+-fn unrooted_metadata_key(name: &str) -> &str {
+-    // Exactly one root marker in constructed metadata, retaining literal colons.
+-    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
+-}
+-
+ /// The method `name_span` for `word` on `cd`, checking instance then
+ /// class methods.
+ fn method_span(cd: &ClassDef, word: &str) -> Option<Span> {
+@@ -334,35 +309,6 @@
+         .get(word)
+         .or_else(|| cd.class_methods.get(word))
+         .map(|m| m.name_span)
+-}
+-
+-/// True when `candidate` transitively lists `ancestor` among its
+-/// superclasses / mixins (i.e. `candidate` is a descendant of
+-/// `ancestor`).  BFS over the parent edges with a visited guard.
+-fn is_descendant_of(analysis: &AnalysisResult, candidate: &str, ancestor: &str) -> bool {
+-    let mut seen: BTreeSet<String> = BTreeSet::new();
+-    let mut work: Vec<&str> = vec![candidate];
+-    while let Some(cur) = work.pop() {
+-        let key = unrooted_metadata_key(cur).to_owned();
+-        if !seen.insert(key) {
+-            continue;
+-        }
+-        // Resolve the class def for `cur` (match either spelling).
+-        let Some(cd) = analysis
+-            .all_classes
+-            .values()
+-            .find(|c| qname_eq(&c.qualified_name, cur))
+-        else {
+-            continue;
+-        };
+-        for parent in parents_of(cd) {
+-            if qname_eq(parent, ancestor) {
+-                return true;
+-            }
+-            work.push(parent);
+-        }
+-    }
+-    false
+ }
+ 
+ #[cfg(test)]
+@@ -529,6 +475,70 @@
+         let locs = implementation(src, l, c, &analysis);
+         assert_eq!(locs.len(), 1, "{locs:?}");
+         assert_eq!(locs[0].start_line, 2, "{locs:?}");
++    }
++
++    #[test]
++    fn logical_method_implementations_use_resolved_bare_relations_in_nested_namespace() {
++        for relation in ["superclass", "mixin"] {
++            let source = format!(
++                "namespace eval Outer {{
++namespace eval Inner {{
++\
++                 oo::class create Base {{method run {{}} {{}}}}
++\
++                 oo::class create Child {{{relation} Base; method run {{}} {{}}}}
++\
++                 oo::class create Grandchild {{superclass Child; method run {{}} {{}}}}
++\
++                 }}
++}}
++"
++            );
++            let analysis = Analyser::new().analyse(&source, "tcl");
++            assert!(analysis.allows_lexical_declaration_advice());
++            let (line, character) = pos_of(&source, "run", 1);
++            let locations = implementation(&source, line, character, &analysis);
++            assert_eq!(
++                locations
++                    .iter()
++                    .map(|location| location.start_line)
++                    .collect::<Vec<_>>(),
++                vec![2, 3, 4],
++                "{relation}: {locations:?}"
++            );
++        }
++    }
++
++    #[test]
++    fn logical_method_implementations_do_not_join_equal_tail_class_owners() {
++        let source = "namespace eval A {
++\
++            oo::class create Base {method run {} {}}
++\
++            }
++\
++            namespace eval B {
++\
++            oo::class create Base {method run {} {}}
++\
++            oo::class create Child {superclass Base; method run {} {}}
++\
++            }
++";
++        let analysis = Analyser::new().analyse(source, "tcl");
++        assert!(analysis.allows_lexical_declaration_advice());
++        for (occurrence, expected) in [(1, vec![1]), (2, vec![4, 5])] {
++            let (line, character) = pos_of(source, "run", occurrence);
++            let locations = implementation(source, line, character, &analysis);
++            assert_eq!(
++                locations
++                    .iter()
++                    .map(|location| location.start_line)
++                    .collect::<Vec<_>>(),
++                expected,
++                "{locations:?}"
++            );
++        }
+     }
+ 
+     #[test]
+@@ -552,17 +562,27 @@
+                 },
+             );
+         }
+-        assert!(qname_eq("::茶", "茶"));
+-        assert!(!qname_eq(":::茶", "::茶"));
+-        assert!(is_descendant_of(&analysis, "::leaf", ":::茶"));
+-        assert!(!is_descendant_of(&analysis, "::leaf", "::茶"));
++        assert_eq!(tcl_syntax::naming::unroot_rooted_key("::茶"), Some("茶"));
++        assert_ne!(
++            tcl_syntax::naming::unroot_rooted_key(":::茶"),
++            tcl_syntax::naming::unroot_rooted_key("::茶")
++        );
++        let hierarchy = analysis.class_hierarchy();
++        assert!(hierarchy.transitive_subtypes[":::茶"].contains("::leaf"));
++        assert!(!hierarchy.transitive_subtypes["::茶"].contains("::leaf"));
+         analysis
+             .all_classes
+             .get_mut(":::茶")
+             .unwrap()
+             .superclasses
+             .push("::leaf".to_owned());
+-        assert!(!is_descendant_of(&analysis, "::leaf", "::missing"));
++        let hierarchy = tcl_compiler::analyser::build_class_hierarchy(analysis.all_classes.clone());
++        assert!(
++            hierarchy
++                .transitive_subtypes
++                .get("::missing")
++                .is_none_or(|descendants| !descendants.contains("::leaf"))
++        );
+     }
+ }
+ 

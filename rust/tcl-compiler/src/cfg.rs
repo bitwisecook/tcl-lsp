@@ -1100,9 +1100,13 @@ mod tests {
     fn module_construction() {
         let top = Function::new("::top", "entry_1");
         let proc = Function::new("::greet", "entry_2");
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let original = crate::lowering::lower_to_ir("proc greet {} {}", &registry);
+        let id =
+            crate::interprocedural::test_body_identity::fixture_id(&original.procedures, "::greet");
         let module = CfgModule {
             top_level: top,
-            procedures: HashMap::from([("::greet".into(), proc)]),
+            procedures: HashMap::from([(id, proc)]),
         };
         assert_eq!(module.top_level.name, "::top");
         assert!(fixture_id_if_present(&module.procedures, "::greet").is_some());

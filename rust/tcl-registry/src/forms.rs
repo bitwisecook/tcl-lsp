@@ -197,11 +197,8 @@ pub struct CommandForm {
 
     /// Legacy structured side effects for this concrete invocation shape.
     ///
-    /// `Some` replaces the inherited subcommand/command slice, including
-    /// `Some(&[])` to declare no legacy effect. `None` inherits. New common
-    /// compiler work should prefer [`Self::world_effects`], but this
-    /// refinement keeps established consumers exact while legacy effects are
-    /// migrated.
+    /// `Some` replaces the inherited slice, including `Some(&[])` for no
+    /// effect. `None` inherits. Mutable-world facts use [`Self::world_effects`].
     pub side_effects: Option<&'static [SideEffect]>,
 
     /// Mutable Tcl-world effects specific to this concrete form.

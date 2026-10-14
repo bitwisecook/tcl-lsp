@@ -1819,7 +1819,10 @@ mod tests {
         let source = "proc child {} {return KEPT}; set marker ENTERED";
         let module = BytecodeCompileService::default().compile(source).unwrap();
         assert!(fixture_id_if_present(&module.procedures, "::child").is_some());
-        assert_eq!(module.procedure_provenance["::child"].body, "return KEPT");
+        assert_eq!(
+            module.procedure_provenance[&fixture_id(&module.procedures, "::child")].body,
+            "return KEPT"
+        );
     }
 
     #[test]
@@ -2006,7 +2009,7 @@ mod tests {
             .compile("proc p {} {mutate; if {1} {return yes}}")
             .unwrap();
         assert_eq!(
-            static_proc.procedure_provenance["::p"],
+            static_proc.procedure_provenance[&fixture_id(&static_proc.procedures, "::p")],
             tcl_bytecode::ProcedureProvenance {
                 name: "::p".to_owned(),
                 namespace_context: None,

@@ -406,7 +406,7 @@ mod tests {
                 }
             }
         }
-        let values = labels
+        let values: HashMap<_, _> = labels
             .iter()
             .map(|(label, summary)| (ids[label], summary.clone()))
             .collect();

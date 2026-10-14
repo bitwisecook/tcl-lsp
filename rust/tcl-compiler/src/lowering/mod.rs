@@ -631,8 +631,8 @@ fn original_procedure_publication(
     let SignatureSourceNameInput::OriginalWord(key) = &input else {
         return None;
     };
-    let lookup = binding.original_command_lookup(tokens, &input)?;
-    SignatureSourceCommand::procedure_from_key(lookup.original_naming_scope()?, key)
+    let scope = binding.original_operand_naming_scope(&input)?;
+    SignatureSourceCommand::procedure_from_key(&scope, key)
 }
 
 /// Return `Some(true)` / `Some(false)` if *`expr_text`* is a
@@ -7552,7 +7552,7 @@ mod tests {
             "::proc_nested_proc",
         ] {
             assert!(
-                !module.procedures.contains_key(absent),
+                fixture_id_if_present(&module.procedures, absent).is_none(),
                 "nested declaration must remain inert: {absent}"
             );
         }
@@ -8494,6 +8494,53 @@ mod tests {
     // namespace, not the lexical namespace of the `proc` call.
 
     #[test]
+    fn original_name_operand_publishes_a_body_without_borrowing_the_head_lookup() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = registry.profile().unwrap();
+        let source = r#"proc f {p} {set b [set {$p}]; set a 1; set a 2; return "$a$b"}"#;
+        let module = lower_to_ir_with_dialect(
+            source,
+            registry,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            Some(profile),
+        );
+        let procedures = module.procedures.iter().collect::<Vec<_>>();
+        assert_eq!(procedures.len(), 1);
+        let (id, procedure) = procedures[0];
+        assert!(module.procedure_ids.owns(*id));
+        assert_eq!(procedure.qualified_name, "::f");
+        let tokens = module
+            .top_level
+            .statements
+            .iter()
+            .find_map(Statement::tokens)
+            .expect("the actual original declaration command");
+        let binding = tokens
+            .source_binding
+            .as_ref()
+            .expect("original source binding");
+        let input = binding
+            .original_written_name_input(tokens, 1)
+            .expect("actual original name operand");
+        assert!(
+            binding.original_command_lookup(tokens, &input).is_none(),
+            "an operand cannot replace the original command-head owner"
+        );
+        let scope = binding
+            .original_operand_naming_scope(&input)
+            .expect("actual operand naming scope");
+        let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = &input
+        else {
+            panic!("original literal name word");
+        };
+        assert_eq!(
+            procedure.publication.as_ref(),
+            crate::signature_scan::scope::SignatureSourceCommand::procedure_from_key(&scope, key)
+                .as_ref()
+        );
+    }
+
+    #[test]
     fn proc_body_namespace_peels_the_names_own_qualifier() {
         // Unit-level: the helper is the inverse of `qualify_proc_name`.
         assert_eq!(proc_body_namespace("::a::outer", "::"), "::a");
@@ -8824,7 +8871,7 @@ mod tests {
     fn qualify_proc_name_preserves_colon_named_namespace_keys() {
         assert_eq!(qualify_proc_name(":::", ":"), "::::::");
         assert_eq!(qualify_proc_name("::a", "a:::b"), "::a::a::b");
-        assert_eq!(proc_namespace("::::::"), ":::");
+        assert_eq!(tcl_syntax::naming::key_holder_and_tail("::::::").0, ":::");
     }
 
     #[test]

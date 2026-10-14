@@ -1,0 +1,106 @@
+diff --git aa/rust/tcl-lsp-db/src/lib.rs bb/rust/tcl-lsp-db/src/lib.rs
+index 58b519e9a..83059dd19 100644
+--- aa/rust/tcl-lsp-db/src/lib.rs
++++ bb/rust/tcl-lsp-db/src/lib.rs
+@@ -196,6 +196,7 @@
+ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+ use std::sync::{Arc, Mutex};
+ 
++use tcl_compiler::body_analysis_capsule::{BodyLatticeCommandBindings, BodyLatticeInputs};
+ use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
+ use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
+ use tcl_compiler::cfg_builder::{PreparedCfgContext, build_cfg_function_with_prepared_context};
+@@ -3086,7 +3087,7 @@ fn build_unit_with_keys_and_input<'db>(
+                 upvar,
+                 proc_params,
+                 global_write,
+-                req.command_bindings.clone().into(),
++                BodyLatticeCommandBindings::from(req.command_bindings.clone()),
+             )
+         });
+         let template = req.body_source.and_then(|body_source| {
+@@ -3112,12 +3113,12 @@ fn build_unit_with_keys_and_input<'db>(
+                 Vec::new(),
+                 Vec::new(),
+                 Vec::new(),
+-                template.command_bindings.into(),
++                BodyLatticeCommandBindings::from(template.command_bindings),
+             );
+             let key = lattice_request_key(
+                 db,
+                 req,
+-                template.body.into(),
++                BodyLatticeInputs::from(template.body),
+                 template_context,
+                 &registry_snapshot,
+                 epoch,
+@@ -3164,7 +3165,7 @@ fn build_unit_with_keys_and_input<'db>(
+         let key = lattice_request_key(
+             db,
+             req,
+-            req.body.clone().into(),
++            BodyLatticeInputs::from(req.body.clone()),
+             context,
+             &registry_snapshot,
+             epoch,
+@@ -3597,7 +3598,7 @@ fn solve_checks_for_unit<'db>(
+             fu,
+             registry,
+             dialect_opt,
+-            cu.method_instance_vars(&fu.name),
++            cu.method_instance_vars(fu.body_id),
+         ) {
+             fn_checks.push(d);
+         }
+@@ -5771,7 +5772,7 @@ p\uD801 ordinary";
+             Vec::new(),
+             Vec::new(),
+             Vec::new(),
+-            ModuleCommandBindings::default().into(),
++            BodyLatticeCommandBindings::from(ModuleCommandBindings::default()),
+         );
+         let snapshot = CompilerMemoSnapshot {
+             profile: Some(tcl_dialect::DialectProfile::irules().cache_key()),
+@@ -5780,7 +5781,7 @@ p\uD801 ordinary";
+         let make_key = |body: Script, config, snapshot, event| {
+             FnLatticeKey::new(
+                 &db,
+-                body.into(),
++                BodyLatticeInputs::from(body),
+                 qname.to_owned(),
+                 Vec::new(),
+                 context,
+@@ -5911,10 +5912,16 @@ p\uD801 ordinary";
+         let (upvars, params, globals, bindings) =
+             tcl_compiler::cfg_builder::prepare_cfg_context_with_registry(module, registry);
+         assert!(upvars.is_empty() && params.is_empty() && globals.is_empty());
+-        let context = CfgContext::new(db, Vec::new(), Vec::new(), Vec::new(), bindings.into());
++        let context = CfgContext::new(
++            db,
++            Vec::new(),
++            Vec::new(),
++            Vec::new(),
++            BodyLatticeCommandBindings::from(bindings),
++        );
+         FnLatticeKey::new(
+             db,
+-            module.top_level.clone().into(),
++            BodyLatticeInputs::from(module.top_level.clone()),
+             "::subject".to_owned(),
+             Vec::new(),
+             context,
+@@ -6104,12 +6111,12 @@ p\uD801 ordinary";
+             Vec::new(),
+             Vec::new(),
+             Vec::new(),
+-            ModuleCommandBindings::default().into(),
++            BodyLatticeCommandBindings::from(ModuleCommandBindings::default()),
+         );
+         let make_key = |config: tcl_lexer::LexerConfig| {
+             FnLatticeKey::new(
+                 &db,
+-                Script::default().into(),
++                BodyLatticeInputs::from(Script::default()),
+                 "::subject".to_owned(),
+                 Vec::new(),
+                 context,

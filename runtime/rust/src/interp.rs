@@ -19127,11 +19127,7 @@ impl Interp {
         self.error(msg)
     }
 
-    /// Set the canonical `wrong # args: should be "usage"` arity error and
-    /// return [`Code::Error`] (`Tcl_WrongNumArgs` with a literal usage) — the
-    /// one home for the builtins' arity message, formerly a per-`cmd_*.rs`
-    /// copy.
-    /// Render a runtime handler's usage with the actual invoked command word.
+    /// Render the arity error with the actual invoked command word.
     pub(crate) fn wrong_args_for_invocation(
         &mut self,
         arguments: &[*mut TclObj],

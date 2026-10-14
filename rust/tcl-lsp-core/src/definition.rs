@@ -4910,12 +4910,8 @@ c\uD800";
 
     #[test]
     fn bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace() {
-        // TP — direct list-substitution + namespace-qualified var, `apply`
-        // as a literal command word: `apply [list {} $lexical::body
-        // ::real]`, where `lexical::body` itself holds the literal
-        // `{cleanup done}`. Exercises BOTH new pieces together
-        // (`lookup_const_string_in_namespace` + the list-folding
-        // `TokenType::Cmd` branch).
+        // Original list components retain the qualified scalar value and
+        // the lambda's independent namespace.
         let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n    set body {cleanup done}\n}\napply [list {} $lexical::body ::real]\n";
         let analysis = analyse(src);
         // Cursor on `cleanup` inside `set body {cleanup done}` (line 5, col 14).

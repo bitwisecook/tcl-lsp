@@ -1,0 +1,49 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--offline",
+    "-j",
+    "1",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-explorer",
+    "-p",
+    "tcl-diagram",
+    "-p",
+    "tcl-spec-studio",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-cli",
+    "-p",
+    "tcl-bigip",
+    "-p",
+    "tcl-irules",
+    "-p",
+    "tcl-lsp-server",
+    "--message-format=json"
+  ],
+  "started_utc": "2026-10-13T23:55:51.542632+00:00",
+  "finished_utc": "2026-10-13T23:56:45.755518+00:00",
+  "exit_code": 101,
+  "seconds": 54.212883219996,
+  "source_paths": 34655,
+  "changed_sources": {},
+  "errors": [
+    "error[E0433]: cannot find type `FunctionSnapshotKind` in this scope\n    --> rust/tcl-explorer/src/serialise.rs:3491:55\n     |\n3491 |             None => dead.is_top_level && snap.kind == FunctionSnapshotKind::TopLevel,\n     |                                                       ^^^^^^^^^^^^^^^^^^^^ use of undeclared type `FunctionSnapshotKind`\n     |\nhelp: consider importing this enum\n     |\n  26 + use crate::FunctionSnapshotKind;\n     |\n\n",
+    "error[E0277]: a value of type `Vec<&std::string::String>` cannot be built from an iterator over elements of type `&ProcedureId`\n    --> rust/tcl-explorer/src/serialise.rs:3022:62\n     |\n3022 |     let mut mqnames: Vec<&String> = interproc.methods.keys().collect();\n     |                                                              ^^^^^^^ value of type `Vec<&std::string::String>` cannot be built from `std::iter::Iterator<Item=&ProcedureId>`\n     |\nhelp: the trait `FromIterator<&ProcedureId>` is not implemented for `Vec<&std::string::String>`\n      but trait `FromIterator<&std::string::String>` is implemented for it\n    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/vec/mod.rs:3993:0\n     = help: for that trait implementation, expected `std::string::String`, found `ProcedureId`\nnote: the method call chain might not have had the expected associated types\n    --> rust/tcl-explorer/src/serialise.rs:3022:55\n     |\n3022 |     let mut mqnames: Vec<&String> = interproc.methods.keys().collect();\n     |                                     ----------------- ^^^^^^ `Iterator::Item` is `&ProcedureId` here\n     |                                     |\n     |                                     this expression has type `HashMap<ProcedureId, MethodSummary>`\nnote: required by a bound in `collect`\n    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/iterator.rs:2073:4\n\n",
+    "error[E0308]: mismatched types\n    --> rust/tcl-explorer/src/serialise.rs:3025:36\n     |\n3025 |         let m = &interproc.methods[mqname];\n     |                                    ^^^^^^ expected `&ProcedureId`, found `&String`\n     |\n     = note: expected reference `&ProcedureId`\n                found reference `&std::string::String`\n\n",
+    "error[E0308]: mismatched types\n   --> rust/tcl-explorer/src/lib.rs:173:17\n    |\n173 |                 name,\n    |                 ^^^^ expected `&str`, found `&ProcedureId`\n    |\n    = note: expected reference `&str`\n               found reference `&ProcedureId`\n\n"
+  ],
+  "scope": "Combined current Main consumer API typecheck; captured authored source hashes, not complete external dependency/oracle closure. No executed tests or Native/VM/Runtime conformance acceptance.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-names",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

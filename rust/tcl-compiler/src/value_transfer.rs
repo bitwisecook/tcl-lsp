@@ -10517,7 +10517,12 @@ mod original_child_script_purpose_tests {
             .body
             .statements
             .iter()
-            .filter_map(|statement| module.original_statement_tokens("::p", statement))
+            .filter_map(|statement| {
+                module.original_statement_tokens(
+                    Some(fixture_id(&unit.ir_module.procedures, "::p")),
+                    statement,
+                )
+            })
             .collect();
         let body = parents
             .iter()
@@ -10548,15 +10553,21 @@ mod original_child_script_purpose_tests {
             &HashSet::new(),
         )
         .with_cfg_metadata(
-            unit.procedures
+            &unit
+                .procedures
                 .get(&fixture_id(&unit.procedures, "::p"))
                 .expect("authored fixture body")
                 .cfg
                 .metadata_context,
         )
         .in_module(
-            "::p",
+            &unit
+                .procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .unwrap()
+                .cfg,
             crate::sccp::ModuleRun {
+                analysis_body: Some(Some(fixture_id(&unit.ir_module.procedures, "::p"))),
                 procedures: Some(&module),
                 owned: None,
                 level: crate::sccp::ModuleLevel::Places,
@@ -10565,7 +10576,7 @@ mod original_child_script_purpose_tests {
         );
         let uses = HashMap::<Symbol, Version>::new();
         let values = HashMap::<ValueKey, LatticeValue>::new();
-        let ssa = unit
+        let ssa = &unit
             .procedures
             .get(&fixture_id(&unit.procedures, "::p"))
             .expect("authored fixture body")
@@ -10578,7 +10589,7 @@ mod original_child_script_purpose_tests {
             let ran = driver
                 .run_script(
                     script,
-                    (&uses, &values, ssa),
+                    (&uses, &values, &ssa),
                     (Vec::new(), NestedPolicy::EffectFreeOnly),
                     Some(original),
                 )
@@ -10589,7 +10600,7 @@ mod original_child_script_purpose_tests {
                 driver
                     .run_script(
                         "list VALUE",
-                        (&uses, &values, ssa),
+                        (&uses, &values, &ssa),
                         (Vec::new(), NestedPolicy::EffectFreeOnly),
                         Some(original)
                     )
@@ -10600,13 +10611,13 @@ mod original_child_script_purpose_tests {
             driver
                 .run_script(
                     script,
-                    (&uses, &values, ssa),
+                    (&uses, &values, &ssa),
                     (Vec::new(), NestedPolicy::EffectFreeOnly),
                     None
                 )
                 .is_none()
         );
-        let inputs = driver.expression_inputs((&uses, &values, ssa));
+        let inputs = driver.expression_inputs((&uses, &values, &ssa));
         *inputs.nested_source.borrow_mut() = Some(body.clone());
         let mut state = EvaluationState::new(NestedPolicy::Protected);
         assert!(matches!(

@@ -595,13 +595,16 @@ mod tests {
     use super::*;
 
     /// Lower `src`, build the analysis CFG for the named proc and its SSA.
-    /// `proc` is the qualified name, as `Module.procedures` keys it.
+    /// `proc` uniquely labels the authored body fixture.
     fn function(src: &str, proc: &str) -> (cfg::Function, SsaFunction, &'static CommandRegistry) {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let module = crate::lowering::lower_to_ir(src, registry);
         let procedure = module
             .procedures
-            .get(proc)
+            .get(&crate::interprocedural::test_body_identity::fixture_id(
+                &module.procedures,
+                proc,
+            ))
             .unwrap_or_else(|| panic!("proc {proc} not lowered"));
         // `false` / `false` = the analysis CFG: no loop inlining, matching
         // every other liveness consumer.

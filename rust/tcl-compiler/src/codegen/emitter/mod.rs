@@ -722,11 +722,10 @@ mod tests {
                 command_binding: None,
                 braced: true,
             });
-            ir.procedures
-                .insert(procedure.qualified_name.clone(), procedure);
+            let procedure_id = ir.retain_procedure(procedure);
             let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
             let module = super::codegen_module(&cfg, &ir, &registry);
-            let context = module.procedure_provenance["::a:::b::p"]
+            let context = module.procedure_provenance[&procedure_id]
                 .namespace_context
                 .as_ref()
                 .unwrap();
@@ -735,7 +734,7 @@ mod tests {
                 context,
                 tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(_)
             ));
-            let instructions = module
+            let instructions = &module
                 .procedures
                 .get(&fixture_id(&module.procedures, "::a:::b::p"))
                 .expect("authored fixture body")

@@ -817,7 +817,11 @@ mod tests {
         assert!(fixture_id_if_present(&unit.ir_module.procedures, "::callback").is_some());
         let classes = crate::interprocedural::global_instance_classes(&unit.ir_module, registry);
         assert_eq!(
-            classes["::callback"].get(".w"),
+            classes[&crate::interprocedural::test_body_identity::fixture_id(
+                &unit.ir_module.procedures,
+                "::callback"
+            )]
+                .get(".w"),
             Some(&HashSet::from(["source_factory".to_owned()]))
         );
         let analysis = crate::interprocedural::InterproceduralAnalysis {
@@ -870,14 +874,25 @@ mod tests {
             "equal availability/grammar cannot borrow a different Module source world"
         );
         unit.ir_module.source_metadata_input = None;
-        assert!(crate::interprocedural::global_instance_classes(&unit.ir_module, registry)["::callback"].is_empty());
+        assert!(
+            crate::interprocedural::global_instance_classes(&unit.ir_module, registry)
+                [&crate::interprocedural::test_body_identity::fixture_id(
+                    &unit.ir_module.procedures,
+                    "::callback"
+                )]
+                .is_empty()
+        );
         let unit = logical_unit(
             "source_factory .w; if {$condition} {rename .w {}}; source_factory .w; proc callback {} {puts MARK}",
             &context,
         );
         let classes = crate::interprocedural::global_instance_classes(&unit.ir_module, registry);
         assert!(
-            classes["::callback"].contains_key(".w"),
+            classes[&crate::interprocedural::test_body_identity::fixture_id(
+                &unit.ir_module.procedures,
+                "::callback"
+            )]
+                .contains_key(".w"),
             "later direct source factory restores its conditional candidate"
         );
         for source in [
@@ -886,8 +901,15 @@ mod tests {
             "source_factory .w; puts [rename .w {}]; proc callback {} {puts MARK}",
         ] {
             let unit = logical_unit(source, &context);
-            assert!(crate::interprocedural::global_instance_classes(&unit.ir_module, registry)
-                ["::callback"].is_empty(), "{source}");
+            assert!(
+                crate::interprocedural::global_instance_classes(&unit.ir_module, registry)
+                    [&crate::interprocedural::test_body_identity::fixture_id(
+                        &unit.ir_module.procedures,
+                        "::callback"
+                    )]
+                    .is_empty(),
+                "{source}"
+            );
         }
     }
 }

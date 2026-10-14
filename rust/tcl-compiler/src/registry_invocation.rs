@@ -8162,7 +8162,8 @@ mod tests {
             );
             let mut count = 0;
             crate::ir::for_each_statement(
-                unit.ir_module
+                &unit
+                    .ir_module
                     .procedures
                     .get(&fixture_id(&unit.ir_module.procedures, "::f"))
                     .expect("authored fixture body")
@@ -8727,7 +8728,7 @@ mod tests {
                 registry,
                 false,
             );
-            let statement = cu
+            let statement = &cu
                 .ir_module
                 .procedures
                 .get(&fixture_id(&cu.ir_module.procedures, "::p"))

@@ -1927,7 +1927,13 @@ mod tests {
             Some(profile),
         );
         let bindings = ModuleCommandBindings::analyse(&module, &registry);
-        let procedure = module.procedures.get(qname).expect("procedure");
+        let procedure = module
+            .procedures
+            .get(&crate::interprocedural::test_body_identity::fixture_id(
+                &module.procedures,
+                qname,
+            ))
+            .expect("procedure");
         let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
         let namespace = if holder.is_empty() { "::" } else { holder };
         collect_upvar_targets_with_bindings(

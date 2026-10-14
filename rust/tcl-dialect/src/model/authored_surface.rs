@@ -99,16 +99,9 @@ impl SpecSurface {
 
 /// Ladder and vendor shorthands.
 ///
-/// Each names exactly the rows the retired `DialectSet` bit or union lowered
-/// to, so a migrated spec gets the same answer it always did. They exist
-/// because ~1,800 compiled specs spell one of a dozen windows, and naming
-/// each once keeps the data readable.
-///
-/// The upper bounds are the ladder's, not infinity: `TCL85_PLUS` is
-/// `8.5-9.2`, because the bitmask it replaces was a union of the five
-/// *known* line bits and could not mean "and every line added later". A
-/// spec that genuinely wants open-ended availability writes
-/// [`SpecSurface::core_in`] with a `None` upper bound.
+/// Shared windows cover the known release ladder. `TCL85_PLUS` is bounded
+/// by `8.5-9.2`; open-ended availability uses [`SpecSurface::core_in`] with
+/// a `None` upper bound.
 impl SpecSurface {
     /// Every Tcl release the ladder has — 8.4 through 9.1.
     pub const ALL_TCL: &'static [Self] = &[Self::core_in(Family::Tcl, &W_ALL_TCL)];

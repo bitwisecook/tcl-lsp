@@ -493,11 +493,7 @@ fn registry_command(
         RealmBinding::Command(_) => canonical_command.unwrap_or(command),
     };
     let ns_parts = namespace_parts_from_proc(caller_qname);
-    let namespace = if ns_parts.is_empty() {
-        "::".to_owned()
-    } else {
-        format!("::{}", ns_parts.join("::"))
-    };
+    let namespace = tcl_syntax::naming::root_unrooted_key(&ns_parts.join("::"));
     tcl_compiler::naming::resolve_command_with::<&str, _>(&namespace, &[], command, |qname| {
         context
             .registry

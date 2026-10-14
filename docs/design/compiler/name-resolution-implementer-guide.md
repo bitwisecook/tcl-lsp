@@ -16,6 +16,7 @@ contract states its required evidence, permitted uses and limitations.
 | Packages, availability or dialect-dependent syntax | [Actual entry](#carry-the-actual-entry-through-every-layer) | [Host realm](#retain-host-availability-and-invocation-realms), exact provider/version, lexer and nested-source entry |
 | Expressions, native object conversion or rewriting | [Expression preparation](#prepare-expression-functions-using-their-native-owner) | [Operand and result receipts](#native-scalar-math-results-and-original-argv-addresses), object methods, conversion effects, erasure and both backends |
 | iRules static/global ownership | [Execution domains](#preserve-irules-execution-domains) | Initialization publication, current TMM, event/connection activation and interprocedural caller domain |
+| Retained bodies, methods, event handlers and memo inputs | [Body ownership](#retain-body-identity-through-consumers) | Original source allocation, module issuer, body kind, immutable input and current-source rebinding |
 | Shared facts | [Discriminating experiments](#native-regression-requirements) | [Consumer review](#consumer-boundaries-of-shared-facts), owner contract, DSL/rendering parity and gates |
 
 Each shared function's contract identifies its inputs, the exact fact it returns,
@@ -42,6 +43,59 @@ VM/runtime adapters and editor providers consume the same owner rather than
 reimplementing its rules through local name checks, parsers or final-environment
 maps. Registry metadata has corresponding DSL, renderer, Studio and runtime
 backing, with precise unsupported surfaces recorded in `GAPS`.
+
+## Retain body identity through consumers
+
+Use `Module::retain_procedure`, `retain_method` and `retain_body_unit` at the
+actual lowering boundary. They issue `ProcedureId` values from the module's
+shared issuer and retain every declaration, including repeated display names.
+A clone preserves existing IDs and issuance state; a separately lowered module
+cannot join an equal ordinal. `ProcedureBodyKind` and `MethodKind` describe the
+retained body or member purpose independently of its name.
+
+Carry the actual ID through CFGs, `FunctionUnit`, interprocedural summaries,
+taint and escape facts, optimisation, bytecode, WASM and native target plans.
+`BodyFrameId` distinguishes an actual module root from a retained body. Source
+calls join an independently retained command allocation to the module's original
+source declaration before selecting the body. Reporting names, rendered
+namespaces and ordinals cannot recover that identity. Reports keep IDs and
+labels in separate fields and preserve duplicate labels.
+
+`ConnectionScope::handlers` retains each original event body by `ProcedureId`.
+Use `handler_source_names` for source protection and `observes_cross_event_place`
+for the selected handler's resolved cell. `summaries` is an event-label reporting
+union; it cannot select a handler or establish priority, storage or execution.
+An event source receipt must belong to the actual module and body.
+
+Database queries retain `BodyAnalysisCapsule` for a genuine complete
+`CompilationUnit` and exact body. `BodySummaryInputs` retains the selected
+capsule and actual dependency IDs. `BodyLatticeInputs::retain` authenticates the
+original `LatticeRequest` against its module, declaration, source, configuration
+and command state. A private closed correspondence may compare unchanged
+analysis dependencies across edits; `rebind_cached` restores the current body's
+source and variable proofs before reuse. Missing correspondence keeps exact
+inputs or recomputes. A cached result supplies no native entry, command identity,
+frame or executable body.
+
+## Project source values and APL conventions at their owners
+
+Analyser value consumers use the retained original word or executable component
+and `logical_variable_scope_advice`, rather than walking outer tables by a
+printed variable name. The internal `lookup_logical_const_substitution` and
+`lookup_logical_const_component` queries require current scalar declaration,
+complete source/configuration/input, dominating value provenance and the same
+source boundary. Arrays, links and conflicting or invalidated values decline.
+Dictionary-body metadata keeps key masks and invalidates overwritten scalar and
+interpreter-path provenance; an inferred key is not an editable declaration.
+
+`tcl-bigip::apl::variable_names` owns the APL field convention. Its public
+`tcl_var_to_apl_name` and `apl_name_to_tcl_var` functions share the Syntax naming
+geometry: lone colons remain data, and namespace-qualified roots are outside
+the convention. `extract_iapp_var_refs_with_context` retains the actual hosted
+source input and exposes candidate references separately from complete absence
+coverage. Relative, computed and unsupported nested references keep coverage
+partial. These reports establish neither appliance publication nor a native
+variable cell; appliance outcomes require their own original context evidence.
 
 ## Select the proof the consumer needs
 

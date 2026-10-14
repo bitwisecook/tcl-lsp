@@ -1,0 +1,6 @@
+{
+  "path": "rust/tcl-compiler/src/lowering/mod.rs",
+  "before_sha256": "2150c4679d4c3912b01dfa1f8a4e626c3f1c585d57cd08a1b93d9d47310309f1",
+  "after_sha256": "c11eee7d36992b1481bb8824218b965db3f4b1de2aa5ab7cdc93caf58d4236ce",
+  "status": "Uncompiled/parsed. Declaration name operand uses its original naming-scope owner, never original_command_lookup head provenance. Exact existing SignatureSourceCommand publication purpose retained. Actual original source-flow source regression added; head refusal preserved."
+}

@@ -20,7 +20,7 @@
 //!
 //! The BIG-IP sibling of the Tcl `source` / `package require` document links:
 //! every object reference inside an `ltm` / `gtm` rule body, and every
-//! migrated TMSH property value that resolves to another object
+//! supported TMSH property value that resolves to another object
 //! (`pool /Common/p`, `monitor /Common/m`,
 //! `profiles { /Common/clientssl { } }`), becomes a clickable link pointing
 //! at the target object's stanza in the same file.
@@ -31,7 +31,7 @@
 //!   link; the target is `None` when the reference doesn't resolve so the
 //!   user still sees the range the scanner recognised (tooltip
 //!   "… (no definition found)").
-//! - **migrated properties** (the registry pilot value-spec dispatch,
+//! - **value-spec properties** (the registry value-spec dispatch,
 //!   [`crate::graph::pilot_references`]) — emit a link **only** when the
 //!   reference resolves, pointing at the exact reference token.
 //!
@@ -145,8 +145,7 @@ fn irule_links(
     out
 }
 
-/// Engine 2 — references on migrated TMSH properties, via the registry pilot
-/// value-spec dispatch. A link is emitted only when the reference resolves.
+/// Value-spec property links require a resolved target in the document.
 fn property_links(
     source: &str,
     nodes: &[ObjectNode],

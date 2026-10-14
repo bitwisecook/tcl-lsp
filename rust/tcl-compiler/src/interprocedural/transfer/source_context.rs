@@ -491,7 +491,7 @@ mod tests {
             })
             .expect("genuine source-fused expression");
         let parent = source
-            .statement_tokens("::top", statement)
+            .statement_tokens(None, statement)
             .expect("retained outer set words");
         let receipt = source
             .expression(&parent, expression, Some(base))
@@ -521,7 +521,7 @@ mod tests {
             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
                 .unwrap();
         let expressions: Vec<_> = source
-            .body_commands("::p")
+            .body_commands(&fixture_id(&module.procedures, "::p"))
             .unwrap()
             .into_iter()
             .filter(|tokens| {
@@ -596,7 +596,7 @@ mod tests {
             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
                 .unwrap();
         let parent = source
-            .body_commands("::p")
+            .body_commands(&fixture_id(&module.procedures, "::p"))
             .unwrap()
             .into_iter()
             .find(|tokens| {
@@ -618,7 +618,7 @@ mod tests {
         )
         .unwrap();
         let foreign_parent = foreign_source
-            .body_commands("::p")
+            .body_commands(&fixture_id(&module.procedures, "::p"))
             .unwrap()
             .into_iter()
             .find(|tokens| {
@@ -663,7 +663,7 @@ mod tests {
         )
         .unwrap();
         let captured_parent = captured
-            .body_commands("::p")
+            .body_commands(&fixture_id(&module.procedures, "::p"))
             .unwrap()
             .into_iter()
             .next()
@@ -685,7 +685,7 @@ mod tests {
         )
         .unwrap();
         let parent = shadow
-            .body_commands("::p")
+            .body_commands(&fixture_id(&module.procedures, "::p"))
             .unwrap()
             .into_iter()
             .next()
@@ -706,7 +706,9 @@ mod tests {
         let source =
             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
                 .expect("genuine complete Logical source owner");
-        let commands = source.body_commands("::caller").unwrap();
+        let commands = source
+            .body_commands(&fixture_id(&module.procedures, "::caller"))
+            .unwrap();
         let [original] = commands.as_slice() else {
             panic!("one original call")
         };
@@ -745,7 +747,9 @@ mod tests {
         let source =
             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
                 .unwrap();
-        let commands = source.body_commands("::caller").unwrap();
+        let commands = source
+            .body_commands(&fixture_id(&module.procedures, "::caller"))
+            .unwrap();
         let catch = commands
             .iter()
             .find(|tokens| {
@@ -872,7 +876,9 @@ mod tests {
         let source =
             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
                 .unwrap();
-        let commands = source.body_commands("::caller").unwrap();
+        let commands = source
+            .body_commands(&fixture_id(&module.procedures, "::caller"))
+            .unwrap();
         let [original] = commands.as_slice() else {
             panic!("one original replacement call")
         };

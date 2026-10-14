@@ -467,7 +467,7 @@ mod tests {
         // `return [expr {$x + 1}]` should attach the parsed expression
         // so codegen can emit the value directly without re-eval.
         let m = native_return_module("proc p {x} {return [expr {$x + 1}]}; p 1");
-        match m
+        match &m
             .procedures
             .get(&fixture_id(&m.procedures, "::p"))
             .expect("authored fixture body")
@@ -477,7 +477,7 @@ mod tests {
             Statement::Return { expr, .. } => {
                 assert!(expr.is_some(), "expected expr attached, got None");
             }
-            other => panic!("expected Return, got {:?}", std::mem::discriminant(other)),
+            other => panic!("expected Return, got {:?}", std::mem::discriminant(&other)),
         }
     }
 
@@ -489,7 +489,7 @@ mod tests {
             ("proc p {x} {return [expr {$x + 1}]}; mystery; p 1", false),
         ] {
             let module = native_return_module(source);
-            let body = module
+            let body = &module
                 .procedures
                 .get(&fixture_id(&module.procedures, "::p"))
                 .expect("authored fixture body")
@@ -585,7 +585,7 @@ mod tests {
         )));
         let m = lower_to_ir("proc p {} {return -level 0 -code ok x}", &reg());
         assert!(barrier(
-            m.procedures
+            &m.procedures
                 .get(&fixture_id(&m.procedures, "::p"))
                 .expect("authored fixture body")
                 .body
@@ -642,7 +642,7 @@ mod tests {
         // must route ``return`` and ``expr`` to this module.
         let m = lower_to_ir("proc f {} { return 1 }\nexpr {1}", &reg());
         assert!(fixture_id_if_present(&m.procedures, "::f").is_some());
-        let body = m
+        let body = &m
             .procedures
             .get(&fixture_id(&m.procedures, "::f"))
             .expect("authored fixture body")

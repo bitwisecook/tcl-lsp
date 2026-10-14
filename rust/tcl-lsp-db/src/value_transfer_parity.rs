@@ -60,10 +60,25 @@ fn installed_unit(
     document_compilation_unit_for(db, file, config).expect("the pack overlay is installed")
 }
 
+fn fixture_function<'a>(
+    unit: &'a CompilationUnit,
+    display: &str,
+) -> &'a tcl_compiler::compilation_unit::FunctionUnit {
+    let (body, _) = unit
+        .ir_module
+        .procedures
+        .unique_display(display)
+        .expect("fixture retains one original declaration for this display");
+    assert!(unit.ir_module.procedure_ids.owns(*body));
+    let function = unit.procedures.get(body).expect(display);
+    assert_eq!(function.body_id, Some(*body));
+    function
+}
+
 /// `qname`'s lattice, value by value: `(variable, version, value)`,
 /// sorted.
 fn lattice_of(unit: &CompilationUnit, qname: &str) -> Vec<(String, u32, String)> {
-    lattice_values(unit.procedures.get(qname).expect(qname))
+    lattice_values(fixture_function(unit, qname))
 }
 
 /// The top level's lattice, listed as [`lattice_of`] lists a procedure's.
@@ -84,7 +99,7 @@ fn lattice_values(fu: &tcl_compiler::compilation_unit::FunctionUnit) -> Vec<(Str
 
 /// The value `name`'s version `version` holds in `qname`.
 fn value_at(unit: &CompilationUnit, qname: &str, name: &str, version: u32) -> Option<LatticeValue> {
-    let fu = unit.procedures.get(qname).expect(qname);
+    let fu = fixture_function(unit, qname);
     let sym = fu.ssa.var_symbol(name).expect(name);
     fu.sccp.values.get(&(sym, version)).cloned()
 }
@@ -96,16 +111,14 @@ fn existence_at(
     name: &str,
     version: u32,
 ) -> Option<tcl_registry::value_transfer::Existence> {
-    let fu = unit.procedures.get(qname).expect(qname);
+    let fu = fixture_function(unit, qname);
     let sym = fu.ssa.var_symbol(name).expect(name);
     fu.sccp.existence.get(&(sym, version)).copied()
 }
 
 /// The answers recorded for `command`'s statements in `qname`.
 fn answers_for(unit: &CompilationUnit, qname: &str, command: &str) -> Vec<String> {
-    unit.procedures
-        .get(qname)
-        .expect(qname)
+    fixture_function(unit, qname)
         .sccp
         .explanations
         .iter()

@@ -1756,7 +1756,7 @@ mod tests {
             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
                 source, registry, false, profile,
             );
-            let body = unit
+            let body = &unit
                 .ir_module
                 .procedures
                 .get(&fixture_id(&unit.ir_module.procedures, "::add"))

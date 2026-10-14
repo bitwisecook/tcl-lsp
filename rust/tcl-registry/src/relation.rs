@@ -218,9 +218,8 @@ pub struct RelationViolation<T: RelationTermKind> {
 impl<T: RelationTermKind> Relation<T> {
     /// A relation with no fields set — used with `..Relation::DEFAULT`.
     ///
-    /// The default kind is [`RelationKind::MutuallyExclusive`] and the default
-    /// mode is [`RelationMode::Assert`], so a row migrated from the retired
-    /// pre-E-R14 `OptionRelation` reads exactly as it did.
+    /// Defaults to [`RelationKind::MutuallyExclusive`] with
+    /// [`RelationMode::Assert`].
     pub const DEFAULT: Self = Self {
         kind: RelationKind::MutuallyExclusive,
         mode: RelationMode::Assert,
@@ -231,9 +230,7 @@ impl<T: RelationTermKind> Relation<T> {
         message: None,
     };
 
-    /// The mutual-exclusion relation over `terms` — the shape every row
-    /// authored before E-R14 had, spelled in one place so the migration is a
-    /// call rather than six fields.
+    /// An asserted mutual-exclusion relation over `terms`.
     #[must_use]
     pub const fn conflict(terms: &'static [T]) -> Self {
         Self {

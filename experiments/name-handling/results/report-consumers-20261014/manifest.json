@@ -1,0 +1,18 @@
+{
+  "files": {
+    "rust/tcl-explorer/src/lib.rs": {
+      "before_sha256": "7c4fa22c0f096208ef0192176f89544cc8bfda5cad051ae6b5c11c4a93f3c4b0",
+      "after_sha256": "2c391023ba22eb05935f5e78d8cfc7054ee78bf50e4431e06dba419efc1f9ff3"
+    },
+    "rust/tcl-explorer/src/serialise.rs": {
+      "before_sha256": "b41597cefa6d23fce9fbe97094151480bcf49d1eafd057e60f2296594919b4c2",
+      "after_sha256": "07c47791054bb254f855459f2bea778c927d942d0e36a0bc036fcf7646838b60"
+    },
+    "rust/tcl-diagram/src/data.rs": {
+      "before_sha256": "f012c9e30b098b1f2df16e0a5eac1d728fc53d194e558b41c9464925e0c45854",
+      "after_sha256": "696b151415a82de744a094872bc5645e51a451fc290aa30f08ecbab1f621cca8"
+    }
+  },
+  "patch_sha256": "17a8b3052b85b1a386842c2671dd489f29e8a1106bf7ba0d7bb5829dbed7ff84",
+  "validation": "Rustfmt skip_children=true passed. No Cargo build; Root owns lease. Existing selectors unchanged; new serialise::tests::interproc_method_rows_retain_equal_labels_and_scoped_call_ids unexecuted."
+}

@@ -44,7 +44,9 @@ pub use walker::{
     extract_original_irules_source_object_references, object_ref_spans,
 };
 mod event_handlers;
-pub use event_handlers::{IrulesEventHandler, extract_irules_event_handlers};
+pub use event_handlers::{
+    IrulesEventHandler, extract_irules_event_handlers, extract_original_irules_event_handlers,
+};
 
 mod source_context;
 pub use source_context::{

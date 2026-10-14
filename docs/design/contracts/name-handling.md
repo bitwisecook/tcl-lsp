@@ -30,8 +30,8 @@ collision checks and their independent edit requirements.
 The Compiler owns smallest-containing-body descent and uses the selected
 Registry frame-level parser. Namespace tables retain their selected root
 alternative. Procedure/method source bodies retain local tables. Absolute zero
-uplevel selects root source tables, relative zero retains the source caller's
-frame, and an unknown caller cannot donate enclosing local/namespace/root
+uplevel selects independently retained root source tables, relative zero retains
+the source caller's frame, and an unknown caller cannot donate enclosing local/namespace/root
 lookup tables. A nested declared body selects its own source boundary.
 A missing namespace coordinate preserves the body's source table without a
 root fallback or a guessed qualifier. Embedded interpreter bodies cannot
@@ -66,8 +66,12 @@ through its label. Source calls select their independently retained allocation
 before joining an analysis; an equal display name cannot supply that join.
 
 Function-unit and source-provenance joins retain that ID separately from their
-name. Neutral memo results require a fresh exact body join; cache reuse grants
-no Native entry or selected-command authority. A runtime artifact cache retains
+name. `BodyAnalysisCapsule` retains the genuine whole compilation unit;
+`BodySummaryInputs` retains actual dependency IDs. `BodyLatticeInputs` checks
+the original request and restores current source and variable proofs when
+reusing a closed analytical correspondence. Missing correspondence retains exact
+inputs or recomputes. Cache reuse grants no Native entry or selected-command
+authority. A runtime artifact cache retains
 separate candidate IDs and declines when multiple current candidates agree
 only in name/body/namespace geometry.
 
@@ -103,6 +107,7 @@ existence of a structured type does not establish a consumer's ownership.
 | --- | --- |
 | Scan a source variable extent | `tcl_core_types::naming::scan_var_name_end_with`, selected by the dialect grammar |
 | Parse colon runs and written command names | `tcl_syntax::naming::{qualifier_segments, canonical_written_command, written_command_tail}` |
+| Checked constructed namespace report | `naming::checked_namespace_path_key` validates UTF-8 and exact constructed component roundtrip; it supplies no native namespace allocation |
 | UTF-8 compatibility qualification | `naming::qualify`; only with its documented constructed-prefix precondition |
 | Namespace-name canonicalisation | `naming::normalise_qualified_name`; unsuitable as a universal command/variable identity normaliser |
 | Command lookup base order | `naming::command_lookup_bases` supplies current/path/root coordinates; `NativeCommandSlotProjection::{lookup_bases, lookup_uses_namespace_path}` selects original C extent and path availability. Logical candidate renderers, authored source geometry, native compilation snapshots and live runtime adapters reuse that order; source consumers retain separate path alternatives and stop before later uncertainty when an earlier binding settles lookup. Coordinates grant no live namespace, command binding or closed-world evidence. |

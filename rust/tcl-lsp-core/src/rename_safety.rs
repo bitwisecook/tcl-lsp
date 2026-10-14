@@ -984,22 +984,8 @@ pub fn namespace_variable_rename_hazard(
     ))
 }
 
-/// Whether the analyser's per-site provenance proves the dynamic name word at
-/// `span` cannot spell `cell`.
-///
-/// The word's *text* bounds the names it can produce, but a bare `$n` is a
-/// lone wildcard and bounds nothing.  The analyser knows more while it walks:
-/// `Scope::lookup_dominating_const_string` resolves that `$n` to the constant
-/// that dominates the site, and
-/// [`AnalysisResult::dynamic_variable_names`](tcl_compiler::analyser::AnalysisResult::dynamic_variable_names)
-/// carries the answer out.  A resolved site is re-asked the same textual
-/// question with the substitution replaced by its value, so one rule decides
-/// "can this word spell this cell" for both.
-///
-/// One-directional by construction: `false` for a site with no row, and for a
-/// row whose resolution is `None` (branch-dependent, parameter-fed, or a `[…]`
-/// substitution).  A gate that only skips on `true` therefore never accepts
-/// more than the text-only bound did.
+/// Whether current original value provenance excludes `cell` at this site.
+/// Missing or unresolved values retain the textual wildcard hazard.
 fn site_resolution_rules_out(
     source: &str,
     analysis: &AnalysisResult,

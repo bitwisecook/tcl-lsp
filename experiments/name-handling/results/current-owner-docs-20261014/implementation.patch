@@ -1,0 +1,552 @@
+--- a/docs/design/compiler/name-resolution-implementer-guide.md
++++ b/docs/design/compiler/name-resolution-implementer-guide.md
+@@ -16,6 +16,7 @@
+ | Packages, availability or dialect-dependent syntax | [Actual entry](#carry-the-actual-entry-through-every-layer) | [Host realm](#retain-host-availability-and-invocation-realms), exact provider/version, lexer and nested-source entry |
+ | Expressions, native object conversion or rewriting | [Expression preparation](#prepare-expression-functions-using-their-native-owner) | [Operand and result receipts](#native-scalar-math-results-and-original-argv-addresses), object methods, conversion effects, erasure and both backends |
+ | iRules static/global ownership | [Execution domains](#preserve-irules-execution-domains) | Initialization publication, current TMM, event/connection activation and interprocedural caller domain |
++| Retained bodies, methods, event handlers and memo inputs | [Body ownership](#retain-body-identity-through-consumers) | Original source allocation, module issuer, body kind, immutable input and current-source rebinding |
+ | Shared facts | [Discriminating experiments](#native-regression-requirements) | [Consumer review](#consumer-boundaries-of-shared-facts), owner contract, DSL/rendering parity and gates |
+ 
+ Each shared function's contract identifies its inputs, the exact fact it returns,
+@@ -42,6 +43,59 @@
+ reimplementing its rules through local name checks, parsers or final-environment
+ maps. Registry metadata has corresponding DSL, renderer, Studio and runtime
+ backing, with precise unsupported surfaces recorded in `GAPS`.
++
++## Retain body identity through consumers
++
++Use `Module::retain_procedure`, `retain_method` and `retain_body_unit` at the
++actual lowering boundary. They issue `ProcedureId` values from the module's
++shared issuer and retain every declaration, including repeated display names.
++A clone preserves existing IDs and issuance state; a separately lowered module
++cannot join an equal ordinal. `ProcedureBodyKind` and `MethodKind` describe the
++retained body or member purpose independently of its name.
++
++Carry the actual ID through CFGs, `FunctionUnit`, interprocedural summaries,
++taint and escape facts, optimisation, bytecode, WASM and native target plans.
++`BodyFrameId` distinguishes an actual module root from a retained body. Source
++calls join an independently retained command allocation to the module's original
++source declaration before selecting the body. Reporting names, rendered
++namespaces and ordinals cannot recover that identity. Reports keep IDs and
++labels in separate fields and preserve duplicate labels.
++
++`ConnectionScope::handlers` retains each original event body by `ProcedureId`.
++Use `handler_source_names` for source protection and `observes_cross_event_place`
++for the selected handler's resolved cell. `summaries` is an event-label reporting
++union; it cannot select a handler or establish priority, storage or execution.
++An event source receipt must belong to the actual module and body.
++
++Database queries retain `BodyAnalysisCapsule` for a genuine complete
++`CompilationUnit` and exact body. `BodySummaryInputs` retains the selected
++capsule and actual dependency IDs. `BodyLatticeInputs::retain` authenticates the
++original `LatticeRequest` against its module, declaration, source, configuration
++and command state. A private closed correspondence may compare unchanged
++analysis dependencies across edits; `rebind_cached` restores the current body's
++source and variable proofs before reuse. Missing correspondence keeps exact
++inputs or recomputes. A cached result supplies no native entry, command identity,
++frame or executable body.
++
++## Project source values and APL conventions at their owners
++
++Analyser value consumers use the retained original word or executable component
++and `logical_variable_scope_advice`, rather than walking outer tables by a
++printed variable name. The internal `lookup_logical_const_substitution` and
++`lookup_logical_const_component` queries require current scalar declaration,
++complete source/configuration/input, dominating value provenance and the same
++source boundary. Arrays, links and conflicting or invalidated values decline.
++Dictionary-body metadata keeps key masks and invalidates overwritten scalar and
++interpreter-path provenance; an inferred key is not an editable declaration.
++
++`tcl-bigip::apl::variable_names` owns the APL field convention. Its public
++`tcl_var_to_apl_name` and `apl_name_to_tcl_var` functions share the Syntax naming
++geometry: lone colons remain data, and namespace-qualified roots are outside
++the convention. `extract_iapp_var_refs_with_context` retains the actual hosted
++source input and exposes candidate references separately from complete absence
++coverage. Relative, computed and unsupported nested references keep coverage
++partial. These reports establish neither appliance publication nor a native
++variable cell; appliance outcomes require their own original context evidence.
+ 
+ ## Select the proof the consumer needs
+ 
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -30,8 +30,8 @@
+ The Compiler owns smallest-containing-body descent and uses the selected
+ Registry frame-level parser. Namespace tables retain their selected root
+ alternative. Procedure/method source bodies retain local tables. Absolute zero
+-uplevel selects root source tables, relative zero retains the source caller's
+-frame, and an unknown caller cannot donate enclosing local/namespace/root
++uplevel selects independently retained root source tables, relative zero retains
++the source caller's frame, and an unknown caller cannot donate enclosing local/namespace/root
+ lookup tables. A nested declared body selects its own source boundary.
+ A missing namespace coordinate preserves the body's source table without a
+ root fallback or a guessed qualifier. Embedded interpreter bodies cannot
+@@ -66,8 +66,12 @@
+ before joining an analysis; an equal display name cannot supply that join.
+ 
+ Function-unit and source-provenance joins retain that ID separately from their
+-name. Neutral memo results require a fresh exact body join; cache reuse grants
+-no Native entry or selected-command authority. A runtime artifact cache retains
++name. `BodyAnalysisCapsule` retains the genuine whole compilation unit;
++`BodySummaryInputs` retains actual dependency IDs. `BodyLatticeInputs` checks
++the original request and restores current source and variable proofs when
++reusing a closed analytical correspondence. Missing correspondence retains exact
++inputs or recomputes. Cache reuse grants no Native entry or selected-command
++authority. A runtime artifact cache retains
+ separate candidate IDs and declines when multiple current candidates agree
+ only in name/body/namespace geometry.
+ 
+@@ -103,6 +107,7 @@
+ | --- | --- |
+ | Scan a source variable extent | `tcl_core_types::naming::scan_var_name_end_with`, selected by the dialect grammar |
+ | Parse colon runs and written command names | `tcl_syntax::naming::{qualifier_segments, canonical_written_command, written_command_tail}` |
++| Checked constructed namespace report | `naming::checked_namespace_path_key` validates UTF-8 and exact constructed component roundtrip; it supplies no native namespace allocation |
+ | UTF-8 compatibility qualification | `naming::qualify`; only with its documented constructed-prefix precondition |
+ | Namespace-name canonicalisation | `naming::normalise_qualified_name`; unsuitable as a universal command/variable identity normaliser |
+ | Command lookup base order | `naming::command_lookup_bases` supplies current/path/root coordinates; `NativeCommandSlotProjection::{lookup_bases, lookup_uses_namespace_path}` selects original C extent and path availability. Logical candidate renderers, authored source geometry, native compilation snapshots and live runtime adapters reuse that order; source consumers retain separate path alternatives and stop before later uncertainty when an earlier binding settles lookup. Coordinates grant no live namespace, command binding or closed-world evidence. |
+--- a/docs/design/contracts/naming-consumer-matrix.md
++++ b/docs/design/contracts/naming-consumer-matrix.md
+@@ -47,6 +47,11 @@
+ | Alias creation, target lookup and rename | Native command naming projections; registry `CommandBindingTransition`; `AliasTargetLookup`; command token lifecycle | Source kernel, analyser indirection, signature records, workspace links, VM/Runtime command mutation. Written global targets, caller-relative targets and constructed interpreter-domain keys differ. Rename source lookup differs from destination publication. Runtime local/child alias installation shares Namespace::alias_publication_at and the selected original entry namespace; C plain, relative-qualified and rooted names keep their distinct publication purposes. Supported child API return spellings remain provider-specific, and Jim retained spelling stays separate from shared root comparison. |
+ | Conditional formal argument entry | Original declaration-flow argument-entry point; `original_direct_formal_value` | Pre-operand incoming provenance requires original declaration topology, quiet fresh local receiver and independently closed operand effects. Earlier unknown writes, aliases and observers withdraw the advice. Unavailable current dispatch does not erase its earlier argument entry; no actual read, caller value, entered frame or Normal follows. |
+ | Retained compiler body joins | Shared `ProcedureId`, module inventory/allocation selectors and source graph owner | IR/CFG/compilation units/bytecode/WASM/CommonAOT retain duplicate display rows and join exact body IDs. Source advice and Native compiler entry stay independent. Reporting ordinals are module-local; rewritten modules cannot match by name or ordinal. |
++| Exact body and root reporting | `ProcedureId`, `BodyFrameId`, `ProcedureBodyKind`, `MethodKind`; actual Module and FunctionUnit inventories | Explorer, diagrams and source graphs retain every original body and root with separate labels. Typed member purpose and declaring source owner cannot be recovered from a method label. |
++| Event body and cross-event joins | `ConnectionScope::handlers`, `handler_source_names`, `observes_cross_event_place` | Actual Module-issued handler ID and original event source receipt select cell and source protection facts. Event-name summary unions are presentation, not handler selection or priority. |
++| Original body memo inputs | `BodyAnalysisCapsule`, `BodySummaryInputs`, `BodyLatticeInputs` | DB summary, taint, optimisation and initial lattice keys retain genuine original declarations, whole-unit inputs and actual dependency IDs. Checked closed correspondence permits analysis reuse only after restoring the current body's source and variable proofs; absent correspondence keeps exact inputs or recomputes. No Native entry or execution grant follows. |
++| Logical original scalar value reads | Internal Analyser `lookup_logical_const_substitution`, `lookup_logical_const_component`; `logical_variable_scope_advice` | Dynamic apply, symbol, dictionary, nested value, regex and interpreter-path advice share actual whole words/components, scalar table selection and current dominating provenance. Arrays, links, changed writes and foreign source refuse; inferred dictionary keys supply no editable declaration. |
++| APL field convention and source candidates | `tcl-bigip::apl::variable_names`; `extract_iapp_var_refs_with_context`; `IappSourceReferences::complete_references` | Model conversions and LSP iApp diagnostics share Syntax root geometry and actual hosted source input. Candidate references are separate from complete absence coverage; relative/computed/unsupported nested references keep coverage partial. No appliance publication or Native cell is inferred. |
+ | Source-read catalogue consumers | `SourceReadScope`; completed-prefix original transition catalogue | Exact original body/argv/image/configuration/context source schemas serve declaration/read graphs and Logical source roles without donating runtime reachability or current stores. |
+ | External command inventory and authoring | Shared Syntax script-family/inventory and Runtime/API structured inventory | CLI keeps original callable root operands, Studio separately records unresolved C registration literals, Engine compares actual interpreter/namespace/generation rows. Reports cannot recover an original command identity; whole-roster ambiguity refuses. |
+ | Alias registration and relocation | Shared selected registration coordinate/table with Runtime/VM actual-generation adapters | C8.4 registration-name lifetime survives renames until actual token retirement. Callbacks require original-input rereads and currentness; later C and Jim remain independent. |
+--- a/docs/design/contracts/command-resolution.md
++++ b/docs/design/contracts/command-resolution.md
+@@ -96,10 +96,10 @@
+ | Analyser reporting settlement (`Analyser::finalise_invocation_resolutions`, `resolved_qualified_name`) | Post-walk `resolve_command_with` uses whole-file reporting definitions and recorded literal paths. This supports the Logical catalogue model; Original providers consume their independent positioned receipts instead of treating a later header as an installed command. | `tcl-compiler/tests/command_resolution_conformance.rs` (representable candidate order, including paths) |
+ | Analyser String candidate helpers (`resolve_proc_call`, `qualify_candidates`) | Shared candidate order supplies reporting candidates. Original callable arity and unresolved subjects require their separately selected lookup and signature owners. | unit tests in `handlers.rs` / `validity.rs`; [original call arity](../analysis/name-resolution-proofs/database-original-call-arity-diagnostics.md) |
+ | Server reporting diagnostic settlement (`settle_call_against_workspace`, `settle_cross_file_calls`, callable arity and W123 refinement) | Replays reporting candidates only when `AnalysisResult::allows_lexical_declaration_advice` independently selects Logical compatibility. Native/hosted subjects remain unresolved despite matching workspace labels or opt-in tails. Independent Original navigation uses its own owners. | [Workspace diagnostic contract](../analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md) |
+-| Optimiser interprocedural identity (`resolve_internal_call` / `resolve_call_target`), O103 folding (`resolve_proc_qname`) | `resolve_command_with` over the unit's proc table | unit tests in `interprocedural.rs` and `optimiser/propagation.rs` |
+-| `uplevel` passthrough inliner (`inline_uplevel.rs`) | `resolve_command_with` over the candidate map | existing inliner tests |
++| Interprocedural identity and O103 folding | Original selected command allocation joins the actual Module source declaration and `ProcedureId`; summaries retain exact IDs. The public String reporting helpers and test-only `resolve_proc_qname` supply no original implementation identity. | unit tests in `interprocedural.rs` and `optimiser/propagation.rs` |
++| `uplevel` passthrough inliner (`inline_uplevel.rs`) | Shared original invocation selects the target, then `source_procedure_for_target` joins its actual allocation to the source body. Frame and rewrite eligibility remain independent. | existing inliner tests |
+ | Bytecode VM dispatch (`tcl-vm`) | Original byte lookup uses the independently selected name purpose and current allocation/generation. Representable C compatibility helpers use `resolve_command_with` over the live table and actual namespace path. Alias, TclOO forward and math-function purposes retain their own owners. | `tcl-vm/tests/command_resolution_conformance.rs` (compiles + executes every vector) + `tcl-vm/tests/tricky_resolution_e2e.rs` (tclsh-pinned alias/forward/mathfunc/unknown/rename interactions) |
+-| WASM runtime dispatch (`runtime/rust`: `Namespaces::home_of`) | structural mirror (its store is a namespace *tree*, not a flat map) — same base order, command-existence-checked per base | `cmd_namespace.rs::dispatch_matches_every_conformance_vector` (executes every vector) |
++| WASM runtime dispatch (`runtime/rust`: `Namespaces::home_of`) | Shared selected lookup-base order over the runtime's original byte-valued namespace tree, checking command existence, token lifetime and generations at each reached base | `cmd_namespace.rs::dispatch_matches_every_conformance_vector` (executes every vector) |
+ | eBPF backend (`bpf-tcl-*`) | The bounded DSL rejects unsupported commands and has no user-procedure or namespace lookup. | Its separate backend grammar, rather than Tcl command-name conformance. |
+ | Compiler codegen | Generic procedure calls retain runtime dispatch. Specialised Original operations require independently selected compiler/admission receipts before emitting their native route; reporting lookup does not grant that route. | Compiler opcode/admission obligations remain separate from runtime name-order conformance. |
+ 
+--- a/docs/design/contracts/namespace-model.md
++++ b/docs/design/contracts/namespace-model.md
+@@ -14,8 +14,8 @@
+ home, and a conformance-vector gate:
+ 
+ - [command-resolution.md](command-resolution.md) — the `Tcl_FindCommand` rule,
+-  its single implementation (`tcl_syntax::naming::resolve_command_with`), every
+-  consumer, and the anti-drift gates.
++  its shared lookup-base order, purpose-specific original name projections,
++  storage adapters, consumers and conformance gates.
+ - [../analysis/name-resolution.md](../analysis/name-resolution.md) — the model across all four
+   name kinds, and its deliberate abstentions.
+ - [../analysis/name-resolution-c-conformance.md](../analysis/name-resolution-c-conformance.md) —
+--- a/docs/design/analysis/name-resolution.md
++++ b/docs/design/analysis/name-resolution.md
+@@ -436,18 +436,21 @@
+ - **`upvar ?level? otherVar local`** defines the local alias with **no**
+   `link_target`: the caller frame is statically unknown, so it never
+   mis-links.
+-- **Non-`#0` `uplevel N {…}`** opens an isolated `Uplevel` child scope tagged
+-  with the level word. `uplevel_hides_scope` resolves `#0` outward to the
+-  global frame, but a non-`#0` level resolves **only within the body**,
+-  abstaining on both the enclosing proc and the global. Completion abstains
+-  the same way — the enclosing proc's locals are genuinely not in scope
+-  inside `uplevel 1`, so offering them would suggest out-of-scope variables.
++- **Unknown caller-level `uplevel N {…}`** retains an isolated source
++  boundary. The shared `logical_variable_scope_advice` distinguishes relative
++  zero, which retains the source caller's tables, from absolute zero, which
++  selects independently retained root tables. Unknown caller levels borrow
++  neither enclosing locals nor global declarations. Definition, completion and
++  rename consume the same eligible tables; no entered frame follows.
+ - **Dynamic declaration names.** `variable $dyn` records nothing; every
+   declaration handler is gated on `naming::is_dynamic_word`, the same `$`/`[`
+   test `rename` and `proc` use.
+ 
+-`dict with` binds keys only for a literal dict word; `dict update` binds its
+-alias variables with no key link. Both are honest misses, not wrong edits.
++`dict with` can retain keys from a current scalar dictionary value under the
++shared original source/value owner. Key masks and writes invalidate conflicting
++outer value facts; inferred keys are metadata, not editable declarations.
++`dict update` records alias variables without inventing a key cell or completed
++link.
+ 
+ ### 4.2 TclOO instance variables
+ 
+@@ -484,19 +487,19 @@
+   as 8.6 does.
+ - **Analyser** — `record_var_read` attaches a bare namespace-frame read to
+   the *global* cell under 8.x only, never to an intermediate namespace;
+-  `lookup_var_in_scope_chain` applies C's two-table rule at namespace frames
+-  (own table, then global iff 8.x); completion only forces `$::g`
+-  qualification at namespace scope under 9.0+ semantics. Proc, method, and
+-  uplevel contexts keep the documented lenient outward walk — a navigation
+-  choice that predates versioning and is unchanged.
++  `logical_variable_scope_advice` selects the applicable declaration tables.
++  Procedure and method source boundaries retain local tables, relative zero
++  keeps the source caller, and unknown caller levels decline outward tables.
++  Independent root completion candidates require rooted insertion when the
++  selected scope cannot use their bare names.
+ 
+ Pinned by vectors run through the VM at both `V8_6` and `V9_0` *and*
+ executed under real `tclsh8.6` / `tclsh9.0`, so the table cannot drift.
+ 
+-### 4.4 Four data models, one rule set — deliberately not unified
+-
+-Variable resolution has four implementations, and that is the decision, not a
+-defect:
++### 4.4 Shared rules with purpose-specific data models
++
++The shared variable owners expose purpose-specific projections to four storage
++and source models:
+ 
+ | Layer | Shape | Consumer |
+ |---|---|---|
+--- a/rust/tcl-lsp-core/src/definition.rs
++++ b/rust/tcl-lsp-core/src/definition.rs
+@@ -4910,12 +4910,8 @@
+ 
+     #[test]
+     fn bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace() {
+-        // TP — direct list-substitution + namespace-qualified var, `apply`
+-        // as a literal command word: `apply [list {} $lexical::body
+-        // ::real]`, where `lexical::body` itself holds the literal
+-        // `{cleanup done}`. Exercises BOTH new pieces together
+-        // (`lookup_const_string_in_namespace` + the list-folding
+-        // `TokenType::Cmd` branch).
++        // Original list components retain the qualified scalar value and
++        // the lambda's independent namespace.
+         let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n    set body {cleanup done}\n}\napply [list {} $lexical::body ::real]\n";
+         let analysis = analyse(src);
+         // Cursor on `cleanup` inside `set body {cleanup done}` (line 5, col 14).
+--- a/rust/tcl-lsp-core/src/rename_safety.rs
++++ b/rust/tcl-lsp-core/src/rename_safety.rs
+@@ -984,22 +984,8 @@
+     ))
+ }
+ 
+-/// Whether the analyser's per-site provenance proves the dynamic name word at
+-/// `span` cannot spell `cell`.
+-///
+-/// The word's *text* bounds the names it can produce, but a bare `$n` is a
+-/// lone wildcard and bounds nothing.  The analyser knows more while it walks:
+-/// `Scope::lookup_dominating_const_string` resolves that `$n` to the constant
+-/// that dominates the site, and
+-/// [`AnalysisResult::dynamic_variable_names`](tcl_compiler::analyser::AnalysisResult::dynamic_variable_names)
+-/// carries the answer out.  A resolved site is re-asked the same textual
+-/// question with the substitution replaced by its value, so one rule decides
+-/// "can this word spell this cell" for both.
+-///
+-/// One-directional by construction: `false` for a site with no row, and for a
+-/// row whose resolution is `None` (branch-dependent, parameter-fed, or a `[…]`
+-/// substitution).  A gate that only skips on `true` therefore never accepts
+-/// more than the text-only bound did.
++/// Whether current original value provenance excludes `cell` at this site.
++/// Missing or unresolved values retain the textual wildcard hazard.
+ fn site_resolution_rules_out(
+     source: &str,
+     analysis: &AnalysisResult,
+--- a/runtime/rust/src/interp.rs
++++ b/runtime/rust/src/interp.rs
+@@ -19127,11 +19127,7 @@
+         self.error(msg)
+     }
+ 
+-    /// Set the canonical `wrong # args: should be "usage"` arity error and
+-    /// return [`Code::Error`] (`Tcl_WrongNumArgs` with a literal usage) — the
+-    /// one home for the builtins' arity message, formerly a per-`cmd_*.rs`
+-    /// copy.
+-    /// Render a runtime handler's usage with the actual invoked command word.
++    /// Render the arity error with the actual invoked command word.
+     pub(crate) fn wrong_args_for_invocation(
+         &mut self,
+         arguments: &[*mut TclObj],
+--- a/runtime/rust/src/interp/native_body_artifact/native_lappend/original_boundary_tests.rs
++++ b/runtime/rust/src/interp/native_body_artifact/native_lappend/original_boundary_tests.rs
+@@ -243,8 +243,7 @@
+ fn original_neutral_list_helpers_keep_actual_alias_copy_and_reference_roles() {
+     // naming.embedding.original-host-publication-and-fact-transport
+     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+-    // Exact old neutral helper ports have zero production callers after migration.
+-    // Their real alias/copy roles remain a software comparator, not Native authority.
++    // Neutral alias/copy roles are software controls, without Native authority.
+     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
+     let empty = fixture::string(b"");
+     let range = crate::list::native_full_list_range(empty.as_ptr(), protocol).unwrap();
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -6386,19 +6386,7 @@
+                 self.interpreters.insert(new_interp_key, state);
+             }
+         }
+-        // A `rename` inside a child interpreter's eval body mutates *that*
+-        // interpreter's command table, never this one's — `interp create c;
+-        // c eval { rename puts myputs }` leaves the parent's `puts` intact
+-        // and gives the parent no `myputs` at all (tclsh 9.0.4-verified).
+-        // Recording it in the file-wide command-table maps made the parent's
+-        // own later `puts` call look like a call to a deleted builtin and drew
+-        // a W123 on it — the same "state that is really per-interpreter kept
+-        // in one flat file-wide map" flaw the Tk widget hierarchy avoids.
+-        // Abstain rather than model a second command table: a
+-        // missed diagnostic inside the child beats a false accusation in the
+-        // parent. (The interpreter-handle migration above is unaffected — it
+-        // keys through `qualified_interp_key`, which is already relative to
+-        // the enclosing frame.)
++        // Child-interpreter renames cannot mutate the parent's command facts.
+         if !self.interp_path_stack.is_empty() {
+             return false;
+         }
+--- a/rust/tcl-compiler/tests/optimiser_codegen_residual.rs
++++ b/rust/tcl-compiler/tests/optimiser_codegen_residual.rs
+@@ -1300,9 +1300,7 @@
+     // TP: every retained body of the
+     // redefined `helper` is caller-frame-clean, so its presence does not
+     // impose a class-wide barrier on an exact, dispatch-free sibling method.
+-    // The formerly-used bare `my` is intentionally absent: it is resolved in
+-    // the receiver namespace and therefore has an independent reason to make
+-    // that calling method abstain.
++    // Bare `my` would add an independent receiver-namespace lookup obligation.
+     let src = "oo::class create D {\n    method helper {} { ::return a }\n    method m {} { ::set x 1\n        ::puts $x }\n}\noo::define D { method helper {} { ::return b } }\n";
+     let r = o100(src);
+     assert!(
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -10240,15 +10240,8 @@
+         );
+     }
+ 
+-    /// A procedure that takes a parameter every caller passes the same literal
+-    /// for (interprocedural `param_constants`) must engage the salsa-native
+-    /// lattice memo — historically it bypassed it and was rebuilt fresh every
+-    /// edit.  Folding the encoded seeds into [`FnLatticeKey`] means: (1) all
+-    /// three procedures' lattices are `function_lattice` executions on the cold
+-    /// build; (2) a length-changing edit to an *unrelated* proc shifts the
+-    /// param-constant callee but reuses its lattice (offset-invariant cache
+-    /// hit), recomputing exactly one; (3) changing the caller's literal
+-    /// re-interns the callee's key, so its lattice rebuilds.
++    /// Constant parameter seeds participate in the lattice memo key.
++    /// An unrelated edit reuses the callee; changed caller input rebuilds it.
+     #[test]
+     fn function_lattice_memoises_param_constant_procs() {
+         use salsa::Setter as _;
+--- a/rust/bpf-tcl-ir/src/semantic_bridge.rs
++++ b/rust/bpf-tcl-ir/src/semantic_bridge.rs
+@@ -5,13 +5,9 @@
+ 
+ //! Conservative bridge from common Tcl semantic facts to the BPF-Tcl subset.
+ //!
+-//! BPF-Tcl has always been a typed Tcl *front end*, rather than a Tcl runtime
+-//! embedded in eBPF.  Its existing lowerer therefore consumes the
+-//! registry-owned [`BpfOpSpec`] descriptor and emits BPF-IR directly.  This
+-//! module is a deliberately disconnected migration adapter: it audits the
+-//! common [`SemanticAnalysisBundle`] before a future eBPF backend uses those
+-//! facts for selection.  It does not alter the established frontend, typed
+-//! lowerer, BPF-IR, or emitter.
++//! The typed BPF-Tcl lowerer consumes registry-owned [`BpfOpSpec`] descriptors
++//! and emits BPF-IR. This independent audit checks common
++//! [`SemanticAnalysisBundle`] facts for the no-runtime eBPF subset.
+ //!
+ //! The common [`SemanticOperationId`] currently has no BPF-Tcl operation
+ //! variants: BPF command specs resolve to the generic `Invoke` identity.  A
+@@ -19,8 +15,7 @@
+ //! Consequently this bridge derives a private, descriptor-based operation key
+ //! from the registry's `BpfOpSpec`, and only assesses that key *after* it has
+ //! proved that common completion, transition, callback, and world-effect facts
+-//! are closed.  Once BPF operations gain shared semantic-operation identities,
+-//! this adapter can be replaced without changing the BPF lowerer.
++//! are closed.
+ //!
+ //! The explicit BPF dialect selects the sealed syntax and descriptor-dispatch
+ //! policy while the source is compiled.  A BPF-Tcl program does not run inside
+--- a/rust/tcl-dialect/src/model/authored_surface.rs
++++ b/rust/tcl-dialect/src/model/authored_surface.rs
+@@ -99,16 +99,9 @@
+ 
+ /// Ladder and vendor shorthands.
+ ///
+-/// Each names exactly the rows the retired `DialectSet` bit or union lowered
+-/// to, so a migrated spec gets the same answer it always did. They exist
+-/// because ~1,800 compiled specs spell one of a dozen windows, and naming
+-/// each once keeps the data readable.
+-///
+-/// The upper bounds are the ladder's, not infinity: `TCL85_PLUS` is
+-/// `8.5-9.2`, because the bitmask it replaces was a union of the five
+-/// *known* line bits and could not mean "and every line added later". A
+-/// spec that genuinely wants open-ended availability writes
+-/// [`SpecSurface::core_in`] with a `None` upper bound.
++/// Shared windows cover the known release ladder. `TCL85_PLUS` is bounded
++/// by `8.5-9.2`; open-ended availability uses [`SpecSurface::core_in`] with
++/// a `None` upper bound.
+ impl SpecSurface {
+     /// Every Tcl release the ladder has — 8.4 through 9.1.
+     pub const ALL_TCL: &'static [Self] = &[Self::core_in(Family::Tcl, &W_ALL_TCL)];
+--- a/rust/tcl-registry/src/forms.rs
++++ b/rust/tcl-registry/src/forms.rs
+@@ -197,11 +197,8 @@
+ 
+     /// Legacy structured side effects for this concrete invocation shape.
+     ///
+-    /// `Some` replaces the inherited subcommand/command slice, including
+-    /// `Some(&[])` to declare no legacy effect. `None` inherits. New common
+-    /// compiler work should prefer [`Self::world_effects`], but this
+-    /// refinement keeps established consumers exact while legacy effects are
+-    /// migrated.
++    /// `Some` replaces the inherited slice, including `Some(&[])` for no
++    /// effect. `None` inherits. Mutable-world facts use [`Self::world_effects`].
+     pub side_effects: Option<&'static [SideEffect]>,
+ 
+     /// Mutable Tcl-world effects specific to this concrete form.
+--- a/rust/tcl-registry/src/relation.rs
++++ b/rust/tcl-registry/src/relation.rs
+@@ -218,9 +218,8 @@
+ impl<T: RelationTermKind> Relation<T> {
+     /// A relation with no fields set — used with `..Relation::DEFAULT`.
+     ///
+-    /// The default kind is [`RelationKind::MutuallyExclusive`] and the default
+-    /// mode is [`RelationMode::Assert`], so a row migrated from the retired
+-    /// pre-E-R14 `OptionRelation` reads exactly as it did.
++    /// Defaults to [`RelationKind::MutuallyExclusive`] with
++    /// [`RelationMode::Assert`].
+     pub const DEFAULT: Self = Self {
+         kind: RelationKind::MutuallyExclusive,
+         mode: RelationMode::Assert,
+@@ -231,9 +230,7 @@
+         message: None,
+     };
+ 
+-    /// The mutual-exclusion relation over `terms` — the shape every row
+-    /// authored before E-R14 had, spelled in one place so the migration is a
+-    /// call rather than six fields.
++    /// An asserted mutual-exclusion relation over `terms`.
+     #[must_use]
+     pub const fn conflict(terms: &'static [T]) -> Self {
+         Self {
+--- a/rust/tcl-bigip/src/graph.rs
++++ b/rust/tcl-bigip/src/graph.rs
+@@ -509,10 +509,7 @@
+         }
+     }
+ 
+-    /// Registry-first (pilot value-spec) dispatch — runs BEFORE the legacy
+-    /// path, so its edges win the shared dedup and the output order matches.
+-    /// Migrated properties whose legacy `references` were cleared (e.g.
+-    /// `policies`/`vlans` on `ltm virtual`) get their edges only from here.
++    /// Registry value-spec edges precede fallback edges in shared deduplication.
+     fn pilot_pass(&mut self, node: &ObjectNode, key: &str, value: &str) {
+         let Some(spec_refs) = pilot_references(&node.module, &node.object_type, key, value) else {
+             return;
+@@ -652,15 +649,9 @@
+     }
+ }
+ 
+-// Pilot value-spec reference dispatch — the registry-first edge path
+-// (`references_via_spec` + the migrated `PILOT_PROPERTY_SPECS`). The graph only
+-// consumes each `Reference`'s `(target_kind, target_path)`, so each spec is
+-// reproduced as a slim extractor over the raw property value rather than the
+-// full `ValueSpec` / `BigipList` materialisation. Specs are added incrementally;
+-// an unmigrated property returns `None` and falls through to the legacy path.
+-
+-/// Enumerate `(target_kind, target_path)` references for a migrated property,
+-/// or `None` when the property isn't in the pilot table.
++// Raw-property extractors supply only the target kind and path needed by the graph.
++
++/// Enumerate value-spec references, or `None` for the fallback property path.
+ pub(crate) fn pilot_references(
+     module: &str,
+     object_type: &str,
+@@ -756,11 +747,7 @@
+         return Some(refs);
+     }
+ 
+-    // Migrated but reference-free for raw-string input: `DestinationSpec` (no
+-    // `references()`), `DataGroupRecordSpec` / `GtmRegionMemberSpec` (no refs),
+-    // and `LtmPolicyRuleSpec` (no `parse()`, so it sees a string with no
+-    // `actions`). All fall through to the legacy path: an empty pilot result
+-    // followed by the unconditional legacy passes.
++    // Unhandled raw-property forms retain the fallback reference path.
+     None
+ }
+ 
+--- a/rust/tcl-bigip/src/links.rs
++++ b/rust/tcl-bigip/src/links.rs
+@@ -20,7 +20,7 @@
+ //!
+ //! The BIG-IP sibling of the Tcl `source` / `package require` document links:
+ //! every object reference inside an `ltm` / `gtm` rule body, and every
+-//! migrated TMSH property value that resolves to another object
++//! supported TMSH property value that resolves to another object
+ //! (`pool /Common/p`, `monitor /Common/m`,
+ //! `profiles { /Common/clientssl { } }`), becomes a clickable link pointing
+ //! at the target object's stanza in the same file.
+@@ -31,7 +31,7 @@
+ //!   link; the target is `None` when the reference doesn't resolve so the
+ //!   user still sees the range the scanner recognised (tooltip
+ //!   "… (no definition found)").
+-//! - **migrated properties** (the registry pilot value-spec dispatch,
++//! - **value-spec properties** (the registry value-spec dispatch,
+ //!   [`crate::graph::pilot_references`]) — emit a link **only** when the
+ //!   reference resolves, pointing at the exact reference token.
+ //!
+@@ -145,8 +145,7 @@
+     out
+ }
+ 
+-/// Engine 2 — references on migrated TMSH properties, via the registry pilot
+-/// value-spec dispatch. A link is emitted only when the reference resolves.
++/// Value-spec property links require a resolved target in the document.
+ fn property_links(
+     source: &str,
+     nodes: &[ObjectNode],
+--- a/rust/tcl-spectcl/src/discovery.rs
++++ b/rust/tcl-spectcl/src/discovery.rs
+@@ -280,8 +280,8 @@
+ /// `JetBrains` plugin copies `$(SPEC_PACK_SRC)` next to it, and both packaging gates fail
+ /// if it is missing. A `cargo build` lays down nothing, so a
+ /// `target/debug/tcl` — or a test binary in `target/debug/deps/` — would find
+-/// no loadables and quietly lose the EDA vendor libraries, which since their
+-/// migration exist *only* as packs. Compiling the checkout's `specs/` path in
++/// no loadables and quietly lose the EDA vendor libraries, which exist only
++/// as packs. Compiling the checkout's `specs/` path in
+ /// under `debug_assertions` makes a development build behave like an install
+ /// without any per-developer setup. It cannot fire in a shipped binary: the
+ /// path is not compiled in at all when `debug_assertions` is off, and a test
+--- a/rust/xtask/src/kcs_index_links.rs
++++ b/rust/xtask/src/kcs_index_links.rs
+@@ -46,8 +46,7 @@
+ /// Applies-to tags accepted on diagnostic KCS pages. Keep this in lockstep
+ /// with the tables in `docs/kcs/STYLE.md` and the short vocabulary in
+ /// `AGENTS.md`. Diagnostic pages are deliberately checked here rather than
+-/// relying on the CLI help builder, which only indexes feature pages and
+-/// historically accepted arbitrary tokens.
++/// relying on the CLI help builder, which only indexes feature pages.
+ ///
+ /// This is the complete vocabulary from STYLE.md: editor, tool, KCS type,
+ /// content, and compiler-pass tags. A diagnostic page may use any of these
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -28116,7 +28116,7 @@
+             return Ok(None);
+         };
+         // BIG-IP `.conf`/`.scf`: links are object references (iRule-body and
+-        // migrated TMSH property values) resolving to the target object's
++        // supported TMSH property values) resolving to the target object's
+         // stanza in the same document — a `uri#L<line>` fragment anchor. This
+         // is a different engine from the Tcl `source`/`package require` link
+         // scanner below.
+--- a/rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs
+@@ -881,7 +881,7 @@
+     );
+ }
+ 
+-/// TP (formerly FP-SH-15): a plain positional parameter oscillated by the
++/// A plain positional parameter oscillated by the
+ /// loop body IS thunking — the per-iteration cost (`expr` re-parses the
+ /// string arm; `string range` re-stringifies the int arm) is invariant of
+ /// what the caller passed in, so the unknown (OVERDEFINED) *entry* type is

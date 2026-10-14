@@ -1054,7 +1054,7 @@ mod tests {
         let source = "proc p {mode} {switch -- $mode {a {for {set j 0} {$j < 3} {incr j} {puts $j}} default {puts $missing}}}";
         let module = lower(source, false);
         if region(&module).is_none() {
-            for statement in module
+            for statement in &module
                 .procedures
                 .get(&fixture_id(&module.procedures, "::p"))
                 .expect("authored fixture body")
@@ -1462,7 +1462,7 @@ mod tests {
                 &source, &registry, false, "tcl8.6",
             );
             assert!(region(&unit.ir_module).is_some());
-            let ssa = unit
+            let ssa = &unit
                 .procedures
                 .get(&fixture_id(&unit.procedures, "::p"))
                 .expect("authored fixture body")

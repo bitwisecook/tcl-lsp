@@ -1,0 +1,1374 @@
+--- a/rust/tcl-compiler/src/cfg.rs
++++ b/rust/tcl-compiler/src/cfg.rs
+@@ -1100,9 +1100,13 @@
+     fn module_construction() {
+         let top = Function::new("::top", "entry_1");
+         let proc = Function::new("::greet", "entry_2");
++        let registry = tcl_registry::CommandRegistry::build_default();
++        let original = crate::lowering::lower_to_ir("proc greet {} {}", &registry);
++        let id =
++            crate::interprocedural::test_body_identity::fixture_id(&original.procedures, "::greet");
+         let module = CfgModule {
+             top_level: top,
+-            procedures: HashMap::from([("::greet".into(), proc)]),
++            procedures: HashMap::from([(id, proc)]),
+         };
+         assert_eq!(module.top_level.name, "::top");
+         assert!(fixture_id_if_present(&module.procedures, "::greet").is_some());
+--- a/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
++++ b/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
+@@ -797,8 +797,6 @@
+ mod tests {
+     use crate::interprocedural::test_body_identity::fixture_id;
+ 
+-    use crate::interprocedural::test_body_identity::fixture_id;
+-
+     use super::*;
+     use crate::execution_region::RegionSelection;
+     use crate::ssa::build_ssa;
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -7317,7 +7317,10 @@
+         );
+         let cfg = build_cfg(&module, false);
+         for proc_name in ["::assign_expr", "::expr_eval"] {
+-            let function = cfg.procedures.get(proc_name).expect("procedure CFG");
++            let function = cfg
++                .procedures
++                .get(&fixture_id(&module.procedures, proc_name))
++                .expect("procedure CFG");
+             assert_eq!(
+                 find_call_with_def(function, "caller_x"),
+                 Some("<word-effects>"),
+--- a/rust/tcl-compiler/src/cfg_builder/upvar_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/upvar_info.rs
+@@ -1927,7 +1927,13 @@
+             Some(profile),
+         );
+         let bindings = ModuleCommandBindings::analyse(&module, &registry);
+-        let procedure = module.procedures.get(qname).expect("procedure");
++        let procedure = module
++            .procedures
++            .get(&crate::interprocedural::test_body_identity::fixture_id(
++                &module.procedures,
++                qname,
++            ))
++            .expect("procedure");
+         let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+         let namespace = if holder.is_empty() { "::" } else { holder };
+         collect_upvar_targets_with_bindings(
+--- a/rust/tcl-compiler/src/codegen/emitter/mod.rs
++++ b/rust/tcl-compiler/src/codegen/emitter/mod.rs
+@@ -722,11 +722,10 @@
+                 command_binding: None,
+                 braced: true,
+             });
+-            ir.procedures
+-                .insert(procedure.qualified_name.clone(), procedure);
++            let procedure_id = ir.retain_procedure(procedure);
+             let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
+             let module = super::codegen_module(&cfg, &ir, &registry);
+-            let context = module.procedure_provenance["::a:::b::p"]
++            let context = module.procedure_provenance[&procedure_id]
+                 .namespace_context
+                 .as_ref()
+                 .unwrap();
+@@ -735,7 +734,7 @@
+                 context,
+                 tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(_)
+             ));
+-            let instructions = module
++            let instructions = &module
+                 .procedures
+                 .get(&fixture_id(&module.procedures, "::a:::b::p"))
+                 .expect("authored fixture body")
+--- a/rust/tcl-compiler/src/codegen/wasm/pipeline.rs
++++ b/rust/tcl-compiler/src/codegen/wasm/pipeline.rs
+@@ -933,7 +933,8 @@
+         );
+         assert!(
+             crate::native_compilation_admission::script_requires_admission(
+-                unit.ir_module
++                &unit
++                    .ir_module
+                     .procedures
+                     .get(&fixture_id(&unit.ir_module.procedures, "::bad"))
+                     .expect("authored fixture body")
+--- a/rust/tcl-compiler/src/common_aot_plan.rs
++++ b/rust/tcl-compiler/src/common_aot_plan.rs
+@@ -2787,7 +2787,7 @@
+                 if procedures.as_slice() == [procedure.clone()]));
+         assert!(
+             crate::native_compilation_admission::script_requires_admission(
+-                module
++                &module
+                     .procedures
+                     .get(&fixture_id(&module.procedures, "::p"))
+                     .expect("authored fixture body")
+@@ -3395,13 +3395,19 @@
+         // it narrows the parameter to `Int` — while the caller-scope constant
+         // for the very same slot is the declined site's `abc`.  A materialised
+         // slot must not be selected from that contradiction.
+-        let plan = plan(
+-            "proc p {x} { return [expr {$x + 1}] }\n\
+-             proc risky {} { try { p abc } on error {} {} }\n\
+-             set d 7\nputs [p $d]\n",
++        let context =
++            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
++        let unit = native_unit(
++            "proc p {x} { return [expr {$x + 1}] }\nproc risky {} { try { p abc } on error {} {} }\nset d 7\nputs [p $d]\n",
++            std::sync::Arc::clone(&context),
++        );
++        let plan = CommonAotProofPlan::build_with_retained_metadata(
++            &unit,
++            context.commands(),
+             enabled(),
++            CommonAotEnvironment::Hosted,
+         );
+-        assert!(plan.has_declined_direct_call_to("::p"));
++        assert!(plan.has_declined_direct_call_to(fixture_id(&unit.ir_module.procedures, "::p")));
+         for (id, decision) in plan.materialisable_slots() {
+             assert!(
+                 id.function != "::p" || matches!(decision, MaterialisableSlotDecision::Declined(_)),
+@@ -4076,7 +4082,7 @@
+                 && evidence.callee.qualified_name == "::add"
+             {
+                 selected_callers += 1;
+-                propagate_actual_types(&mut propagated, "::add", decision);
++                propagate_actual_types(&mut propagated, evidence.callee.id, decision);
+             }
+         }
+         assert_eq!(
+@@ -4087,7 +4093,7 @@
+             original_formal_diagnostics(&unit, "::add"),
+         );
+         let actual = propagated
+-            .get(&("::add".to_owned(), 1))
++            .get(&(fixture_id(&unit.ir_module.procedures, "::add"), 1))
+             .expect("both callers recorded");
+         assert!(
+             actual
+@@ -4148,7 +4154,18 @@
+ 
+     #[test]
+     fn direct_calls_retain_native_argv_expansion_at_the_generic_boundary() {
+-        let proof = plan("proc p {x y} {return $x}; p {*}{2 4}", enabled());
++        let context =
++            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
++        let unit = native_unit(
++            "proc p {x y} {return $x}; p {*}{2 4}",
++            std::sync::Arc::clone(&context),
++        );
++        let proof = CommonAotProofPlan::build_with_retained_metadata(
++            &unit,
++            context.commands(),
++            enabled(),
++            CommonAotEnvironment::Hosted,
++        );
+         assert!(
+             proof.direct_calls().any(|(_, decision)| matches!(
+                 decision,
+@@ -4156,7 +4173,7 @@
+             )),
+             "{proof:#?}"
+         );
+-        assert!(proof.has_declined_direct_call_to("::p"));
++        assert!(proof.has_declined_direct_call_to(fixture_id(&unit.ir_module.procedures, "::p")));
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/compile_service.rs
++++ b/rust/tcl-compiler/src/compile_service.rs
+@@ -1819,7 +1819,10 @@
+         let source = "proc child {} {return KEPT}; set marker ENTERED";
+         let module = BytecodeCompileService::default().compile(source).unwrap();
+         assert!(fixture_id_if_present(&module.procedures, "::child").is_some());
+-        assert_eq!(module.procedure_provenance["::child"].body, "return KEPT");
++        assert_eq!(
++            module.procedure_provenance[&fixture_id(&module.procedures, "::child")].body,
++            "return KEPT"
++        );
+     }
+ 
+     #[test]
+@@ -2006,7 +2009,7 @@
+             .compile("proc p {} {mutate; if {1} {return yes}}")
+             .unwrap();
+         assert_eq!(
+-            static_proc.procedure_provenance["::p"],
++            static_proc.procedure_provenance[&fixture_id(&static_proc.procedures, "::p")],
+             tcl_bytecode::ProcedureProvenance {
+                 name: "::p".to_owned(),
+                 namespace_context: None,
+--- a/rust/tcl-compiler/src/gvn.rs
++++ b/rust/tcl-compiler/src/gvn.rs
+@@ -3794,6 +3794,12 @@
+     // Intra-module pure-proc analysis.
+ 
+     fn module_with_procs(procs: Vec<(&str, Vec<Statement>)>) -> CfgModule {
++        let registry = CommandRegistry::build_default();
++        let source = procs
++            .iter()
++            .map(|(name, _)| format!("proc {name} {{}} {{}}\n"))
++            .collect::<String>();
++        let original = crate::lowering::lower_to_ir(&source, &registry);
+         let mut cfg_module = CfgModule {
+             top_level: Function::new("::top", "entry"),
+             procedures: Map::new(),
+@@ -3813,7 +3819,10 @@
+                 expr: None,
+                 braced: false,
+             });
+-            cfg_module.procedures.insert(name.into(), cfg);
++            cfg_module.procedures.insert(
++                crate::interprocedural::test_body_identity::fixture_id(&original.procedures, name),
++                cfg,
++            );
+         }
+         cfg_module
+     }
+--- a/rust/tcl-compiler/src/inline_uplevel.rs
++++ b/rust/tcl-compiler/src/inline_uplevel.rs
+@@ -1330,7 +1330,7 @@
+ 
+ #[cfg(test)]
+ mod reported_namespace_tests {
+-    use super::namespace_of;
++    use tcl_syntax::naming::{ReportedQNameNamespacePurpose, reported_qname_namespace};
+ 
+     #[test]
+     fn uplevel_caller_reporting_namespace_roots_relative_prefixes() {
+@@ -1345,7 +1345,10 @@
+             ("::n::", "::n"),
+             ("é::λ", "::é"),
+         ] {
+-            assert_eq!(namespace_of(qname), expected);
++            assert_eq!(
++                reported_qname_namespace(qname, ReportedQNameNamespacePurpose::RootRelativePrefix),
++                expected
++            );
+         }
+     }
+ }
+--- a/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs
++++ b/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs
+@@ -491,7 +491,7 @@
+             })
+             .expect("genuine source-fused expression");
+         let parent = source
+-            .statement_tokens("::top", statement)
++            .statement_tokens(None, statement)
+             .expect("retained outer set words");
+         let receipt = source
+             .expression(&parent, expression, Some(base))
+@@ -521,7 +521,7 @@
+             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                 .unwrap();
+         let expressions: Vec<_> = source
+-            .body_commands("::p")
++            .body_commands(&fixture_id(&module.procedures, "::p"))
+             .unwrap()
+             .into_iter()
+             .filter(|tokens| {
+@@ -596,7 +596,7 @@
+             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                 .unwrap();
+         let parent = source
+-            .body_commands("::p")
++            .body_commands(&fixture_id(&module.procedures, "::p"))
+             .unwrap()
+             .into_iter()
+             .find(|tokens| {
+@@ -618,7 +618,7 @@
+         )
+         .unwrap();
+         let foreign_parent = foreign_source
+-            .body_commands("::p")
++            .body_commands(&fixture_id(&module.procedures, "::p"))
+             .unwrap()
+             .into_iter()
+             .find(|tokens| {
+@@ -663,7 +663,7 @@
+         )
+         .unwrap();
+         let captured_parent = captured
+-            .body_commands("::p")
++            .body_commands(&fixture_id(&module.procedures, "::p"))
+             .unwrap()
+             .into_iter()
+             .next()
+@@ -685,7 +685,7 @@
+         )
+         .unwrap();
+         let parent = shadow
+-            .body_commands("::p")
++            .body_commands(&fixture_id(&module.procedures, "::p"))
+             .unwrap()
+             .into_iter()
+             .next()
+@@ -706,7 +706,9 @@
+         let source =
+             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                 .expect("genuine complete Logical source owner");
+-        let commands = source.body_commands("::caller").unwrap();
++        let commands = source
++            .body_commands(&fixture_id(&module.procedures, "::caller"))
++            .unwrap();
+         let [original] = commands.as_slice() else {
+             panic!("one original call")
+         };
+@@ -745,7 +747,9 @@
+         let source =
+             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                 .unwrap();
+-        let commands = source.body_commands("::caller").unwrap();
++        let commands = source
++            .body_commands(&fixture_id(&module.procedures, "::caller"))
++            .unwrap();
+         let catch = commands
+             .iter()
+             .find(|tokens| {
+@@ -872,7 +876,9 @@
+         let source =
+             SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                 .unwrap();
+-        let commands = source.body_commands("::caller").unwrap();
++        let commands = source
++            .body_commands(&fixture_id(&module.procedures, "::caller"))
++            .unwrap();
+         let [original] = commands.as_slice() else {
+             panic!("one original replacement call")
+         };
+--- a/rust/tcl-compiler/src/interprocedural/transfer.rs
++++ b/rust/tcl-compiler/src/interprocedural/transfer.rs
+@@ -2828,10 +2828,16 @@
+             let (context, unit) =
+                 crate::interprocedural::logical_completion_unit(source, environment);
+             let module = ModuleProcedures::of_unit(&unit, context.commands());
+-            let grammar = module.formals("::optional").unwrap().1;
++            let grammar = module
++                .formals(&fixture_id(&unit.ir_module.procedures, "::optional"))
++                .unwrap()
++                .1;
+             if grammar == tcl_dialect::ParameterGrammar::Jim {
+                 let values = module
+-                    .parameter_values("::optional", &[Some(ExactValue::from_literal("B"))])
++                    .parameter_values(
++                        &fixture_id(&unit.ir_module.procedures, "::optional"),
++                        &[Some(ExactValue::from_literal("B"))],
++                    )
+                     .unwrap();
+                 assert_eq!(
+                     values,
+@@ -2845,7 +2851,12 @@
+                     .map(|value| Some(ExactValue::from_literal(value)))
+                     .collect();
+                 assert_eq!(
+-                    module.parameter_values("::middle", &arguments).unwrap(),
++                    module
++                        .parameter_values(
++                            &fixture_id(&unit.ir_module.procedures, "::middle"),
++                            &arguments
++                        )
++                        .unwrap(),
+                     [
+                         Some(ExactValue::from_literal("A")),
+                         Some(ExactValue::from_literal("B C")),
+@@ -2854,7 +2865,10 @@
+                 );
+                 assert!(
+                     module
+-                        .parameter_values("::linked", &[Some(ExactValue::from_literal("caller"))])
++                        .parameter_values(
++                            &fixture_id(&unit.ir_module.procedures, "::linked"),
++                            &[Some(ExactValue::from_literal("caller"))]
++                        )
+                         .is_none()
+                 );
+                 assert!(
+@@ -2865,12 +2879,18 @@
+                 assert_eq!(grammar, tcl_dialect::ParameterGrammar::Tcl);
+                 assert!(
+                     module
+-                        .parameter_values("::optional", &[Some(ExactValue::from_literal("B"))])
++                        .parameter_values(
++                            &fixture_id(&unit.ir_module.procedures, "::optional"),
++                            &[Some(ExactValue::from_literal("B"))]
++                        )
+                         .is_none()
+                 );
+                 assert_eq!(
+                     module
+-                        .parameter_values("::linked", &[Some(ExactValue::from_literal("value"))])
++                        .parameter_values(
++                            &fixture_id(&unit.ir_module.procedures, "::linked"),
++                            &[Some(ExactValue::from_literal("value"))]
++                        )
+                         .unwrap(),
+                     [Some(ExactValue::from_literal("value"))]
+                 );
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -4973,7 +4973,8 @@
+     #[test]
+     fn deeply_nested_interprocedural_scans_survive() {
+         let registry = tcl_registry::CommandRegistry::build_default();
+-        let known: HashSet<String> = HashSet::new();
++        let known: HashSet<ProcedureId> = HashSet::new();
++        let source_module = crate::ir::Module::default();
+         let params: HashSet<String> = ["x".to_owned()].into_iter().collect();
+         let ctx = ScanCtx {
+             caller: "::top",
+@@ -4986,7 +4987,9 @@
+             declared: None,
+             positioned_substitutions: false,
+             source_input: None,
+-            source_procedures: &HashMap::new(),
++            source_procedures: &source_module.procedures,
++            source_module: &source_module,
++            current_tokens: None,
+         };
+ 
+         // A 3000-deep `ExprNode` tree (nested unary `!` over `$x`).
+@@ -5241,7 +5244,7 @@
+                     &identities,
+                     None,
+                 );
+-                let traits = analysis
++                let traits = &analysis
+                     .procedures
+                     .get(&fixture_id(&analysis.procedures, "::writer"))
+                     .expect("authored fixture body")
+--- a/rust/tcl-compiler/src/ir_helpers.rs
++++ b/rust/tcl-compiler/src/ir_helpers.rs
+@@ -2981,7 +2981,7 @@
+             registry,
+         );
+         assert!(!requires_runtime_command_namespace(
+-            module
++            &module
+                 .methods
+                 .get(&fixture_id(&module.methods, "::C::helper"))
+                 .expect("authored fixture body")
+@@ -2990,7 +2990,7 @@
+         ));
+         assert!(
+             requires_runtime_command_namespace(
+-                module
++                &module
+                     .methods
+                     .get(&fixture_id(&module.methods, "::C::m"))
+                     .expect("authored fixture body")
+@@ -3001,7 +3001,7 @@
+         );
+         assert!(
+             !requires_runtime_command_namespace(
+-                module
++                &module
+                     .methods
+                     .get(&fixture_id(&module.methods, "::C::dynamic"))
+                     .expect("authored fixture body")
+@@ -3012,7 +3012,7 @@
+         );
+         assert!(
+             !requires_runtime_command_namespace(
+-                module
++                &module
+                     .methods
+                     .get(&fixture_id(&module.methods, "::C::global_body"))
+                     .expect("authored fixture body")
+@@ -3034,7 +3034,7 @@
+         }
+         assert!(
+             requires_runtime_command_namespace(
+-                module
++                &module
+                     .methods
+                     .get(&fixture_id(&module.methods, "::C::nested_alias"))
+                     .expect("authored fixture body")
+--- a/rust/tcl-compiler/src/lowering/execution_regions.rs
++++ b/rust/tcl-compiler/src/lowering/execution_regions.rs
+@@ -1054,7 +1054,7 @@
+         let source = "proc p {mode} {switch -- $mode {a {for {set j 0} {$j < 3} {incr j} {puts $j}} default {puts $missing}}}";
+         let module = lower(source, false);
+         if region(&module).is_none() {
+-            for statement in module
++            for statement in &module
+                 .procedures
+                 .get(&fixture_id(&module.procedures, "::p"))
+                 .expect("authored fixture body")
+@@ -1462,7 +1462,7 @@
+                 &source, &registry, false, "tcl8.6",
+             );
+             assert!(region(&unit.ir_module).is_some());
+-            let ssa = unit
++            let ssa = &unit
+                 .procedures
+                 .get(&fixture_id(&unit.procedures, "::p"))
+                 .expect("authored fixture body")
+--- a/rust/tcl-compiler/src/lowering/hooks/control.rs
++++ b/rust/tcl-compiler/src/lowering/hooks/control.rs
+@@ -467,7 +467,7 @@
+         // `return [expr {$x + 1}]` should attach the parsed expression
+         // so codegen can emit the value directly without re-eval.
+         let m = native_return_module("proc p {x} {return [expr {$x + 1}]}; p 1");
+-        match m
++        match &m
+             .procedures
+             .get(&fixture_id(&m.procedures, "::p"))
+             .expect("authored fixture body")
+@@ -477,7 +477,7 @@
+             Statement::Return { expr, .. } => {
+                 assert!(expr.is_some(), "expected expr attached, got None");
+             }
+-            other => panic!("expected Return, got {:?}", std::mem::discriminant(other)),
++            other => panic!("expected Return, got {:?}", std::mem::discriminant(&other)),
+         }
+     }
+ 
+@@ -489,7 +489,7 @@
+             ("proc p {x} {return [expr {$x + 1}]}; mystery; p 1", false),
+         ] {
+             let module = native_return_module(source);
+-            let body = module
++            let body = &module
+                 .procedures
+                 .get(&fixture_id(&module.procedures, "::p"))
+                 .expect("authored fixture body")
+@@ -585,7 +585,7 @@
+         )));
+         let m = lower_to_ir("proc p {} {return -level 0 -code ok x}", &reg());
+         assert!(barrier(
+-            m.procedures
++            &m.procedures
+                 .get(&fixture_id(&m.procedures, "::p"))
+                 .expect("authored fixture body")
+                 .body
+@@ -642,7 +642,7 @@
+         // must route ``return`` and ``expr`` to this module.
+         let m = lower_to_ir("proc f {} { return 1 }\nexpr {1}", &reg());
+         assert!(fixture_id_if_present(&m.procedures, "::f").is_some());
+-        let body = m
++        let body = &m
+             .procedures
+             .get(&fixture_id(&m.procedures, "::f"))
+             .expect("authored fixture body")
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -7552,7 +7552,7 @@
+             "::proc_nested_proc",
+         ] {
+             assert!(
+-                !module.procedures.contains_key(absent),
++                fixture_id_if_present(&module.procedures, absent).is_none(),
+                 "nested declaration must remain inert: {absent}"
+             );
+         }
+@@ -8824,7 +8824,7 @@
+     fn qualify_proc_name_preserves_colon_named_namespace_keys() {
+         assert_eq!(qualify_proc_name(":::", ":"), "::::::");
+         assert_eq!(qualify_proc_name("::a", "a:::b"), "::a::a::b");
+-        assert_eq!(proc_namespace("::::::"), ":::");
++        assert_eq!(tcl_syntax::naming::key_holder_and_tail("::::::").0, ":::");
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/lowering/native_body_context_tests.rs
++++ b/rust/tcl-compiler/src/lowering/native_body_context_tests.rs
+@@ -134,7 +134,7 @@
+         .with_dialect(Some(profile)),
+         source,
+     );
+-    let body = module
++    let body = &module
+         .procedures
+         .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST"))
+         .expect("authored fixture body")
+--- a/rust/tcl-compiler/src/lowering_hooks.rs
++++ b/rust/tcl-compiler/src/lowering_hooks.rs
+@@ -1756,7 +1756,7 @@
+             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                 source, registry, false, profile,
+             );
+-            let body = unit
++            let body = &unit
+                 .ir_module
+                 .procedures
+                 .get(&fixture_id(&unit.ir_module.procedures, "::add"))
+--- a/rust/tcl-compiler/src/native_lowering/tests.rs
++++ b/rust/tcl-compiler/src/native_lowering/tests.rs
+@@ -33,6 +33,13 @@
+     source: &str,
+     config: SemanticOptimisationConfig,
+ ) -> Result<(NativeFunction, FunctionReport), FunctionDecline> {
++    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
++}
++
++fn lower_with_unit(
++    source: &str,
++    config: SemanticOptimisationConfig,
++) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
+     let registry = CommandRegistry::build_default();
+     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+     let facts = &unit.top_level.semantic_facts;
+@@ -55,7 +62,8 @@
+         entry_assumption: facts.dispatch_entry_assumption(),
+         type_hints: &hints,
+     };
+-    lower_function(&input)
++    let (function, report) = lower_function(&input)?;
++    Ok((function, report, unit))
+ }
+ 
+ /// Retain the real interpreter and its entry independently of source metadata.
+@@ -652,7 +660,7 @@
+ 
+ #[test]
+ fn a_proc_statement_lowers_to_the_definition_shape() {
+-    let (function, report) = lower(
++    let (function, report, unit) = lower_with_unit(
+         "proc greet {name} { return hi }\ngreet bob\n",
+         native_config(),
+     )
+@@ -672,7 +680,13 @@
+     let [NativeOp::DefineProc { entry_key, argv }] = defines.as_slice() else {
+         panic!("the exact definition retains one original argv: {defines:?}");
+     };
+-    assert_eq!(entry_key, "::greet");
++    assert_eq!(
++        *entry_key,
++        crate::interprocedural::test_body_identity::fixture_id(
++            &unit.ir_module.procedures,
++            "::greet"
++        )
++    );
+     assert_eq!(argv.len(), 4);
+     assert_eq!(original_constant(&function, argv[0]), "proc");
+     assert_eq!(original_constant(&function, argv[1]), "greet");
+@@ -742,6 +756,13 @@
+     assert_eq!(top.protocol, EntryProtocol::Script);
+ 
+     let source = "proc p {x} { return $x }\np 1\n";
++    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
++}
++
++fn lower_with_unit(
++    source: &str,
++    config: SemanticOptimisationConfig,
++) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
+     let registry = CommandRegistry::build_default();
+     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+     let body = fixture_id_if_present(&unit.procedures, "::p")
+@@ -793,6 +814,13 @@
+ #[test]
+ fn a_definition_declines_a_body_the_statement_does_not_write_out() {
+     let source = "proc make {} {\n set body {return hello}\n proc p {x} $body\n}\nmake\n";
++    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
++}
++
++fn lower_with_unit(
++    source: &str,
++    config: SemanticOptimisationConfig,
++) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
+     let registry = CommandRegistry::build_default();
+     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+ 
+@@ -848,6 +876,13 @@
+ #[test]
+ fn a_definition_with_a_written_body_still_binds_under_the_same_proof() {
+     let source = "proc make {} {\n proc p {x} {return hello}\n}\nmake\n";
++    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
++}
++
++fn lower_with_unit(
++    source: &str,
++    config: SemanticOptimisationConfig,
++) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
+     let registry = CommandRegistry::build_default();
+     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+     let outer = fixture_id_if_present(&unit.procedures, "::make")
+@@ -1252,11 +1287,13 @@
+     }
+ }
+ 
+-fn defined_original_argv(function: &NativeFunction) -> Vec<(&str, &[super::ir::NativeValueId])> {
++fn defined_original_argv(
++    function: &NativeFunction,
++) -> Vec<(crate::ir::ProcedureId, &[super::ir::NativeValueId])> {
+     all_ops(function)
+         .into_iter()
+         .filter_map(|op| match op {
+-            NativeOp::DefineProc { entry_key, argv } => Some((entry_key.as_str(), argv.as_slice())),
++            NativeOp::DefineProc { entry_key, argv } => Some((*entry_key, argv.as_slice())),
+             _ => None,
+         })
+         .collect()
+@@ -1374,7 +1411,15 @@
+             .command_publication_slot(root, original_constant(&function, argv[1]).as_bytes())
+             .expect("original literal publication recipe");
+         let wrong_projection = protocol
+-            .command_publication_slot(root, entry_key.as_bytes())
++            .command_publication_slot(
++                root,
++                unit.ir_module
++                    .procedures
++                    .get(entry_key)
++                    .expect("original DefineProc body")
++                    .qualified_name
++                    .as_bytes(),
++            )
+             .expect("internal key used as new text is a separate publication input");
+         assert_eq!(
+             actual_publication,
+--- a/rust/tcl-compiler/src/optimiser/branch_folding.rs
++++ b/rust/tcl-compiler/src/optimiser/branch_folding.rs
+@@ -683,9 +683,10 @@
+                 registry_snapshot: None,
+                 plain_command_dispatch: false,
+                 top_level: crate::ir::Script::new(),
+-                procedures: HashMap::new(),
+-                methods: HashMap::new(),
+-                body_units: HashMap::new(),
++                procedure_ids: crate::ir::ProcedureIdIssuer::default(),
++                procedures: crate::ir::ProcedureInventory::default(),
++                methods: crate::ir::MethodInventory::default(),
++                body_units: crate::ir::ProcedureInventory::default(),
+                 lambda_body_units: std::collections::BTreeSet::new(),
+                 redefined_procedures: std::collections::HashSet::new(),
+                 redefined_methods: HashMap::new(),
+--- a/rust/tcl-compiler/src/optimiser/elimination/source_purity.rs
++++ b/rust/tcl-compiler/src/optimiser/elimination/source_purity.rs
+@@ -285,12 +285,12 @@
+         let context =
+             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+         let profile = tcl_dialect::DialectProfile::plain_tcl();
+-        let summary = ["::pure".to_owned()].into_iter().collect();
+         let original = unit(
+             "proc pure {x} {return $x}; interp alias {} called {} pure; set unused [called VALUE]",
+             &context,
+             profile,
+         );
++        let summary = HashSet::from([fixture_id(&original.ir_module.procedures, "::pure")]);
+         assert!(check_with_procedure_summary(
+             &original,
+             context.commands(),
+@@ -363,7 +363,7 @@
+                 .original_invocation_source_purpose(registry, metadata),
+             Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+         );
+-        let pure = HashSet::from(["::pure".to_owned()]);
++        let pure = HashSet::from([fixture_id(&native.ir_module.procedures, "::pure")]);
+         let statement = native.ir_module.top_level.statements.last().unwrap();
+         let tokens = native
+             .ir_module
+@@ -400,6 +400,7 @@
+             &logical.ir_module,
+         )
+         .unwrap();
++        let pure = HashSet::from([fixture_id(&logical.ir_module.procedures, "::pure")]);
+         let statement = logical.ir_module.top_level.statements.last().unwrap();
+         let tokens = logical
+             .ir_module
+--- a/rust/tcl-compiler/src/optimiser/elimination.rs
++++ b/rust/tcl-compiler/src/optimiser/elimination.rs
+@@ -1905,7 +1905,10 @@
+     #[test]
+     fn deeply_nested_side_effect_walks_survive() {
+         let reg = registry();
+-        let interproc_pure = ["a".to_owned()].into_iter().collect();
++        let original = crate::lowering::lower_to_ir("proc a {} {}", &reg);
++        let interproc_pure = [fixture_id(&original.procedures, "::a")]
++            .into_iter()
++            .collect();
+         let purity = PurityCtx {
+             registry: Some(&reg),
+             interproc_pure: &interproc_pure,
+--- a/rust/tcl-compiler/src/optimiser/method_barrier.rs
++++ b/rust/tcl-compiler/src/optimiser/method_barrier.rs
+@@ -641,7 +641,10 @@
+         );
+         let barrier = compute(&module, registry);
+         assert!(
+-            !barrier.allows_locals("::C::caller"),
++            !barrier.allows_locals(crate::interprocedural::test_body_identity::fixture_id(
++                &module.methods,
++                "::C::caller"
++            )),
+             "receiver-namespace shadowing can redirect bare `my` to the bad class"
+         );
+     }
+@@ -656,7 +659,12 @@
+              oo::class create Caller {method probe {} {::missing::C new; return ok}}",
+             registry,
+         );
+-        assert!(!compute(&module, registry).allows_locals("::Caller::probe"));
++        assert!(!compute(&module, registry).allows_locals(
++            crate::interprocedural::test_body_identity::fixture_id(
++                &module.methods,
++                "::Caller::probe"
++            )
++        ));
+     }
+ 
+     #[test]
+@@ -674,7 +682,12 @@
+             );
+             let module = crate::lowering::lower_to_ir(&source, registry);
+             assert!(
+-                !compute(&module, registry).allows_locals("::Caller::probe"),
++                !compute(&module, registry).allows_locals(
++                    crate::interprocedural::test_body_identity::fixture_id(
++                        &module.methods,
++                        "::Caller::probe"
++                    )
++                ),
+                 "{source}"
+             );
+         }
+@@ -691,7 +704,9 @@
+              C create c; c safe",
+             registry,
+         );
+-        assert!(compute(&module, registry).allows_locals("::C::safe"));
++        assert!(compute(&module, registry).allows_locals(
++            crate::interprocedural::test_body_identity::fixture_id(&module.methods, "::C::safe")
++        ));
+     }
+     #[test]
+     fn nested_dispatch_uses_retained_availability_and_source_grammar() {
+@@ -725,7 +740,14 @@
+         .ir_module;
+         assert!(module.source_entry.native_entry.is_none());
+         let components = std::collections::HashMap::new();
+-        assert!(!super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
++        assert!(
++            !super::proc_dispatch_facts(&module, registry, &components)
++                [&crate::interprocedural::test_body_identity::fixture_id(
++                    &module.procedures,
++                    "::helper"
++                )]
++                .anywhere
++        );
+         let original = module.clone();
+         for change in 0..6 {
+             module = original.clone();
+@@ -751,7 +773,12 @@
+                 .is_some()
+             );
+             assert!(
+-                super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere,
++                super::proc_dispatch_facts(&module, registry, &components)
++                    [&crate::interprocedural::test_body_identity::fixture_id(
++                        &module.procedures,
++                        "::helper"
++                    )]
++                    .anywhere,
+                 "change {change}"
+             );
+         }
+@@ -768,14 +795,33 @@
+                 profile, profile, context, config,
+             ));
+             assert!(
+-                super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere
++                super::proc_dispatch_facts(&module, registry, &components)
++                    [&crate::interprocedural::test_body_identity::fixture_id(
++                        &module.procedures,
++                        "::helper"
++                    )]
++                    .anywhere
+             );
+         }
+         module.source_metadata_input = None;
+-        assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
++        assert!(
++            super::proc_dispatch_facts(&module, registry, &components)
++                [&crate::interprocedural::test_body_identity::fixture_id(
++                    &module.procedures,
++                    "::helper"
++                )]
++                .anywhere
++        );
+         module.source_metadata_input = Some(input);
+         module.lexer_config.expand_syntax = !module.lexer_config.expand_syntax;
+-        assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
++        assert!(
++            super::proc_dispatch_facts(&module, registry, &components)
++                [&crate::interprocedural::test_body_identity::fixture_id(
++                    &module.procedures,
++                    "::helper"
++                )]
++                .anywhere
++        );
+     }
+ 
+     #[test]
+@@ -813,7 +859,14 @@
+         )
+         .ir_module;
+         let components = std::collections::HashMap::new();
+-        assert!(!super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
++        assert!(
++            !super::proc_dispatch_facts(&module, registry, &components)
++                [&crate::interprocedural::test_body_identity::fixture_id(
++                    &module.procedures,
++                    "::helper"
++                )]
++                .anywhere
++        );
+         let input = module.source_metadata_input.as_ref().unwrap().clone();
+         let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+             .with_command_store(std::sync::Arc::clone(registry));
+@@ -828,11 +881,23 @@
+                 input.lexer_config(),
+             ));
+             assert!(
+-                super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere
++                super::proc_dispatch_facts(&module, registry, &components)
++                    [&crate::interprocedural::test_body_identity::fixture_id(
++                        &module.procedures,
++                        "::helper"
++                    )]
++                    .anywhere
+             );
+         }
+         module.source_metadata_input = None;
+-        assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
++        assert!(
++            super::proc_dispatch_facts(&module, registry, &components)
++                [&crate::interprocedural::test_body_identity::fixture_id(
++                    &module.procedures,
++                    "::helper"
++                )]
++                .anywhere
++        );
+     }
+     #[test]
+     fn actual_jim_dispatch_purpose_preserves_unknown_reachability() {
+@@ -880,7 +945,11 @@
+         );
+         let components = std::collections::HashMap::new();
+         assert!(
+-            super::proc_dispatch_facts(&native.ir_module, registry, &components)["::helper"]
++            super::proc_dispatch_facts(&native.ir_module, registry, &components)
++                [&crate::interprocedural::test_body_identity::fixture_id(
++                    &native.ir_module.procedures,
++                    "::helper"
++                )]
+                 .anywhere
+         );
+         // Same assistance input, independently retained Logical source driver.
+@@ -901,7 +970,11 @@
+             std::sync::Arc::clone(&context),
+         );
+         assert!(
+-            !super::proc_dispatch_facts(&logical.ir_module, registry, &components)["::helper"]
++            !super::proc_dispatch_facts(&logical.ir_module, registry, &components)
++                [&crate::interprocedural::test_body_identity::fixture_id(
++                    &logical.ir_module.procedures,
++                    "::helper"
++                )]
+                 .anywhere
+         );
+     }
+--- a/rust/tcl-compiler/src/regex_source.rs
++++ b/rust/tcl-compiler/src/regex_source.rs
+@@ -986,8 +986,8 @@
+         assert_eq!(cu.body_units.len(), 1, "one namespace-eval body unit");
+         assert!(
+             cu.body_units
+-                .keys()
+-                .all(|k| k.starts_with("::ns::namespace-eval#")),
++                .values()
++                .all(|body| body.name.starts_with("::ns::namespace-eval#")),
+             "the qname's enclosing namespace must be `::ns` (the block's own \
+              target namespace), not global: {:?}",
+             cu.body_units.keys().collect::<Vec<_>>()
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -8162,7 +8162,8 @@
+             );
+             let mut count = 0;
+             crate::ir::for_each_statement(
+-                unit.ir_module
++                &unit
++                    .ir_module
+                     .procedures
+                     .get(&fixture_id(&unit.ir_module.procedures, "::f"))
+                     .expect("authored fixture body")
+@@ -8727,7 +8728,7 @@
+                 registry,
+                 false,
+             );
+-            let statement = cu
++            let statement = &cu
+                 .ir_module
+                 .procedures
+                 .get(&fixture_id(&cu.ir_module.procedures, "::p"))
+--- a/rust/tcl-compiler/src/sccp/original_value_facts.rs
++++ b/rust/tcl-compiler/src/sccp/original_value_facts.rs
+@@ -4353,7 +4353,7 @@
+                     "second" => 9,
+                     _ => continue,
+                 };
+-                let lookup = SsaSourceView::at_statement(ssa, block, index);
++                let lookup = SsaSourceView::at_statement(&ssa, block, index);
+                 let symbol = lookup.symbol("y").expect("point-specific alias read");
+                 let version = statement.uses[&symbol];
+                 let values = HashMap::from([(
+@@ -4369,7 +4369,7 @@
+                     env_from_uses(
+                         &statement.uses,
+                         &values,
+-                        SsaSourceView::at_statement(ssa, BlockId(u32::MAX), index)
++                        SsaSourceView::at_statement(&ssa, BlockId(u32::MAX), index)
+                     )
+                     .len(),
+                     0,
+--- a/rust/tcl-compiler/src/slot_allocation.rs
++++ b/rust/tcl-compiler/src/slot_allocation.rs
+@@ -595,13 +595,16 @@
+     use super::*;
+ 
+     /// Lower `src`, build the analysis CFG for the named proc and its SSA.
+-    /// `proc` is the qualified name, as `Module.procedures` keys it.
++    /// `proc` uniquely labels the authored body fixture.
+     fn function(src: &str, proc: &str) -> (cfg::Function, SsaFunction, &'static CommandRegistry) {
+         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+         let module = crate::lowering::lower_to_ir(src, registry);
+         let procedure = module
+             .procedures
+-            .get(proc)
++            .get(&crate::interprocedural::test_body_identity::fixture_id(
++                &module.procedures,
++                proc,
++            ))
+             .unwrap_or_else(|| panic!("proc {proc} not lowered"));
+         // `false` / `false` = the analysis CFG: no loop inlining, matching
+         // every other liveness consumer.
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -10404,7 +10404,7 @@
+         let mut reached = false;
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 let Some(tokens) = view.source_tokens() else {
+                     continue;
+                 };
+@@ -10472,7 +10472,7 @@
+         let mut reached = false;
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 let Some(tokens) = view.source_tokens() else {
+                     continue;
+                 };
+@@ -10519,7 +10519,7 @@
+         }
+         assert!(reached);
+         assert!(
+-            SsaSourceView::unpositioned(ssa)
++            SsaSourceView::unpositioned(&ssa)
+                 .read_contents_presence_alternatives_at(
+                     &SourceSite::source(Span::new(0, 2)),
+                     "$x",
+@@ -10549,7 +10549,7 @@
+         let mut incoming = false;
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 let Some(tokens) = view.source_tokens() else {
+                     continue;
+                 };
+@@ -10589,7 +10589,7 @@
+             missing && incoming,
+             "both actual read contexts are retained"
+         );
+-        assert!(SsaSourceView::unpositioned(ssa).source_tokens().is_none());
++        assert!(SsaSourceView::unpositioned(&ssa).source_tokens().is_none());
+     }
+ 
+     #[test]
+@@ -10614,7 +10614,7 @@
+             let mut reached = false;
+             for (&block, data) in &ssa.blocks {
+                 for index in 0..data.statements.len() {
+-                    let view = SsaSourceView::at_statement(ssa, block, index);
++                    let view = SsaSourceView::at_statement(&ssa, block, index);
+                     let Some(tokens) = view.source_tokens() else {
+                         continue;
+                     };
+@@ -10651,7 +10651,7 @@
+         let mut reached = false;
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 let Some(tokens) = view.source_tokens() else {
+                     continue;
+                 };
+@@ -10898,7 +10898,7 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl9.0",
+         );
+-        let ssa = unit
++        let ssa = &unit
+             .procedures
+             .get(&fixture_id(&unit.procedures, "::p"))
+             .expect("authored fixture body")
+@@ -10955,7 +10955,7 @@
+         let mut pairs = Vec::new();
+         for (&block, body) in &ssa.blocks {
+             for index in 0..body.statements.len() {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 let Some(tokens) = view.source_tokens() else {
+                     continue;
+                 };
+@@ -11000,7 +11000,7 @@
+         let mut proofs = Vec::new();
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 if let Some(proof) = view.read_expression_incoming_slot(&node, base, "n", registry)
+                 {
+                     proofs.push(proof);
+@@ -11036,7 +11036,7 @@
+         let mut reached = false;
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 reached |= view.expression_variable_access(&node, base).is_some();
+                 assert!(
+                     view.read_expression_incoming_slot(&node, base, "n", registry)
+@@ -11104,7 +11104,7 @@
+         let mut inventory = Vec::new();
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 let Some(tokens) = view.source_tokens() else {
+                     continue;
+                 };
+@@ -11271,7 +11271,7 @@
+             .ssa;
+         let mut pairs = Vec::new();
+         for &block in ssa.blocks.keys() {
+-            let view = SsaSourceView::at_terminator(ssa, block);
++            let view = SsaSourceView::at_terminator(&ssa, block);
+             let Some(tokens) = view.source_tokens() else {
+                 continue;
+             };
+@@ -11374,7 +11374,7 @@
+         let mut pairs = Vec::new();
+         for (&block, body) in &ssa.blocks {
+             for index in 0..body.statements.len() {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 let Some(tokens) = view.source_tokens() else {
+                     continue;
+                 };
+@@ -11415,7 +11415,7 @@
+         let mut projected = Vec::new();
+         for (&block, body) in &ssa.blocks {
+             for index in 0..body.statements.len() {
+-                let view = SsaSourceView::at_statement(ssa, block, index);
++                let view = SsaSourceView::at_statement(&ssa, block, index);
+                 assert!(view.read_spelling("unreached").is_none());
+                 if let Some(read) = view.read_spelling("x") {
+                     assert!(read.version.is_some());
+@@ -11424,9 +11424,9 @@
+             }
+         }
+         assert_eq!(projected.len(), 1);
+-        assert!(!SsaSourceView::unpositioned(ssa).is_positioned());
++        assert!(!SsaSourceView::unpositioned(&ssa).is_positioned());
+         assert!(
+-            SsaSourceView::unpositioned(ssa)
++            SsaSourceView::unpositioned(&ssa)
+                 .read_spelling("x")
+                 .is_none()
+         );
+--- a/rust/tcl-compiler/src/taint/instance_classes.rs
++++ b/rust/tcl-compiler/src/taint/instance_classes.rs
+@@ -817,7 +817,11 @@
+         assert!(fixture_id_if_present(&unit.ir_module.procedures, "::callback").is_some());
+         let classes = crate::interprocedural::global_instance_classes(&unit.ir_module, registry);
+         assert_eq!(
+-            classes["::callback"].get(".w"),
++            classes[&crate::interprocedural::test_body_identity::fixture_id(
++                &unit.ir_module.procedures,
++                "::callback"
++            )]
++                .get(".w"),
+             Some(&HashSet::from(["source_factory".to_owned()]))
+         );
+         let analysis = crate::interprocedural::InterproceduralAnalysis {
+@@ -870,14 +874,25 @@
+             "equal availability/grammar cannot borrow a different Module source world"
+         );
+         unit.ir_module.source_metadata_input = None;
+-        assert!(crate::interprocedural::global_instance_classes(&unit.ir_module, registry)["::callback"].is_empty());
++        assert!(
++            crate::interprocedural::global_instance_classes(&unit.ir_module, registry)
++                [&crate::interprocedural::test_body_identity::fixture_id(
++                    &unit.ir_module.procedures,
++                    "::callback"
++                )]
++                .is_empty()
++        );
+         let unit = logical_unit(
+             "source_factory .w; if {$condition} {rename .w {}}; source_factory .w; proc callback {} {puts MARK}",
+             &context,
+         );
+         let classes = crate::interprocedural::global_instance_classes(&unit.ir_module, registry);
+         assert!(
+-            classes["::callback"].contains_key(".w"),
++            classes[&crate::interprocedural::test_body_identity::fixture_id(
++                &unit.ir_module.procedures,
++                "::callback"
++            )]
++                .contains_key(".w"),
+             "later direct source factory restores its conditional candidate"
+         );
+         for source in [
+@@ -886,8 +901,15 @@
+             "source_factory .w; puts [rename .w {}]; proc callback {} {puts MARK}",
+         ] {
+             let unit = logical_unit(source, &context);
+-            assert!(crate::interprocedural::global_instance_classes(&unit.ir_module, registry)
+-                ["::callback"].is_empty(), "{source}");
++            assert!(
++                crate::interprocedural::global_instance_classes(&unit.ir_module, registry)
++                    [&crate::interprocedural::test_body_identity::fixture_id(
++                        &unit.ir_module.procedures,
++                        "::callback"
++                    )]
++                    .is_empty(),
++                "{source}"
++            );
+         }
+     }
+ }
+--- a/rust/tcl-compiler/src/value_transfer.rs
++++ b/rust/tcl-compiler/src/value_transfer.rs
+@@ -10517,7 +10517,12 @@
+             .body
+             .statements
+             .iter()
+-            .filter_map(|statement| module.original_statement_tokens("::p", statement))
++            .filter_map(|statement| {
++                module.original_statement_tokens(
++                    Some(fixture_id(&unit.ir_module.procedures, "::p")),
++                    statement,
++                )
++            })
+             .collect();
+         let body = parents
+             .iter()
+@@ -10548,15 +10553,21 @@
+             &HashSet::new(),
+         )
+         .with_cfg_metadata(
+-            unit.procedures
++            &unit
++                .procedures
+                 .get(&fixture_id(&unit.procedures, "::p"))
+                 .expect("authored fixture body")
+                 .cfg
+                 .metadata_context,
+         )
+         .in_module(
+-            "::p",
++            &unit
++                .procedures
++                .get(&fixture_id(&unit.procedures, "::p"))
++                .unwrap()
++                .cfg,
+             crate::sccp::ModuleRun {
++                analysis_body: Some(Some(fixture_id(&unit.ir_module.procedures, "::p"))),
+                 procedures: Some(&module),
+                 owned: None,
+                 level: crate::sccp::ModuleLevel::Places,
+@@ -10565,7 +10576,7 @@
+         );
+         let uses = HashMap::<Symbol, Version>::new();
+         let values = HashMap::<ValueKey, LatticeValue>::new();
+-        let ssa = unit
++        let ssa = &unit
+             .procedures
+             .get(&fixture_id(&unit.procedures, "::p"))
+             .expect("authored fixture body")
+@@ -10578,7 +10589,7 @@
+             let ran = driver
+                 .run_script(
+                     script,
+-                    (&uses, &values, ssa),
++                    (&uses, &values, &ssa),
+                     (Vec::new(), NestedPolicy::EffectFreeOnly),
+                     Some(original),
+                 )
+@@ -10589,7 +10600,7 @@
+                 driver
+                     .run_script(
+                         "list VALUE",
+-                        (&uses, &values, ssa),
++                        (&uses, &values, &ssa),
+                         (Vec::new(), NestedPolicy::EffectFreeOnly),
+                         Some(original)
+                     )
+@@ -10600,13 +10611,13 @@
+             driver
+                 .run_script(
+                     script,
+-                    (&uses, &values, ssa),
++                    (&uses, &values, &ssa),
+                     (Vec::new(), NestedPolicy::EffectFreeOnly),
+                     None
+                 )
+                 .is_none()
+         );
+-        let inputs = driver.expression_inputs((&uses, &values, ssa));
++        let inputs = driver.expression_inputs((&uses, &values, &ssa));
+         *inputs.nested_source.borrow_mut() = Some(body.clone());
+         let mut state = EvaluationState::new(NestedPolicy::Protected);
+         assert!(matches!(
+--- a/rust/tcl-compiler/src/var_escape/interprocedural.rs
++++ b/rust/tcl-compiler/src/var_escape/interprocedural.rs
+@@ -406,7 +406,7 @@
+                 }
+             }
+         }
+-        let values = labels
++        let values: HashMap<_, _> = labels
+             .iter()
+             .map(|(label, summary)| (ids[label], summary.clone()))
+             .collect();
+--- a/rust/tcl-compiler/src/var_escape/known_names.rs
++++ b/rust/tcl-compiler/src/var_escape/known_names.rs
+@@ -139,7 +139,7 @@
+             .get(&fixture_id(&module.procedures, "::f"))
+             .expect("authored fixture body")
+             .body;
+-        let names = collect_known_names(std::iter::empty::<String>(), body);
++        let names = collect_known_names(std::iter::empty::<String>(), &body);
+         assert!(names.contains("inside_if"));
+         assert!(names.contains("inside_else"));
+     }
+--- a/rust/tcl-compiler/src/var_escape/walker.rs
++++ b/rust/tcl-compiler/src/var_escape/walker.rs
+@@ -921,7 +921,7 @@
+         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+         let module = lower_to_ir("proc p {} {global g}", registry);
+         let summary = analyse_script_with_registry(
+-            module
++            &module
+                 .procedures
+                 .get(&fixture_id(&module.procedures, "::p"))
+                 .expect("authored fixture body")

@@ -28116,7 +28116,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         // BIG-IP `.conf`/`.scf`: links are object references (iRule-body and
-        // migrated TMSH property values) resolving to the target object's
+        // supported TMSH property values) resolving to the target object's
         // stanza in the same document — a `uri#L<line>` fragment anchor. This
         // is a different engine from the Tcl `source`/`package require` link
         // scanner below.

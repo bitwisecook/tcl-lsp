@@ -7317,7 +7317,10 @@ mod tests {
         );
         let cfg = build_cfg(&module, false);
         for proc_name in ["::assign_expr", "::expr_eval"] {
-            let function = cfg.procedures.get(proc_name).expect("procedure CFG");
+            let function = cfg
+                .procedures
+                .get(&fixture_id(&module.procedures, proc_name))
+                .expect("procedure CFG");
             assert_eq!(
                 find_call_with_def(function, "caller_x"),
                 Some("<word-effects>"),

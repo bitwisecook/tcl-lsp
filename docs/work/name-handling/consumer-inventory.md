@@ -86,3 +86,7 @@ paths matching the focused lookup heuristics. These include tests, geometry,
 presentation and providers; neither count is an audited consumer count. Reconcile
 the complete workspace/backend/editor roster and every semantic match before
 completion. The source manifests and exact acceptance receipts remain authoritative.
+
+## Current residual audit dispositions
+
+The [41-callsite audit](../../../experiments/name-handling/results/final-consumer-audit-20261014.json) is a bounded source audit, not acceptance. Debugger reference ingress, Logical method ancestry and iRules event/priority extraction now delegate their actual shared owners; fresh execution remains pending. F5 configuration-object resolution is the active production migration, with explicit independent path policies. Zero-production-caller GVN name APIs are retired; production GVN retains original-source purity controls. Explorer report joins retain full scoped body keys and every equal-label row.

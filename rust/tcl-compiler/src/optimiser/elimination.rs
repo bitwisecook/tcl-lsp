@@ -1905,7 +1905,10 @@ mod tests {
     #[test]
     fn deeply_nested_side_effect_walks_survive() {
         let reg = registry();
-        let interproc_pure = ["a".to_owned()].into_iter().collect();
+        let original = crate::lowering::lower_to_ir("proc a {} {}", &reg);
+        let interproc_pure = [fixture_id(&original.procedures, "::a")]
+            .into_iter()
+            .collect();
         let purity = PurityCtx {
             registry: Some(&reg),
             interproc_pure: &interproc_pure,

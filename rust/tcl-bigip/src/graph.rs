@@ -509,10 +509,7 @@ impl<'a> EdgeBuilder<'a> {
         }
     }
 
-    /// Registry-first (pilot value-spec) dispatch — runs BEFORE the legacy
-    /// path, so its edges win the shared dedup and the output order matches.
-    /// Migrated properties whose legacy `references` were cleared (e.g.
-    /// `policies`/`vlans` on `ltm virtual`) get their edges only from here.
+    /// Registry value-spec edges precede fallback edges in shared deduplication.
     fn pilot_pass(&mut self, node: &ObjectNode, key: &str, value: &str) {
         let Some(spec_refs) = pilot_references(&node.module, &node.object_type, key, value) else {
             return;
@@ -652,15 +649,9 @@ pub fn build_bigip_object_graph(
     }
 }
 
-// Pilot value-spec reference dispatch — the registry-first edge path
-// (`references_via_spec` + the migrated `PILOT_PROPERTY_SPECS`). The graph only
-// consumes each `Reference`'s `(target_kind, target_path)`, so each spec is
-// reproduced as a slim extractor over the raw property value rather than the
-// full `ValueSpec` / `BigipList` materialisation. Specs are added incrementally;
-// an unmigrated property returns `None` and falls through to the legacy path.
+// Raw-property extractors supply only the target kind and path needed by the graph.
 
-/// Enumerate `(target_kind, target_path)` references for a migrated property,
-/// or `None` when the property isn't in the pilot table.
+/// Enumerate value-spec references, or `None` for the fallback property path.
 pub(crate) fn pilot_references(
     module: &str,
     object_type: &str,
@@ -756,11 +747,7 @@ pub(crate) fn pilot_references(
         return Some(refs);
     }
 
-    // Migrated but reference-free for raw-string input: `DestinationSpec` (no
-    // `references()`), `DataGroupRecordSpec` / `GtmRegionMemberSpec` (no refs),
-    // and `LtmPolicyRuleSpec` (no `parse()`, so it sees a string with no
-    // `actions`). All fall through to the legacy path: an empty pilot result
-    // followed by the unconditional legacy passes.
+    // Unhandled raw-property forms retain the fallback reference path.
     None
 }
 

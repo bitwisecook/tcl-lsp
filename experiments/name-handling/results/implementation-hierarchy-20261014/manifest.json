@@ -1,0 +1,27 @@
+{
+  "patch_sha256": "b8ccec5c98f2552d4c473f79df06b8f480c71d650cc2907d3cbdb4798d9bc8bf",
+  "file": "rust/tcl-lsp-core/src/implementation.rs",
+  "before_sha256": "d9ff90fd0d8b4190fa045711830c23ac46366d3a3e840104a0505c15d81394c5",
+  "after_sha256": "8631765d20f6c28585fc82293b64ca4de8f5f7b1a33627d954319ce13a0e3bef",
+  "existing_selectors": [
+    "class_name_returns_direct_subclasses",
+    "unknown_command_argument_cannot_supply_method_implementation_identity",
+    "method_inside_class_returns_self_and_descendant_overrides",
+    "unknown_word_returns_empty",
+    "class_in_namespace_returns_only_that_namespaces_subclass",
+    "other_namespace_class_returns_its_own_subclass",
+    "namespaced_class_with_no_subclasses_returns_empty",
+    "namespaced_subclass_via_mixin_is_an_implementation",
+    "constructed_implementation_ancestry_keeps_root_marker_distinct_from_colon_segment",
+    "original_implementation_uses_opaque_method_identity_and_exact_descendant_relations",
+    "original_method_implementations_keep_cross_document_owners_and_block_ambiguous_parents",
+    "original_class_object_implementation_does_not_borrow_instance_superclass_order"
+  ],
+  "new_selectors": [
+    "logical_method_implementations_use_resolved_bare_relations_in_nested_namespace",
+    "logical_method_implementations_do_not_join_equal_tail_class_owners"
+  ],
+  "original_implementation_inventories": "byte identical",
+  "format": "Rustfmt passed",
+  "validation": "No Main mutation or Cargo build. New and retained Rust controls unexecuted. Oracle original C observations retained separately; constructed colon metadata is structural only, Native class setup refuses."
+}

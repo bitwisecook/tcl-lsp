@@ -986,8 +986,8 @@ mod tests {
         assert_eq!(cu.body_units.len(), 1, "one namespace-eval body unit");
         assert!(
             cu.body_units
-                .keys()
-                .all(|k| k.starts_with("::ns::namespace-eval#")),
+                .values()
+                .all(|body| body.name.starts_with("::ns::namespace-eval#")),
             "the qname's enclosing namespace must be `::ns` (the block's own \
              target namespace), not global: {:?}",
             cu.body_units.keys().collect::<Vec<_>>()

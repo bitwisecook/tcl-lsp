@@ -76,12 +76,12 @@ use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
 use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 use tcl_syntax::expr::ast::render_expr;
 
-use crate::ExplorerResult;
 use crate::formatters::{
     format_lattice, format_return_shape, format_taint, format_type, preview, range_dict,
     stmt_color_class, stmt_kind, stmt_summary, type_kind_name,
 };
 use crate::views::{Severity, VIEW_META};
+use crate::{ExplorerResult, FunctionSnapshotKind};
 
 /// Checked readonly source inputs from the actual compilation producer.
 /// Display labels cannot select a command store, profile or source owner.
@@ -2994,8 +2994,9 @@ pub fn serialise_interproc(
             "pure": s.pure,
             "foldable": s.can_fold_static_calls,
             "returnShape": format_return_shape(s),
-            "calls": s.calls.iter().filter_map(|id| interproc.procedures.get(id).map(|callee| &callee.qualified_name)).collect::<Vec<_>>(),
+            "calls": s.calls.iter().filter_map(|id| interproc.procedures.get(id).or_else(|| interproc.methods.get(id).map(|method| &method.base)).map(|callee| &callee.qualified_name)).collect::<Vec<_>>(),
             "callBodyIds": s.calls.iter().map(|id| id.ordinal()).collect::<Vec<_>>(),
+            "callBodyKeys": s.calls.iter().map(|id| id.reporting_key()).collect::<Vec<_>>(),
             "hasBarrier": s.has_barrier,
             "hasUnknownCalls": s.has_unknown_calls,
             "writesGlobal": s.writes_global,
@@ -3019,20 +3020,26 @@ pub fn serialise_interproc(
         }));
     }
 
-    let mut mqnames: Vec<&String> = interproc.methods.keys().collect();
-    mqnames.sort();
-    for mqname in mqnames {
-        let m = &interproc.methods[mqname];
+    let mut methods: Vec<_> = interproc.methods.iter().collect();
+    methods.sort_by(|(left_id, left), (right_id, right)| {
+        left.base
+            .qualified_name
+            .cmp(&right.base.qualified_name)
+            .then(left_id.cmp(right_id))
+    });
+    for (id, m) in methods {
         let mut writes_instance: Vec<&String> = m.writes_instance_vars.iter().collect();
         writes_instance.sort();
         out.push(json!({
-            "name": mqname,
+            "bodyId": id.ordinal(), "bodyKey": id.reporting_key(),
+            "name": m.base.qualified_name,
             "kind": "method",
             "methodKind": m.method_kind.as_str(),
             "className": m.class_name,
             "pure": m.base.pure,
-            "calls": m.base.calls.iter().filter_map(|id| interproc.procedures.get(id).map(|callee| &callee.qualified_name)).collect::<Vec<_>>(),
+            "calls": m.base.calls.iter().filter_map(|id| interproc.procedures.get(id).or_else(|| interproc.methods.get(id).map(|method| &method.base)).map(|callee| &callee.qualified_name)).collect::<Vec<_>>(),
             "callBodyIds": m.base.calls.iter().map(|id| id.ordinal()).collect::<Vec<_>>(),
+            "callBodyKeys": m.base.calls.iter().map(|id| id.reporting_key()).collect::<Vec<_>>(),
             "hasBarrier": m.base.has_barrier,
             "hasUnknownCalls": m.base.has_unknown_calls,
             "writesGlobal": m.base.writes_global,
@@ -3877,6 +3884,50 @@ pub fn serialise_result_with_optimisations(
 mod tests {
     use super::*;
     use crate::run_pipeline;
+
+    #[test]
+    fn interproc_method_rows_retain_equal_labels_and_scoped_call_ids() {
+        use tcl_compiler::interprocedural::{MethodSummary, ProcSummary};
+        use tcl_compiler::ir::{MethodKind, ProcedureIdIssuer};
+
+        let first_owner = ProcedureIdIssuer::default();
+        let second_owner = ProcedureIdIssuer::default();
+        let first = first_owner.allocate();
+        let second = second_owner.allocate();
+        assert_eq!(first.ordinal(), second.ordinal());
+        assert_ne!(first, second);
+        let mut interproc = InterproceduralAnalysis::default();
+        for id in [first, second] {
+            let mut base = ProcSummary::unknown("::C::m");
+            base.calls = vec![first, second];
+            interproc.methods.insert(
+                id,
+                MethodSummary {
+                    base,
+                    class_name: "::C".to_owned(),
+                    method_kind: MethodKind::Method,
+                    reads_instance_vars: Default::default(),
+                    writes_instance_vars: Default::default(),
+                    calls_my: Vec::new(),
+                    calls_next: false,
+                },
+            );
+        }
+        let encoded = serialise_interproc(&interproc, &BTreeMap::new());
+        let rows = encoded.as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["name"], rows[1]["name"]);
+        assert_eq!(rows[0]["bodyId"], rows[1]["bodyId"]);
+        assert_ne!(rows[0]["bodyKey"], rows[1]["bodyKey"]);
+        for row in rows {
+            assert_eq!(
+                row["callBodyKeys"],
+                json!([first.reporting_key(), second.reporting_key()])
+            );
+            assert_eq!(row["calls"], json!(["::C::m", "::C::m"]));
+            assert_eq!(row["methodKind"], "method");
+        }
+    }
 
     #[test]
     fn ir_rows_keep_equal_names_and_distinct_source_bodies() {

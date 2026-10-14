@@ -1,0 +1,12 @@
+--- a/rust/tcl-debugger/src/backend.rs
++++ b/rust/tcl-debugger/src/backend.rs
+@@ -337,8 +337,7 @@
+                 .flatten()
+                 .ok_or_else(unsupported)?;
+             if reference.index.is_some_and(|index| {
+-                std::str::from_utf8(index)
+-                    .map_or(true, |key| !tcl_syntax::naming::array_key_is_literal(key))
++                !std::str::from_utf8(index).is_ok_and(tcl_syntax::naming::array_key_is_literal)
+             }) {
+                 return Err(unsupported());
+             }

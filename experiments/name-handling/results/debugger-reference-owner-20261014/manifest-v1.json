@@ -1,0 +1,34 @@
+{
+  "source_root": "/workspace/tcl-lsp",
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "before_sha256": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49",
+      "after_sha256": "999c492d12b32e84b11d79ca6e5557738ea6764566827dc229e493d736a7db0d"
+    },
+    {
+      "path": "rust/tcl-debugger/Cargo.toml",
+      "before_sha256": "6b9d7c10e62ea78e8c0dcc990f969a4343088a9ecaa018067bd6635fce3f65e7",
+      "after_sha256": "146f930a4279bd8af2482d4e1178a9b56c8c29c2b13404e8372a5b0703c9908e"
+    },
+    {
+      "path": "rust/tcl-debugger/src/backend.rs",
+      "before_sha256": "e2b41a8f6c1471bd98376dfdac69c3430c14518c76877659301bc55ce0d07c97",
+      "after_sha256": "352b32e6ee5351f97c0d09549577ef30e72d53dd4d5d626bd7ceca59a93b5629"
+    }
+  ],
+  "patch_sha256": "727f200411f70848b3d94eb2b88b418e032adaba5fb8656732933cfd2bdba744",
+  "tests": [
+    "backend::tests::evaluate_uses_whole_original_variable_references",
+    "backend::tests::evaluate_does_not_promote_array_roots_to_element_values"
+  ],
+  "rust_execution": "unexecuted; parent owns the Cargo lease",
+  "oracles": {
+    "results": "oracles/results.json",
+    "input_sha256": "53fcbdcad8d458fc9f9ca02154de0b156593b8c2bb46841d403655786b4ecd2a",
+    "runner_sha256": "a3d01b89b537244593f94e77dd44cf53abfe1d6c3f460d61feaba79a46275b2a",
+    "providers_sha256": "41e622b44bad787678174f607a314cf888b07bc2f86db0fce7b44fabf23bdc48",
+    "all_exits_zero": true,
+    "all_files_unchanged": true
+  }
+}

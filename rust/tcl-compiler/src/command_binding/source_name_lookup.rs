@@ -289,7 +289,7 @@ impl SourceInvocationBinding {
         Some(rows.collect())
     }
 
-    pub(super) fn original_operand_naming_scope(
+    pub(crate) fn original_operand_naming_scope(
         &self,
         input: &SignatureSourceNameInput,
     ) -> Option<SignatureNamespaceScope> {

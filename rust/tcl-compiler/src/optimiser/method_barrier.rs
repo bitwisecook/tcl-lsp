@@ -641,7 +641,10 @@ mod tests {
         );
         let barrier = compute(&module, registry);
         assert!(
-            !barrier.allows_locals("::C::caller"),
+            !barrier.allows_locals(crate::interprocedural::test_body_identity::fixture_id(
+                &module.methods,
+                "::C::caller"
+            )),
             "receiver-namespace shadowing can redirect bare `my` to the bad class"
         );
     }
@@ -656,7 +659,12 @@ mod tests {
              oo::class create Caller {method probe {} {::missing::C new; return ok}}",
             registry,
         );
-        assert!(!compute(&module, registry).allows_locals("::Caller::probe"));
+        assert!(!compute(&module, registry).allows_locals(
+            crate::interprocedural::test_body_identity::fixture_id(
+                &module.methods,
+                "::Caller::probe"
+            )
+        ));
     }
 
     #[test]
@@ -674,7 +682,12 @@ mod tests {
             );
             let module = crate::lowering::lower_to_ir(&source, registry);
             assert!(
-                !compute(&module, registry).allows_locals("::Caller::probe"),
+                !compute(&module, registry).allows_locals(
+                    crate::interprocedural::test_body_identity::fixture_id(
+                        &module.methods,
+                        "::Caller::probe"
+                    )
+                ),
                 "{source}"
             );
         }
@@ -691,7 +704,9 @@ mod tests {
              C create c; c safe",
             registry,
         );
-        assert!(compute(&module, registry).allows_locals("::C::safe"));
+        assert!(compute(&module, registry).allows_locals(
+            crate::interprocedural::test_body_identity::fixture_id(&module.methods, "::C::safe")
+        ));
     }
     #[test]
     fn nested_dispatch_uses_retained_availability_and_source_grammar() {
@@ -725,7 +740,14 @@ mod tests {
         .ir_module;
         assert!(module.source_entry.native_entry.is_none());
         let components = std::collections::HashMap::new();
-        assert!(!super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+        assert!(
+            !super::proc_dispatch_facts(&module, registry, &components)
+                [&crate::interprocedural::test_body_identity::fixture_id(
+                    &module.procedures,
+                    "::helper"
+                )]
+                .anywhere
+        );
         let original = module.clone();
         for change in 0..6 {
             module = original.clone();
@@ -751,7 +773,12 @@ mod tests {
                 .is_some()
             );
             assert!(
-                super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere,
+                super::proc_dispatch_facts(&module, registry, &components)
+                    [&crate::interprocedural::test_body_identity::fixture_id(
+                        &module.procedures,
+                        "::helper"
+                    )]
+                    .anywhere,
                 "change {change}"
             );
         }
@@ -768,14 +795,33 @@ mod tests {
                 profile, profile, context, config,
             ));
             assert!(
-                super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere
+                super::proc_dispatch_facts(&module, registry, &components)
+                    [&crate::interprocedural::test_body_identity::fixture_id(
+                        &module.procedures,
+                        "::helper"
+                    )]
+                    .anywhere
             );
         }
         module.source_metadata_input = None;
-        assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+        assert!(
+            super::proc_dispatch_facts(&module, registry, &components)
+                [&crate::interprocedural::test_body_identity::fixture_id(
+                    &module.procedures,
+                    "::helper"
+                )]
+                .anywhere
+        );
         module.source_metadata_input = Some(input);
         module.lexer_config.expand_syntax = !module.lexer_config.expand_syntax;
-        assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+        assert!(
+            super::proc_dispatch_facts(&module, registry, &components)
+                [&crate::interprocedural::test_body_identity::fixture_id(
+                    &module.procedures,
+                    "::helper"
+                )]
+                .anywhere
+        );
     }
 
     #[test]
@@ -813,7 +859,14 @@ mod tests {
         )
         .ir_module;
         let components = std::collections::HashMap::new();
-        assert!(!super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+        assert!(
+            !super::proc_dispatch_facts(&module, registry, &components)
+                [&crate::interprocedural::test_body_identity::fixture_id(
+                    &module.procedures,
+                    "::helper"
+                )]
+                .anywhere
+        );
         let input = module.source_metadata_input.as_ref().unwrap().clone();
         let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
             .with_command_store(std::sync::Arc::clone(registry));
@@ -828,11 +881,23 @@ mod tests {
                 input.lexer_config(),
             ));
             assert!(
-                super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere
+                super::proc_dispatch_facts(&module, registry, &components)
+                    [&crate::interprocedural::test_body_identity::fixture_id(
+                        &module.procedures,
+                        "::helper"
+                    )]
+                    .anywhere
             );
         }
         module.source_metadata_input = None;
-        assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+        assert!(
+            super::proc_dispatch_facts(&module, registry, &components)
+                [&crate::interprocedural::test_body_identity::fixture_id(
+                    &module.procedures,
+                    "::helper"
+                )]
+                .anywhere
+        );
     }
     #[test]
     fn actual_jim_dispatch_purpose_preserves_unknown_reachability() {
@@ -880,7 +945,11 @@ mod tests {
         );
         let components = std::collections::HashMap::new();
         assert!(
-            super::proc_dispatch_facts(&native.ir_module, registry, &components)["::helper"]
+            super::proc_dispatch_facts(&native.ir_module, registry, &components)
+                [&crate::interprocedural::test_body_identity::fixture_id(
+                    &native.ir_module.procedures,
+                    "::helper"
+                )]
                 .anywhere
         );
         // Same assistance input, independently retained Logical source driver.
@@ -901,7 +970,11 @@ mod tests {
             std::sync::Arc::clone(&context),
         );
         assert!(
-            !super::proc_dispatch_facts(&logical.ir_module, registry, &components)["::helper"]
+            !super::proc_dispatch_facts(&logical.ir_module, registry, &components)
+                [&crate::interprocedural::test_body_identity::fixture_id(
+                    &logical.ir_module.procedures,
+                    "::helper"
+                )]
                 .anywhere
         );
     }

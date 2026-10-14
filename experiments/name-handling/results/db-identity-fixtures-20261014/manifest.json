@@ -1,0 +1,8 @@
+{
+  "path": "rust/tcl-lsp-db/src/value_transfer_parity.rs",
+  "before_sha256": "ec96e8b78ea4bddd6319035d65892dfe6916931c1d5ff0c6d5a9e72b3d78715d",
+  "after_sha256": "d93fcdcb3f4985c6ad943758bb8c2f7686a74483a65809b7a721db6bddd4d612",
+  "patch_sha256": "6fe346711f8492b459e75aa3ba14325d92a869c3961940d3529e10b5c4568059",
+  "validation": "rustfmt only; uncompiled no Cargo lease; original behavioural assertions unchanged",
+  "contract": "test-only authored display selects exactly one genuine current Module declaration; actual issuer/body ID required; FU read through that actual ID"
+}

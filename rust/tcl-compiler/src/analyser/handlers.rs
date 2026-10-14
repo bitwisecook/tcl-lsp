@@ -6386,19 +6386,7 @@ impl Analyser {
                 self.interpreters.insert(new_interp_key, state);
             }
         }
-        // A `rename` inside a child interpreter's eval body mutates *that*
-        // interpreter's command table, never this one's — `interp create c;
-        // c eval { rename puts myputs }` leaves the parent's `puts` intact
-        // and gives the parent no `myputs` at all (tclsh 9.0.4-verified).
-        // Recording it in the file-wide command-table maps made the parent's
-        // own later `puts` call look like a call to a deleted builtin and drew
-        // a W123 on it — the same "state that is really per-interpreter kept
-        // in one flat file-wide map" flaw the Tk widget hierarchy avoids.
-        // Abstain rather than model a second command table: a
-        // missed diagnostic inside the child beats a false accusation in the
-        // parent. (The interpreter-handle migration above is unaffected — it
-        // keys through `qualified_interp_key`, which is already relative to
-        // the enclosing frame.)
+        // Child-interpreter renames cannot mutate the parent's command facts.
         if !self.interp_path_stack.is_empty() {
             return false;
         }

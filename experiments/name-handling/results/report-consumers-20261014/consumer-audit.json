@@ -1,0 +1,74 @@
+{
+  "scope": "All 15 Rust source files in tcl-explorer/src and tcl-diagram/src; report identity and naming consumer review, not complete implementation validation.",
+  "files": {
+    "rust/tcl-diagram/src/attach.rs": "f2933be7e4c04650dfeb652f0a90f9ebfcec078bb855f0da30f0820550213c44",
+    "rust/tcl-diagram/src/data.rs": "f012c9e30b098b1f2df16e0a5eac1d728fc53d194e558b41c9464925e0c45854",
+    "rust/tcl-diagram/src/graph.rs": "0e9fc20f0d2fca26eefca58b2bbb4af07fc8c486670fd4d3ce288118ac98b8ef",
+    "rust/tcl-diagram/src/lib.rs": "c0f2c5a18568d96b94aaddb8b0ed110248aaaf257f91c948a57a17fd66cf94d5",
+    "rust/tcl-explorer/src/asm.rs": "19006a5426999044d18cc5adbe32a11501dd0f80c70b5aa5c4d7008462a9d906",
+    "rust/tcl-explorer/src/coverage.rs": "76342b6e9343ac6dbb64e15e46aed72cefb6955be61c79b0facadbca7829a4ed",
+    "rust/tcl-explorer/src/cst.rs": "646d635c9365b49466c97c6df1c0fdbdba36d5577b01054b19f2f67e1c8692cc",
+    "rust/tcl-explorer/src/environment.rs": "bb232c4f3c9ef0b636fd865975147826de278317b180fd9022bd2cc4989a997c",
+    "rust/tcl-explorer/src/formatters.rs": "c18e7221842fa09702a05c1d08e9f4ea5465ead6ad0be0bcd8e5630b9036ae19",
+    "rust/tcl-explorer/src/lib.rs": "7c4fa22c0f096208ef0192176f89544cc8bfda5cad051ae6b5c11c4a93f3c4b0",
+    "rust/tcl-explorer/src/render.rs": "77fbdc832fbafe6c769e594a17a62888729e4471b86d8cb4eb72042f0e09530f",
+    "rust/tcl-explorer/src/serialise.rs": "b41597cefa6d23fce9fbe97094151480bcf49d1eafd057e60f2296594919b4c2",
+    "rust/tcl-explorer/src/view_tree.rs": "5b55019f21adf9ab4315eecd8f56063de9ee69c50a682246e36d1b547cd8cfba",
+    "rust/tcl-explorer/src/views.rs": "76c645623638d1286f32973329d6c2fe69ab9f9e11c1af4544c117f3a26c69ca",
+    "rust/tcl-explorer/src/wasm_explorer.rs": "5d2eafd64177356ffdc5be72457bce28aa517741b84e605b816381b3cbb386f7"
+  },
+  "findings": [
+    {
+      "consumer": "ExplorerResult::all_snapshots",
+      "state": "patch",
+      "detail": "Methods iterate actual typed body inventory; FunctionUnit.name supplies display only. Other body inventories and deterministic sort retain equal-label rows."
+    },
+    {
+      "consumer": "serialise_interproc",
+      "state": "patch",
+      "detail": "Method summary maps use actual ProcedureId, report full bodyKey, and preserve equal labels. Calls join summaries by typed IDs across procedure/method maps; callBodyKeys carry issuer plus ordinal alongside ordinal compatibility field."
+    },
+    {
+      "consumer": "serialise_annotations",
+      "state": "patch import only",
+      "detail": "Existing dead-store join compares actual body IDs; root is independently selected using is_top_level and snapshot kind. Missing FunctionSnapshotKind import fixed."
+    },
+    {
+      "consumer": "Explorer IR, CFG, SSA, semantic, world/effect/memory SSA, dataflow, loops, types, unitScope, ASM, WASM",
+      "state": "already shared",
+      "detail": "Actual body inventories and IDs provide identity. ASM source ranges join IR by body ID. WASM identities come from source_function_ids and decoded calls join actual WASM function index. Top key comes from actual Module issuer; snapshot root additionally checks actual top FunctionUnit pointer. Presentation labels do not recover body identities."
+    },
+    {
+      "consumer": "Explorer view_tree/render/formatters/views/coverage/cst/environment",
+      "state": "no semantic name-to-body lookup",
+      "detail": "Formatting and sorting consume report fields or actual compiler artifacts; duplicate rows remain distinct. Tests inspecting known labels assert presentation, not production semantic joins."
+    },
+    {
+      "consumer": "Diagram source_procedure_nodes/diagram_data_for_analysis",
+      "state": "already shared",
+      "detail": "Original declarations use shared source_graph correspondence. Vendor cards match authentic original body geometry and refuse ambiguous candidates. Event bodies are selected by shared original event descriptors; repeated equal event rows retained. Caller names enter namespace lookup only in independently selected lexical compatibility mode."
+    },
+    {
+      "consumer": "Diagram registry_command lexical compatibility",
+      "state": "patch",
+      "detail": "The shared namespace_parts_from_proc and existence-checked resolve_command_with already own interpretation; replace local root prefix branching with shared root_unrooted_key. Authored lookup remains explicitly guarded lexical mode, no Native/original-source fallback."
+    },
+    {
+      "consumer": "Diagram original procedure calls and attach/rule refs",
+      "state": "already shared",
+      "detail": "Original procedure calls require shared invocation_targets_declaration_in at authentic current sites and reject multiple candidates. Attachment/rule candidates use actual hosted source vectors, current full context/config/registry and shared vendor literal/rule target APIs; report object pattern matching does not claim Tcl command lookup."
+    },
+    {
+      "consumer": "Diagram graph",
+      "state": "presentation only",
+      "detail": "Sequential allocated graph node IDs keep every source row; labels do not select nodes or callee bodies."
+    }
+  ],
+  "validation": {
+    "format": "Rustfmt edition 2024 skip_children=true passed on three scratch source files.",
+    "build": "Not run; Root owns Main build lease.",
+    "new_test": "serialise::tests::interproc_method_rows_retain_equal_labels_and_scoped_call_ids (unexecuted): two genuine independent issuers with equal ordinals/labels retain distinct report keys and full call links.",
+    "oracle": "No new interpreter observation or naming semantic acceptance claimed; this patch consumes existing shared contracts and structurally tests report identity.",
+    "main_mutation": false
+  }
+}

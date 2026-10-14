@@ -33,6 +33,13 @@ fn lower(
     source: &str,
     config: SemanticOptimisationConfig,
 ) -> Result<(NativeFunction, FunctionReport), FunctionDecline> {
+    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
+}
+
+fn lower_with_unit(
+    source: &str,
+    config: SemanticOptimisationConfig,
+) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
     let facts = &unit.top_level.semantic_facts;
@@ -55,7 +62,8 @@ fn lower(
         entry_assumption: facts.dispatch_entry_assumption(),
         type_hints: &hints,
     };
-    lower_function(&input)
+    let (function, report) = lower_function(&input)?;
+    Ok((function, report, unit))
 }
 
 /// Retain the real interpreter and its entry independently of source metadata.
@@ -652,7 +660,7 @@ fn a_nested_generic_command_word_is_a_nested_invocation() {
 
 #[test]
 fn a_proc_statement_lowers_to_the_definition_shape() {
-    let (function, report) = lower(
+    let (function, report, unit) = lower_with_unit(
         "proc greet {name} { return hi }\ngreet bob\n",
         native_config(),
     )
@@ -672,7 +680,13 @@ fn a_proc_statement_lowers_to_the_definition_shape() {
     let [NativeOp::DefineProc { entry_key, argv }] = defines.as_slice() else {
         panic!("the exact definition retains one original argv: {defines:?}");
     };
-    assert_eq!(entry_key, "::greet");
+    assert_eq!(
+        *entry_key,
+        crate::interprocedural::test_body_identity::fixture_id(
+            &unit.ir_module.procedures,
+            "::greet"
+        )
+    );
     assert_eq!(argv.len(), 4);
     assert_eq!(original_constant(&function, argv[0]), "proc");
     assert_eq!(original_constant(&function, argv[1]), "greet");
@@ -742,6 +756,13 @@ fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols() {
     assert_eq!(top.protocol, EntryProtocol::Script);
 
     let source = "proc p {x} { return $x }\np 1\n";
+    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
+}
+
+fn lower_with_unit(
+    source: &str,
+    config: SemanticOptimisationConfig,
+) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
     let body = fixture_id_if_present(&unit.procedures, "::p")
@@ -793,6 +814,13 @@ fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols() {
 #[test]
 fn a_definition_declines_a_body_the_statement_does_not_write_out() {
     let source = "proc make {} {\n set body {return hello}\n proc p {x} $body\n}\nmake\n";
+    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
+}
+
+fn lower_with_unit(
+    source: &str,
+    config: SemanticOptimisationConfig,
+) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
 
@@ -848,6 +876,13 @@ fn a_definition_declines_a_body_the_statement_does_not_write_out() {
 #[test]
 fn a_definition_with_a_written_body_still_binds_under_the_same_proof() {
     let source = "proc make {} {\n proc p {x} {return hello}\n}\nmake\n";
+    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
+}
+
+fn lower_with_unit(
+    source: &str,
+    config: SemanticOptimisationConfig,
+) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
     let outer = fixture_id_if_present(&unit.procedures, "::make")
@@ -1252,11 +1287,13 @@ fn original_inline_control_structure_retains_compiler_only_conditions_and_direct
     }
 }
 
-fn defined_original_argv(function: &NativeFunction) -> Vec<(&str, &[super::ir::NativeValueId])> {
+fn defined_original_argv(
+    function: &NativeFunction,
+) -> Vec<(crate::ir::ProcedureId, &[super::ir::NativeValueId])> {
     all_ops(function)
         .into_iter()
         .filter_map(|op| match op {
-            NativeOp::DefineProc { entry_key, argv } => Some((entry_key.as_str(), argv.as_slice())),
+            NativeOp::DefineProc { entry_key, argv } => Some((*entry_key, argv.as_slice())),
             _ => None,
         })
         .collect()
@@ -1374,7 +1411,15 @@ fn original_root_colon_definition_preserves_evaluated_publication_operand() {
             .command_publication_slot(root, original_constant(&function, argv[1]).as_bytes())
             .expect("original literal publication recipe");
         let wrong_projection = protocol
-            .command_publication_slot(root, entry_key.as_bytes())
+            .command_publication_slot(
+                root,
+                unit.ir_module
+                    .procedures
+                    .get(entry_key)
+                    .expect("original DefineProc body")
+                    .qualified_name
+                    .as_bytes(),
+            )
             .expect("internal key used as new text is a separate publication input");
         assert_eq!(
             actual_publication,

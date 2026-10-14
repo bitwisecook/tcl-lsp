@@ -10404,7 +10404,7 @@ mod cell_resolution_tests {
         let mut reached = false;
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 let Some(tokens) = view.source_tokens() else {
                     continue;
                 };
@@ -10472,7 +10472,7 @@ mod cell_resolution_tests {
         let mut reached = false;
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 let Some(tokens) = view.source_tokens() else {
                     continue;
                 };
@@ -10519,7 +10519,7 @@ mod cell_resolution_tests {
         }
         assert!(reached);
         assert!(
-            SsaSourceView::unpositioned(ssa)
+            SsaSourceView::unpositioned(&ssa)
                 .read_contents_presence_alternatives_at(
                     &SourceSite::source(Span::new(0, 2)),
                     "$x",
@@ -10549,7 +10549,7 @@ mod cell_resolution_tests {
         let mut incoming = false;
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 let Some(tokens) = view.source_tokens() else {
                     continue;
                 };
@@ -10589,7 +10589,7 @@ mod cell_resolution_tests {
             missing && incoming,
             "both actual read contexts are retained"
         );
-        assert!(SsaSourceView::unpositioned(ssa).source_tokens().is_none());
+        assert!(SsaSourceView::unpositioned(&ssa).source_tokens().is_none());
     }
 
     #[test]
@@ -10614,7 +10614,7 @@ mod cell_resolution_tests {
             let mut reached = false;
             for (&block, data) in &ssa.blocks {
                 for index in 0..data.statements.len() {
-                    let view = SsaSourceView::at_statement(ssa, block, index);
+                    let view = SsaSourceView::at_statement(&ssa, block, index);
                     let Some(tokens) = view.source_tokens() else {
                         continue;
                     };
@@ -10651,7 +10651,7 @@ mod cell_resolution_tests {
         let mut reached = false;
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 let Some(tokens) = view.source_tokens() else {
                     continue;
                 };
@@ -10898,7 +10898,7 @@ mod cell_resolution_tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl9.0",
         );
-        let ssa = unit
+        let ssa = &unit
             .procedures
             .get(&fixture_id(&unit.procedures, "::p"))
             .expect("authored fixture body")
@@ -10955,7 +10955,7 @@ mod cell_resolution_tests {
         let mut pairs = Vec::new();
         for (&block, body) in &ssa.blocks {
             for index in 0..body.statements.len() {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 let Some(tokens) = view.source_tokens() else {
                     continue;
                 };
@@ -11000,7 +11000,7 @@ mod cell_resolution_tests {
         let mut proofs = Vec::new();
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 if let Some(proof) = view.read_expression_incoming_slot(&node, base, "n", registry)
                 {
                     proofs.push(proof);
@@ -11036,7 +11036,7 @@ mod cell_resolution_tests {
         let mut reached = false;
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 reached |= view.expression_variable_access(&node, base).is_some();
                 assert!(
                     view.read_expression_incoming_slot(&node, base, "n", registry)
@@ -11104,7 +11104,7 @@ mod cell_resolution_tests {
         let mut inventory = Vec::new();
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 let Some(tokens) = view.source_tokens() else {
                     continue;
                 };
@@ -11271,7 +11271,7 @@ mod cell_resolution_tests {
             .ssa;
         let mut pairs = Vec::new();
         for &block in ssa.blocks.keys() {
-            let view = SsaSourceView::at_terminator(ssa, block);
+            let view = SsaSourceView::at_terminator(&ssa, block);
             let Some(tokens) = view.source_tokens() else {
                 continue;
             };
@@ -11374,7 +11374,7 @@ mod cell_resolution_tests {
         let mut pairs = Vec::new();
         for (&block, body) in &ssa.blocks {
             for index in 0..body.statements.len() {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 let Some(tokens) = view.source_tokens() else {
                     continue;
                 };
@@ -11415,7 +11415,7 @@ mod cell_resolution_tests {
         let mut projected = Vec::new();
         for (&block, body) in &ssa.blocks {
             for index in 0..body.statements.len() {
-                let view = SsaSourceView::at_statement(ssa, block, index);
+                let view = SsaSourceView::at_statement(&ssa, block, index);
                 assert!(view.read_spelling("unreached").is_none());
                 if let Some(read) = view.read_spelling("x") {
                     assert!(read.version.is_some());
@@ -11424,9 +11424,9 @@ mod cell_resolution_tests {
             }
         }
         assert_eq!(projected.len(), 1);
-        assert!(!SsaSourceView::unpositioned(ssa).is_positioned());
+        assert!(!SsaSourceView::unpositioned(&ssa).is_positioned());
         assert!(
-            SsaSourceView::unpositioned(ssa)
+            SsaSourceView::unpositioned(&ssa)
                 .read_spelling("x")
                 .is_none()
         );

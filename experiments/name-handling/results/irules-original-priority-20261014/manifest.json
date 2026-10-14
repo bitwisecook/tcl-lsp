@@ -1,0 +1,44 @@
+{
+  "scope": "Original authored iRules event/priority report consumers; no execution or appliance applicability grant",
+  "patch_sha256": "1bd1ba4fb8679ba80280310c8b0f798b19c08b89bcaaab4fde4bd42f605fcc18",
+  "files": [
+    {
+      "path": "rust/tcl-bigip/src/validator.rs",
+      "before_sha256": "216a55de6360faeaed31e5e9bfb08efdd1db0bdeda03c951e88c0c2ad3a72ee1",
+      "after_sha256": "df235cd56b9e6fffdc1328d4ea859c78e7c7bbdbf718ae01de7323d00bfa12fc"
+    },
+    {
+      "path": "rust/tcl-irules/src/event_handlers.rs",
+      "before_sha256": "6f50846b4b09f5b626c0ce34498527740693bcbbb4e25e88cb44f5f8139c00d2",
+      "after_sha256": "4c80c618cb765800d93473bec66a6842c66bc0e334ddab082bf22239c196f864"
+    },
+    {
+      "path": "rust/tcl-irules/src/lib.rs",
+      "before_sha256": "5833cdea5b8c15086b44b7ec23eef509949b88488285cabcd3ea45036b0de92b",
+      "after_sha256": "619e1cb6ed4f40df356cd9d4b8c1ccce4ffa0832b59194c9d07f14d9ff85ffef"
+    },
+    {
+      "path": "rust/tcl-irules/src/source_context.rs",
+      "before_sha256": "af7ff3c968646417956d9e9cda9a54f69a404a762d8625a352fa3fbf5d597577",
+      "after_sha256": "4c67405a9c69f530b1336e876e87d24a966a3df68dda14d308acf1ffc35b5d7f"
+    },
+    {
+      "path": "rust/tcl-registry/src/resolved_invocation.rs",
+      "before_sha256": "a83d715a322d2d1b852d1271c2c1182183117bf5e0b7b5e766d0f1e72065fffd",
+      "after_sha256": "c45ba903d18993022632af2257b5df9e1092cac94fd2235381974d8d63f01f18"
+    }
+  ],
+  "validation": {
+    "rustfmt": "passed edition 2024 skip_children=true",
+    "git_apply_check": "pending refreshed patch",
+    "cargo": "not executed; root owns build lease",
+    "oracles": "no new appliance observations; existing source priority assertions preserved",
+    "tests_added": [
+      "original_source_priorities_decline_replaced_and_computed_commands",
+      "original_source_priorities_keep_top_level_geometry_and_unknown_expansion",
+      "original_source_priorities_reject_changed_image_and_registry",
+      "original_source_inline_unknown_does_not_change_inherited_priority",
+      "original_source_priority_context_declines_changed_lexer_configuration"
+    ]
+  }
+}

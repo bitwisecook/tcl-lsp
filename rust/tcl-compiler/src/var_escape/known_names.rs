@@ -139,7 +139,7 @@ mod tests {
             .get(&fixture_id(&module.procedures, "::f"))
             .expect("authored fixture body")
             .body;
-        let names = collect_known_names(std::iter::empty::<String>(), body);
+        let names = collect_known_names(std::iter::empty::<String>(), &body);
         assert!(names.contains("inside_if"));
         assert!(names.contains("inside_else"));
     }

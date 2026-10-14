@@ -280,8 +280,8 @@ pub fn user_dir() -> PathBuf {
 /// `JetBrains` plugin copies `$(SPEC_PACK_SRC)` next to it, and both packaging gates fail
 /// if it is missing. A `cargo build` lays down nothing, so a
 /// `target/debug/tcl` — or a test binary in `target/debug/deps/` — would find
-/// no loadables and quietly lose the EDA vendor libraries, which since their
-/// migration exist *only* as packs. Compiling the checkout's `specs/` path in
+/// no loadables and quietly lose the EDA vendor libraries, which exist only
+/// as packs. Compiling the checkout's `specs/` path in
 /// under `debug_assertions` makes a development build behave like an install
 /// without any per-developer setup. It cannot fire in a shipped binary: the
 /// path is not compiled in at all when `debug_assertions` is off, and a test

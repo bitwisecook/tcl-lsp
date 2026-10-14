@@ -714,6 +714,27 @@ impl OriginalIrulesSourceContext {
         &self.source_vectors
     }
 
+    /// Top-level original commands under the retained grammar and complete image.
+    /// Missing vectors remain explicit instead of borrowing catalogue labels.
+    #[must_use]
+    pub fn top_level_source_vectors(
+        &self,
+        source: &str,
+    ) -> Vec<(Span, Option<&OriginalRegistryWords>)> {
+        if !self.matches_source(source) {
+            return Vec::new();
+        }
+        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, self.config)
+            .into_iter()
+            .map(|command| {
+                let words = self.source_vectors.iter().find_map(|(span, words)| {
+                    (span.start() == command.span.start()).then_some(words)
+                });
+                (command.span, words)
+            })
+            .collect()
+    }
+
     /// Actual event-body declarations; presence is not event reachability.
     #[must_use]
     pub fn events(&self) -> &[SourceIrulesEventBody] {

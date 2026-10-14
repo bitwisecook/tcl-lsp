@@ -4973,7 +4973,8 @@ mod tests {
     #[test]
     fn deeply_nested_interprocedural_scans_survive() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let known: HashSet<String> = HashSet::new();
+        let known: HashSet<ProcedureId> = HashSet::new();
+        let source_module = crate::ir::Module::default();
         let params: HashSet<String> = ["x".to_owned()].into_iter().collect();
         let ctx = ScanCtx {
             caller: "::top",
@@ -4986,7 +4987,9 @@ mod tests {
             declared: None,
             positioned_substitutions: false,
             source_input: None,
-            source_procedures: &HashMap::new(),
+            source_procedures: &source_module.procedures,
+            source_module: &source_module,
+            current_tokens: None,
         };
 
         // A 3000-deep `ExprNode` tree (nested unary `!` over `$x`).
@@ -5241,7 +5244,7 @@ mod tests {
                     &identities,
                     None,
                 );
-                let traits = analysis
+                let traits = &analysis
                     .procedures
                     .get(&fixture_id(&analysis.procedures, "::writer"))
                     .expect("authored fixture body")

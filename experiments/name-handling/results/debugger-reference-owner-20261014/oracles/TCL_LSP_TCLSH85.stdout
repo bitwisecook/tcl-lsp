@@ -1,0 +1,12 @@
+version 8.5.19
+scalar 0 SCALAR
+bracedScalar 0 SCALAR
+space 0 SPACE
+literalDollar 0 CASH
+unmatchedOpen 0 OPEN
+nestedBraces 1 can't\ read\ \"a\{b\":\ no\ such\ variable
+emptyScalar 0 EMPTY
+bareArray 0 ELEMENT
+bracedArray 0 ELEMENT
+compound 0 SCALARsuffix
+dynamicIndex 1 {can't read "a(SCALAR)": no such element in array}

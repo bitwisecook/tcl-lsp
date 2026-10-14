@@ -2981,7 +2981,7 @@ what it writes, got {got:?}"
             registry,
         );
         assert!(!requires_runtime_command_namespace(
-            module
+            &module
                 .methods
                 .get(&fixture_id(&module.methods, "::C::helper"))
                 .expect("authored fixture body")
@@ -2990,7 +2990,7 @@ what it writes, got {got:?}"
         ));
         assert!(
             requires_runtime_command_namespace(
-                module
+                &module
                     .methods
                     .get(&fixture_id(&module.methods, "::C::m"))
                     .expect("authored fixture body")
@@ -3001,7 +3001,7 @@ what it writes, got {got:?}"
         );
         assert!(
             !requires_runtime_command_namespace(
-                module
+                &module
                     .methods
                     .get(&fixture_id(&module.methods, "::C::dynamic"))
                     .expect("authored fixture body")
@@ -3012,7 +3012,7 @@ what it writes, got {got:?}"
         );
         assert!(
             !requires_runtime_command_namespace(
-                module
+                &module
                     .methods
                     .get(&fixture_id(&module.methods, "::C::global_body"))
                     .expect("authored fixture body")
@@ -3034,7 +3034,7 @@ what it writes, got {got:?}"
         }
         assert!(
             requires_runtime_command_namespace(
-                module
+                &module
                     .methods
                     .get(&fixture_id(&module.methods, "::C::nested_alias"))
                     .expect("authored fixture body")
