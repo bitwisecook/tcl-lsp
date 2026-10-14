@@ -1268,22 +1268,27 @@ pub(crate) enum SelectedLoweringBindingIdentity<'a> {
     Logical(tcl_registry::CanonicalCommandDescriptorKey<'a>),
     HostedSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
     NativeSourceSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
+    AuthoredSourceSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
 }
 
 impl<'a> SelectedLoweringBindingIdentity<'a> {
     pub(crate) fn descriptor_key(self) -> tcl_registry::CanonicalCommandDescriptorKey<'a> {
         match self {
             Self::Native(invocation) => invocation.descriptor_key(),
-            Self::Logical(key) | Self::HostedSchema(key) | Self::NativeSourceSchema(key) => key,
+            Self::Logical(key)
+            | Self::HostedSchema(key)
+            | Self::NativeSourceSchema(key)
+            | Self::AuthoredSourceSchema(key) => key,
         }
     }
 
     pub(crate) fn binding_identity(self) -> &'a str {
         let name = match self {
             Self::Native(invocation) => invocation.canonical_registration_name(),
-            Self::Logical(key) | Self::HostedSchema(key) | Self::NativeSourceSchema(key) => {
-                key.label()
-            }
+            Self::Logical(key)
+            | Self::HostedSchema(key)
+            | Self::NativeSourceSchema(key)
+            | Self::AuthoredSourceSchema(key) => key.label(),
         };
         tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
     }
@@ -10626,3 +10631,6 @@ mod original_source_purpose_tests;
 mod source_body_names;
 
 pub(crate) use source_body_names::original_authored_body_name_candidates;
+
+mod authored_controls;
+pub(crate) use authored_controls::original_authored_control_invocation;

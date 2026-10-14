@@ -1,0 +1,6 @@
+
+running 1 test
+test taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 1.88s
+

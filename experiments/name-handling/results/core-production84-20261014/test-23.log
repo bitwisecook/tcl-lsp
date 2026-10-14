@@ -1,0 +1,15 @@
+
+running 1 test
+test hover::tests::class_member_hover_resolves_when_class_extended_via_separate_oo_define ... 
+thread 'hover::tests::class_member_hover_resolves_when_class_extended_via_separate_oo_define' (339296) panicked at rust/tcl-lsp-core/src/hover.rs:5646:52:
+hover
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    hover::tests::class_member_hover_resolves_when_class_extended_via_separate_oo_define
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3033 filtered out; finished in 0.79s
+

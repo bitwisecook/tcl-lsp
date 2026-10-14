@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T11:16:02Z on `work`. The original47 actionable rows
+Current bounded snapshot: 2026-10-14T11:26:24Z on `work`. The original47 actionable rows
 and330 lexical candidates remain preserved; package membership and search
 absence do not certify semantic completion.
 
@@ -23,27 +23,28 @@ Missing source scope remains unowned. Same-invocation body candidate names alway
 retain unknown coverage. Native source children retain their actual issuing birth
 tape and complete input; equality and parent/currentness refusals remain strict.
 These implementation migrations do not grant Native callable publication,
-entered frames, successful reads or editing permission. The Authored control
-bridge and Hosted case-clause producer complete source review but are not integrated in this snapshot; actual post-integration controls
-remain required.
+entered frames, successful reads or editing permission. The Authored control bridge and Hosted case-clause producer are integrated
+after independent source review; actual post-integration controls remain required.
 
 Compiler81 builds but executes zero controls because an old word_subst module
-selector is missing. Corrected82 remains running against the same retained
-source/ELF. Focused83 seals twelve controls at6 PASS/6 FAIL, with zero source
-drift and no empty selectors. Diagnostic79 builds, seals two failed original
-producer/read
+selector is missing. Corrected82 seals 240 controls on the same retained
+source/ELF: 194 PASS and 46 nonpassing (45 failures plus the unchanged original
+#2286 timeout after 180 seconds), zero source drift and no missing/empty selectors.
+Focused83 seals twelve controls at 6 PASS/6 FAIL, with zero source drift and no
+empty selectors. Diagnostic79 builds, seals two failed original producer/read
 controls with zero source drift, and times out the unchanged #2286 control after
 180 seconds. Temporary instrumentation is accurately labelled and retired from
 production. Core80 stops during compilation at two test-only Registry profile
 accessors: zero semantic controls and zero source drift. Actual accessors and
-selector paths are corrected; fresh Core execution is required.
+selector paths are corrected; Core84 now supplies the bounded results below.
 
 The latest completed Compiler75 scope is 95 controls: 54 PASS/41 FAIL, build PASS
 and zero source drift. All six focused taint controls, Shimmer and dynamic escape
 pass. Both original eval/up-frame failures are repaired and pass in focused83;
 the other Compiler75 failures still require their current replay. Tcltest alias
 setup retains all forty cases, with missing/undefined sharing controls passing. Original namespace
-import remains 0 versus 1 and C8.4 #2286 remains 1 versus 2, W210 at bytes160–167.
+import remains 0 versus 1. The latest completed C8.4 #2286 assertion remains
+1 versus 2, W210 at bytes160–167; unchanged original82 times out180 seconds.
 Four original depth-budget controls abort. The broader Compiler67 scope is
 599 controls: 442 PASS/157 FAIL, all original542 retained with35 gains and3 escape
 regressions, zero source drift. These scopes are distinct; neither is a complete
@@ -113,7 +114,7 @@ Focused production83 seals twelve controls: 6 PASS/6 FAIL, zero source drift and
 no empty selectors. Authored declaration/body-name controls and both original
 eval/up-frame regressions pass. Native complete-input and expansion refusal
 controls pass. Native positive child, three certificate controls and original
-SSA read/definition producers fail. Corrected82 remains running; these bounded
+SSA read/definition producers fail. Corrected82 seals194 PASS/46 nonpassing across240 controls; these bounded
 results do not close Native or the complete consumer union.
 
 Current Runtime audit rows26 and29 already use shared owners: rename destination
@@ -123,3 +124,22 @@ generation and optional direct ensemble token. Reporting FQNs supply no identity
 OO definitionnamespace remains a concrete original object-namespace lookup
 migration; fixed authored ::oo::Helpers support is a separate path. These source
 audit dispositions do not renew runtime execution acceptance.
+
+Core84 builds and seals71 controls at48 PASS/23 FAIL, zero source drift and no
+empty selectors. All original68 controls are retained. The new minifier and
+linked-editing controls pass. Two exact ValueKey hover controls still lack the
+readonly SSA producer versions; graph/taint and original navigation failures
+remain visible in the retained results. This is bounded Core acceptance, not
+complete LSP or source-read conformance.
+
+Current source integrates the Authored control bridge with original expansion
+refusal and SameInvocation Body timing, plus Hosted source case-clause grammar
+under the actual retained input configuration. Shared owner getters preserve
+those same facts. Native procedure issuance now precedes generic body catalogue
+retention only when the authentic issuer succeeds, preserving exact parent
+receipt checks. Live source dispatcher/loop stack factoring keeps all original
+ordering, effects, caps and depth budgets. These reviewed changes await actual
+producer and original budget controls. Authored substitution migration is held
+for expansion-to-original-ordinal correspondence. MCP85 records an original
+provider init metadata mismatch before building or semantic capture; actual
+runner metadata correction is pending replay and supplies no MCP acceptance.

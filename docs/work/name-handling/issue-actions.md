@@ -6,23 +6,20 @@ centralisation. This is temporary coordination material; remove before merge.
 
 ## #2286 — keep open
 
-Final current `tcltest_` filter: eight pass, one fails. Direct and alias
-missing-read controls pass across C8.4–9.1: the genuine absent warning remains
-and the unsupported prepared-cleanup warning is removed. The unchanged original
-program still reports0versus2 at C8.4, so #2286 remains open.
+The current original C8.4 program remains red: one versus two expected W210
+reads, with the remaining warning at bytes160–167. Original namespace import
+remains zero versus one. Alias setup retains all forty cases and the direct/
+shared undefined-read controls pass. Diagnostic79 times out the unchanged
+original program after180 seconds; that attempt grants no semantic acceptance.
+The reported source fixtures, both original '$absent' expectations and matching
+original interpreter init/tcltest sources remain mandatory.
 
-[Exact source, commands and results](../../../experiments/name-handling/results/w210-cleanup-flow/README.md)
-retain final9, graph20 at17pass/3fail, two loop failures reproduced with exact
-before-source under the same dependency snapshot, and an unclassified procedure
-lookup refusal. Source advice grants no Native entry, completed store, Normal
-execution or edit permission. The [cleanup receipt](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6132969379) identifies `5e6be644b`.
-
-The current [factory-prefix diagnostic](../../../experiments/name-handling/results/w210-original-program-admission/inner-predicate-question/actual/README.md)
-passes metadata/binding/site/image/configuration/source-purpose checks for all
-four headers, with matching original input and `NonLogical`. A later declaration
-guard remains unmeasured; no semantic repair is established. The latest
-[published issue receipt](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6133830042)
-identifies `6ad1d5196`; GitHub readback confirms OPEN.
+Retained cleanup-flow and factory-prefix experiments describe their captured
+source and execution only. Current source has original-braced declaration
+correspondence; the remaining current read/body producer must be diagnosed from
+the actual original input without fake Native witnesses or suppression. Keep
+#2286 open until all original controls pass. Published issue receipts and their
+original failures remain retained in the experiment documents and Git history.
 
 ## #2287 — verified and closed
 

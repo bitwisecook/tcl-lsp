@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::original_procedure_call::logical_may_named_descriptor_tests::logical_may_named_descriptors_keep_shadow_and_unknown_handler_dependencies_open ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.61s
+

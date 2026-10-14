@@ -113,9 +113,6 @@ impl OriginalAuthoredProcedureBody {
             module,
         )
     }
-    pub(crate) fn source_scope(&self) -> Option<&Arc<super::OriginalAuthoredSourceBodyScope>> {
-        self.source_scope.as_ref()
-    }
     pub(crate) fn retain_lowered_body(
         mut self,
         body: &Script,
@@ -224,7 +221,7 @@ mod tests {
                 .retained_source_tokens_for_statement(&module.top_level.statements[0])
                 .unwrap()
         );
-        assert!(card.source_scope().unwrap().matches_module(&module));
+        assert!(card.source_scope.as_ref().unwrap().matches_module(&module));
         let body_tokens = procedure
             .body
             .retained_source_tokens_for_statement(&procedure.body.statements[0])
@@ -249,7 +246,7 @@ mod tests {
             super::super::admitted_native_compiler_invocation(&registry, None, body_tokens)
                 .is_none()
         );
-        let scope = card.source_scope().unwrap();
+        let scope = card.source_scope.as_ref().unwrap();
         assert!(scope.original_words(body_tokens, &registry).is_some());
         let mut stale = body_tokens.clone();
         stale.argv_texts[1] = "different".to_owned();

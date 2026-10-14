@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::api::tests::caller_of_frameless_builtin_stays_pure_leaf ... 
+thread 'var_escape::api::tests::caller_of_frameless_builtin_stays_pure_leaf' (340401) panicked at rust/tcl-compiler/src/var_escape/api.rs:275:35:
+authored fixture body
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::api::tests::caller_of_frameless_builtin_stays_pure_leaf
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.09s
+

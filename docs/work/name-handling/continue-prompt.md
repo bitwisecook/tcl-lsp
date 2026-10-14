@@ -101,12 +101,13 @@ required checks must pass at the PR stage. Do not merge.
   Investigate actual array-search/element-unset storage/lifetime cause first;
   a start marker or absent failure banner is not success. Keep the proposed
   original-argv WASM change on hold until this blocker is understood.
-- #2286 remains OPEN: cleanup controls 8/9 and graph controls 17/20;
-  the original C8.4 missing-read control returns zero W210 instead of two.
-  Original outer admission and factory-prefix checks pass; later declaration
-  row/formals/body-origin/unanimity evidence is unresolved. Diagnose the first
-  actual refusal without fake native witnesses or blanket suppression. Preserve
-  all reported tclopt inputs and real missing-read negatives.
+- #2286 remains OPEN. Current original C8.4 program is one versus two W210
+  reads at bytes160–167; namespace import remains zero versus one. Alias setup
+  retains all forty cases and shared undefined-read controls pass. Diagnostic79
+  times out the unchanged program after180 seconds and grants no acceptance.
+  Diagnose actual retained input/read/body producer refusals; preserve every
+  reported source, both '$absent' expectations and matching original init/tcltest
+  files. Do not fabricate Native witnesses or suppress the original assertions.
 - Retired-namespace variable-diagnostic Runtime controls still fail 3/3.
   The caller-context source review proposes preserving selected EVAL_STK
   compilation and ordinary element NameLookup context. A proposal is not a fix.

@@ -1502,33 +1502,53 @@ impl Lowerer<'_> {
         let Some(tok) = tok else {
             return Script::new();
         };
-        if let Some(scope) = self.authored_source_scope.clone() {
-            let child = self.structured_source_parent.as_deref().and_then(|parent| {
+        let authored_child = if let Some(scope) = self.authored_source_scope.clone() {
+            self.structured_source_parent.as_deref().and_then(|parent| {
                 let original = scope.original_words(parent, self.registry)?;
                 let body = original
                     .iter()
                     .find(|word| word.span().start() == tok.span.start())?;
-                let child = scope.for_plain_body(parent, body)?;
-                let span = crate::registry_invocation::original_written_script_body_span(body)?;
-                let source = body
-                    .image()
-                    .try_text()
-                    .ok()?
-                    .get(span.as_range())?
-                    .to_owned();
-                Some((child, span, source))
-            });
-            let Some((child, span, source)) = child else {
+                Some((scope.for_plain_body(parent, body)?, body.clone()))
+            })
+        } else if self.allows_standalone_registry_metadata() {
+            self.structured_source_parent.as_deref().and_then(|parent| {
+                let grammar = crate::registry_invocation::original_authored_source_structure(parent, self.registry)?
+                    .into_closed_source_grammar()?;
+                let body = (0..parent.words().len().checked_sub(1)?)
+                    .filter_map(|argument| grammar.original_body_word(argument))
+                    .find(|word| word.span().start() == tok.span.start())?;
+                Some((crate::registry_invocation::OriginalAuthoredSourceBodyScope::capture_plain_root(parent, body, &self.module)?, body.clone()))
+            })
+        } else {
+            None
+        };
+        if let Some((child, body)) = authored_child {
+            let Some(span) = crate::registry_invocation::original_written_script_body_span(&body)
+            else {
+                return super::over_depth_script(tok.span.start(), text.len());
+            };
+            let Some(source) = body
+                .image()
+                .try_text()
+                .ok()
+                .and_then(|text| text.get(span.as_range()))
+                .map(str::to_owned)
+            else {
                 return super::over_depth_script(tok.span.start(), text.len());
             };
             let Some(namespace) = child.namespace().advisory_key() else {
                 return super::over_depth_script(tok.span.start(), text.len());
             };
-            let previous = self.authored_source_scope.replace(child.clone());
+            let previous_scope = self.authored_source_scope.replace(child.clone());
+            let previous_readonly = std::mem::replace(&mut self.readonly_authored_body, true);
             let mut script = self.lower_body(&source, span.start(), &namespace);
-            self.authored_source_scope = previous;
+            self.authored_source_scope = previous_scope;
+            self.readonly_authored_body = previous_readonly;
             script.namespace_context = Some(Box::new(child.namespace().clone()));
             return script;
+        }
+        if self.readonly_authored_body {
+            return super::over_depth_script(tok.span.start(), text.len());
         }
         if let Some(script) = self
             .source_bindings

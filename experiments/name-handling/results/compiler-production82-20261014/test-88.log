@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::cfg_propagation::walker::tests::unknown_command_sets_call_fallback ... 
+thread 'var_escape::cfg_propagation::walker::tests::unknown_command_sets_call_fallback' (340532) panicked at rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:988:9:
+assertion failed: r.has_call_fallback()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::cfg_propagation::walker::tests::unknown_command_sets_call_fallback
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.16s
+

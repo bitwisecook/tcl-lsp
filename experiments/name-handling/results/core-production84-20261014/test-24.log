@@ -1,0 +1,15 @@
+
+running 1 test
+test hover::tests::class_member_hover_two_element_link_alias_notes_the_real_target ... 
+thread 'hover::tests::class_member_hover_two_element_link_alias_notes_the_real_target' (339347) panicked at rust/tcl-lsp-core/src/hover.rs:5658:52:
+hover
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    hover::tests::class_member_hover_two_element_link_alias_notes_the_real_target
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3033 filtered out; finished in 0.81s
+

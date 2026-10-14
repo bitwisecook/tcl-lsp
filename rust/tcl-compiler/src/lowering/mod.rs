@@ -2716,6 +2716,12 @@ impl<'r> Lowerer<'r> {
         &self,
         tokens: &CommandTokens,
     ) -> Option<crate::registry_invocation::SourceStructuredInvocation> {
+        if self.allows_standalone_registry_metadata() {
+            return crate::registry_invocation::original_authored_control_invocation(
+                tokens,
+                self.registry,
+            );
+        }
         let metadata = self.invocation_metadata_context()?;
         if self.readonly_native_declaration_body {
             return crate::registry_invocation::original_native_source_structured_invocation(

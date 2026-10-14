@@ -4757,6 +4757,20 @@ fn source_execution_context_boxed<'a>(
     })
 }
 
+#[inline(never)]
+fn source_context_clone_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(*context)
+}
+
+#[inline(never)]
+fn source_context_conditional_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(context.conditional())
+}
+
 /// Derived traversal contexts live on the heap at genuine entry changes.
 /// Every unmodified field retains its exact original frame and source receipt.
 #[inline(never)]
@@ -8697,19 +8711,12 @@ impl SourceCommandBindings {
             words,
             effective,
         } = input;
-        let mut outcomes = SourceOutcomes::default();
-        self.retain_rule_loader_events(segment, words, effective, state, *context);
         if let Some(outcomes) =
-            logical_definition::transfer_selected(words, segment.span.start(), state, *context)
+            self.prepare_selected_source_command(input, state, compiled, context)
         {
-            return outcomes;
+            return *outcomes;
         }
-        if !compiled.compile_error
-            && let Some(result) =
-                self.walk_selected_receiver_command(segment, words, effective, state, context)
-        {
-            return *result;
-        }
+        let mut outcomes = boxed_source_outcomes();
         let incoming = boxed_source_branch(state);
         if compiled.live {
             self.join_live_source_command(input, &incoming, context, &mut outcomes);
@@ -8759,7 +8766,33 @@ impl SourceCommandBindings {
             &mut outcomes,
         );
         outcomes.publish(state);
-        outcomes
+        *outcomes
+    }
+
+    #[inline(never)]
+    fn prepare_selected_source_command(
+        &mut self,
+        input: SourceCommandInput<'_>,
+        state: &mut ModuleCommandBindings,
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        let SourceCommandInput {
+            segment,
+            words,
+            effective,
+            ..
+        } = input;
+        self.retain_rule_loader_events(segment, words, effective, state, *context);
+        if let Some(outcomes) =
+            logical_definition::transfer_selected(words, segment.span.start(), state, *context)
+        {
+            return Some(Box::new(outcomes));
+        }
+        if !compiled.compile_error {
+            return self.walk_selected_receiver_command(segment, words, effective, state, context);
+        }
+        None
     }
 
     /// Receiver-only temporaries do not remain live through native body descent.
@@ -9008,26 +9041,8 @@ impl SourceCommandBindings {
             effective,
             ..
         } = input;
-        let namespace = context.namespace_identity();
-        let head = original_name_value::original_command_head_input(
-            words,
-            segment.span.start(),
-            state,
-            *context,
-        );
-        #[cfg(debug_assertions)]
-        trace_original_generic_head(segment.span.start(), state, head.is_some());
-        let Some(head) = head else {
-            state.mark_opaque_binding_mutation();
-            outcomes.join(&SourceOutcomes::invocation(
-                state,
-                tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
-            ));
-            return;
-        };
-        let binding = source_binding_from_original_input_boxed(state, &head, &namespace);
-        #[cfg(debug_assertions)]
-        trace_original_generic_binding(segment.span.start(), binding.as_deref());
+        let binding =
+            Self::prepare_original_source_binding(words, segment.span.start(), state, context);
         let Some(binding) = binding else {
             state.mark_opaque_binding_mutation();
             outcomes.join(&SourceOutcomes::invocation(
@@ -9086,6 +9101,24 @@ impl SourceCommandBindings {
             outcomes.join(&result);
         }
         outcomes.publish(state);
+    }
+
+    #[inline(never)]
+    fn prepare_original_source_binding(
+        words: &[crate::ir::WordExpr],
+        offset: u32,
+        state: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceInvocationBinding>> {
+        let namespace = context.namespace_identity();
+        let head = original_name_value::original_command_head_input(words, offset, state, *context);
+        #[cfg(debug_assertions)]
+        trace_original_generic_head(offset, state, head.is_some());
+        let head = head?;
+        let binding = source_binding_from_original_input_boxed(state, &head, &namespace);
+        #[cfg(debug_assertions)]
+        trace_original_generic_binding(offset, binding.as_deref());
+        binding
     }
 
     fn walk_document_target(
@@ -9793,15 +9826,9 @@ impl SourceCommandBindings {
         incoming: &ModuleCommandBindings,
     ) -> SourceOutcomes {
         let facts = prepared.facts.as_ref();
-        // An attested definition recipe owns its installation prerequisites;
-        // scripted providers do not borrow a stock normal-handler envelope.
-        if let Some(outcomes) = Self::walk_snit_definition(native, state, *context) {
-            return outcomes;
-        }
-        if let Some(outcomes) =
-            source_representation::opaque_result_producer(native, facts, state, *context)
+        if let Some(outcomes) = Self::prepare_non_body_source_result(native, facts, state, context)
         {
-            return outcomes;
+            return *outcomes;
         }
         let completions = CapturedNativeCompletionReceipts::capture(native, facts, state, context);
         let mut receipts = capture_source_native_results_boxed(native, facts, state, context);
@@ -9865,8 +9892,8 @@ impl SourceCommandBindings {
             context,
             &mut receipts,
         );
-        let outcomes = self.finish_native_source_completion(
-            outcomes,
+        self.finish_native_source_completion(
+            &mut outcomes,
             native,
             facts,
             incoming,
@@ -9874,18 +9901,33 @@ impl SourceCommandBindings {
             receipts.normal_write.as_ref().filter(|_| write_complete),
         );
         outcomes.publish(state);
-        outcomes
+        *outcomes
+    }
+
+    #[inline(never)]
+    fn prepare_non_body_source_result(
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        // An attested definition recipe owns its installation prerequisites;
+        // scripted providers do not borrow a stock normal-handler envelope.
+        if let Some(outcomes) = Self::walk_snit_definition(native, state, *context) {
+            return Some(Box::new(outcomes));
+        }
+        source_representation::opaque_result_producer(native, facts, state, *context).map(Box::new)
     }
 
     fn finish_native_source_completion(
         &mut self,
-        mut outcomes: SourceOutcomes,
+        outcomes: &mut SourceOutcomes,
         native: SourceNativeInvocation<'_>,
         facts: &InvocationFacts,
         incoming: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
         write: Option<&crate::var_resolve::OriginalNormalValueWrite>,
-    ) -> SourceOutcomes {
+    ) {
         // A selected total arithmetic expression owns this certificate.
         // Other native body handlers have independent condition, iteration,
         // restoration and completion obligations, even with a normal child.
@@ -9903,7 +9945,7 @@ impl SourceCommandBindings {
                 native,
                 facts,
                 incoming,
-                &outcomes,
+                outcomes,
                 write,
                 context.registry,
             );
@@ -9943,7 +9985,6 @@ impl SourceCommandBindings {
         {
             outcomes.complete_procedure_return = Some(outcomes.abrupt[0].0);
         }
-        outcomes
     }
 
     /// Retain only the selected handler contract through recursive execution.
@@ -10056,29 +10097,30 @@ impl SourceCommandBindings {
         facts: &InvocationFacts,
         route: tcl_registry::completion_route::InvocationCompletionRoute,
         incoming: &ModuleCommandBindings,
-    ) -> SourceOutcomes {
+    ) -> Box<SourceOutcomes> {
         if let Some(outcomes) = trusted_package_transfer::OriginalTrustedPackageTransfer::capture(
             native, facts, state, *context,
         )
         .map(|transfer| transfer.finish(native, facts, state, *context))
         {
-            return outcomes;
+            return Box::new(outcomes);
         }
         if self.defers_runtime_body(native, facts) {
-            return opaque_source_invocation(state);
+            return Box::new(opaque_source_invocation(state));
         }
         let route = match self.prepare_native_target(native, state, context, facts, route, incoming)
         {
             Ok(route) => route,
-            Err(outcomes) => return *outcomes,
+            Err(outcomes) => return outcomes,
         };
         if let Some(tcl_registry::body_execution::BodyExecutionSpec::CapturedLifecycle(spec)) =
             facts.body_execution.as_ref()
         {
-            return self.walk_prepared_native_lifecycle(spec, native, state, *context);
+            return Box::new(self.walk_prepared_native_lifecycle(spec, native, state, *context));
         }
-        let mut outcomes =
-            self.walk_selected_native_body(native, state, context, facts, route, incoming);
+        let mut outcomes = Box::new(
+            self.walk_selected_native_body(native, state, context, facts, route, incoming),
+        );
         transfer_native_completion_outputs(&mut outcomes, native, facts, route, *context);
         outcomes.publish(state);
         outcomes

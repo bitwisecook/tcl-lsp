@@ -1,0 +1,15 @@
+
+running 1 test
+test body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit ... 
+thread 'body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit' (340195) panicked at rust/tcl-compiler/src/body_analysis_capsule.rs:1281:18:
+actual Native source dependency certificate
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.26s
+

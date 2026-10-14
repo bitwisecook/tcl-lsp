@@ -4455,6 +4455,39 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         .map(|layout| (case, layout))
     }
 
+    /// Conditional clause bodies from the selected case descriptor and the
+    /// exact source argv. Counted source bytes are borrowed only when lossless;
+    /// option ambiguity remains explicit. Executable roles remain unchanged.
+    #[must_use]
+    pub fn authored_source_case_clause_projection(
+        &self,
+        source_values: tcl_syntax::word_rules::WordValueRules,
+    ) -> Option<crate::CaseBodyOperands> {
+        if self.semantics.argument_offset != 0 {
+            return None;
+        }
+        let case = *self.semantics.options.case_list?;
+        let arguments = self.words.arguments();
+        let count = arguments.exact_argv_len()?;
+        let source = (0..count)
+            .map(|argument| match arguments.get(argument)? {
+                InvocationWord::KnownBytes(bytes) => {
+                    (!bytes.contains(&0)).then_some(())?;
+                    Some(InvocationWord::Literal(std::str::from_utf8(bytes).ok()?))
+                }
+                word => Some(word),
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let source = crate::InvocationArguments::structured(&source);
+        let options = self.semantics.options.available().collect::<Vec<_>>();
+        case.possible_source_body_operands(
+            source,
+            &options,
+            source_values,
+            self.semantics.options.availability.query,
+        )
+    }
+
     /// Original case-pattern layout from this already selected descriptor.
     /// Unknown ordinary subjects/actions remain unknown. Exact cardinality,
     /// options and their availability stay shared with the case grammar. The
@@ -6452,6 +6485,89 @@ mod tests {
                     .unwrap()
                     .facts();
                 assert_eq!(facts.return_type, expected, "{environment}: {words:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection() {
+        use crate::InvocationWord::{Dynamic, Expanded, KnownBytes, Literal};
+        for environment in ["tcl8.4", "tcl8.6", "tcl9.1", "jim", "f5-irules"] {
+            let context =
+                crate::model::ingress::resolve_environment(environment).default_context_registry();
+            let dialect =
+                crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+            let words = [
+                KnownBytes(b"-exact"),
+                Dynamic,
+                KnownBytes(b"/a {set x 1} default {set x 2}"),
+            ];
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(Literal("switch"), &words)
+                        .with_dialect(dialect),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .resolved()
+                .unwrap();
+            assert!(
+                !selected.authored_source_argument_roles().1,
+                "{environment}"
+            );
+            let bodies = selected
+                .authored_source_case_clause_projection(dialect.word_values)
+                .unwrap();
+            let source_selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(Literal("switch"), &words),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .resolved()
+                .unwrap();
+            assert!(source_selected.words.arguments().dialect().is_none());
+            assert_eq!(
+                source_selected
+                    .authored_source_case_clause_projection(dialect.word_values)
+                    .unwrap(),
+                bodies
+            );
+
+            assert_eq!(bodies.bodies.len(), 2, "{environment}");
+            assert!(bodies.bodies.iter().all(|body| body.argument == 2));
+            assert!(bodies.selection_unknown, "{environment}");
+            for words in [
+                vec![
+                    KnownBytes(b"-exact"),
+                    Dynamic,
+                    KnownBytes(b"/a {set x 1} dangling"),
+                ],
+                vec![
+                    KnownBytes(b"-exact"),
+                    Dynamic,
+                    KnownBytes(b"/a {set x 1}\0"),
+                ],
+                vec![KnownBytes(b"-exact"), Dynamic, Expanded],
+            ] {
+                let selected =
+                    crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                        context.commands(),
+                        Some(context.context()),
+                        crate::InvocationWords::structured(Literal("switch"), &words)
+                            .with_dialect(dialect),
+                        tcl_dialect::model::InvocationRealm::RuleLoader,
+                    )
+                    .resolved()
+                    .unwrap();
+                assert!(
+                    selected
+                        .authored_source_case_clause_projection(dialect.word_values)
+                        .is_none(),
+                    "{environment}"
+                );
             }
         }
     }

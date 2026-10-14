@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::helpers::tests::scan_value_finds_info_exists_literal ... 
+thread 'var_escape::helpers::tests::scan_value_finds_info_exists_literal' (340670) panicked at rust/tcl-compiler/src/var_escape/helpers.rs:600:9:
+assertion failed: !pess
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::helpers::tests::scan_value_finds_info_exists_literal
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.28s
+

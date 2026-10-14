@@ -68,6 +68,55 @@ impl OriginalAuthoredSourceBodyScope {
         Some(Arc::new(scope))
     }
 
+    pub(crate) fn capture_plain_root(
+        header: &CommandTokens,
+        body: &NativeWord,
+        module: &Module,
+    ) -> Option<Arc<Self>> {
+        if module.source_metadata_input.is_some()
+            || module.source_entry.native_entry.is_some()
+            || module.source_entry.hosted_execution_context.is_some()
+            || module.source_entry.unknown_entry
+        {
+            return None;
+        }
+        let binding = header.source_binding.as_ref()?;
+        let registry = binding
+            .retained_registry_snapshot_for_tokens(header)?
+            .clone();
+        let grammar = super::original_authored_source_structure(header, registry.registry())?
+            .into_closed_source_grammar()?;
+        let argument = (0..header.words().len().checked_sub(1)?)
+            .find(|&argument| grammar.original_argument_word(argument) == Some(body))?;
+        grammar.with_source_schema(registry.registry(), |schema| {
+            (schema.semantics.frame_effect.is_none()
+                && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+                && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
+                && schema
+                    .authored_source_plain_script_arguments()?
+                    .contains(&argument)
+                && schema.authored_source_script_timing_at(argument)?
+                    == tcl_registry::ScriptTiming::SameInvocation)
+                .then_some(())
+        })?;
+        (module.registry_snapshot.as_ref()?.semantic_key() == registry.semantic_key()
+            && module.native_lexer_config() == body.config()
+            && body.image() == &module.source)
+            .then_some(())?;
+        Some(Arc::new(Self {
+            header: header.clone(),
+            body: body.clone(),
+            namespace: grammar.source_namespace().clone(),
+            registry,
+            entry: module.source_entry.clone(),
+            profile: module.dialect_profile,
+            realm: binding.invocation_realm()?,
+            dialect: binding.original_source_word_dialect_for_tokens(header),
+            commands: Self::commands(body)?,
+            parent: None,
+        }))
+    }
+
     fn commands(body: &NativeWord) -> Option<Arc<[NativeScriptCommandWords]>> {
         let span = super::source_scoped_body::original_written_script_body_span(body)?;
         let plan = tcl_lexer::native_script_words_in_with_purpose(

@@ -1,0 +1,16 @@
+
+running 1 test
+test command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners ... 
+thread 'command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners' (340199) panicked at rust/tcl-compiler/src/command_binding/generated_procedures.rs:752:9:
+assertion failed: matches!(procedure.body.statements[0], crate::ir::Statement::AssignValue
+    { .. })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.19s
+

@@ -1,0 +1,17 @@
+
+running 1 test
+test inlay_hints::retained_hint_context_tests::logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors ... 
+thread 'inlay_hints::retained_hint_context_tests::logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors' (339393) panicked at rust/tcl-lsp-core/src/inlay_hints.rs:2745:13:
+assertion `left == right` failed: interp alias {} fmt {} format; fmt {%d} 7: [InlayHint { position_line: 0, position_character: 13, label: "path:", kind: Parameter, padding_left: false }, InlayHint { position_line: 0, position_character: 16, label: "cmd:", kind: Parameter, padding_left: false }]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlay_hints::retained_hint_context_tests::logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3033 filtered out; finished in 5.22s
+

@@ -1,0 +1,15 @@
+
+running 1 test
+test inlay_hints::retained_hint_context_tests::logical_type_hints_keep_repeated_declarations_on_their_original_body_ids ... 
+thread 'inlay_hints::retained_hint_context_tests::logical_type_hints_keep_repeated_declarations_on_their_original_body_ids' (339472) panicked at rust/tcl-lsp-core/src/inlay_hints.rs:3106:9:
+[]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlay_hints::retained_hint_context_tests::logical_type_hints_keep_repeated_declarations_on_their_original_body_ids
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3033 filtered out; finished in 3.41s
+

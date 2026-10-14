@@ -1,0 +1,23 @@
+
+running 1 test
+test namespace_rename::tests::tp_rewrites_every_written_spelling_of_the_namespace ... 
+thread 'namespace_rename::tests::tp_rewrites_every_written_spelling_of_the_namespace' (339714) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:921:9:
+no spelling may be left: namespace eval ::new {
+    variable v 1
+    proc p {} { return P }
+}
+namespace eval ::new { proc q {} { return Q } }
+puts $::new::v
+puts [::old::p]
+namespace children ::new
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    namespace_rename::tests::tp_rewrites_every_written_spelling_of_the_namespace
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3033 filtered out; finished in 1.05s
+

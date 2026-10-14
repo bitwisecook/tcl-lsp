@@ -1,0 +1,17 @@
+
+running 1 test
+test var_escape::slot_resolution::tests::slot_metadata_uses_registry_rooted_selection_and_refuses_unknown_heads ... 
+thread 'var_escape::slot_resolution::tests::slot_metadata_uses_registry_rooted_selection_and_refuses_unknown_heads' (340834) panicked at rust/tcl-compiler/src/var_escape/slot_resolution.rs:619:13:
+assertion `left == right` failed
+  left: None
+ right: Some(0)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::slot_resolution::tests::slot_metadata_uses_registry_rooted_selection_and_refuses_unknown_heads
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.00s
+

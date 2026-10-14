@@ -48,26 +48,51 @@ impl CaseListSpec {
         arguments: InvocationArguments<'_>,
         options: &[&crate::hover::OptionSpec],
     ) -> Option<CaseBodyOperands> {
+        self.project_body_operands(
+            arguments,
+            options,
+            arguments.dialect().map(|dialect| dialect.word_values),
+            arguments
+                .dialect()
+                .and_then(crate::InvocationDialect::authoring_query),
+        )
+    }
+
+    pub(crate) fn possible_source_body_operands(
+        self,
+        arguments: InvocationArguments<'_>,
+        options: &[&crate::hover::OptionSpec],
+        values: tcl_syntax::word_rules::WordValueRules,
+        query: Option<tcl_dialect::model::SurfaceQuery<'_>>,
+    ) -> Option<CaseBodyOperands> {
+        self.project_body_operands(arguments, options, Some(values), query)
+    }
+
+    fn project_body_operands(
+        self,
+        arguments: InvocationArguments<'_>,
+        options: &[&crate::hover::OptionSpec],
+        word_values: Option<tcl_syntax::word_rules::WordValueRules>,
+        query: Option<tcl_dialect::model::SurfaceQuery<'_>>,
+    ) -> Option<CaseBodyOperands> {
         let count = arguments.exact_argv_len()?;
         let values = (0..count)
             .map(|index| arguments.literal_at(index))
             .collect::<Vec<_>>();
-        let layout = self.possible_invocation_values(
-            &values,
-            options,
-            arguments
-                .dialect()
-                .and_then(crate::InvocationDialect::authoring_query),
-        )?;
+        let layout = self.possible_invocation_values(&values, options, query)?;
         let list_index = layout.clause_list_index;
         let inline_start = layout.inline_clause_start;
-        let selection_unknown =
-            self.subject_selection_is_unknown(arguments, options, &values, layout.subject_index);
+        let selection_unknown = self.subject_selection_is_unknown(
+            arguments,
+            options,
+            &values,
+            layout.subject_index,
+            query,
+        );
         let no_match_possible;
         let patterns;
         let bodies = if let Some(argument) = list_index {
-            let dialect = arguments.dialect()?;
-            let elements = dialect.word_values.split_list(values[argument]?).ok()?;
+            let elements = word_values?.split_list(values[argument]?).ok()?;
             if elements.is_empty() {
                 return None;
             }
@@ -137,13 +162,11 @@ impl CaseListSpec {
         options: &[&crate::hover::OptionSpec],
         values: &[Option<&str>],
         subject: Option<usize>,
+        query: Option<tcl_dialect::model::SurfaceQuery<'_>>,
     ) -> bool {
         let Some(index) = subject.filter(|index| values[*index].is_none()) else {
             return false;
         };
-        let query = arguments
-            .dialect()
-            .and_then(crate::InvocationDialect::authoring_query);
         let Some(reserved) = self.option_scan_reserved_for_arguments(arguments, query, 2) else {
             return true;
         };

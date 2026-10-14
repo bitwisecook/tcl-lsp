@@ -1,0 +1,6 @@
+
+running 1 test
+test var_escape::cfg_propagation::handlers::tests::info_exists_literal_escapes_target ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.33s
+

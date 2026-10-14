@@ -1180,7 +1180,7 @@ impl BodyWalk<'_, '_> {
             }
             return self
                 .context
-                .retain_source_inventory(tape, invocation, graph, schema);
+                .retain_source_inventory(tape, invocation, graph, schema, None);
         }
         let retained_producer = if let Some(body) = &self.source_body {
             let mut advice = self.context.schema_advice(invocation, graph, schema)?;

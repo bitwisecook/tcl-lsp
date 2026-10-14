@@ -1,10 +1,10 @@
 # Remaining name-handling obligations
 
-Temporary current snapshot on `work`; remove before PR. Tracking checkpoint11:13 UTC; next11:28 UTC, hourly report12:13 UTC. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised. Required PR gates remain mandatory.
+Temporary current snapshot on `work`; remove before PR. Tracking checkpoint11:28 UTC; next11:43 UTC, hourly report12:13 UTC. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised. Required PR gates remain mandatory.
 
 | Obligation | Current evidence | Next action |
 | --- | --- | --- |
-| Compiler source/body/frame consumers | Compiler67:442/599 pass, source subset drift0; all542 previous controls retained with35 gains/3 escape regressions. Protected scope passes; four depth-budget aborts remain. | Logical stamping/summary/global, Native child/MAY and Authored source roles integrated; finish actual source body/SSA/slot producers and replay unchanged controls. |
+| Compiler source/body/frame consumers | Compiler67:442/599 pass, source subset drift0; all542 previous controls retained with35 gains/3 escape regressions. Protected scope passes; four depth-budget aborts remain. | Logical stamping/summary/global, Native child/MAY and Authored source roles integrated; authored controls, Hosted cases and real Native parent catalogue owners are integrated; finish source body/SSA/slot producers and replay unchanged controls. |
 | DB reuse/source metadata | DB61 original10:0 pass/10 fail, source subset drift0; whole-file shift regresses. | Move original Native child/schema, summary and cache consumers to actual cards; preserve counts and uncached equivalence. |
 | LSP joins and graph analysis | Core34:39/64 pass, source subset drift0; original30 gains2/no regression; scope9:8/9. | SourceSSA definitions and original autoload/current publication integrated; current build-only failure corrected; finish genuine source reads/hover/coordinates and replay linked navigation. |
 | Taint consumers | Shared status/report and Core/Explorer display migrations integrated, execution pending. | Run original plus new snapshot/currentness/status refusal controls. |

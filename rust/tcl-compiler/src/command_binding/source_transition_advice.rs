@@ -1840,12 +1840,15 @@ impl AdviceInvocationContext<'_> {
         invocation: AdviceInvocation<'_>,
         graph: &AdviceGraph,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        procedure: Option<&source_procedure::OriginalSourceProcedureBody>,
     ) -> Option<()> {
         self.retain_schema_advice(tape, invocation, graph, schema)?;
         self.retain_c_source_lifecycle_inventory(tape, graph, invocation, schema, None, 0);
         self.retain_authored_command_prefix(tape, invocation, graph, schema, None);
         self.retain_definition_member_prefix_inventory(tape, graph, invocation, schema);
-        self.retain_original_body_catalogue(tape, graph, invocation, schema);
+        if procedure.is_none() {
+            self.retain_original_body_catalogue(tape, graph, invocation, schema);
+        }
         self.retain_source_callback_targets(tape, invocation, graph, schema);
         self.retain_produced_command_prefixes(tape, invocation, graph, schema, None);
         self.retain_logical_procedure_body(tape, invocation, graph, schema);
@@ -2091,11 +2094,11 @@ impl AdviceInvocationContext<'_> {
             arguments: &arguments,
             lineage: &lineage,
         };
-        self.retain_source_inventory(tape, selected, graph, &schema)?;
+        let procedure = self.source_procedure_declaration(graph, selected, &schema);
+        self.retain_source_inventory(tape, selected, graph, &schema, procedure.as_deref())?;
         self.retain_interpreter_paths(tape, selected, graph, &schema);
         let factory = self.registered_factory(graph, selected, &schema);
         let class = self.source_class_declaration(graph, selected, &schema);
-        let procedure = self.source_procedure_declaration(graph, selected, &schema);
         self.retain_source_configured_class(tape, graph, selected, &schema);
         self.retain_source_class_operand_references(
             tape,

@@ -1,0 +1,15 @@
+
+running 1 test
+test ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner ... 
+thread 'ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner' (340324) panicked at rust/tcl-compiler/src/ssa.rs:12961:18:
+actual original read has its own current source/SSA producer
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 4.02s
+

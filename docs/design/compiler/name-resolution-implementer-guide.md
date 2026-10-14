@@ -10590,8 +10590,8 @@ Encoding names remain original bytes through literal-zero C-string extent and ca
 Use `Module::original_source_procedure_bodies` for conditional procedure-effect
 summaries. It enumerates ordinary procedures with the same Module issuer.
 Allocation-backed OriginalDeclaration units require their genuine declaration
-site, allocation, source image and body kind. Separate Native-name, Logical and
-Hosted source cards validate their actual current body row and complete Module
+site, allocation, source image and body kind. Separate Native-name, Logical, Hosted and Authored/Standalone source cards
+validate their actual current body row and complete Module
 inputs through their own card owner. Every row belongs to the same Module issuer;
 source cards supply no implementation allocation or publication. Complete
 retained Module correspondence independently checks current signatures before
@@ -10656,6 +10656,20 @@ payloads and source grammar. Known-name/scanner consumers pass the same actual
 Registry through nested scripts and preserve unknown coverage. Physical slot
 eligibility requires the independent strict Normal frameless handler and complete
 arity/roles; source name metadata cannot supply it.
+
+`OriginalAuthoredSourceBodyScope` retains the actual declaration header/body and
+complete original lexical command vectors. Readonly children require this exact
+scope and immutable Registry; missing ownership stays unowned. Present stronger,
+Logical or Native purposes keep their terminal query or refusal. Literal empty
+and sigil-bearing names remain data under the owner's word/list configuration.
+
+`original_authored_body_name_candidates` selects original SameInvocation body
+operands through the actual parent schema. Shared NestedScript parsing and
+lexical/name-role readers provide only possible spill names, with unknown
+coverage always retained. This vocabulary does not enter an eval/uplevel frame
+or establish complete absence. Dictionary source MAY name footprints similarly
+withdraw possible contents; physical dictionary entry and explicit additional
+write/observer effects keep their independent owners.
 
 Use `WordExpr::original_written_span` for written word extents and
 `original_command_substitution_span` for a sole command component. Whole Command

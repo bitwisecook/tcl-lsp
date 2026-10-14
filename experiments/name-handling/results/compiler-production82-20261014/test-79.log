@@ -1,0 +1,17 @@
+
+running 1 test
+test var_escape::cfg_propagation::walker::tests::descends_into_if_body ... 
+thread 'var_escape::cfg_propagation::walker::tests::descends_into_if_body' (340514) panicked at rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:1016:9:
+assertion `left == right` failed
+  left: None
+ right: Some(Frame)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::cfg_propagation::walker::tests::descends_into_if_body
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.12s
+

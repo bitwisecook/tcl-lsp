@@ -766,6 +766,15 @@ mod original_native_body_tests {
                 .original_native_source_words(tokens, input, registry)
                 .unwrap();
             assert!(matches!(words.source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(_)));
+            let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                unreachable!("asserted original source transition owner");
+            };
+            assert_eq!(
+                advice
+                    .original_procedure_source_body()
+                    .map(|body| body.content_span()),
+                card.body_span(),
+            );
             assert!(
                 crate::registry_invocation::admitted_native_compiler_invocation(
                     registry, None, tokens

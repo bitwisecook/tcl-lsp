@@ -1,0 +1,15 @@
+
+running 1 test
+test namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal ... 
+thread 'namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal' (339580) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:711:64:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3033 filtered out; finished in 0.00s
+

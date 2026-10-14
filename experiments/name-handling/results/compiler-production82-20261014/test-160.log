@@ -1,0 +1,16 @@
+
+running 1 test
+test var_escape::slot_resolution::tests::authored_source_name_roles_cannot_donate_normal_slot_eligibility ... 
+thread 'var_escape::slot_resolution::tests::authored_source_name_roles_cannot_donate_normal_slot_eligibility' (340791) panicked at rust/tcl-compiler/src/var_escape/slot_resolution.rs:844:9:
+assertion failed: call_disables_slots(&module.top_level, &module.top_level.statements[0],
+    &mut ineligible)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::slot_resolution::tests::authored_source_name_roles_cannot_donate_normal_slot_eligibility
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 0.08s
+

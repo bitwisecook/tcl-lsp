@@ -13,6 +13,7 @@ pub(crate) enum SourceStructuredInvocation {
     Logical(Box<LogicalStructuredInvocation>),
     Hosted(Box<HostedStructuredInvocation>),
     NativeSource(Box<HostedStructuredInvocation>),
+    Authored(Box<super::authored_controls::AuthoredControlInvocation>),
 }
 
 pub(crate) struct HostedStructuredInvocation {
@@ -20,6 +21,8 @@ pub(crate) struct HostedStructuredInvocation {
     input: crate::analyser::ResolvedAnalysisInput,
     descriptor: tcl_registry::CanonicalCommandDescriptorKey<'static>,
     hook: tcl_registry::hooks::LoweringHookId,
+    source_roles: Vec<(usize, tcl_registry::ArgRole)>,
+    case_bodies: Option<tcl_registry::CaseBodyOperands>,
 }
 
 pub(crate) fn original_hosted_structured_invocation(
@@ -43,7 +46,7 @@ pub(crate) fn original_hosted_structured_invocation(
         tokens,
         metadata,
     )?;
-    let (descriptor, hook) =
+    let (descriptor, hook, source_roles, case_bodies) =
         words.with_source_schema(input.borrowed_context_registry(), |schema| {
             let hook = schema.facts().lowering_hook?;
             if !matches!(
@@ -51,18 +54,48 @@ pub(crate) fn original_hosted_structured_invocation(
                 tcl_registry::hooks::LoweringHookId::If
                     | tcl_registry::hooks::LoweringHookId::Switch
             ) || schema.facts().arity_accepts_frozen_arguments() != Some(true)
-                || !schema.authored_source_argument_roles().1
             {
                 return None;
             }
-            for &(argument, role) in words.roles()? {
+            let case_bodies = if schema.semantics.options.case_list.is_some() {
+                (schema.semantics.frame_effect.is_none()
+                    && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+                    && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current)
+                    .then_some(())?;
+                let clauses = schema.authored_source_case_clause_projection(
+                    tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
+                )?;
+                for body in &clauses.bodies {
+                    if schema.authored_source_script_timing_at(body.argument)?
+                        != tcl_registry::ScriptTiming::SameInvocation
+                    {
+                        return None;
+                    }
+                }
+                Some(clauses)
+            } else {
+                None
+            };
+            let source_roles = if let Some(clauses) = &case_bodies {
+                let mut roles = Vec::new();
+                for body in &clauses.bodies {
+                    if !roles.contains(&(body.argument, tcl_registry::ArgRole::Body)) {
+                        roles.push((body.argument, tcl_registry::ArgRole::Body));
+                    }
+                }
+                roles
+            } else {
+                schema.authored_source_argument_roles().1.then_some(())?;
+                words.roles()?.to_vec()
+            };
+            for &(argument, role) in &source_roles {
                 if role == tcl_registry::ArgRole::Body
                     && words.arguments().get(argument)?.literal_bytes().is_none()
                 {
                     return None;
                 }
             }
-            Some((schema.descriptor_key(), hook))
+            Some((schema.descriptor_key(), hook, source_roles, case_bodies))
         })??;
     Some(SourceStructuredInvocation::Hosted(Box::new(
         HostedStructuredInvocation {
@@ -70,6 +103,8 @@ pub(crate) fn original_hosted_structured_invocation(
             input: input.clone(),
             descriptor,
             hook,
+            source_roles,
+            case_bodies,
         },
     )))
 }
@@ -139,12 +174,15 @@ pub(crate) fn original_native_source_structured_invocation(
             }
             Some((schema.descriptor_key(), hook))
         })??;
+    let source_roles = words.roles()?.to_vec();
     Some(SourceStructuredInvocation::NativeSource(Box::new(
         HostedStructuredInvocation {
             words,
             input: input.clone(),
             descriptor,
             hook,
+            source_roles,
+            case_bodies: None,
         },
     )))
 }
@@ -153,12 +191,14 @@ impl SourceStructuredInvocation {
     pub(crate) fn canonical_command(&self) -> &str {
         match self {
             Self::Logical(selected) => selected.canonical_command(),
+            Self::Authored(selected) => selected.canonical_command(),
             Self::Hosted(selected) | Self::NativeSource(selected) => selected.descriptor.label(),
         }
     }
     pub(crate) fn descriptor_key(&self) -> tcl_registry::CanonicalCommandDescriptorKey<'_> {
         match self {
             Self::Logical(selected) => selected.descriptor_key(),
+            Self::Authored(selected) => selected.descriptor_key(),
             Self::Hosted(selected) | Self::NativeSource(selected) => selected.descriptor,
         }
     }
@@ -166,6 +206,9 @@ impl SourceStructuredInvocation {
         match self {
             Self::Logical(_) => {
                 super::SelectedLoweringBindingIdentity::Logical(self.descriptor_key())
+            }
+            Self::Authored(_) => {
+                super::SelectedLoweringBindingIdentity::AuthoredSourceSchema(self.descriptor_key())
             }
             Self::Hosted(_) => {
                 super::SelectedLoweringBindingIdentity::HostedSchema(self.descriptor_key())
@@ -183,6 +226,7 @@ impl SourceStructuredInvocation {
         apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
     ) -> Option<T> {
         match self {
+            Self::Authored(_) => None,
             Self::Logical(selected) => {
                 selected.with_metadata_schema(registry, context, realm, apply)
             }
@@ -209,9 +253,12 @@ impl SourceStructuredInvocation {
         original_realm: tcl_dialect::model::InvocationRealm,
         apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
     ) -> Option<T> {
+        if let Self::Authored(selected) = self {
+            return selected.with_source_schema(registry, apply);
+        }
         let realm = match self {
             Self::Hosted(_) => tcl_dialect::model::InvocationRealm::RuleLoader,
-            Self::Logical(_) | Self::NativeSource(_) => original_realm,
+            Self::Logical(_) | Self::NativeSource(_) | Self::Authored(_) => original_realm,
         };
         self.with_metadata_schema(registry, context, realm, apply)
     }
@@ -219,20 +266,48 @@ impl SourceStructuredInvocation {
     pub(crate) fn lowering_hook(&self) -> Option<tcl_registry::hooks::LoweringHookId> {
         match self {
             Self::Logical(selected) => selected.lowering_hook(),
+            Self::Authored(selected) => selected.lowering_hook(),
             Self::Hosted(selected) | Self::NativeSource(selected) => Some(selected.hook),
         }
     }
     pub(crate) fn written_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {
         match self {
             Self::Logical(selected) => selected.written_roles(),
+            Self::Authored(selected) => selected.written_roles(),
             Self::Hosted(selected) | Self::NativeSource(selected) => {
-                selected.words.written_argument_roles()
+                let roles = selected.case_bodies.as_ref().map_or_else(
+                    || selected.source_roles.clone(),
+                    |clauses| {
+                        clauses
+                            .bodies
+                            .iter()
+                            .map(|body| (body.argument, tcl_registry::ArgRole::Body))
+                            .collect()
+                    },
+                );
+                let mut written_roles = Vec::new();
+                for (argument, role) in roles {
+                    let Some(super::InvocationWordOrigin::Written(written)) = argument
+                        .checked_add(1)
+                        .and_then(|ordinal| selected.words.origins().get(ordinal))
+                    else {
+                        continue;
+                    };
+                    let Some(argument) = written.checked_sub(1) else {
+                        continue;
+                    };
+                    if !written_roles.contains(&(argument, role)) {
+                        written_roles.push((argument, role));
+                    }
+                }
+                written_roles
             }
         }
     }
     pub(crate) fn argument_literal(&self, argument: usize) -> Option<String> {
         match self {
             Self::Logical(selected) => selected.argument_literal(argument),
+            Self::Authored(selected) => selected.argument_literal(argument),
             Self::Hosted(selected) | Self::NativeSource(selected) => {
                 std::str::from_utf8(selected.words.arguments().get(argument)?.literal_bytes()?)
                     .ok()
@@ -243,6 +318,7 @@ impl SourceStructuredInvocation {
     pub(crate) fn traits(&self) -> Option<tcl_registry::Traits> {
         match self {
             Self::Logical(selected) => Some(selected.traits()),
+            Self::Authored(selected) => Some(selected.traits()),
             Self::Hosted(selected) | Self::NativeSource(selected) => selected
                 .words
                 .with_source_schema(selected.input.borrowed_context_registry(), |schema| {
@@ -253,6 +329,7 @@ impl SourceStructuredInvocation {
     pub(crate) fn loop_bindings_conditional(&self) -> bool {
         match self {
             Self::Logical(selected) => selected.loop_bindings_conditional(),
+            Self::Authored(selected) => selected.loop_bindings_conditional(),
             Self::Hosted(selected) | Self::NativeSource(selected) => selected
                 .words
                 .with_source_schema(selected.input.borrowed_context_registry(), |schema| {
@@ -267,7 +344,7 @@ impl SourceStructuredInvocation {
     pub(crate) fn error_context(&self) -> Option<tcl_registry::InlineBodyErrorContext> {
         match self {
             Self::Logical(selected) => selected.error_context(),
-            Self::Hosted(_) | Self::NativeSource(_) => None,
+            Self::Hosted(_) | Self::NativeSource(_) | Self::Authored(_) => None,
         }
     }
 }
@@ -348,6 +425,17 @@ mod tests {
                 selected,
                 super::SourceStructuredInvocation::Hosted(_)
             ));
+            if switch {
+                let super::SourceStructuredInvocation::Hosted(owner) = &selected else {
+                    unreachable!()
+                };
+                assert!(owner.case_bodies.as_ref().unwrap().selection_unknown);
+                assert!(owner.words.roles().is_none());
+                assert_eq!(
+                    selected.written_roles(),
+                    vec![(2, tcl_registry::ArgRole::Body)]
+                );
+            }
             assert!(matches!(
                 selected.lowering_identity(),
                 crate::registry_invocation::SelectedLoweringBindingIdentity::HostedSchema(_)

@@ -102,6 +102,12 @@ pub(crate) struct AuthoredSourceGrammar {
 }
 
 impl AuthoredSourceGrammar {
+    pub(crate) fn has_original_word_expansion(&self) -> bool {
+        self.source
+            .original_words
+            .iter()
+            .any(|word| word.group().expand)
+    }
     pub(crate) fn canonical_command(&self) -> &str {
         &self.source.facts().canonical_command
     }

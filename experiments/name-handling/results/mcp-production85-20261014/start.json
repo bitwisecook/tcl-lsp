@@ -1,0 +1,44 @@
+{
+  "started_utc": "2026-10-14T11:23:13.989243+00:00",
+  "label": "Actual MCP binary18 preserved naming and complete datagroup consumers with original C5 Jim full captured closure",
+  "source_paths": 93065,
+  "plan": {
+    "exact": [
+      "datagroup::original_arm_parser_purpose_tests::if_suggestions_use_actual_selected_source_schema_and_refuse_shadowed_heads",
+      "datagroup::tests::selected_if_suggestions_share_actual_scalar_reference_grammar",
+      "irule_gen::tests::cfg_test_generation_uses_retained_source_kind_instead_of_event_labels",
+      "irule_test::tests::original_irule_path_annotations_join_emitting_extents_instead_of_labels",
+      "irule_test::tests::path_source_kind_preserves_the_actual_diagram_category",
+      "spectcl::tests::a_body_reading_past_its_declaration_is_flagged_as_a_conflict",
+      "spectcl::tests::a_consistent_declared_implementation_has_no_evaluate_findings",
+      "spectcl::tests::a_ctx_key_outside_the_calling_convention_is_flagged",
+      "spectcl::tests::an_unattributable_ctx_use_leaves_the_declaration_unconfirmed",
+      "spectcl::tests::an_undeclared_body_is_uncacheable_whatever_it_reads",
+      "spectcl::tests::collisions_are_scoped_to_the_target_dialect",
+      "spectcl::tests::hook_context_references_use_the_selected_original_c_and_jim_grammar",
+      "spectcl::tests::hook_context_report_threads_the_requested_target_grammar",
+      "spectcl::tests::the_shape_key_extends_past_the_words"
+    ],
+    "scope": "Exact14 preserved naming consumer base plus4 actual static hint new/original controls, then every actual datagroup module test discovered from fresh executable. Original assertions preserved; authoring hints/source schema do not grant Native storage/dispatch/cache or F5 execution.",
+    "filters": [
+      "datagroup::"
+    ],
+    "package": "tcl-mcp",
+    "target_kind": "bin",
+    "target_name": "tcl-mcp",
+    "exact_count": 14,
+    "extra_exact": [
+      "irule_gen::tests::static_namespace_hints_preserve_actual_literal_variable_roles",
+      "irule_gen::tests::original_generated_static_setup_preserves_literal_repeated_prefixes",
+      "irule_gen::tests::generated_test_sets_up_live_braced_expression_and_quoted_operand_static_variables",
+      "irule_gen::tests::called_helper_static_write_preserves_hot_event_for_multi_tmm"
+    ],
+    "required_exact_count": 18
+  },
+  "plan_sha256": "42ef9285e654822c155e39e9ab033803c15e37e5c19be177743e0a2a3aaedded",
+  "runner_sha256": "69f55013b3c70d390ebc4b83b05225d3085a82466041354fb622e63879f94130",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014",
+  "closure": "Rust/runtime/data/scripts/specs/experiments/Cargo plus literal compile includes and original supplied C5/Jim interpreter/source/library bytes. Freeze every listed path, including experiment copies and compiled test fixture includes."
+}

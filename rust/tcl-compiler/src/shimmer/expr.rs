@@ -906,11 +906,8 @@ mod tests {
         assert_eq!(w.len(), 0, "unexpected expr shimmers: {w:?}");
     }
 
-    /// A double accumulator narrowed through a loop keeps a
-    /// double intrep, and a later arithmetic use reads it in place — no
-    /// shimmer, whatever the surrounding statement shape. `expr` as a bare
-    /// statement and `set z [expr …]` both lower to an expr statement the
-    /// detector walks, so both were reported before this fix.
+    /// Arithmetic preserves a loop accumulator's double representation in both
+    /// bare `expr` statements and expressions assigned through `set`.
     #[test]
     fn no_expr_shimmer_double_accumulator_in_arithmetic() {
         for tail in ["expr {$u0 * $dx}", "set z [expr {$u0 * $dx}]"] {

@@ -1,0 +1,15 @@
+
+running 1 test
+test namespace_rename::tests::tp_rewrites_a_namespace_path_entry ... 
+thread 'namespace_rename::tests::tp_rewrites_a_namespace_path_entry' (339684) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1043:48:
+a literal path entry is rewritable: "a computed namespace path has no complete original list container"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    namespace_rename::tests::tp_rewrites_a_namespace_path_entry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3033 filtered out; finished in 1.01s
+

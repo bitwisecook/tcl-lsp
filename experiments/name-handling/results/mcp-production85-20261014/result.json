@@ -1,0 +1,110 @@
+{
+  "started_utc": "2026-10-14T11:23:13.989243+00:00",
+  "binaries": {},
+  "runs": [],
+  "errors": [
+    "Unexpected original init/library selection: 9.0.4"
+  ],
+  "providers": [
+    {
+      "kind": "C Tcl",
+      "release": "8.4.20",
+      "interpreter": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "required_original_files": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl"
+      ],
+      "metadata_input": "puts [list [info patchlevel] [info library]]\n",
+      "metadata": {
+        "command": [
+          "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+        ],
+        "exit_code": 0,
+        "seconds": 0.003670901001896709,
+        "log": "provider-01.log",
+        "timed_out": false
+      }
+    },
+    {
+      "kind": "C Tcl",
+      "release": "8.5.19",
+      "interpreter": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "required_original_files": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl"
+      ],
+      "metadata_input": "puts [list [info patchlevel] [info library]]\n",
+      "metadata": {
+        "command": [
+          "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+        ],
+        "exit_code": 0,
+        "seconds": 0.00356773599924054,
+        "log": "provider-02.log",
+        "timed_out": false
+      }
+    },
+    {
+      "kind": "C Tcl",
+      "release": "8.6.18",
+      "interpreter": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "required_original_files": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl"
+      ],
+      "metadata_input": "puts [list [info patchlevel] [info library]]\n",
+      "metadata": {
+        "command": [
+          "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+        ],
+        "exit_code": 0,
+        "seconds": 0.0076869530021212995,
+        "log": "provider-03.log",
+        "timed_out": false
+      }
+    },
+    {
+      "kind": "C Tcl",
+      "release": "9.0.4",
+      "interpreter": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "required_original_files": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl"
+      ],
+      "metadata_input": "puts [list [info patchlevel] [info library]]\n",
+      "metadata": {
+        "command": [
+          "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+        ],
+        "exit_code": 0,
+        "seconds": 0.00765710900304839,
+        "log": "provider-04.log",
+        "timed_out": false
+      }
+    },
+    {
+      "kind": "C Tcl",
+      "release": "9.1.0",
+      "interpreter": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "required_original_files": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl"
+      ],
+      "metadata_input": "puts [list [info patchlevel] [info library]]\n"
+    },
+    {
+      "kind": "Jim",
+      "interpreter": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "metadata_input": "puts [list [info patchlevel]]\n",
+      "scope": "Supplied build observed, no claim of latest remote revision or original Jim suite execution."
+    }
+  ],
+  "passed": false,
+  "changed_sources": {},
+  "finished_utc": "2026-10-14T11:23:28.871145+00:00"
+}
