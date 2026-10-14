@@ -477,7 +477,7 @@ mod tests {
             Statement::Return { expr, .. } => {
                 assert!(expr.is_some(), "expected expr attached, got None");
             }
-            other => panic!("expected Return, got {:?}", std::mem::discriminant(&other)),
+            other => panic!("expected Return, got {:?}", std::mem::discriminant(other)),
         }
     }
 

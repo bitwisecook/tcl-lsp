@@ -3841,7 +3841,13 @@ impl Analyser {
                     .push(source_aliases);
             }
         }
-        let writes = if self.vendor_source_name_policy().is_some() {
+        let writes = if self.selected_logical_declaration_advice() {
+            crate::registry_invocation::logical_source_variable_write_advice(
+                &self.source,
+                &self.result,
+                &tokens,
+            )
+        } else if self.vendor_source_name_policy().is_some() {
             let image = tcl_lexer::SourceImage::document(&self.source);
             tokens
                 .words()

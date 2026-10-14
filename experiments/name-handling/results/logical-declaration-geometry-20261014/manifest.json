@@ -1,0 +1,13 @@
+{
+  "patch_sha256": "7f91194d3a93922e71930b9dcc8a3b3e04d049b90a2ff1e46a0834fc3a5ea5eb",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "before_sha256": "6336e10b77465e1749d6bedfe21920ea52fb6704fd5a4e5a83c93e498e5fb5b0",
+      "after_sha256": "2bb3888ab237d3de0e4134ef6d2d2156f06d8de4d0df81b7b98905014b3cc2a5"
+    }
+  ],
+  "rust_status": "unexecuted",
+  "measured_before": "/tmp/name-main-compiler-source17-20261014/test-04.log",
+  "test": "command_binding::original_name_value::tests::logical_original_word_geometry_includes_genuine_declaration_vectors"
+}

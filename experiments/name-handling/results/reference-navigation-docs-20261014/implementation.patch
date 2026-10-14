@@ -1,0 +1,268 @@
+--- a/docs/design/compiler/data-structure-reference.md
++++ b/docs/design/compiler/data-structure-reference.md
+@@ -70,7 +70,7 @@
+ | `Script` | Container: `statements: Vec<Statement>` |
+ | `Procedure` | A lowered `proc` body |
+ | `MethodDef` | A TclOO method body lifted from `oo::class create` / `oo::define`: `class_name`, `method_name`, `params`, `body: Script`, `kind`, `instance_vars` — analysis-only (codegen never reads it) |
+-| `Module` | `source`, `top_level: Script`, `procedures: HashMap<String, Procedure>`, `methods: HashMap<String, MethodDef>`, `body_units`, `redefined_procedures`, plus the namespace / trace / TclOO evidence maps |
++| `Module` | `source`, `top_level: Script`, `procedures: ProcedureInventory`, `methods: MethodInventory` (both Module-issued `ProcedureId` inventories), `body_units`, `redefined_procedures`, plus the namespace / trace / TclOO evidence maps |
+ 
+ Every IR statement carries a `Span` for precise diagnostic mapping.
+ 
+@@ -98,7 +98,7 @@
+ | `Terminator::Return` | Procedure exit with optional value |
+ | `Block` | `name`, `statements: Vec<Statement>`, `terminator: Option<Terminator>` |
+ | `Function` | `name`, `entry: BlockId`, `blocks: HashMap<BlockId, Block>`, `loop_nodes`, `exception_edges` |
+-| `CfgModule` | `top_level: Function` + `procedures: HashMap<String, Function>` |
++| `CfgModule` | `top_level: Function` + `procedures: HashMap<ProcedureId, Function>` |
+ 
+ ### Stage 5 — SSA types (`ssa.rs`)
+ 
+@@ -132,13 +132,13 @@
+ | `LiteralTable` | Intern pool: string → object-array index |
+ | `LocalVarTable` | LVT: variable name → slot index |
+ | `FunctionAsm` | `name`, `literals`, `lvt`, `instructions`, `labels`, `loop_targets`, `proc_body_src`, `error_regions`, and the command/procedure binding requirements |
+-| `ModuleAsm` | `top_level` (as a script) + `top_level_body` (the same source as a proc body) + `procedures: HashMap<String, FunctionAsm>`, with the profile and source identity |
++| `ModuleAsm` | `top_level` (as a script) + `top_level_body` (the same source as a proc body) + `procedures: HashMap<ProcedureId, FunctionAsm>`, with the profile and source identity |
+ 
+ ### Orchestration (`compilation_unit.rs`)
+ 
+ | Type | Purpose |
+ |------|---------|
+-| `FunctionUnit` | `cfg` + `ssa` + `def_use` + `sccp` + `types` + `taints` + `rendered_props` + `memory_ssa` + `semantic_facts` per function (also built per TclOO method) |
++| `FunctionUnit` | Exact `body_id` and original input/source context; `cfg` + `ssa` + `def_use` + `sccp` + `types` + `taints` + `rendered_props` + `memory_ssa` + `semantic_facts` per function (also built per TclOO method) |
+ | `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level: FunctionUnit`, `procedures`, `methods` (per-method `FunctionUnit`s), `body_units`, `interproc`, `connection_scope`, `caller_scope` |
+ 
+ `CompilationUnit::build_for` (and `build_for_dialect`, `build_with_options`,
+@@ -148,11 +148,13 @@
+ 
+ - When adding a new field to a pipeline type, check whether downstream
+   consumers need updating (each stage feeds the next).
+-- `Module::procedures` and `CompilationUnit::procedures` use fully qualified
+-  names as keys (e.g. `"::mylib::helper"`).
+-- `Module::methods` / `CompilationUnit::methods` are keyed by
+-  `"{class_qname}::{method_name}"` (constructors/destructors use the synthetic
+-  names `<constructor>` / `<destructor>`). They are populated by a cache-
++- Module, CFG, compilation-unit and bytecode body maps join actual
++  `ProcedureId` values. Display labels remain independent report fields;
++  clones retain issuance while separately built modules have foreign IDs.
++- `Module::methods` / `CompilationUnit::methods` retain exact body IDs.
++  `MethodKind` distinguishes methods, constructors and destructors independently
++  of labels, and `definition_scope` retains the declaring source body. They are
++  populated by a cache-
+   independent post-pass (`Lowerer::extract_oo_methods_pass` in
+   `rust/tcl-compiler/src/lowering/mod.rs`) and consumed by
+   interprocedural method-purity and the O126 `my <method>` gate — **not** by
+--- a/docs/design/compiler/interprocedural-analysis.md
++++ b/docs/design/compiler/interprocedural-analysis.md
+@@ -332,8 +332,10 @@
+ `build_method_summaries` also builds a `MethodSummary` (a struct wrapping
+ a `ProcSummary` in its `base` field, plus `class_name`, `method_kind`,
+ `reads_instance_vars` / `writes_instance_vars`, `calls_my`, and `calls_next`)
+-for each method, keyed by `{class_qname}::{method_name}` on
+-`InterproceduralAnalysis::methods`.
++for each method, keyed by its actual Module-issued `ProcedureId` on
++`InterproceduralAnalysis::methods`. `method_kind` is `MethodKind`; class and
++member labels remain presentation fields, independently of the declaring source
++owner. Procedure call, direct-call and defined-callee maps retain the same IDs.
+ 
+ Three of those fields are declared but not yet populated:
+ `reads_instance_vars` is always empty, `calls_my` is always empty, and
+@@ -363,13 +365,17 @@
+ 
+ ### Call resolution
+ 
+-`resolve_internal_call(command, caller_qname, known)` derives the caller's
+-namespace from its qualified name and applies the shared two-level rule
+-(`tcl_syntax::naming::resolve_command_with`, see
+-[namespace-resolution.md](namespace-resolution.md)): an absolute name is
+-looked up directly; a relative name tries `::caller_namespace::command`, then
+-`::command`, never an intermediate ancestor. It returns the first name present
+-in `known`, or `None` if the callee is external.
++Original direct and nested calls retain the selected command allocation,
++complete source/configuration/input and actual Module owner. The shared
++`source_procedure_for_target` query joins that allocation to its original
++`ProcedureId`. Possible successful-handler, entered-child and callback edges
++remain separate from purity, effect closure and completion. Absent or conflicting
++source ownership cannot be repaired through a display name.
++
++`resolve_internal_call` remains a path-free String candidate/reporting adapter;
++its `resolve_command_with` result cannot supply original body identity. See
++[namespace-resolution.md](namespace-resolution.md) and the
++[body ownership guide](name-resolution-implementer-guide.md#retain-body-identity-through-consumers).
+ 
+ Not every callee is named by a command *word*. Two registry-declared
+ indirections also produce edges, so a procedure reachable only through them
+@@ -383,10 +389,13 @@
+ - a **`Traits::INVOKES_USER_PROC` head** (the iRules `call PROC ?args?`
+   form) — the callee is the first argument, not the invoker.
+ 
+-`command_prefix_head` is shared with the
+-[call-site scan](interprocedural-call-site-seeding.md), the other consumer
+-that has to answer "which command does this callback prefix name", so a new
+-prefix-building shape lands in both at once (issue #978).
++Literal callback-list data uses the shared selected list grammar. Executed
++builders instead retain original installer, builder, frame and declaration
++receipts through `original_source_callback_targets_for_tokens`. Callback
++reachability joins the selected target to the same actual Module body ID; a
++parsed prefix head alone supplies no callback invocation or implementation.
++The [call-site scan](interprocedural-call-site-seeding.md) retains its own source
++and formal-input purposes.
+ 
+ ## Decision rule
+ 
+@@ -399,8 +408,11 @@
+   in `compute_all_transitive_calls` / `fixpoint_pure` / `fixpoint_effects` (or
+   the transitive OR in `materialise_summaries`), and expose it on
+   `ProcSummary`.
+-- Summaries are recomputed per `CompilationUnit` — they are not cached across
+-  compilation runs.
++- Each summary belongs to its genuine `CompilationUnit` and body ID. DB memo
++  queries retain `BodyAnalysisCapsule` and `BodySummaryInputs`; closed dependency
++  correspondence may reuse analysis only after current body/source proofs agree.
++  Missing correspondence retains exact inputs or recomputes. Memo reuse supplies
++  no Native compilation or execution entry.
+ 
+ ## Related docs
+ 
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -178,13 +178,10 @@
+     pub params: Vec<String>,
+     /// Declared arity.
+     pub arity: Arity,
+-    /// Names of procedures this one calls (transitive closure).
++    /// Module-issued IDs of transitive callees.
+     pub calls: Vec<ProcedureId>,
+-    /// Names of procedures this one calls *directly* (no transitive
+-    /// closure), sorted and resolved to in-module proc qnames. The
+-    /// proc's local, non-transitive direct-call set; consumed by
+-    /// the `callgraph` verb's `build_call_graph`, which needs the direct
+-    /// call set so the edge list carries no spurious A→C transitive edges.
++    /// Exact direct callee IDs, without transitive edges.
++    /// Graph consumers render labels only after joining these IDs.
+     pub direct_calls: Vec<ProcedureId>,
+     /// True if the body contains a barrier command.
+     pub has_barrier: bool,
+@@ -1992,12 +1989,7 @@
+         direct_calls.sort();
+         let is_pure = *pure.get(qname).unwrap_or(&false);
+ 
+-        // `writes_global` / `has_unknown_calls` are documented as
+-        // transitive, but were copied straight from local facts — so a proc
+-        // that writes a global (or calls an unknown command) only via a
+-        // callee reported `false`, and `propagate_taints` then failed to
+-        // seed its globals as tainted. `calls_list` is the full transitive
+-        // closure, so OR in every transitive callee's local flag.
++        // Transitive effects include every retained callee's local flags.
+         let transitive_flag = |pick: fn(&LocalFacts) -> bool| -> bool {
+             pick(facts) || calls_list.iter().any(|c| local.get(c).is_some_and(pick))
+         };
+--- a/docs/kcs/kcs-qa-does-the-server-follow-rename-and-interp-alias.md
++++ b/docs/kcs/kcs-qa-does-the-server-follow-rename-and-interp-alias.md
+@@ -9,83 +9,36 @@
+ 
+ ## Answer
+ 
+-Yes, for the bindings a file states unconditionally at its top level.
+-
+-Tcl resolves a command by its interpreter-level *binding*, not by the spelling
+-used to invoke it. After
++Yes, when the original source identifies the command and its arguments.
++The server follows the binding at each call's source position.
+ 
+ ```tcl
+ interp alias {} myfmt {} format
++myfmt %s hello
++rename format origfmt
++origfmt %s world
+ ```
+ 
+-`myfmt` **is** `format`, and after
++The alias and moved command can retain `format` argument assistance.
++A call before the rename keeps its earlier binding.
++A replacement procedure does not borrow the builtin's grammar.
+ 
+-```tcl
+-rename format origfmt
+-```
++Imports, fixed alias prefixes, and nested source bodies retain their own context.
++Known prefix arguments shift later argument positions together.
++Captured prefix data has no editable position at the later call.
++A global spelling such as `::myfmt` is distinct from a caller-relative lookup.
+ 
+-`origfmt` is `format` while `format` no longer exists at all. The server reads
+-those statements and applies the real command's grammar to the name that now
+-carries it, and withholds it from the name that no longer does.
++Features use these facts for highlighting, argument hints, source structure,
++and navigation. Formatting and rename require their own source checks.
++Knowing a handler's name alone does not permit a source edit.
+ 
+-Four kinds of statement are followed:
+-
+-| Statement | Effect |
+-|---|---|
+-| `namespace import ::tcltest::*` | `test` is `::tcltest::test` |
+-| `interp alias {} myfmt {} format` | `myfmt` is `format` |
+-| `rename format origfmt` | `origfmt` is `format`; `format` is gone |
+-| `proc format {args} {…}` | `format` is your procedure, not the built-in |
+-
+-Chains compose: after `interp alias {} a {} format` and then `rename a b`, `b`
+-is `format`.
+-
+-The explicitly global spelling behaves identically to the bare one, so
+-`::myfmt` and `myfmt` are the same command.
+-
+-### What changes as a result
+-
+-Everything that reads a command's grammar follows the binding: syntax
+-highlighting, format-specifier hints, code folding, **formatting**, minifying,
+-go-to-declaration, the call graph, parameter-usage inference, and — for
+-iRules — which arguments name BIG-IP objects.
+-
+-Formatting is the most visible:
+-
+-```tcl
+-rename if maybe
+-maybe {$x} {puts a}
+-```
+-
+-The `maybe` call is left exactly as written — its argument is no longer the
+-server's business — while a call to `if` through a proven alias is expanded
+-onto its own lines exactly as `if` would be.
+-
+-### What the server will not guess
+-
+-It abstains — leaves the name alone, or applies no grammar at all — rather
+-than guessing, whenever it cannot prove the binding:
+-
+-- a **computed** binding (`rename $old new`, `interp alias {} $n {} eval`);
+-- an alias with **pre-bound arguments** (`interp alias {} pad {} format %08x`),
+-  which shifts every argument position;
+-- a binding in **another interpreter** (`interp alias slave …`), or a command
+-  hidden in a safe one;
+-- a binding that is **conditional or nested** — inside an `if`, a procedure, an
+-  `eval`, or a `namespace eval` block — because it is not an unconditional
+-  fact about the whole file;
+-- anything reached through `unknown`, a trace, or a computed command name.
+-
+-It also abstains when a file binds the same name twice and the reader has no
+-byte position to choose between them, which is the case for the formatter and
+-the minifier's body rewriting.
+-
+-Bindings are also read **in source order**, so a call written before a `rename`
+-still sees the original command.
++Computed names, unavailable child interpreters, callbacks, and conflicting
++bindings can leave the target unknown. Conditional declarations may supply
++limited assistance without proving that their bodies execute.
++The server preserves that uncertainty instead of choosing a matching name.
+ 
+ ## Related
+ 
+-- [Command registry design doc](../design/compiler/command-registry.md#known-limitations)
+-  — the descriptor, the positioned/unpositioned split, and the per-consumer table.
+-- [Name resolution](../design/analysis/name-resolution.md)
+-  — the import/alias/rename link graph and its follow-versus-rewrite policy.
++- [Command registry design](../design/compiler/command-registry.md#known-limitations)
++- [Shared naming contract](../design/contracts/name-handling.md)
++- [Command source and lookup owners](../design/compiler/namespace-resolution.md)

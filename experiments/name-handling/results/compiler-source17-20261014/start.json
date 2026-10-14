@@ -1,0 +1,20 @@
+{
+  "started_utc": "2026-10-14T00:32:00.733708+00:00",
+  "label": "Temporary test-only source issuer diagnostics and original Compiler owner controls",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34659,
+  "plan": {
+    "filters": [
+      "logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+      "retained_upframe_namespaces_do_not_parse_the_procedure_display_label",
+      "original_name_operand_publishes_a_body_without_borrowing_the_head_lookup",
+      "original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants",
+      "logical_source_issuer_probe_preserves_actual_write_and_body_consumers"
+    ],
+    "scope": "Temporary cfg(test)-only source issuer diagnostics with genuine whole inputs and original Compiler publication/correspondence assertions. No predicates relaxed; remove diagnostics after capture."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

@@ -90,7 +90,8 @@ pub use vendor_source_barriers::VendorSourceCatalogueBarriers;
 
 mod variable_write_advice;
 pub(crate) use variable_write_advice::{
-    original_variable_write_advice, vendor_variable_write_advice,
+    logical_source_variable_write_advice, original_variable_write_advice,
+    vendor_variable_write_advice,
 };
 
 mod declaration_assistance;

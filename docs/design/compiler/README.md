@@ -246,8 +246,7 @@ User-facing compiler troubleshooting and how-tos live in
 - [wasm-extensions.md](wasm-extensions.md) — the `wasm_stdlib` Cargo feature
   and how the Rust runtime embeds optional Tcl scripts.
 - [wasm-target-surfaces.md](wasm-target-surfaces.md) — WASI vs in-browser
-  WASM: the capability matrix, browser-target build/wiring gaps, the
-  proposed host-import surface, and measured module sizes.
+  WASM: current host capabilities, library ownership and scoped build measurements.
 - [wasm-native-lowering.md](wasm-native-lowering.md) — the native
   lowering architecture (NLIR, representation and cell lattices, framing
   elision), the runtime ABI it adds, the sample tiers and framing budgets,

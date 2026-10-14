@@ -1,0 +1,29 @@
+{
+  "base_head": "e8826c7ef1d9db877fb35a1a527a1932f530a691",
+  "files": [
+    {
+      "path": "docs/design/compiler/data-structure-reference.md",
+      "before_sha256": "d3c59c7d4f8b13df8a703b5974496335a57cef9934e6477bce4dc3fb3aee9512",
+      "after_sha256": "ccd4b2eb5059c5ea48af8e0608c021bd5a3fca2c1bf5b50900ea4eb95a1f098e",
+      "Rust_meaningful_tokens_unchanged": false
+    },
+    {
+      "path": "docs/design/compiler/interprocedural-analysis.md",
+      "before_sha256": "f3f6c923f04d1a096d2db62f8b002f50cef2bb112a0b3999f9b9994363e40388",
+      "after_sha256": "22ae0b606cb8b550f9aab357de01fdf3972708a7f1bdacb19cb8a3df566c4fc6",
+      "Rust_meaningful_tokens_unchanged": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/interprocedural.rs",
+      "before_sha256": "432351b36e754ae6d2f26cc78e353122de2cd4a542debba4ce467d0669ee5de2",
+      "after_sha256": "1ad5bf6d9858954f8d02af77872a325b886bdb05fc8acf6ff7d70c6d4a08aca3",
+      "Rust_meaningful_tokens_unchanged": true
+    },
+    {
+      "path": "docs/kcs/kcs-qa-does-the-server-follow-rename-and-interp-alias.md",
+      "before_sha256": "0dc8d113ee17d4f76f8eb8375de4e916e938b59617b9bd386f92e94be21fd69a",
+      "after_sha256": "8275b9eebda47f6b21a9599ed49e8e55f8285002a00b279d6609f191a41a5f77",
+      "Rust_meaningful_tokens_unchanged": false
+    }
+  ]
+}

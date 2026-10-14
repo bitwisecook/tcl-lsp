@@ -9,83 +9,36 @@ all-editors, tcl-lsp-cli
 
 ## Answer
 
-Yes, for the bindings a file states unconditionally at its top level.
-
-Tcl resolves a command by its interpreter-level *binding*, not by the spelling
-used to invoke it. After
+Yes, when the original source identifies the command and its arguments.
+The server follows the binding at each call's source position.
 
 ```tcl
 interp alias {} myfmt {} format
-```
-
-`myfmt` **is** `format`, and after
-
-```tcl
+myfmt %s hello
 rename format origfmt
+origfmt %s world
 ```
 
-`origfmt` is `format` while `format` no longer exists at all. The server reads
-those statements and applies the real command's grammar to the name that now
-carries it, and withholds it from the name that no longer does.
+The alias and moved command can retain `format` argument assistance.
+A call before the rename keeps its earlier binding.
+A replacement procedure does not borrow the builtin's grammar.
 
-Four kinds of statement are followed:
+Imports, fixed alias prefixes, and nested source bodies retain their own context.
+Known prefix arguments shift later argument positions together.
+Captured prefix data has no editable position at the later call.
+A global spelling such as `::myfmt` is distinct from a caller-relative lookup.
 
-| Statement | Effect |
-|---|---|
-| `namespace import ::tcltest::*` | `test` is `::tcltest::test` |
-| `interp alias {} myfmt {} format` | `myfmt` is `format` |
-| `rename format origfmt` | `origfmt` is `format`; `format` is gone |
-| `proc format {args} {…}` | `format` is your procedure, not the built-in |
+Features use these facts for highlighting, argument hints, source structure,
+and navigation. Formatting and rename require their own source checks.
+Knowing a handler's name alone does not permit a source edit.
 
-Chains compose: after `interp alias {} a {} format` and then `rename a b`, `b`
-is `format`.
-
-The explicitly global spelling behaves identically to the bare one, so
-`::myfmt` and `myfmt` are the same command.
-
-### What changes as a result
-
-Everything that reads a command's grammar follows the binding: syntax
-highlighting, format-specifier hints, code folding, **formatting**, minifying,
-go-to-declaration, the call graph, parameter-usage inference, and — for
-iRules — which arguments name BIG-IP objects.
-
-Formatting is the most visible:
-
-```tcl
-rename if maybe
-maybe {$x} {puts a}
-```
-
-The `maybe` call is left exactly as written — its argument is no longer the
-server's business — while a call to `if` through a proven alias is expanded
-onto its own lines exactly as `if` would be.
-
-### What the server will not guess
-
-It abstains — leaves the name alone, or applies no grammar at all — rather
-than guessing, whenever it cannot prove the binding:
-
-- a **computed** binding (`rename $old new`, `interp alias {} $n {} eval`);
-- an alias with **pre-bound arguments** (`interp alias {} pad {} format %08x`),
-  which shifts every argument position;
-- a binding in **another interpreter** (`interp alias slave …`), or a command
-  hidden in a safe one;
-- a binding that is **conditional or nested** — inside an `if`, a procedure, an
-  `eval`, or a `namespace eval` block — because it is not an unconditional
-  fact about the whole file;
-- anything reached through `unknown`, a trace, or a computed command name.
-
-It also abstains when a file binds the same name twice and the reader has no
-byte position to choose between them, which is the case for the formatter and
-the minifier's body rewriting.
-
-Bindings are also read **in source order**, so a call written before a `rename`
-still sees the original command.
+Computed names, unavailable child interpreters, callbacks, and conflicting
+bindings can leave the target unknown. Conditional declarations may supply
+limited assistance without proving that their bodies execute.
+The server preserves that uncertainty instead of choosing a matching name.
 
 ## Related
 
-- [Command registry design doc](../design/compiler/command-registry.md#known-limitations)
-  — the descriptor, the positioned/unpositioned split, and the per-consumer table.
-- [Name resolution](../design/analysis/name-resolution.md)
-  — the import/alias/rename link graph and its follow-versus-rewrite policy.
+- [Command registry design](../design/compiler/command-registry.md#known-limitations)
+- [Shared naming contract](../design/contracts/name-handling.md)
+- [Command source and lookup owners](../design/compiler/namespace-resolution.md)

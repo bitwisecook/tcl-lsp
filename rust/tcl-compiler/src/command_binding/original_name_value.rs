@@ -1496,7 +1496,17 @@ impl super::SourceCommandBindings {
     ) -> Option<Vec<(tcl_lexer::NativeWord, usize, super::SourceInvocationBinding)>> {
         let origin = self.root_origin.as_ref()?;
         let mut found = Vec::new();
-        for (offset, _) in self.dispatch_points.range(..=span.start()).rev() {
+        let mut offsets = self
+            .dispatch_points
+            .range(..=span.start())
+            .map(|(offset, _)| *offset)
+            .collect::<std::collections::BTreeSet<_>>();
+        if self.original_logical_source_name_advice_input().is_some() {
+            offsets.extend(self.declaration_layouts.iter().filter_map(|(site, _)| {
+                (site.source == *origin && site.offset <= span.start()).then_some(site.offset)
+            }));
+        }
+        for offset in offsets.iter().rev() {
             let binding = self.attach_invocation_reads(
                 Self::query_dispatch_points(
                     self.dispatch_points_at(*offset)
@@ -1594,6 +1604,38 @@ mod graph_tests {
             .chain([tcl_registry::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
             )])
+    }
+
+    #[test]
+    fn logical_original_word_geometry_includes_genuine_declaration_vectors() {
+        let source = "namespace eval N {variable x FIRST; set x AGAIN; puts $x}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let realm = analysis.retained_command_realm().unwrap();
+        let config = analysis.body_lexer_config.unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let start = u32::try_from(source.find("set x AGAIN").unwrap() + "set ".len()).unwrap();
+        let span = tcl_lexer::Span::new(start, start + 1);
+        let (word, head) = realm
+            .original_written_word_at_span_in_source(&image, span, config)
+            .unwrap();
+        assert_eq!(head, start - 4);
+        assert_eq!(&image.bytes()[word.span().as_range()], b"x");
+        assert!(
+            realm
+                .original_written_word_at_span_in_source(
+                    &tcl_lexer::SourceImage::document(&format!("{source} ")),
+                    span,
+                    config,
+                )
+                .is_none()
+        );
+        let mut changed = config;
+        changed.strict_quoting = !changed.strict_quoting;
+        assert!(
+            realm
+                .original_written_word_at_span_in_source(&image, span, changed)
+                .is_none()
+        );
     }
 
     #[test]

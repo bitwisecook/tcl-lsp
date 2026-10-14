@@ -1,0 +1,82 @@
+{
+  "recorded_at": "2026-10-14T00:32:21.989215+00:00",
+  "repository": "bitwisecook/tcl-lsp",
+  "checkout": "/workspace/tcl-lsp",
+  "branch": "work",
+  "observed_head": "e8826c7ef1d9db877fb35a1a527a1932f530a691",
+  "tool": "gh version 2.46.0",
+  "api_command": [
+    "gh",
+    "api",
+    "--method",
+    "GET",
+    "repos/bitwisecook/tcl-lsp/issues?state=all&per_page=100&sort=updated&direction=desc",
+    "--paginate"
+  ],
+  "api_exit": 0,
+  "api_item_count": 2460,
+  "api_issue_count": 1050,
+  "api_pull_request_count": 1410,
+  "open_issue_count": 216,
+  "prior_mapped_states": {
+    "open": 59,
+    "closed": 195
+  },
+  "additional_issue_count": 67,
+  "raw_api_sha256": "f0e6a05ff6182c8d8815b798c9782dc87e76595f6d47157838e261409ddce695",
+  "raw_api_encoding": "UTF-8 concatenated JSON page arrays, retained byte-for-byte in deterministic gzip",
+  "source_reads": [
+    {
+      "path": "docs/work/name-handling/issues.md",
+      "sha256": "0e4574141279b7848ad33b5a7f9d300578b6d6f463dead8f513dcf32dc283e9c"
+    },
+    {
+      "path": "docs/work/name-handling/verified-issues.json",
+      "sha256": "298aeeec49a7303f191526386388c4cad27ca11f995f3ad21f781518aeaaee5f"
+    },
+    {
+      "path": "docs/work/name-handling/open-issue-search.json",
+      "sha256": "cf42ff9e66089cc9d20a3cfbcd0a89e2f11466ca38834d92189e694d2bf0b8ea"
+    },
+    {
+      "path": "rust/tcl-lexer/src/word_parts.rs",
+      "sha256": "3e33b02d950a00b4d5474d38dee3492610713ee9c7caf9fae4f37b5e9e906c59"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/hooks/incr.rs",
+      "sha256": "414b0d14df306815c21dae145ec0efad0c2ceb587292d172b9bf15acfb24a3d6"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/value_transfer_witnesses.rs",
+      "sha256": "5e06b2895763f99dfa42fd5c05fb1b069b42e993be7786ccc7e86593794fddeb"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/optimiser.rs",
+      "sha256": "7751bb4488e42fec69f4d03ae50b11bfac35b36cfc065e095359ef1f74c0255d"
+    }
+  ],
+  "authority": "Read-only API metadata plus read-only source snapshots. No oracle, Rust test, source-stable build, issue action or code acceptance is claimed. Repository is under concurrent implementation; these snapshots do not claim whole-tree stability.",
+  "scope": "All existing linked issues verified, all open titles inspected, closed naming/identity keyword families reviewed. Additional closed regression families are bounded semantic selections, not a claim of every historical dependency.",
+  "delivery_files": [
+    {
+      "path": "supplement.md",
+      "sha256": "bc04de7ee7737905b3f1cfdec7f6f6347a3f8433df19079c2758e476f7bbf048",
+      "bytes": 12233
+    },
+    {
+      "path": "issue-map-supplement.patch",
+      "sha256": "f0b84a23fc69fc746a806b3885cba7ac73706c8747c55e292ca414a913148ae1",
+      "bytes": 13038
+    },
+    {
+      "path": "verified-issue-snapshot.json",
+      "sha256": "05a2750c3b6bf60b9f581a97014d008b8f735eb9553eadf083d802ed581f2d06",
+      "bytes": 1094160
+    },
+    {
+      "path": "all-issues.raw.json.gz",
+      "sha256": "017599745bd7e460798788586144c93de9a8846af6b438ad6695f17245c95e80",
+      "bytes": 3349326
+    }
+  ]
+}

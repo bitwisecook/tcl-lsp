@@ -332,8 +332,10 @@ lowering — see [data-structure-reference](data-structure-reference.md)),
 `build_method_summaries` also builds a `MethodSummary` (a struct wrapping
 a `ProcSummary` in its `base` field, plus `class_name`, `method_kind`,
 `reads_instance_vars` / `writes_instance_vars`, `calls_my`, and `calls_next`)
-for each method, keyed by `{class_qname}::{method_name}` on
-`InterproceduralAnalysis::methods`.
+for each method, keyed by its actual Module-issued `ProcedureId` on
+`InterproceduralAnalysis::methods`. `method_kind` is `MethodKind`; class and
+member labels remain presentation fields, independently of the declaring source
+owner. Procedure call, direct-call and defined-callee maps retain the same IDs.
 
 Three of those fields are declared but not yet populated:
 `reads_instance_vars` is always empty, `calls_my` is always empty, and
@@ -363,13 +365,17 @@ gate (`rust/tcl-compiler/src/optimiser/elimination.rs`); SF-2 / FP-OPT-12.
 
 ### Call resolution
 
-`resolve_internal_call(command, caller_qname, known)` derives the caller's
-namespace from its qualified name and applies the shared two-level rule
-(`tcl_syntax::naming::resolve_command_with`, see
-[namespace-resolution.md](namespace-resolution.md)): an absolute name is
-looked up directly; a relative name tries `::caller_namespace::command`, then
-`::command`, never an intermediate ancestor. It returns the first name present
-in `known`, or `None` if the callee is external.
+Original direct and nested calls retain the selected command allocation,
+complete source/configuration/input and actual Module owner. The shared
+`source_procedure_for_target` query joins that allocation to its original
+`ProcedureId`. Possible successful-handler, entered-child and callback edges
+remain separate from purity, effect closure and completion. Absent or conflicting
+source ownership cannot be repaired through a display name.
+
+`resolve_internal_call` remains a path-free String candidate/reporting adapter;
+its `resolve_command_with` result cannot supply original body identity. See
+[namespace-resolution.md](namespace-resolution.md) and the
+[body ownership guide](name-resolution-implementer-guide.md#retain-body-identity-through-consumers).
 
 Not every callee is named by a command *word*. Two registry-declared
 indirections also produce edges, so a procedure reachable only through them
@@ -383,10 +389,13 @@ is not mistaken for dead code:
 - a **`Traits::INVOKES_USER_PROC` head** (the iRules `call PROC ?args?`
   form) — the callee is the first argument, not the invoker.
 
-`command_prefix_head` is shared with the
-[call-site scan](interprocedural-call-site-seeding.md), the other consumer
-that has to answer "which command does this callback prefix name", so a new
-prefix-building shape lands in both at once (issue #978).
+Literal callback-list data uses the shared selected list grammar. Executed
+builders instead retain original installer, builder, frame and declaration
+receipts through `original_source_callback_targets_for_tokens`. Callback
+reachability joins the selected target to the same actual Module body ID; a
+parsed prefix head alone supplies no callback invocation or implementation.
+The [call-site scan](interprocedural-call-site-seeding.md) retains its own source
+and formal-input purposes.
 
 ## Decision rule
 
@@ -399,8 +408,11 @@ prefix-building shape lands in both at once (issue #978).
   in `compute_all_transitive_calls` / `fixpoint_pure` / `fixpoint_effects` (or
   the transitive OR in `materialise_summaries`), and expose it on
   `ProcSummary`.
-- Summaries are recomputed per `CompilationUnit` — they are not cached across
-  compilation runs.
+- Each summary belongs to its genuine `CompilationUnit` and body ID. DB memo
+  queries retain `BodyAnalysisCapsule` and `BodySummaryInputs`; closed dependency
+  correspondence may reuse analysis only after current body/source proofs agree.
+  Missing correspondence retains exact inputs or recomputes. Memo reuse supplies
+  no Native compilation or execution entry.
 
 ## Related docs
 

@@ -1,0 +1,187 @@
+{
+  "started_utc": "2026-10-14T00:32:00.733708+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 226.6901180950008,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "sha256": "68bae24a3e81cea6f8fea4800f219a3bad4d2cb0c983613007603e9f6d9939c4",
+    "bytes": 224601032
+  },
+  "selected_tests": [
+    "body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+    "command_binding::declaration_flow::tests::original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants",
+    "lowering::tests::original_name_operand_publishes_a_body_without_borrowing_the_head_lookup",
+    "registry_invocation::source_structure::tests::logical_source_issuer_probe_preserves_actual_write_and_body_consumers",
+    "unit_scope::tests::retained_upframe_namespaces_do_not_parse_the_procedure_display_label"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.3652829209968331,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "command_binding::declaration_flow::tests::original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4653472709978814,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "command_binding::declaration_flow::tests::original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "lowering::tests::original_name_operand_publishes_a_body_without_borrowing_the_head_lookup",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2646255449944874,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "lowering::tests::original_name_operand_publishes_a_body_without_borrowing_the_head_lookup",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "registry_invocation::source_structure::tests::logical_source_issuer_probe_preserves_actual_write_and_body_consumers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 2.326846308998938,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "registry_invocation::source_structure::tests::logical_source_issuer_probe_preserves_actual_write_and_body_consumers",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "unit_scope::tests::retained_upframe_namespaces_do_not_parse_the_procedure_display_label",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.16451756800233852,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "unit_scope::tests::retained_upframe_namespaces_do_not_parse_the_procedure_display_label",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T00:35:55.287328+00:00",
+  "changed_sources": {}
+}

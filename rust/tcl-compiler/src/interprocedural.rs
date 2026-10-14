@@ -178,13 +178,10 @@ pub struct ProcSummary {
     pub params: Vec<String>,
     /// Declared arity.
     pub arity: Arity,
-    /// Names of procedures this one calls (transitive closure).
+    /// Module-issued IDs of transitive callees.
     pub calls: Vec<ProcedureId>,
-    /// Names of procedures this one calls *directly* (no transitive
-    /// closure), sorted and resolved to in-module proc qnames. The
-    /// proc's local, non-transitive direct-call set; consumed by
-    /// the `callgraph` verb's `build_call_graph`, which needs the direct
-    /// call set so the edge list carries no spurious A→C transitive edges.
+    /// Exact direct callee IDs, without transitive edges.
+    /// Graph consumers render labels only after joining these IDs.
     pub direct_calls: Vec<ProcedureId>,
     /// True if the body contains a barrier command.
     pub has_barrier: bool,
@@ -614,20 +611,8 @@ pub fn collect_positioned_opaque_callee_name_args(
 
 // Call-target resolution
 
-/// Predicate-backed owner for the compiler's internal procedure resolution.
-///
-/// Resolves via [`crate::naming::resolve_command_with`] — Tcl's
-/// real existence-checked resolution: an absolute name (`::foo`) is looked
-/// up directly; a relative name — bare (`foo`) or dotted (`inner::p`) —
-/// tries the caller's namespace first, then global, dispatching the first
-/// candidate that *exists* in `known`; never every enclosing ancestor
-/// namespace (Tcl's own command lookup does not walk intermediate
-/// namespaces absent an explicit `namespace path`, which whole-unit
-/// summaries do not model).
-///
-/// Shared with the analyser's identical same-file resolution
-/// (`Analyser::resolve_proc_call`) and the optimiser's
-/// (`resolve_proc_qname`) so the three can't diverge on the same rule.
+/// Predicate-backed String candidate reporting through the shared lookup order.
+/// This path-free projection supplies no original body or implementation identity.
 pub(crate) fn resolve_internal_call_with<F>(
     command: &str,
     caller_qname: &str,
@@ -1992,12 +1977,7 @@ fn materialise_summaries(
         direct_calls.sort();
         let is_pure = *pure.get(qname).unwrap_or(&false);
 
-        // `writes_global` / `has_unknown_calls` are documented as
-        // transitive, but were copied straight from local facts — so a proc
-        // that writes a global (or calls an unknown command) only via a
-        // callee reported `false`, and `propagate_taints` then failed to
-        // seed its globals as tainted. `calls_list` is the full transitive
-        // closure, so OR in every transitive callee's local flag.
+        // Transitive effects include every retained callee's local flags.
         let transitive_flag = |pick: fn(&LocalFacts) -> bool| -> bool {
             pick(facts) || calls_list.iter().any(|c| local.get(c).is_some_and(pick))
         };

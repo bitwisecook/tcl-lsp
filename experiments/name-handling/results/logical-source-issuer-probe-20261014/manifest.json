@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "02f825d0f976c0943e7d4797c3de4ab1fc422777e08d135c9dbdbb59175d4bf4",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/commands.rs",
+      "before_sha256": "70ec459ad696351ee5724fe3cb6b6fd6d2915a3613bbd682a898f05d5a1265e6",
+      "after_sha256": "9a70b608bc75297b73e9bce31748ca3f666fc3048d905b86450d1f55b5e878c2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "8f15f4838717575d02ac82a94c62de75e692a19e209e1016560ceeed4eaf63f1",
+      "after_sha256": "1e2473bb0d0358a7f708454f0f90e35fb77462e6849de97b3bcf87bcabd2ece0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "b532d5da31227731726b8ac36874cc3675650a302d9eb31a5e7a51902e95821c",
+      "after_sha256": "d4dc1e377eae8ef64ac45e3fa15aadd795543efffaa01d7d213a8ec498fd6c37"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "288f1e08f341ecab64e77450b8b83dec6bf89ab5db37d66aac63d1f934282400",
+      "after_sha256": "029dfd09f3280f00bed904b42cbd23f628ab029990ac8d38dc37d116fa9124c4"
+    }
+  ],
+  "rust_status": "unexecuted",
+  "selector": "registry_invocation::source_structure::tests::logical_source_issuer_probe_preserves_actual_write_and_body_consumers",
+  "environment": {
+    "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1"
+  },
+  "scope": "cfg(test) trace and genuine full-source producer fixture; existing predicates and original Core assertions unchanged"
+}

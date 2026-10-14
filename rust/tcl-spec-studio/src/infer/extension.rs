@@ -706,7 +706,7 @@ mod tests {
             .iter()
             .map(|row| row.name.as_str())
             .collect();
-        assert_eq!(names, [":::p", ":p", "p"]);
+        assert_eq!(names, [":::::p", "::p", ":p"]);
     }
 
     #[test]

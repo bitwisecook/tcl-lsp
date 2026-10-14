@@ -70,7 +70,7 @@ The containers around them:
 | `Script` | Container: `statements: Vec<Statement>` |
 | `Procedure` | A lowered `proc` body |
 | `MethodDef` | A TclOO method body lifted from `oo::class create` / `oo::define`: `class_name`, `method_name`, `params`, `body: Script`, `kind`, `instance_vars` — analysis-only (codegen never reads it) |
-| `Module` | `source`, `top_level: Script`, `procedures: HashMap<String, Procedure>`, `methods: HashMap<String, MethodDef>`, `body_units`, `redefined_procedures`, plus the namespace / trace / TclOO evidence maps |
+| `Module` | `source`, `top_level: Script`, `procedures: ProcedureInventory`, `methods: MethodInventory` (both Module-issued `ProcedureId` inventories), `body_units`, `redefined_procedures`, plus the namespace / trace / TclOO evidence maps |
 
 Every IR statement carries a `Span` for precise diagnostic mapping.
 
@@ -98,7 +98,7 @@ Every IR statement carries a `Span` for precise diagnostic mapping.
 | `Terminator::Return` | Procedure exit with optional value |
 | `Block` | `name`, `statements: Vec<Statement>`, `terminator: Option<Terminator>` |
 | `Function` | `name`, `entry: BlockId`, `blocks: HashMap<BlockId, Block>`, `loop_nodes`, `exception_edges` |
-| `CfgModule` | `top_level: Function` + `procedures: HashMap<String, Function>` |
+| `CfgModule` | `top_level: Function` + `procedures: HashMap<ProcedureId, Function>` |
 
 ### Stage 5 — SSA types (`ssa.rs`)
 
@@ -132,13 +132,13 @@ carries type inference, and `liveness_dead_stores()`
 | `LiteralTable` | Intern pool: string → object-array index |
 | `LocalVarTable` | LVT: variable name → slot index |
 | `FunctionAsm` | `name`, `literals`, `lvt`, `instructions`, `labels`, `loop_targets`, `proc_body_src`, `error_regions`, and the command/procedure binding requirements |
-| `ModuleAsm` | `top_level` (as a script) + `top_level_body` (the same source as a proc body) + `procedures: HashMap<String, FunctionAsm>`, with the profile and source identity |
+| `ModuleAsm` | `top_level` (as a script) + `top_level_body` (the same source as a proc body) + `procedures: HashMap<ProcedureId, FunctionAsm>`, with the profile and source identity |
 
 ### Orchestration (`compilation_unit.rs`)
 
 | Type | Purpose |
 |------|---------|
-| `FunctionUnit` | `cfg` + `ssa` + `def_use` + `sccp` + `types` + `taints` + `rendered_props` + `memory_ssa` + `semantic_facts` per function (also built per TclOO method) |
+| `FunctionUnit` | Exact `body_id` and original input/source context; `cfg` + `ssa` + `def_use` + `sccp` + `types` + `taints` + `rendered_props` + `memory_ssa` + `semantic_facts` per function (also built per TclOO method) |
 | `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level: FunctionUnit`, `procedures`, `methods` (per-method `FunctionUnit`s), `body_units`, `interproc`, `connection_scope`, `caller_scope` |
 
 `CompilationUnit::build_for` (and `build_for_dialect`, `build_with_options`,
@@ -148,11 +148,13 @@ carries type inference, and `liveness_dead_stores()`
 
 - When adding a new field to a pipeline type, check whether downstream
   consumers need updating (each stage feeds the next).
-- `Module::procedures` and `CompilationUnit::procedures` use fully qualified
-  names as keys (e.g. `"::mylib::helper"`).
-- `Module::methods` / `CompilationUnit::methods` are keyed by
-  `"{class_qname}::{method_name}"` (constructors/destructors use the synthetic
-  names `<constructor>` / `<destructor>`). They are populated by a cache-
+- Module, CFG, compilation-unit and bytecode body maps join actual
+  `ProcedureId` values. Display labels remain independent report fields;
+  clones retain issuance while separately built modules have foreign IDs.
+- `Module::methods` / `CompilationUnit::methods` retain exact body IDs.
+  `MethodKind` distinguishes methods, constructors and destructors independently
+  of labels, and `definition_scope` retains the declaring source body. They are
+  populated by a cache-
   independent post-pass (`Lowerer::extract_oo_methods_pass` in
   `rust/tcl-compiler/src/lowering/mod.rs`) and consumed by
   interprocedural method-purity and the O126 `my <method>` gate — **not** by

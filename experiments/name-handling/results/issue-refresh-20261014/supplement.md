@@ -1,0 +1,71 @@
+## Current GitHub issue refresh
+
+The complete repository issue listing was read on 14 October 2026 using the
+paginated GitHub REST issues endpoint, including open and closed records. It
+contains 1,050 issues and 1,410 pull requests. All 254 issue IDs already linked
+from this document were found: 59 are OPEN and 195 are CLOSED. No explicit
+OPEN/CLOSED table row disagrees with the API, and none of the 64 records in
+the earlier `verified-issues.json` changed state. #2093 and #2286 remain OPEN;
+#2287 and #2300 remain CLOSED. API state does not establish branch acceptance.
+
+All 216 open issue titles were inspected; closed records were searched for
+name, namespace, alias, qualification, colon, symbol, shadow, rename, token,
+binding, identity, cell, lookup, dispatch, TclOO, method, variable, procedure
+and frame terms. The following omissions extend the current acceptance map.
+No issue was changed and no new Rust or oracle test was run by this refresh.
+
+### Additional naming acceptance targets
+
+| Issue | State | Shared consumer / required acceptance |
+| --- | --- | --- |
+| [#2417](https://github.com/bitwisecook/tcl-lsp/issues/2417) | OPEN | Root and procedure named `top` must retain distinct body identities through variable traces, SSA, diagnostics and explorer. Exact witness: `set g 1; proc top {} {}` must not panic. The current optimiser has a separate `::top` startup-scalar control; that alone does not execute this diagnostics/taint witness. |
+| [#2296](https://github.com/bitwisecook/tcl-lsp/issues/2296) | OPEN | A read of `$a($k)` also reads `k`; all array-reference consumers must use the shared component walk. `set k x; puts $a($k)` must not report W220 for `k`. |
+| [#2268](https://github.com/bitwisecook/tcl-lsp/issues/2268) | OPEN | An unknown-key existence read observes the array's possible elements. W211 and store liveness must agree on actual base/element identity; a distinct literal-key read must retain the unused-element negative. |
+| [#2209](https://github.com/bitwisecook/tcl-lsp/issues/2209) | OPEN | Opaque `catch` result/options destinations must use the same scalar/array/qualified cell resolver as ordinary writes. Check `catch {set x ok} a(key)` at top and procedure frames, plus options and qualified destinations. |
+| [#2235](https://github.com/bitwisecook/tcl-lsp/issues/2235) | OPEN | Braced `incr x {$n}` amount is literal `$n`, with integer-conversion failure rather than a variable lookup. Current lowering carries `amount_braced`, and `a_braced_increment_amount_is_its_text` retains analysis and original-interpreter assertions; compiled VM/codegen acceptance remains independent. |
+| [#2255](https://github.com/bitwisecook/tcl-lsp/issues/2255) | OPEN | Array-index components enable their own substitutions independently of the outer `subst` mask. Current shared lexer `variable_component` already uses the full default flags and has `outer_substitution_mask_does_not_disable_array_index_commands`; confirm all consumers and exact restricted-mask runtime witnesses. |
+| [#2218](https://github.com/bitwisecook/tcl-lsp/issues/2218) | OPEN | Unresolved command heads inside procedure bodies must revoke the same binding trust as other possible mutations; O115 must not trust `expr` across `proc g {cmd} {$cmd}` without actual closed binding evidence. |
+| [#2324](https://github.com/bitwisecook/tcl-lsp/issues/2324) | OPEN | Nested computed heads must share actual receiver/source-value resolution with statement heads. `set e [ttk::entry .e]; puts [$e configure]` must classify the same retained receiver without granting unknown calls a target. |
+| [#2289](https://github.com/bitwisecook/tcl-lsp/issues/2289) | OPEN | Child-interpreter creation in a called procedure must be visible to subsequent retained interpreter-domain lookup; W140 must distinguish a created `vectorCoreChild` from an actually absent child. |
+| [#2332](https://github.com/bitwisecook/tcl-lsp/issues/2332) | OPEN | `$::g`, `[set ::g]` and declared global/namespace reads must project the same external-cell read into summaries and Studio purity proposals. |
+| [#2339](https://github.com/bitwisecook/tcl-lsp/issues/2339) | OPEN | Computed assignment-name components must retain their evaluation effects. `set a([incr i]) 5` cannot be removed while losing `i`'s write; name-word evaluation must share the original component owner. |
+| [#2399](https://github.com/bitwisecook/tcl-lsp/issues/2399) | OPEN | A call reading a global through `global`, substitution, command-form read or `upvar` must keep the caller's actual reaching store live, including before a later `unset`. |
+| [#2419](https://github.com/bitwisecook/tcl-lsp/issues/2419) | OPEN | Registry variable-name roles for tcllib `struct::set`/`struct::list` mutators must feed the same caller-cell effects as other variable writers. This is declarative naming/effect-role coverage, not a new string-name table in consumers. |
+| [#2143](https://github.com/bitwisecook/tcl-lsp/issues/2143) | OPEN | Factory-materialised procedures must carry original creation provenance into source identity, spans and analyser command facts. A `Configure port ...` factory must not invent a line-1 W214 span or lose the created command for W123. |
+
+### Related dependencies requiring scoped decisions
+
+| Issue | State | Boundary |
+| --- | --- | --- |
+| [#2407](https://github.com/bitwisecook/tcl-lsp/issues/2407) | OPEN | Forward-call summary precision depends on actual invocation timing, not merely a shared spelling or body ID. Preserve calls reached before a definition as unknown; consider only the binding/timeline portion in this task. |
+| [#2442](https://github.com/bitwisecook/tcl-lsp/issues/2442) | OPEN | `${a b}` return-fold replacement misses the closing brace. This is an original variable-component/span consumer obligation; broader rewrite-span correctness belongs to the syntax owner. |
+| [#2350](https://github.com/bitwisecook/tcl-lsp/issues/2350) | OPEN | Scalar-versus-array kind is observable even without a value read. Shared cell identity is required, but preserving error completion and kind liveness exceeds name canonicalisation alone. |
+| [#2325](https://github.com/bitwisecook/tcl-lsp/issues/2325) | OPEN | Expanded callback argv affects deferred-write coverage. Shared invocation/argument provenance is relevant; the callback timing/effect analysis must retain unknown expansion conservatively. |
+| [#2455](https://github.com/bitwisecook/tcl-lsp/issues/2455) | OPEN | Missing nested-expression read affects W220. The same shared source-component read collector should apply; expression fusion/evaluation coverage remains a separate dependency. |
+| [#1655](https://github.com/bitwisecook/tcl-lsp/issues/1655) | OPEN | Clay factory-prefix discovery depends on interprocedural argument binding and completion kind. These support source declaration evidence but do not permit a naming-only fix to grant unproved completion. |
+| [#1734](https://github.com/bitwisecook/tcl-lsp/issues/1734) | OPEN | Virtual-URI iRulesLX navigation requires actual source-store discovery as well as remote method identity. URI transport/discovery capability must be established separately. |
+| [#2131](https://github.com/bitwisecook/tcl-lsp/issues/2131) | OPEN | Math-function result classification duplicates a name-keyed table. This is expression result-type ownership, not command/variable lookup; do not absorb it merely because its table has string keys. |
+| [#2295](https://github.com/bitwisecook/tcl-lsp/issues/2295) | OPEN | Workspace-symbol startup test flakiness concerns request/scan synchronisation; the word `symbol` alone does not make it a naming defect. |
+
+### Additional closed regression families
+
+These states are verified against GitHub. Preserve existing oracle and Rust
+regressions; closure does not prove that a subsequent migration preserves them.
+
+| Issues | State | Naming behavior to preserve |
+| --- | --- | --- |
+| [#2214](https://github.com/bitwisecook/tcl-lsp/issues/2214), [#2416](https://github.com/bitwisecook/tcl-lsp/issues/2416) | CLOSED | Qualified nested RMW global writes and caller-place naming through omitted upvar parameter defaults. |
+| [#1389](https://github.com/bitwisecook/tcl-lsp/issues/1389), [#1055](https://github.com/bitwisecook/tcl-lsp/issues/1055), [#1069](https://github.com/bitwisecook/tcl-lsp/issues/1069), [#837](https://github.com/bitwisecook/tcl-lsp/issues/837) | CLOSED | Registry frame reach, resolved invocation roles, release-specific level words and uplevel body highlighting. |
+| [#1167](https://github.com/bitwisecook/tcl-lsp/issues/1167), [#1121](https://github.com/bitwisecook/tcl-lsp/issues/1121), [#1120](https://github.com/bitwisecook/tcl-lsp/issues/1120) | CLOSED | Method arrival identity across rename, cross-file joins, original visibility and definition-aborting member mutations. |
+| [#993](https://github.com/bitwisecook/tcl-lsp/issues/993), [#1099](https://github.com/bitwisecook/tcl-lsp/issues/1099), [#1092](https://github.com/bitwisecook/tcl-lsp/issues/1092), [#1087](https://github.com/bitwisecook/tcl-lsp/issues/1087) | CLOSED | Cross-document method/namespace-variable rename coverage and equal hazard/edit coverage, including pure consumers and transferred instances. |
+| [#1177](https://github.com/bitwisecook/tcl-lsp/issues/1177), [#1164](https://github.com/bitwisecook/tcl-lsp/issues/1164), [#1166](https://github.com/bitwisecook/tcl-lsp/issues/1166), [#1172](https://github.com/bitwisecook/tcl-lsp/issues/1172), [#1174](https://github.com/bitwisecook/tcl-lsp/issues/1174) | CLOSED | Actual method-body inventory, replacement bodies, member/frame reach and one instance-variable fact channel. |
+| [#995](https://github.com/bitwisecook/tcl-lsp/issues/995), [#978](https://github.com/bitwisecook/tcl-lsp/issues/978), [#976](https://github.com/bitwisecook/tcl-lsp/issues/976), [#1023](https://github.com/bitwisecook/tcl-lsp/issues/1023) | CLOSED | Call hierarchy and command-prefix calls, conservative dynamic call seeding and genuine TclOO link availability. |
+| [#1322](https://github.com/bitwisecook/tcl-lsp/issues/1322), [#1324](https://github.com/bitwisecook/tcl-lsp/issues/1324), [#1329](https://github.com/bitwisecook/tcl-lsp/issues/1329), [#1276](https://github.com/bitwisecook/tcl-lsp/issues/1276), [#1143](https://github.com/bitwisecook/tcl-lsp/issues/1143) | CLOSED | Self/my dispatch, workspace metaclass identity and actual returned-object type edges. |
+| [#1374](https://github.com/bitwisecook/tcl-lsp/issues/1374), [#1377](https://github.com/bitwisecook/tcl-lsp/issues/1377), [#1381](https://github.com/bitwisecook/tcl-lsp/issues/1381), [#1390](https://github.com/bitwisecook/tcl-lsp/issues/1390) | CLOSED | Shared dynamic-name refusal, trace observability and registry-owned variable-write/invocation facts. |
+| [#1574](https://github.com/bitwisecook/tcl-lsp/issues/1574), [#1569](https://github.com/bitwisecook/tcl-lsp/issues/1569), [#1444](https://github.com/bitwisecook/tcl-lsp/issues/1444), [#1440](https://github.com/bitwisecook/tcl-lsp/issues/1440), [#1438](https://github.com/bitwisecook/tcl-lsp/issues/1438) | CLOSED | Actual scalar/element trace cells, trace operation parsing, callback order and stored-value lifetime after failing write traces. |
+| [#1583](https://github.com/bitwisecook/tcl-lsp/issues/1583), [#1494](https://github.com/bitwisecook/tcl-lsp/issues/1494) | CLOSED | Ensemble unknown-prefix re-dispatch and exact rename/hide missing-command failures. |
+| [#1140](https://github.com/bitwisecook/tcl-lsp/issues/1140), [#1003](https://github.com/bitwisecook/tcl-lsp/issues/1003) | CLOSED | Original source-path evidence, namespace-qualified document symbols and autoload discovery before navigation/rename. |
+| [#1398](https://github.com/bitwisecook/tcl-lsp/issues/1398), [#1364](https://github.com/bitwisecook/tcl-lsp/issues/1364), [#2237](https://github.com/bitwisecook/tcl-lsp/issues/2237), [#2240](https://github.com/bitwisecook/tcl-lsp/issues/2240) | CLOSED | Authentic body-entry context, live dispatch stability and source-binding/effect guards on retained scalar/parameter facts. |
+
+The issue metadata and exact API capture are in the isolated issue refresh
+delivery; they contain no execution acceptance and grant no issue action.

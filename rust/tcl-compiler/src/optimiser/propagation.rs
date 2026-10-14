@@ -4945,13 +4945,8 @@ mod tests {
 
     #[test]
     fn o103_does_not_fold_call_to_proc_renamed_over() {
-        // FP guard / miscompile-guard: `rename triple double` moves the
-        // `triple` proc's body onto the name `double`, so a later `[double
-        // 21]` call actually runs `triple`'s body (21*3 == 63), NOT the
-        // original `double` proc's body (21*2 == 42) that `resolve_proc_qname`
-        // finds in the interprocedural summary. Folding to `42` here would be
-        // a miscompile (tclsh 9.0.4 confirmed: `double 21` after this rename
-        // returns `63`).
+        // The selected moved allocation cannot borrow the replaced body's summary.
+        // Original C9.0.4: double 21 returns 63 after this rename.
         let src = "proc double {n} { expr {$n * 2} }\nproc triple {n} { expr {$n * 3} }\nrename triple double\nputs [double 21]\n";
         let opts = run_pass_with_command_mutations(src);
         assert!(

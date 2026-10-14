@@ -49,6 +49,69 @@ pub(crate) fn vendor_variable_write_advice(
     Some(result)
 }
 
+/// Logical source roles select written receiver geometry independently of Native metadata.
+/// Complete source/context/schema and operand correspondence remain mandatory.
+pub(crate) fn logical_source_variable_write_advice(
+    source: &str,
+    analysis: &crate::analyser::AnalysisResult,
+    tokens: &CommandTokens,
+) -> Option<Vec<DeclarationVariableReceiver>> {
+    let input = analysis.resolved_input.as_ref()?;
+    if !analysis.allows_lexical_declaration_advice() || !input.has_logical_source_name_context() {
+        return None;
+    }
+    let words =
+        super::source_structure::original_registry_words_for_tokens(source, analysis, tokens)?;
+    let super::source_structure::OriginalRegistrySource::SourceTransitions(advice) = words.source()
+    else {
+        return None;
+    };
+    (advice.logical_source_input() == Some(input)).then_some(())?;
+    words.with_source_schema(input.borrowed_context_registry(), |schema| {
+        let (roles, complete) = schema.authored_source_argument_roles();
+        if !complete {
+            return None;
+        }
+        if schema.semantics.traits.intersects(
+            tcl_registry::Traits::CREATES_SCOPE_ALIAS | tcl_registry::Traits::DESTROYS_VARIABLE,
+        ) {
+            return Some(Vec::new());
+        }
+        let mut result = Vec::new();
+        for (index, role) in roles {
+            if role != tcl_registry::ArgRole::VarWrite {
+                continue;
+            }
+            let effective = schema
+                .semantics
+                .argument_offset
+                .checked_add(usize::from(index))?;
+            let Some(form) = schema.authored_source_variable_receiver_operand_form(effective)
+            else {
+                continue;
+            };
+            if form != tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined {
+                continue;
+            }
+            let Some(super::InvocationWordOrigin::Written(written)) =
+                words.origins().get(effective.checked_add(1)?)
+            else {
+                continue;
+            };
+            let original = words.operands().get(effective)?.as_ref()?.word()?;
+            if original.group().expand {
+                continue;
+            }
+            let argument = written.checked_sub(1)?;
+            let selected = DeclarationVariableReceiver { argument, form };
+            if !result.contains(&selected) {
+                result.push(selected);
+            }
+        }
+        Some(result)
+    })?
+}
+
 /// Retained candidates supply only conditional source cards. Unknown execution
 /// remains unknown; unanimous known shapes cannot close its residual. A
 /// captured/expanded argument cannot manufacture a written name position.

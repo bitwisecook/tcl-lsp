@@ -1,0 +1,48 @@
+{
+  "base_head": "e8826c7ef1d9db877fb35a1a527a1932f530a691",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "6eb8e38e4dfe587ed2c55a928060591d2f9f699318c0cdec7da6520c9c29aa6b",
+      "after_sha256": "96f53e5c999dbd70db679fdd19ed25f1db5a8dca43fa752dbae91ad89c14c823",
+      "Rust_meaningful_tokens_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/interprocedural.rs",
+      "before_sha256": "432351b36e754ae6d2f26cc78e353122de2cd4a542debba4ce467d0669ee5de2",
+      "after_sha256": "2a2a83da65c40a7a42dd59c1a8a9d6cbe1da89fbe2c3b60daf19a423332dc647",
+      "Rust_meaningful_tokens_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "before_sha256": "4505fda86d0ad8aae62f27381849b9186bc08831c93bce1e0fb7507b21621b2c",
+      "after_sha256": "5b28840c3fcf0d24ded32fe8d8e494ff814ad571eead455cd2dc5a7524f84107",
+      "Rust_meaningful_tokens_unchanged": true
+    },
+    {
+      "path": "runtime/rust/src/host_wasm.rs",
+      "before_sha256": "80af72bd0dfd1af4c57c1656c5eb9c1282be39b4e80647a12263d8db27a4e36f",
+      "after_sha256": "2423177f8a926e59af7f2cba308c6009ee3b16f257b479870a3f0ee8bec3ddec",
+      "Rust_meaningful_tokens_unchanged": true
+    },
+    {
+      "path": "experiments/wasm-target-surfaces/recorded-build-measurements.md",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e54877963e8aee808f01d66673da5b6fdb0113815e40a3add48c79eeadae6600",
+      "Rust_meaningful_tokens_unchanged": false
+    },
+    {
+      "path": "docs/design/compiler/wasm-target-surfaces.md",
+      "before_sha256": "e4150bdc9836b13a94fdd62dcef8a0ff152fa8fda2983df6b337dfc423df1667",
+      "after_sha256": "8f4ea17b0ddf07ba528c0f89e1fc11be7313938803dbbba723777966f3e2f52a",
+      "Rust_meaningful_tokens_unchanged": false
+    },
+    {
+      "path": "docs/design/compiler/README.md",
+      "before_sha256": "1d6f11f207e657c301caf2a676136403e76d887d5e953b4c7af727189dd974c3",
+      "after_sha256": "112d36ef0351f522e999217806915e1148e1d57f1147c67dd18864e295d2ea9f",
+      "Rust_meaningful_tokens_unchanged": false
+    }
+  ],
+  "measurement_record_not_rerun": true
+}

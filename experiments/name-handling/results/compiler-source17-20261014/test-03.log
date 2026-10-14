@@ -1,0 +1,113 @@
+
+running 1 test
+test lowering::tests::original_name_operand_publishes_a_body_without_borrowing_the_head_lookup ... ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=5 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=11 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=12 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=19 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=19 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=19 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=12 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=12 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=30 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=30 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=30 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=39 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=39 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=39 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=48 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=55 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=48 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=48 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=12 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=12 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=16 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=19 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=19 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=23 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=19 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=18 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+ORIGINAL_WORD_CONFIG stage=request offset=Some(12) words=3 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(30) words=3 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(12) words=3 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(12) words=3 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(30) words=3 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(30) words=3 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(12) words=3 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(12) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(30) words=3 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(30) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+
+thread 'lowering::tests::original_name_operand_publishes_a_body_without_borrowing_the_head_lookup' (192110) panicked at rust/tcl-compiler/src/lowering/mod.rs:8508:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    lowering::tests::original_name_operand_publishes_a_body_without_borrowing_the_head_lookup
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9602 filtered out; finished in 0.24s
+

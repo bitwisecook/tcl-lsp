@@ -1,0 +1,22 @@
+{
+  "patch_sha256": "88ccfaaf35a044d4d669ee1321080500b38e2aac5919445c699142a9897aa7fc",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/commands.rs",
+      "before_sha256": "70ec459ad696351ee5724fe3cb6b6fd6d2915a3613bbd682a898f05d5a1265e6",
+      "after_sha256": "d6ebdc87e5bae6f59665b1fe25485cbc3e6e80c5240ab1105093f3c76e316a46"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/variable_write_advice.rs",
+      "before_sha256": "75beaefe91b7a0d032268cdd74f3342939cfba498051f2d38647a08d5297de31",
+      "after_sha256": "f2133ded8203e80103f644570e5e14e10b89f8d1fbdcfa4d0eaf34840ecce78f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "2478e09f0ffba437a4a93b0dd57e954cf593bca725fc7e9603b6478a19c50fd0",
+      "after_sha256": "7c67877547c7c55a0bcb1e12b9c4d79f9f8e8bb37aa968012072dc8935cfbd2f"
+    }
+  ],
+  "rust_status": "unexecuted; await issuer probe before integration",
+  "scope": "Purpose-specific shared Logical original source write receiver selection; Native/vendor producer paths unchanged"
+}

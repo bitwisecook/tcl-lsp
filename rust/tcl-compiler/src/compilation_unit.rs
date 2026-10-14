@@ -2264,25 +2264,11 @@ pub struct CompilationUnit {
     pub top_level: FunctionUnit,
     /// Per-procedure analyses joined to their retained module body ID.
     pub procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
-    /// `TclOO` method bodies lowered to per-method [`FunctionUnit`]s.
-    /// Keyed by `{class_qname}::{method_name}`; empty for
-    /// non-OO sources. Kept separate from [`Self::procedures`] so the
-    /// per-proc diagnostic passes are unaffected — only the optimiser's
-    /// O126 gate iterates these.
+    /// Method analyses keyed by their actual Module-issued body ID.
+    /// Member kind, declaring source owner and display labels remain separate.
     pub methods: HashMap<crate::ir::ProcedureId, FunctionUnit>,
-    /// Synthetic *body units* — the bodies of `apply` lambdas and
-    /// `namespace eval` blocks, lowered to [`FunctionUnit`]s so the
-    /// static-analysis pipeline reaches inside them (see
-    /// [`crate::ir::Module::body_units`]). Keyed by a synthetic qualified name
-    /// (`::apply#N`, or `::NS::namespace-eval#N` — `NS` *prefixes* the marker
-    /// so the qname's enclosing namespace, the same "everything before the
-    /// last `::`" convention every proc/method qname uses, is the namespace
-    /// the block actually targets). Kept **separate** from both
-    /// [`Self::procedures`] and [`Self::methods`] so no existing consumer —
-    /// codegen, the optimiser/minifier, the per-proc or OO diagnostic passes —
-    /// changes behaviour; only analyses that explicitly opt in (via
-    /// [`Self::body_function_units`]) read them. Empty for the overwhelmingly
-    /// common source with no `apply`/`namespace eval` body.
+    /// Anonymous and selected-namespace body analyses keyed by retained body ID.
+    /// [`Self::body_function_units`] exposes them with their actual source owners.
     pub body_units: HashMap<crate::ir::ProcedureId, FunctionUnit>,
     /// Interprocedural summary (optional — populated when the
     /// interprocedural pass has been run).
