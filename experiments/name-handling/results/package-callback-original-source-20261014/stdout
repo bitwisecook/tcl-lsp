@@ -1,0 +1,18 @@
+interpreter 8.6.18 library /workspace/tcl-lsp/tmp/tcl8.6.18/library executable /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh
+provider struct::graph implementation tcl loaded {}
+constructor struct::graph version 2.4.4 argc 0 requested_hex {} code 0 result_hex 3a3a677261706831 empty_command_hex {} reached_hex 3a3a677261706831
+provider struct::graph implementation tcl loaded {}
+constructor struct::graph version 2.4.4 argc 1 requested_hex 6f776e6564 code 0 result_hex 3a3a6f776e6564 empty_command_hex {} reached_hex 3a3a6f776e6564
+provider struct::graph implementation tcl loaded {}
+constructor struct::graph version 2.4.4 argc 1 requested_hex {} code 0 result_hex 3a3a empty_command_hex 3a3a reached_hex 3a3a
+provider struct::graph implementation tcl loaded {}
+constructor struct::graph version 2.4.4 argc 1 requested_hex 246c69746572616c code 0 result_hex 3a3a246c69746572616c empty_command_hex {} reached_hex 3a3a246c69746572616c
+provider struct::tree implementation tcl loaded {}
+constructor struct::tree version 2.1.3 argc 0 requested_hex {} code 0 result_hex 3a3a7472656531 empty_command_hex {} reached_hex 3a3a7472656531
+provider struct::tree implementation tcl loaded {}
+constructor struct::tree version 2.1.3 argc 1 requested_hex 6f776e6564 code 0 result_hex 3a3a6f776e6564 empty_command_hex {} reached_hex 3a3a6f776e6564
+provider struct::tree implementation tcl loaded {}
+constructor struct::tree version 2.1.3 argc 1 requested_hex {} code 0 result_hex 3a3a empty_command_hex 3a3a reached_hex 3a3a
+provider struct::tree implementation tcl loaded {}
+constructor struct::tree version 2.1.3 argc 1 requested_hex 246c69746572616c code 0 result_hex 3a3a246c69746572616c empty_command_hex {} reached_hex 3a3a246c69746572616c
+loaded {}

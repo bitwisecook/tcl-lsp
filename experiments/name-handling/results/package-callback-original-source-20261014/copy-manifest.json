@@ -1,0 +1,1217 @@
+[
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/initial-observation/probe.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/initial-observation/probe.tcl",
+    "sha256": "0e90e39bdd481c61f4a1c7f8214273ea030f3daac23894d352893014a1766701"
+  },
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/initial-observation/receipt.json",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/initial-observation/receipt.json",
+    "sha256": "68f4e595783dca939103d52713a83c677af164be346cadee096f5016a6f62783"
+  },
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/initial-observation/stderr",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/initial-observation/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/initial-observation/stdout",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/initial-observation/stdout",
+    "sha256": "da2b3908cff579067981226317fba2763117e8fb01873facbc8f77efdf3f9af1"
+  },
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/ldd.stderr",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/ldd.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/ldd.stdout",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/ldd.stdout",
+    "sha256": "634f207d3b81de7242ee443eebd9f5009fa8b522eb95383b6857a13b242303fa"
+  },
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/probe.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/probe.tcl",
+    "sha256": "8a2b2c1af5dc6332d1a5fafda567a6a946b7bbb53c751efe7be4e5a1adef93f4"
+  },
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/receipt.json",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/receipt.json",
+    "sha256": "6447c97c6d6cc40875914b583819c85fe31da6d6ce2284d106588860b4a87873"
+  },
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/stderr",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "source": "/tmp/name-package-callback-original-source-20261014/stdout",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/stdout",
+    "sha256": "790f27a988810796220712b609a26ea3c3ccf4d3640ba474515e60500bd1fb0b"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/ChangeLog",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/cmdline/ChangeLog",
+    "sha256": "24c2a8c6bf481ca61517ad0b60a251800c16965169124cddb36ae8afeacf723c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/cmdline.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/cmdline/cmdline.man",
+    "sha256": "e708f57bb8b25d030cc7e3acd44dfaf98063ff50da72e95b55369b70367a9843"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/cmdline.pcx",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/cmdline/cmdline.pcx",
+    "sha256": "9b453cca7d90a8a402802d0b79f5fdc26201b60c4f1ce61984938b0868532f12"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/cmdline.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/cmdline/cmdline.tcl",
+    "sha256": "dcf1ab9c581484eb9219728594d9d2e35dd07fa4e63c844927990e147285a1d6"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/cmdline.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/cmdline/cmdline.test",
+    "sha256": "f83ebca9f216fc5ef6d5c6eb19826604a44fd40ac2bdacdd9e5fe122dbdc3dff"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/pkgIndex.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/cmdline/pkgIndex.tcl",
+    "sha256": "b2766b3999f6b025b3958584aaf8e4872c89d709094712faa85cd3aad3098d49"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline/typedCmdline.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/cmdline/typedCmdline.test",
+    "sha256": "9304295343d3b642dd9aa083ab1f60d971e1cdb75b89d469c9e3820e43d44f15"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/ChangeLog",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/ChangeLog",
+    "sha256": "e103f52f3597dc20b96b72d72a99e1ad7cd3878f790f235ef511e7748d4f03cd"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/disjointset.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/disjointset.man",
+    "sha256": "55f774bfcf1ee3f6eecd8676234827828df791b02ff4d5203aacca0407403f17"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/disjointset.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/disjointset.tcl",
+    "sha256": "ed4d9c5c974872b0e7fff340b331b98a99ef37e9611a4803eafe21e8acd00acd"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/disjointset.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/disjointset.test",
+    "sha256": "4f6d22b4e82d4279929ac92dc40cea3df0da2e4ea2b5425eebc5af72e99ba197"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/disjointset.testsuite",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/disjointset.testsuite",
+    "sha256": "09e6f829fe71c03ed3be53d8bcf72b43f65b918bef25e6ec7dd9360f4c23046c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/arc.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/arc.c",
+    "sha256": "4b6d69ea24f3dcf115abe0efc86572d776a825baa97cc2298092e1dbc2b18aae"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/arc.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/arc.h",
+    "sha256": "eda4f33a54c21280976cebbca5d0941d1ec55bec4b5c19da660fc615b2e983b3"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/arcshimmer.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/arcshimmer.c",
+    "sha256": "2879f5f6f803e81d59fddde3d3cb570c77ce9d2d8bf345987080471df5a23ace"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/attr.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/attr.c",
+    "sha256": "e7c19a98ac2f84124bda5a64146f695672ec69c5350a69961bbd5f97199ff64c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/attr.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/attr.h",
+    "sha256": "c3d058182df9646e40ca61a57d7a730ed248a43567a8408da59d9154b23431bc"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/ds.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/ds.h",
+    "sha256": "48637758e458085521dfe6bcd1ac3b77155f049cea3cbd0c9f43de07b51852d5"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/filter.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/filter.c",
+    "sha256": "48cd3deac5490c0de4249891ff322519644b362b660fb30ab94450439e08bf84"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/global.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/global.c",
+    "sha256": "2e8b3ad527d1dc2663ebe269b0a1b16650b72bf921107e4149fadf00e5eadc2a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/global.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/global.h",
+    "sha256": "0d84f6bbc1df8d3e9cde3963216e802258600b46e35ff6137bac050178b8a7dc"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/graph.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/graph.c",
+    "sha256": "4a3c8910c4550e380bd7eed27bc73c7571075cab0d8e196be9cecaa0c9b97404"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/graph.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/graph.h",
+    "sha256": "bb07efa2901e283698c2c9239a5e2babb9d3b8dcada51f8d37e757a6ce18193b"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/methods.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/methods.c",
+    "sha256": "6c69f535aff46e7c69e30b0cd86f13adb478408111217a4b7f14a4c110c78f4c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/methods.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/methods.h",
+    "sha256": "7b0ee5209a64ffdc9393ef89e922251339c314bb7da4264a527124e33b2c897f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/nacommon.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/nacommon.c",
+    "sha256": "230db8f58fb9790963dcad47aa34348a5ae0366129c263069aa75accc74c1a24"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/nacommon.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/nacommon.h",
+    "sha256": "dad5dacceb630f99bbd8f97ba47fbb06f0a643cd01756f50f88eadd2da389c3b"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/node.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/node.c",
+    "sha256": "f80e21ec5fae0a2a43cf421eb022eb50fe0b3c0b949beb09074fdbf6d407115f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/node.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/node.h",
+    "sha256": "60e48994856b16aa7b1fdc3dbdf7a886d113e2c4db04701d2064d9f698d785c4"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/nodeshimmer.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/nodeshimmer.c",
+    "sha256": "a5da85e5d53df8344ae9a0c8afe919ebbe05080244a13e296df4b48eb40ebce5"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/objcmd.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/objcmd.c",
+    "sha256": "99ae0e8d5ca0a9ca85d11b22ec7b3be73c7b7bab241dff869e1fcfd5b013d976"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/objcmd.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/objcmd.h",
+    "sha256": "2de8dda9c67bc3c68c46329206a73a3c0f58fb71ce7e5518da3688443e947c76"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/XOpsControl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/XOpsControl",
+    "sha256": "5e9eff15e40492d5699bfcdfc7c9c555d5b89bccfcd4bdebfbf94b842db6d02e"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/XOpsSetup",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/XOpsSetup",
+    "sha256": "921b2964d04aa27be97f1c30e321e18f35b49f5471f7e813beca2cc394476fd2"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/XOpsSupport",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/XOpsSupport",
+    "sha256": "fb3ad5ac027f5fcec5a85e739c8b2724ee61aadd6f4948e2dd3f9e54c5b0cdd1"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/Xcontrol",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/Xcontrol",
+    "sha256": "32ca102686d7c100e5b3ba353e554c77fb88cd41012fc73fb35b3212870aa32d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/Xsetup",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/Xsetup",
+    "sha256": "2b9dc7539c4458d4c2bd16175bc2ca15c885739e6a5b1b76fb348e2169af07ba"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/Xsupport",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/Xsupport",
+    "sha256": "72e42dac2a227f37b4c1bada25c9e7aa603bbbe0ae10beccd05475719883c15d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/attr.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/attr.test",
+    "sha256": "1bbb9debe88fe14b3bbd5015bf6625a893df394f831329cad18629794736e384"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/delete.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/delete.test",
+    "sha256": "7c889e4810616b73cd5468d89b802d50cda31c18049e16a7e1020290786d5a5c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/exists.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/exists.test",
+    "sha256": "6d8328e55cba4c16ed05db6d983f29a93dda8ac1ed0635b900eaf0cbe33d59c9"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/flip.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/flip.test",
+    "sha256": "796ea3427e139bfc5fc4d1549da010d7422e64bb528d49f8b0f12130b957bccb"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/getunweighted.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/getunweighted.test",
+    "sha256": "dd2a101c30fec09af4e51188d7e60fc65cd6440105f25564d97bf75974d12df0"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/getweight.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/getweight.test",
+    "sha256": "050ed752a7bf1257846357de1c1f9c5acf86defd9db04150d64655cdb3498e71"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/hasweight.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/hasweight.test",
+    "sha256": "333a04fa1015153aa75df8971bdc6feb63cb6827426f6eabb1cebd9b46ef333f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/insert.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/insert.test",
+    "sha256": "ccf9d8ee8c491b8431f729ec5235753e1d1b920280fe98c4d2e8977011df65cf"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/move-source.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/move-source.test",
+    "sha256": "e713df480261d1bc00eb24e2461b1dce1f6f3ae49d4791d035215d8a86ece2f1"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/move-target.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/move-target.test",
+    "sha256": "74845981e2607515c0fcd6ffea10408e288a30f39deadfd207f97dd421e3e19b"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/move.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/move.test",
+    "sha256": "7ded95ed28f330412e237f3f23643c2228d0670d7cbe5df25289628656a06941"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/nodes.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/nodes.test",
+    "sha256": "662cd66af350e0873d6d92e53c5fd28025c5a678bdbcd64a3206b15a84b09f28"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/rename.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/rename.test",
+    "sha256": "6074f6e7ae996e7ac2a05946be1a83aad1e4c474076b5a49517092898f4701c8"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/setunweighted.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/setunweighted.test",
+    "sha256": "fca3826f21d5e582ab2a77088df32020e4f723e50cd57d243c7050252d8b9fad"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/setweight.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/setweight.test",
+    "sha256": "67511a20bd0112c850562b0bd3b29f88c5710d5d26fb2eb82877e97fbc76f0d2"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/source.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/source.test",
+    "sha256": "7dda939806f70b2300e54661efebbd5f3ecc75b87efd622662a908af25dfc6d9"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/target.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/target.test",
+    "sha256": "af48903a29f4222427f6d278ca8e1e7cddb902c3d6af0787751ca705bf6fdbc7"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/unsetweight.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/unsetweight.test",
+    "sha256": "3da8d7c14907007d30d19b4bca2b225a731003ff5b25ca23dc699683d79896b0"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arc/weights.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arc/weights.test",
+    "sha256": "2097500c9f9ecdfba03a9dd47ec847276d6411bdd629408d758a704ea5ce5f59"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/arcs.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/arcs.test",
+    "sha256": "7ff505834ab9b2df6cf724fe5c1dc753045773798791dd683967b3f26e560708"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/assign.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/assign.test",
+    "sha256": "8c41c529ccf6e85a919d8a7dab8565d553a742cc85e614126bef48de36e3fa3d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/attr/Xsetup",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/attr/Xsetup",
+    "sha256": "7411fdb2c20105c0e1a954a49ba4387fde977fbd9478d9ee73904dbf3de4c4a4"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/attr/append.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/attr/append.test",
+    "sha256": "811ef31159ba5672611df4632978602fdf5c908ae9f5b6150823d455894a343c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/attr/get.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/attr/get.test",
+    "sha256": "09ef2bb8d4d85aa2e9ec639a83132c006f4f69f2ff8f8c942b2771e52b50c0dc"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/attr/getall.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/attr/getall.test",
+    "sha256": "13c9ef19c86081775ccf9c25b9f7ab98135de6b6aff290f938947e48ab9bc395"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/attr/keyexists.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/attr/keyexists.test",
+    "sha256": "3002df683e8fc762d7e9bd8ccf0ee219211d8acceb16a411ec5ba36f3cd24bf0"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/attr/keys.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/attr/keys.test",
+    "sha256": "e45931cdc2e8e8669dfec73e769a519f32ace9f6b30a288757006296fabfbdbd"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/attr/lappend.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/attr/lappend.test",
+    "sha256": "f28c8b613251a334e7678de01e56014e6001158d1ed58e123e6111f8a1785d92"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/attr/set.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/attr/set.test",
+    "sha256": "e44898784747207fdbfb5fff05993b2d1bc6eaffa0ee9aae0cc7dae11734ba87"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/attr/unset.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/attr/unset.test",
+    "sha256": "9f77522af138cbec8dfa7ec4ddbec7b32c351df47c7c913321b3c96bf017cef4"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/command.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/command.test",
+    "sha256": "814cea968c91f655752da6aca1e368b5c8cd24eb0a80305ee46445e4dd7a2d9f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/deserialize.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/deserialize.test",
+    "sha256": "c788c0a0cf539b8f9a0f9492efeaeb416e7351e754467fa24a7955ebab56f9c7"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/node/attr.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/node/attr.test",
+    "sha256": "f1bc37070c72447aa97e84e6d08c39c371626420bedf2962334aad8ca0aff652"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/node/degree.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/node/degree.test",
+    "sha256": "b687bbf3d029dc741e865b2e6760df8aabd6c0298519ebec459bfad4efca03d6"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/node/delete.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/node/delete.test",
+    "sha256": "13f57ce3b7c92f6f7e41c66eb0cceb20fcfe9c7198358791bd03efa6ef01f678"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/node/exists.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/node/exists.test",
+    "sha256": "6bebd3f447ae88dc187d53d6f04311cefcff772a9767b109dac7b18ddb350db9"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/node/insert.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/node/insert.test",
+    "sha256": "a186760d38b075475b3dc129d304fb02d6a3951dd6d149ba5199bc2b6605b4cd"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/node/opposite.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/node/opposite.test",
+    "sha256": "8c7deddf104a2f83391dca6ff4da8441b1fb52ce1bbaa14aae42021afd670116"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/node/rename.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/node/rename.test",
+    "sha256": "98f32bc93b0a570c6cf66d05deab04ab58f2d44466cd905589fc24148d2fe844"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/nodes.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/nodes.test",
+    "sha256": "cff7688e80df953c23a9b4c13d1f28269420ce3c3d84aa616898f2ce1ea047c3"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/adjlist.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/adjlist.test",
+    "sha256": "4406b479d2532759381be0ab2dc45ede42ca6b20d645f9f2474a3d35c1daa936"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/adjmatrix.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/adjmatrix.test",
+    "sha256": "44d8d570d2b078c8b7fd3211f157d6dfe816f786e8c5a4e99a008384e3d7c555"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/bellmanford.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/bellmanford.test",
+    "sha256": "2c20a3ca9466ad4c7a3b5656ef08725b59754756143fd1c10f636b0ef501786e"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/bfs.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/bfs.test",
+    "sha256": "ad9ad2432aefe4a9de7bd6d89e1d7b65e8cb7aa95c9b4834df134b19f91b8c2b"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/bipartite.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/bipartite.test",
+    "sha256": "aabbe5bdf39a46943acfdc5fdeb4642eeb7a424418085c1d85e37a8252d106b2"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/bridge.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/bridge.test",
+    "sha256": "dce502a0e9a0e8829890c5a9115c9bfd66ef0be263c560c08f8a48218d4970d4"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/busackergowen.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/busackergowen.test",
+    "sha256": "caff55f9a64aba75cf39ed766252bffe0e6672e256a640248bd0b64b5185ea82"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/christofides.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/christofides.test",
+    "sha256": "f17462a04a48c554c9e7ed7b41fd2e4d03aa74bf504276985d618c457c6fc34c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/componentof.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/componentof.test",
+    "sha256": "a12cd4fb42181339524a3c1744f50465004f531864841a8c48227165f7ef90a8"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/components.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/components.test",
+    "sha256": "a869367e800b894bc39f4ec141a6faa2f9120929f17a265718ff55dc1fb46894"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/connected.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/connected.test",
+    "sha256": "b9e1e4737728f481ddcdd0130d58e9d13cee626fc5b76294ad8b9cf13b43c721"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/cutvertex.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/cutvertex.test",
+    "sha256": "c427f9446205029a3cf965ca3c7ee824f3166495b35f4bc21e681bd866899175"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/diameter.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/diameter.test",
+    "sha256": "579e86dcb09b90f50c9d158574d1cf224e1ceed3774ad611728a18c035d4fb0c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/dijkstra.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/dijkstra.test",
+    "sha256": "65fccf5044c4fc99c21d8a349e196cecc401433e51ebb78026ca27a7585dcb92"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/dinicblockingflow.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/dinicblockingflow.test",
+    "sha256": "7bc62e71fe7892fd2ff8c51faa949583a204b870d845683a981ab3793e217597"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/dinicmaximumflow.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/dinicmaximumflow.test",
+    "sha256": "7dabb122ed30bbef9cd7ba70cd1f9942074e577f6b24989509b8255b710b4f0f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/distance.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/distance.test",
+    "sha256": "00bfa54460f52453cf5959ba436908815a6405f23df972e10822170c967b8c7e"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/eccentricity.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/eccentricity.test",
+    "sha256": "c223e04434ad242f2b134ea6478d3a8577ab73c9521efb2d92e3bcd164f7b4f3"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/edmondskarp.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/edmondskarp.test",
+    "sha256": "008875062474017274aac84c42d70e41a2163bca4513e07194e239ce07723867"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/eulerpath.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/eulerpath.test",
+    "sha256": "010e18eb175154f18afec49156b5fca4a00b497223de69fa202d691c9271e695"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/eulertour.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/eulertour.test",
+    "sha256": "a18e54c96ca93cd1f6e0e0d82159d483878e3bb85aa509b27ac3497eb16de157"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/floydwarshall.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/floydwarshall.test",
+    "sha256": "f561d1b0715b7baf002d23eb988336499170bb80aaa513fe42da755756756f11"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/johnsons.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/johnsons.test",
+    "sha256": "e42803000f575ae65567225e92935992ebf4954dfefcf5b80e2fa88f646ad903"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/kcenter.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/kcenter.test",
+    "sha256": "6fc6355b28cdc7207d0f7daa8b0d05a31ec9d742d0ff09c2e593fe13ba198477"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/kruskal.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/kruskal.test",
+    "sha256": "d997e0563232e0db86fc343fe3de2d6931a2f9ec635ddf0e0838191b6419381e"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/maxcut.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/maxcut.test",
+    "sha256": "ed5de49befa6f29302bfed712992e955448af24fb3b712ab76c60098ae50b962"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/maxmatching.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/maxmatching.test",
+    "sha256": "50727b8e305137fcce2d69a23f9001a4557024428487ded858ec19fc75b50a44"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/mdst.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/mdst.test",
+    "sha256": "13a77d310acedacc07aa90fdbb6596b70e96ac8a35fce2ddd2aacccf1e24e708"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/metrictsp.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/metrictsp.test",
+    "sha256": "1a05d7e221212d1e80cd6d626049266241107dcde1f6ad88fd9e00699ccce7b9"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/mkmblockingflow.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/mkmblockingflow.test",
+    "sha256": "ffc95b622c995ed486b8c1a49af605de769337299b67489ca846ba76d0d47108"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/prim.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/prim.test",
+    "sha256": "54ad4c9ddbd18293af820012b0632e3d5cf137cba1cad456e85a0d65e6b8195c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/radius.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/radius.test",
+    "sha256": "ee4905b9b02e51d42a0f4c2b2b393f0fc2b41fa482b05622793c5d7c2ac59247"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/tarjan.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/tarjan.test",
+    "sha256": "869549fc043103a8f47f3d2494e17f266dc937fe9516c88df1c72da0eee30223"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/tspheuristics.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/tspheuristics.test",
+    "sha256": "58ff59404b167ebf19e5e71fd9c51bb8f55b41ad15f3440f376e3f33b51f6d7f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/verticescover.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/verticescover.test",
+    "sha256": "23924cfbd89a0d89e84aa91d6e76785e742da605d99bd0b39cdbfe66eb63877d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/ops/weightedkcenter.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/ops/weightedkcenter.test",
+    "sha256": "094f99a3df58328a749f0a3a1c3f50ac0812fa9c36adb41e41ec549dc275573d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/rassign.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/rassign.test",
+    "sha256": "0ca7089cc05cf345dd2469aae1bd0753c41bdfad43497fbd4e155bdb0b965a86"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/serialize.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/serialize.test",
+    "sha256": "5f8e018380ed1a80c7bfcf9aa414c0d9b7f682067882ebdce48d5f629bc7fc05"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/swap.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/swap.test",
+    "sha256": "d9d336622c3f36badfeec0e50a6b7aead11e044db28e457241e58b2d874e686f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/tests/walk.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/tests/walk.test",
+    "sha256": "096ccb187141473969ae453be6fc9036e34c308f5c51cf37026965ceaff8a2fb"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/util.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/util.c",
+    "sha256": "3683c93dd2d352a3a553d0882d70f80a842e75983066f474a2951968bef3a91a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/util.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/util.h",
+    "sha256": "560206acbe2396ccc93819225ec922b8f0a932053abfcfd9c28c66e38ec41d3d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/walk.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/walk.c",
+    "sha256": "35101d0ca72b7a9af2f9d4a7d46f025bd3ccd4608725cee0de377d04bcd225dd"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph/walk.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph/walk.h",
+    "sha256": "ad1b7f2fdd84ad236d0c7cf1d14cc236c8ae4a698e2917838147d6323629557f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph.man",
+    "sha256": "069b96ad17b76a8afa0a91cc813dabf871ebc92dc2d1e96dcea80839864e2ac4"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph.tcl",
+    "sha256": "b47f2f24081269a6a3285ae642d1e4b7d81e9218eaa239a83c7a2ad034ad8446"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph.test",
+    "sha256": "a0fcebe584470e9ad15a98f2de954d4a2fc585a5c8167101d0ea2f2e8d86330e"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph1.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph1.man",
+    "sha256": "bd878ea45a9ecfaf1f8ea75d511de4e110168773740f12120d562a84f86c49bc"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph1.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph1.tcl",
+    "sha256": "5046da0b7918ede716f6351389fdcc0e3f82ceeb8c4068b21e4f47f4337a2936"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph1.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph1.test",
+    "sha256": "7894e1ea4adc5aab0488dd58f8ad6a713b6bc3e6931255dca827c34b5249f114"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph_c.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph_c.tcl",
+    "sha256": "a2264ef72b176e49ba73dfd8bb6a6a0f14ce852dea923b2b41951925c5903d80"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graph_tcl.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graph_tcl.tcl",
+    "sha256": "17b6887bf5eec3aafdd3df54cc6c1e48ca044a06c0e036a76bb8bf2ea900d8f2"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graphops.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graphops.man",
+    "sha256": "388d8541987a257484d39a032e553f9c5b4ce5cd7903cb391b5a59555ee9f587"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graphops.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graphops.tcl",
+    "sha256": "8c88c47adbc3d13f08f8c19bf3423b575cffb7adc365d561456a96f9b6c59b3e"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/graphops.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/graphops.test",
+    "sha256": "c3b5caddac8cddf6ecb32617d507e58f2b9d7749f3ee8e7eaa82e40493615c73"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/list.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/list.tcl",
+    "sha256": "d42645ecc6e0696d77d5c155ee6a11919a26e86ea34ae07c492c672e0b71c4cf"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/list.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/list.test",
+    "sha256": "cf7e54bf7ece6224cb503bda936ee3ab60ceca63e9c87291a3c9850b2a2bec06"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/list.test.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/list.test.tcl",
+    "sha256": "bed53fa417fcf384c78409c7464cb663e158ede41e9fe20f54a88d6eacd294b3"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/map.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/map.tcl",
+    "sha256": "a247a378a0eae900f6565c8e48ae11f31bf17b4b952deec9ff1fcc36727dbbe3"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/map.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/map.test",
+    "sha256": "c1cd50f85cc0b40a0fa8a41024e37574386e9f937232552960979b57dbfe5702"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/matrix.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/matrix.man",
+    "sha256": "704a7a992202474c7e9e9c8ed598a022c2e8cefc8bb4964baa005f690fd8fd41"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/matrix.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/matrix.tcl",
+    "sha256": "a66ecbc081873e3758031c8628cf1f4e3c640020040b8ee5a50615c6e8dbaceb"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/matrix.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/matrix.test",
+    "sha256": "a0d5af12ea41e77ce77e9731d9ef07824768a21df4fbf7d7c0367d9254ef4a25"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/matrix.testsupport",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/matrix.testsupport",
+    "sha256": "b44ca8d429e21b824feaf0fcc1bc05409a31bd2b54a968640d8bca0bd6352e8b"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/pkgIndex.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/pkgIndex.tcl",
+    "sha256": "763f067be288691833c34a61145b97346aaeefe8d4d1ee4bffd95b02d4dbcbd1"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/pool.html",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/pool.html",
+    "sha256": "eae50992fa8bfb113568bcb0f8b30a1a5ac3e08722c26bd3052009223fcf39ad"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/pool.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/pool.man",
+    "sha256": "588f1f46ff4fd632f132a6c1e07afaa4f97571ab2b59ff48e96c8a72e53a398a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/pool.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/pool.tcl",
+    "sha256": "04da30ac3125f3e42b2536b250301822547b4ebc4280573d28932f3acf782221"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/pool.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/pool.test",
+    "sha256": "3ce83689e02dac6b862fc2f5d71d9f1ee8d2b851ad5288bd703b4ef4f4fe0860"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/prioqueue.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/prioqueue.man",
+    "sha256": "74c39b883356547248043d9a37bc0c5076f930c6a9ac172a3125e45b01f1667c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/prioqueue.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/prioqueue.tcl",
+    "sha256": "3d5583115f16259319998d786ede1597a4e816a177ecbf1858bbbf847ee2279c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/prioqueue.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/prioqueue.test",
+    "sha256": "71a508dd5f8dea3bb76b58927fbc598ffa4b0fad5dc6926202da2aa6f081dfbc"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue/ds.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue/ds.h",
+    "sha256": "fa873321e66b04b08b902a1666c0076c317e0508bb42711f6e3dc253365ebd6b"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue/m.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue/m.c",
+    "sha256": "8a75bcd74135c3e6176d8969c47855677e06ed4698aba2ea9feb2d84c74a3668"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue/m.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue/m.h",
+    "sha256": "8c1e6cace80fcec1c4eac0ee182899d765b57ddce66c27b3ff414136b505a27c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue/ms.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue/ms.c",
+    "sha256": "be1ee3e39b8192b07900698eeeffb11b11c8d382679d1fdbd44b296138c49230"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue/ms.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue/ms.h",
+    "sha256": "13ae0b0141de2e779cc784297604a33c04209e5819b3025aced0e1787a8a9bc1"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue/q.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue/q.c",
+    "sha256": "78ec4b1c145ab3d97b2ec11495ea61454502ccd2d84292869bf5f35af69b69ce"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue/q.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue/q.h",
+    "sha256": "3e0df763f9dd87843a41367cb6305b7541a0a0c1a3195c85bddcdb8a60070cc0"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue/util.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue/util.h",
+    "sha256": "d7a825019d2cccac3a58405839921f7f7c2323ba3b80e7cb288af7debcf4b148"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue.bench",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue.bench",
+    "sha256": "ba038a4f0e9ea5258fe68554e0702983672053726f53c53e55525fb9d92166a2"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue.man",
+    "sha256": "02327e95dc8c4565875e54afc72bd4048c159519023e60e73942fce31f432739"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue.tcl",
+    "sha256": "b8c04f7450819d2e97050f4418932e8c6c64259320333f6936d4b32bb5b0b325"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue.test",
+    "sha256": "b8ff4b813ac2777793b2051ee13a8e8fb4e5e6a5f644095d75f33caa85385c5b"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue.testsuite",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue.testsuite",
+    "sha256": "8028aced4bfa6e1b78bcefd5bb5a04804a995ac622bd09d0cfd112fc9c8a8bc1"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue_c.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue_c.tcl",
+    "sha256": "fcea2bf16949fe1cfc6d7776015f8bec1dbfee2e6e5acebd42c1c80b4f093431"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue_oo.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue_oo.tcl",
+    "sha256": "98074f0c7a7afbb629212067dc74e414456baed130c0ac540b22361995616a78"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/queue_tcl.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/queue_tcl.tcl",
+    "sha256": "4bd35e03200f85ca7e99e93b97e13efd590ce6f1ad11273d7762e7bf32d420da"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/record.html",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/record.html",
+    "sha256": "e58c0bd74797a78b93b6ebad686b614f633369ba39dddeca43fbf581798ea0c3"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/record.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/record.man",
+    "sha256": "ac4bf5aedda87374f3ca3719c7f734b4ce8fb9b8040390d22b6ad0dff59ccfad"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/record.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/record.tcl",
+    "sha256": "0417ece77aa520e55c1190a12a14e93afdebebee9d6bc1a94a439f2f795cf5f5"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/record.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/record.test",
+    "sha256": "be8faf147e202da4fad98b525a1cfba96a683fce3e1175d5c326cd28073994b4"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets/ds.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets/ds.h",
+    "sha256": "c6f21f578d62a548d66ff0d8a73b2e46923a20fcec7a90fda56884d73e3c6b5d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets/m.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets/m.c",
+    "sha256": "e48f5e45ddf91cff7be6390ca5a11d0bc8db48eb934c648d323b3898f53fa017"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets/m.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets/m.h",
+    "sha256": "4ffebc83c927e0c7f7ebf244fb5d0a1eb7ac3e626735a2ab0660477908983308"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets/s.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets/s.c",
+    "sha256": "07656ceeb75d6c84e6660ca8849c66290a02d6a13f0454588643723ea6cf4a2a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets/s.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets/s.h",
+    "sha256": "86312beb7d6085bae4698159e8cd4337c0ccb73b571b6177e7cdc9f3290b1e72"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets.bench",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets.bench",
+    "sha256": "4aeef2f1d195f3903d38b2366f2856c89be6882360630c492869f754a917d50f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets.tcl",
+    "sha256": "590756023544ab34b151ad91096e74579dc19ef9170be0132623a6099f34e878"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets.test",
+    "sha256": "0f507b55fab14d0903cbb4395f8e339d4b97fdb705a01396f11a9869267b7562"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets.testsuite",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets.testsuite",
+    "sha256": "475da41075d3c994d86092173b07ab0f58718172ffbea3769b45d03dcd725119"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets_c.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets_c.tcl",
+    "sha256": "5e68b0d66fdd8cd9f1af1aad0724cba5912aaa9f20823fae102a4c9e944e7eb9"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/sets_tcl.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/sets_tcl.tcl",
+    "sha256": "0e99ba805ae52d2024965a75483ca9d46813ed9d65e7cc1f2c4e5e36d3ced61a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/skiplist.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/skiplist.man",
+    "sha256": "8e75432daf8eae3ce6e9289e1074f446cb58eac688fc31ceabeb5d6f7e60082d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/skiplist.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/skiplist.tcl",
+    "sha256": "db0254ee7f2caa4190a7592f26ff34b70da32a1505d3948647dabe85de10df42"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/skiplist.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/skiplist.test",
+    "sha256": "c4acceb1f6d8df90988cf02f3fbcdfc04845a8a9706125816f195a3258f228ba"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack/ds.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack/ds.h",
+    "sha256": "598801b63fd860c18832ba2d1e7c7de3b1f72fac4595ac496861486a9cdd1e5d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack/m.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack/m.c",
+    "sha256": "aefedd85b6568ab7a39caffb668c8dec8dd01ce34299ac26a91ae0def5b1194a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack/m.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack/m.h",
+    "sha256": "26624f326158e2d0f6f1852e17d77685c9f9dc42ad6a252a4c0e9335701daa91"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack/ms.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack/ms.c",
+    "sha256": "b4be0636dc656b57a5fec319991f21896a4c086a1efc01d513d0012d049fa146"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack/ms.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack/ms.h",
+    "sha256": "ec46a9fadc8bdbc4c7bfd6fe56421136c598ef61f24063d72528e20457912237"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack/s.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack/s.c",
+    "sha256": "073929204bf721b15153891430ed91c0641ff2e31e9282b036a25bf814518edf"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack/s.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack/s.h",
+    "sha256": "9ed59f57f7ec5c3ad7b58b67a5cdc64a4dc14a03a9c4e40d683fccc0d69d0f9a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack/util.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack/util.h",
+    "sha256": "eebbb31871efc4a3410bde38b4c37469e6d6c741f9a92effa8e818127623f11e"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack.bench",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack.bench",
+    "sha256": "59e3b6d262358ab62a15d31133b2180265acc9313700433b16e4e10981f929e3"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack.man",
+    "sha256": "c6f6d43b020d1e9b0f743dee67f44491a20e3f6cf54c9d3b8c71a0e69c2d80e6"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack.tcl",
+    "sha256": "be18adfd90fc9f056ba20300d51d976fe3611bab2ab83b3fc9e53c1300d5d724"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack.test",
+    "sha256": "0b1cbc0339095c4a9aff8d37d7960db021bc5d71d7a4163cce53390c5f61bf58"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack.testsuite",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack.testsuite",
+    "sha256": "007ca65105f5d6202996feddedaba99702f5557ec56d1e9650dcdf4a44ced160"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack_c.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack_c.tcl",
+    "sha256": "9da024afb8faa824e5c882dde5a35226f9f5908e314659f4ad1e98d71aeea191"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack_oo.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack_oo.tcl",
+    "sha256": "962808d5cccb1406f3faaab6b00c7d8694c2c7d4d9c4acf09c4649929f00a438"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/stack_tcl.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/stack_tcl.tcl",
+    "sha256": "fd20b57e7cdcb6e85ea8a16800ece39a3d85c2074d71df64f3b5ed8a6259d063"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/struct.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/struct.tcl",
+    "sha256": "5cb4181ef5ce0b71007fd7f345121c760f258a85c356acfdf8cf67395810ffca"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/struct1.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/struct1.tcl",
+    "sha256": "ca6c004ff33053eecd26d75eed74c7432f9ec807c1149dda887cb61e85a34fad"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/struct_list.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/struct_list.man",
+    "sha256": "f4783146511e4b21dd3674a55ad35262cf76b92cfa76d64bd189d0073a13096a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/struct_map.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/struct_map.man",
+    "sha256": "eab86ef7425cfec54baa06fbedff7b3a1a4cc1cd4384af45302b9ffccdb50d5c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/struct_set.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/struct_set.man",
+    "sha256": "cf5ed137eab5e592d3a616307d6085bbce07da7ea3e3f034a7888f698b4db014"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/struct_tree.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/struct_tree.man",
+    "sha256": "cbc571506c0e3acc9301b5617dbf58411314f8421f187502344e573ea7b50d87"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/struct_tree1.man",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/struct_tree1.man",
+    "sha256": "e91b13f141b43371414b23d215de65b81a71653dda791b315fffb4a07999a69c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/ds.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/ds.h",
+    "sha256": "7d0b2e5dadd489d77457942c3fb4ee8776a7f84a21b7598097da505261f78b90"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/m.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/m.c",
+    "sha256": "2e841e205d7b3aec2a3353bee42415e5ffc1057a8758991f93fb443122beb36a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/m.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/m.h",
+    "sha256": "1bb256780cdfa4f1430ea43615c717477046851aed32cdd63db62cbb26622c91"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/ms.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/ms.c",
+    "sha256": "1b6f9fa67bb52cbd281c564372504c81db9f3d93f548cdb52b9bb831ffe8449f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/ms.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/ms.h",
+    "sha256": "ac6f5aa82037f9c24c0c0dbd8723e80a9b17af5920e37abf041c641d63498b12"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/shimmer.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/shimmer.c",
+    "sha256": "5bbbd674c3c63ba5a008e35c8ede4b0419f57eb84087f15228cde53e334a2b46"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/t.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/t.c",
+    "sha256": "6c5aa339a5dd44bb229cc51cca0fd0075c2564552dc311c1ea0d253efd78999d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/t.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/t.h",
+    "sha256": "065ea2ac778dd81109797dd41ada9e23088d81231326b17b68fbb92c3c3b117d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/tests/Xsupport",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/tests/Xsupport",
+    "sha256": "a3853713bb6580edc513dcbdb173446e553f11ac1f7d7cf2f55482805fca182b"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/tn.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/tn.c",
+    "sha256": "0c67099dc50c9eb7a14fa6683a8e702378637cc84f6e0d030fbad70b1b055ab7"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/tn.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/tn.h",
+    "sha256": "c0a7ddd265e4a8c8b40ee34c2083d8ba782294efbdfe7eabcd3da5f6c91ae14c"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/util.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/util.c",
+    "sha256": "7dad4eab2cf272174e5827209ff15d42eff1a28d1985603f349c7800dc6d1645"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/util.h",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/util.h",
+    "sha256": "a0d7845fd3688c9609a499c009bb0c0b150a66a9c10829fd732313949f6455cc"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree/walk.c",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree/walk.c",
+    "sha256": "be0eac721f7de934018eee6e4f001d8e4d97227755a395b2cb71fc637bcb9052"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree.bench",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree.bench",
+    "sha256": "820ec0020f8886e93de96d35917bbeceff7594f8e3715d52ff942e1ef3d95e8d"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree.tcl",
+    "sha256": "c5d7534c860bfd1c363f1b5784f4d7aa79bd968e626281da8b90b20182a9970f"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree.test",
+    "sha256": "02e8b596a99d3edcb66ab66c53ebcdc3a6c86d34cb53b0280dbfff7723b39758"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree.testsuite",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree.testsuite",
+    "sha256": "a5d458647ac51f0264004b7ad7267c970be8a23a6a0f64c1e9f49a8460b661b1"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree.testsuite.4417=84tcl.txt",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree.testsuite.4417=84tcl.txt",
+    "sha256": "71a09e7510494372fbcf665c5b2d55b1c652358ae0e62d9b492fa4f8dacf56a9"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree.testsuite.4417a83critcl.txt",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree.testsuite.4417a83critcl.txt",
+    "sha256": "f6b8c4bdd8f80225b20cbc36ae5b98bcb7f4a5e7b559b6bb7d96e925078aecc0"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree.testsuite.4417a84tcl.txt",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree.testsuite.4417a84tcl.txt",
+    "sha256": "838b7f6d8a8be8941b8dcd8b2b9dc452bd2648e82eb513715c9061b526c8dc8a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree.testsuite.4417b84.txt",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree.testsuite.4417b84.txt",
+    "sha256": "838b7f6d8a8be8941b8dcd8b2b9dc452bd2648e82eb513715c9061b526c8dc8a"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree1.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree1.tcl",
+    "sha256": "bc9cb67a6e1c19d83f9753813e77de620349c87964c088fa745a57a0f3987fc8"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree1.test",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree1.test",
+    "sha256": "1fe8c3988a0ca76186a2b7b61b7acbe619c26ea80be1b57f8beee3e87b422f27"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree_c.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree_c.tcl",
+    "sha256": "876181c3b7db19d507e83de1463b5606458cecd8512cf697a7c3e6fecfdc4490"
+  },
+  {
+    "source": "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct/tree_tcl.tcl",
+    "destination": "experiments/name-handling/results/package-callback-original-source-20261014/original-library/struct/tree_tcl.tcl",
+    "sha256": "029a75b61ed15b9ea1c550f3324664337e937e2f8ddcb8c898782a517e901bcd"
+  }
+]
