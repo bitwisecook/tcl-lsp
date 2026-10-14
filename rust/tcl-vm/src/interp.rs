@@ -846,6 +846,8 @@ pub(crate) struct PendingControl {
     /// builtin that reads its words as that compiled command does takes it
     /// at entry.
     pub(crate) release_compiled: Option<tcl_bytecode::ReleaseCompiled>,
+    /// Next `package unknown` or `package ifneeded` script of a require.
+    pub(crate) package: Option<crate::cmd_package::PackageReq>,
 }
 
 /// One interpreter's complete state: command table, namespaces, call frames,
@@ -860,13 +862,22 @@ struct PackageState {
     package_ifneeded: HashMap<String, HashMap<String, String>>,
     /// Selected package loaders currently being evaluated. Tcl uses the
     /// selected loader's required name/version as a circular-dependency guard;
-    /// the stack matters because loaders may require other packages.
-    package_loading: Vec<(String, String)>,
+    /// the stack matters because loaders may require other packages. A loader
+    /// suspended in a coroutine finishes out of order, so each entry carries
+    /// the token its `begin_package_loading` handed out.
+    package_loading: Vec<(PackageLoadToken, String, String)>,
+    /// The token the next selected loader receives.
+    next_loading_token: u64,
     /// Libraries loaded into this interpreter, `(file name, prefix)` in the
     /// order they were loaded (`info loaded`). The file name is empty for one
     /// linked into the program.
     loaded_libraries: Vec<(String, String)>,
 }
+
+/// Identifies one selected loader's circular-dependency marker, so its
+/// completion retires exactly that marker.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PackageLoadToken(u64);
 
 /// A compiled function and the manifest of the module it came from.
 pub(crate) type CompiledFunction = (Rc<FunctionAsm>, Option<Arc<ArtefactIdentityManifest>>);
@@ -1352,6 +1363,18 @@ pub struct InterpState {
     /// The `thread` package's per-interpreter state — disabled until the
     /// embedder calls [`Vm::enable_threads`]. See [`crate::cmd_thread`].
     pub(crate) thread: crate::cmd_thread::ThreadSystem,
+}
+
+/// The call frames above a target level, set aside by [`Vm::enter_level`]
+/// while a script runs at that level.
+pub(crate) struct LevelShift {
+    target: usize,
+    ns_cut: usize,
+    frames: Vec<CallFrame>,
+    ns_stack: Vec<String>,
+    ns_id_stack: Vec<NsId>,
+    recursion_depth: usize,
+    shifted: bool,
 }
 
 /// A runtime script prepared according to the compiler's command-at-a-time
@@ -8362,25 +8385,29 @@ impl Vm {
             .package_loading
             .iter()
             .rev()
-            .find_map(|(loading_name, version)| (loading_name == name).then_some(version.as_str()))
+            .find_map(|(_, loading_name, version)| {
+                (loading_name == name).then_some(version.as_str())
+            })
     }
 
     /// Mark a selected `package ifneeded` loader as active.
-    pub(crate) fn begin_package_loading(&mut self, name: &str, version: &str) {
-        self.package_state
+    pub(crate) fn begin_package_loading(&mut self, name: &str, version: &str) -> PackageLoadToken {
+        let state = &mut self.package_state;
+        let token = PackageLoadToken(state.next_loading_token);
+        state.next_loading_token += 1;
+        state
             .package_loading
-            .push((name.to_owned(), version.to_owned()));
+            .push((token, name.to_owned(), version.to_owned()));
+        token
     }
 
     /// Unmark a selected loader after every completion path. A `package
     /// forget` inside a loader can remove this entry before the loader returns,
     /// so cleanup is deliberately tolerant of an already-removed marker.
-    pub(crate) fn end_package_loading(&mut self, name: &str, version: &str) {
-        if self.package_state.package_loading.last().is_some_and(
-            |(loading_name, loading_version)| loading_name == name && loading_version == version,
-        ) {
-            self.package_state.package_loading.pop();
-        }
+    pub(crate) fn end_package_loading(&mut self, token: PackageLoadToken) {
+        self.package_state
+            .package_loading
+            .retain(|(loading, _, _)| *loading != token);
     }
 
     /// Record that the library `prefix` is loaded into this interpreter, from
@@ -8403,7 +8430,7 @@ impl Vm {
         self.package_state.package_ifneeded.remove(name);
         self.package_state
             .package_loading
-            .retain(|(loading_name, _)| loading_name != name);
+            .retain(|(_, loading_name, _)| loading_name != name);
     }
 
     pub(crate) fn set_package_unknown(&mut self, script: Option<String>) {
@@ -10125,25 +10152,6 @@ impl Vm {
         }
     }
 
-    /// Fire `unset` traces on a suspended coroutine's parked locals as the
-    /// coroutine is torn down: its frozen frames are about to vanish, so swap the
-    /// parked flow in, unwind it frame by frame (each `pop_call_frame` fires that
-    /// frame's unset traces), then swap the caller's flow back (`parked` is left
-    /// emptied for the caller to drop). Matches C Tcl unsetting a deleted
-    /// coroutine's variables (coroutine-4.3).
-    pub(crate) fn fire_parked_unset_traces(&mut self, parked: &mut ParkedFlow) {
-        self.swap_flow(parked);
-        while self.frames.len() > 1 {
-            self.pop_call_frame();
-            // Releasing the parked call frame also releases the exact namespace
-            // token it retained. This can complete a deferred namespace
-            // teardown; dropping only the display stack strand left that token
-            // and every command it owned indefinitely.
-            self.pop_ns();
-        }
-        self.swap_flow(parked);
-    }
-
     /// Push a non-proc call frame for a `namespace eval`/`inscope` body running
     /// in namespace `ns` (canonical, no leading `::`). Like a proc call this is a
     /// real frame — `info level` counts it and `uplevel`/`upvar` can target it —
@@ -10227,11 +10235,6 @@ impl Vm {
         }
     }
 
-    /// Evaluate `src` as if `target` were the current call frame (`uplevel`).
-    /// The frames above `target` are set aside for the duration and restored
-    /// afterwards, so the script's variable references and `info level` resolve
-    /// against the target activation. A `Return` completion is passed through to
-    /// the calling frame (as the reference `uplevel` does).
     /// Push the path of a file being `source`d; the matching [`Self::pop_script`]
     /// restores the previous one. Drives `info script`.
     pub(crate) fn push_script(&mut self, path: String) {
@@ -10249,12 +10252,12 @@ impl Vm {
         self.script_stack.last().map_or("", String::as_str)
     }
 
-    pub(crate) fn eval_at_level(&mut self, target: usize, src: &str) -> Completion<Value> {
-        self.eval_at_level_as(target, src, CommandEvaluation::Compiled)
-    }
-
-    /// [`Self::eval_at_level`], the script's own commands evaluated as
-    /// `evaluation` says.
+    /// Evaluate `src` as if `target` were the current call frame (`uplevel`).
+    /// The frames above `target` are set aside for the duration and restored
+    /// afterwards, so the script's variable references and `info level` resolve
+    /// against the target activation. A `Return` completion is passed through to
+    /// the calling frame (as the reference `uplevel` does). The script's own
+    /// commands are evaluated as `evaluation` says.
     pub(crate) fn eval_at_level_as(
         &mut self,
         target: usize,
@@ -10264,8 +10267,22 @@ impl Vm {
         if target >= self.frames.len() {
             return err(format!("bad level \"{target}\""));
         }
+        let shift = self.enter_level(target);
+        let result = self.eval_source_as(src, evaluation);
+        self.leave_level(shift);
+        match result {
+            Ok(c) => c,
+            Err(e) => err(e.message),
+        }
+    }
+
+    /// Make the existing frame `target` current by setting aside every frame
+    /// above it until [`Self::leave_level`] re-attaches them. The shift is
+    /// plain data, so an activation running at `target` can carry it across a
+    /// coroutine suspension.
+    pub(crate) fn enter_level(&mut self, target: usize) -> LevelShift {
         let up_delta = self.frames.len() - 1 - target;
-        let saved = self.frames.split_off(target + 1);
+        let frames = self.frames.split_off(target + 1);
         // The namespace name/id stacks are kept aligned 1:1 with the call-frame
         // stack (every proc call and `namespace eval` pushes one of each), so the
         // target frame's namespace is `ns_stack[target]`. Set both aside with
@@ -10273,31 +10290,38 @@ impl Vm {
         // target frame's namespace — what makes `uplevel 1`/tcltest's body eval
         // inside a `namespace eval` reach that namespace's procs and variables.
         let ns_cut = (target + 1).min(self.ns_stack.len());
-        let saved_ns = self.ns_stack.split_off(ns_cut);
-        let saved_ns_ids = self.ns_id_stack.split_off(ns_cut);
-        let saved_depth = self.recursion_depth;
+        let ns_stack = self.ns_stack.split_off(ns_cut);
+        let ns_id_stack = self.ns_id_stack.split_off(ns_cut);
         if up_delta != 0 {
             let target_frame_count = self.frames.len();
             self.error_stack
                 .enter_shifted_context(target_frame_count, up_delta);
         }
-        let result = self.eval_source_as(src, evaluation);
-        if up_delta != 0 {
+        LevelShift {
+            target,
+            ns_cut,
+            frames,
+            ns_stack,
+            ns_id_stack,
+            recursion_depth: self.recursion_depth,
+            shifted: up_delta != 0,
+        }
+    }
+
+    /// Undo [`Self::enter_level`].
+    pub(crate) fn leave_level(&mut self, shift: LevelShift) {
+        if shift.shifted {
             self.error_stack.leave_shifted_context();
         }
         // Destroy any activation the script left in place through the ordinary
         // lifecycle, then re-attach the frames set aside above.
-        self.drain_call_frames_to(target + 1);
-        self.frames.extend(saved);
-        self.ns_stack.truncate(ns_cut);
-        self.ns_stack.extend(saved_ns);
-        self.ns_id_stack.truncate(ns_cut);
-        self.ns_id_stack.extend(saved_ns_ids);
-        self.recursion_depth = saved_depth;
-        match result {
-            Ok(c) => c,
-            Err(e) => err(e.message),
-        }
+        self.drain_call_frames_to(shift.target + 1);
+        self.frames.extend(shift.frames);
+        self.ns_stack.truncate(shift.ns_cut);
+        self.ns_stack.extend(shift.ns_stack);
+        self.ns_id_stack.truncate(shift.ns_cut);
+        self.ns_id_stack.extend(shift.ns_id_stack);
+        self.recursion_depth = shift.recursion_depth;
     }
 
     /// Exchange the live per-flow execution context with `p` — the coroutine
@@ -10310,7 +10334,7 @@ impl Vm {
     /// wholesale. Registries, channels, commands, etc. are shared and untouched
     /// (they are not part of a flow).
     ///
-    /// Modelled on [`Self::eval_at_level`]'s split-off/restore of `frames` +
+    /// Modelled on [`Self::enter_level`]'s split-off/restore of `frames` +
     /// both namespace stacks + `recursion_depth`.
     pub(crate) fn swap_flow(&mut self, p: &mut ParkedFlow) {
         // Frames / namespace stacks: exchange the tails above the shared
@@ -12793,6 +12817,26 @@ impl Vm {
         src: &str,
         evaluation: CommandEvaluation,
     ) -> Result<PreparedScript, TclError> {
+        let namespace = self.current_ns().to_owned();
+        self.prepare_script_commands_in_namespace_as(src, &namespace, evaluation)
+    }
+
+    /// [`Self::prepare_script_commands_as`] for a compiled script that will
+    /// run in `namespace` rather than the current one.
+    pub(crate) fn prepare_script_commands_in_namespace(
+        &mut self,
+        src: &str,
+        namespace: &str,
+    ) -> Result<PreparedScript, TclError> {
+        self.prepare_script_commands_in_namespace_as(src, namespace, CommandEvaluation::Compiled)
+    }
+
+    fn prepare_script_commands_in_namespace_as(
+        &mut self,
+        src: &str,
+        namespace: &str,
+        evaluation: CommandEvaluation,
+    ) -> Result<PreparedScript, TclError> {
         let Some(compiler) = self.compiler.as_ref() else {
             return Err(TclError::new(
                 "eval / command substitution requires a CompileService",
@@ -12807,7 +12851,11 @@ impl Vm {
         let prefix = if plan.complete_prefix_len == 0 {
             None
         } else {
-            Some(self.compile_script_cached_as(&src[..plan.complete_prefix_len], evaluation)?)
+            Some(self.compile_script_cached_in_namespace_as(
+                &src[..plan.complete_prefix_len],
+                namespace,
+                evaluation,
+            )?)
         };
         Ok(PreparedScript {
             prefix,

@@ -42,11 +42,21 @@ becomes `ERROR` with `-errorcode {TCL PACKAGE BADRESULT}`. For an `ifneeded`
 script the result is `attempt to provide package NAME VERSION failed: bad
 return code: N`; for `unknown` it is `bad return code: N`. The selected
 script is recorded in `-errorinfo` as `("package ifneeded NAME VERSION" script)`
-or `("package unknown" script)` respectively. The selected
-loader's transient provision and circular marker are cleared on failure,
-while its registration remains available for a later retry. This is owned by
-`tcl-vm/src/cmd_package.rs`; coroutine suspension is a separate execution
-state and must not be treated as a completed loader result.
+or `("package unknown" script)` respectively — for a loader, on every failure,
+including the `UNPROVIDED` and `WRONGPROVIDE` errors the require raises itself.
+The selected loader's transient provision and circular marker are cleared on
+failure, while its registration remains available for a later retry. This is
+owned by `tcl-vm/src/cmd_package.rs`.
+
+Each discovery script runs as a package activation on the VM's explicit
+stack at level `#0`, mirroring C's `PkgRequireCore` → `SelectPackage` →
+`SelectPackageFinal` NRE chain, so a coroutine `yield` inside either script
+suspends the require instead of failing with `cannot yield: C stack busy`
+(upstream package-3.54). Suspension is not a completion: the loader's circular
+marker stays set while the coroutine is parked, so a require of the same
+package from elsewhere is still circular, and the marker is retired only when
+the loader completes or the coroutine is deleted. Deleting the coroutine also
+withdraws any version the parked loader had already provided, as C does.
 
 ## Decision rules / contracts
 

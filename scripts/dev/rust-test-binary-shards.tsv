@@ -104,6 +104,7 @@
 2	tcl-vm::namespace_colon_runs_e2e	test	tcl-vm	namespace_colon_runs_e2e
 2	tcl-vm::numeric_tower_e2e	test	tcl-vm	numeric_tower_e2e
 2	tcl-vm::opcode_dispatch_coverage	test	tcl-vm	opcode_dispatch_coverage
+2	tcl-vm::package_coro_e2e	test	tcl-vm	package_coro_e2e
 2	tcl-vm::regexp_e2e	test	tcl-vm	regexp_e2e
 2	tcl-vm::switch_integer_e2e	test	tcl-vm	switch_integer_e2e
 2	tcl-vm::wasm_coro_e2e	test	tcl-vm	wasm_coro_e2e

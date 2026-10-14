@@ -31,7 +31,8 @@
 //! phase), a value-consuming `lmap`/`foreach` runtime fallback (the
 //! `each_loop` activation), and a bare `apply` call (bound to a temporary
 //! proc run via `pending_eval`, mirroring how `coroutine … apply {lambda}`
-//! already runs the lambda on the coroutine's own stack). Each of these runs
+//! already runs the lambda on the coroutine's own stack), and `package
+//! require`'s discovery scripts (`package_coro_e2e.rs`). Each of these runs
 //! its body on the explicit stack (a transparent script / catch / try-phase /
 //! each-loop activation, the inline collecting loop, or the scanner-driven
 //! subst frame) rather than through a nested `Vm::eval_source` drive on the

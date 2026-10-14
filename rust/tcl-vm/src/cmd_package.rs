@@ -26,10 +26,10 @@ use tcl_dialect::{
     select_package_version_exact_for, select_package_version_for, validate_requirement_for,
     validate_version_for, version_matches_exact_for, version_satisfies_for as vsatisfies,
 };
-use tcl_runtime_api::{Code, Completion};
+use tcl_runtime_api::{Code, Completion, FatalTail};
 
 use crate::command::err_with_code;
-use crate::interp::{Vm, err, ok};
+use crate::interp::{PackageLoadToken, PreparedScript, Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
@@ -366,8 +366,7 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
             }
         }
     }
-    let reqs = requested.clone();
-    match provided_status(vm, &name, &reqs, exact, release) {
+    match provided_status(vm, &name, &requested, exact, release) {
         ProvidedStatus::Satisfies(version) => return ok(Value::string(version)),
         ProvidedStatus::Conflicts(version) => {
             return version_conflict(vm, &name, &version, &requested, exact);
@@ -388,55 +387,185 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
         };
     }
 
+    let state = RequireState {
+        name: name.to_string(),
+        requested,
+        exact,
+        release,
+        phase: RequirePhase::Unknown,
+    };
     // A loader already registered for a satisfying version wins before the
     // last-resort unknown callback. This is the ordinary fast path populated
     // by pkgIndex.tcl.
-    if let Some(loader) = selected_loader(vm, &name, &reqs, exact, release) {
-        return evaluate_loader(vm, &name, &loader);
+    let step = if let Some(loader) = state.selected_loader(vm) {
+        start_loader(vm, state, loader)
+    } else if let Some(prefix) = vm.package_unknown().map(str::to_owned) {
+        let callback = state.unknown_callback(prefix);
+        enter_phase(vm, state, &callback)
+    } else {
+        RequireStep::Done(cannot_find(vm, &state))
+    };
+    match step {
+        RequireStep::Run(req) => {
+            vm.pending.package = Some(*req);
+            ok(Value::empty())
+        }
+        RequireStep::Done(completion) => completion,
+    }
+}
+
+/// A `package require` whose discovery scripts run as activations on the
+/// explicit stack — C's `PkgRequireCore` → `SelectPackage` →
+/// `SelectPackageFinal` NRE chain — so a coroutine can suspend inside them.
+pub(crate) struct RequireState {
+    name: String,
+    requested: Vec<String>,
+    exact: bool,
+    release: tcl_dialect::TclVersion,
+    phase: RequirePhase,
+}
+
+enum RequirePhase {
+    /// The `package unknown` callback is running.
+    Unknown,
+    /// The selected `package ifneeded` script is running under its
+    /// circular-dependency marker.
+    Loader {
+        version: String,
+        token: PackageLoadToken,
+    },
+}
+
+/// One discovery script of a require, deferred to the explicit stack. Parked
+/// in `Vm.pending.package` and drained into a package activation that runs it
+/// at level #0; its completion goes back to [`finish_phase`].
+pub(crate) struct PackageReq {
+    pub(crate) script: crate::compiled::CompiledUnit,
+    pub(crate) fatal_tail: Option<FatalTail>,
+    pub(crate) state: RequireState,
+}
+
+pub(crate) enum RequireStep {
+    Run(Box<PackageReq>),
+    Done(Completion<Value>),
+}
+
+impl RequireState {
+    fn selected_loader(&self, vm: &Vm) -> Option<SelectedLoader> {
+        selected_loader(vm, &self.name, &self.requested, self.exact, self.release)
     }
 
-    if let Some(prefix) = vm.package_unknown().map(str::to_owned) {
-        let mut callback = prefix;
+    fn unknown_callback(&self, mut callback: String) -> String {
         callback.push(' ');
-        callback.push_str(&tcl_syntax::list::list_element(&name));
-        let callback_requirements = if exact {
-            vec![tcl_dialect::exact_requirement(&requested[0])]
+        callback.push_str(&tcl_syntax::list::list_element(&self.name));
+        let exact_requirement;
+        let requirements = if self.exact {
+            exact_requirement = [tcl_dialect::exact_requirement(&self.requested[0])];
+            &exact_requirement[..]
         } else {
-            reqs.clone()
+            &self.requested[..]
         };
-        for requirement in &callback_requirements {
+        for requirement in requirements {
             callback.push(' ');
             callback.push_str(&tcl_syntax::list::list_element(requirement));
         }
-        let completion = eval_package_script(vm, &callback);
-        match completion.code {
-            Code::Ok => {}
-            Code::Error => {
-                append_loader_error_frame(vm, &completion.result.to_str(), None);
-                return completion;
-            }
-            _ => return bad_return_code(vm, &completion, None),
+        callback
+    }
+}
+
+/// Compile a discovery script for the global namespace and defer it. A
+/// script with nothing to run completes on the spot.
+fn enter_phase(vm: &mut Vm, state: RequireState, script: &str) -> RequireStep {
+    let completion = match vm.prepare_script_commands_in_namespace(script, "") {
+        Ok(PreparedScript {
+            prefix: Some(script),
+            fatal_tail,
+        }) => {
+            return RequireStep::Run(Box::new(PackageReq {
+                script,
+                fatal_tail,
+                state,
+            }));
+        }
+        Ok(PreparedScript {
+            prefix: None,
+            fatal_tail,
+        }) => fatal_tail.map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail)),
+        Err(error) => err(error.message),
+    };
+    finish_phase(vm, state, completion)
+}
+
+/// Fold a completed discovery script into its require: either the next
+/// script to run or the require's own completion.
+pub(crate) fn finish_phase(
+    vm: &mut Vm,
+    state: RequireState,
+    completion: Completion<Value>,
+) -> RequireStep {
+    match state.phase {
+        RequirePhase::Unknown => after_unknown(vm, state, completion),
+        RequirePhase::Loader { ref version, token } => {
+            RequireStep::Done(after_loader(vm, &state.name, version, token, completion))
         }
     }
+}
 
+/// Retire a require whose coroutine was deleted while suspended in one of its
+/// scripts. C unwinds it through `SelectPackageFinal` with an error, which
+/// clears the marker and any version the loader had already provided.
+pub(crate) fn abandon_require(vm: &mut Vm, state: &RequireState) {
+    if let RequirePhase::Loader { token, .. } = state.phase {
+        vm.end_package_loading(token);
+        vm.forget_package(&state.name);
+    }
+}
+
+fn after_unknown(vm: &mut Vm, state: RequireState, completion: Completion<Value>) -> RequireStep {
+    match completion.code {
+        Code::Ok => {}
+        Code::Error => {
+            append_loader_error_frame(vm, &completion.result.to_str(), None);
+            return RequireStep::Done(completion);
+        }
+        _ => return RequireStep::Done(bad_return_code(vm, &completion, None)),
+    }
     // The callback may provide the package directly or register a suitable
     // ifneeded script. Re-check both forms, in that order, before failing.
-    match provided_status(vm, &name, &reqs, exact, release) {
-        ProvidedStatus::Satisfies(version) => return ok(Value::string(version)),
+    match provided_status(
+        vm,
+        &state.name,
+        &state.requested,
+        state.exact,
+        state.release,
+    ) {
+        ProvidedStatus::Satisfies(version) => {
+            return RequireStep::Done(ok(Value::string(version)));
+        }
         ProvidedStatus::Conflicts(version) => {
-            return version_conflict(vm, &name, &version, &requested, exact);
+            return RequireStep::Done(version_conflict(
+                vm,
+                &state.name,
+                &version,
+                &state.requested,
+                state.exact,
+            ));
         }
         ProvidedStatus::Absent => {}
     }
-    if let Some(loader) = selected_loader(vm, &name, &reqs, exact, release) {
-        return evaluate_loader(vm, &name, &loader);
+    match state.selected_loader(vm) {
+        Some(loader) => start_loader(vm, state, loader),
+        None => RequireStep::Done(cannot_find(vm, &state)),
     }
+}
 
+fn cannot_find(vm: &Vm, state: &RequireState) -> Completion<Value> {
     package_error(
         vm,
         format!(
-            "can't find package {name}{}",
-            requirements_suffix(&requested, exact, release)
+            "can't find package {}{}",
+            state.name,
+            requirements_suffix(&state.requested, state.exact, state.release)
         ),
         PackageDiagnostic::Unfound,
     )
@@ -581,13 +710,6 @@ fn selected_loader(
         .map(|script| SelectedLoader { version, script })
 }
 
-/// Package discovery scripts are interpreter-global even when the require was
-/// issued in a proc or namespace. Keeping the frame transition here prevents
-/// the unknown and ifneeded paths from drifting apart.
-fn eval_package_script(vm: &mut Vm, script: &str) -> Completion<Value> {
-    vm.eval_at_level(0, script)
-}
-
 fn bad_return_code(
     vm: &mut Vm,
     completion: &Completion<Value>,
@@ -668,52 +790,58 @@ fn append_loader_error_frame(vm: &mut Vm, message: &str, loader: Option<(&str, &
     vm.seed_error_info_frame(message, &frame);
 }
 
-fn evaluate_loader(vm: &mut Vm, name: &str, loader: &SelectedLoader) -> Completion<Value> {
-    vm.begin_package_loading(name, &loader.version);
-    let completion = eval_package_script(vm, &loader.script);
-    vm.end_package_loading(name, &loader.version);
-    match completion.code {
-        Code::Ok => {}
-        Code::Error => {
-            vm.forget_package(name);
-            append_loader_error_frame(
-                vm,
-                &completion.result.to_str(),
-                Some((name, &loader.version)),
-            );
-            return completion;
-        }
-        _ => {
-            vm.forget_package(name);
-            return bad_return_code(vm, &completion, Some((name, &loader.version)));
-        }
-    }
-    match vm.package_version(name).map(str::to_owned) {
-        Some(provided)
-            if cmp_version(&provided, &loader.version, vm.runtime_version()) == Ordering::Equal =>
-        {
-            ok(Value::string(provided))
-        }
-        Some(provided) => {
-            vm.forget_package(name);
-            package_error(
+/// Mark the selected loader as being provided, then run its script.
+fn start_loader(vm: &mut Vm, mut state: RequireState, loader: SelectedLoader) -> RequireStep {
+    let token = vm.begin_package_loading(&state.name, &loader.version);
+    state.phase = RequirePhase::Loader {
+        version: loader.version,
+        token,
+    };
+    enter_phase(vm, state, &loader.script)
+}
+
+/// `SelectPackageFinal`: the loader must have provided exactly the version it
+/// was selected for. Any failure forgets what it provided and names the
+/// loader in `errorInfo`.
+fn after_loader(
+    vm: &mut Vm,
+    name: &str,
+    version: &str,
+    token: PackageLoadToken,
+    completion: Completion<Value>,
+) -> Completion<Value> {
+    vm.end_package_loading(token);
+    let failure = match completion.code {
+        Code::Ok => match vm.package_version(name).map(str::to_owned) {
+            Some(provided)
+                if cmp_version(&provided, version, vm.runtime_version()) == Ordering::Equal =>
+            {
+                return ok(Value::string(provided));
+            }
+            Some(provided) => package_error(
                 vm,
                 format!(
-                    "attempt to provide package {name} {} failed: package {name} {provided} provided instead",
-                    loader.version
+                    "attempt to provide package {name} {version} failed: package {name} {provided} provided instead"
                 ),
                 PackageDiagnostic::WrongProvide,
-            )
-        }
-        None => package_error(
-            vm,
-            format!(
-                "attempt to provide package {name} {} failed: no version of package {name} provided",
-                loader.version
             ),
-            PackageDiagnostic::Unprovided,
-        ),
-    }
+            None => package_error(
+                vm,
+                format!(
+                    "attempt to provide package {name} {version} failed: no version of package {name} provided"
+                ),
+                PackageDiagnostic::Unprovided,
+            ),
+        },
+        Code::Error => completion,
+        _ => {
+            vm.forget_package(name);
+            return bad_return_code(vm, &completion, Some((name, version)));
+        }
+    };
+    vm.forget_package(name);
+    append_loader_error_frame(vm, &failure.result.to_str(), Some((name, version)));
+    failure
 }
 
 fn requirements_satisfied(
@@ -816,7 +944,7 @@ mod tests {
     #[test]
     fn malformed_requirements_precede_an_active_loader_cycle() {
         let mut vm = Vm::new();
-        vm.begin_package_loading("p", "1.0");
+        let loading = vm.begin_package_loading("p", "1.0");
         let malformed = package(&mut vm, &["require", "p", "invalid"]);
         assert_eq!(malformed.code, Code::Error);
         assert_eq!(
@@ -830,7 +958,7 @@ mod tests {
             &*cycle.result.to_str(),
             "circular package dependency: attempt to provide p 1.0 requires p 1.0"
         );
-        vm.end_package_loading("p", "1.0");
+        vm.end_package_loading(loading);
     }
 
     #[test]

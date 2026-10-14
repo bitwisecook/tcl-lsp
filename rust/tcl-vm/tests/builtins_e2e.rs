@@ -1706,6 +1706,31 @@ fn package_loader_must_provide_its_selected_version() {
     );
 }
 
+/// `SelectPackageFinal` names the loader in `errorInfo` for every failure,
+/// including the two it raises itself, and withdraws a wrong provide
+/// (tclsh 8.5.19 through 9.1.0 agree).
+#[test]
+fn package_loader_generated_failures_name_the_loader_in_error_info() {
+    out_eq(
+        r"package ifneeded Unprovided 1.0 {}
+catch {package require Unprovided} message options
+puts [dict get $options -errorinfo]
+package ifneeded Wrong 1.0 {package provide Wrong 2.0}
+catch {package require Wrong} message options
+puts [list [dict get $options -errorinfo] [package provide Wrong]]
+",
+        r#"attempt to provide package Unprovided 1.0 failed: no version of package Unprovided provided
+    ("package ifneeded Unprovided 1.0" script)
+    invoked from within
+"package require Unprovided"
+{attempt to provide package Wrong 1.0 failed: package Wrong 2.0 provided instead
+    ("package ifneeded Wrong 1.0" script)
+    invoked from within
+"package require Wrong"} {}
+"#,
+    );
+}
+
 /// Package command version arguments use the dialect parser's checked seam,
 /// and providing a second, different version preserves Tcl's package state.
 #[test]

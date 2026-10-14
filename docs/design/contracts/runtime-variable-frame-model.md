@@ -120,7 +120,7 @@ frame target is canonicalised to the global namespace at the link site.
   same rule applies to `rel::array(key)` and to deeper numeric levels.
 * `uplevel L {script}` sets the *active call frame* to frame `L` for the
   duration of `script`, then restores it. Both backends switch the current
-  namespace with the frame (`tcl-vm::eval_at_level`, `runtime`'s
+  namespace with the frame (`tcl-vm::eval_at_level_as`, `runtime`'s
   `eval_uplevel`).
 
 ## Interactions that are modelled, not patched

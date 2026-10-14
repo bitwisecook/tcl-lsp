@@ -166,7 +166,7 @@ pub(crate) fn on_command_deleted(vm: &mut Vm, key: &CommandSidecarKey) {
     // variables). A running coroutine's frames are on the live stack instead, so
     // their traces fire the normal way as those frames pop.
     if state.status == CoroStatus::Suspended {
-        vm.fire_parked_unset_traces(&mut state.parked);
+        vm.retire_parked_coroutine(&mut state.acts, &mut state.parked);
     }
     if let Some(p) = state.temp_proc {
         vm.retire_command_lifecycle_key(&CommandSidecarKey::visible(p));
@@ -380,6 +380,7 @@ fn resume(
                 // is restored, and the error propagates.
                 vm.coro.stack.pop();
                 vm.swap_flow(&mut parked);
+                vm.retire_parked_coroutine(&mut acts, &mut parked);
                 if let Some(key) = active_key.key() {
                     teardown_coro(vm, &key);
                 }
