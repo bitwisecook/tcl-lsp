@@ -178,8 +178,10 @@
 3	tcl-vm::command_traces_e2e	test	tcl-vm	command_traces_e2e
 3	tcl-vm::cross_interp_alias_e2e	test	tcl-vm	cross_interp_alias_e2e
 3	tcl-vm::cross_version_info_surface_e2e	test	tcl-vm	cross_version_info_surface_e2e
+3	tcl-vm::cross_version_lset_e2e	test	tcl-vm	cross_version_lset_e2e
 3	tcl-vm::embed_api_e2e	test	tcl-vm	embed_api_e2e
 3	tcl-vm::legacy_variable_traces_e2e	test	tcl-vm	legacy_variable_traces_e2e
+3	tcl-vm::literal_index_encoding_e2e	test	tcl-vm	literal_index_encoding_e2e
 3	tcl-vm::mathfunc_derivation_e2e	test	tcl-vm	mathfunc_derivation_e2e
 3	tcl-vm::namespace_surface_e2e	test	tcl-vm	namespace_surface_e2e
 3	tcl-vm::run_script	test	tcl-vm	run_script
