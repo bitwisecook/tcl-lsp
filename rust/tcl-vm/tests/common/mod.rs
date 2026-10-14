@@ -35,6 +35,38 @@ pub fn vm_output(source: &str, environment: &str) -> String {
     )
     .expect("matching actual native core before registrations");
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    // Jimsh initializes its compiled extensions before evaluating stdin.
+    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    if dialect
+        .native_name_protocol()
+        .is_some_and(|names| names.is_jim084())
+    {
+        let mut declared = std::collections::HashSet::new();
+        for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
+            for procedure in
+                tcl_registry::native_scripted_distribution::procedures(dialect, library)
+            {
+                if !declared.insert(procedure.command) {
+                    continue;
+                }
+                let declaration = tcl_syntax::list::join_list([
+                    "proc",
+                    procedure.command,
+                    procedure.parameters,
+                    procedure.body,
+                ]);
+                let initialized = vm
+                    .try_eval_source(&declaration)
+                    .expect("original Jim library declaration");
+                assert!(
+                    initialized.code.is_ok(),
+                    "{}: {}",
+                    procedure.command,
+                    initialized.result.to_str()
+                );
+            }
+        }
+    }
     let completion = vm
         .try_eval_source(source)
         .expect("original source provider");

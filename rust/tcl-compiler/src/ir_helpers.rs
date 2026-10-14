@@ -2902,7 +2902,7 @@ mod tests {
             let expression = ExprNode::Command {
                 text: source.to_owned(),
                 start: 0,
-                end: source.len(),
+                end: u32::try_from(source.len()).unwrap(),
             };
             let names = defs_from_expr(&expression, &registry);
             assert!(
@@ -2954,7 +2954,7 @@ mod tests {
             Some(coalesced_store),
             None,
         ] {
-            let mut registry = original.commands().clone();
+            let mut registry = original.commands().project_for_profile(profile);
             let mut setter = registry.get("set").unwrap().clone();
             setter.world_effects = Some(WorldEffectDescriptor {
                 resolver,

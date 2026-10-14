@@ -6383,6 +6383,29 @@ mod configured_receiver_completion_tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
+    fn receiver_projection_for_fixture(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(String, bool)> {
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+            config,
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some() {
+            return None;
+        }
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        dispatch_receiver_of(word)
+    }
+
     #[test]
     fn logical_member_completion_quotes_actual_selected_name_data() {
         let source = "oo::class create C {method {$literal} {} {}; export {$literal}; method {two words} {} {}}";
@@ -6656,10 +6679,10 @@ mod configured_receiver_completion_tests {
                 assert!(strip_instance_var(head, config).is_none(), "{head}");
             }
             assert_eq!(
-                dispatch_receiver_of("${箱}", config),
+                receiver_projection_for_fixture("${箱}", config),
                 Some(("箱".to_owned(), true))
             );
-            assert!(dispatch_receiver_of("${箱}suffix", config).is_none());
+            assert!(receiver_projection_for_fixture("${箱}suffix", config).is_none());
         }
     }
 }

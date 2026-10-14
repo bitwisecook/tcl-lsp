@@ -13989,7 +13989,15 @@ mod original_analysis_definition_selector_tests {
         let source = "proc p {} {set value TEXT; return $value}\n";
         let (unit, context) = unit(source);
         let retained = unit.ir_module.retained_source_bindings.as_deref().unwrap();
-        let body = unit.ir_module.procedure_ids.unique_display("::p").unwrap();
+        let actual_bodies = unit
+            .ir_module
+            .original_source_procedure_bodies()
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        let [body] = actual_bodies.as_slice() else {
+            panic!("one actual Module-issued original declaration in this fixture");
+        };
+        let body = *body;
         let function = unit.function_for_body(Some(body)).unwrap();
         let tokens = function
             .ssa
@@ -14022,7 +14030,15 @@ mod original_analysis_definition_selector_tests {
             ));
         }
         let (other, _) = self::unit(source);
-        let foreign_body = other.ir_module.procedure_ids.unique_display("::p").unwrap();
+        let actual_bodies = other
+            .ir_module
+            .original_source_procedure_bodies()
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        let [foreign_body] = actual_bodies.as_slice() else {
+            panic!("one actual Module-issued original declaration in this fixture");
+        };
+        let foreign_body = *foreign_body;
         assert!(!retained.owns_original_body_tokens(
             &unit.ir_module,
             foreign_body,
