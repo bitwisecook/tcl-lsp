@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T13:27:48Z on `work`.
+Current bounded snapshot: 2026-10-14T13:38:26Z on `work`.
 
 Shared command, variable, body and source owners are integrated across compiler/CFG,
 summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
@@ -44,14 +44,16 @@ positioned test-fixture minifier symbols, actual inline codegen admission, Jim c
 original-key/error-frame selection, and the declaration source syntax memo with
 explicit original expansion refusal. Neutral syntax restores current receipts;
 all original DB cold/edit/equivalence and Runtime controls remain required.
-Compiler92 remains RUNNING on current frozen source. The first28 controls record
-20 PASS/8 FAIL: four source-cache controls pass (cold3/edit1/shift0/current cached
-versus fresh equality and expansion refusal), SCCP/instance typed-write controls
-and the Native child positive pass, and the original forty-case alias setup passes.
-Namespace import fails; SSA/word/receiver/scalar/dictionary failures remain visible.
-The unchanged original #2286 control is still running with the600-second harness.
-Original source/assertions/budgets remain unchanged. No seal, source-closure or
-complete consumer/cache acceptance follows from these partial results.
+Compiler92 remains RUNNING on current frozen source. The first128 completed
+controls record110 PASS/18 nonpassing; original depth control129 is still running.
+Four source-cache controls pass (cold3/edit1/shift0/current cached versus fresh
+equality and expansion refusal), SCCP/instance typed-write controls and the Native
+child positive pass, the original forty-case alias setup passes, and the Logical
+substitution control that failed88 now passes. Namespace import and the recorded
+SSA/word/receiver/scalar/dictionary failures remain visible. The unchanged original
+#2286 control times out at the600-second harness limit. Original source/assertions
+and code budgets remain unchanged. No seal, source-closure or complete consumer/
+cache acceptance follows from these partial results.
 
 Compiler88 builds and seals113 controls:96 PASS/17 nonpassing (13 assertion failures,
 three depth SIGABRTs and one analyser-cap timeout), zero source drift and no missing
@@ -61,8 +63,8 @@ Scalar assignment escape consumers now retain actual Script/SSA tokens and selec
 FIRST_ARG+VarWrite name data with exact IR-field correspondence and unchanged unknown
 residual. Dictionary destinations use the selected hook/role/direct written slot and
 the same schema for safe-on-uninit; unavailable ownership remains generic dispatch.
-These changes await their unchanged original and new controls.
-All post88 source fixes still require current execution. Other
+The current partial replay retains failures in these consumers; fixes must pass
+the unchanged original and new controls. Other
 retained scopes remain distinct: Compiler82=194 PASS/46 nonpassing across240,
 focused83=6 PASS/6 FAIL across12, Core84=48 PASS/23 FAIL across71, and broader
 Compiler67=442 PASS/157 FAIL across599. Both original eval/up-frame regressions pass83;

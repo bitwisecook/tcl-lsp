@@ -1,0 +1,4 @@
+cold same_key 1 refs_before 2 refs_after 2
+hot same_command 1 same_key 1 refs_before 2 refs_after 2
+rename still_old_key 1 old_key_refs 2 old_key_name P
+renamed_cold same_command 1 same_new_key 1 refs_before 2 refs_after 2 name Q
