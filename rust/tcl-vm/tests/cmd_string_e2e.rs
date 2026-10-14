@@ -1094,6 +1094,273 @@ fn format_fixed_width_bignums_issue_2163() {
     }
 }
 
+/// Assert `script` succeeds with `expected` under each of `versions`.
+fn results_for_versions(versions: &[tcl_dialect::TclVersion], cases: &[(&str, &str)]) {
+    for &version in versions {
+        for &(script, expected) in cases {
+            let (ok, result, _) = run_for_version(script, version);
+            assert!(ok, "{version:?} errored: {result}\n  src: {script}");
+            assert_eq!(result, expected, "{version:?}: {script}");
+        }
+    }
+}
+
+/// Assert `script` fails with `expected` under each of `versions`.
+fn errors_for_versions(versions: &[tcl_dialect::TclVersion], cases: &[(&str, &str)]) {
+    for &version in versions {
+        for &(script, expected) in cases {
+            let (ok, result, _) = run_for_version(script, version);
+            assert!(!ok, "{version:?} unexpectedly accepted {script}: {result}");
+            assert_eq!(result, expected, "{version:?}: {script}");
+        }
+    }
+}
+
+const TCL8: &[tcl_dialect::TclVersion] = &[
+    tcl_dialect::TclVersion::V8_4,
+    tcl_dialect::TclVersion::V8_5,
+    tcl_dialect::TclVersion::V8_6,
+];
+const TCL9: &[tcl_dialect::TclVersion] =
+    &[tcl_dialect::TclVersion::V9_0, tcl_dialect::TclVersion::V9_1];
+
+/// #2163: Tcl 9's `z`/`t` are the pointer width, answered for LP64 on every
+/// target. Every vector is from tclsh 9.0.4 and 9.1.0 on an LP64 host, which
+/// agree on all of them.
+#[test]
+fn format_pointer_width_modifiers_are_lp64_issue_2163() {
+    results_for_versions(
+        TCL9,
+        &[
+            ("format %zd 4294967296", "4294967296"),
+            ("format %td -1", "-1"),
+            ("format %zi -4294967297", "-4294967297"),
+            ("format %ti 4294967296", "4294967296"),
+            ("format %zu -1", "18446744073709551615"),
+            ("format %tu -1", "18446744073709551615"),
+            ("format %zx -1", "ffffffffffffffff"),
+            ("format %tx -1", "ffffffffffffffff"),
+            ("format %zX -1", "FFFFFFFFFFFFFFFF"),
+            ("format %zo -1", "1777777777777777777777"),
+            ("format %zb 4294967296", "100000000000000000000000000000000"),
+            ("format %zd 2147483648", "2147483648"),
+            ("format %td -2147483649", "-2147483649"),
+            ("format %zd 9223372036854775808", "-9223372036854775808"),
+            ("format %zu -9223372036854775808", "9223372036854775808"),
+            ("format %zd 18446744073709551615", "-1"),
+            ("format %zd 18446744073709551616", "0"),
+            ("format %zd 340282366920938463463374607431768211457", "1"),
+            ("format %zd -18446744073709551617", "-1"),
+            ("format %#zx -1", "0xffffffffffffffff"),
+            ("format %#zx 0", "0"),
+            ("format %#zo 8", "0o10"),
+            ("format %#zb 5", "0b101"),
+            ("format %#zd 5", "0d5"),
+            ("format %#tX 255", "0xFF"),
+            ("format %+zd 5", "+5"),
+            ("format %.3zd 7", "007"),
+            ("format %5.3zd -1", " -001"),
+            ("format %020zd -5", "-0000000000000000005"),
+            ("format %-8tx| 65", "41      |"),
+            ("format %zc 65", "A"),
+            ("format %zs a", "a"),
+            ("format %zf 1.5", "1.500000"),
+            // Unmodified stays C `int`, and the other wide modifiers agree
+            // with `z`.
+            ("format %d 4294967296", "0"),
+            ("format %d 2147483648", "-2147483648"),
+            ("format %ld 4294967296", "4294967296"),
+            ("format %jd 4294967296", "4294967296"),
+            ("format %qd -4294967297", "-4294967297"),
+            // Tcl 9.0.4 `tests/format.test` 8.24-8.25, whose 8.25 is
+            // `pointerIs64bit`-constrained, and 17.1.
+            (
+                "format {%zd %td %d} 1073741824 1073741824 1073741824",
+                "1073741824 1073741824 1073741824",
+            ),
+            (
+                "format {%zd %td %lld} 8589934592 8589934592 8589934592",
+                "8589934592 8589934592 8589934592",
+            ),
+            ("format %d 7810179016327718216", "1819043144"),
+        ],
+    );
+    errors_for_versions(
+        TCL9,
+        &[
+            (
+                "format %z 1",
+                "format string ended in middle of field specifier",
+            ),
+            (
+                "format %t 1",
+                "format string ended in middle of field specifier",
+            ),
+            (
+                "format {%d %z} 1 2",
+                "format string ended in middle of field specifier",
+            ),
+            (
+                "format %*t 3 1",
+                "format string ended in middle of field specifier",
+            ),
+            (
+                "format %z",
+                "not enough arguments for all format specifiers",
+            ),
+            ("format %lz 1", "bad field specifier \"z\""),
+            ("format %hz 1", "bad field specifier \"z\""),
+        ],
+    );
+}
+
+/// #2163: `%p` forces the LP64 pointer width under every modifier, `I`/`I32`
+/// included, and `h` renders a short C Tcl never assigned. From tclsh 9.0.4
+/// and 9.1.0 on an LP64 host.
+#[test]
+fn format_pointer_conversion_keeps_the_lp64_width_issue_2163() {
+    results_for_versions(
+        TCL9,
+        &[
+            ("format %p 4294967296", "0x100000000"),
+            ("format %p -1", "0xffffffffffffffff"),
+            ("format %p 18446744073709551616", "0x0"),
+            ("format %p -9223372036854775809", "0x7fffffffffffffff"),
+            ("format %Ip 4294967296", "0x100000000"),
+            ("format %Ip -1", "0xffffffffffffffff"),
+            ("format %I32p 4294967296", "0x100000000"),
+            ("format %I64p 4294967296", "0x100000000"),
+            ("format %zp 4294967296", "0x100000000"),
+            ("format %tp -1", "0xffffffffffffffff"),
+            ("format %lp 4294967296", "0x100000000"),
+            ("format %hp 65537", "0x0"),
+            ("format %hp -1", "0x0"),
+            ("format %.4hp 5", "0x0000"),
+            ("format %8hp 5", "     0x0"),
+            // Tcl 9.0.4 `tests/format.test` 8.26-8.27, whose 8.27 is
+            // `pointerIs64bit`-constrained.
+            (
+                "format {%p %#x} 2147483648 2147483648",
+                "0x80000000 0x80000000",
+            ),
+            (
+                "format {%p %#llx} 8589934592 8589934592",
+                "0x200000000 0x200000000",
+            ),
+        ],
+    );
+}
+
+/// #2163: before Tcl 9 an unmodified integer conversion is C `long` — 64 bits
+/// on LP64, the ABI modelled — and `z`/`t`/`j`/`q`/`L` are not modifiers, so
+/// their first byte is the bad verb. Vectors from tclsh 8.4.20, 8.5.19 and
+/// 8.6.18 on an LP64 host.
+#[test]
+fn format_pre_tcl9_long_width_and_unknown_modifiers_issue_2163() {
+    results_for_versions(
+        TCL8,
+        &[
+            ("format %d 4294967296", "4294967296"),
+            ("format %d -4294967297", "-4294967297"),
+            ("format %d 2147483648", "2147483648"),
+            ("format %d -2147483649", "-2147483649"),
+            ("format %d 9223372036854775807", "9223372036854775807"),
+            ("format %u -1", "18446744073709551615"),
+            ("format %u -4294967297", "18446744069414584319"),
+            ("format %x -1", "ffffffffffffffff"),
+            ("format %x 5000000000", "12a05f200"),
+            ("format %o -1", "1777777777777777777777"),
+            ("format %#x -1", "0xffffffffffffffff"),
+            ("format %ld 4294967296", "4294967296"),
+            ("format %lx -1", "ffffffffffffffff"),
+            // Tcl 8.6.18 `tests/format.test`'s `longIs64bit` variants
+            // 1.3.1 / 1.7.1 / 1.11.1, and 17.1, whose `wideBiggerThanInt`
+            // constraint is false on LP64 — so the value is kept whole.
+            (
+                "format {%4u %4u %4u %4u %d %#o} 6 34 16923 -12 -1 0",
+                "   6   34 16923 18446744073709551604 -1 0",
+            ),
+            (
+                "format {%4x %4x %4x %4x} 6 34 16923 -12 -1",
+                "   6   22 421b fffffffffffffff4",
+            ),
+            (
+                "format {%-#5o %-#20o %#-20o %#-20o %#-20o} 0 6 34 16923 -12 -1",
+                "0     06                   042                  041033               01777777777777777777764",
+            ),
+            ("format %d 7810179016327718216", "7810179016327718216"),
+        ],
+    );
+    let tcl86 = &[tcl_dialect::TclVersion::V8_6];
+    results_for_versions(
+        tcl86,
+        &[
+            ("format %d 9223372036854775808", "-9223372036854775808"),
+            ("format %d 18446744073709551615", "-1"),
+            ("format %d 18446744073709551616", "0"),
+            ("format %b 4294967296", "100000000000000000000000000000000"),
+        ],
+    );
+    errors_for_versions(
+        TCL8,
+        &[
+            ("format %zd 1", "bad field specifier \"z\""),
+            ("format %td 1", "bad field specifier \"t\""),
+            ("format %jd 1", "bad field specifier \"j\""),
+            ("format %qd 1", "bad field specifier \"q\""),
+            ("format %Ld 1", "bad field specifier \"L\""),
+            ("format %zx -1", "bad field specifier \"z\""),
+            ("format %zs a", "bad field specifier \"z\""),
+            ("format %zf 1.5", "bad field specifier \"z\""),
+            ("format %zc 65", "bad field specifier \"z\""),
+            ("format %tc 65", "bad field specifier \"t\""),
+            ("format %zp 1", "bad field specifier \"z\""),
+            ("format %Lp 1", "bad field specifier \"L\""),
+            ("format %lp 1", "bad field specifier \"p\""),
+            ("format %z 1", "bad field specifier \"z\""),
+            ("format %t 1", "bad field specifier \"t\""),
+            ("format %j 1", "bad field specifier \"j\""),
+            ("format %q 1", "bad field specifier \"q\""),
+            ("format %L 1", "bad field specifier \"L\""),
+            ("format {%d %z} 1 2", "bad field specifier \"z\""),
+            ("format {%d %t} 1 2", "bad field specifier \"t\""),
+            ("format %*zd 3 1", "bad field specifier \"z\""),
+            ("format %*t 3 1", "bad field specifier \"t\""),
+            (
+                "format %z",
+                "not enough arguments for all format specifiers",
+            ),
+            (
+                "format {%d %z} 1",
+                "not enough arguments for all format specifiers",
+            ),
+            (
+                "format %*zd 1",
+                "not enough arguments for all format specifiers",
+            ),
+        ],
+    );
+    let tcl84 = &[tcl_dialect::TclVersion::V8_4];
+    errors_for_versions(
+        tcl84,
+        &[
+            ("format %ll 1", "bad field specifier \"l\""),
+            ("format %llp 1", "bad field specifier \"l\""),
+        ],
+    );
+    let tcl85_86 = &[tcl_dialect::TclVersion::V8_5, tcl_dialect::TclVersion::V8_6];
+    errors_for_versions(
+        tcl85_86,
+        &[
+            (
+                "format %ll 1",
+                "format string ended in middle of field specifier",
+            ),
+            ("format %llp 1", "bad field specifier \"p\""),
+        ],
+    );
+}
+
 /// Tcl 9 bignum conversions preserve all digits rather than narrowing through
 /// the wide-integer path. The values and `BADUNSIGNED` result are from
 /// `tclsh9.0.4` and its upstream `tests/format.test` 17.5/17.6.

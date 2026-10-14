@@ -107,20 +107,16 @@ fn render<O: ValueOps>(
                 }));
             }
             Err(ParseSpecError::MissingVerb(partial)) => {
-                // C Tcl 8 rejects I-family modifiers before it can report the
-                // missing verb; Tcl 9 reports the conversion as incomplete.
+                // A release that predates the modifier reads its first byte as
+                // the verb and rejects it before it can report the missing
+                // verb (`format %z 1` on 8.6 is `bad field specifier "z"`);
+                // one that knows it reports the conversion as incomplete.
                 // The parser retains this source fact, so the renderer does
                 // not need to re-scan the raw format.
                 let mut fields = ConversionFields::from(partial);
                 let _ = consume_conversion_args(ops, &mut fields, args, &mut arg_state)?;
-                let i_family = partial.size.is_some_and(|size| {
-                    matches!(
-                        size,
-                        SizeModifier::Int | SizeModifier::Int32 | SizeModifier::Int64
-                    )
-                });
-                if i_family && syntax != tcl_dialect::NumberSyntax::Tcl90 {
-                    return Err(CmdError::new("bad field specifier \"I\""));
+                if let Some(size) = partial.size {
+                    reject_unknown_modifier(size, syntax)?;
                 }
                 return Err(CmdError::new(
                     "format string ended in middle of field specifier",
@@ -328,6 +324,22 @@ fn fixed_integer_value<O: ValueOps>(
     Ok(i64::from_ne_bytes(bits.to_ne_bytes()))
 }
 
+/// Reject a size modifier the release predates, naming the byte it reads as
+/// the verb (`format %zd 1` on Tcl 8.6 is `bad field specifier "z"`).
+fn reject_unknown_modifier(
+    size: SizeModifier,
+    syntax: tcl_dialect::NumberSyntax,
+) -> Result<(), CmdError> {
+    if size.accepted_under(syntax) {
+        Ok(())
+    } else {
+        Err(CmdError::new(format!(
+            "bad field specifier \"{}\"",
+            char::from(size.lead_byte())
+        )))
+    }
+}
+
 /// Render one conversion against `arg`.
 fn render_spec<O: ValueOps>(
     ops: &mut O,
@@ -336,23 +348,11 @@ fn render_spec<O: ValueOps>(
     syntax: tcl_dialect::NumberSyntax,
 ) -> Result<String, CmdError> {
     let verb = spec.verb;
-    let i_family = spec.size.is_some_and(|size| {
-        matches!(
-            size,
-            SizeModifier::Int | SizeModifier::Int32 | SizeModifier::Int64
-        )
-    });
-    if i_family && syntax != tcl_dialect::NumberSyntax::Tcl90 {
-        return Err(CmdError::new("bad field specifier \"I\""));
+    if let Some(size) = spec.size {
+        reject_unknown_modifier(size, syntax)?;
     }
     if verb == b'p' && syntax != tcl_dialect::NumberSyntax::Tcl90 {
         return Err(CmdError::new("bad field specifier \"p\""));
-    }
-    if spec.size == Some(SizeModifier::LongLong) && syntax == tcl_dialect::NumberSyntax::Tcl84 {
-        return Err(CmdError::new("bad field specifier \"l\""));
-    }
-    if spec.size == Some(SizeModifier::Big) && syntax != tcl_dialect::NumberSyntax::Tcl90 {
-        return Err(CmdError::new("bad field specifier \"L\""));
     }
     if spec.size.is_some_and(SizeModifier::is_big)
         && verb == b'u'
@@ -393,17 +393,11 @@ fn render_spec<O: ValueOps>(
             Ok(pad_unsigned_number(&uint_digits(u, spec, syntax), spec))
         }
         b'p' => {
-            // `%p` is Tcl's pointer-style hexadecimal conversion. It always
-            // carries a lowercase `0x` prefix and follows the host pointer
-            // width, while an unmodified integer conversion in Tcl 9 uses C
-            // `int` width. `usize` tracks the VM's target pointer size,
-            // including wasm32.
-            let width = if usize::BITS > 32 {
-                tcl_syntax::format::IntegerWidth::Wide
-            } else {
-                tcl_syntax::format::IntegerWidth::Int
-            };
-            let u = width.unsigned(fixed_integer_value(ops, arg, syntax)?);
+            // `%p` is Tcl's pointer-style hexadecimal conversion, always with
+            // a lowercase `0x` prefix. Its width is LP64's pointer width on
+            // every target, wasm32 included; see `pointer_bits`.
+            let u =
+                tcl_syntax::format::pointer_bits(spec.size, fixed_integer_value(ops, arg, syntax)?);
             Ok(pad_unsigned_number(&pointer_digits(u, spec), spec))
         }
         b'x' | b'X' | b'o' | b'b' => {
@@ -807,5 +801,82 @@ fn numeric_prefix(body: &str) -> (&str, &str) {
         body.split_at(2)
     } else {
         ("", body)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tcl_dialect::NumberSyntax;
+    use tcl_syntax::value::{ValueError, ValueOps};
+
+    /// Strings as values, with `i64` integers: enough for fixed-width
+    /// conversions, and free of any host-width type.
+    struct StrOps;
+
+    impl ValueOps for StrOps {
+        type Value = String;
+        fn new_str(&mut self, s: &str) -> String {
+            s.to_owned()
+        }
+        fn new_int(&mut self, n: i64) -> String {
+            n.to_string()
+        }
+        fn new_double(&mut self, f: f64) -> String {
+            tcl_syntax::number::format_double(f)
+        }
+        fn new_bool(&mut self, b: bool) -> String {
+            (if b { "1" } else { "0" }).to_owned()
+        }
+        fn new_list(&mut self, items: Vec<String>) -> String {
+            items.join(" ")
+        }
+        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
+            std::rc::Rc::from(v.as_str())
+        }
+        fn as_int(&mut self, v: &String) -> Result<i64, ValueError> {
+            v.parse().map_err(|_| ValueError::NotInteger(v.clone()))
+        }
+        fn as_double(&mut self, v: &String) -> Result<f64, ValueError> {
+            v.parse().map_err(|_| ValueError::NotInteger(v.clone()))
+        }
+        fn as_bool(&mut self, _v: &String) -> Result<bool, ValueError> {
+            Ok(false)
+        }
+        fn list_elements(&mut self, v: &String) -> Result<Vec<String>, ValueError> {
+            Ok(v.split_whitespace().map(str::to_owned).collect())
+        }
+    }
+
+    fn render(syntax: NumberSyntax, words: &[&str]) -> String {
+        let args: Vec<String> = words.iter().map(|&w| w.to_owned()).collect();
+        super::format_cmd_with_syntax(&mut StrOps, &args, syntax)
+            .unwrap_or_else(|err| panic!("{words:?}: {err:?}"))
+    }
+
+    /// #2163: the renderer's ABI-dependent widths are LP64's whatever it is
+    /// compiled for, so these hold on a wasm32 build as on the LP64 tclsh
+    /// (8.6.18 / 9.0.4) the vectors come from.
+    #[test]
+    fn abi_dependent_widths_do_not_follow_the_compile_target_issue_2163() {
+        for (words, expected) in [
+            (&["%p", "4294967296"][..], "0x100000000"),
+            (&["%Ip", "-1"], "0xffffffffffffffff"),
+            (&["%hp", "65537"], "0x0"),
+            (&["%zd", "4294967296"], "4294967296"),
+            (&["%td", "-4294967297"], "-4294967297"),
+            (&["%zx", "-1"], "ffffffffffffffff"),
+            (&["%tu", "-1"], "18446744073709551615"),
+            (&["%d", "4294967296"], "0"),
+        ] {
+            assert_eq!(render(NumberSyntax::Tcl90, words), expected, "{words:?}");
+        }
+        for (words, expected) in [
+            (&["%d", "4294967296"][..], "4294967296"),
+            (&["%u", "-1"], "18446744073709551615"),
+            (&["%x", "-1"], "ffffffffffffffff"),
+        ] {
+            assert_eq!(render(NumberSyntax::Tcl85, words), expected, "{words:?}");
+            assert_eq!(render(NumberSyntax::Tcl84, words), expected, "{words:?}");
+        }
     }
 }

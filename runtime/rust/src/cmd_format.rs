@@ -329,6 +329,40 @@ mod tests {
         });
     }
 
+    /// #2163: `z`, `t` and `%p` take LP64's pointer width, and pre-9
+    /// unmodified conversions C `long`'s, on every target this runtime
+    /// builds for — wasm32 included. Vectors from tclsh 8.6.18 and 9.0.4 on
+    /// an LP64 host.
+    #[test]
+    fn pointer_and_long_widths_are_lp64_issue_2163() {
+        leak_free(|i| {
+            assert_eq!(ok(i, b"format %zd 4294967296"), b"4294967296");
+            assert_eq!(ok(i, b"format %td -4294967297"), b"-4294967297");
+            assert_eq!(ok(i, b"format %zu -1"), b"18446744073709551615");
+            assert_eq!(ok(i, b"format %#tx -1"), b"0xffffffffffffffff");
+            assert_eq!(ok(i, b"format %p 4294967296"), b"0x100000000");
+            assert_eq!(ok(i, b"format %Ip -1"), b"0xffffffffffffffff");
+            assert_eq!(ok(i, b"format %hp 65537"), b"0x0");
+            assert_eq!(ok(i, b"format %d 4294967296"), b"0");
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(ok(i, b"format %d 4294967296"), b"4294967296");
+            assert_eq!(ok(i, b"format %u -1"), b"18446744073709551615");
+            for (src, verb) in [
+                (b"format %zd 1".as_slice(), b"z"),
+                (b"format %td 1", b"t"),
+                (b"format %z 1", b"z"),
+                (b"format %Ld 1", b"L"),
+            ] {
+                assert_eq!(i.eval_str(src), Code::Error);
+                let mut want = b"bad field specifier \"".to_vec();
+                want.extend_from_slice(verb);
+                want.push(b'"');
+                assert_eq!(i.result_bytes(), want);
+            }
+        });
+    }
+
     #[test]
     fn format_overflow_width_errors_not_panics() {
         leak_free(|i| {
