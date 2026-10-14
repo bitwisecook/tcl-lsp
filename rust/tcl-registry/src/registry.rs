@@ -448,11 +448,7 @@ fn return_has_only_dynamic_code(args: crate::invocation_words::InvocationArgumen
 pub fn native_return_state_effect(
     args: crate::InvocationArguments<'_>,
 ) -> crate::completion_route::ReturnStateEffect {
-    use crate::completion::CompletionCode;
-    use crate::completion_route::{
-        InvocationCompletionRoute as Route, ReturnInvocationGrammar as Grammar,
-        ReturnStateEffect as Effect,
-    };
+    use crate::completion_route::ReturnStateEffect as Effect;
     let Some(dialect) = args.dialect() else {
         return Effect::MayMaterialiseError;
     };
@@ -460,6 +456,30 @@ pub fn native_return_state_effect(
     if dialect.native_name_protocol().is_none() {
         return Effect::MayMaterialiseError;
     }
+    return_state_effect_for_source_grammar(args, dialect)
+}
+
+/// Conditional Return storage under the independently selected source grammar.
+/// This describes the authored operation, not a Native handler or completion.
+#[must_use]
+pub fn authored_source_return_state_effect(
+    args: crate::InvocationArguments<'_>,
+) -> crate::completion_route::ReturnStateEffect {
+    let Some(dialect) = args.dialect() else {
+        return crate::completion_route::ReturnStateEffect::MayMaterialiseError;
+    };
+    return_state_effect_for_source_grammar(args, dialect)
+}
+
+fn return_state_effect_for_source_grammar(
+    args: crate::InvocationArguments<'_>,
+    dialect: crate::InvocationDialect,
+) -> crate::completion_route::ReturnStateEffect {
+    use crate::completion::CompletionCode;
+    use crate::completion_route::{
+        InvocationCompletionRoute as Route, ReturnInvocationGrammar as Grammar,
+        ReturnStateEffect as Effect,
+    };
     let grammar = Grammar::for_dialect(dialect);
     if grammar == Grammar::Unknown || args.exact_argv_len().is_none() {
         return Effect::MayMaterialiseError;

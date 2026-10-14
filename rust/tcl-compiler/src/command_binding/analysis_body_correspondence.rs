@@ -797,7 +797,8 @@ fn original_native_source_schema_dependency(
         .collect::<Option<Vec<_>>>()?;
     words.with_source_schema(input.borrowed_context_registry(), |schema| {
         use tcl_registry::world_effect::{CallbackKinds, WorldStateDomain};
-        let effects = schema.effects();
+        let (effects, transitions) =
+            schema.authored_source_effects_and_state_transitions(words.dialect()?);
         let callbacks = effects.callback().kinds;
         let trace_inventory_empty = proof.variable_context.traced.is_empty()
             && proof.variable_context.trace_registrations.is_empty()
@@ -806,7 +807,7 @@ fn original_native_source_schema_dependency(
             || (callbacks == CallbackKinds::TRACE && trace_inventory_empty))
             && schema.semantics.body_execution.is_none()
             && schema.semantics.frame_effect.is_none()
-            && schema.state_transitions().facts().is_empty()
+            && transitions.facts().is_empty()
             && effects.accesses().iter().all(|access| {
                 matches!(
                     access.domain,

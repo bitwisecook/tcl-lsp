@@ -1,0 +1,6 @@
+
+running 1 test
+test engine_abi::command_receipts::tests::command_receipt_guard_rejects_replacement_and_foreign_owner_before_effects ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2162 filtered out; finished in 3.19s
+

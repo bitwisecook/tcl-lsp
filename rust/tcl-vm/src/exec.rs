@@ -628,6 +628,7 @@ impl Frame {
             jim_script_entry: jim_script,
             jim_script: None,
             jim_evaluation: crate::interp::OriginalJimEvaluationFrame {
+                evaluation_frame_entered: false,
                 procedure_level: 0,
                 command: None,
                 is_procedure: false,
@@ -9314,6 +9315,7 @@ impl Vm {
         self.jim_errors
             .frames
             .push(crate::interp::OriginalJimEvaluationFrame {
+                evaluation_frame_entered: true,
                 procedure_level: parent.as_ref().map_or(0, |frame| frame.procedure_level),
                 command: None,
                 is_procedure: false,

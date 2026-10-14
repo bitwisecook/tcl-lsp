@@ -328,6 +328,71 @@ mod tests {
     }
 
     #[test]
+    fn source_return_envelope_retains_original_grammar_without_native_admission() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        use crate::world_effect::WorldStateDomain;
+        let registry = CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = InvocationDialect::of_profile(profile);
+            for arguments in [
+                vec![Dynamic],
+                vec![Literal("-code"), Literal("ok"), Dynamic],
+            ] {
+                let resolution = registry.resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("return"), &arguments),
+                    Some(dialect.authoring_query()),
+                );
+                let selected = resolution.resolved().unwrap();
+                assert!(selected.effects().requires_world_barrier());
+                let (effects, transitions) =
+                    selected.authored_source_effects_and_state_transitions(dialect);
+                assert!(!effects.requires_world_barrier());
+                assert!(transitions.facts().is_empty());
+                assert_eq!(
+                    effects
+                        .accesses()
+                        .iter()
+                        .map(|access| access.domain)
+                        .collect::<Vec<_>>(),
+                    [
+                        WorldStateDomain::InterpreterResult,
+                        WorldStateDomain::CompletionState
+                    ]
+                );
+                let missing_grammar =
+                    InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+                assert!(
+                    selected
+                        .authored_source_effects_and_state_transitions(missing_grammar)
+                        .0
+                        .requires_world_barrier()
+                );
+            }
+            for arguments in [
+                vec![Literal("-code"), Literal("error"), Dynamic],
+                vec![Literal("-code"), Dynamic, Dynamic],
+                vec![Expanded],
+            ] {
+                let resolution = registry.resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("return"), &arguments),
+                    Some(dialect.authoring_query()),
+                );
+                let selected = resolution.resolved().unwrap();
+                let (effects, transitions) =
+                    selected.authored_source_effects_and_state_transitions(dialect);
+                assert!(effects.requires_world_barrier());
+                assert!(
+                    crate::StateTransitionDomain::ALL
+                        .iter()
+                        .all(|domain| transitions.widens(*domain))
+                );
+            }
+        }
+    }
+
+    #[test]
     fn return_state_envelope_preserves_error_observers_and_dynamic_results() {
         use crate::InvocationWord::{Dynamic, Literal};
         use crate::registry::native_return_state_effect;

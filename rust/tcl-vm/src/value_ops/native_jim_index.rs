@@ -844,7 +844,7 @@ impl NativeJimIndexObjects for Vm {
                     "original Index header does not match captured argv",
                 ),
             );
-            let first = self.execution_refusal.get_or_insert(refusal).clone();
+            let first = self.retain_native_execution_refusal(refusal);
             return Err(CmdError::from_execution_refusal(first));
         }
         Ok(())

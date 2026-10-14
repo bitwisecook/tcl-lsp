@@ -220,6 +220,8 @@ impl PhysicalObjectTypeReadEvidence {
 /// | [`Self::global_object_cells`] | `::`-qualified name | all versions and documents may disagree | labelled cross-document assistance |
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ObjectHandleFacts {
+    logical_source_candidates:
+        Option<std::sync::Arc<logical_source_candidates::LogicalSourceCandidateOwner>>,
     /// The scope-blind union — **verbatim** what [`object_handle_classes`]
     /// returns, so a consumer can migrate one map at a time.
     pub any_scope: HashMap<String, HashSet<String>>,
@@ -266,6 +268,9 @@ pub struct ObjectHandleFacts {
     /// candidates; the spelling does not prove the cell's current contents.
     pub global_object_cells: HashMap<String, HashSet<String>>,
 }
+
+mod logical_source_candidates;
+pub use logical_source_candidates::LogicalSourceReceiverClassCandidates;
 
 impl ObjectHandleFacts {
     /// Inferred normal result of the retained source procedure implementation.

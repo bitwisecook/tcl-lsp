@@ -60,7 +60,10 @@ impl Vm {
                 &mut frame.jim_evaluation.script,
             );
             match prepared {
-                Ok(state) => frame.jim_script = Some(state),
+                Ok(state) => {
+                    frame.jim_evaluation.evaluation_frame_entered = state.enters_evaluation_frame();
+                    frame.jim_script = Some(state);
+                }
                 Err(error) => {
                     if let Some(current) = self.jim_errors.frames.last_mut() {
                         *current = Self::borrow_jim_evaluation_frame(&frame.jim_evaluation);
@@ -488,3 +491,34 @@ impl Vm {
 #[cfg(test)]
 #[path = "native_jim_script/original_tuple_consumers_tests.rs"]
 mod original_tuple_consumers_tests;
+
+#[cfg(test)]
+mod evaluation_entry_tests {
+    use super::*;
+    use crate::Value;
+
+    #[test]
+    fn actual_script_missing_guard_precedes_frame_entry_and_success_enters() {
+        let profile = crate::environment::profile_for_dialect("jim");
+        for (source, entered) in [("set x \"", false), ("", false), ("set x VALUE", true)] {
+            let mut vm = crate::native_fixture::core(profile);
+            let original = Value::new_native_string_bytes(source.as_bytes());
+            let unit = vm
+                .prepare_native_jim_script_unit(
+                    &original,
+                    tcl_core_types::ByteNamespacePath::root(),
+                )
+                .unwrap();
+            let mut frame = Frame::new(unit, false);
+            assert!(!frame.jim_evaluation.evaluation_frame_entered);
+            let tick = vm.tick_native_jim_script(&mut frame);
+            assert_eq!(frame.jim_evaluation.evaluation_frame_entered, entered);
+            if source == "set x \"" {
+                assert!(matches!(tick, Tick::Return(completion) if completion.code == Code::Error));
+                assert!(frame.jim_script.is_none());
+            } else {
+                assert!(frame.jim_script.is_some());
+            }
+        }
+    }
+}

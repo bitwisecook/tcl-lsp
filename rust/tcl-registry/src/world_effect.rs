@@ -929,6 +929,9 @@ pub struct WorldEffectDescriptor {
     pub static_footprint: StaticEffectFootprint,
     /// Optional argument-dependent effect resolver.
     pub resolver: Option<WorldEffectResolver>,
+    /// Conditional source resolver, independent of Native handler admission.
+    /// Missing registration keeps the ordinary conservative descriptor.
+    pub source_resolver: Option<WorldEffectResolver>,
     /// Conservative policy for non-literal arguments supplied to `resolver`.
     pub dynamic_fallback: WorldEffectDynamicFallback,
 }
@@ -969,6 +972,7 @@ impl WorldEffectDescriptor {
         composition: WorldEffectComposition::Extend,
         static_footprint: StaticEffectFootprint::EMPTY,
         resolver: None,
+        source_resolver: None,
         dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
     };
 
@@ -1132,6 +1136,19 @@ impl ResolvedWorldEffects {
         self.resolve_with_transition_coverage(args, &TransitionEffectCoverages::default())
     }
 
+    pub(crate) fn resolve_authored_source(self, args: InvocationArguments<'_>) -> EffectFootprint {
+        let source = |descriptor: WorldEffectDescriptor| WorldEffectDescriptor {
+            resolver: descriptor.source_resolver.or(descriptor.resolver),
+            ..descriptor
+        };
+        Self {
+            command: self.command.map(source),
+            subcommand: self.subcommand.map(source),
+            form: self.form.map(source),
+        }
+        .resolve(args)
+    }
+
     /// Resolve the descriptor chain while applying registry-declared
     /// completion-edge transition coverage to matching write components.
     #[must_use]
@@ -1288,6 +1305,7 @@ mod tests {
             composition: WorldEffectComposition::Extend,
             static_footprint: DECLARED_VARIABLE_WRITE,
             resolver: None,
+            source_resolver: None,
             dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
         }
         .resolve_with_transition_coverage(InvocationArguments::literals(&[]), &coverage);

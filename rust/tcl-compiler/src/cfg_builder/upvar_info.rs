@@ -357,6 +357,7 @@ impl UpvarInfo {
     ///   we pair it positionally with a tail argument at the call
     ///   site (tail start = `params.len() - 1`, since `args` consumes
     ///   the trailing slot in the param list).
+    #[cfg(test)]
     #[must_use]
     pub fn caller_side_defs(&self, call_args: &[String], params: &[String]) -> Vec<String> {
         let mut defs: Vec<String> = Vec::new();

@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_lookup::tests::jim_cache_namespace_equality_uses_counted_original_objects_not_c_arena_tokens ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2162 filtered out; finished in 3.47s
+

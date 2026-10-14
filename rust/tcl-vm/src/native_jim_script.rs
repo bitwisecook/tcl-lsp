@@ -195,6 +195,10 @@ impl NativeJimScriptState {
         })
     }
 
+    pub(crate) fn enters_evaluation_frame(&self) -> bool {
+        self.substitution_flags.is_none() && !self.backing.storage.is_empty()
+    }
+
     pub(crate) fn current_script_location(
         &self,
     ) -> Result<Option<tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>>, crate::TclError>

@@ -1694,6 +1694,9 @@ impl StateTransitionKnowledge {
 pub enum LogicalSourceStateTransitionResolver {
     /// Conditional frame-alias grammar under positively retained Logical input.
     FrameAliases(StateTransitionResolver),
+    /// Conditional completion storage through the retained source argv grammar.
+    /// This supplies no Native completion, entered frame or successful edge.
+    CompletionState(StateTransitionResolver),
 }
 
 /// Argument-sensitive resolver for a state transition descriptor.
@@ -1913,7 +1916,41 @@ impl ResolvedStateTransitions {
                 Some(LogicalSourceStateTransitionResolver::FrameAliases(resolver)) => {
                     resolver(arguments)
                 }
-                None => descriptor.resolve(arguments),
+                Some(LogicalSourceStateTransitionResolver::CompletionState(_)) | None => {
+                    descriptor.resolve(arguments)
+                }
+            };
+            resolved.widen_dynamic_arguments(
+                arguments,
+                descriptor.dynamic_widening,
+                descriptor.argument_shape == StateTransitionArgumentShape::Positional,
+            );
+            resolved.set_commit(descriptor.commit);
+            if descriptor.composition == StateTransitionComposition::Replace {
+                transitions = resolved;
+            } else {
+                transitions.extend(resolved);
+            }
+        }
+        transitions
+    }
+
+    pub(crate) fn resolve_authored_source_completion(
+        self,
+        arguments: InvocationArguments<'_>,
+    ) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        for descriptor in [self.command, self.subcommand, self.form]
+            .into_iter()
+            .flatten()
+        {
+            let mut resolved = match descriptor.logical_source_resolver {
+                Some(LogicalSourceStateTransitionResolver::CompletionState(resolver)) => {
+                    resolver(arguments)
+                }
+                Some(LogicalSourceStateTransitionResolver::FrameAliases(_)) | None => {
+                    descriptor.resolve(arguments)
+                }
             };
             resolved.widen_dynamic_arguments(
                 arguments,

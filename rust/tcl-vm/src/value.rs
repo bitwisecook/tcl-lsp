@@ -213,6 +213,8 @@ impl WeakNativeObject {
 mod script;
 pub(crate) use script::{NativeJimScript, NativeJimScriptLease};
 mod native_jim_enum;
+mod native_jim_pool;
+pub(crate) use native_jim_pool::{JimAllocationScope, JimCommandNameObservation};
 mod native_jim_lookup;
 mod native_method_name;
 mod native_property_name;
@@ -223,6 +225,7 @@ pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 pub(crate) struct NativeJimObjectContext {
     numeric_host: RefCell<Option<Rc<dyn tcl_platform::Host>>>,
     live: std::cell::Cell<bool>,
+    pool: Rc<native_jim_pool::JimPool>,
     objects: [RefCell<Option<Value>>; 10],
 }
 
@@ -235,10 +238,13 @@ impl NativeJimObjectContext {
                 "Jim original source context",
             ));
         }
+        let pool = Rc::new(native_jim_pool::JimPool::new(true));
+        let allocation = JimAllocationScope::enter(Some(Rc::clone(&pool)), Rc::new(|| true));
         let empty = Value::new_native_string_bytes(b"".as_slice());
         let context = Rc::new(Self {
             numeric_host: RefCell::new(None),
             live: std::cell::Cell::new(true),
+            pool,
             objects: [
                 Some(empty.clone()),
                 Some(Value::int(1)),
@@ -260,7 +266,12 @@ impl NativeJimObjectContext {
             };
             value.bind_native_jim_context(&context)?;
         }
+        drop(allocation);
         Ok(context)
+    }
+
+    pub(crate) fn allocation_pool(&self) -> Rc<native_jim_pool::JimPool> {
+        Rc::clone(&self.pool)
     }
 
     pub(crate) fn select_numeric_host(&self, host: Rc<dyn tcl_platform::Host>) {
@@ -411,6 +422,7 @@ impl NativeJimObjectContext {
     }
     pub(crate) fn retire(&self) {
         self.live.set(false);
+        self.pool.retire();
         let host = self.numeric_host.borrow_mut().take();
         drop(host);
     }
@@ -468,6 +480,7 @@ struct NativeJimSource {
 }
 
 struct Obj {
+    jim_allocation: RefCell<Option<native_jim_pool::ActualAllocation>>,
     incarnation: tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation,
     /// Explicit transport references that retain lifetime without native ownership.
     lifetime_pins: Cell<usize>,
@@ -477,6 +490,15 @@ struct Obj {
     string: RefCell<Option<RawString>>,
     string_storage: Cell<NativeStringStorageIdentity>,
     /// Typed internal rep; `RefCell` so a value can shimmer in place.
+    intrep: RefCell<IntRep>,
+    double_format: RefCell<Option<DoubleFormatContext>>,
+    source_location: RefCell<Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>>,
+    jim_context: RefCell<Option<std::rc::Weak<NativeJimObjectContext>>>,
+}
+
+struct ObjectRepresentations {
+    string: RefCell<Option<RawString>>,
+    string_storage: Cell<NativeStringStorageIdentity>,
     intrep: RefCell<IntRep>,
     double_format: RefCell<Option<DoubleFormatContext>>,
     source_location: RefCell<Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>>,
@@ -1226,6 +1248,10 @@ impl Value {
             location,
             context,
         });
+        let allocation = self.0.jim_allocation.borrow_mut().take();
+        if let Some(allocation) = allocation {
+            allocation.release();
+        }
     }
 
     /// Ordinary native release, distinct from Subst's deliberate no-free undo.
@@ -1765,9 +1791,7 @@ impl Value {
     /// Duplicate physical representations without reaching their string updater.
     pub(crate) fn duplicate_native_object(&self) -> Self {
         Self(
-            Rc::new(Obj {
-                incarnation:
-                    tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation::fresh(),
+            native_jim_pool::construct(ObjectRepresentations {
                 string: RefCell::new(self.0.string.borrow().clone()),
                 string_storage: Cell::new(self.0.string_storage.get()),
                 intrep: RefCell::new(match &*self.0.intrep.borrow() {
@@ -1777,8 +1801,6 @@ impl Value {
                 double_format: RefCell::new(self.0.double_format.borrow().clone()),
                 source_location: RefCell::new(self.0.source_location.borrow().clone()),
                 jim_context: RefCell::new(self.0.jim_context.borrow().clone()),
-                lifetime_pins: Cell::new(0),
-                retired: Cell::new(false),
             }),
             NativeValueHandleOwnership::Reference,
         )
@@ -2111,6 +2133,7 @@ impl Value {
         &self,
         context: &Rc<NativeJimObjectContext>,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        native_jim_pool::validate_allocator(self, &context.pool)?;
         self.check_native_header()?;
         let selected = Rc::downgrade(context);
         let mut retained = self.0.jim_context.borrow_mut();
@@ -3079,9 +3102,7 @@ impl Value {
     #[must_use]
     pub fn with_resident_string_bytes(self, bytes: Rc<[u8]>) -> Self {
         Self(
-            Rc::new(Obj {
-                incarnation:
-                    tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation::fresh(),
+            native_jim_pool::construct(ObjectRepresentations {
                 string: RefCell::new(Some(RawString::from_bytes(bytes))),
                 string_storage: Cell::new(NativeStringStorageIdentity::Unknown),
                 intrep: RefCell::new(match &*self.0.intrep.borrow() {
@@ -3091,8 +3112,6 @@ impl Value {
                 double_format: RefCell::new(self.0.double_format.borrow().clone()),
                 source_location: RefCell::new(self.0.source_location.borrow().clone()),
                 jim_context: RefCell::new(self.0.jim_context.borrow().clone()),
-                lifetime_pins: Cell::new(0),
-                retired: Cell::new(false),
             }),
             NativeValueHandleOwnership::Reference,
         )
@@ -5169,17 +5188,13 @@ impl Value {
 
     fn from_raw_parts(string: Option<RawString>, intrep: IntRep) -> Self {
         Self(
-            Rc::new(Obj {
-                incarnation:
-                    tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation::fresh(),
+            native_jim_pool::construct(ObjectRepresentations {
                 string: RefCell::new(string),
                 string_storage: Cell::new(NativeStringStorageIdentity::Unknown),
                 intrep: RefCell::new(intrep),
                 double_format: RefCell::new(None),
                 source_location: RefCell::new(None),
                 jim_context: RefCell::new(None),
-                lifetime_pins: Cell::new(0),
-                retired: Cell::new(false),
             }),
             NativeValueHandleOwnership::Reference,
         )

@@ -510,7 +510,9 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        self.result.object_handle_facts = crate::object_types::object_handle_facts(cu, registry);
+        let mut facts = crate::object_types::object_handle_facts(cu, registry);
+        facts.retain_logical_source_candidates(&self.result, cu, registry);
+        self.result.object_handle_facts = facts;
     }
 
     /// Emit the CFG/SSA-derived diagnostics from an already-built

@@ -50,6 +50,7 @@ const OO_DEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
         },
     },
     resolver: None,
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
 };
 

@@ -545,6 +545,7 @@ const NAMESPACE_DELETE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
         },
     },
     resolver: None,
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
 };
 
@@ -561,6 +562,7 @@ const NAMESPACE_EVAL_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
         },
     },
     resolver: None,
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
 };
 
@@ -1913,6 +1915,7 @@ mod tests {
                     callback: CallbackEffect::NONE,
                 },
                 resolver: None,
+                source_resolver: None,
                 dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
             }),
             ..spec()

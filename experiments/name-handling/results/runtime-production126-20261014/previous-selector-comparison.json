@@ -1,0 +1,11 @@
+{
+  "previous_tests": 104,
+  "retained": 104,
+  "gains": [
+    "interp::native_command_names::repinned_registration_key_tests::jim_repin_declines_moved_or_nonroot_original_registration_slots",
+    "retained_import_original_jim"
+  ],
+  "regressions": [
+    "cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis"
+  ]
+}

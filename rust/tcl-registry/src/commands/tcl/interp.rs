@@ -203,6 +203,7 @@ const INTERP_RECURSION_LIMIT_EFFECTS: WorldEffectDescriptor = WorldEffectDescrip
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
     resolver: Some(interp_recursion_limit_world_effects),
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::Declared(INTERP_POLICY_DYNAMIC_EFFECTS),
 };
 
@@ -210,6 +211,7 @@ const INTERP_BGERROR_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
     resolver: Some(interp_bgerror_world_effects),
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::Declared(INTERP_POLICY_DYNAMIC_EFFECTS),
 };
 

@@ -217,8 +217,51 @@ impl Vm {
         if !self.uses_native_jim_lookup() {
             return Ok(None);
         }
-        let created = Value::from_native_string_bytes(original);
-        let prepared = self.original_jim_publication_key(&created, purpose);
+        let prepared = (|| {
+            let scope = NativeOperationScope::enter(self)?;
+            if matches!(
+                purpose,
+                NativeNamePurpose::CommandCApiPublication
+                    | NativeNamePurpose::ChildAliasPublication
+            ) {
+                let policy = self
+                    .name_policy_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original Jim CString registration issuer",
+                    ))?
+                    .recipe();
+                if policy.jim_command_key_construction(NativeNameContext::root(), original, purpose)
+                    != Ok(tcl_syntax::naming::NativeJimNamespaceConstruction::FreshString)
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim CString registration purpose",
+                    )
+                    .into());
+                }
+                let created =
+                    Value::from_native_string_bytes(tcl_core_types::c_string_extent(original));
+                created.bind_native_jim_context(&self.native_jim_object_context()?)?;
+                scope.check(self)?;
+                let bytes = self.native_name_operand_bytes_checked(&created)?;
+                scope.check(self)?;
+                let projected = policy
+                    .command_publication_input(NativeNameContext::root(), &bytes)
+                    .map_err(|_| {
+                        ValueError::CommandProtocolUnavailable(
+                            "original Jim CString table geometry",
+                        )
+                    })?;
+                let table = NativeJimCommandTableKey::from_projection(&projected).ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim CString table key"),
+                )?;
+                return Ok(Some(OriginalJimCommandKey {
+                    original: created,
+                    table,
+                }));
+            }
+            let created = Value::from_native_string_bytes(original);
+            self.original_jim_publication_key(&created, purpose)
+        })();
         match prepared {
             Ok(key) => Ok(key),
             Err(error) => {
@@ -287,5 +330,38 @@ impl Vm {
                     .map(|key| key.report_bytes().to_vec())
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn actual_cstring_registration_uses_one_birth_and_retains_rooted_input() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+        let _scope = NativeOperationScope::enter(&mut vm).unwrap();
+        for purpose in [
+            NativeNamePurpose::CommandCApiPublication,
+            NativeNamePurpose::ChildAliasPublication,
+        ] {
+            let reusable = Value::new_native_string_bytes(b"REUSABLE".as_slice());
+            let observed = crate::value::JimCommandNameObservation::capture(&reusable).unwrap();
+            drop(reusable);
+            assert!(observed.current().is_err());
+            let key = vm
+                .jim_command_table_key_for_original(b"::host\0ignored", purpose)
+                .unwrap()
+                .unwrap();
+            let reached = observed.current().unwrap();
+            assert!(reached.is_same_object(&key.original));
+            assert_eq!(
+                key.original.resident_string_bytes().unwrap().as_ref(),
+                b"::host"
+            );
+            assert_eq!(key.table.comparison_bytes(), b"host");
+            drop(reached);
+            assert_eq!(key.original.native_object_reference_count(), 1);
+        }
     }
 }

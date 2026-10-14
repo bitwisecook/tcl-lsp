@@ -230,9 +230,39 @@ fn return_state_transitions(arguments: crate::InvocationArguments<'_>) -> crate:
     }
 }
 
+fn return_source_state_effects(
+    arguments: crate::InvocationArguments<'_>,
+) -> crate::world_effect::EffectFootprint {
+    match crate::registry::authored_source_return_state_effect(arguments) {
+        crate::completion_route::ReturnStateEffect::ResultAndCompletion => {
+            crate::world_effect::EffectFootprint::default()
+        }
+        crate::completion_route::ReturnStateEffect::MayMaterialiseError => {
+            crate::world_effect::EffectFootprint::conservative_unknown_invocation()
+        }
+    }
+}
+
+fn return_source_state_transitions(
+    arguments: crate::InvocationArguments<'_>,
+) -> crate::StateTransitions {
+    match crate::registry::authored_source_return_state_effect(arguments) {
+        crate::completion_route::ReturnStateEffect::ResultAndCompletion => {
+            crate::StateTransitions::default()
+        }
+        crate::completion_route::ReturnStateEffect::MayMaterialiseError => {
+            crate::StateTransitions::unknown_invocation()
+        }
+    }
+}
+
 const RETURN_STATE_TRANSITIONS: crate::StateTransitionDescriptor =
     crate::StateTransitionDescriptor {
-        logical_source_resolver: None,
+        logical_source_resolver: Some(
+            crate::state_transition::LogicalSourceStateTransitionResolver::CompletionState(
+                return_source_state_transitions,
+            ),
+        ),
         resolver: Some(return_state_transitions),
         // Error-option publication may invoke observers before an abrupt return.
         commit: crate::StateTransitionCommit::MayCommitBeforeAbruptCompletion,
@@ -245,6 +275,7 @@ const RETURN_WORLD_EFFECTS: crate::WorldEffectDescriptor = crate::WorldEffectDes
         callback: crate::world_effect::CallbackEffect::NONE,
     },
     resolver: Some(return_state_effects),
+    source_resolver: Some(return_source_state_effects),
     dynamic_fallback: crate::world_effect::WorldEffectDynamicFallback::Declared(
         crate::world_effect::StaticEffectFootprint::EMPTY,
     ),

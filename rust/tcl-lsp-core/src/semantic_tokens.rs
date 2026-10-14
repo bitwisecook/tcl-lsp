@@ -3252,15 +3252,10 @@ fn collect_case_list(
         }
 
         if let Some(p) = clause.pattern {
-            let text = inner.get(p.start..p.end).unwrap_or_default();
-            push_case_pattern(
-                ctx,
-                as_token(p),
-                text.trim_start_matches('{'),
-                spec,
-                clause_regexp,
-                entries,
-            );
+            let Some(text) = inner.get(p.content_range()) else {
+                continue;
+            };
+            push_case_pattern(ctx, as_token(p), text, spec, clause_regexp, entries);
         }
 
         // Body element — recurse as a script.
@@ -4174,18 +4169,28 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
         let abs_start = cstart + et.start as usize;
         match et.kind {
             E::Command => {
-                // `[cmd …]` inside the expression — recurse into the inner
-                // script (strip the surrounding `[` / `]`).
-                let has_open = et.text.starts_with('[');
-                let body = et.text.trim_start_matches('[').trim_end_matches(']');
-                collect_script(
-                    ctx,
-                    body,
-                    u32::try_from(abs_start + usize::from(has_open)).unwrap_or(0),
-                    entries,
-                    depth + 1,
-                    false,
-                );
+                let original = tcl_lexer::ExprToken {
+                    kind: et.kind,
+                    text: et.text.as_bytes().to_vec(),
+                    start: et.start,
+                    end: et.end,
+                };
+                let Some(term) =
+                    tcl_lexer::expression_term(inner.as_bytes(), &original, ctx.config)
+                else {
+                    continue;
+                };
+                let Some(body) = inner.get(term.value.start as usize..term.value.end as usize)
+                else {
+                    continue;
+                };
+                let Some(offset) = u32::try_from(cstart)
+                    .ok()
+                    .and_then(|start| start.checked_add(term.value.start))
+                else {
+                    continue;
+                };
+                collect_script(ctx, body, offset, entries, depth + 1, false);
             }
             E::Function if !et.text.is_empty() && !et.text.contains('\n') => {
                 let pos = line_index
@@ -5491,6 +5496,68 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn expression_commands_keep_nested_substitution_closers() {
+        let source = "if {[llength [list $value]]} {}\n";
+        for label in ["tcl8.6", "tcl9.1"] {
+            let context = tcl_registry::model::ingress::static_context_for(label);
+            let profile = context
+                .commands()
+                .profile()
+                .expect("explicit release fixture");
+            let tokens = decode_full(source, profile, context.commands());
+            let list = source.find("list").unwrap() as u32;
+            assert!(
+                tokens
+                    .iter()
+                    .any(|&(line, column, length, kind, modifiers)| {
+                        line == 0
+                            && column == list
+                            && length == 4
+                            && kind == TokenKind::Function as u32
+                            && modifiers & MOD_DEFAULT_LIBRARY != 0
+                    }),
+                "{label}: {tokens:?}"
+            );
+            let value = source.find("$value").unwrap() as u32;
+            assert!(
+                tokens.iter().any(|&(line, column, length, kind, _)| {
+                    line == 0
+                        && column <= value + 1
+                        && column + length >= value + 6
+                        && kind == TokenKind::Variable as u32
+                }),
+                "{label}: {tokens:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn case_list_patterns_keep_literal_braces_from_selected_elements() {
+        let source = "switch x {\"{default\" {puts a} {default} {puts b}}\n";
+        let tokens = decode_full(source, tcl(), &reg());
+        let literal = source.find("{default").unwrap() as u32;
+        assert!(
+            !tokens.iter().any(|&(line, column, length, kind, _)| {
+                line == 0
+                    && column <= literal + 1
+                    && column + length > literal + 1
+                    && kind == TokenKind::Keyword as u32
+            }),
+            "{tokens:?}"
+        );
+        let keyword = source.rfind("{default").unwrap() as u32;
+        assert!(
+            tokens.iter().any(|&(line, column, length, kind, _)| {
+                line == 0
+                    && column <= keyword + 1
+                    && column + length > keyword + 1
+                    && kind == TokenKind::Keyword as u32
+            }),
+            "{tokens:?}"
+        );
     }
 
     #[test]

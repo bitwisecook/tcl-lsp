@@ -37,3 +37,5 @@ a completed C release gate or Jim/F5 agreement.
 [Compiler120](compiler-production120-20261014/README.md) records85/109 focused ordinary consumer controls with expected-source and captured-source drift0.
 
 [VM121](vm-production121-20261014/README.md) records44/45 current controls with full captured drift0; the original procedure parse-frame spelling remains failing.
+
+[Runtime126](runtime-production126-20261014/README.md) records106/107 exact controls with full captured drift0; original import passes and child-alias allocator ingress remains failing.

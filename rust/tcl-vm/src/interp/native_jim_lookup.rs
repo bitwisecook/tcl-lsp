@@ -15,7 +15,7 @@ use tcl_syntax::value::ValueError;
 /// command worker or a native object reference.
 #[derive(Clone, Default)]
 pub(crate) struct OriginalJimCommandName {
-    original: Rc<RefCell<Option<crate::value::NativeObjectLifetimeLease>>>,
+    original: Rc<RefCell<Option<crate::value::JimCommandNameObservation>>>,
 }
 
 impl OriginalJimCommandName {
@@ -28,8 +28,7 @@ impl OriginalJimCommandName {
         let Some(original) = original.as_ref() else {
             return Ok(None);
         };
-        original.value().check_native_header()?;
-        Ok(Some(original.value().clone()))
+        original.current().map(Some)
     }
 }
 
@@ -498,7 +497,7 @@ impl Vm {
                     ValueError::CommandProtocolUnavailable("original found Jim command hash key"),
                 )?;
                 original.original.check_native_header()?;
-                original.original.native_lifetime_lease()
+                crate::value::JimCommandNameObservation::capture(&original.original)?
             };
             *node.observed_name.original.borrow_mut() = Some(observed);
             let namespace = self
@@ -1136,12 +1135,14 @@ mod tests {
         let mut vm = crate::native_fixture::core(profile);
         let stale = Value::from_native_string_bytes(b"unselected".as_slice());
         let observed = OriginalJimCommandName::default();
-        *observed.original.borrow_mut() = Some(stale.native_lifetime_lease());
+        *observed.original.borrow_mut() =
+            Some(crate::value::JimCommandNameObservation::capture(&stale).unwrap());
         drop(stale);
         assert!(observed.original().is_err());
         vm.jim_errors
             .frames
             .push(super::super::OriginalJimEvaluationFrame {
+                evaluation_frame_entered: true,
                 procedure_level: 0,
                 command: Some(observed),
                 is_procedure: false,
@@ -1151,6 +1152,7 @@ mod tests {
         vm.jim_errors
             .frames
             .push(super::super::OriginalJimEvaluationFrame {
+                evaluation_frame_entered: true,
                 procedure_level: 0,
                 command: None,
                 is_procedure: false,

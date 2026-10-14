@@ -18,12 +18,16 @@ use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 pub(super) struct NativeOperationContext {
     generation: Cell<Option<u64>>,
+    selected: Cell<bool>,
+    allocation_permit: RefCell<Rc<Cell<bool>>>,
     entered: RefCell<Vec<Weak<EnteredOperation>>>,
 }
 impl Default for NativeOperationContext {
     fn default() -> Self {
         Self {
             generation: Cell::new(Some(0)),
+            selected: Cell::new(true),
+            allocation_permit: RefCell::new(Rc::new(Cell::new(true))),
             entered: RefCell::new(Vec::new()),
         }
     }
@@ -33,6 +37,18 @@ impl NativeOperationContext {
         let mut entered = self.entered.borrow_mut();
         entered.retain(|record| record.strong_count() != 0);
         !entered.is_empty()
+    }
+
+    pub(super) fn select(&self, selected: bool) {
+        self.selected.set(selected);
+    }
+
+    pub(super) fn withdraw_allocations(&self) {
+        self.allocation_permit.borrow().set(false);
+    }
+
+    pub(super) fn reset_allocations(&self) {
+        *self.allocation_permit.borrow_mut() = Rc::new(Cell::new(true));
     }
 
     fn advance(&self) {
@@ -49,6 +65,7 @@ pub(crate) struct NativeOperationCurrency {
     owner: Rc<NativeOperationContext>,
     generation: u64,
     authorised_generation: Rc<Cell<Option<u64>>>,
+    allocation_permit: Rc<Cell<bool>>,
     interpreter: NativeInterpreterIdentity,
     context: RuntimeContext,
     profile: &'static tcl_dialect::DialectProfile,
@@ -142,6 +159,7 @@ impl OriginalOperationObservation {
 
 struct EnteredOperation {
     currency: NativeOperationCurrency,
+    _allocation: crate::value::JimAllocationScope,
 }
 
 /// Allocation-only scope ownership creates no native object/reference role.
@@ -352,7 +370,7 @@ fn unavailable() -> NativeExecutionError {
     ))
 }
 fn retain_first(vm: &mut Vm, cause: NativeExecutionError) -> NativeExecutionError {
-    vm.execution_refusal.get_or_insert(cause).clone()
+    vm.retain_native_execution_refusal(cause)
 }
 impl NativeOperationCurrency {
     fn capture_fields(vm: &mut Vm) -> Result<Self, NativeExecutionError> {
@@ -364,10 +382,12 @@ impl NativeOperationCurrency {
             .generation
             .get()
             .ok_or_else(|| retain_first(vm, unavailable()))?;
+        let allocation_permit = Rc::clone(&owner.allocation_permit.borrow());
         Ok(Self {
             owner,
             generation,
             authorised_generation: Rc::new(Cell::new(None)),
+            allocation_permit,
             interpreter: vm.native_interpreter_identity(),
             context: vm.runtime_context().clone(),
             profile: vm.dialect_profile(),
@@ -456,6 +476,49 @@ impl NativeOperationScope {
         Ok(original)
     }
 
+    fn allocation_scope(
+        vm: &mut Vm,
+        currency: &NativeOperationCurrency,
+        permit_new_context: bool,
+    ) -> Result<crate::value::JimAllocationScope, NativeExecutionError> {
+        let pool = if vm
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            if permit_new_context {
+                Some(
+                    vm.native_jim_object_context()
+                        .map_err(|error| {
+                            retain_first(
+                                vm,
+                                NativeExecutionError::ValueAccessRefusal(
+                                    error.native_access_refusal().expect("actual Jim context"),
+                                ),
+                            )
+                        })?
+                        .allocation_pool(),
+                )
+            } else {
+                vm.jim_object_context
+                    .borrow()
+                    .as_ref()
+                    .map(|context| context.allocation_pool())
+            }
+        } else {
+            None
+        };
+        let current = currency.clone();
+        Ok(crate::value::JimAllocationScope::enter(
+            pool,
+            Rc::new(move || {
+                current.allocation_permit.get()
+                    && current.owner.selected.get()
+                    && current.owner.generation.get() == Some(current.current_generation())
+            }),
+        ))
+    }
+
     pub(crate) fn enter_native(vm: &mut Vm) -> Result<Self, NativeExecutionError> {
         let inherited = Self::current_entered(vm)?;
         let owner = Rc::clone(&vm.native_operation_context);
@@ -464,7 +527,11 @@ impl NativeOperationScope {
         } else {
             NativeOperationCurrency::capture_fields(vm)?
         };
-        let entered = Rc::new(EnteredOperation { currency });
+        let allocation = Self::allocation_scope(vm, &currency, true)?;
+        let entered = Rc::new(EnteredOperation {
+            currency,
+            _allocation: allocation,
+        });
         owner.entered.borrow_mut().push(Rc::downgrade(&entered));
         Ok(Self { entered })
     }
@@ -478,8 +545,11 @@ impl NativeOperationScope {
         if !original.owns_saved_target(vm, interpreter) {
             return Err(retain_first(vm, unavailable()));
         }
+        let _ = original.check_saved_target(vm, interpreter);
+        let allocation = Self::allocation_scope(vm, original, false)?;
         let entered = Rc::new(EnteredOperation {
             currency: original.clone(),
+            _allocation: allocation,
         });
         original
             .owner
@@ -542,6 +612,63 @@ mod tests {
     fn native() -> Vm {
         crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"))
     }
+    #[test]
+    fn actual_factory_scope_tracks_parked_selection_and_retains_first_cause_withdrawal() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
+        let child_name = vm.create_child(Some("allocator-child".into()), false);
+        let child = vm.child_id(&child_name).unwrap();
+        let parent = NativeOperationScope::enter(&mut vm).unwrap();
+        let before = parent.currency().owner.generation.get();
+        vm.in_interp(child, |vm| {
+            let parked = Value::new_native_string_bytes(b"PARKED".as_slice());
+            assert!(matches!(
+                crate::value::JimCommandNameObservation::capture(&parked).unwrap(),
+                crate::value::JimCommandNameObservation::Exact(_)
+            ));
+            let _child = NativeOperationScope::enter(vm).unwrap();
+            let entered = Value::new_native_string_bytes(b"CHILD".as_slice());
+            assert!(matches!(
+                crate::value::JimCommandNameObservation::capture(&entered).unwrap(),
+                crate::value::JimCommandNameObservation::Resident(_)
+            ));
+        });
+        parent.check(&mut vm).unwrap();
+        let restored = Value::new_native_string_bytes(b"RESTORED".as_slice());
+        assert!(matches!(
+            crate::value::JimCommandNameObservation::capture(&restored).unwrap(),
+            crate::value::JimCommandNameObservation::Resident(_)
+        ));
+        let saved = parent.currency().clone();
+        let _ = vm.refuse_host_command("actual allocator first cause".into());
+        let first = vm.execution_refusal.clone().unwrap();
+        assert_eq!(parent.currency().owner.generation.get(), before);
+        let withdrawn = Value::new_native_string_bytes(b"WITHDRAWN".as_slice());
+        assert!(matches!(
+            crate::value::JimCommandNameObservation::capture(&withdrawn).unwrap(),
+            crate::value::JimCommandNameObservation::Exact(_)
+        ));
+        assert!(parent.check(&mut vm).is_err());
+        assert_eq!(vm.execution_refusal, Some(first.clone()));
+        drop(parent);
+        assert_eq!(vm.take_host_boundary_refusal(), Some(first));
+        assert!(vm.execution_refusal.is_none());
+        {
+            let _old_allocation =
+                NativeOperationScope::allocation_scope(&mut vm, &saved, false).unwrap();
+            let old = Value::new_native_string_bytes(b"OLD EPISODE".as_slice());
+            assert!(matches!(
+                crate::value::JimCommandNameObservation::capture(&old).unwrap(),
+                crate::value::JimCommandNameObservation::Exact(_)
+            ));
+        }
+        let _fresh = NativeOperationScope::enter(&mut vm).unwrap();
+        let fresh = Value::new_native_string_bytes(b"FRESH".as_slice());
+        assert!(matches!(
+            crate::value::JimCommandNameObservation::capture(&fresh).unwrap(),
+            crate::value::JimCommandNameObservation::Resident(_)
+        ));
+    }
+
     #[test]
     fn original_vm_context_receipt_survives_guest_table_and_same_input_policy_changes() {
         // naming.embedding.original-host-publication-and-fact-transport

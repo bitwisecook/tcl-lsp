@@ -426,6 +426,7 @@ const TRACE_ADD_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
     resolver: Some(trace_add_world_effects),
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
         accesses: TRACE_ADD_DYNAMIC_EFFECT_ACCESSES,
         callback: CallbackEffect::NONE,
@@ -436,6 +437,7 @@ const TRACE_REMOVE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
     resolver: Some(trace_remove_world_effects),
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
         accesses: TRACE_REMOVE_DYNAMIC_EFFECT_ACCESSES,
         callback: CallbackEffect::NONE,
@@ -446,6 +448,7 @@ const TRACE_INFO_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
     resolver: Some(trace_info_world_effects),
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
         accesses: TRACE_INFO_DYNAMIC_EFFECT_ACCESSES,
         callback: CallbackEffect::NONE,
@@ -456,6 +459,7 @@ const LEGACY_TRACE_ADD_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
     resolver: Some(legacy_trace_add_world_effects),
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
         accesses: LEGACY_TRACE_DYNAMIC_EFFECT_ACCESSES,
         callback: CallbackEffect::NONE,
@@ -466,6 +470,7 @@ const LEGACY_TRACE_REMOVE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
     resolver: Some(legacy_trace_remove_world_effects),
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
         accesses: LEGACY_TRACE_DYNAMIC_EFFECT_ACCESSES,
         callback: CallbackEffect::NONE,
@@ -476,6 +481,7 @@ const LEGACY_TRACE_INFO_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
     resolver: Some(legacy_trace_info_world_effects),
+    source_resolver: None,
     dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
         accesses: LEGACY_TRACE_INFO_DYNAMIC_EFFECT_ACCESSES,
         callback: CallbackEffect::NONE,

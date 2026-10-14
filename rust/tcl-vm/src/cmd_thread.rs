@@ -543,7 +543,7 @@ fn finish_job_result(
         JobResult::Guest { ok, result } => (ok, result),
         JobResult::Host(refusal) => {
             if vm.execution_refusal.is_none() {
-                vm.execution_refusal = Some(refusal);
+                vm.retain_native_execution_refusal(refusal);
             }
             return vm.refused_completion().expect("retained worker refusal");
         }

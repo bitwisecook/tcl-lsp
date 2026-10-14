@@ -257,6 +257,26 @@ fn dispatch_receiver_of(word: &tcl_lexer::NativeWord) -> Option<(String, bool)> 
     (!name.is_empty()).then_some((name, false))
 }
 
+/// Variable receivers use source-scoped suggestions, independently of physical reads.
+fn logical_completion_receiver_candidate<'a>(
+    analysis: &'a AnalysisResult,
+    registry: &CommandRegistry,
+    head: &tcl_lexer::NativeWord,
+    receiver: &str,
+    variable: bool,
+) -> Option<(&'a String, crate::definition::MethodBucket)> {
+    if variable {
+        let candidates = analysis.logical_source_receiver_class_candidates(head, registry)?;
+        let mut classes = candidates.classes();
+        let class = classes.next()?;
+        return classes
+            .next()
+            .is_none()
+            .then_some((class, crate::definition::MethodBucket::Instance));
+    }
+    crate::definition::logical_receiver_candidate_at(analysis, receiver, false, head.span().start())
+}
+
 fn context_aware_completions(
     source: &str,
     line: u32,
@@ -318,11 +338,12 @@ fn context_aware_completions(
     let line_index = tcl_lexer::LineIndex::new(source);
     if word_idx == 1
         && let Some((recv, is_dollar)) = dispatch_receiver_of(&command.head)
-        && let Some((class_q, bucket)) = crate::definition::logical_receiver_candidate_at(
+        && let Some((class_q, bucket)) = logical_completion_receiver_candidate(
             analysis,
+            registry,
+            &command.head,
             &recv,
             is_dollar,
-            crate::definition::byte_offset_at(&line_index, source, line, character),
         )
     {
         // Per-object member state layers over the class chain in real
@@ -2668,16 +2689,25 @@ fn fuzzy_command_fallback(
         && let Some(command) = command_context_on_line(source, line, character, analysis)
         && command.word_index == 1
         && let Some((recv, is_dollar)) = dispatch_receiver_of(&command.head)
-        && let Some((class_q, bucket)) = crate::definition::logical_receiver_candidate_at(
+        && let Some(registry) = registry
+        && let Some((class_q, bucket)) = logical_completion_receiver_candidate(
             analysis,
+            registry,
+            &command.head,
             &recv,
             is_dollar,
-            crate::definition::byte_offset_at(line_index, source, line, character),
         )
     {
         let object_state =
             crate::definition::object_member_state_at(analysis, source, &recv, line, character);
-        let methods = method_items(analysis, registry, class_q, bucket, object_state, dialect);
+        let methods = method_items(
+            analysis,
+            Some(registry),
+            class_q,
+            bucket,
+            object_state,
+            dialect,
+        );
         if let Some(methods) = methods {
             universe.extend(methods);
         }

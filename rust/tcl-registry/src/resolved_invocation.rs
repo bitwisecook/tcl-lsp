@@ -2466,7 +2466,12 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         .into_iter()
         .flatten()
         .fold(false, |selected, descriptor| {
-            let own = descriptor.logical_source_resolver.is_some();
+            let own = matches!(
+                descriptor.logical_source_resolver,
+                Some(
+                    crate::state_transition::LogicalSourceStateTransitionResolver::FrameAliases(_)
+                )
+            );
             if descriptor.composition == crate::StateTransitionComposition::Replace {
                 own
             } else {
@@ -2489,6 +2494,36 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 .state_transitions
                 .resolve_logical_source_frame_aliases(self.words.arguments()),
         )
+    }
+
+    /// Conditional authored effects and state facts from the same actual argv.
+    /// The caller retains the source grammar independently of handler metadata.
+    /// Registered source resolvers preserve uncertainty; this supplies no
+    /// Native handler, completed effect or Normal proof.
+    #[must_use]
+    pub fn authored_source_effects_and_state_transitions(
+        &self,
+        source_dialect: crate::InvocationDialect,
+    ) -> (EffectFootprint, StateTransitions) {
+        let arguments = self.words.arguments().with_dialect(source_dialect);
+        let transitions = self
+            .semantics
+            .state_transitions
+            .resolve_authored_source_completion(arguments);
+        let mut effects = if self.semantics.world_effects.is_declared() {
+            self.semantics
+                .world_effects
+                .resolve_authored_source(arguments)
+        } else {
+            EffectFootprint::conservative_unknown_invocation()
+        };
+        effects.extend(EffectFootprint::from_legacy_with_transition_coverage(
+            transitions.touches_command_bindings(),
+            self.semantics.frame_effect,
+            self.semantics.side_effects,
+            &TransitionEffectCoverages::default(),
+        ));
+        (effects, transitions)
     }
 
     /// Readonly aliases from the same Logical state-fact projection. Unknown
@@ -7276,6 +7311,7 @@ mod tests {
             callback: crate::CallbackEffect::NONE,
         },
         resolver: None,
+        source_resolver: None,
         dynamic_fallback: crate::WorldEffectDynamicFallback::ConservativeUnknownInvocation,
     };
     const SUBCOMMAND_WORLD: WorldEffectDescriptor = WorldEffectDescriptor {
@@ -7285,6 +7321,7 @@ mod tests {
             callback: crate::CallbackEffect::NONE,
         },
         resolver: None,
+        source_resolver: None,
         dynamic_fallback: crate::WorldEffectDynamicFallback::ConservativeUnknownInvocation,
     };
 
@@ -7306,12 +7343,14 @@ mod tests {
         composition: WorldEffectComposition::Extend,
         static_footprint: StaticEffectFootprint::EMPTY,
         resolver: Some(form_effect_resolver),
+        source_resolver: None,
         dynamic_fallback: crate::WorldEffectDynamicFallback::ConservativeUnknownInvocation,
     };
     const REFINING_FORM_WORLD: WorldEffectDescriptor = WorldEffectDescriptor {
         composition: WorldEffectComposition::Replace,
         static_footprint: StaticEffectFootprint::EMPTY,
         resolver: Some(form_effect_resolver),
+        source_resolver: None,
         dynamic_fallback: crate::WorldEffectDynamicFallback::ConservativeUnknownInvocation,
     };
 

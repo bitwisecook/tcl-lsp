@@ -1694,6 +1694,7 @@ impl CommandPublicationOutcome {
 }
 
 pub(crate) struct OriginalJimEvaluationFrame {
+    pub(crate) evaluation_frame_entered: bool,
     pub(crate) procedure_level: u32,
     pub(crate) command: Option<native_jim_lookup::OriginalJimCommandName>,
     pub(crate) is_procedure: bool,
@@ -2839,6 +2840,8 @@ impl Vm {
             tcl_registry::special_vars::NativeBootstrapInputs,
         )>,
     ) -> Self {
+        let _constructor_allocation =
+            crate::value::JimAllocationScope::enter(None, Rc::new(|| true));
         let owner_nonce =
             tcl_runtime_api::native_compilation::NativeInterpreterIdentity::fresh_owner();
         let mut state = Box::new(InterpState::fresh(out, owner_nonce, 0));
@@ -2884,6 +2887,14 @@ impl Vm {
             tcl_syntax::number::set_runtime_syntax(vm.runtime_version.number_syntax());
             vm.select_dictionary_containers();
         }
+        let _root_operation =
+            match native_operation_currency::NativeOperationScope::enter_native(&mut vm) {
+                Ok(scope) => scope,
+                Err(first) => {
+                    vm.retain_native_execution_refusal(first);
+                    return vm;
+                }
+            };
         let recipe = vm
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
@@ -3355,6 +3366,8 @@ impl InterpState {
     /// registered yet ([`Vm::with_shared_output`] / [`Vm::fork_child`] follow
     /// up with `register_builtins`).
     fn fresh(out: Rc<RefCell<Box<dyn Write>>>, owner: u64, interpreter: u64) -> Self {
+        let _constructor_allocation =
+            crate::value::JimAllocationScope::enter(None, Rc::new(|| true));
         Self::fresh_in_environment(out, Self::fresh_semantic_environment(), owner, interpreter)
     }
 
@@ -3752,6 +3765,8 @@ impl Vm {
             .parked
             .take()
             .expect("switch target's state is parked in its slot");
+        self.native_operation_context.select(false);
+        incoming.native_operation_context.select(true);
         let outgoing = std::mem::replace(&mut self.state, incoming);
         self.interps[self.cur.0].parked = Some(outgoing);
         self.cur = id;
@@ -3759,6 +3774,7 @@ impl Vm {
 
     /// Mint a fresh arena slot for a new interpreter owned by `parent`.
     fn new_interp_slot(&mut self, state: Box<InterpState>, parent: InterpId) -> InterpId {
+        state.native_operation_context.select(false);
         let id = InterpId(self.interps.len());
         self.interps.push(InterpSlot {
             parked: Some(state),
@@ -4561,19 +4577,7 @@ impl Vm {
         if self.execution_refusal.is_some() {
             return false;
         }
-        // Builtin registrations pass plain literals, bare (`set`) or rooted
-        // (`::tcl::array::exists`) — never colon-tree keys — so a single root
-        // strip converts to the canonical unrooted key form exactly.
-        let canonical = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
-        let (holder, _) = key_holder_and_tail_unrooted(canonical);
-        if !holder.is_empty() {
-            // Internal qualified commands live in real Tcl namespaces too.
-            // Publish their parent/child arena edges at this ingress seam so
-            // exact structured resolution never needs to reconstruct a path
-            // from the command's rendered spelling.
-            self.declare_namespace_key(&holder);
-        }
-        self.register_command_with_host_input(canonical, name, Command::Builtin(f))
+        self.register_command_with_host_input(name, Command::Builtin(f))
             .into_key()
             .is_some()
     }
@@ -5226,48 +5230,32 @@ impl Vm {
         identity.next_generation
     }
 
-    /// Derive the structured slot for a command being published at `display`.
-    /// Procedures already carry their defining namespace token. Other command
-    /// creators normally publish into the current namespace; fall back to the
-    /// live namespace index for explicitly-qualified destinations.
-    fn command_slot_for_registration(&mut self, display: &str, command: &Command) -> CommandSlot {
-        if let Command::Proc(proc) = command {
-            return proc.declaration().actual_command_slot();
+    /// Host CString publication uses its selected C API purpose and actual holder.
+    fn native_host_command_slot(
+        &mut self,
+        original: &[u8],
+        command: &Command,
+    ) -> Result<CommandSlot, NativeCommandLookupUnavailable> {
+        if let Command::Proc(procedure) = command {
+            return Ok(procedure.declaration().actual_command_slot());
         }
-        if self.uses_native_jim_lookup() {
-            // Constructed Jim keys belong directly to the actual flat table.
-            return CommandSlot {
-                namespace: ROOT_NS,
-                simple: display.as_bytes().into(),
-            };
-        }
-
-        let current = self
-            .resolution_stacks
-            .ns_id_stack
-            .last()
-            .copied()
-            .unwrap_or(ROOT_NS);
-        let current_name = self.ns_name(current);
-        let current_tail = if current_name.is_empty() {
-            (!display.contains("::")).then_some(display)
-        } else {
-            display
-                .strip_prefix(&format!("{current_name}::"))
-                .filter(|tail| !tcl_syntax::naming::is_qualified(tail.as_bytes()))
-        };
-        if let Some(simple) = current_tail {
-            return CommandSlot {
-                namespace: current,
-                simple: simple.into(),
-            };
-        }
-
-        let (holder, simple) = key_holder_and_tail_unrooted(display);
-        CommandSlot {
-            namespace: self.definition_namespace_token(&holder),
-            simple: simple.into(),
-        }
+        let current = self.current_ns_id();
+        let path = self.namespace_path_for_token(current);
+        let protocol = self
+            .name_policy_protocol()
+            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
+            .recipe();
+        let selected = protocol
+            .command_c_api_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+            )
+            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
+        let namespace = self.materialise_native_command_projection(current, &selected);
+        Ok(CommandSlot {
+            namespace,
+            simple: selected.into_slot().simple,
+        })
     }
 
     /// Publish one structured slot into the private String-keyed storage used
@@ -5853,12 +5841,11 @@ impl Vm {
         name: &str,
         cmd: Command,
     ) -> CommandPublicationOutcome {
-        self.register_command_with_host_input(name, name, cmd)
+        self.register_command_with_host_input(name, cmd)
     }
 
     fn register_command_with_host_input(
         &mut self,
-        constructed: &str,
         original_input: &str,
         cmd: Command,
     ) -> CommandPublicationOutcome {
@@ -5868,6 +5855,14 @@ impl Vm {
             drop(cmd);
             return CommandPublicationOutcome::Unavailable;
         }
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => {
+                oo_cleanup::retain_error(self, &error);
+                drop(cmd);
+                return CommandPublicationOutcome::Unavailable;
+            }
+        };
         let incoming = match self.jim_command_table_key_for_original(
             original_input.as_bytes(),
             tcl_syntax::naming::NativeNamePurpose::CommandCApiPublication,
@@ -5879,14 +5874,25 @@ impl Vm {
                 return CommandPublicationOutcome::Unavailable;
             }
         };
-        let slot = incoming.as_ref().map_or_else(
-            || self.command_slot_for_registration(constructed, &cmd),
-            |key| CommandSlot {
+        let slot = match incoming.as_ref() {
+            Some(key) => CommandSlot {
                 namespace: ROOT_NS,
                 simple: key.table.comparison_bytes().into(),
             },
-        );
+            None => match self.native_host_command_slot(original_input.as_bytes(), &cmd) {
+                Ok(slot) => slot,
+                Err(error) => {
+                    let _ = self.refuse_host_command(error.to_string());
+                    drop(cmd);
+                    return CommandPublicationOutcome::Unavailable;
+                }
+            },
+        };
         let key = self.register_command_in_slot_with_jim_key(slot.clone(), cmd, incoming);
+        if let Err(error) = scope.check(self) {
+            oo_cleanup::retain_error(self, &error);
+            return CommandPublicationOutcome::Unavailable;
+        }
         if self.execution_refusal.is_some() {
             return CommandPublicationOutcome::Unavailable;
         }
@@ -22299,6 +22305,7 @@ impl Vm {
         frame: &OriginalJimEvaluationFrame,
     ) -> OriginalJimEvaluationFrame {
         OriginalJimEvaluationFrame {
+            evaluation_frame_entered: frame.evaluation_frame_entered,
             procedure_level: frame.procedure_level,
             command: frame.command.clone(),
             is_procedure: frame.is_procedure,
@@ -22330,7 +22337,13 @@ impl Vm {
                 invocation: empty,
             }]));
         }
-        let frames: Vec<_> = self.jim_errors.frames.iter().rev().collect();
+        let frames: Vec<_> = self
+            .jim_errors
+            .frames
+            .iter()
+            .rev()
+            .filter(|frame| frame.evaluation_frame_entered)
+            .collect();
         let metadata: Vec<_> = frames
             .iter()
             .map(|frame| JimEvaluationFrame {
@@ -22935,6 +22948,7 @@ impl Vm {
         parameter_source: &str,
         source: &str,
     ) -> Option<(String, NativeRegisteredCommandToken)> {
+        let _scope = native_operation_currency::NativeOperationScope::enter(self).ok()?;
         let grammar = self.native_invocation_dialect().parameter_grammar()?;
         let (registered, slot, ns_id) = self.native_procedure_publication(name.as_bytes()).ok()?;
         if self.command_at_exact_slot(&slot, false).is_some() {
@@ -23836,7 +23850,7 @@ impl Vm {
                 namespace: self.current_ns().into(),
                 namespace_token: u64::from(self.current_ns_id().0),
             };
-            self.execution_refusal = Some(
+            self.retain_native_execution_refusal(
                 tcl_runtime_api::NativeExecutionError::ExpressionRefusal(Box::new(failure)),
             );
         }
@@ -23858,6 +23872,19 @@ impl Vm {
         err("")
     }
 
+    pub(crate) fn retain_native_execution_refusal(
+        &mut self,
+        cause: tcl_runtime_api::NativeExecutionError,
+    ) -> tcl_runtime_api::NativeExecutionError {
+        self.native_operation_context.withdraw_allocations();
+        for slot in &self.interps {
+            if let Some(state) = &slot.parked {
+                state.native_operation_context.withdraw_allocations();
+            }
+        }
+        self.execution_refusal.get_or_insert(cause).clone()
+    }
+
     pub(crate) fn retain_tcl_host_failure(
         &mut self,
         failure: crate::error::TclHostFailure,
@@ -23873,7 +23900,7 @@ impl Vm {
                 ));
             }
         };
-        self.execution_refusal.get_or_insert(cause).clone()
+        self.retain_native_execution_refusal(cause)
     }
 
     /// Retain an explicit host-command refusal outside guest Tcl completion.
@@ -23906,8 +23933,7 @@ impl Vm {
                 namespace_token: u64::from(self.current_ns_id().0),
             },
         ));
-        self.execution_refusal = Some(first.clone());
-        first
+        self.retain_native_execution_refusal(first)
     }
 
     pub(crate) fn refused_completion(&self) -> Option<Completion<Value>> {
@@ -23934,6 +23960,12 @@ impl Vm {
             && !self.has_entered_native_operation()
         {
             self.execution_refusal = None;
+            self.native_operation_context.reset_allocations();
+            for slot in &self.interps {
+                if let Some(state) = &slot.parked {
+                    state.native_operation_context.reset_allocations();
+                }
+            }
         }
         Some(error)
     }
@@ -25071,12 +25103,12 @@ impl Vm {
         match error {
             tcl_runtime_api::CompileError::Message(message) => TclError::new(message),
             tcl_runtime_api::CompileError::NativeCompilationAdmission(error) => {
-                let failure = self.execution_refusal.get_or_insert_with(|| error.into());
-                TclError::from_execution_failure(failure.clone())
+                let failure = self.retain_native_execution_refusal(error.into());
+                TclError::from_execution_failure(failure)
             }
             tcl_runtime_api::CompileError::Unsupported(reason) => {
                 if self.execution_refusal.is_none() {
-                    self.execution_refusal = Some(
+                    self.retain_native_execution_refusal(
                         tcl_runtime_api::NativeExecutionError::CompileServiceRefusal(Box::new(
                             tcl_runtime_api::NativeCompileServiceRefusal {
                                 reason,
@@ -25461,6 +25493,8 @@ impl Vm {
         source: &[u8],
         location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     ) -> Result<Completion<Value>, TclError> {
+        let _scope = native_operation_currency::NativeOperationScope::enter_native(self)
+            .map_err(TclError::from_execution_failure)?;
         let context = self.native_jim_object_context()?;
         let original = Value::new_native_string_bytes(source);
         if let Some(location) = &location {
@@ -32249,5 +32283,50 @@ mod native_child_constructor_tests {
             ));
             assert!(child.get_var("argv").is_some());
         });
+    }
+}
+
+#[cfg(test)]
+mod original_host_publication_tests {
+    use super::*;
+
+    fn worker(_: &mut Vm, _: &[Value]) -> Completion<Value> {
+        ok(Value::empty())
+    }
+
+    #[test]
+    fn host_cstring_publication_uses_global_bare_and_actual_qualified_holder_slots() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
+            vm.declare_namespace("::outer");
+            let outer = vm.namespace_token_for_written("::outer").unwrap();
+            vm.push_ns_token(NameBytes::from(b"outer".as_slice()), outer);
+            let key = vm
+                .register_command("bare", Command::Builtin(worker))
+                .into_key()
+                .unwrap();
+            let slot = vm.command_slot(&key).unwrap();
+            assert_eq!(slot.namespace, ROOT_NS);
+            assert_eq!(slot.simple.as_bytes(), b"bare");
+            let key = vm
+                .register_command("child::qualified\0ignored", Command::Builtin(worker))
+                .into_key()
+                .unwrap();
+            let slot = vm.command_slot(&key).unwrap();
+            let namespace = vm
+                .namespace_descendant_token(outer, &[NameBytes::from(b"child".as_slice())])
+                .unwrap();
+            assert_eq!(slot.namespace, namespace);
+            assert_eq!(slot.simple.as_bytes(), b"qualified");
+            let key = vm
+                .register_command("::rooted", Command::Builtin(worker))
+                .into_key()
+                .unwrap();
+            let slot = vm.command_slot(&key).unwrap();
+            assert_eq!(slot.namespace, ROOT_NS);
+            assert_eq!(slot.simple.as_bytes(), b"rooted");
+            vm.pop_ns();
+        }
     }
 }
