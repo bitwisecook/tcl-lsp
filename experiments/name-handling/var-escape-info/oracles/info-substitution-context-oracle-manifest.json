@@ -1,0 +1,61 @@
+{
+  "script": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/info-substitution-contexts.tcl",
+  "script_sha256": "dbf563fc59e8e40fa230ce4ef8b85ef96e087fe80df744bc02bac5f897263fa9",
+  "tcltest_used": false,
+  "runs": [
+    {
+      "provider": "84",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "exit_code": 0,
+      "stdout": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-84.stdout",
+      "stderr": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-84.stderr",
+      "stdout_sha256": "a195f96efe569b925bb7dbeb6b3ebdda3ed913b3fa79c38278fa3627ed14a918",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "85",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "exit_code": 0,
+      "stdout": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-85.stdout",
+      "stderr": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-85.stderr",
+      "stdout_sha256": "5d422916d69d98d406bb15893048e8c9d9635968135de188049c1ad267ce9c03",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "86",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "exit_code": 0,
+      "stdout": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-86.stdout",
+      "stderr": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-86.stderr",
+      "stdout_sha256": "9b1ecea4a1281f6a9746dc2a30d3328c9e3939721641c0027b3292097c7bf08f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "90",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "exit_code": 0,
+      "stdout": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-90.stdout",
+      "stderr": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-90.stderr",
+      "stdout_sha256": "68820892468683d6f5247913e69c6e8e9d1c2b60c40b37c5e0a9b6f0548e1721",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "91",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "exit_code": 0,
+      "stdout": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-91.stdout",
+      "stderr": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-91.stderr",
+      "stdout_sha256": "68820892468683d6f5247913e69c6e8e9d1c2b60c40b37c5e0a9b6f0548e1721",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "JIM",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "exit_code": 0,
+      "stdout": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-JIM.stdout",
+      "stderr": "/tmp/name-remaining-consumers-20261014/var-escape-inventory/context-JIM.stderr",
+      "stdout_sha256": "4185b6fc21b453be4259bbe89e9364d07b5775981e34a02db0e38e04d74e4360",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

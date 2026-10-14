@@ -1,0 +1,49 @@
+{
+  "scope": "Obsolete build archives only; actual F5 current artifacts and all standalone captured binaries remain",
+  "current_artifacts": [
+    "libtcl_compiler-355d248fdb098624.rlib",
+    "libtcl_compiler-355d248fdb098624.rmeta"
+  ],
+  "removed": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-0ddc6207e90fbe77.rlib",
+      "bytes": 431485544,
+      "sha256": "7de7f8c9cd7899cf06288f3e963d7646bd3a31cdacffb6d21aefe7103373e85b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-3bc41eb171866366.rlib",
+      "bytes": 297404000,
+      "sha256": "c0d766d2843a7293893b27384068a5e49ef09a6fb2de3d09739a8ac398ee940d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-d3753ea929bb6cdf.rmeta",
+      "bytes": 37251823,
+      "sha256": "99bdfd248ef00a86f576448a7c8eaaa910d048aa0e1ffaed0245d23dc5012b73"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-a59cda291b26055b.rlib",
+      "bytes": 428034288,
+      "sha256": "ee339cd59d605dc74d9d15a46360964d69890e0f4609ba1a6fad445eeb3474b0"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-a59cda291b26055b.rmeta",
+      "bytes": 37145524,
+      "sha256": "bcba3c1a364b88a2a1d9a880e8cb825763b0c3c7276f57207612cb8c0c229616"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-d3753ea929bb6cdf.rlib",
+      "bytes": 430932688,
+      "sha256": "dff854ce24ea319f5fb9aa6bbdd8b47f497c134e501ed687dce86619d1260a7b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-0ddc6207e90fbe77.rmeta",
+      "bytes": 37262479,
+      "sha256": "8e492d995630343016d3a021cd9f780e3a293852d917217790477e6a1b8549ad"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_compiler-3bc41eb171866366.rmeta",
+      "bytes": 37145524,
+      "sha256": "0e746bc0c9a91ee45448dce438dc51ad35687876fd3c8b797d4a51a6c2d312ed"
+    }
+  ]
+}

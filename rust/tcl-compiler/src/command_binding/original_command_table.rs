@@ -1603,6 +1603,15 @@ impl ModuleCommandBindings {
         current: &SourceNamespaceKey,
         input: &SignatureSourceNameInput,
     ) -> Option<SourceCommandKey> {
+        self.original_conditional_procedure_coordinates(current, input)
+            .map(|(key, _)| key)
+    }
+
+    pub(super) fn original_conditional_procedure_coordinates(
+        &self,
+        current: &SourceNamespaceKey,
+        input: &SignatureSourceNameInput,
+    ) -> Option<(SourceCommandKey, tcl_core_types::ByteCommandSlot)> {
         let policy = input.policy();
         if self.baseline.execution_name_policy?.native_recipe()? != policy {
             return None;
@@ -1626,23 +1635,27 @@ impl ModuleCommandBindings {
             input,
             tcl_registry::CommandBindingDefinitionKind::Procedure,
         )?;
-        let simple = slot.simple;
+        let simple = slot.simple.clone();
         let key = |namespace| SourceCommandKey::slot(namespace, simple.clone());
         let holder = match policy.recipe() {
             tcl_syntax::naming::NativeNameProtocol::C(_) => {
-                SignatureNamespaceScope::C(slot.namespace)
+                SignatureNamespaceScope::C(slot.namespace.clone())
             }
-            tcl_syntax::naming::NativeNameProtocol::Jim084 => return Some(key(current.clone())),
+            tcl_syntax::naming::NativeNameProtocol::Jim084 => {
+                return Some((key(current.clone()), slot));
+            }
         };
         if holder == scope && !input.bytes().starts_with(b"::") {
-            return Some(key(current.clone()));
+            return Some((key(current.clone()), slot));
         }
         if matches!(&holder, SignatureNamespaceScope::C(path) if path.is_root()) {
-            return self.source_root_namespace_key().map(key);
+            return self
+                .source_root_namespace_key()
+                .map(|namespace| (key(namespace), slot));
         }
         self.original_command_world
             .conditional_namespace_for_scope(&holder, policy)
-            .map(key)
+            .map(|namespace| (key(namespace), slot))
     }
 
     pub(super) fn original_publication_key(

@@ -1,0 +1,4 @@
+inert_braces 0 {[info exists target]}
+quoted_child_literal_name 0 prefix1suffix
+expression_child 0 1
+unknown_actual_child 1 {bad option "totally_made_up": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}

@@ -303,3 +303,203 @@ pub(crate) fn original_procedure_parameters(
     }
     Some((parameters, grammar))
 }
+
+/// Possible original body-summary dependencies, separate from a selected call.
+/// Open alternatives cannot supply a return value, argument binder or call edge.
+pub(crate) struct OriginalProcedureMayDependencies {
+    pub(crate) bodies: Vec<crate::ir::ProcedureId>,
+    pub(crate) unknown_alternatives: bool,
+}
+
+/// Join original call geometry to genuine declaration cards for MAY consumers.
+/// Implementation-backed selection keeps its stronger existing owner; Native
+/// source cards retain other handler/alias possibilities independently.
+pub(crate) fn original_procedure_may_dependencies_for_word_for_module(
+    tokens: &CommandTokens,
+    word: &str,
+    module: &Module,
+    registry: &CommandRegistry,
+) -> Option<OriginalProcedureMayDependencies> {
+    if let Some(bodies) =
+        original_source_procedure_ids_for_word_for_module(tokens, word, module, registry)
+    {
+        return Some(OriginalProcedureMayDependencies {
+            bodies,
+            unknown_alternatives: false,
+        });
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+    let input = metadata.source_analysis_input()?;
+    if input.has_logical_source_name_context()
+        || input.has_hosted_source_name_context()
+        || module.source_metadata_input.as_ref() != Some(input)
+    {
+        return None;
+    }
+    let lookup = binding.original_static_command_lookup(tokens)?;
+    if lookup.name_input().bytes() != word.as_bytes()
+        || lookup.site().source.source_image() != &module.source
+    {
+        return None;
+    }
+    let retained = module.retained_source_bindings.as_ref()?;
+    retained.positioned_for_module(module, registry)?;
+    let candidates = module
+        .original_native_declaration_body_units
+        .iter()
+        .filter_map(|(id, card)| {
+            let procedure = module.body_units.get(id)?;
+            (module.procedure_ids.owns(*id)
+                && card.matches_procedure(module, procedure)
+                && retained.matches_original_procedure(procedure))
+            .then_some((card.source_slot(), card.original_name_input().policy(), *id))
+        });
+    let mut bodies = lookup.matching_slot_publications(candidates)?;
+    bodies.sort_unstable();
+    bodies.dedup();
+    Some(OriginalProcedureMayDependencies {
+        bodies,
+        unknown_alternatives: true,
+    })
+}
+
+#[cfg(test)]
+mod native_may_dependency_tests {
+    use super::*;
+
+    fn fixture(source: &str) -> (Module, std::sync::Arc<tcl_registry::model::ContextRegistry>) {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input),
+            source,
+        );
+        (module, context)
+    }
+
+    #[test]
+    fn native_declaration_dependencies_keep_quoted_braced_heads_and_open_alternatives() {
+        for head in ["f", "{f}", "\"f\""] {
+            let source = format!("proc f {{x}} {{return $x}}\nproc caller {{x}} {{{head} $x}}\n");
+            let (module, context) = fixture(&source);
+            let retained = module.retained_source_bindings.as_ref().unwrap();
+            let bindings = retained
+                .positioned_for_module(&module, context.commands())
+                .unwrap();
+            let offset = u32::try_from(source.rfind(head).unwrap()).unwrap();
+            let binding = bindings.invocation_at_source("", offset);
+            let (_, mut tokens) = binding.original_recorded_command().unwrap();
+            tokens.source_binding = Some(binding);
+            let selected = original_procedure_may_dependencies_for_word_for_module(
+                &tokens,
+                "f",
+                &module,
+                context.commands(),
+            )
+            .unwrap();
+            assert!(selected.unknown_alternatives);
+            let (id, card) = module
+                .original_native_declaration_body_units
+                .iter()
+                .find(|(_, card)| card.name() == Some("f"))
+                .unwrap();
+            assert_eq!(selected.bodies, vec![*id]);
+            assert!(card.matches_procedure(&module, module.body_units.get(id).unwrap()));
+            assert!(
+                original_source_procedure_ids_for_word_for_module(
+                    &tokens,
+                    "f",
+                    &module,
+                    context.commands()
+                )
+                .is_none()
+            );
+            assert!(
+                original_source_procedure_calls_for_word_for_module(
+                    &tokens,
+                    "f",
+                    &module,
+                    context.commands()
+                )
+                .is_none()
+            );
+            let mut changed = tokens.clone();
+            changed.source_binding = None;
+            assert!(
+                original_procedure_may_dependencies_for_word_for_module(
+                    &changed,
+                    "f",
+                    &module,
+                    context.commands()
+                )
+                .is_none()
+            );
+            assert!(
+                original_procedure_may_dependencies_for_word_for_module(
+                    &tokens,
+                    "other",
+                    &module,
+                    context.commands()
+                )
+                .is_none()
+            );
+            let mut foreign = module.clone();
+            foreign.source_metadata_input = None;
+            assert!(
+                original_procedure_may_dependencies_for_word_for_module(
+                    &tokens,
+                    "f",
+                    &foreign,
+                    context.commands()
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn native_declaration_dependencies_preserve_repeated_headers_and_unrepresented_aliases() {
+        let source = "proc f {} {return FIRST}\nproc f {} {return SECOND}\nproc caller {} {f}\nproc unknown {} {alias}\n";
+        let (module, context) = fixture(source);
+        let retained = module.retained_source_bindings.as_ref().unwrap();
+        let bindings = retained
+            .positioned_for_module(&module, context.commands())
+            .unwrap();
+        let queried = |word: &str| {
+            let offset = u32::try_from(source.rfind(word).unwrap()).unwrap();
+            let binding = bindings.invocation_at_source("", offset);
+            let (_, mut tokens) = binding.original_recorded_command().unwrap();
+            tokens.source_binding = Some(binding);
+            original_procedure_may_dependencies_for_word_for_module(
+                &tokens,
+                word,
+                &module,
+                context.commands(),
+            )
+            .unwrap()
+        };
+        let possible = queried("f");
+        assert!(possible.unknown_alternatives);
+        let mut expected = module
+            .original_native_declaration_body_units
+            .iter()
+            .filter_map(|(id, card)| (card.name() == Some("f")).then_some(*id))
+            .collect::<Vec<_>>();
+        expected.sort_unstable();
+        assert_eq!(possible.bodies, expected);
+        assert_eq!(possible.bodies.len(), 2);
+        let unavailable = queried("alias");
+        assert!(unavailable.bodies.is_empty());
+        assert!(unavailable.unknown_alternatives);
+    }
+}

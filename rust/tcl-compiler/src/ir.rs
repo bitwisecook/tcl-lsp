@@ -2776,6 +2776,12 @@ pub struct Module {
     /// and namespace context retain their identity independently of the ID.
     pub original_declaration_body_units:
         std::collections::BTreeMap<ProcedureId, crate::command_binding::CommandAllocation>,
+    /// Native-name source headers and read-flow cards retain original bodies
+    /// without implementation allocation, publication or an entered frame.
+    pub original_native_declaration_body_units: std::collections::BTreeMap<
+        ProcedureId,
+        std::sync::Arc<crate::command_binding::OriginalNativeProcedureBody>,
+    >,
     /// Original Logical source cards retain analysis-only bodies without a
     /// successful command allocation, namespace publication or entered frame.
     pub original_logical_declaration_body_units: std::collections::BTreeMap<
@@ -3009,6 +3015,15 @@ impl Module {
                                 allocation.site.offset,
                             ))
                         .then_some((id, procedure))
+                    }),
+            )
+            .chain(
+                self.original_native_declaration_body_units
+                    .iter()
+                    .filter_map(|(id, card)| {
+                        let procedure = self.body_units.get(id)?;
+                        (self.procedure_ids.owns(*id) && card.matches_procedure(self, procedure))
+                            .then_some((id, procedure))
                     }),
             )
             .chain(
@@ -3325,6 +3340,9 @@ impl Module {
                 .filter(|(qname, _)| {
                     !self.installed_procedure_body_units.contains_key(*qname)
                         && !self.original_declaration_body_units.contains_key(*qname)
+                        && !self
+                            .original_native_declaration_body_units
+                            .contains_key(*qname)
                         && !self
                             .original_logical_declaration_body_units
                             .contains_key(*qname)

@@ -265,3 +265,337 @@ impl SourceCommandBindings {
         bodies
     }
 }
+/// Original Native-name procedure syntax and its conditional read-flow owner.
+/// This card supplies neither an implementation allocation nor an entered body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalNativeProcedureBody {
+    declaration: super::declaration_preview::DeclaredProcedureBody,
+    read_flow: super::declaration_preview::OriginalProcedureReadFlowEntry,
+    input: crate::analyser::ResolvedAnalysisInput,
+    lowered_body: Option<std::sync::Arc<crate::ir::Script>>,
+    module_entry: Option<super::SourceAnalysisEntry>,
+}
+
+impl OriginalNativeProcedureBody {
+    pub(crate) fn site(&self) -> &super::CommandAllocationSite {
+        self.declaration.declaration_site()
+    }
+    pub(crate) fn namespace(&self) -> &super::SourceNamespaceKey {
+        &self.read_flow.header.namespace
+    }
+    pub(crate) fn source_slot(&self) -> &tcl_core_types::ByteCommandSlot {
+        &self.read_flow.header.source_slot
+    }
+    pub(crate) fn original_name_input(
+        &self,
+    ) -> &crate::signature_scan::scope::SignatureSourceNameInput {
+        &self.read_flow.header.name_input
+    }
+    pub(crate) fn name(&self) -> Option<&str> {
+        std::str::from_utf8(self.read_flow.header.name_input.bytes()).ok()
+    }
+    pub(crate) fn reporting_label(&self) -> Option<String> {
+        self.declaration.command_label()
+    }
+    pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
+        &self.read_flow.header.parameters
+    }
+    pub(crate) fn parameters_text(&self) -> Option<&str> {
+        self.read_flow.read.parameters_text()
+    }
+    pub(crate) fn body_span(&self) -> Option<tcl_lexer::Span> {
+        self.read_flow.read.original_body_span()
+    }
+    pub(crate) fn body_text(&self) -> Option<&str> {
+        self.read_flow.read.original_body_text()
+    }
+    pub(crate) fn retain_lowered_body(
+        mut self,
+        body: &crate::ir::Script,
+        entry: &super::SourceAnalysisEntry,
+    ) -> Self {
+        self.lowered_body = Some(std::sync::Arc::new(body.clone()));
+        self.module_entry = Some(entry.clone());
+        self
+    }
+    pub(crate) fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        &self.input == input
+            && !input.has_logical_source_name_context()
+            && !input.has_hosted_source_name_context()
+            && tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                .native_name_protocol()
+                .is_some()
+            && input
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+                == registry.snapshot().semantic_key()
+            && self.site().source.source_image() == image
+            && self.read_flow.read.original_image() == image
+            && self.read_flow.header.declaration == *self.site()
+            && self.read_flow.header.namespace == self.declaration.namespace
+            && self.read_flow.header.parameters == self.declaration.parameters
+            && self.read_flow.header.original_parameters == self.declaration.original_parameters
+            && self.read_flow.header.frame == self.declaration.frame
+            && self.declaration.source.origin == self.site().source
+            && self.body_span().is_some_and(|span| {
+                self.read_flow.read.owns_original_read(span)
+                    && image.bytes().get(span.as_range()).is_some()
+            })
+    }
+    pub(crate) fn matches_procedure(
+        &self,
+        module: &crate::ir::Module,
+        procedure: &crate::ir::Procedure,
+    ) -> bool {
+        let Some(input) = module.source_metadata_input.as_ref() else {
+            return false;
+        };
+        self.module_entry.as_ref() == Some(&module.source_entry)
+            && module.native_lexer_config() == input.lexer_config()
+            && module.source_entry.metadata_context.source_analysis_input() == Some(input)
+            && self.matches_source(&module.source, input, module.resolved_registry())
+            && module.registry_snapshot.as_ref().is_some_and(|snapshot| {
+                snapshot.semantic_key()
+                    == input
+                        .borrowed_context_registry()
+                        .commands()
+                        .snapshot()
+                        .semantic_key()
+            })
+            && procedure.body_kind == crate::ir::ProcedureBodyKind::OriginalDeclaration
+            && procedure.publication.is_none()
+            && procedure.declaration_site.as_ref() == Some(self.site())
+            && self.name() == Some(procedure.name.as_str())
+            && self
+                .read_flow
+                .owns_original_procedure(procedure, &module.source)
+            && procedure.body.namespace_context.as_deref() == Some(self.namespace())
+            && procedure.body.executed_source.is_none()
+            && procedure.body.native_compilation_failure.is_none()
+            && procedure.body.native_compilation_admission.is_none()
+            && self.lowered_body.as_deref() == Some(&procedure.body)
+    }
+}
+
+impl SourceCommandBindings {
+    /// Retain unanimous original Native declaration/read-flow recipes without
+    /// selecting successful publication, an implementation or a runtime frame.
+    pub(crate) fn original_native_procedure_body_cards(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Vec<std::sync::Arc<OriginalNativeProcedureBody>> {
+        if input.has_logical_source_name_context()
+            || input.has_hosted_source_name_context()
+            || tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                .native_name_protocol()
+                .is_none()
+            || input
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+                != registry.snapshot().semantic_key()
+        {
+            return Vec::new();
+        }
+        let Some(origin) = self.source_origin() else {
+            return Vec::new();
+        };
+        if !self.matches_original_source_image(origin.source_image(), input.lexer_config()) {
+            return Vec::new();
+        }
+        let mut cards = self
+            .declaration_layouts
+            .keys()
+            .filter_map(|site| {
+                if &site.source != origin {
+                    return None;
+                }
+                let declaration = self.original_declared_procedure_at(site, registry)?;
+                declaration.original_parameters.as_ref()?;
+                let binding = self.invocation_at_source("", site.offset);
+                if binding.invocation_site() != Some(site) {
+                    return None;
+                }
+                let (_, mut tokens) = binding.original_recorded_command()?;
+                tokens.source_binding = Some(binding);
+                let read_flow =
+                    self.original_procedure_read_flow_entry(&tokens, registry, input)?;
+                let card = OriginalNativeProcedureBody {
+                    declaration,
+                    read_flow,
+                    input: input.clone(),
+                    lowered_body: None,
+                    module_entry: None,
+                };
+                (card.matches_source(origin.source_image(), input, registry)
+                    && card.name().is_some()
+                    && card.reporting_label().is_some()
+                    && card.parameters_text().is_some()
+                    && card.body_text().is_some())
+                .then(|| std::sync::Arc::new(card))
+            })
+            .collect::<Vec<_>>();
+        cards.sort_by(|a, b| a.site().cmp(b.site()));
+        cards
+    }
+}
+
+#[cfg(test)]
+mod original_native_body_tests {
+
+    fn module(source: &str, environment: &str) -> crate::ir::Module {
+        let context = tcl_registry::model::ingress::resolve_environment(environment)
+            .default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input),
+            source,
+        )
+    }
+
+    #[test]
+    fn original_native_source_cards_retain_unentered_declarations_and_actual_ids() {
+        let source =
+            "proc f {x {y DEFAULT}} {set value $x; return $value}\nproc f {} {return SECOND}\n";
+        let module = module(source, "tcl8.6");
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(module.source_entry.unknown_entry);
+        assert!(module.procedures.is_empty());
+        assert_eq!(module.original_native_declaration_body_units.len(), 2);
+        let rows = module
+            .original_native_declaration_body_units
+            .iter()
+            .collect::<Vec<_>>();
+        assert_ne!(rows[0].0, rows[1].0);
+        let procedures = rows
+            .iter()
+            .map(|(id, card)| {
+                assert!(module.procedure_ids.owns(**id));
+                let procedure = module.body_units.get(id).unwrap();
+                assert!(card.matches_procedure(&module, procedure));
+                assert_eq!(procedure.name, "f");
+                assert_eq!(procedure.qualified_name, "::f");
+                assert!(procedure.publication.is_none());
+                assert!(procedure.body.executed_source.is_none());
+                assert!(procedure.body.native_compilation_failure.is_none());
+                assert!(procedure.body.native_compilation_admission.is_none());
+                assert!(
+                    module
+                        .original_source_procedure_bodies()
+                        .any(|(owned, _)| owned == *id)
+                );
+                assert!(
+                    !module
+                        .executable_script_roots()
+                        .iter()
+                        .any(|(script, _)| std::ptr::eq(*script, &procedure.body))
+                );
+                procedure
+            })
+            .collect::<Vec<_>>();
+        assert!(procedures.iter().any(|p| p.params == ["x", "y"]));
+        assert!(
+            procedures
+                .iter()
+                .any(|p| p.body_source.as_deref() == Some("return SECOND"))
+        );
+    }
+
+    #[test]
+    fn original_native_source_cards_refuse_changed_and_foreign_owner_inputs() {
+        let original = module("proc f {x} {return $x}\n", "tcl8.6");
+        let (id, card) = original
+            .original_native_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let procedure = original.body_units.get(id).unwrap();
+        assert!(card.matches_procedure(&original, procedure));
+        let mut changed = original.clone();
+        changed.source = tcl_lexer::SourceImage::document("proc f {x} {return BAD}\n");
+        assert!(!card.matches_procedure(&changed, procedure));
+        changed = original.clone();
+        changed.source_metadata_input = None;
+        assert!(!card.matches_procedure(&changed, procedure));
+        changed = original.clone();
+        changed.source_entry.unknown_entry = !changed.source_entry.unknown_entry;
+        assert!(!card.matches_procedure(&changed, procedure));
+        changed = original.clone();
+        changed.source_metadata_input =
+            module("proc f {x} {return $x}\n", "tcl9.0").source_metadata_input;
+        assert!(!card.matches_procedure(&changed, procedure));
+        for field in 0..4 {
+            let mut forged = procedure.clone();
+            match field {
+                0 => forged.params[0] = "foreign".into(),
+                1 => forged.params_raw = "foreign".into(),
+                2 => forged.body_source = Some("return BAD".into()),
+                _ => forged.body_offset += 1,
+            }
+            assert!(!card.matches_procedure(&original, &forged));
+        }
+        let foreign = module("proc f {x} {return $x}\n", "tcl8.6");
+        let foreign_id = *foreign
+            .original_native_declaration_body_units
+            .keys()
+            .next()
+            .unwrap();
+        assert_ne!(*id, foreign_id);
+        changed = original.clone();
+        changed.body_units.insert(foreign_id, procedure.clone());
+        changed
+            .original_native_declaration_body_units
+            .insert(foreign_id, std::sync::Arc::clone(card));
+        assert!(
+            !changed
+                .original_source_procedure_bodies()
+                .any(|(owned, _)| *owned == foreign_id)
+        );
+        let mut report_only = procedure.clone();
+        report_only.qualified_name = "::unrelated-report".into();
+        assert!(card.matches_procedure(&original, &report_only));
+    }
+
+    #[test]
+    fn original_native_source_cards_require_complete_original_header_grammar() {
+        for source in [
+            "proc $name {} {return VALUE}",
+            "proc f {a {b C D}} {return VALUE}",
+            "proc f {a} $body",
+        ] {
+            let module = module(source, "tcl8.6");
+            assert!(
+                module.original_native_declaration_body_units.is_empty(),
+                "{source}"
+            );
+        }
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config =
+            tcl_lexer::LexerConfig::for_file_grammar(context.commands().profile().unwrap().grammar);
+        let missing = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config),
+            "proc f {} {return VALUE}",
+        );
+        assert!(missing.original_native_declaration_body_units.is_empty());
+        let logical = module("proc f {} {return VALUE}", "tcl");
+        assert!(logical.original_native_declaration_body_units.is_empty());
+    }
+}

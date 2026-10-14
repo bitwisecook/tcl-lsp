@@ -1117,6 +1117,7 @@ pub struct Lowerer<'r> {
     suppress_proc_register: bool,
     /// Genuine readonly Logical body preparation cannot issue executed-source metadata.
     readonly_logical_body: bool,
+    readonly_native_declaration_body: bool,
     /// Hosted source cards keep their independent declaration owner.
     readonly_hosted_body: bool,
     /// Lexer config for the document's dialect, threaded into every
@@ -1332,6 +1333,7 @@ impl<'r> Lowerer<'r> {
             dead_code_depth: 0,
             suppress_proc_register: false,
             readonly_logical_body: false,
+            readonly_native_declaration_body: false,
             readonly_hosted_body: false,
             config,
             dialect: None,
@@ -2015,7 +2017,10 @@ impl<'r> Lowerer<'r> {
 
     /// Retain an unchanged body slice independently of compiler admission.
     fn retain_script_source(&self, mut script: Script, text: &str, base: u32) -> Script {
-        if self.readonly_logical_body || self.readonly_hosted_body {
+        if self.readonly_logical_body
+            || self.readonly_hosted_body
+            || self.readonly_native_declaration_body
+        {
             return script;
         }
         script.executed_source = self
@@ -2500,7 +2505,10 @@ impl<'r> Lowerer<'r> {
 
     /// Retain only a failure agreed by every reached compilation entry.
     fn attach_native_compilation_failure(&self, mut script: Script, chunk: u32) -> Script {
-        if self.readonly_logical_body || self.readonly_hosted_body {
+        if self.readonly_logical_body
+            || self.readonly_hosted_body
+            || self.readonly_native_declaration_body
+        {
             return script;
         }
         script.native_compilation_failure = self
@@ -7026,6 +7034,9 @@ impl Lowerer<'_> {
     /// compiling a runtime procedure target cannot drift from ordinary module
     /// lowering.
     pub(crate) fn finish_module(mut self, source: &str) -> Module {
+        self.source = source.to_owned();
+        self.module.source =
+            tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         // Surface namespace import / export directives onto the module for
         // downstream consumers (codegen import resolution and warning passes).
         self.module.namespace_imports = std::mem::take(&mut self.namespace_imports);
@@ -7048,7 +7059,6 @@ impl Lowerer<'_> {
         );
         let mut module = self.module;
         module.declared_frame_effects = declared_frame_effects;
-        module.source = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         module.retained_source_bindings =
             self.module_source_bindings.as_deref().and_then(|bindings| {
                 crate::command_binding::RetainedSourceModuleBindings::retain(

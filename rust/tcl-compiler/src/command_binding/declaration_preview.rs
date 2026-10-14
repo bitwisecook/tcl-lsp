@@ -51,6 +51,8 @@ pub(super) struct DeclaredProcedureBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DeclaredProcedureHeader {
+    pub(super) source_slot: tcl_core_types::ByteCommandSlot,
+    pub(super) name_input: crate::signature_scan::scope::SignatureSourceNameInput,
     pub(super) declaration: CommandAllocationSite,
     candidate: super::SourceCommandTarget,
     slot: super::SourceCommandKey,
@@ -99,6 +101,12 @@ impl OriginalProcedureReadFlowEntry {
 }
 
 impl DeclaredProcedureBody {
+    pub(super) fn declaration_site(&self) -> &CommandAllocationSite {
+        &self.declaration
+    }
+    pub(super) fn command_label(&self) -> Option<String> {
+        super::ModuleCommandBindings::command_key_label(&self.slot)
+    }
     /// Closed formal-name geometry in the retained Logical declaration. This
     /// does not select Native formal storage, an entered frame or alias cells.
     pub(super) fn logical_alias_local_name_is_byte_unique(
@@ -1690,10 +1698,10 @@ fn procedure_declaration_header(
     {
         return None;
     }
-    let key = observation
+    let (key, source_slot) = observation
         .snapshot
         .state
-        .original_conditional_procedure_key(&observation.namespace, &name)?;
+        .original_conditional_procedure_coordinates(&observation.namespace, &name)?;
     let namespace = key.holder().into_owned();
     let words: Vec<_> = values
         .iter()
@@ -1723,6 +1731,8 @@ fn procedure_declaration_header(
     tokens.words().get(*written)?;
     let frame = declared_procedure_frame(site, &namespace);
     Some(DeclaredProcedureHeader {
+        source_slot,
+        name_input: name,
         declaration: site.clone(),
         candidate: candidate.clone(),
         slot: key,

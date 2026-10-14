@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-14T05:53:39.079137+00:00",
+  "argv": [
+    "xvfb-run",
+    "-a",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-tk-option-original-values-20261014/source.tcl"
+  ],
+  "selected_public_library_paths": {
+    "TCLLIBPATH": "/usr/lib/tcltk/x86_64-linux-gnu",
+    "TK_LIBRARY": "/usr/share/tcltk/tk8.6"
+  },
+  "exit_code": 0,
+  "input_drift": [],
+  "actual_loaded_library_count": 20,
+  "scope": "Source-built original C Tcl8.6.18 with independently installed system Tk8.6 library under task-local Xvfb. Actual Tcl process mappings identify loaded libraries hashed after the probe; complete loader-before closure is not certified. No source-built Tk, C9/Jim/F5 or compiler acceptance."
+}

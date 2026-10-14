@@ -1,0 +1,48 @@
+{
+  "scope": "Actual C5/latest Jim procedure-constructor rebinding ordering. No alias operation or F5 evidence. No tcltest used.",
+  "input_sha256": "08a68dc55be59646a58b75c110158a1447da6238bed6c7ebcb874f359d91259c",
+  "providers": [
+    {
+      "provider": "TCL_LSP_TCLSH84",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "returncode": 0,
+      "stdout_sha256": "99bf6f005d46c9f1ad271316c55525b4c153eebd759cbd5925b16c51cf5c1201"
+    },
+    {
+      "provider": "TCL_LSP_TCLSH85",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "returncode": 0,
+      "stdout_sha256": "99bf6f005d46c9f1ad271316c55525b4c153eebd759cbd5925b16c51cf5c1201"
+    },
+    {
+      "provider": "TCL_LSP_TCLSH86",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "returncode": 0,
+      "stdout_sha256": "99bf6f005d46c9f1ad271316c55525b4c153eebd759cbd5925b16c51cf5c1201"
+    },
+    {
+      "provider": "TCL_LSP_TCLSH90",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "returncode": 0,
+      "stdout_sha256": "99bf6f005d46c9f1ad271316c55525b4c153eebd759cbd5925b16c51cf5c1201"
+    },
+    {
+      "provider": "TCL_LSP_TCLSH91",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "returncode": 0,
+      "stdout_sha256": "99bf6f005d46c9f1ad271316c55525b4c153eebd759cbd5925b16c51cf5c1201"
+    },
+    {
+      "provider": "TCL_LSP_JIMSH",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "returncode": 0,
+      "stdout_sha256": "f3ce7f0bdf86fd619bc703449ea3ae65ed49dc6064ebbf1ecf80ed139ad98e97"
+    }
+  ]
+}

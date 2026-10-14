@@ -22,12 +22,7 @@
 //! mutates the supplied `EscapeState`.
 
 use crate::ir::CommandTokens;
-use crate::var_escape::helpers::{
-    default_registry, is_dynamic_token, is_dynamic_upvar_level, is_name_first_command,
-};
-use crate::var_escape::info_subcommands::{
-    is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
-};
+use crate::var_escape::helpers::{is_dynamic_token, is_dynamic_upvar_level, is_name_first_command};
 use crate::var_escape::state::EscapeState;
 use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
 use crate::var_scoping::{
@@ -128,13 +123,19 @@ fn apply_variable_aliases<'a>(
 }
 
 /// Apply registry-declared variable-name and current-frame introspection.
-pub fn handle_introspection(facts: &InvocationFacts, args: &[String], state: &mut EscapeState) {
+pub fn handle_introspection(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    state: &mut EscapeState,
+) {
+    let facts = &invocation.facts;
     if facts
         .traits
         .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
         || matches!(
             &facts.subcommand,
             OwnedSubcommandResolution::Indeterminate { .. }
+                | OwnedSubcommandResolution::Unknown { .. }
+                | OwnedSubcommandResolution::Ambiguous { .. }
         )
     {
         let detail = facts.subcommand.canonical_name().map_or_else(
@@ -159,16 +160,23 @@ pub fn handle_introspection(facts: &InvocationFacts, args: &[String], state: &mu
         if !matches!(role, ArgRole::VarRead | ArgRole::VarWrite) {
             continue;
         }
-        let Some(target) = args.get(facts.argument_offset + usize::from(*index)) else {
+        let target = invocation.argument_literal(facts.argument_offset + usize::from(*index));
+        let Some(target) = target else {
+            state.record_barrier(Barrier::with_detail(
+                BarrierKind::Info,
+                format!(
+                    "{} has an unavailable variable operand",
+                    facts.canonical_command
+                ),
+            ));
+            state.escape_all_known();
             continue;
         };
-        if is_dynamic_token(target) {
-            state.escape_all_known();
-        } else if facts.operation
+        if facts.operation
             == tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::InfoExists)
         {
             state.escape_with_reason(
-                target,
+                &target,
                 EscapeReason::with_detail(
                     EscapeReasonKind::InfoExists,
                     format!(
@@ -178,8 +186,16 @@ pub fn handle_introspection(facts: &InvocationFacts, args: &[String], state: &mu
                     ),
                 ),
             );
+        } else if *role == ArgRole::VarWrite {
+            state.escape_with_reason(
+                &target,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::InfoVarWrite,
+                    format!("{} writes {target}", facts.canonical_command),
+                ),
+            );
         } else {
-            state.escape(target);
+            state.escape(&target);
         }
     }
 }
@@ -280,92 +296,20 @@ pub fn handle_namespace_call(args: &[String], state: &mut EscapeState) {
     }
 }
 
-/// Classify `info <subcmd> ...` against the allow-list.
-pub fn handle_info(args: &[String], state: &mut EscapeState) {
-    let Some(sub) = args.first() else {
-        // ``info`` with no subcommand: usage error at runtime —
-        // be safe.
-        state.record_barrier(Barrier::with_detail(
-            BarrierKind::Info,
-            "info (no subcommand)",
-        ));
-        return;
-    };
-    if is_dynamic_token(sub) {
-        state.record_barrier(Barrier::with_detail(
-            BarrierKind::Info,
-            format!("info {sub} (dynamic subcommand)"),
-        ));
-        return;
-    }
-    if is_frame_inspecting_info_subcommand(sub) {
-        state.record_barrier(Barrier::with_detail(
-            BarrierKind::Info,
-            format!("info {sub}"),
-        ));
-        return;
-    }
-    if sub == "exists" {
-        let Some(target) = args.get(1) else {
-            return;
-        };
-        if is_dynamic_token(target) {
-            state.record_barrier(Barrier::with_detail(
-                BarrierKind::Info,
-                format!("info exists {target}"),
-            ));
+#[cfg(test)]
+fn handle_info(args: &[String], state: &mut EscapeState) {
+    if !args.is_empty() {
+        let source = format!("info {}", args.join(" "));
+        if let Some(invocation) =
+            crate::var_escape::info_subcommands::original_info_invocation(&source)
+        {
+            handle_introspection(&invocation, state);
             return;
         }
-        // ``info exists name`` reads the name by string lookup —
-        // escape it.
-        state.escape_with_reason(
-            target,
-            EscapeReason::with_detail(
-                EscapeReasonKind::InfoExists,
-                format!("info exists {target}"),
-            ),
-        );
-        return;
     }
-    // Escape any argument the registry declares as a variable *write* for this
-    // `info` subcommand.  `info default procname arg varname` stores the
-    // argument's default into `varname` in the current frame, so it must escape
-    // even though `default` otherwise only reads interpreter-global state — the
-    // safe-subcommand short-circuit below would drop it.  Fully registry-driven
-    // via the subcommand's `arg_roles`: no subcommand name or argument index is
-    // hardcoded here.
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for idx in
-        default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)
-    {
-        let Some(target) = args.get(idx) else {
-            continue;
-        };
-        if is_dynamic_token(target) {
-            // A dynamic write target can't be pinned to a name — spill.
-            state.record_barrier(Barrier::with_detail(
-                BarrierKind::Info,
-                format!("info {sub} (dynamic var-write target)"),
-            ));
-            state.escape_all_known();
-        } else {
-            state.escape_with_reason(
-                target,
-                EscapeReason::with_detail(
-                    EscapeReasonKind::InfoVarWrite,
-                    format!("info {sub} writes {target}"),
-                ),
-            );
-        }
-    }
-
-    if is_safe_info_subcommand(sub) {
-        return;
-    }
-    // Unknown subcommand — be conservative.
     state.record_barrier(Barrier::with_detail(
         BarrierKind::Info,
-        format!("info {sub} (unknown)"),
+        "info invocation unavailable",
     ));
 }
 
@@ -622,5 +566,43 @@ mod tests {
         fn is_frame_helper(&self, name: &str) -> bool {
             self.tags.get(name) == Some(&EscapeTag::Frame)
         }
+    }
+    #[test]
+    fn owned_info_operands_preserve_original_literal_names() {
+        for (source, expected) in [
+            (r"info exists {$literal}", "$literal"),
+            (r"info exists \$literal", "$literal"),
+            (r"info exists {[literal]}", "[literal]"),
+            (r"info exists \[literal\]", "[literal]"),
+        ] {
+            let invocation =
+                crate::var_escape::info_subcommands::original_info_invocation(source).unwrap();
+            let mut state = EscapeState::default();
+            handle_introspection(&invocation, &mut state);
+            assert!(!state.dynamic_barrier(), "{source}");
+            assert!(state.is_frame_helper(expected), "{source}: {expected}");
+        }
+    }
+
+    #[test]
+    fn owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic() {
+        for source in [
+            "info cancel",
+            "info constants",
+            "info c",
+            "info exists",
+            "info exists $dynamic",
+        ] {
+            let invocation =
+                crate::var_escape::info_subcommands::original_info_invocation(source).unwrap();
+            let mut state = EscapeState::default();
+            handle_introspection(&invocation, &mut state);
+            assert!(state.dynamic_barrier(), "{source}");
+        }
+        let invocation =
+            crate::var_escape::info_subcommands::original_info_invocation("info consts").unwrap();
+        let mut state = EscapeState::default();
+        handle_introspection(&invocation, &mut state);
+        assert!(!state.dynamic_barrier());
     }
 }

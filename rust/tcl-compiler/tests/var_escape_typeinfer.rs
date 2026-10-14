@@ -80,10 +80,8 @@ use tcl_compiler::var_escape::types::{
     Barrier, BarrierKind, EscapeFlags, EscapeReason, EscapeReasonKind,
 };
 use tcl_compiler::var_escape::{
-    self, EscapeTag, FRAME_INSPECTING_SUBCOMMANDS, INTERPRETER_GLOBAL_SUBCOMMANDS,
-    LOCALS_ARRAY_CAP, ProcEscapeSummary, TOP_LEVEL_QNAME, analyse_var_escape,
-    analyse_var_escape_cu, assign_local_slots, is_frame_inspecting_info_subcommand,
-    is_safe_info_subcommand, solve_interprocedural_escape,
+    self, EscapeTag, LOCALS_ARRAY_CAP, ProcEscapeSummary, TOP_LEVEL_QNAME, analyse_var_escape,
+    analyse_var_escape_cu, assign_local_slots, solve_interprocedural_escape,
 };
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
@@ -592,6 +590,83 @@ fn assign_local_slots_direct_api() {
 
 // var_escape: info-subcommand classification
 
+fn integration_info_invocation(
+    source: &str,
+) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
+    let context = static_context_for("tcl9.0");
+    let unit = CompilationUnit::build_for_profile(
+        source,
+        context.commands(),
+        false,
+        context.unit_profile(),
+    );
+    tcl_compiler::registry_invocation::resolved_statement_invocation_in_context(
+        &context,
+        unit.ir_module.top_level.statements.first()?,
+    )
+}
+
+pub const FRAME_INSPECTING_SUBCOMMANDS: &[&str] = &[
+    "level",
+    "frame",
+    "vars",
+    "locals",
+    "coroutine",
+    "errorstack",
+];
+
+pub const INTERPRETER_GLOBAL_SUBCOMMANDS: &[&str] = &[
+    "body",
+    "args",
+    "default",
+    "commands",
+    "procs",
+    "class",
+    "functions",
+    "cmdtype",
+    "patchlevel",
+    "tclversion",
+    "nameofexecutable",
+    "sharedlibextension",
+    "library",
+    "hostname",
+    "script",
+    "cmdcount",
+    "complete",
+    "cancel",
+    "loaded",
+    "object",
+    "constant",
+    "constants",
+    "consts",
+    "globals",
+    "exists",
+];
+
+#[must_use]
+pub fn is_safe_info_subcommand(subcmd: &str) -> bool {
+    integration_info_invocation(&format!("info {subcmd}")).is_some_and(|invocation| {
+        matches!(
+            invocation.facts.subcommand,
+            tcl_registry::OwnedSubcommandResolution::Exact { .. }
+                | tcl_registry::OwnedSubcommandResolution::UniquePrefix { .. }
+        ) && !invocation
+            .facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
+    })
+}
+
+#[must_use]
+pub fn is_frame_inspecting_info_subcommand(subcmd: &str) -> bool {
+    integration_info_invocation(&format!("info {subcmd}")).is_some_and(|invocation| {
+        invocation
+            .facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
+    })
+}
+
 #[test]
 fn info_subcommand_classification_sets() {
     // Frame-inspecting subcommands force pessimism.
@@ -604,8 +679,15 @@ fn info_subcommand_classification_sets() {
     }
     // Interpreter-global subcommands are safe.
     for sub in INTERPRETER_GLOBAL_SUBCOMMANDS {
-        assert!(is_safe_info_subcommand(sub), "{sub} interpreter-global");
+        assert_eq!(
+            is_safe_info_subcommand(sub),
+            !matches!(*sub, "cancel" | "constants"),
+            "{sub} classification"
+        );
     }
+    assert!(!is_safe_info_subcommand("cancel"));
+    assert!(!is_safe_info_subcommand("constants"));
+    assert!(is_safe_info_subcommand("consts"));
     // Specific spot checks.
     assert!(is_frame_inspecting_info_subcommand("level"));
     assert!(is_frame_inspecting_info_subcommand("vars"));

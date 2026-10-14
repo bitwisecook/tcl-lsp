@@ -3891,6 +3891,37 @@ fn uses_of_classified_in_context(
     finish_classified_uses(found, &reads_own_def, stmt, selection)
 }
 
+/// Consumed typed statements retain their original roles at the exact source point.
+fn uses_of_classified_with_source(
+    stmt: &Statement,
+    scanner: &mut VarReferenceScanner,
+    selection: SsaInvocationContext<'_>,
+    tokens: Option<&CommandTokens>,
+) -> Vec<(String, UseClass)> {
+    let mut reads = uses_of_classified_in_context(stmt, scanner, selection);
+    if !matches!(
+        stmt,
+        Statement::AssignConst { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::AssignValue { .. }
+            | Statement::Incr { .. }
+    ) {
+        return reads;
+    }
+    let mut selected = ClassifiedUses::default();
+    selected_handler_name_reads(tokens, &[], selection, &mut selected, &mut BTreeSet::new());
+    for name in selected.by_name {
+        if let Some((_, class)) = reads.iter_mut().find(|(existing, _)| *existing == name) {
+            if *class == UseClass::Quoted {
+                *class = UseClass::Name;
+            }
+        } else {
+            reads.push((name, UseClass::Name));
+        }
+    }
+    reads
+}
+
 fn finish_classified_uses(
     found: ClassifiedUses,
     reads_own_def: &BTreeSet<String>,
@@ -6097,10 +6128,11 @@ impl<'a> RenameWalk<'a> {
         context: &ResolveContext,
         registry: &CommandRegistry,
     ) -> Vec<(VariableCellKey, UseClass)> {
-        let raw_classified = uses_of_classified_in_context(
+        let raw_classified = uses_of_classified_with_source(
             stmt,
             &mut self.scanner,
             SsaInvocationContext::supplied(registry, self.metadata),
+            self.points.source_tokens_at(point.0, point.1),
         );
         let captured = source_read_bindings(&self.points, point.0, point.1, registry);
         let captured_names = captured_read_names(&self.points, point.0, point.1);
@@ -8696,14 +8728,19 @@ mod tests {
             .iter()
             .zip(["", "$counter", "$counter"])
         {
-            let tokens = statement.tokens().unwrap();
+            let tokens = unit
+                .ir_module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .expect("original consumed or direct source words");
             assert!(selection.logical_structure(tokens).is_some());
             assert!(selection.normal(tokens).is_none());
             let variables = &tokens.source_binding.as_ref().unwrap().variable_context;
             assert!(variables.interpreter.is_none());
             assert!(variables.execution.is_none());
             assert!(variables.literal_value(expected, registry).is_none());
-            let reads = uses_of_classified_in_context(statement, &mut scanner, selection);
+            let reads =
+                uses_of_classified_with_source(statement, &mut scanner, selection, Some(tokens));
             assert!(
                 reads.contains(&(expected.to_owned(), UseClass::Name)),
                 "{reads:?}"
@@ -8747,17 +8784,21 @@ mod tests {
             logical_metadata_fixture("set counter 9; incr counter; info exists counter");
         let registry = context.commands();
         let statements = &unit.ir_module.top_level.statements;
-        let before_update = &statements[1]
-            .tokens()
-            .unwrap()
+        let before_update = &unit
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(&statements[1])
+            .expect("original scalar update source words")
             .source_binding
             .as_ref()
             .unwrap()
             .variable_context;
         assert_eq!(before_update.literal_value("counter", registry), Some("9"));
-        let after_update = &statements[2]
-            .tokens()
-            .unwrap()
+        let after_update = &unit
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(&statements[2])
+            .expect("original post-update source words")
             .source_binding
             .as_ref()
             .unwrap()
@@ -9369,6 +9410,7 @@ mod tests {
         for (statement, expected) in unit.ir_module.top_level.statements.iter().zip([
             Some("::$literal"),
             Some("::items"),
+            Some("::"),
             None,
         ]) {
             let tokens = statement.tokens().unwrap();

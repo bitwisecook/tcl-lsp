@@ -94,8 +94,8 @@ pub fn reference_matches_declaration<T>(
         .is_some_and(|definition| &definition.allocation().site == declaration.declaration_site())
 }
 
-/// Select one compiled body only when its original implementation allocation,
-/// executed source and namespace independently match this current declaration.
+/// Select an original declaration body using its current source card or
+/// independently matching implementation allocation, executed source and namespace.
 /// The returned body ID joins authenticated units without a display-name lookup.
 #[must_use]
 pub fn procedure_body_for_declaration<'a>(
@@ -124,6 +124,29 @@ pub fn procedure_body_for_declaration<'a>(
         .filter_map(|(id, procedure)| {
             (procedure.declaration_site.as_ref() == Some(declaration.declaration_site()))
                 .then_some(())?;
+            if let Some(card) = module.original_native_declaration_body_units.get(id) {
+                let input = analysis.resolved_input.as_ref()?;
+                if module.source_metadata_input.as_ref() != Some(input)
+                    || !module.procedure_ids.owns(*id)
+                    || !card.matches_procedure(module, procedure)
+                    || card.original_name_input().original_word_key()
+                        != Some(declaration.name_input())
+                    || declaration.metadata().params.len() != card.parameters().len()
+                    || !declaration
+                        .metadata()
+                        .params
+                        .iter()
+                        .zip(card.parameters())
+                        .all(|(stored, original)| {
+                            stored.name == original.name
+                                && stored.has_default == original.default.is_some()
+                                && stored.default_value.as_deref() == original.default.as_deref()
+                        })
+                {
+                    return None;
+                }
+                return Some((*id, procedure));
+            }
             let executed = procedure.body.executed_source.as_deref()?;
             let namespace = procedure.body.namespace_context.as_deref()?;
             if matches_original_logical_declaration(analysis, module, declaration, *id, procedure) {

@@ -1,0 +1,4 @@
+inert_braces 0 {[info exists target]}
+quoted_child_literal_name 0 prefix1suffix
+expression_child 0 1
+unknown_actual_child 1 {info, unknown command "totally_made_up": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version}

@@ -29,19 +29,13 @@
 
 use std::collections::HashMap;
 
-use tcl_registry::{
-    ArgRole, CallerFrameSelection, InvocationFacts, OwnedSubcommandResolution, VariableAliasTarget,
-};
+use tcl_registry::{ArgRole, CallerFrameSelection, OwnedSubcommandResolution, VariableAliasTarget};
 
 use crate::ssa::Version;
 use crate::var_escape::cfg_propagation::state::CfgState;
 #[cfg(test)]
-use crate::var_escape::helpers::{default_registry, is_dynamic_upvar_level};
+use crate::var_escape::helpers::is_dynamic_upvar_level;
 use crate::var_escape::helpers::{is_dynamic_name, is_dynamic_token, is_name_first_command};
-#[cfg(test)]
-use crate::var_escape::info_subcommands::{
-    is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
-};
 use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
 #[cfg(test)]
 use crate::var_scoping::{
@@ -113,17 +107,19 @@ fn apply_variable_aliases<'a>(
 
 /// Apply registry-declared variable-name and current-frame introspection.
 pub(crate) fn handle_introspection(
-    facts: &InvocationFacts,
-    args: &[String],
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
 ) {
+    let facts = &invocation.facts;
     if facts
         .traits
         .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
         || matches!(
             &facts.subcommand,
             OwnedSubcommandResolution::Indeterminate { .. }
+                | OwnedSubcommandResolution::Unknown { .. }
+                | OwnedSubcommandResolution::Ambiguous { .. }
         )
     {
         state.mark_pessimistic();
@@ -139,16 +135,23 @@ pub(crate) fn handle_introspection(
         if !matches!(role, ArgRole::VarRead | ArgRole::VarWrite) {
             continue;
         }
-        let Some(target) = args.get(facts.argument_offset + usize::from(*index)) else {
+        let target = invocation.argument_literal(facts.argument_offset + usize::from(*index));
+        let Some(target) = target else {
+            state.record_barrier(Barrier::with_detail(
+                BarrierKind::Info,
+                format!(
+                    "{} has an unavailable variable operand",
+                    facts.canonical_command
+                ),
+            ));
+            state.escape_all_known(defs);
             continue;
         };
-        if is_dynamic_token(target) {
-            state.escape_all_known(defs);
-        } else if facts.operation
+        if facts.operation
             == tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::InfoExists)
         {
-            state.escape_with_reason(
-                target,
+            state.escape_resolved_name_with_reason(
+                &target,
                 defs,
                 EscapeReason::with_detail(
                     EscapeReasonKind::InfoExists,
@@ -159,8 +162,24 @@ pub(crate) fn handle_introspection(
                     ),
                 ),
             );
+        } else if *role == ArgRole::VarWrite {
+            state.escape_resolved_name_with_reason(
+                &target,
+                defs,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::InfoVarWrite,
+                    format!("{} writes {target}", facts.canonical_command),
+                ),
+            );
         } else {
-            state.escape(target, defs);
+            state.escape_resolved_name_with_reason(
+                &target,
+                defs,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::InfoVarRead,
+                    format!("{} reads {target}", facts.canonical_command),
+                ),
+            );
         }
     }
 }
@@ -270,86 +289,20 @@ pub(crate) fn handle_namespace_call(
     }
 }
 
-/// Classify `info <subcmd> ...` against the allow-list.
 #[cfg(test)]
-pub(crate) fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
-    let Some(sub) = args.first() else {
-        state.record_barrier(Barrier::with_detail(
-            BarrierKind::Info,
-            "info (no subcommand)",
-        ));
-        return;
-    };
-    if is_dynamic_token(sub) {
-        state.record_barrier(Barrier::with_detail(
-            BarrierKind::Info,
-            format!("info {sub} (dynamic subcommand)"),
-        ));
-        return;
-    }
-    if is_frame_inspecting_info_subcommand(sub) {
-        state.record_barrier(Barrier::with_detail(
-            BarrierKind::Info,
-            format!("info {sub}"),
-        ));
-        return;
-    }
-    if sub == "exists" {
-        let Some(target) = args.get(1) else {
-            return;
-        };
-        if is_dynamic_token(target) {
-            state.record_barrier(Barrier::with_detail(
-                BarrierKind::Info,
-                format!("info exists {target}"),
-            ));
+fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
+    if !args.is_empty() {
+        let source = format!("info {}", args.join(" "));
+        if let Some(invocation) =
+            crate::var_escape::info_subcommands::original_info_invocation(&source)
+        {
+            handle_introspection(&invocation, state, defs);
             return;
         }
-        state.escape_with_reason(
-            target,
-            defs,
-            EscapeReason::with_detail(
-                EscapeReasonKind::InfoExists,
-                format!("info exists {target}"),
-            ),
-        );
-        return;
-    }
-    // Escape any registry-declared variable-*write* argument of this `info`
-    // subcommand (`info default procname arg varname` writes `varname` in the
-    // current frame) before the safe-subcommand short-circuit drops it.
-    // Registry-driven; no subcommand name or index hardcoded here.
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for idx in
-        default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)
-    {
-        let Some(target) = args.get(idx) else {
-            continue;
-        };
-        if is_dynamic_token(target) {
-            state.record_barrier(Barrier::with_detail(
-                BarrierKind::Info,
-                format!("info {sub} (dynamic var-write target)"),
-            ));
-            state.escape_all_known(defs);
-        } else {
-            state.escape_with_reason(
-                target,
-                defs,
-                EscapeReason::with_detail(
-                    EscapeReasonKind::InfoVarWrite,
-                    format!("info {sub} writes {target}"),
-                ),
-            );
-        }
-    }
-
-    if is_safe_info_subcommand(sub) {
-        return;
     }
     state.record_barrier(Barrier::with_detail(
         BarrierKind::Info,
-        format!("info {sub} (unknown)"),
+        "info invocation unavailable",
     ));
 }
 
@@ -565,5 +518,46 @@ mod tests {
         handle_dynamic_name_first("set", &args_of(&["$n", "value"]), &mut s, &HashMap::new());
         assert!(s.ssa_tags.contains_key(&("a".into(), 0)));
         assert!(s.ssa_tags.contains_key(&("b".into(), 0)));
+    }
+    #[test]
+    fn owned_info_operands_preserve_original_literal_names() {
+        for (source, expected) in [
+            (r"info exists {$literal}", "$literal"),
+            (r"info exists \$literal", "$literal"),
+            (r"info exists {[literal]}", "[literal]"),
+            (r"info exists \[literal\]", "[literal]"),
+        ] {
+            let invocation =
+                crate::var_escape::info_subcommands::original_info_invocation(source).unwrap();
+            let mut state = CfgState::default();
+            handle_introspection(&invocation, &mut state, &HashMap::new());
+            assert!(!state.dynamic_barrier(), "{source}");
+            assert!(
+                state.ssa_tags.contains_key(&(expected.to_owned(), 0)),
+                "{source}: {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic() {
+        for source in [
+            "info cancel",
+            "info constants",
+            "info c",
+            "info exists",
+            "info exists $dynamic",
+        ] {
+            let invocation =
+                crate::var_escape::info_subcommands::original_info_invocation(source).unwrap();
+            let mut state = CfgState::default();
+            handle_introspection(&invocation, &mut state, &HashMap::new());
+            assert!(state.dynamic_barrier(), "{source}");
+        }
+        let invocation =
+            crate::var_escape::info_subcommands::original_info_invocation("info consts").unwrap();
+        let mut state = CfgState::default();
+        handle_introspection(&invocation, &mut state, &HashMap::new());
+        assert!(!state.dynamic_barrier());
     }
 }

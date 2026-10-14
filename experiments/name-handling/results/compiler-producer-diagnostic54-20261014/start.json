@@ -1,0 +1,17 @@
+{
+  "started_utc": "2026-10-14T07:33:14.557017+00:00",
+  "label": "Diagnostic actual Logical and Hosted declaration body producer stages, no acceptance claim",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014",
+  "source_paths": 34697,
+  "plan": {
+    "exact": [
+      "ir::tests::original_logical_declaration_cards_cover_missing_namespace_without_publication",
+      "command_binding::hosted_procedure_body::tests::hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers"
+    ]
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "4c5410f7a221df31b95d78e96699b3bb21e5c3de6c3d634287bb67fbc6278030",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

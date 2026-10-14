@@ -1,0 +1,31 @@
+level 0 0
+frame 0 3
+vars 0 {member tcl_rcFileName tcl_version argv0 argv tcl_interactive code auto_path result env tcl_pkgPath tcl_patchLevel argc tcl_library tcl_platform}
+locals 0 {}
+coroutine 0 {}
+errorstack 0 {}
+body 1 {wrong # args: should be "info body procname"}
+args 1 {wrong # args: should be "info args procname"}
+default 1 {wrong # args: should be "info default procname arg varname"}
+commands 0 {tell socket subst open eof pwd glob list pid exec auto_load_index time unknown eval lassign lrange fblocked lsearch auto_import gets case lappend proc throw break variable llength auto_execok return linsert error catch clock info split array if fconfigure coroutine concat join lreplace source fcopy global switch auto_qualify update close cd for auto_load file append lreverse format lmap unload read package set namespace binary scan apply trace seek zlib while chan flush after vwait dict uplevel continue try foreach lset rename fileevent yieldto regexp lrepeat upvar tailcall encoding expr unset load regsub interp exit puts incr lindex lsort tclLog string yield}
+procs 0 {auto_load_index unknown auto_import auto_execok auto_qualify auto_load tclLog}
+class 1 {wrong # args: should be "info class subcommand ?arg ...?"}
+functions 0 {round wide sqrt sin log10 double hypot atan bool rand abs acos atan2 entier srand sinh log floor tanh tan isqrt int asin min ceil cos cosh exp max pow fmod}
+cmdtype 1 {unknown or ambiguous subcommand "cmdtype": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+patchlevel 0 8.6.18
+tclversion 0 8.6
+nameofexecutable 0 /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh
+sharedlibextension 0 .so
+library 0 /workspace/tcl-lsp/tmp/tcl8.6.18/library
+hostname 0 9670e0cc8077
+script 0 /tmp/name-remaining-consumers-20261014/var-escape-inventory/info-members.tcl
+cmdcount 0 478
+complete 1 {wrong # args: should be "info complete command"}
+cancel 1 {unknown or ambiguous subcommand "cancel": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+loaded 0 {}
+object 1 {wrong # args: should be "info object subcommand ?arg ...?"}
+constant 1 {unknown or ambiguous subcommand "constant": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+constants 1 {unknown or ambiguous subcommand "constants": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+globals 0 {member tcl_rcFileName tcl_version argv0 argv tcl_interactive code auto_path errorCode errorInfo result env tcl_pkgPath tcl_patchLevel argc tcl_library tcl_platform}
+exists 1 {wrong # args: should be "info exists varName"}
+totally_made_up 1 {unknown or ambiguous subcommand "totally_made_up": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}

@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T07:27:37Z. The [outstanding audit](outstanding-consumer-audit.md)
+Current bounded snapshot: 2026-10-14T07:43:03Z. The [outstanding audit](outstanding-consumer-audit.md)
 and machine inventory retain original issue and source observations.
 
 The current shared consumers retain complete original source, analysis input,
@@ -117,8 +117,15 @@ sources and assertions remain unchanged; no carrier acceptance follows. The
 current/root source-scope repair and exact parent-body donation guard are
 integrated after this frozen capture and require fresh replay. MCP52 stops in compilation before the actual binary's nine selectors: zero
 semantic controls and source drift zero. Its missing source-scope initializer
-is corrected. F5 production53 is running six new lib controls, 25 original model
-controls and the original differential selector; no aggregate is available. Compiler49/50
+is corrected. F5 production53 builds and seals 32 controls: 9 PASS/23 FAIL. The six lib
+controls are 3 PASS/3 FAIL, 25 original model controls are 6 PASS/19 FAIL and the
+original golden differential fails. The capture inventory records one newly
+added obsolete-agent-cache experiment receipt; zero total drift is not claimed.
+The original tests and expectations remain retained. Diagnostic54 builds and
+executes two original declaration producer controls: both FAIL, source drift
+zero. The Logical card is lost before final Module issuance; the Hosted header
+and formals pass but the retained source reconciliation remains absent.
+Temporary diagnostic edits are removed; actual producer repairs are required. Compiler49/50
 build-only failures remain retained with zero source drift.
 
 DB48 builds and executes all ten original controls: 1 PASS/9 FAIL, source drift
@@ -138,9 +145,12 @@ Canonical descriptors come from the actual supplied Registry and original
 call, condition offsets or switch operand span. Missing/stale/foreign ownership,
 literal bracket text and unavailable translation descriptors decline advice.
 The v4 implementation and current contract are integrated; the original
-differential/model capture is running. Selected descriptor pointer provenance
+differential/model capture is red. Selected descriptor pointer provenance
 refuses authored overrides with absent, true or false translation flags. Fresh
-custom getter controls keep the original pool independently available.
+custom getter controls keep the original pool independently available; their
+authored override now retains the actual selected surface/lifecycle/traits and
+asserts exact selected pointer provenance before refusal. The missing structured
+condition producer remains open.
 Appliance questions remain unanswered; software and C/Jim observations do not
 establish Native F5 dispatch or execution.
 
@@ -162,8 +172,12 @@ are preserved. Changed-source evidence is not renewed by documentation edits.
 The link/index mirror checks 3,259 Markdown files and 126,064 local links with
 zero broken links or unindexed design/KCS entries; actual Rust KCS, diagnostic
 tag and audience checks remain required. Original qualified Hosted-name
-refusals and O124 source-edit applicability remain explicit. The separate Native-name source-only declaration body producer passes
-independent source review and is queued for integration/replay. Its original
+refusals and O124 source-edit applicability remain explicit. The separate Native-name source-only declaration body producer is integrated
+after independent source review and awaits original consumer replay. Native MAY
+dependencies and typed var-escape original-substitution consumers are integrated.
+Dynamic heads retain all known dependency IDs; open alternatives supply no
+return value, argument binder or selected call. Original-source scanner refusal
+remains pessimistic and Normal frameless ownership stays independent. Its original
 header/read-flow owner cannot borrow Logical or Hosted cards or supply an
 installed allocation, publication, callable body or entered frame.
 

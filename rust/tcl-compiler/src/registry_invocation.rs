@@ -28,8 +28,9 @@
 mod original_procedure_call;
 pub(crate) use original_procedure_call::{
     original_authored_procedure_calls_for_module, original_logical_procedure_calls_for_module,
-    original_procedure_formal_count_shape, original_procedure_parameters,
-    original_procedure_scalar_bindings, original_source_procedure_calls_for_word_for_module,
+    original_procedure_formal_count_shape, original_procedure_may_dependencies_for_word_for_module,
+    original_procedure_parameters, original_procedure_scalar_bindings,
+    original_source_procedure_calls_for_word_for_module,
     original_source_procedure_ids_for_word_for_module,
 };
 mod execution_trace;

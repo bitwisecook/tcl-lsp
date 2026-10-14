@@ -3090,6 +3090,7 @@ impl CompilationUnit {
                 future_call_sites: Vec::new(),
                 installed_procedure_body_units: std::collections::BTreeMap::default(),
                 original_declaration_body_units: std::collections::BTreeMap::default(),
+                original_native_declaration_body_units: std::collections::BTreeMap::default(),
                 original_logical_declaration_body_units: std::collections::BTreeMap::default(),
                 original_hosted_declaration_body_units: std::collections::BTreeMap::default(),
                 irules_event_bodies: HashMap::new(),
@@ -3775,6 +3776,9 @@ impl CompilationUnit {
                 let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;
                 let original_declaration_body =
                     (ir_module.original_declaration_body_units.contains_key(id)
+                        || ir_module
+                            .original_native_declaration_body_units
+                            .contains_key(id)
                         || ir_module
                             .original_logical_declaration_body_units
                             .contains_key(id)

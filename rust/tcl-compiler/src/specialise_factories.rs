@@ -69,6 +69,19 @@ pub fn specialise_factories_with_cap(module: &mut Module, _registry: &CommandReg
         module.lambda_body_units.remove(&label);
     }
     let removed: Vec<_> = module
+        .original_native_declaration_body_units
+        .iter()
+        .filter_map(|(id, card)| {
+            let count = counts.entry(card.site().clone()).or_insert(0usize);
+            *count += 1;
+            (*count > cap).then_some(*id)
+        })
+        .collect();
+    for id in removed {
+        module.original_native_declaration_body_units.remove(&id);
+        module.body_units.remove(&id);
+    }
+    let removed: Vec<_> = module
         .original_logical_declaration_body_units
         .iter()
         .filter_map(|(id, card)| {

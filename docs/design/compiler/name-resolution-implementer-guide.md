@@ -10076,6 +10076,13 @@ unknown read for nested commands rather than inventing by-name cells.
 Slot and scalar liveness consume `place_bridge::terminator_read_places_at`
 under the actual SSA point/source owner. Existing cell symbols and array-root
 membership carry read dependencies; unknown reads retain all known cells.
+The complete inventory is `SsaFunction::cell_keys()` joined through
+`cell_symbol`; compatibility labels and optional source spellings cannot filter
+it. Consumed assignment read roles likewise use the original
+`PointResolveContexts::source_tokens_at` carrier with the selected Logical or
+Normal role owner, retaining independent unknown-read hazards. Script queries
+use `Script::retained_source_tokens_for_statement`; a missing direct token field
+is not evidence that the original invocation is unavailable.
 A supplied CFG without points cannot borrow standalone name selection. Explicit
 standalone shells keep lexical forms separate and conservatively retain nested
 command reads. These facts grant neither a Native lookup nor executable slot

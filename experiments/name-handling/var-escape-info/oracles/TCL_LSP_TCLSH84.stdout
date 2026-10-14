@@ -1,0 +1,31 @@
+level 0 0
+frame 1 {bad option "frame": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+vars 0 {member tcl_rcFileName tcl_version argv0 argv tcl_interactive code errorCode auto_path errorInfo result env tcl_pkgPath tcl_patchLevel argc tcl_libPath tcl_library tcl_platform}
+locals 0 {}
+coroutine 1 {bad option "coroutine": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+errorstack 1 {bad option "errorstack": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+body 1 {wrong # args: should be "info body procname"}
+args 1 {wrong # args: should be "info args procname"}
+default 1 {wrong # args: should be "info default procname arg varname"}
+commands 0 {tell socket subst open eof pwd glob list exec pid auto_load_index time unknown eval lrange fblocked lsearch auto_import gets case lappend proc break variable llength auto_execok return linsert error catch clock info split array if fconfigure concat join lreplace source fcopy global switch auto_qualify update close cd for auto_load file append format read package set binary namespace scan trace seek while flush after vwait uplevel continue foreach lset rename fileevent regexp upvar unset encoding expr load regsub interp exit puts incr lindex lsort tclLog string}
+procs 0 {auto_load_index unknown auto_import auto_execok auto_qualify auto_load tclLog}
+class 1 {bad option "class": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+functions 0 {round wide sqrt sin double log10 atan hypot rand abs acos atan2 srand sinh floor log int tanh tan asin ceil cos cosh exp pow fmod}
+cmdtype 1 {bad option "cmdtype": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+patchlevel 0 8.4.20
+tclversion 0 8.4
+nameofexecutable 0 /workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh
+sharedlibextension 0 .so
+library 0 /workspace/tcl-lsp/tmp/tcl8.4.20/library
+hostname 0 9670e0cc8077
+script 0 /tmp/name-remaining-consumers-20261014/var-escape-inventory/info-members.tcl
+cmdcount 0 178
+complete 1 {wrong # args: should be "info complete command"}
+cancel 1 {bad option "cancel": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+loaded 0 {}
+object 1 {bad option "object": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+constant 1 {bad option "constant": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+constants 1 {bad option "constants": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+globals 0 {member tcl_rcFileName tcl_version argv0 argv tcl_interactive code errorCode auto_path errorInfo result env tcl_pkgPath tcl_patchLevel argc tcl_libPath tcl_library tcl_platform}
+exists 1 {wrong # args: should be "info exists varName"}
+totally_made_up 1 {bad option "totally_made_up": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}

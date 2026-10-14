@@ -76,9 +76,9 @@ fn terminator_read_symbols(
         return HashSet::new();
     };
     let all_symbols = || {
-        ssa.var_names()
+        ssa.cell_keys()
             .iter()
-            .filter_map(|name| ssa.var_symbol(name))
+            .filter_map(|key| ssa.cell_symbol(key))
             .collect::<HashSet<_>>()
     };
     let Some(points) = ssa.point_contexts.as_ref() else {

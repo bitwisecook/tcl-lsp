@@ -548,7 +548,10 @@ geometry; literal bracket text remains data. Shared static word values supply
 authored command and argument text. Current F5 XC consumers retain one source/analysis/Module and the actual supplied
 Registry generation. `registry_words_for_original_call` and
 `registry_words_for_original_substitution` select original source descriptors;
-conditional availability remains with the selected schema. Expression positions
+conditional availability remains with the selected schema. XC templates additionally
+require the selected descriptor’s exact pointer provenance in the shipped Tcl or
+iRules source pack. Authored overrides cannot borrow a template through a name
+or availability flag; explicit `xc_translatable: false` declines advice. Expression positions
 come from the original condition base and command-leaf offsets; switch subjects
 retain their original span and braced form. Missing coordinates or owners cannot
 be repaired by searching equal text. Source metadata grants no F5/TMM execution,

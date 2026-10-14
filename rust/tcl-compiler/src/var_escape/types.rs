@@ -120,6 +120,8 @@ pub enum EscapeReasonKind {
     /// argument's default into `varname` (a registry-declared
     /// [`tcl_registry::ArgRole::VarWrite`]).
     InfoVarWrite,
+    /// A selected introspection descriptor reads this evaluated variable name.
+    InfoVarRead,
     /// This name is the *source* of an `upvar` declaration in
     /// this proc.  Caller-side aliasing requires the name to be
     /// in the runtime frame.

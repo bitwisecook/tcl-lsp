@@ -1,0 +1,7 @@
+member cancel 1 {bad option "cancel": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+member constants 1 {bad option "constants": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+member consts 1 {bad option "consts": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+braced_dollar 1
+escaped_dollar 1
+braced_brackets 1
+escaped_brackets 1

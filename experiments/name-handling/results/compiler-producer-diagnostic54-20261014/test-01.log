@@ -1,0 +1,45 @@
+
+running 1 test
+test command_binding::hosted_procedure_body::tests::hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers ... ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=80 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=99 passed=true count=2
+HOSTED_CARD_ROOT vendor=true native=false rules=2 layouts=2
+HOSTED_CARD_SITE offset=0 alternatives=1 rows=Some(1)
+HOSTED_CARD_ROW offset=0 config=true realm=RuleLoader input=true native=false root=true frame=Global
+HOSTED_CARD_STAGE row-accepted
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+HOSTED_CARD_STAGE words=4 policy=VendorSourceNamePolicy { context: TmmIRule, authority: AuthoredContext }
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=4
+HOSTED_CARD_STAGE metadata command=proc roles=[(0, Name), (1, ParamList), (2, Body)]
+HOSTED_CARD_STAGE declaration-name-formals-accepted
+HOSTED_CARD_STAGE source-present=false
+HOSTED_CARD_SITE offset=80 alternatives=1 rows=Some(1)
+HOSTED_CARD_ROW offset=80 config=true realm=RuleLoader input=true native=false root=true frame=Global
+HOSTED_CARD_STAGE row-accepted
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=80 passed=true count=3
+HOSTED_CARD_STAGE words=3 policy=VendorSourceNamePolicy { context: TmmIRule, authority: AuthoredContext }
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=3 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=80 passed=true count=3
+HOSTED_CARD_STAGE metadata command=when roles=[(1, Body)]
+
+thread 'command_binding::hosted_procedure_body::tests::hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers' (293467) panicked at rust/tcl-compiler/src/command_binding/hosted_procedure_body.rs:401:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::hosted_procedure_body::tests::hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9723 filtered out; finished in 0.08s
+

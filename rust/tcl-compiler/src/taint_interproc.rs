@@ -820,9 +820,14 @@ pub fn resolved_callees(
                 continue;
             };
             if let Some(head) = original_head(tokens) {
-                if let Some(ids) = source.procedure_ids(tokens, &head, registry) {
-                    out.extend(ids.into_iter().filter(|id| known.contains(id)));
+                if let Some(dependencies) = crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(tokens, &head, &cu.ir_module, registry) {
+                    out.extend(dependencies.bodies.into_iter().filter(|id| known.contains(id)));
+                    if dependencies.unknown_alternatives { out.extend(known.iter().copied()); }
+                } else {
+                    out.extend(known.iter().copied());
                 }
+            } else {
+                out.extend(known.iter().copied());
             }
             let lifted = source.metadata_context().and_then(|metadata| {
                 crate::word_subst::checked_original_lifted_calls_with_metadata_context(
@@ -839,9 +844,17 @@ pub fn resolved_callees(
                         continue;
                     };
                     let selected = original_head(&child)
-                        .and_then(|head| source.procedure_ids(&child, &head, registry));
-                    if let Some(ids) = selected {
-                        out.extend(ids.into_iter().filter(|id| known.contains(id)));
+                        .and_then(|head| crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(&child, &head, &cu.ir_module, registry));
+                    if let Some(dependencies) = selected {
+                        out.extend(
+                            dependencies
+                                .bodies
+                                .into_iter()
+                                .filter(|id| known.contains(id)),
+                        );
+                        if dependencies.unknown_alternatives {
+                            out.extend(known.iter().copied());
+                        }
                     } else {
                         out.extend(known.iter().copied());
                     }
@@ -924,12 +937,15 @@ pub fn command_subst_callees(
             let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, &command);
             bindings.stamp_original_tokens(&mut tokens);
             let ids = original_head(&tokens).and_then(|head| {
-                crate::registry_invocation::original_source_procedure_ids_for_word_for_module(
+                crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
                     &tokens, &head, module, registry,
                 )
             });
-            if let Some(ids) = ids {
-                dependencies.extend(ids.into_iter().filter(|id| known.contains(id)));
+            if let Some(selected) = ids {
+                dependencies.extend(selected.bodies.into_iter().filter(|id| known.contains(id)));
+                if selected.unknown_alternatives {
+                    dependencies.extend(known.iter().copied());
+                }
             } else {
                 dependencies.extend(known.iter().copied());
             }
@@ -1512,6 +1528,69 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
         crate::taint::find_taint_warnings_for_cu(&cu, &reg, None)
+    }
+
+    #[test]
+    fn dynamic_original_head_retains_all_actual_summary_dependencies() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let source = "proc target {} {return VALUE}\nproc other {} {return OTHER}\nproc caller {command x} {$command $x}\n";
+        let cu = CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        assert!(cu.ir_module.source_entry.native_entry.is_none());
+        let known = cu
+            .ir_module
+            .original_source_procedure_bodies()
+            .map(|(id, _)| *id)
+            .collect::<HashSet<_>>();
+        assert_eq!(known.len(), 3);
+        let caller = *cu
+            .ir_module
+            .original_native_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.name() == Some("caller"))
+            .unwrap()
+            .0;
+        let function = cu.function_for_body(Some(caller)).unwrap();
+        assert!(
+            function
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| block.statements.iter())
+                .any(|statement| {
+                    statement.tokens().is_some_and(|tokens| {
+                        original_head(tokens).is_none()
+                            && tokens
+                                .words()
+                                .first()
+                                .is_some_and(|head| head.legacy_text().contains("$command"))
+                    })
+                })
+        );
+        let actual = resolved_callees(&cu, Some(caller), &known, context.commands())
+            .into_iter()
+            .collect::<HashSet<_>>();
+        assert_eq!(actual, known);
     }
 
     #[test]

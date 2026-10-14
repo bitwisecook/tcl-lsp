@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-14T06:07:36.063106+00:00",
+  "argv": [
+    "xvfb-run",
+    "-a",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-tk-option-original-values-20261014/empty-array-root-unset/source.tcl"
+  ],
+  "exit_code": 0,
+  "input_drift": [],
+  "actual_loaded_library_count": 20,
+  "scope": "Original source-built C Tcl 8.6.18 plus independently installed system Tk. Libraries identified from actual process mappings and hashed afterwards; complete loader-before closure is not certified. No other provider or compiler admission."
+}

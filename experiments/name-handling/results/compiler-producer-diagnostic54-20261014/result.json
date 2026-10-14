@@ -1,0 +1,97 @@
+{
+  "started_utc": "2026-10-14T07:33:14.557017+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 338.26435088799917,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+    "sha256": "115821a031bdc482b8488656a9c0c618b8bbf1a600fe788cea14b53bd827d97d",
+    "bytes": 379111328
+  },
+  "selected_tests": [
+    "command_binding::hosted_procedure_body::tests::hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers",
+    "ir::tests::original_logical_declaration_cards_cover_missing_namespace_without_publication"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "command_binding::hosted_procedure_body::tests::hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.11423662699235138,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "command_binding::hosted_procedure_body::tests::hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ir::tests::original_logical_declaration_cards_cover_missing_namespace_without_publication",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.21445162000600249,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "ir::tests::original_logical_declaration_cards_cover_missing_namespace_without_publication",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T07:38:58.292825+00:00",
+  "changed_sources": {}
+}

@@ -2309,6 +2309,33 @@ mod original_expression_owner_tests {
 mod supplied_source_registry_tests {
     use super::*;
 
+    fn assert_selected_override(
+        source: &str,
+        registry: &CommandRegistry,
+        offset: u32,
+        name: &str,
+        flag: Option<bool>,
+    ) {
+        let (_, analysis) = translation_source(source, registry);
+        let words = tcl_compiler::registry_invocation::source_structure::source_registry_words_at(
+            source, &analysis, offset,
+        )
+        .expect("original selected source occurrence");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert_eq!(
+            words.with_source_schema(&input.context_registry(), |schema| {
+                let actual = schema.authored_source_descriptors().command;
+                assert!(
+                    std::ptr::eq(actual, registry.get(name).unwrap()),
+                    "actual supplied descriptor"
+                );
+                assert_eq!(tcl_registry::registry::spec_pack_of(actual), None);
+                actual.xc_translatable
+            }),
+            Some(flag)
+        );
+    }
+
     #[test]
     fn supplied_registry_source_availability_cannot_borrow_shipped_translation() {
         let mut registry =
@@ -2316,7 +2343,7 @@ mod supplied_source_registry_tests {
         registry.insert(tcl_registry::CommandSpec {
             name: "pool",
             xc_translatable: Some(false),
-            ..tcl_registry::CommandSpec::DEFAULT
+            ..irules_registry().get("pool").unwrap().clone()
         });
         let source = "when HTTP_REQUEST {pool retained_custom_pool}";
         let (unit, analysis) = translation_source(source, &registry);
@@ -2336,6 +2363,7 @@ mod supplied_source_registry_tests {
                 .semantic_key(),
             registry.snapshot().semantic_key()
         );
+        assert_selected_override(source, &registry, 19, "pool", Some(false));
         let result = translate_irule_with_registry(source, &registry);
         assert!(result.origin_pools.is_empty());
         assert!(result.routes.is_empty());
@@ -2346,8 +2374,9 @@ mod supplied_source_registry_tests {
             custom.insert(tcl_registry::CommandSpec {
                 name: "pool",
                 xc_translatable: override_flag,
-                ..tcl_registry::CommandSpec::DEFAULT
+                ..irules_registry().get("pool").unwrap().clone()
             });
+            assert_selected_override(source, &custom, 19, "pool", override_flag);
             let result = translate_irule_with_registry(source, &custom);
             assert!(result.origin_pools.is_empty());
             assert!(result.routes.is_empty());
@@ -2363,8 +2392,9 @@ mod supplied_source_registry_tests {
             custom.insert(tcl_registry::CommandSpec {
                 name: "HTTP::path",
                 xc_translatable: override_flag,
-                ..tcl_registry::CommandSpec::DEFAULT
+                ..irules_registry().get("HTTP::path").unwrap().clone()
             });
+            assert_selected_override(getter_source, &custom, 24, "HTTP::path", override_flag);
             let result = translate_irule_with_registry(getter_source, &custom);
             assert!(
                 result.routes.is_empty(),

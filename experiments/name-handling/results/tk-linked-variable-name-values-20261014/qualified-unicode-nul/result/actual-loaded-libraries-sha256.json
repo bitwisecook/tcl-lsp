@@ -1,0 +1,22 @@
+{
+  "/usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1.1.0": "7b0b0de90d8d3d4f07b99738c0285c6a0dbb6611d774ca44e7ea53a19a01ea68",
+  "/usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0": "761409b24c818719f8c8a2a64a61c8ac6a3067f3d8882485dca64a98d7500040",
+  "/usr/lib/x86_64-linux-gnu/libXau.so.6.0.0": "4275ec5b14bec21770c44447b3a52977e211c7ba08745008f3a1783878e091bb",
+  "/usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.1.0": "06530583d5927000480f4214d80d0213fec3d34cc448527f932a6eceb50cefef",
+  "/usr/lib/x86_64-linux-gnu/libpng16.so.16.48.0": "56485ea502d222fa8b0d99f899470c1bacdca815a958d83c1b349d4e8f605255",
+  "/usr/lib/x86_64-linux-gnu/libbz2.so.1.0.4": "c630f057efedc12f848710d71f40283895591e5b4608539f387895c64e0553da",
+  "/usr/lib/x86_64-linux-gnu/libXext.so.6.4.0": "74cef58f0855cbbe23fce87566249f717e5c8ebeceee09efee393616a9b17697",
+  "/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0": "a1cde2cec9b7b8b38e4cca450c55c63651efb80a2458d76964b56b763043f533",
+  "/usr/lib/x86_64-linux-gnu/libexpat.so.1.12.3": "0fd7d092bd0bf5dcc29f31daaba2bad993b0d18a1ab771fb844e0a6dfa8efe18",
+  "/usr/lib/x86_64-linux-gnu/libXrender.so.1.3.0": "39fed75f787ac251cba86e30ccd979e3df1f84dd73c63a75eeb86a18fd413e64",
+  "/usr/lib/x86_64-linux-gnu/libfreetype.so.6.20.2": "9e376992a91e92d86809893a3b9eea22a4e27849db1686f6ca58032f79cdafb5",
+  "/usr/lib/x86_64-linux-gnu/libXss.so.1.0.0": "ee25b3f08bed4d97c703890fb8ba27a70e0df6af67c13161e39a1e34db3396e4",
+  "/usr/lib/x86_64-linux-gnu/libX11.so.6.4.0": "b03e563b316b8b53c7988f0ee91d6656cc425538e00947a8b14482d179e80099",
+  "/usr/lib/x86_64-linux-gnu/libfontconfig.so.1.12.1": "d6344f71a0cfd5fcb154278f0be706021f75f79d1fcc973fc4ddb1dff40ab0ee",
+  "/usr/lib/x86_64-linux-gnu/libtk8.6.so": "7a9a2111be27c36e31a7f78c4dd83cac7badf92d3a11a5cbc1de21f0b7ecf798",
+  "/usr/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+  "/usr/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+  "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+  "/usr/lib/x86_64-linux-gnu/libXft.so.2.3.6": "ea552c46f6733e75eff8283380e194a45a1e1df3b395ba9c6f1f01beb5271c14",
+  "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+}

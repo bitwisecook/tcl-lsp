@@ -226,7 +226,9 @@ pub use definition_method_references::SourceDefinitionMethodReference;
 mod definition_reference_inventory;
 mod generated_procedures;
 pub use command_presence::SourceCommandSlotPresence;
-pub use generated_procedures::{SourceInstalledProcedureBody, SourceProcedureImplementationBody};
+pub use generated_procedures::{
+    OriginalNativeProcedureBody, SourceInstalledProcedureBody, SourceProcedureImplementationBody,
+};
 mod compiled_preflight;
 mod compiler_inventory;
 mod variable_observers;

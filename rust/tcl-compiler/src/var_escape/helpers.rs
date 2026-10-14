@@ -16,20 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Predicates + allow-lists used by var-escape transfer functions:
-//!
-//! * [`is_literal_name`] / [`is_dynamic_token`] / [`is_dynamic_name`]
-//!   — string-shape predicates for argument tokens and lowering's
-//!   preserved name fields.
-//! * [`is_frameless_runtime_command`] — audited allow-list of
-//!   commands the codegen dispatches via dedicated runtime helpers
-//!   (no eval-fallback), sourced from the registry's
-//!   `FRAMELESS_RUNTIME` trait.
-//! * [`is_name_first_command`] — the commands whose first arg is the
-//!   variable name (registry `FIRST_ARG_VARNAME` trait), used by the
-//!   dynamic-name-first detector.
-//! * [`scan_value_for_info_hazards`] — find embedded
-//!   `[info <subcmd> ...]` substitutions inside a value string.
+//! Variable-name predicates and original invocation inventories for escape transfer.
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -39,10 +26,7 @@ use tcl_registry::InvocationFacts;
 use tcl_registry::prelude::Traits;
 
 use crate::ir::{CommandTokens, Statement};
-use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
-use crate::var_escape::info_subcommands::{
-    is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
-};
+use crate::registry_invocation::ResolvedStatementInvocation;
 
 /// Memoised set of commands carrying the registry's
 /// [`Traits::FIRST_ARG_VARNAME`] trait — the commands whose first arg is
@@ -116,27 +100,128 @@ pub(crate) fn invocation_facts_from_tokens(
     tokens: &CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<Box<InvocationFacts>> {
-    // Catalogue advice uses the supplied store's resolved profile context.
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-    match resolve_command_tokens(registry, context, tokens).ok()? {
-        RegistryInvocationResolution::Resolved(facts) => Some(facts),
-        RegistryInvocationResolution::Unresolved(_) => None,
-    }
+    invocation_from_tokens(tokens, registry).map(|invocation| invocation.facts)
 }
 
-/// Caller-frame hazard property of an independently proved normal handler.
-/// Compiler selection and opcode capability do not change this classification.
+/// Reborrow the unchanged invocation's own supplied metadata; refusal is final.
+pub(crate) fn invocation_from_tokens(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<ResolvedStatementInvocation> {
+    let metadata = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_metadata_for_advice(tokens, registry)
+        .ok()?;
+    crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+        registry, metadata, tokens,
+    )
+}
+
+/// Caller-frame property of this actual independently proved normal handler.
 pub(crate) fn normal_handler_is_frameless(
     statement: &Statement,
     registry: &CommandRegistry,
 ) -> bool {
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-    crate::registry_invocation::normal_statement_representation(registry, context, statement)
-        .is_some_and(|invocation| invocation.is_frameless_runtime())
+    let Some(tokens) = statement.tokens() else {
+        return false;
+    };
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    let Ok(metadata) = binding.original_source_metadata_for_advice(tokens, registry) else {
+        return false;
+    };
+    crate::registry_invocation::normal_statement_representation_with_metadata_context(
+        registry, metadata, statement,
+    )
+    .is_some_and(|invocation| invocation.is_frameless_runtime())
+}
+
+/// Whole original substitutions, including the selected expression roles.
+/// An unavailable or incomplete source inventory cannot establish frame safety.
+pub(crate) struct OriginalSubstitutionInvocation {
+    pub(crate) invocation: Option<ResolvedStatementInvocation>,
+    pub(crate) frameless: bool,
+}
+
+pub(crate) fn original_substitution_invocations(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<Vec<OriginalSubstitutionInvocation>> {
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding
+        .original_source_metadata_for_advice(tokens, registry)
+        .ok()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let site = binding.invocation_site()?;
+    crate::registry_invocation::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        config,
+    )?;
+    let calls = if let Some(metadata) =
+        metadata.filter(|metadata| metadata.source_analysis_input().is_some())
+    {
+        crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            tokens, config, registry, metadata,
+        )?
+    } else {
+        let calls = crate::word_subst::checked_argument_lifted_calls(tokens, config)?;
+        for parent in
+            std::iter::once(tokens).chain(calls.iter().filter_map(|call| call.tokens.as_ref()))
+        {
+            let invocation = invocation_from_tokens(parent, registry)?;
+            if invocation
+                .facts
+                .arg_roles
+                .iter()
+                .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+            {
+                return None;
+            }
+        }
+        calls
+    };
+    calls
+        .into_iter()
+        .map(|call| {
+            let child = call.tokens.as_ref()?;
+            let child_metadata = child
+                .source_binding
+                .as_ref()?
+                .original_source_metadata_for_advice(child, registry)
+                .ok()?;
+            let frameless =
+                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                    registry,
+                    child_metadata,
+                    child,
+                )
+                .is_some_and(|invocation| invocation.is_frameless_runtime());
+            Some(OriginalSubstitutionInvocation {
+                invocation: invocation_from_tokens(child, registry),
+                frameless,
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn statement_needs_original_substitution_inventory(statement: &Statement) -> bool {
+    statement.is_executable_invocation()
+        && statement.synthetic_marker().is_none()
+        && !matches!(
+            statement,
+            Statement::AssignConst { .. }
+                | Statement::NativeCall { .. }
+                | Statement::Incr { amount: None, .. }
+                | Statement::Return {
+                    value: None,
+                    expr: None,
+                    ..
+                }
+        )
 }
 
 /// True if *arg* is a plain identifier, not a substituted ref.
@@ -229,99 +314,125 @@ pub fn is_name_first_command(cmd: &str) -> bool {
     name_first_set().contains(cmd)
 }
 
-/// Scan a value string for embedded `[info <subcmd> ...]`
-/// substitutions. Returns `(pessimistic, escape_names)`:
-///
-/// * *`pessimistic`* — true when any match triggers the
-///   frame-inspecting rule (`info level` / `frame` / `vars` /
-///   `locals` or `info exists $dynamic`).
-/// * *`escape_names`* — names referenced by `info exists
-///   <literal>` (the caller should escape each).
-///
-/// Implemented as a hand-rolled scanner to avoid pulling in the
-/// `regex` crate for a single pattern.
-#[must_use]
-pub fn scan_value_for_info_hazards(value: &str) -> (bool, Vec<String>) {
-    let mut escape_names: Vec<String> = Vec::new();
-    if !value.contains('[') || !value.contains("info") {
-        return (false, escape_names);
+#[cfg(test)]
+fn scan_value_for_info_hazards(value: &str) -> (bool, Vec<String>) {
+    let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+    let registry = context.commands();
+    let source = format!("set result \"{value}\"");
+    let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+        &source,
+        registry,
+        false,
+        context.unit_profile(),
+    );
+    let module = &unit.ir_module;
+    let Some(tokens) = module
+        .top_level
+        .statements
+        .first()
+        .and_then(Statement::tokens)
+    else {
+        return (true, Vec::new());
+    };
+    let Some(calls) = original_substitution_invocations(tokens, registry) else {
+        return (true, Vec::new());
+    };
+    let mut state = crate::var_escape::state::EscapeState::new(std::iter::empty::<String>());
+    for invocation in calls.into_iter().filter_map(|call| call.invocation) {
+        if invocation.facts.canonical_command == "info" {
+            crate::var_escape::handlers::handle_introspection(&invocation, &mut state);
+        }
     }
-    let bytes = value.as_bytes();
-    let mut i = 0usize;
-    let n = bytes.len();
-    while i < n {
-        // Find next ``[``.
-        let Some(open_off) = value[i..].find('[') else {
-            break;
-        };
-        let open = i + open_off;
-        // Skip whitespace after ``[``.
-        let mut j = open + 1;
-        while j < n && (bytes[j] == b' ' || bytes[j] == b'\t') {
-            j += 1;
-        }
-        // Match literal ``info``.
-        if !value[j..].starts_with("info") {
-            i = open + 1;
-            continue;
-        }
-        j += "info".len();
-        // Require whitespace after ``info``.
-        if j >= n || (bytes[j] != b' ' && bytes[j] != b'\t') {
-            i = open + 1;
-            continue;
-        }
-        while j < n && (bytes[j] == b' ' || bytes[j] == b'\t') {
-            j += 1;
-        }
-        // Capture the subcommand word (alphanumeric / underscore).
-        let sub_start = j;
-        while j < n && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
-            j += 1;
-        }
-        if j == sub_start {
-            i = open + 1;
-            continue;
-        }
-        let sub = &value[sub_start..j];
-        // Capture the rest until the matching ``]``.
-        let mut rest_start = j;
-        while rest_start < n && (bytes[rest_start] == b' ' || bytes[rest_start] == b'\t') {
-            rest_start += 1;
-        }
-        let close_off = value[rest_start..].find(']');
-        let close = match close_off {
-            Some(off) => rest_start + off,
-            None => break,
-        };
-        let rest = value[rest_start..close].trim();
-
-        if is_frame_inspecting_info_subcommand(sub) {
-            return (true, escape_names);
-        }
-        if sub == "exists" {
-            // ``info exists name`` — escape *name* if literal,
-            // else pessimistic.
-            if rest.is_empty() {
-                return (true, escape_names);
-            }
-            let target = rest;
-            if is_dynamic_token(target) {
-                return (true, escape_names);
-            }
-            escape_names.push(target.to_string());
-        } else if !is_safe_info_subcommand(sub) {
-            // Unknown subcommand — be conservative.
-            return (true, escape_names);
-        }
-        i = close + 1;
-    }
-    (false, escape_names)
+    (
+        state.dynamic_barrier(),
+        state.tags.keys().cloned().collect(),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn original_tokens(source: &str) -> CommandTokens {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            source,
+            context.commands(),
+            false,
+            context.unit_profile(),
+        );
+        unit.ir_module
+            .top_level
+            .statements
+            .iter()
+            .filter_map(Statement::tokens)
+            .find(|tokens| tokens.synthetic.is_none())
+            .expect("actual original invocation")
+            .clone()
+    }
+
+    #[test]
+    fn original_substitutions_keep_inert_data_and_literal_operand_values() {
+        let registry = default_registry();
+        let inert = original_tokens("set observed {[info exists target]}");
+        assert!(
+            original_substitution_invocations(&inert, registry)
+                .expect("original inert argument")
+                .is_empty()
+        );
+        let tokens =
+            original_tokens(r#"set observed "prefix[info exists {$literal[tail]}]suffix""#);
+        let calls = original_substitution_invocations(&tokens, registry)
+            .expect("complete original quoted substitutions");
+        assert_eq!(calls.len(), 1);
+        let invocation = calls[0]
+            .invocation
+            .as_ref()
+            .expect("original selected info descriptor");
+        assert_eq!(
+            invocation
+                .argument_literal(invocation.facts.argument_offset)
+                .as_deref(),
+            Some("$literal[tail]")
+        );
+        let mut state = crate::var_escape::state::EscapeState::new(std::iter::empty::<String>());
+        crate::var_escape::handlers::handle_introspection(invocation, &mut state);
+        assert!(!state.dynamic_barrier());
+        assert!(state.tags.contains_key("$literal[tail]"));
+    }
+
+    #[test]
+    fn original_substitutions_include_expression_roles_and_refuse_changed_ownership() {
+        let registry = default_registry();
+        let tokens = original_tokens("expr {[info exists target]}");
+        let calls =
+            original_substitution_invocations(&tokens, registry).expect("original expression role");
+        assert_eq!(calls.len(), 1);
+        let invocation = calls[0]
+            .invocation
+            .as_ref()
+            .expect("actual nested descriptor");
+        assert_eq!(
+            invocation
+                .argument_literal(invocation.facts.argument_offset)
+                .as_deref(),
+            Some("target")
+        );
+        let mut changed = tokens.clone();
+        changed.source_binding = None;
+        assert!(original_substitution_invocations(&changed, registry).is_none());
+        changed = tokens;
+        changed.argv_texts.push("foreign".to_owned());
+        assert!(original_substitution_invocations(&changed, registry).is_none());
+        let other = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(
+            original_substitution_invocations(
+                &original_tokens("set observed [info exists target]"),
+                other
+            )
+            .is_none()
+        );
+    }
 
     #[test]
     fn literal_name_rejects_substituted_tokens() {

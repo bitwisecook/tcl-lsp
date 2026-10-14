@@ -23,7 +23,17 @@ impl Lowerer<'_> {
             .as_ref()
             .and_then(|bindings| bindings.original_logical_procedure_body_cards())
             .unwrap_or_default();
-        if installed_bodies.is_empty() && declaration_bodies.is_empty() && logical_cards.is_empty()
+        let native_cards = self
+            .module_source_bindings
+            .as_ref()
+            .zip(self.module.source_metadata_input.as_ref())
+            .map_or_else(Vec::new, |(bindings, input)| {
+                bindings.original_native_procedure_body_cards(input, self.registry)
+            });
+        if installed_bodies.is_empty()
+            && declaration_bodies.is_empty()
+            && logical_cards.is_empty()
+            && native_cards.is_empty()
         {
             return;
         }
@@ -99,8 +109,83 @@ impl Lowerer<'_> {
                 self.retain_original_logical_body(card);
             }
         }
+        for card in native_cards {
+            let already_retained =
+                self.module
+                    .original_source_procedure_bodies()
+                    .any(|(_, procedure)| {
+                        procedure.declaration_site.as_ref() == Some(card.site())
+                            && card
+                                .body_span()
+                                .is_some_and(|span| procedure.body_offset == span.start())
+                            && card.parameters_text() == Some(procedure.params_raw.as_str())
+                    });
+            if !already_retained {
+                self.retain_original_native_body(card);
+            }
+        }
         self.suppress_proc_register = previous;
         self.module_source_bindings = self.exchange_boxed_source_bindings(enclosing);
+    }
+
+    fn retain_original_native_body(
+        &mut self,
+        card: std::sync::Arc<crate::command_binding::OriginalNativeProcedureBody>,
+    ) {
+        let Some(input) = self.module.source_metadata_input.as_ref() else {
+            return;
+        };
+        if !card.matches_source(&self.module.source, input, self.registry) {
+            return;
+        }
+        let (
+            Some(span),
+            Some(text),
+            Some(name),
+            Some(label),
+            Some(parameters_text),
+            Some(namespace),
+        ) = (
+            card.body_span(),
+            card.body_text().map(str::to_owned),
+            card.name().map(str::to_owned),
+            card.reporting_label(),
+            card.parameters_text().map(str::to_owned),
+            card.namespace().display(),
+        )
+        else {
+            return;
+        };
+        let previous = std::mem::replace(&mut self.readonly_native_declaration_body, true);
+        let mut body = self
+            .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+                lowerer.lower_body(&text, span.start(), &namespace)
+            });
+        self.readonly_native_declaration_body = previous;
+        body.namespace_context = Some(Box::new(card.namespace().clone()));
+        let card = std::sync::Arc::new(
+            card.as_ref()
+                .clone()
+                .retain_lowered_body(&body, &self.module.source_entry),
+        );
+        let id = self.module.retain_body_unit(Procedure {
+            name,
+            qualified_name: label,
+            publication: None,
+            declaration_site: Some(card.site().clone()),
+            body_kind: crate::ir::ProcedureBodyKind::OriginalDeclaration,
+            params: card.parameters().iter().map(|p| p.name.clone()).collect(),
+            span: tcl_lexer::Span::new(card.site().offset, span.end()),
+            body,
+            params_raw: parameters_text,
+            body_source: Some(text),
+            body_offset: span.start(),
+            namespace_scoped: false,
+            base_priority: 500,
+        });
+        self.module
+            .original_native_declaration_body_units
+            .insert(id, card);
     }
 
     fn retain_original_logical_body(

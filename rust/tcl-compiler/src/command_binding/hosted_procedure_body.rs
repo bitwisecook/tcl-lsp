@@ -113,12 +113,6 @@ impl OriginalHostedProcedureBody {
             && self.source.try_text().ok() == procedure.body_source.as_deref()
             && self.lowered_body.as_deref() == Some(&procedure.body)
     }
-    pub(crate) fn alternatives(&self) -> &[SourceRuleDeclarationCandidate] {
-        &self.alternatives
-    }
-    pub(crate) fn original_words(&self) -> &[NativeWord] {
-        &self.words
-    }
     pub(crate) fn matches_source(
         &self,
         image: &SourceImage,
@@ -284,7 +278,10 @@ impl SourceCommandBindings {
                 if alternative.declaration != declaration
                     || !alternative.target.registry_backed
                     || !alternative.target.prepended.is_empty()
-                    || alternative.target.command != metadata.shape().command()
+                    || registry
+                        .get(&alternative.target.command)
+                        .map(|spec| spec.descriptor_key().label())
+                        != Some(metadata.shape().command())
                 {
                     continue;
                 }
@@ -349,6 +346,33 @@ mod tests {
         (bindings, input)
     }
     #[test]
+    fn hosted_body_requires_the_actual_captured_registry_descriptor() {
+        let (mut bindings, input) = fixture("proc ordinary {} {return value}");
+        let registry = input.borrowed_context_registry().commands();
+        let candidates = bindings
+            .deferred_rule_declaration_candidates(0)
+            .expect("actual retained declaration alternatives");
+        assert!(candidates.iter().any(|candidate| {
+            registry
+                .get(&candidate.target.command)
+                .is_some_and(|spec| spec.descriptor_key().label() == "proc")
+        }));
+        let cards = bindings.original_hosted_procedure_body_cards(&input, registry);
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].alternatives, candidates);
+        for candidates in bindings.rule_declarations.values_mut() {
+            for candidate in candidates {
+                candidate.target.command = "::puts".to_owned();
+            }
+        }
+        assert!(
+            bindings
+                .original_hosted_procedure_body_cards(&input, registry)
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers() {
         let source = "proc ordinary {value {fallback DEFAULT}} {set static::counter 1; return $value}\nwhen HTTP_REQUEST {puts request}\n";
         let (bindings, input) = fixture(source);
@@ -365,9 +389,10 @@ mod tests {
             card.source().try_text().unwrap(),
             "set static::counter 1; return $value"
         );
-        assert_eq!(card.original_words().len(), 4);
+        assert_eq!(card.words.len(), 4);
         assert!(
-            card.alternatives()
+            card.alternatives
+                .as_slice()
                 .iter()
                 .any(|alternative| alternative.unknown)
         );

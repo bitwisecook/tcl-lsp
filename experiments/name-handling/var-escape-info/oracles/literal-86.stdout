@@ -1,0 +1,7 @@
+member cancel 1 {unknown or ambiguous subcommand "cancel": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+member constants 1 {unknown or ambiguous subcommand "constants": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+member consts 1 {unknown or ambiguous subcommand "consts": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+braced_dollar 1
+escaped_dollar 1
+braced_brackets 1
+escaped_brackets 1
