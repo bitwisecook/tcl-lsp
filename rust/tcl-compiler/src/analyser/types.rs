@@ -3053,6 +3053,38 @@ impl AnalysisResult {
             .original_procedure_formals_at(declaration.declaration_site(), registry)
     }
 
+    /// Readonly formal names at this exact original declaration. Native topology
+    /// and the independently selected Logical source recipe remain separate.
+    #[must_use]
+    pub fn original_procedure_formal_name_sources(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
+        if !self.original_procedure_metadata.contains(declaration)
+            || !self.matches_original_source_image(
+                declaration.name_input().source_image(),
+                declaration.name_input().lexer_config(),
+            )
+        {
+            return None;
+        }
+        let input = self.resolved_input.as_ref()?;
+        if input.has_logical_source_name_context() {
+            self.command_realm
+                .as_ref()?
+                .source_bindings_ref()
+                .original_logical_formal_name_sources_at(
+                    declaration.declaration_site(),
+                    registry,
+                    input,
+                )
+        } else {
+            self.original_procedure_formals(declaration, registry)
+                .map(|formals| formals.name_sources())
+        }
+    }
+
     /// Semantic alpha equivalence of a closed source containing one procedure
     /// whose sole required scalar formal is returned as the same whole object.
     /// Actual frame/read/handler effects are proved separately from source

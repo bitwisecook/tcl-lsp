@@ -1,0 +1,64 @@
+{
+  "patch_sha256": "e3534836063c614150959baa411d88baa154d66912fb5dce13d0a84118a441b9",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "219b83415e289d28ddbb7fde8b22433a23af2bc37f42422db4b9dbe96b1843d0",
+      "after_sha256": "dfc7820cff12e9517e942759ba3d97a84ab7dfdc7c25c188fb87386c74f74d48"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/logical_operation.rs",
+      "before_sha256": "e833da597540f65c4f8db183e8f77628a4e650df29d128063f8d02cad17f4243",
+      "after_sha256": "7070856fe6781a400d8a72197cefad3b21aa9c64b8f91f134957796395c3c982"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+      "before_sha256": "b72a2fb29ddf6ba90dd0f6734d7a87fa86d14081dbd6a4e3535f800348d699e7",
+      "after_sha256": "096af2fcfd4f690ebfea0d16e38402e3cc82264e3435876174ee664a8d2a8369"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/native_class_factory_roles.rs",
+      "before_sha256": "d88866318f571ad4eaf80088952dbc82111793330d7c0e9d369a47d0ec1ac02a",
+      "after_sha256": "859551e3d034e661b51757a3f7d78e9d894eb47027365401e98a550921daa7e4"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "before_sha256": "d912d2dec21435b718a82b7301e55189ec29e957fa81b75183ec80cd166b2131",
+      "after_sha256": "a8a36e061295cd3e368ae180c84306bb635e2af5d7b31936189205ed9a699557"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+      "before_sha256": "17366a9fd0cb0a2aac9ddfdf1126880cedd64d62bb7d3a83f7db9dd9e858d085",
+      "after_sha256": "e6ef2da27f047c35901622c60c0d0eab795afd1dcee07dcb92c37575db8d1ac3"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/deferred_method.rs",
+      "before_sha256": "6afe597e43b31863a9e0e4efe8b64df952bdc308c4399c4aceb164dd6042d2fc",
+      "after_sha256": "4d2aa0cdc16a7796701fb5e94b3ebc44ced6baa0bb38e4366b056581cd0e3f11"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/registered_class_factory.rs",
+      "before_sha256": "70955aa70309a9610b49f09fddbd16641cf5b791cbc2fb16a8815657f4b8aed0",
+      "after_sha256": "c6f850eda0f16687157e6c553affd528d477e0db9197d6a5c1af2b68434bfa9a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "9b0b9ee4a75e08c04adde7ec11842c7953a967aa28ca797441a983bfdf078c34",
+      "after_sha256": "70d1af4bc66410aa56e559bab306ac94159f03595142396ba3faca6bc06630bb"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/logical_prefix.rs",
+      "before_sha256": null,
+      "after_sha256": "2c7a74607930bd6cf184763b230a72ac1cff687570cc02c6de00fbd52fa43a76"
+    }
+  ],
+  "evidence": "Compiler28 exact source issuer: alias31 registry=true descriptor=true prefix=true, Native original_prepended=None expected_prefix1",
+  "api": "SourceCommandTarget::original_logical_prepended_name_inputs(&ResolvedAnalysisInput, &SourceImage, LexerConfig) -> Option<&[SignatureSourceNameInput]>",
+  "scope": "Separate Logical complete-source prefix carrier; actual transfer ordinals capture original words, central target traversal composes alias chain metadata, Eq/Hash/stamp/snapshot/join retain/refuse provenance; source-only matcher and Logical value transfer consume it. Native original_prepended and normal receipts unchanged. Logical-only declared-layout/effective-argv guards use complete original token configuration and the same source carrier. Actual Native/hosted entries retain their original face.",
+  "validation": "isolated rustfmt and apply-check only; Rust unexecuted, no Cargo or Main writes",
+  "tests": [
+    "command_binding::logical_operation::tests::logical_captured_prefix_keeps_original_words_without_native_prefix_permission",
+    "command_binding::original_name_value::graph_tests::logical_receiver_word_geometry_and_write_card_keep_exact_source_currency",
+    "source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles"
+  ]
+}

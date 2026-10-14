@@ -501,8 +501,18 @@ impl LogicalBodyWalk<'_, '_> {
                 SourceCommandTransitionObligation::DeferredLogicalBodyApplicability,
             ),
         );
-        self.context
-            .apply_schema_transition(graph, invocation, selected, schema)?;
+        let (roles, complete) = schema.authored_source_argument_roles();
+        let immediate_body = roles
+            .iter()
+            .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+            && !schema.semantics.traits.contains(Traits::DEFERS_BODY);
+        if !complete || immediate_body {
+            self.context
+                .apply_schema_transition(graph, invocation, selected, schema)?;
+        } else {
+            self.context
+                .apply_source_body_lookup_effects(graph, selected, invocation, schema);
+        }
         if operand_barrier {
             graph.widen(native);
         }
@@ -615,6 +625,66 @@ mod tests {
         )
         .remove(0);
         source_registry_words(source, analysis, &segment)
+    }
+
+    #[test]
+    fn logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate() {
+        for (source, fragment) in [
+            (
+                "set x ROOT\nnamespace eval N {proc p {} {set x LOCAL; uplevel #0 {puts $x}}}\n",
+                "uplevel #0 {puts $x}",
+            ),
+            (
+                "set x ROOT\nnamespace eval N {proc p {} {set x LOCAL; uplevel 0 {puts $x}}}\n",
+                "uplevel 0 {puts $x}",
+            ),
+        ] {
+            let analysis = analyse_source(source);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let words = words_at(source, &analysis, fragment).expect(fragment);
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("original conditional Logical body owner")
+            };
+            assert_eq!(advice.logical_source_input(), Some(input));
+            assert!(advice.original_head().native_input().is_none());
+            assert!(advice.obligations().contains(
+                &super::SourceCommandTransitionObligation::DeferredLogicalBodyApplicability
+            ));
+            assert!(advice.logical_source_body().unwrap().matches_source(
+                &tcl_lexer::SourceImage::document(source),
+                input.lexer_config(),
+            ));
+            assert_eq!(
+                words.with_source_schema(input.borrowed_context_registry(), |schema| schema
+                    .authored_logical_source_argument_roles()
+                    .1),
+                Some(true)
+            );
+            assert!(
+                !words
+                    .source_script_bodies(input.borrowed_context_registry())
+                    .is_empty()
+            );
+            assert!(!words.operands_preserve_source_lookup());
+            assert!(words_at(&format!("{source} "), &analysis, fragment).is_none());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config = Some(tcl_lexer::LexerConfig {
+                strict_quoting: !input.lexer_config().strict_quoting,
+                ..input.lexer_config()
+            });
+            assert!(words_at(source, &changed, fragment).is_none());
+        }
+        for source in [
+            "namespace eval N {proc uplevel args {}; proc p {} {set x LOCAL; uplevel #0 {puts $x}}}",
+            "namespace eval N {proc p {} {set x LOCAL; rename ::uplevel {}; uplevel #0 {puts $x}}}",
+            "namespace eval N {proc p {} {set x LOCAL; unknown; uplevel #0 {puts $x}}}",
+        ] {
+            let analysis = analyse_source(source);
+            assert!(
+                words_at(source, &analysis, "uplevel #0 {puts $x}").is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

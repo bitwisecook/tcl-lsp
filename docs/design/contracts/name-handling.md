@@ -50,6 +50,14 @@ source image/configuration, Registry/context and any actually selected target.
 Source-only catalogue rows cannot establish reached runtime applicability or
 current stores. Consumers must keep their independent execution/frame proofs.
 
+Conditional body lookup effects share the source-catalogue adapter. Exact
+command-binding and namespace-resolution changes still withdraw affected
+lookups. Variable and observer effects with complete source role layouts retain
+their separate uncertainty instead of erasing unrelated source namespace
+coordinates. Immediate script bodies and incomplete role layouts keep their
+existing effect projection. This distinction supplies descriptive source schemas,
+without proving a quiet physical cell or callback absence.
+
 
 `original_variable_name_role_words` selects read/name roles through the actual
 analysis and `source_registry_words`. It requires the retained whole source,
@@ -60,6 +68,17 @@ The original word supplies its content span, while its independently known
 literal value supplies the name. Literal `$` content and the empty name remain
 valid names. Dynamic or opaque values and changed/foreign source inputs decline.
 These are readonly source references, without execution or edit authority.
+
+For positively retained Logical aliases,
+`SourceCommandTarget::original_logical_prepended_name_inputs` supplies captured
+original words to source schemas and symbolic operations. The Compiler retains
+the complete alias declaration argv, original allocation and inherited alias
+chain separately from the Native prefix owner. Queries check the exact input,
+whole image, lexer configuration, ContextRegistry and authored name policy.
+Snapshots preserve this provenance; a conflicting or unavailable receipt for
+the same alias at a join withdraws it. A captured word keeps its declaration
+geometry and cannot acquire a call-site edit span. Native and hosted inputs use
+their existing original prefix owner.
 
 `VarReferenceScanner::scan_lexical_word` traverses shared original variable/index
 components under the caller's lexer configuration. A written command head
@@ -78,6 +97,14 @@ including repeated display names. Select original bodies through
 `source_procedure_for_target` or `source_procedure_for_allocation`, after genuine
 allocation and source correspondence agree. Never recover a body ID from a
 printed name. The ordinal is only a within-module presentation field.
+
+`AnalysisResult::original_procedure_formal_name_sources` joins an exact retained
+declaration to readonly name bytes, optional tight source extents and quoted
+source markers. Native formals use their independently retained topology;
+Logical formals use the selected authored schema and original whole parameter
+word. Escaped or unmapped parents withhold source extents. Consumers match the
+actual declaration site and current complete input, never a procedure display
+name. These rows grant no activation, cell or edit permission.
 
 Interprocedural summaries, taint, escape facts, inlining and target code
 generation select bodies by these IDs. `BodyFrameId` distinguishes the actual

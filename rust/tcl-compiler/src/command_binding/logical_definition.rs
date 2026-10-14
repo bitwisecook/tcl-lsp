@@ -296,6 +296,56 @@ pub(super) fn static_formals(
     Some(parameters)
 }
 
+/// Map names in the independently selected Logical recipe to original list
+/// geometry. Escaped parent values keep names but withhold source extents.
+pub(super) fn formal_name_sources(
+    original: Option<&NativeWord>,
+    text: &str,
+    parameters: &[tcl_syntax::formal_params::FormalParameter],
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
+    use crate::signature_scan::formal_parameters::OriginalSourceFormalName;
+    let syntax = config.list_parse;
+    if static_formals(text, syntax)?.as_slice() != parameters {
+        return None;
+    }
+    let content = original.and_then(|word| {
+        let span = word.content_span().ok()?;
+        let raw = word.image().bytes().get(span.as_range())?;
+        (raw == text.as_bytes()).then_some(span)
+    });
+    let specifiers = tcl_syntax::word_rules::WordValueRules::from_config(&config)
+        .split_list(text)
+        .ok()?;
+    let mut next = 0;
+    let mut result = Vec::with_capacity(parameters.len());
+    for (formal, specifier) in parameters.iter().zip(specifiers) {
+        let outer = tcl_syntax::list::find_element_with_syntax(text, next, syntax).ok()??;
+        next = outer.next;
+        let inner = tcl_syntax::list::find_element_with_syntax(&specifier, 0, syntax).ok()??;
+        let span = content.and_then(|content| {
+            if !outer.literal {
+                return None;
+            }
+            let start = outer.value.start.checked_add(inner.value.start)?;
+            let end = outer.value.start.checked_add(inner.value.end)?;
+            Some(tcl_lexer::Span::new(
+                content.start().checked_add(u32::try_from(start).ok()?)?,
+                content.start().checked_add(u32::try_from(end).ok()?)?,
+            ))
+        });
+        let quoted = span.zip(original).is_some_and(|(span, word)| {
+            OriginalSourceFormalName::source_is_quoted(word.image(), span)
+        });
+        result.push(OriginalSourceFormalName::new(
+            formal.name.as_bytes().to_vec(),
+            span,
+            quoted,
+        ));
+    }
+    (result.len() == parameters.len()).then_some(result)
+}
+
 /// Construct a conditional authored declaration slot in its retained namespace.
 /// This does not invoke the native publication recipe or allocate a command.
 pub(super) fn source_procedure_key(
@@ -355,6 +405,89 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
             tcl_lexer::LexerConfig::for_profile(Some(profile)),
         )
+    }
+
+    #[test]
+    fn logical_formal_source_geometry_survives_same_labels_and_missing_reports() {
+        let input = input();
+        let context = input.context_registry();
+        let registry = context.commands();
+        let source = r#"proc p {first {"as" ""} {third value}} {return FIRST}
+proc p "other {last default}" {return SECOND}"#;
+        let mut analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, input.analyser_profile().name);
+        let declarations = analysis
+            .original_procedure_declarations()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 2);
+        analysis.all_procs.clear();
+        analysis.superseded_procs.clear();
+        for (declaration, expected) in declarations
+            .iter()
+            .zip([vec!["first", "as", "third"], vec!["other", "last"]])
+        {
+            assert!(
+                analysis
+                    .original_procedure_formals(declaration, registry)
+                    .is_none()
+            );
+            let fields = analysis
+                .original_procedure_formal_name_sources(declaration, registry)
+                .expect("independent actual Logical source recipe");
+            assert_eq!(
+                fields.iter().map(|field| field.name()).collect::<Vec<_>>(),
+                expected
+                    .iter()
+                    .map(|name| name.as_bytes())
+                    .collect::<Vec<_>>()
+            );
+            for (field, name) in fields.iter().zip(expected) {
+                assert_eq!(&source[field.source_span().unwrap().as_range()], name);
+                assert_eq!(field.quoted_marker(), name == "as");
+            }
+        }
+        let mut foreign = tcl_registry::CommandRegistry::build_default();
+        let mut added = foreign.get("set").unwrap().clone();
+        added.name = "foreign_formal_probe";
+        foreign.insert(added);
+        assert!(
+            analysis
+                .original_procedure_formal_name_sources(&declarations[0], &foreign)
+                .is_none()
+        );
+        analysis.resolved_input = None;
+        assert!(
+            analysis
+                .original_procedure_formal_name_sources(&declarations[0], registry)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn escaped_logical_formal_parent_keeps_names_without_fabricating_spans() {
+        let input = input();
+        let context = input.context_registry();
+        let registry = context.commands();
+        let source = r#"proc p "first\x20second" {return VALUE}"#;
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, input.analyser_profile().name);
+        let declaration = analysis.original_procedure_declarations().next().unwrap();
+        let fields = analysis
+            .original_procedure_formal_name_sources(declaration, registry)
+            .unwrap();
+        assert_eq!(
+            fields.iter().map(|field| field.name()).collect::<Vec<_>>(),
+            [b"first".as_slice(), b"second".as_slice()]
+        );
+        assert!(fields.iter().all(|field| field.source_span().is_none()));
+        assert!(
+            analysis
+                .original_procedure_formals(declaration, registry)
+                .is_none()
+        );
     }
 
     fn final_presence(source: &str, input: &ResolvedAnalysisInput) -> SourceCommandSlotPresence {

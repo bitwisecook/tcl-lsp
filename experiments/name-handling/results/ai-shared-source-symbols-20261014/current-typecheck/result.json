@@ -1,0 +1,19 @@
+{
+  "command": [
+    "./node_modules/.bin/tsc",
+    "-p",
+    "./",
+    "--noEmit"
+  ],
+  "exit_code": 0,
+  "seconds": 2.6673847249985556,
+  "sources_before": {
+    "editors/vscode/src/chat/contextPack.ts": "a5cf67a56c1ccb4d5288f2d32b28dc7a3498bdb3a895f628ab2184493320f39a",
+    "editors/vscode/src/test/chatUtilities.test.ts": "994c3802364261923d001409d37c09a92702ded9df0fbe31ce32c1c060d97007"
+  },
+  "sources_after": {
+    "editors/vscode/src/chat/contextPack.ts": "a5cf67a56c1ccb4d5288f2d32b28dc7a3498bdb3a895f628ab2184493320f39a",
+    "editors/vscode/src/test/chatUtilities.test.ts": "994c3802364261923d001409d37c09a92702ded9df0fbe31ce32c1c060d97007"
+  },
+  "scope": "Current Main editor TypeScript typecheck only; real LSP/Electron consumer controls remain required."
+}

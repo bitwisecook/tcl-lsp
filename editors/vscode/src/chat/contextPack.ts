@@ -22,7 +22,7 @@ import { isTclLanguage } from "../extension";
 import { resolveIruleCode } from "./codeUtils";
 import { waitForDiagnostics } from "./diagnosticAccess";
 import { DEFAULT_DIALECT } from "./dialectCatalog";
-import { IRULES_EVENT_PATTERN } from "./canonicalDiagnostics";
+import { LANGUAGE_ID_DIALECTS } from "../languageIds";
 import { CommandContext } from "./types";
 
 const DEFAULT_DIAGNOSTIC_TIMEOUT_MS = 2500;
@@ -186,133 +186,71 @@ async function resolveContextCode(
   return resolveIruleCode(ctx);
 }
 
-export function detectIruleEvents(source: string, maxEvents = DEFAULT_MAX_EVENTS): string[] {
-  if (!source.trim()) {
-    return [];
-  }
-
-  const events: string[] = [];
-  const seen = new Set<string>();
-
-  IRULES_EVENT_PATTERN.lastIndex = 0;
-  for (const match of source.matchAll(IRULES_EVENT_PATTERN)) {
-    const eventName = match[1];
-    if (seen.has(eventName)) {
-      continue;
-    }
-    seen.add(eventName);
-    events.push(eventName);
-    if (events.length >= maxEvents) {
-      break;
-    }
-  }
-
-  return events;
+export function detectIruleEvents(
+  definitions: readonly SourceSymbolDefinition[],
+  maxEvents = DEFAULT_MAX_EVENTS,
+): string[] {
+  return [
+    ...new Set(definitions.filter((entry) => entry.kind === "Event").map((entry) => entry.name)),
+  ].slice(0, Math.max(0, maxEvents));
 }
 
-export function extractSourceSymbolDefinitions(
+/** Names come from the shared provider for the exact requested source. */
+export async function extractSourceSymbolDefinitions(
   source: string,
   maxSymbols = DEFAULT_MAX_SYMBOLS,
-): SourceSymbolDefinition[] {
-  const definitions: SourceSymbolDefinition[] = [];
-  const lines = source.split("\n");
-
-  for (let idx = 0; idx < lines.length; idx++) {
-    const line = lines[idx];
-
-    const procMatch = line.match(/^\s*proc\s+([^\s{}]+)\s+\{([^}]*)\}/);
-    if (procMatch) {
-      definitions.push({
-        kind: "Function",
-        name: procMatch[1],
-        detail: `{${procMatch[2].trim()}}`,
-        line: idx + 1,
-      });
-      if (definitions.length >= maxSymbols) {
-        break;
-      }
-      continue;
+  document?: vscode.TextDocument,
+  languageId?: string,
+): Promise<SourceSymbolDefinition[] | undefined> {
+  try {
+    const language =
+      languageId ??
+      (document && isTclLanguage(document.languageId)
+        ? document.languageId
+        : (Object.entries(LANGUAGE_ID_DIALECTS).find(
+            ([, dialect]) => dialect === activeDialect(),
+          )?.[0] ?? "tcl"));
+    if (!isTclLanguage(language)) {
+      return undefined;
     }
-
-    const namespaceMatch = line.match(/^\s*namespace\s+eval\s+([^\s{}]+)/);
-    if (namespaceMatch) {
-      definitions.push({
-        kind: "Namespace",
-        name: namespaceMatch[1],
-        line: idx + 1,
-      });
-      if (definitions.length >= maxSymbols) {
-        break;
-      }
-      continue;
+    const original =
+      document?.getText() === source &&
+      isTclLanguage(document.languageId) &&
+      document.languageId === language
+        ? document
+        : undefined;
+    const owner =
+      original ?? (await vscode.workspace.openTextDocument({ language, content: source }));
+    const version = owner.version;
+    const symbols = await vscode.commands.executeCommand<
+      ReadonlyArray<vscode.DocumentSymbol | vscode.SymbolInformation> | undefined
+    >("vscode.executeDocumentSymbolProvider", owner.uri);
+    if (
+      !symbols ||
+      owner.isClosed ||
+      owner.version !== version ||
+      owner.getText() !== source ||
+      !isTclLanguage(owner.languageId) ||
+      owner.languageId !== language
+    ) {
+      return undefined;
     }
-
-    const eventMatch = line.match(/^\s*when\s+([A-Z][A-Z0-9_]{2,})\b/);
-    if (eventMatch) {
-      definitions.push({
-        kind: "Event",
-        name: eventMatch[1],
-        line: idx + 1,
-      });
-      if (definitions.length >= maxSymbols) {
-        break;
+    const definitions: SourceSymbolDefinition[] = [];
+    for (const symbol of symbols) {
+      if (isDocumentSymbol(symbol)) {
+        flattenDocumentSymbols([symbol], definitions);
+      } else {
+        definitions.push({
+          kind: (vscode.SymbolKind[symbol.kind] ?? "Symbol") as string,
+          name: symbol.name,
+          line: symbol.location.range.start.line + 1,
+        });
       }
     }
+    return definitions.slice(0, Math.max(0, maxSymbols));
+  } catch {
+    return undefined;
   }
-
-  return definitions;
-}
-
-async function collectSymbolDefinitions(
-  document: vscode.TextDocument | undefined,
-  source: string,
-  maxSymbols: number,
-): Promise<SourceSymbolDefinition[]> {
-  if (document) {
-    try {
-      const symbols = await vscode.commands.executeCommand<
-        ReadonlyArray<vscode.DocumentSymbol | vscode.SymbolInformation> | undefined
-      >("vscode.executeDocumentSymbolProvider", document.uri);
-
-      if (symbols && symbols.length > 0) {
-        const flattened: SourceSymbolDefinition[] = [];
-        if (isDocumentSymbol(symbols[0])) {
-          flattenDocumentSymbols(symbols as readonly vscode.DocumentSymbol[], flattened);
-        } else {
-          for (const symbol of symbols as readonly vscode.SymbolInformation[]) {
-            const kindLabel = (vscode.SymbolKind[symbol.kind] ?? "Symbol") as string;
-            flattened.push({
-              kind: kindLabel,
-              name: symbol.name,
-              line: symbol.location.range.start.line + 1,
-            });
-          }
-        }
-
-        const unique: SourceSymbolDefinition[] = [];
-        const seen = new Set<string>();
-        for (const entry of flattened) {
-          const key = `${entry.kind}:${entry.name}:${entry.line}`;
-          if (seen.has(key)) {
-            continue;
-          }
-          seen.add(key);
-          unique.push(entry);
-          if (unique.length >= maxSymbols) {
-            break;
-          }
-        }
-
-        if (unique.length > 0) {
-          return unique;
-        }
-      }
-    } catch {
-      // Fall back to source-based extraction below.
-    }
-  }
-
-  return extractSourceSymbolDefinitions(source, maxSymbols);
 }
 
 async function collectEventMetadata(
@@ -377,9 +315,12 @@ async function buildDiagnosticsSection(
   return [`Diagnostics (${actionable.length}):`, ...lines].join("\n");
 }
 
-function buildSymbolSection(symbols: readonly SourceSymbolDefinition[]): string {
+function buildSymbolSection(symbols: readonly SourceSymbolDefinition[] | undefined): string {
+  if (!symbols) {
+    return "Symbol definitions: unavailable.";
+  }
   if (symbols.length === 0) {
-    return "Symbol definitions: none detected.";
+    return "Symbol definitions: none reported.";
   }
 
   const lines = symbols.map((symbol) => {
@@ -452,17 +393,21 @@ export async function buildPromptContextBlock(
     );
   }
 
+  const sourceSymbols =
+    code && (includeSymbolDefinitions || includeEventMetadata)
+      ? await extractSourceSymbolDefinitions(code, Number.POSITIVE_INFINITY, document)
+      : undefined;
   if (includeSymbolDefinitions && code) {
-    const symbolDefs = await collectSymbolDefinitions(
-      document,
-      code,
-      options.maxSymbols ?? DEFAULT_MAX_SYMBOLS,
+    sections.push(
+      buildSymbolSection(sourceSymbols?.slice(0, options.maxSymbols ?? DEFAULT_MAX_SYMBOLS)),
     );
-    sections.push(buildSymbolSection(symbolDefs));
   }
 
-  if (includeEventMetadata && code) {
-    const events = detectIruleEvents(code, options.maxEvents ?? DEFAULT_MAX_EVENTS);
+  if (includeEventMetadata && code && !sourceSymbols) {
+    sections.push("Event metadata: unavailable.");
+  }
+  if (includeEventMetadata && sourceSymbols) {
+    const events = detectIruleEvents(sourceSymbols, options.maxEvents ?? DEFAULT_MAX_EVENTS);
     if (events.length > 0) {
       const metadata = await collectEventMetadata(ctx, events);
       sections.push(buildEventSection(events, metadata));

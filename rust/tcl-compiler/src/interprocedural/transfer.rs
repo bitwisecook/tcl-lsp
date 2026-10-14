@@ -960,6 +960,11 @@ impl<'a> ModuleProcedures<'a> {
         })
     }
 
+    /// Retained source Module; callers still own their declaration/input joins.
+    pub(crate) const fn original_source_module(&self) -> &'a crate::ir::Module {
+        self.ir
+    }
+
     /// Reborrow this function's complete input only under the same Module owner.
     pub(crate) fn invocation_metadata_context_for_function<'f>(
         &self,

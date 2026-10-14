@@ -74,6 +74,77 @@ pub(super) fn original_operand_effects(native: &[NativeWord]) -> Vec<OriginalOpe
 }
 
 impl AdviceInvocationContext<'_> {
+    pub(super) fn apply_source_body_lookup_effects(
+        &self,
+        graph: &mut AdviceGraph,
+        command: &str,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        let transitions = schema.state_transitions();
+        let receipt = capture_transition(
+            self.origin,
+            invocation.native,
+            command,
+            invocation.arguments,
+            transitions.clone(),
+            invocation.lineage,
+        );
+        if receipt
+            .as_ref()
+            .is_some_and(|receipt| graph.apply(receipt).is_none())
+            || (receipt.is_none() && !transitions.facts().is_empty())
+            || transitions.widens(tcl_registry::StateTransitionDomain::CommandBindings)
+            || transitions.widens(tcl_registry::StateTransitionDomain::CommandResolution)
+        {
+            graph.widen(invocation.native);
+        }
+        let effects = schema.effects();
+        // Transition effect coverage removes an already represented trace
+        // write from the generic footprint. Source observer state still
+        // requires its own owner; a covered registration is not a quiet read.
+        let changes_observers = transitions
+            .facts()
+            .iter()
+            .any(|fact| matches!(fact.transition, tcl_registry::StateTransition::Trace(_)))
+            || [
+                tcl_registry::StateTransitionDomain::VariableTraces,
+                tcl_registry::StateTransitionDomain::CommandTraces,
+                tcl_registry::StateTransitionDomain::ExecutionTraces,
+            ]
+            .into_iter()
+            .any(|domain| transitions.widens(domain));
+        if changes_observers
+            || effects.requires_world_barrier()
+            || effects.accesses().iter().any(|access| {
+                access.mode != EffectAccessMode::Read
+                    && matches!(
+                        access.domain,
+                        WorldStateDomain::VariableTraces
+                            | WorldStateDomain::CommandTraces
+                            | WorldStateDomain::ExecutionTraces
+                    )
+            })
+        {
+            // A trace registration can change future callback state without
+            // synchronously reentering this invocation. Its exact producer
+            // remains unresolved until a separate observer-state owner closes
+            // that state. Neither it nor a synchronous callback footprint
+            // permits execution or semantic rewriting from source advice.
+            graph.record_uncertainty(invocation.native);
+        }
+        if effects.accesses().iter().any(|access| {
+            access.mode != EffectAccessMode::Read
+                && matches!(
+                    access.domain,
+                    WorldStateDomain::CommandBindings | WorldStateDomain::NamespaceLookup
+                )
+        }) && receipt.is_none()
+        {
+            graph.widen(invocation.native);
+        }
+    }
+
     /// Caller coordinates describe source phases under the selected stock
     /// descriptor, independently of actual provider, entry or phase effects.
     pub(super) fn retain_c_source_lifecycle_inventory(
@@ -913,7 +984,8 @@ impl BodyWalk<'_, '_> {
                     ),
                 )
             });
-        self.apply_command_effects(graph, command, invocation, schema);
+        self.context
+            .apply_source_body_lookup_effects(graph, command, invocation, schema);
         AdviceInvocationContext::install_source_class_handle(graph, class_handle);
         if let Some(tape) = &mut self.inventory {
             AdviceInvocationContext::install_source_class(tape, graph, class);
@@ -1069,77 +1141,6 @@ impl BodyWalk<'_, '_> {
                 .insert(native.words.first()?.span().start());
         }
         Some(())
-    }
-
-    fn apply_command_effects(
-        &self,
-        graph: &mut AdviceGraph,
-        command: &str,
-        invocation: AdviceInvocation<'_>,
-        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
-    ) {
-        let transitions = schema.state_transitions();
-        let receipt = capture_transition(
-            self.context.origin,
-            invocation.native,
-            command,
-            invocation.arguments,
-            transitions.clone(),
-            invocation.lineage,
-        );
-        if receipt
-            .as_ref()
-            .is_some_and(|receipt| graph.apply(receipt).is_none())
-            || (receipt.is_none() && !transitions.facts().is_empty())
-            || transitions.widens(tcl_registry::StateTransitionDomain::CommandBindings)
-            || transitions.widens(tcl_registry::StateTransitionDomain::CommandResolution)
-        {
-            graph.widen(invocation.native);
-        }
-        let effects = schema.effects();
-        // Transition effect coverage removes an already represented trace
-        // write from the generic footprint. Source observer state still
-        // requires its own owner; a covered registration is not a quiet read.
-        let changes_observers = transitions
-            .facts()
-            .iter()
-            .any(|fact| matches!(fact.transition, tcl_registry::StateTransition::Trace(_)))
-            || [
-                tcl_registry::StateTransitionDomain::VariableTraces,
-                tcl_registry::StateTransitionDomain::CommandTraces,
-                tcl_registry::StateTransitionDomain::ExecutionTraces,
-            ]
-            .into_iter()
-            .any(|domain| transitions.widens(domain));
-        if changes_observers
-            || effects.requires_world_barrier()
-            || effects.accesses().iter().any(|access| {
-                access.mode != EffectAccessMode::Read
-                    && matches!(
-                        access.domain,
-                        WorldStateDomain::VariableTraces
-                            | WorldStateDomain::CommandTraces
-                            | WorldStateDomain::ExecutionTraces
-                    )
-            })
-        {
-            // A trace registration can change future callback state without
-            // synchronously reentering this invocation. Its exact producer
-            // remains unresolved until a separate observer-state owner closes
-            // that state. Neither it nor a synchronous callback footprint
-            // permits execution or semantic rewriting from source advice.
-            graph.record_uncertainty(invocation.native);
-        }
-        if effects.accesses().iter().any(|access| {
-            access.mode != EffectAccessMode::Read
-                && matches!(
-                    access.domain,
-                    WorldStateDomain::CommandBindings | WorldStateDomain::NamespaceLookup
-                )
-        }) && receipt.is_none()
-        {
-            graph.widen(invocation.native);
-        }
     }
 }
 

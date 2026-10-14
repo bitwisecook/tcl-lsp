@@ -202,7 +202,16 @@ pub(crate) fn source_targets_match_advice(
             return false;
         }
         if !prefix.is_empty() {
-            let Some(inputs) = target.original_prepended_name_inputs() else {
+            let inputs = if let Some(input) = advice.logical_source_input() {
+                target.original_logical_prepended_name_inputs(
+                    input,
+                    advice.site().source.source_image(),
+                    input.lexer_config(),
+                )
+            } else {
+                target.original_prepended_name_inputs()
+            };
+            let Some(inputs) = inputs else {
                 return false;
             };
             let captured = advice.arguments().iter().filter(|word| {

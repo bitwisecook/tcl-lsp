@@ -44,6 +44,7 @@ pub(super) struct DeclaredProcedureBody {
     pub(super) parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     logical_name: Option<String>,
     logical_parameters_text: Option<String>,
+    logical_parameters_word: Option<tcl_lexer::NativeWord>,
     pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
     pub(super) frame: crate::var_resolve::VariableExecutionFrame,
 }
@@ -670,6 +671,38 @@ impl SourceCommandBindings {
             agreed = Some(topology);
         }
         Some(crate::signature_scan::formal_parameters::SignatureSourceFormalParameters::from_original_topology(&agreed?))
+    }
+
+    /// Source-only Logical formals retain the selected declaration recipe and
+    /// original word. They never acquire Native topology or an entered frame.
+    pub(crate) fn original_logical_formal_name_sources_at(
+        &self,
+        site: &CommandAllocationSite,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
+        if !input.has_logical_source_name_context()
+            || !self.matches_original_source_image(site.source.source_image(), input.lexer_config())
+        {
+            return None;
+        }
+        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
+            if row.config != input.lexer_config()
+                || row.snapshot.state.logical_source_name_advice_input() != Some(input)
+            {
+                return None;
+            }
+        }
+        let body = self.original_declared_procedure_at(site, registry)?;
+        if body.original_parameters.is_some() || body.logical_name.is_none() {
+            return None;
+        }
+        super::logical_definition::formal_name_sources(
+            body.logical_parameters_word.as_ref(),
+            body.logical_parameters_text.as_deref()?,
+            &body.parameters,
+            input.lexer_config(),
+        )
     }
 
     /// Preserve only original lexical layouts when the declaration's runtime
@@ -1478,6 +1511,18 @@ fn logical_procedure_body_recipe(
             parameters,
             logical_name: Some(name.to_owned()),
             logical_parameters_text: Some(words.get(shape.parameters + 1)?.literal()?.to_owned()),
+            logical_parameters_word: match effective.origins.get(shape.parameters + 1)? {
+                crate::registry_invocation::InvocationWordOrigin::Written(written) => {
+                    crate::registry_invocation::original_native_compiler_words(
+                        site.source.source_image(),
+                        tokens.words(),
+                        site.offset,
+                        observation.config,
+                    )
+                    .and_then(|original| original.get(*written).cloned())
+                }
+                _ => None,
+            },
             original_parameters: None,
         };
         if agreed.as_ref().is_some_and(|previous| previous != &body) {
@@ -1673,6 +1718,7 @@ fn procedure_body_recipe(
         parameters: header.parameters,
         logical_name: None,
         logical_parameters_text: None,
+        logical_parameters_word: None,
         original_parameters: header.original_parameters,
         frame: header.frame,
     })

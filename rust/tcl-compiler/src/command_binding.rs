@@ -64,6 +64,7 @@ mod future_bodies;
 mod incomplete_body_metadata;
 mod logical_definition;
 mod logical_operation;
+mod logical_prefix;
 mod materialized_footprint;
 mod native_list_assignment;
 mod original_callback_lookup;
@@ -1416,6 +1417,7 @@ pub struct SourceCommandTarget {
     /// Original producers of captured prefix values, joined at every actual
     /// alias allocation. They supply no written operand or compiler geometry.
     original_prepended: Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>>,
+    logical_original_prefix: Option<logical_prefix::LogicalCapturedCommandPrefix>,
     /// Only registry-backed implementations may select registry semantics.
     pub registry_backed: bool,
     /// Registry, procedure, object, or generic implementation category.
@@ -1428,6 +1430,21 @@ pub struct SourceCommandTarget {
     pub implementation_allocation: Option<CommandAllocation>,
 }
 
+impl SourceInvocationBinding {
+    pub(crate) fn original_logical_prefix_source_input(
+        &self,
+    ) -> Option<&crate::analyser::ResolvedAnalysisInput> {
+        let state = &self.lookup_state.as_ref()?.state;
+        let input = state.logical_source_name_advice_input()?;
+        (input.has_logical_source_name_context()
+            && state.baseline.native_entry.is_none()
+            && !state.baseline.unknown_entry
+            && state.baseline.execution_name_policy.is_none()
+            && state.baseline.hosted_execution_context.is_none())
+        .then_some(input)
+    }
+}
+
 impl SourceCommandTarget {
     /// Captured prefix inputs from this exact selected implementation chain.
     /// A missing or conflicting producer never falls back to literal bytes.
@@ -1438,6 +1455,24 @@ impl SourceCommandTarget {
         let inputs = self.original_prepended.as_deref()?;
         (inputs.len() == self.prepended.len()).then_some(inputs)
     }
+    /// Genuine captured Logical source words, independently of Native prefix inputs.
+    pub(crate) fn original_logical_prepended_name_inputs(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<&[crate::signature_scan::scope::SignatureSourceNameInput]> {
+        let prefix = self.logical_original_prefix.as_ref()?;
+        (prefix.matches_source_input(input, image, config)
+            && prefix.inputs().len() == self.prepended.len()
+            && prefix
+                .inputs()
+                .iter()
+                .zip(&self.prepended)
+                .all(|(input, word)| word.literal_bytes() == Some(input.bytes())))
+        .then(|| prefix.inputs())
+    }
+
     /// Original registry descriptor identity, independent of the current slot.
     /// Native issuers preserve their exact identifier bytes; authored registry
     /// rows may use a rooted descriptor name. This supplies no lookup spelling.
@@ -12023,6 +12058,7 @@ fn source_binding_from_original_input_in(
                     command: target.command,
                     prepended: target.prepended,
                     original_prepended,
+                    logical_original_prefix: None,
                     registry_backed: target.registry_backed,
                     kind: target.kind,
                     identity: target.token,
@@ -12082,6 +12118,8 @@ fn source_binding_projection_in(
     let (declared_command, catalogue_command) =
         state.original_advice_candidates_for_metadata(namespace_key.as_ref(), head);
     let keys = state.source_keys(head, namespace);
+    let selection =
+        state.resolve_targets_with_prefixes_in(head, namespace, &mut BTreeSet::new(), lookup);
     let may_be_absent = keys.last().is_none_or(|key| {
         state
             .binding_alternatives(key)
@@ -12150,20 +12188,29 @@ fn source_binding_projection_in(
         frozen_written_names: None,
         frozen_head_object: None,
         method_prefix_arguments: Vec::new(),
-        targets: state
-            .resolve_targets_in(head, namespace, &mut BTreeSet::new(), lookup)
+        targets: selection
+            .targets
             .into_iter()
-            .map(|target| SourceCommandTarget {
-                runtime_implementation_generation: state
-                    .runtime_implementation_generation(target.token.as_ref()),
-                command: target.command,
-                prepended: target.prepended,
-                original_prepended: None,
-                registry_backed: target.registry_backed,
-                kind: target.kind,
-                identity: target.token,
-                implementation_generation: target.implementation_generation,
-                implementation_allocation: target.implementation_allocation,
+            .map(|target| {
+                let logical_original_prefix = selection
+                    .prefixes
+                    .get(&target)
+                    .cloned()
+                    .flatten()
+                    .filter(|_| !target.prepended.is_empty());
+                SourceCommandTarget {
+                    runtime_implementation_generation: state
+                        .runtime_implementation_generation(target.token.as_ref()),
+                    command: target.command,
+                    prepended: target.prepended,
+                    original_prepended: None,
+                    logical_original_prefix,
+                    registry_backed: target.registry_backed,
+                    kind: target.kind,
+                    identity: target.token,
+                    implementation_generation: target.implementation_generation,
+                    implementation_allocation: target.implementation_allocation,
+                }
             })
             .collect(),
         may_be_absent,
@@ -12210,6 +12257,8 @@ struct NamespaceResolutionProjection {
 #[allow(clippy::struct_excessive_bools)] // Mirrors independent monotone observation axes.
 struct NonBindingObservationStamp {
     original_command_world: Arc<source_command_world::OriginalSourceCommandWorld>,
+    logical_alias_prefixes:
+        Arc<BTreeMap<ResolvedCommandTarget, Option<Arc<logical_prefix::LogicalAliasPrefix>>>>,
     ordinary_literal_pool: Option<literal_object_pool::SourceOrdinaryLiteralPool>,
     class_definitions: Arc<BTreeMap<CommandIdentity, ClassDefinitionReceipt>>,
     object_instances: Arc<object_instance::SourceObjectState>,
@@ -12301,6 +12350,8 @@ impl NamespaceResolutionProjection {
 pub struct ModuleCommandBindings {
     /// Canonical original byte publications and modeled namespace geometry.
     original_command_world: Arc<source_command_world::OriginalSourceCommandWorld>,
+    logical_alias_prefixes:
+        Arc<BTreeMap<ResolvedCommandTarget, Option<Arc<logical_prefix::LogicalAliasPrefix>>>>,
     current_source_origin: Option<Arc<SourceOriginId>>,
     /// Original fresh pool provenance, permanently withdrawn by unknown host
     /// or object methods. New result objects cannot restore this history.
@@ -12406,6 +12457,7 @@ impl PartialEq for ModuleCommandBindings {
         // equal even though each owns a distinct baseline allocation.
         self.baseline == other.baseline
             && self.original_command_world == other.original_command_world
+            && self.logical_alias_prefixes == other.logical_alias_prefixes
             && self.current_source_origin == other.current_source_origin
             && self.ordinary_literal_pool == other.ordinary_literal_pool
             && self.allocation_counts == other.allocation_counts
@@ -13346,6 +13398,7 @@ impl ModuleCommandBindings {
         Arc::ptr_eq(&self.baseline, &other.baseline)
             && (Arc::ptr_eq(&self.original_command_world, &other.original_command_world)
                 || self.original_command_world == other.original_command_world)
+            && self.logical_alias_prefixes == other.logical_alias_prefixes
             && self.ordinary_literal_pool == other.ordinary_literal_pool
             && self.class_definitions == other.class_definitions
             && self.object_instances == other.object_instances
@@ -13385,6 +13438,7 @@ impl ModuleCommandBindings {
     fn non_binding_observation_stamp(&self) -> NonBindingObservationStamp {
         NonBindingObservationStamp {
             original_command_world: Arc::clone(&self.original_command_world),
+            logical_alias_prefixes: Arc::clone(&self.logical_alias_prefixes),
             ordinary_literal_pool: self.ordinary_literal_pool.clone(),
             class_definitions: Arc::clone(&self.class_definitions),
             object_instances: Arc::clone(&self.object_instances),
@@ -13424,6 +13478,7 @@ impl ModuleCommandBindings {
 impl std::hash::Hash for ModuleCommandBindings {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.original_command_world.hash(state);
+        self.logical_alias_prefixes.hash(state);
         self.current_source_origin.hash(state);
         self.ordinary_literal_pool.hash(state);
         self.allocation_counts.hash(state);
@@ -13949,6 +14004,7 @@ impl ModuleCommandBindings {
         if top_level_root {
             initial.bindings = Arc::new(SourceCommandTable::default());
             initial.root_boundary_bindings = Arc::new(SourceCommandTable::default());
+            initial.logical_alias_prefixes = Arc::new(BTreeMap::new());
             initial.opaque_domain = false;
             initial.opaque_binding_mutation = false;
             initial.dynamic_proc_binding = false;
@@ -15167,7 +15223,18 @@ impl ModuleCommandBindings {
         visiting: &mut BTreeSet<SourceCommandKey>,
         lookup: CommandTargetLookup,
     ) -> BTreeSet<ResolvedCommandTarget> {
-        let mut resolved = BTreeSet::new();
+        self.resolve_targets_with_prefixes_in(name, namespace, visiting, lookup)
+            .targets
+    }
+
+    fn resolve_targets_with_prefixes_in(
+        &self,
+        name: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+        visiting: &mut BTreeSet<SourceCommandKey>,
+        lookup: CommandTargetLookup,
+    ) -> logical_prefix::LogicalPrefixResolution {
+        let mut resolved = logical_prefix::LogicalPrefixResolution::default();
         let keys = self.source_keys(name, namespace);
         for (index, key) in keys.iter().enumerate() {
             if !visiting.insert(key.clone()) {
@@ -15181,18 +15248,23 @@ impl ModuleCommandBindings {
                             for implementation in implementations {
                                 if let MayBinding::Target(target) = implementation {
                                     if target.terminal {
-                                        resolved.insert(target.clone());
+                                        resolved.insert(target.clone(), target.prepended.is_empty().then(|| logical_prefix::LogicalCapturedCommandPrefix::empty(self)).flatten());
                                     } else {
-                                        for mut terminal in self.resolve_targets_in(
+                                        let children = self.resolve_targets_with_prefixes_in(
                                             &target.command,
                                             &self.alias_target_namespace_key(target, namespace),
                                             visiting,
                                             lookup,
-                                        ) {
+                                        );
+                                        for mut terminal in children.targets {
+                                            let prefix = self.compose_logical_alias_prefix(
+                                                target,
+                                                children.prefixes.get(&terminal).cloned().flatten(),
+                                            );
                                             terminal
                                                 .prepended
                                                 .extend(target.prepended.iter().cloned());
-                                            resolved.insert(terminal);
+                                            resolved.insert(terminal, prefix);
                                         }
                                     }
                                 }
@@ -15200,17 +15272,29 @@ impl ModuleCommandBindings {
                         }
                     }
                     MayBinding::Target(target) if target.terminal => {
-                        resolved.insert(target.clone());
+                        resolved.insert(
+                            target.clone(),
+                            target
+                                .prepended
+                                .is_empty()
+                                .then(|| logical_prefix::LogicalCapturedCommandPrefix::empty(self))
+                                .flatten(),
+                        );
                     }
                     MayBinding::Target(target) => {
-                        for mut terminal in self.resolve_targets_in(
+                        let children = self.resolve_targets_with_prefixes_in(
                             &target.command,
                             &self.alias_target_namespace_key(target, namespace),
                             visiting,
                             lookup,
-                        ) {
+                        );
+                        for mut terminal in children.targets {
+                            let prefix = self.compose_logical_alias_prefix(
+                                target,
+                                children.prefixes.get(&terminal).cloned().flatten(),
+                            );
                             terminal.prepended.extend(target.prepended.iter().cloned());
-                            resolved.insert(terminal);
+                            resolved.insert(terminal, prefix);
                         }
                     }
                     MayBinding::Missing
@@ -15218,7 +15302,9 @@ impl ModuleCommandBindings {
                             && matches!(lookup, CommandTargetLookup::WithFallback)
                             && !self.namespace_unknown_handlers.contains(namespace) =>
                     {
-                        resolved.extend(self.unresolved_targets(name, visiting));
+                        for target in self.unresolved_targets(name, visiting) {
+                            resolved.insert(target, None);
+                        }
                     }
                     MayBinding::Missing | MayBinding::Unknown => {}
                 }
@@ -15433,6 +15519,7 @@ impl ModuleCommandBindings {
             changed |=
                 Arc::make_mut(&mut self.original_command_world).join(&other.original_command_world);
         }
+        changed |= self.join_logical_alias_prefixes(other);
         changed |= self.join_lookup_support(other);
         changed |= self.join_binding_history(other);
         if !Arc::ptr_eq(&self.bindings, &other.bindings) && self.bindings != other.bindings {

@@ -1,0 +1,52 @@
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -41,6 +41,7 @@
+ | Original procedure summary ownership | `rust/tcl-compiler/src/cfg_builder/summary_candidates.rs`; `rust/tcl-compiler/src/cfg_builder/mod.rs`; `rust/tcl-compiler/src/compilation_unit.rs` | `OriginalProcedureSummaryOwners`; `OriginalProcedureSummaryOwners::for_module`; `CfgContext`; `PreparedCfgContext`; `PreparedCfgContext::from_source_input`; `LatticeRequest` | the fifth CFG context field retains the matching original Module and Registry; upvar, parameter and outer-write maps use issued ProcedureId coordinates; exact original call targets and effective operands select summaries, including retained child calls; missing, changed or foreign owners widen effects rather than joining display names; raw memo identity retains the Arc owner independently of certified registry-only templates; no Native entry, entered frame, committed write or completion grant | `xtask-owner-resolution` |
+ | Retained source body identity | `rust/tcl-core-types/src/body_identity.rs`; `rust/tcl-compiler/src/ir/procedure_identity.rs`; `rust/tcl-compiler/src/ir.rs`; `rust/tcl-compiler/src/source_graph.rs` | `ProcedureId`; `ProcedureIdIssuer`; `ProcedureInventory`; `Module::retain_procedure`; `Module::retain_body_unit`; `procedure_body_for_declaration` | private source_procedure_for_target and source_procedure_for_allocation select original allocating owners; module-scoped opaque body IDs retain repeated displays; clones share issuance, separate modules cannot join equal ordinals; exact allocating instruction/source/image/configuration and independently retained implementation body select originals; ordinal is presentation only, never Native lookup or entry authority | `xtask-owner-resolution` |
+ | Original source-read catalogue | `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/command_binding/source_read_scope.rs`; `rust/tcl-compiler/src/command_binding/source_transition_advice.rs`; `rust/tcl-compiler/src/realm/source_transition_advice.rs`; `rust/tcl-compiler/src/registry_invocation/declaration_flow.rs` | `SourceCommandBindings`; `OriginalSourceCommandTransitionAdvice`; `OriginalSourceCommandTransitionAdvice::matches_source`; `OriginalSourceCommandTransitionAdvice::matches_context` | private SourceReadScope, OriginalSourceCataloguePurpose and DeclarationSchemaOrigin retain completed-prefix source schemas with genuine body issuers, original argv and current Registry/context/image/configuration; they cannot override actually selected targets or issue reached runtime applicability, current stores or entered frames | `xtask-owner-resolution` |
++| Logical original alias prefix provenance | `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/command_binding/logical_prefix.rs`; `rust/tcl-compiler/src/command_binding/logical_operation.rs`; `rust/tcl-compiler/src/command_binding/source_read_scope.rs`; `rust/tcl-compiler/src/registry_invocation.rs` | `SourceCommandTarget::original_logical_prepended_name_inputs` | positively retained Logical input only; complete original alias argv and source allocation, exact image/configuration/ContextRegistry and unanimous authored name policy retain captured original words across the existing target traversal, snapshots and joins; changed or missing provenance withdraws source roles and values; Native and hosted entries keep their independent original prefix owner; no Native object, Normal completion, runtime binding, frame or edit permission is issued | `xtask-owner-resolution` |
+ | Checked namespace emission geometry | `rust/tcl-syntax/src/naming.rs` | `checked_namespace_path_key` | exact retained byte namespace components; UTF-8 and a lossless constructed-key round trip are required; opaque or colliding components decline, and the report key grants no Native lookup, namespace liveness or compiler entry | `xtask-owner-resolution` |
+ | Original source value components | `rust/tcl-syntax/src/word_rules.rs`; `rust/tcl-compiler/src/const_subst.rs` | `original_word_unicode_value_with_variables`; `ConstSubstCtx::fold_original_source_substitution` | original document word, full lexer configuration, grouping and executable-part arena remain together; callbacks receive genuine variable components, unsupported command/index/value cases decline, and conditional readonly values supply no Native cell, observer absence, executable erasure or editable reference | `xtask-owner-resolution` |
+ | Contextual metadata classifier selection | `rust/tcl-registry/src/registry.rs`; `rust/tcl-registry/src/command_descriptor_key.rs`; `rust/tcl-compiler/src/var_escape/helpers.rs`; `rust/tcl-compiler/src/auto_path_eval/path_constants.rs`; `rust/tcl-compiler/src/analyser/bounds_checks.rs` | `CommandRegistry::get`; `CommandSpec::descriptor_key`; `is_frameless_runtime_command_in` | exact-first Registry metadata selection owns optional-root fallback before exact effective-semantics lookup; BoundsMetadataContext retains actual context availability and supplied labels for role routing; authored path inventory retains its separate policy and lexical scope, while original path collection remains independently source-owned; missing metadata keeps refusal or barriers and supplies no current Native binding, frame or compiler entry | `xtask-owner-resolution` |
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -60,6 +60,17 @@
+ literal value supplies the name. Literal `$` content and the empty name remain
+ valid names. Dynamic or opaque values and changed/foreign source inputs decline.
+ These are readonly source references, without execution or edit authority.
++
++For positively retained Logical aliases,
++`SourceCommandTarget::original_logical_prepended_name_inputs` supplies captured
++original words to source schemas and symbolic operations. The Compiler retains
++the complete alias declaration argv, original allocation and inherited alias
++chain separately from the Native prefix owner. Queries check the exact input,
++whole image, lexer configuration, ContextRegistry and authored name policy.
++Snapshots preserve this provenance; a conflicting or unavailable receipt for
++the same alias at a join withdraws it. A captured word keeps its declaration
++geometry and cannot acquire a call-site edit span. Native and hosted inputs use
++their existing original prefix owner.
+ 
+ `VarReferenceScanner::scan_lexical_word` traverses shared original variable/index
+ components under the caller's lexer configuration. A written command head
+--- a/docs/design/compiler/name-resolution-implementer-guide.md
++++ b/docs/design/compiler/name-resolution-implementer-guide.md
+@@ -9481,6 +9481,19 @@
+ captured alias arguments compose with genuine written values under that same
+ selected operation. The Proc-specific definition transfer remains independent.
+ 
++Use `SourceCommandTarget::original_logical_prepended_name_inputs` for captured
++arguments in the positively Logical source model. Supply the actual retained
++`ResolvedAnalysisInput`, whole `SourceImage` and original `LexerConfig`; do not
++construct prefix inputs from `target.prepended` values. The private
++`logical_prefix` owner retains complete original alias argv, original allocation
++and inherited captures alongside the existing target lookup. Source-read roles,
++declared layouts, effective argv and Logical value transfer consume this owner.
++Its image/configuration/context and authored-policy checks remain required after
++snapshot or join. Missing or conflicting provenance refuses the Logical
++projection. `original_prepended_name_inputs` remains the separate Native owner;
++Native/hosted entries cannot borrow the Logical carrier. Neither carrier alone
++grants a reached handler, entered frame or edit span.
++
+ The selected scalar store updates quiet symbolic contents only; dynamic
+ bindings/traces, observers, arrays, physical storage identities and missing/stale
+ ownership refuse. Command moves/deletions/alias transitions require bounded

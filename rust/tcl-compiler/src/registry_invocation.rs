@@ -833,6 +833,19 @@ fn resolve_original_declared_layout<'a>(
         if !target.registry_backed {
             return None;
         }
+        if !target.prepended.is_empty() && context.permits_logical_source_names() {
+            let purpose = tokens
+                .source_binding
+                .as_ref()?
+                .original_source_advice_purpose(tokens, context, registry)?;
+            if purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical {
+                original_logical_prefix_for_tokens(
+                    tokens,
+                    target,
+                    context.source_analysis_input()?,
+                )?;
+            }
+        }
         let effective =
             compose_original_effective_words(tokens, &target.command, &target.prepended)?;
         let values: Vec<_> = effective
@@ -4567,11 +4580,32 @@ pub(crate) fn native_compilation_dependency(
     }
 }
 
+fn original_logical_prefix_for_tokens<'a>(
+    tokens: &CommandTokens,
+    target: &'a crate::command_binding::SourceCommandTarget,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> Option<&'a [crate::signature_scan::scope::SignatureSourceNameInput]> {
+    let binding = tokens.source_binding.as_ref()?;
+    target.original_logical_prepended_name_inputs(
+        input,
+        binding.invocation_site()?.source.source_image(),
+        binding.original_lexer_config_for_tokens(tokens)?,
+    )
+}
+
 /// Compose a single candidate using the same ordering as proved dispatch.
 pub(crate) fn effective_words_for_target(
     tokens: &CommandTokens,
     target: &crate::command_binding::SourceCommandTarget,
 ) -> Option<EffectiveCommandWords> {
+    if !target.prepended.is_empty()
+        && let Some(input) = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_logical_prefix_source_input())
+    {
+        original_logical_prefix_for_tokens(tokens, target, input)?;
+    }
     let mut effective = compose_effective_words(tokens, &target.command, &target.prepended)?;
     if let Some(named) = tokens
         .source_binding
@@ -4587,6 +4621,14 @@ fn source_effective_words_for_target(
     tokens: &CommandTokens,
     target: &crate::command_binding::SourceCommandTarget,
 ) -> Option<EffectiveCommandWords> {
+    if !target.prepended.is_empty()
+        && let Some(input) = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_logical_prefix_source_input())
+    {
+        original_logical_prefix_for_tokens(tokens, target, input)?;
+    }
     // Source descriptors retain their selectors; private handler argv does not.
     compose_effective_words(tokens, &target.command, &target.prepended)
 }

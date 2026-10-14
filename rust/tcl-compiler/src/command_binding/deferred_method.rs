@@ -2109,6 +2109,7 @@ pub(super) fn original_definition_member_target(
         command: target.command,
         prepended: target.prepended,
         original_prepended: None,
+        logical_original_prefix: None,
         registry_backed: target.registry_backed,
         kind: target.kind,
         identity: target.token,

@@ -1,0 +1,30 @@
+{
+  "files": [
+    {
+      "path": "experiments/name-handling/results/original-formal-name-source/probe.tcl",
+      "before_sha256": null,
+      "after_sha256": "fc382360cc0fea043cb60d67079534a02f52fab21ebbe347b194c32cf0d958b8"
+    },
+    {
+      "path": "experiments/name-handling/results/original-formal-name-source/results.json",
+      "before_sha256": null,
+      "after_sha256": "5a4a2ca930ffb39ada1de80bf735c606c492b766f6f9c53541e54985b7f74ec2"
+    },
+    {
+      "path": "experiments/name-handling/results/original-formal-name-source/README.md",
+      "before_sha256": null,
+      "after_sha256": "91efce5eb51e64c6cf14f8a7cc77973c6ca6d31fcf866300927a9b1e68df5632"
+    },
+    {
+      "path": "experiments/name-handling/f5/questions/original-formal-name-source.md",
+      "before_sha256": null,
+      "after_sha256": "2dc2d8849dc0a383c69fb9a30e0b2729cd1d8e5894625c03dd671300937b8aec"
+    },
+    {
+      "path": "experiments/name-handling/patterns/README.md",
+      "before_sha256": "c92d0b51a8a44180b590d31bada3df1708659ff0489eba5e8b3ad9a43e6ca6c3",
+      "after_sha256": "4174ba28cdc593bd6a7147662cdaa839fa8ecf0d3bb560940248ca21b7e8c11e"
+    }
+  ],
+  "patch_sha256": "23a4ba7256db63aa7a7ea64262e056cd80c9f613de3b637b3ee0c6ad3a7a7148"
+}

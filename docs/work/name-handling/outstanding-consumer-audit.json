@@ -2044,8 +2044,8 @@
         1796,
         2367
       ],
-      "status": "main-integrated-bounded-owners; residual-ivar-audit-active",
-      "action": "Selected source-schema method ivar MAY names still need literal dollar/empty-name preservation; Proofs owns scratch migration. Execute original purity/frame/effect controls.",
+      "status": "main-integrated-bounded-owners; const-map-and-linked-member-migrations-pending",
+      "action": "Method ivar literal-data and class-variable actual-token source-union owners are integrated per Root/Proofs reports; fixed controls remain unexecuted. Const-map set_literal_body/invalidate_const_map_for actual assignment/token/decoded key packet is scratch-ready pending Root review. DB collect_linked_members source owner debt in analyser/oo.rs remains an additional audited migration. Execute original purity/frame/effect controls.",
       "owner_report_reference": "lookup_migration",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -3749,8 +3749,8 @@
         1778,
         1755
       ],
-      "status": "main-integrated-counted-inventory-and-insertion-owner; execution-pending",
-      "action": "Runtime75/Registry2 capture07 queued in latest Root report, Engine8/VM21 and original provider comparisons remain. Runtime06 compiled Runtime then stopped before controls at a corrected Compiler token-borrow error; zero source/provider drift is not execution acceptance.",
+      "status": "main-integrated; scoped-runtime07-76pass1fail; engine-and-vm-controls-pending",
+      "action": "Root Runtime07 completes77controls:76PASS1FAIL(Jim binary command unavailable), zero original source/compiled/artifact drift. Six lowering plus two Registry literal Native controls are scoped passes, not whole Compiler/Engine/VM acceptance. Engine8/VM21 and original insertion/provider comparisons remain.",
       "owner_report_reference": "runtime_variables",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -4007,8 +4007,8 @@
       ],
       "input_purpose": "Evaluated literal variable-name payload and retained empty-name role",
       "shared_owner_api": "normalise_var_name_braced(name,true); retained source roles",
-      "status": "main-integrated; current-controls-unexecuted",
-      "action": "Normal and nested by-name reads preserve dollar sigils; retained role loop preserves empty names. Execute info exists {} and {$name} controls; audit other evaluated-name projections.",
+      "status": "main-integrated-primary-projections; downstream-packet-submitted",
+      "action": "Primary source payload/retained-role preservation integrated. Downstream empty filters and selected barrier literal-dollar normalization packet SHA3f1acea3202f97b535d7e3dad3de98d9b0ff1cbe0926e8aa7a6ce22b43a1d649 submitted; integration not confirmed in this refresh. All original assertions retained, actual Logical source controls and finite C5/Jim evidence; compiled acceptance pending.",
       "current_review": {
         "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
         "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
@@ -4029,8 +4029,8 @@
       ],
       "input_purpose": "Lexical-advice type/effect joins to genuine original declarations and issued bodies",
       "shared_owner_api": "original declaration/source_graph owners and ProcedureId",
-      "status": "scratch-patch-submitted; integration-and-execution-pending",
-      "action": "Core13 patch submitted at /tmp/name-db-body-id-isolated-20261014/core-body-consumers-13: authentic current CU, Scope.body_span declaration grouping and source_graph::procedure_body_for_declaration replace normalized FU/scope and label+offset inverse joins. Existing assertions preserved; added repeated-declaration int/str bleed control. No Main integration or execution acceptance yet.",
+      "status": "main-integrated; current-controls-unexecuted",
+      "action": "Root integrated Core13: actual current CU, body-span declaration grouping and source_graph::procedure_body_for_declaration replace lexical normalized-name and label+offset joins. Repeated-declaration int/str control added; compiled acceptance pending.",
       "current_review": {
         "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
         "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
@@ -4039,7 +4039,7 @@
     },
     {
       "id": "diagnostic-parameter-source-joins",
-      "implementation_owner": "compiler_finish",
+      "implementation_owner": "docs_finish",
       "sites": [
         {
           "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
@@ -4048,8 +4048,8 @@
       ],
       "input_purpose": "Parameter-report source spans from actual original ProcDef/body",
       "shared_owner_api": "Retained original declaration/formal source owner",
-      "status": "audit-follow-on-assigned; not-main-integrated",
-      "action": "param_name_spans_for still selects by qualified display then manually scans brace/list syntax. Compiler requested follow-on; use original declaration/list spans without changing assertions.",
+      "status": "scratch-patch-revised-and-submitted; integration-and-execution-pending",
+      "action": "W214 source packet /tmp/name-w214-original-formal-source-20261014/implementation.patch SHA4c25365ad0272dbf93edb2a354b0e8c4e93e1ea17a0f62233d4a36893e5cecc9 selects actual retained Module/body/ProcedureId/declaration_site/current input; Native topology and separate Logical full-config original-word geometry retain tight ranges/quoted markers, escaped parent extents refused. Original C5/Jim formal report answers are distinct; no provider or execution acceptance inferred.",
       "current_review": {
         "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
         "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
@@ -12835,7 +12835,9 @@
     "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
     "tracking_basis": "Root current-state/implementation-ledger updated 2026-10-14 02:36 UTC plus current Proofs/DB reports",
     "scope": "Only explicitly refreshed actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and prior issue records remain unchanged; no old proof digest is renewed.",
-    "validation": "Latest Root Compiler28 149pass107fail of256, zero authored-source drift; subsequent migrations unexecuted. Runtime06 compiled Runtime then stopped before controls on corrected token borrow. No whole-codebase, Native, F5 or PR-ready acceptance.",
-    "source_write_policy": "Root-authorised documentation-only Main refresh; no Rust, runtime, experiments, scripts, specs, Cargo, Git commit or push by this agent."
+    "validation": "Root Runtime07 completes77:76PASS1FAIL(Jim binary command unavailable), original source/compiled/artifact drift0. Prior Compiler28 149pass107fail of256; subsequent source migrations still need execution. No whole-codebase, Native, F5 or PR-ready acceptance.",
+    "source_write_policy": "Root-authorised documentation-only Main refresh; no Rust, runtime, experiments, scripts, specs, Cargo, Git commit or push by this agent.",
+    "proofs_current_report": "/tmp/name-consumer-current-audit-20261014/current-consumer-status.md",
+    "additional_bounded_families": "Proofs reports all nine additional audited families integrated: F5 policies, trace/deferred MAY protection, declared frame, frameless metadata, slot eligibility, authored path constants, BoundsMetadataContext, self dispatch and shared dynamic/user-tail classifiers. Independent owner-specific execution obligations remain."
   }
 }

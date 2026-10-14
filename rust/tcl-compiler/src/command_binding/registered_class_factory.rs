@@ -74,6 +74,7 @@ impl OriginalClassFactoryState {
                             command: raw.command,
                             prepended: raw.prepended,
                             original_prepended: None,
+                            logical_original_prefix: None,
                             registry_backed: raw.registry_backed,
                             kind: raw.kind,
                             identity: raw.token,

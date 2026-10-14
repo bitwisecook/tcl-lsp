@@ -76,19 +76,6 @@ pub use ilx::{
     extension_registrations, ilx_method_calls,
 };
 
-/// The iRules object/event walks use the `f5-irules` source grammar, taken from
-/// [`tcl_registry::model::resolve_environment`] rather than re-derived from a
-/// dialect name at each lexer site.
-///
-/// Resolved once per public entry point and threaded into the walk (through
-/// the walk context), so a recursion never re-resolves it.
-#[must_use]
-pub(crate) fn irules_lexer_config() -> tcl_lexer::LexerConfig {
-    tcl_lexer::LexerConfig::from_grammar(
-        tcl_registry::model::resolve_environment("f5-irules").grammar(),
-    )
-}
-
 mod specs {
     use super::Deserialize;
 

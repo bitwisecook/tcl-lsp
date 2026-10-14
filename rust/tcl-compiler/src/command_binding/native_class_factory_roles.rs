@@ -454,6 +454,7 @@ fn source_target(
         command: raw.command.clone(),
         prepended: raw.prepended.clone(),
         original_prepended: None,
+        logical_original_prefix: None,
         registry_backed: raw.registry_backed,
         kind: raw.kind,
         identity: raw.token.clone(),

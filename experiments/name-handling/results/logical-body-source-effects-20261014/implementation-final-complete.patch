@@ -1,0 +1,258 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -74,6 +74,77 @@
+ }
+ 
+ impl AdviceInvocationContext<'_> {
++    pub(super) fn apply_source_body_lookup_effects(
++        &self,
++        graph: &mut AdviceGraph,
++        command: &str,
++        invocation: AdviceInvocation<'_>,
++        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
++    ) {
++        let transitions = schema.state_transitions();
++        let receipt = capture_transition(
++            self.origin,
++            invocation.native,
++            command,
++            invocation.arguments,
++            transitions.clone(),
++            invocation.lineage,
++        );
++        if receipt
++            .as_ref()
++            .is_some_and(|receipt| graph.apply(receipt).is_none())
++            || (receipt.is_none() && !transitions.facts().is_empty())
++            || transitions.widens(tcl_registry::StateTransitionDomain::CommandBindings)
++            || transitions.widens(tcl_registry::StateTransitionDomain::CommandResolution)
++        {
++            graph.widen(invocation.native);
++        }
++        let effects = schema.effects();
++        // Transition effect coverage removes an already represented trace
++        // write from the generic footprint. Source observer state still
++        // requires its own owner; a covered registration is not a quiet read.
++        let changes_observers = transitions
++            .facts()
++            .iter()
++            .any(|fact| matches!(fact.transition, tcl_registry::StateTransition::Trace(_)))
++            || [
++                tcl_registry::StateTransitionDomain::VariableTraces,
++                tcl_registry::StateTransitionDomain::CommandTraces,
++                tcl_registry::StateTransitionDomain::ExecutionTraces,
++            ]
++            .into_iter()
++            .any(|domain| transitions.widens(domain));
++        if changes_observers
++            || effects.requires_world_barrier()
++            || effects.accesses().iter().any(|access| {
++                access.mode != EffectAccessMode::Read
++                    && matches!(
++                        access.domain,
++                        WorldStateDomain::VariableTraces
++                            | WorldStateDomain::CommandTraces
++                            | WorldStateDomain::ExecutionTraces
++                    )
++            })
++        {
++            // A trace registration can change future callback state without
++            // synchronously reentering this invocation. Its exact producer
++            // remains unresolved until a separate observer-state owner closes
++            // that state. Neither it nor a synchronous callback footprint
++            // permits execution or semantic rewriting from source advice.
++            graph.record_uncertainty(invocation.native);
++        }
++        if effects.accesses().iter().any(|access| {
++            access.mode != EffectAccessMode::Read
++                && matches!(
++                    access.domain,
++                    WorldStateDomain::CommandBindings | WorldStateDomain::NamespaceLookup
++                )
++        }) && receipt.is_none()
++        {
++            graph.widen(invocation.native);
++        }
++    }
++
+     /// Caller coordinates describe source phases under the selected stock
+     /// descriptor, independently of actual provider, entry or phase effects.
+     pub(super) fn retain_c_source_lifecycle_inventory(
+@@ -913,7 +984,8 @@
+                     ),
+                 )
+             });
+-        self.apply_command_effects(graph, command, invocation, schema);
++        self.context
++            .apply_source_body_lookup_effects(graph, command, invocation, schema);
+         AdviceInvocationContext::install_source_class_handle(graph, class_handle);
+         if let Some(tape) = &mut self.inventory {
+             AdviceInvocationContext::install_source_class(tape, graph, class);
+@@ -1069,77 +1141,6 @@
+                 .insert(native.words.first()?.span().start());
+         }
+         Some(())
+-    }
+-
+-    fn apply_command_effects(
+-        &self,
+-        graph: &mut AdviceGraph,
+-        command: &str,
+-        invocation: AdviceInvocation<'_>,
+-        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+-    ) {
+-        let transitions = schema.state_transitions();
+-        let receipt = capture_transition(
+-            self.context.origin,
+-            invocation.native,
+-            command,
+-            invocation.arguments,
+-            transitions.clone(),
+-            invocation.lineage,
+-        );
+-        if receipt
+-            .as_ref()
+-            .is_some_and(|receipt| graph.apply(receipt).is_none())
+-            || (receipt.is_none() && !transitions.facts().is_empty())
+-            || transitions.widens(tcl_registry::StateTransitionDomain::CommandBindings)
+-            || transitions.widens(tcl_registry::StateTransitionDomain::CommandResolution)
+-        {
+-            graph.widen(invocation.native);
+-        }
+-        let effects = schema.effects();
+-        // Transition effect coverage removes an already represented trace
+-        // write from the generic footprint. Source observer state still
+-        // requires its own owner; a covered registration is not a quiet read.
+-        let changes_observers = transitions
+-            .facts()
+-            .iter()
+-            .any(|fact| matches!(fact.transition, tcl_registry::StateTransition::Trace(_)))
+-            || [
+-                tcl_registry::StateTransitionDomain::VariableTraces,
+-                tcl_registry::StateTransitionDomain::CommandTraces,
+-                tcl_registry::StateTransitionDomain::ExecutionTraces,
+-            ]
+-            .into_iter()
+-            .any(|domain| transitions.widens(domain));
+-        if changes_observers
+-            || effects.requires_world_barrier()
+-            || effects.accesses().iter().any(|access| {
+-                access.mode != EffectAccessMode::Read
+-                    && matches!(
+-                        access.domain,
+-                        WorldStateDomain::VariableTraces
+-                            | WorldStateDomain::CommandTraces
+-                            | WorldStateDomain::ExecutionTraces
+-                    )
+-            })
+-        {
+-            // A trace registration can change future callback state without
+-            // synchronously reentering this invocation. Its exact producer
+-            // remains unresolved until a separate observer-state owner closes
+-            // that state. Neither it nor a synchronous callback footprint
+-            // permits execution or semantic rewriting from source advice.
+-            graph.record_uncertainty(invocation.native);
+-        }
+-        if effects.accesses().iter().any(|access| {
+-            access.mode != EffectAccessMode::Read
+-                && matches!(
+-                    access.domain,
+-                    WorldStateDomain::CommandBindings | WorldStateDomain::NamespaceLookup
+-                )
+-        }) && receipt.is_none()
+-        {
+-            graph.widen(invocation.native);
+-        }
+     }
+ }
+ 
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+@@ -501,8 +501,18 @@
+                 SourceCommandTransitionObligation::DeferredLogicalBodyApplicability,
+             ),
+         );
+-        self.context
+-            .apply_schema_transition(graph, invocation, selected, schema)?;
++        let (roles, complete) = schema.authored_source_argument_roles();
++        let immediate_body = roles
++            .iter()
++            .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
++            && !schema.semantics.traits.contains(Traits::DEFERS_BODY);
++        if !complete || immediate_body {
++            self.context
++                .apply_schema_transition(graph, invocation, selected, schema)?;
++        } else {
++            self.context
++                .apply_source_body_lookup_effects(graph, selected, invocation, schema);
++        }
+         if operand_barrier {
+             graph.widen(native);
+         }
+@@ -615,6 +625,66 @@
+         )
+         .remove(0);
+         source_registry_words(source, analysis, &segment)
++    }
++
++    #[test]
++    fn logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate() {
++        for (source, fragment) in [
++            (
++                "set x ROOT\nnamespace eval N {proc p {} {set x LOCAL; uplevel #0 {puts $x}}}\n",
++                "uplevel #0 {puts $x}",
++            ),
++            (
++                "set x ROOT\nnamespace eval N {proc p {} {set x LOCAL; uplevel 0 {puts $x}}}\n",
++                "uplevel 0 {puts $x}",
++            ),
++        ] {
++            let analysis = analyse_source(source);
++            let input = analysis.resolved_input.as_ref().unwrap();
++            let words = words_at(source, &analysis, fragment).expect(fragment);
++            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
++                panic!("original conditional Logical body owner")
++            };
++            assert_eq!(advice.logical_source_input(), Some(input));
++            assert!(advice.original_head().native_input().is_none());
++            assert!(advice.obligations().contains(
++                &super::SourceCommandTransitionObligation::DeferredLogicalBodyApplicability
++            ));
++            assert!(advice.logical_source_body().unwrap().matches_source(
++                &tcl_lexer::SourceImage::document(source),
++                input.lexer_config(),
++            ));
++            assert_eq!(
++                words.with_source_schema(input.borrowed_context_registry(), |schema| schema
++                    .authored_logical_source_argument_roles()
++                    .1),
++                Some(true)
++            );
++            assert!(
++                !words
++                    .source_script_bodies(input.borrowed_context_registry())
++                    .is_empty()
++            );
++            assert!(!words.operands_preserve_source_lookup());
++            assert!(words_at(&format!("{source} "), &analysis, fragment).is_none());
++            let mut changed = analysis.clone();
++            changed.body_lexer_config = Some(tcl_lexer::LexerConfig {
++                strict_quoting: !input.lexer_config().strict_quoting,
++                ..input.lexer_config()
++            });
++            assert!(words_at(source, &changed, fragment).is_none());
++        }
++        for source in [
++            "namespace eval N {proc uplevel args {}; proc p {} {set x LOCAL; uplevel #0 {puts $x}}}",
++            "namespace eval N {proc p {} {set x LOCAL; rename ::uplevel {}; uplevel #0 {puts $x}}}",
++            "namespace eval N {proc p {} {set x LOCAL; unknown; uplevel #0 {puts $x}}}",
++        ] {
++            let analysis = analyse_source(source);
++            assert!(
++                words_at(source, &analysis, "uplevel #0 {puts $x}").is_none(),
++                "{source}"
++            );
++        }
+     }
+ 
+     #[test]

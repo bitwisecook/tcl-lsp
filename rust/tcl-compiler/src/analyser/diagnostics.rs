@@ -1196,7 +1196,11 @@ impl Analyser {
         self.emit_w233_divide_by_zero(function_unit);
         self.emit_interval_bounds_diagnostics(function_unit);
         if let Some(ir_proc) = ir_proc {
-            self.emit_unused_param_diagnostics(function_unit, ir_proc);
+            self.emit_unused_param_diagnostics(
+                function_unit,
+                ir_proc,
+                module.map(|owner| owner.original_source_module()),
+            );
         }
     }
 

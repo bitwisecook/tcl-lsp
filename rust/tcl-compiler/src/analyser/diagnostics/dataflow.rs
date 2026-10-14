@@ -82,7 +82,6 @@ use super::helpers::{
 use crate::analyser::bounds_checks::HeaderFact;
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
-use crate::analyser::utils::param_name_spans;
 use crate::compilation_unit::ExistencePoint;
 #[cfg(test)]
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
@@ -1275,57 +1274,47 @@ is renamed or deleted in this file."
         }
     }
 
-    /// Absolute source spans of each formal parameter's *name*, in
-    /// declaration order and index-aligned with `ir_proc.params`.
-    ///
-    /// The parameter-list word is the first word after the proc-name token
-    /// (recovered from the recorded [`crate::analyser::types::ProcDef::name_span`]);
-    /// its name spans are delegated to [`param_name_spans`] — the same helper
-    /// go-to-definition/rename use, so W214's range matches them exactly.
-    /// Returns an empty vec when the proc isn't in `all_procs` or the word
-    /// can't be isolated, so the caller falls back to the whole-def span.
-    fn param_name_spans_for(&self, ir_proc: &crate::ir::Procedure) -> Vec<tcl_lexer::Span> {
-        let Some(pdef) = self.result.all_procs.get(&ir_proc.qualified_name) else {
-            return Vec::new();
-        };
-        let bytes = self.source.as_bytes();
-        // Skip whitespace between the proc name and the parameter-list word.
-        let mut i = pdef.name_span.end() as usize;
-        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-            i += 1;
-        }
-        let start = i;
-        let end = if bytes.get(i) == Some(&b'{') {
-            // Braced list — advance to the matching close brace.
-            let mut level = 0u32;
-            let mut j = i;
-            while j < bytes.len() {
-                match bytes[j] {
-                    b'{' => level += 1,
-                    b'}' => {
-                        level -= 1;
-                        if level == 0 {
-                            j += 1;
-                            break;
-                        }
-                    }
-                    _ => {}
-                }
-                j += 1;
+    /// Original parameter name geometry for this body, without a label join.
+    fn param_name_sources_for(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        ir_proc: &crate::ir::Procedure,
+        module: Option<&crate::ir::Module>,
+    ) -> Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName> {
+        let select = || {
+            crate::source_graph::current_analysis(&self.source, &self.result)?;
+            if fu.source_metadata_input() != self.result.resolved_input.as_ref() {
+                return None;
             }
-            j
-        } else {
-            // Bare single-word parameter list — to the next whitespace.
-            let mut j = i;
-            while j < bytes.len() && !bytes[j].is_ascii_whitespace() {
-                j += 1;
+            let site = ir_proc.declaration_site.as_ref()?;
+            let mut declarations = self
+                .result
+                .original_procedure_declarations()
+                .filter(|declaration| declaration.declaration_site() == site);
+            let declaration = declarations.next()?;
+            if declarations.next().is_some() {
+                return None;
             }
-            j
+            let (id, body) = crate::source_graph::procedure_body_for_declaration(
+                &self.source,
+                &self.result,
+                module?,
+                declaration,
+            )?;
+            if fu.body_id != Some(id) || !std::ptr::eq(body, ir_proc) {
+                return None;
+            }
+            let fields = self.result.original_procedure_formal_name_sources(
+                declaration,
+                self.result.resolved_registry()?,
+            )?;
+            fields
+                .iter()
+                .map(|field| field.name())
+                .eq(ir_proc.params.iter().map(|name| name.as_bytes()))
+                .then_some(fields)
         };
-        let Some(raw) = self.source.get(start..end) else {
-            return Vec::new();
-        };
-        param_name_spans(raw, u32::try_from(start).unwrap_or(u32::MAX))
+        select().unwrap_or_default()
     }
 
     /// W214 — unused-parameter hint.
@@ -1341,6 +1330,7 @@ is renamed or deleted in this file."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: &crate::ir::Procedure,
+        module: Option<&crate::ir::Module>,
     ) {
         // Empty-body procs (``proc foo {a b} {}``) are signature
         // placeholders — stubs declaring an API whose implementation
@@ -1352,7 +1342,7 @@ is renamed or deleted in this file."
         // Per-parameter name spans (index-aligned with `ir_proc.params`); an
         // empty result means we couldn't isolate the list and fall back to the
         // whole-definition span below.
-        let param_spans = self.param_name_spans_for(ir_proc);
+        let param_sources = self.param_name_sources_for(fu, ir_proc, module);
         let mut unused: Vec<(usize, String)> = Vec::new();
         for (idx, param) in ir_proc.params.iter().enumerate() {
             // Tcl's variadic ``args`` parameter is conventionally
@@ -1361,20 +1351,10 @@ is renamed or deleted in this file."
             if param == "args" {
                 continue;
             }
-            // Positional keyword markers: a param *written* as a quoted
-            // literal (snit-style ``{"as" ""}``) is a syntactic placeholder
-            // consumed by being PRESENT in the call form, not read as a
-            // variable.  Flagging it is noise.  The marker lives in the source
-            // spelling, not the name: Tcl decodes the quotes away (tclsh 9.0
-            // — ``proc p {"as" v} {}`` → ``info args p`` is ``as v``), so the
-            // test is on the declaration text the name span covers.
-            // Conservative: only a spelling that starts AND ends with ``"``.
-            if param_spans
+            // Quoted source keywords are positional protocol markers.
+            if param_sources
                 .get(idx)
-                .and_then(|span| self.source.get(span.as_range()))
-                .is_some_and(|spelling| {
-                    spelling.len() >= 2 && spelling.starts_with('"') && spelling.ends_with('"')
-                })
+                .is_some_and(|source| source.quoted_marker())
             {
                 continue;
             }
@@ -1438,7 +1418,10 @@ is renamed or deleted in this file."
                 .diagnostics
                 .push(crate::analyser::types::Diagnostic::new(
                     DiagCode::W214,
-                    param_spans.get(idx).copied().unwrap_or(ir_proc.span),
+                    param_sources
+                        .get(idx)
+                        .and_then(|source| source.source_span())
+                        .unwrap_or(ir_proc.span),
                     message,
                     Severity::Hint,
                 ));
@@ -5859,5 +5842,37 @@ mod constructed_projection_tests {
         ] {
             assert_eq!(namespace_of(qname), expected);
         }
+    }
+}
+
+#[cfg(test)]
+mod original_formal_diagnostic_source_tests {
+    #[test]
+    fn w214_uses_original_tight_name_spans_and_quoted_markers() {
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "w214-logical-formal-source",
+            &[],
+            "Logical formal source",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )
+        .intern();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        assert!(input.has_logical_source_name_context());
+        let source = r#"proc p {"as" value extra} {return 1}"#;
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let hints = analysis
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W214)
+            .map(|diagnostic| &source[diagnostic.span.as_range()])
+            .collect::<Vec<_>>();
+        assert_eq!(hints, ["value", "extra"]);
     }
 }

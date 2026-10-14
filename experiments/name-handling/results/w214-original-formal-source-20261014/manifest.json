@@ -1,0 +1,57 @@
+{
+  "files": [
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "76c0e12739ded006c49fa040bf4ab5dbc643a997eb66b47d2b07d9290be904f5",
+      "after_sha256": "11004ef7d432de25e78e0cc3fefbae7bd910f51bc85d59f2e9dff4703a96efa7"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "0ae1eef823e94b501b91a0ff079d0ec688b937ae1017ad82c7c08f6168c8a691",
+      "after_sha256": "7f18832350d74a418093d668f7f65874fc569ea630af5949df8bfc442cc2f073"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "3c78df632e4053ad3274ae062261878dac42b3239a0769ef1a3b7e6631214d0b",
+      "after_sha256": "21f5f4de5e2b4e8f64a0b308c783228c11a7987d5e36628605cc5be47e311496"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "before_sha256": "969129926906eda5af135f58f519491145d17d82d23a58b862a7ac83ccea96ed",
+      "after_sha256": "5f73d93cb718776c22e0a06a72c9f1051d3671a4c18fe32325df2fe7de84d0d2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "before_sha256": "2b1de2d9c416b1b8a9ef5f2b192bbd46e066913568646ac9b6882f3fd9a14a8d",
+      "after_sha256": "72081bcd5d351e81ef0914a428244a2763756c9e7fa1e6ebc98d2402af7270ee"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "9b8d3e8e0f663b04381c3d471f828b662e15ef43dc1c8f9ff9afb9de5fa857e2",
+      "after_sha256": "b002674ba06d45f50e62daf0bc7b051694bec1dfafa3975ea1082c499603bd01"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "before_sha256": "44d637bf17d23ec2e2080c661e42a14f79e7e867d90b0ea0edf5eea896b8343d",
+      "after_sha256": "d36b45adb57ccac2b7ab339b2f5ebc73fd676c467051879cf1c92991128df169"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/logical_definition.rs",
+      "before_sha256": "8d616b4dbd6757807b0200ccfd6c771f3795c48cc40752b1f5f82e6850b3030c",
+      "after_sha256": "2b621345afb5be1f8dbcdfab7c4c1eb5baffe16473535bb8bbe0cf05ff574e3d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+      "before_sha256": "28fa13106e05ca5e55aa4ec76e94bba28ca02b7f9d37eb75257d8f28adcae531",
+      "after_sha256": "fbaad9643da187c3a9a2020f55357361ce9bacc45ef1188c6fb455977d7aa56d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+      "before_sha256": "c03750287c7508c507a90c91cf0fb2b9ed42f51e74900981bc0dcffb53c64424",
+      "after_sha256": "afd3e64a8a0786e6e3fd8c60aec38665b0cb606d460554338ed095a89dfbacbb"
+    }
+  ],
+  "patch_sha256": "4c25365ad0272dbf93edb2a354b0e8c4e93e1ea17a0f62233d4a36893e5cecc9",
+  "scope": "Actual retained Module/body/FunctionUnit/decl_site/current input W214 source geometry. Native topology and Logical readonly source recipe distinct; exact full lexer/list grammar retained.",
+  "validation": "Rustfmt parse/format and git apply check only; compiled tests unexecuted."
+}

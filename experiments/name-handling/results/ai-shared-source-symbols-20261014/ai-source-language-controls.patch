@@ -1,0 +1,49 @@
+--- a/editors/vscode/src/test/chatUtilities.test.ts
++++ b/editors/vscode/src/test/chatUtilities.test.ts
+@@ -17,6 +17,7 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ 
+ import * as assert from "assert";
++import * as vscode from "vscode";
+ import { detectQueryType } from "../chat/commands/event";
+ import { extractCodeBlock } from "../chat/codeUtils";
+ import { detectIruleEvents, extractSourceSymbolDefinitions } from "../chat/contextPack";
+@@ -107,6 +108,38 @@
+     assert.ok(!definitions.some((entry) => entry.name === "fake"));
+   });
+ 
++  test("source symbol context does not borrow a Markdown provider", async () => {
++    const code = "proc p {value} {return $value}";
++    const document = await vscode.workspace.openTextDocument({
++      language: "markdown",
++      content: code,
++    });
++    const definitions = await extractSourceSymbolDefinitions(
++      code,
++      Number.POSITIVE_INFINITY,
++      document,
++      "tcl86",
++    );
++    assert.ok(definitions?.some((entry) => entry.kind === "Function" && entry.name === "p"));
++    assert.strictEqual(document.languageId, "markdown");
++    assert.strictEqual(document.getText(), code);
++  });
++
++  test("an explicit source dialect does not borrow the original document language", async () => {
++    const code = "when HTTP_REQUEST {}";
++    const document = await vscode.workspace.openTextDocument({ language: "tcl86", content: code });
++    const definitions = await extractSourceSymbolDefinitions(
++      code,
++      Number.POSITIVE_INFINITY,
++      document,
++      "tcl-irule",
++    );
++    assert.ok(definitions, "shared iRules source provider is available");
++    assert.deepStrictEqual(detectIruleEvents(definitions), ["HTTP_REQUEST"]);
++    assert.strictEqual(document.languageId, "tcl86");
++    assert.strictEqual(document.getText(), code);
++  });
++
+   test("Tcl system prompt is Tcl-focused", () => {
+     const prompt = buildTclSystemPrompt();
+     assert.ok(prompt.includes("Tcl"));

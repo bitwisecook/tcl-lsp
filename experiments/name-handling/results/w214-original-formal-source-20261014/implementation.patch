@@ -1,0 +1,605 @@
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -89,6 +89,14 @@
+ `source_procedure_for_target` or `source_procedure_for_allocation`, after genuine
+ allocation and source correspondence agree. Never recover a body ID from a
+ printed name. The ordinal is only a within-module presentation field.
++
++`AnalysisResult::original_procedure_formal_name_sources` joins an exact retained
++declaration to readonly name bytes, optional tight source extents and quoted
++source markers. Native formals use their independently retained topology;
++Logical formals use the selected authored schema and original whole parameter
++word. Escaped or unmapped parents withhold source extents. Consumers match the
++actual declaration site and current complete input, never a procedure display
++name. These rows grant no activation, cell or edit permission.
+ 
+ Interprocedural summaries, taint, escape facts, inlining and target code
+ generation select bodies by these IDs. `BodyFrameId` distinguishes the actual
+--- a/docs/design/contracts/naming-consumer-matrix.md
++++ b/docs/design/contracts/naming-consumer-matrix.md
+@@ -57,6 +57,7 @@
+ | Source-read catalogue consumers | `SourceReadScope`; completed-prefix original transition catalogue | Exact original body/argv/image/configuration/context source schemas serve declaration/read graphs and Logical source roles without donating runtime reachability or current stores. |
+ | External command inventory and authoring | Shared Syntax script-family/inventory and Runtime/API structured inventory | CLI keeps original callable root operands, Studio separately records unresolved C registration literals, Engine compares actual interpreter/namespace/generation rows. Reports cannot recover an original command identity; whole-roster ambiguity refuses. |
+ | Alias registration and relocation | Shared selected registration coordinate/table with Runtime/VM actual-generation adapters | C8.4 registration-name lifetime survives renames until actual token retirement. Callbacks require original-input rereads and currentness; later C and Jim remain independent. |
++| Readonly original procedure formal name sources | `AnalysisResult::original_procedure_formal_name_sources`; `OriginalSourceFormalName`; `SignatureSourceFormalParameters::name_sources` | W214 and source reporting retain exact declaration sites, full current input/configuration, decoded name bytes, optional tight source spans and quoted-marker conventions. Native topology and Logical selected-schema geometry remain separate; escaped/unmapped parent values withhold coordinates. No display-name body join, entered frame, cell or edit permission follows. |
+ | Formal storage and compiled local names | `NativeNameProtocol::{formal_storage_name_input,formal_enumeration_name_input}`; `NativeCompiledVariableProtocol`; `LocalVarTable` | Procedure analysis, compiler slot allocation, bytecode, VM and Runtime formal binding. Counted declaration names, compiler comparison and dynamic hash equality differ; ordered compiled slots can contain repeated names. |
+ | Variable trace receiver and callback report | `NativeNameProtocol::{trace_registration_input,trace_query_input}`; `report_native_variable_access_trace_names`; native variable-observer owner | Registry/command helpers and VM/Runtime trace registration, introspection and execution. Receiver lookup, linked cell, callback name1/name2, active-chain suppression and trace lifetime are independent. |
+ | Command trace and mutation epochs | Native command-object/cache owner and native command trace owner | Source semantic withdrawal, VM/Runtime command lookup, rename and trace callback dispatch. A matching name or surviving token cannot revive a replaced implementation or retired cache. |
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -372,6 +372,7 @@
+ | counted ensemble map prefix construction | `rust/tcl-syntax/src/naming/native.rs` | `NativeNameProtocol::ensemble_map_prefix_input` | independently selected C8.5–9.1 purpose, original counted bytes and actual namespace report/parent fact; rooted head is unchanged, relative construction appends every byte and never applies later command-lookup extent; Runtime/VM obtain the parent from their actual namespace owner; reporting text, pure API inputs and finite public results supply no private holder/header identity, C84/Jim worker or compiler/body admission | `xtask-owner-resolution` |
+ | retained source taint metadata | `rust/tcl-compiler/src/taint/source_context.rs`; `rust/tcl-compiler/src/taint.rs`; `rust/tcl-compiler/src/taint/instance_classes.rs`; `rust/tcl-compiler/src/interprocedural.rs`; `rust/tcl-compiler/src/command_binding/retained_source.rs` | `TaintSourceContext`; `TaintSourceContext::for_module_function`; `find_taint_warnings_for_module_function`; `RetainedSourceModuleBindings::matches_module`; `ResolvedInvocation::authored_source_callable_factory_class`; `global_instance_class_source` | complete actual input/configuration/availability and independently matching Module/FunctionUnit owner select conditional lattice and wrapper advice; missing/foreign/stale input withholds metadata or retains uncertainty; function-only and explicit standalone ingresses stay separate, with no executed read/output, current taint value, sanitiser certainty or Native frame grant; receiver candidates use authentic selected factory/lifecycle schemas and original alias operands/literal names; global setup maps retain exact Module input and interpretation owner, source order and independent availability; function-only equality, foreign/stale carriers or replacements cannot donate a constructor, object, Native method or sanitisation fact | none |
+ | original inlining source and alpha-rename geometry | `rust/tcl-compiler/src/inlining/frame.rs`; `rust/tcl-compiler/src/inlining/mod.rs`; `rust/tcl-compiler/src/inlining/rename.rs`; `rust/tcl-lexer/src/word_parts.rs`; `rust/tcl-syntax/src/naming.rs`; `rust/tcl-compiler/src/inlining/heads.rs` | `SourceContext::for_module`; `SourceContext::invocation`; `reads_only_bound_names`; `build_inlinable_map`; `rewrite_value_string`; `RawVarRef::name_range_in`; `RawVarRef::index_range_in`; `names_a_command`; `substitutes`; `root` | complete retained Logical Module input/image/config/store and selected invocation govern source eligibility; shared strict Tcl formal syntax and exact declaration names remain independent; selected checked scanner/root and borrowed component extents preserve scalar literals, braced literal indices and separate enabled index substitutions; whole-word emission and source geometry grant no Native frame, caller cell, compiled header, body admission or editing equivalence; head namespace hazards use actual Module LexerConfig with shared checked WordPart/index traversal, preserving literal escapes and combined indices; unknown decomposition conservatively refuses rewriting | none |
++| Original formal name source geometry | `rust/tcl-compiler/src/signature_scan/formal_parameters.rs`; `rust/tcl-compiler/src/command_binding/declaration_preview.rs`; `rust/tcl-compiler/src/command_binding/logical_definition.rs`; `rust/tcl-compiler/src/analyser/types.rs`; `rust/tcl-compiler/src/interprocedural/transfer.rs` | `OriginalSourceFormalName`; `OriginalSourceFormalName::name`; `OriginalSourceFormalName::source_span`; `OriginalSourceFormalName::quoted_marker`; `SignatureSourceFormalParameters::name_sources`; `AnalysisResult::original_procedure_formal_name_sources`; `ModuleProcedures::original_source_module` | exact original declaration/allocation and current source/input; Native uses its retained formal topology, Logical its independent selected schema and original effective-to-written word; decoded name bytes, optional tight readonly source span and quoted-marker convention remain separate; unmapped/escaped parents withhold spans; no Native activation, cell or edit permission | `xtask-owner-resolution` |
+ | original declaration read metadata | `rust/tcl-compiler/src/command_binding/declaration_preview.rs`; `rust/tcl-compiler/src/script_binds.rs` | `LogicalProcedureDeclaration`; `OriginalProcedureReadDeclaration`; `original_procedure_read_declaration`; `authored_procedure_read_advice` | exact source/formal/body joins and full supplied owner; Native original topology and conditional Logical recipe remain separate; no installation, physical activation, entered body or successful invocation | none |
+ | original per-point CFG lookup metadata | `rust/tcl-compiler/src/registry_invocation/metadata_context.rs`; `rust/tcl-compiler/src/cfg_builder/mod.rs`; `rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs` | `InvocationMetadataInput`; `OwnedInvocationMetadataContext`; `InvocationMetadataInput::retain`; internal implementation: `CfgLookupContexts` | shared tagged standalone, actual availability-only, complete supplied source and terminal unavailable modes across source baselines and CFGs; availability-only contexts cannot manufacture full source input, grammar or entry policy; checked source projections retain actual profile/config/store; the internal CfgMetadataContext alias does not create another owner; supplied original holders/head/grammar retain point binding/replay/rebound/wildcard queries; reporting names cannot reconstruct Native namespaces, missing/foreign/conflicting carriers refuse; no Native invocation/frame/completion or rewrite grant | none |
+ | captured Runtime byte storage | `runtime/rust/src/vars.rs`; `runtime/rust/src/vars/entered_container.rs`; `runtime/rust/src/frame.rs`; `runtime/rust/src/frame/container.rs`; `runtime/rust/src/frame/jim_link_store.rs`; `runtime/rust/src/frame/rmw.rs`; `runtime/rust/src/frame/native_variable_names.rs`; `runtime/rust/src/interp.rs` | `EnteredVariablePlace`; `CapturedContainerModel`; `CapturedByteStore`; `capture_byte_store_entered`; `publish_scalar`; `publish_elem`; `publish_dictionary_root`; `capture_native_compiled_temporary_receiver`; `store_captured_byte_variable`; `store_native_compiled_temporary_checked` | read, defined/array queries, ensure and store share the same classifier/link steps; reached model conversion and dictionary getters run after releasing cell, frame and namespace borrows, retaining original table and frame incarnation through the selected backing checks; one reached byte-name resolution captures the original retained receiver or weak cell/table binding under inherited operation currency; the stored old native owner retires after frame, namespace and cell borrows end, followed by the original context and binding checks before traces or output; anonymous stores also retain their genuine frame incarnation, and input allocation leases add no native reference; addressed ports and owned release-global publication remain trace-free; selected Jim dictionary paths retain their independent recipe and generic compatibility copying grants no native path or aggregate C/Jim pointer chronology | none |
+--- a/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
+@@ -82,7 +82,6 @@
+ use crate::analyser::bounds_checks::HeaderFact;
+ use crate::analyser::state::Analyser;
+ use crate::analyser::types::Severity;
+-use crate::analyser::utils::param_name_spans;
+ use crate::compilation_unit::ExistencePoint;
+ #[cfg(test)]
+ use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
+@@ -1275,57 +1274,47 @@
+         }
+     }
+ 
+-    /// Absolute source spans of each formal parameter's *name*, in
+-    /// declaration order and index-aligned with `ir_proc.params`.
+-    ///
+-    /// The parameter-list word is the first word after the proc-name token
+-    /// (recovered from the recorded [`crate::analyser::types::ProcDef::name_span`]);
+-    /// its name spans are delegated to [`param_name_spans`] — the same helper
+-    /// go-to-definition/rename use, so W214's range matches them exactly.
+-    /// Returns an empty vec when the proc isn't in `all_procs` or the word
+-    /// can't be isolated, so the caller falls back to the whole-def span.
+-    fn param_name_spans_for(&self, ir_proc: &crate::ir::Procedure) -> Vec<tcl_lexer::Span> {
+-        let Some(pdef) = self.result.all_procs.get(&ir_proc.qualified_name) else {
+-            return Vec::new();
++    /// Original parameter name geometry for this body, without a label join.
++    fn param_name_sources_for(
++        &self,
++        fu: &crate::compilation_unit::FunctionUnit,
++        ir_proc: &crate::ir::Procedure,
++        module: Option<&crate::ir::Module>,
++    ) -> Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName> {
++        let select = || {
++            crate::source_graph::current_analysis(&self.source, &self.result)?;
++            if fu.source_metadata_input() != self.result.resolved_input.as_ref() {
++                return None;
++            }
++            let site = ir_proc.declaration_site.as_ref()?;
++            let mut declarations = self
++                .result
++                .original_procedure_declarations()
++                .filter(|declaration| declaration.declaration_site() == site);
++            let declaration = declarations.next()?;
++            if declarations.next().is_some() {
++                return None;
++            }
++            let (id, body) = crate::source_graph::procedure_body_for_declaration(
++                &self.source,
++                &self.result,
++                module?,
++                declaration,
++            )?;
++            if fu.body_id != Some(id) || !std::ptr::eq(body, ir_proc) {
++                return None;
++            }
++            let fields = self.result.original_procedure_formal_name_sources(
++                declaration,
++                self.result.resolved_registry()?,
++            )?;
++            fields
++                .iter()
++                .map(|field| field.name())
++                .eq(ir_proc.params.iter().map(|name| name.as_bytes()))
++                .then_some(fields)
+         };
+-        let bytes = self.source.as_bytes();
+-        // Skip whitespace between the proc name and the parameter-list word.
+-        let mut i = pdef.name_span.end() as usize;
+-        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+-            i += 1;
+-        }
+-        let start = i;
+-        let end = if bytes.get(i) == Some(&b'{') {
+-            // Braced list — advance to the matching close brace.
+-            let mut level = 0u32;
+-            let mut j = i;
+-            while j < bytes.len() {
+-                match bytes[j] {
+-                    b'{' => level += 1,
+-                    b'}' => {
+-                        level -= 1;
+-                        if level == 0 {
+-                            j += 1;
+-                            break;
+-                        }
+-                    }
+-                    _ => {}
+-                }
+-                j += 1;
+-            }
+-            j
+-        } else {
+-            // Bare single-word parameter list — to the next whitespace.
+-            let mut j = i;
+-            while j < bytes.len() && !bytes[j].is_ascii_whitespace() {
+-                j += 1;
+-            }
+-            j
+-        };
+-        let Some(raw) = self.source.get(start..end) else {
+-            return Vec::new();
+-        };
+-        param_name_spans(raw, u32::try_from(start).unwrap_or(u32::MAX))
++        select().unwrap_or_default()
+     }
+ 
+     /// W214 — unused-parameter hint.
+@@ -1341,6 +1330,7 @@
+         &mut self,
+         fu: &crate::compilation_unit::FunctionUnit,
+         ir_proc: &crate::ir::Procedure,
++        module: Option<&crate::ir::Module>,
+     ) {
+         // Empty-body procs (``proc foo {a b} {}``) are signature
+         // placeholders — stubs declaring an API whose implementation
+@@ -1352,7 +1342,7 @@
+         // Per-parameter name spans (index-aligned with `ir_proc.params`); an
+         // empty result means we couldn't isolate the list and fall back to the
+         // whole-definition span below.
+-        let param_spans = self.param_name_spans_for(ir_proc);
++        let param_sources = self.param_name_sources_for(fu, ir_proc, module);
+         let mut unused: Vec<(usize, String)> = Vec::new();
+         for (idx, param) in ir_proc.params.iter().enumerate() {
+             // Tcl's variadic ``args`` parameter is conventionally
+@@ -1361,20 +1351,10 @@
+             if param == "args" {
+                 continue;
+             }
+-            // Positional keyword markers: a param *written* as a quoted
+-            // literal (snit-style ``{"as" ""}``) is a syntactic placeholder
+-            // consumed by being PRESENT in the call form, not read as a
+-            // variable.  Flagging it is noise.  The marker lives in the source
+-            // spelling, not the name: Tcl decodes the quotes away (tclsh 9.0
+-            // — ``proc p {"as" v} {}`` → ``info args p`` is ``as v``), so the
+-            // test is on the declaration text the name span covers.
+-            // Conservative: only a spelling that starts AND ends with ``"``.
+-            if param_spans
++            // Quoted source keywords are positional protocol markers.
++            if param_sources
+                 .get(idx)
+-                .and_then(|span| self.source.get(span.as_range()))
+-                .is_some_and(|spelling| {
+-                    spelling.len() >= 2 && spelling.starts_with('"') && spelling.ends_with('"')
+-                })
++                .is_some_and(|source| source.quoted_marker())
+             {
+                 continue;
+             }
+@@ -1438,7 +1418,10 @@
+                 .diagnostics
+                 .push(crate::analyser::types::Diagnostic::new(
+                     DiagCode::W214,
+-                    param_spans.get(idx).copied().unwrap_or(ir_proc.span),
++                    param_sources
++                        .get(idx)
++                        .and_then(|source| source.source_span())
++                        .unwrap_or(ir_proc.span),
+                     message,
+                     Severity::Hint,
+                 ));
+@@ -5861,3 +5844,35 @@
+         }
+     }
+ }
++
++#[cfg(test)]
++mod original_formal_diagnostic_source_tests {
++    #[test]
++    fn w214_uses_original_tight_name_spans_and_quoted_markers() {
++        let profile = tcl_dialect::DialectProfile::projected_from_point(
++            "w214-logical-formal-source",
++            &[],
++            "Logical formal source",
++            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
++        )
++        .intern();
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
++            tcl_lexer::LexerConfig::for_profile(Some(profile)),
++        );
++        assert!(input.has_logical_source_name_context());
++        let source = r#"proc p {"as" value extra} {return 1}"#;
++        let analysis = crate::analyser::Analyser::new()
++            .with_resolved_input(input)
++            .analyse(source, profile.name);
++        let hints = analysis
++            .diagnostics
++            .iter()
++            .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W214)
++            .map(|diagnostic| &source[diagnostic.span.as_range()])
++            .collect::<Vec<_>>();
++        assert_eq!(hints, ["value", "extra"]);
++    }
++}
+--- a/rust/tcl-compiler/src/analyser/diagnostics.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics.rs
+@@ -1196,7 +1196,11 @@
+         self.emit_w233_divide_by_zero(function_unit);
+         self.emit_interval_bounds_diagnostics(function_unit);
+         if let Some(ir_proc) = ir_proc {
+-            self.emit_unused_param_diagnostics(function_unit, ir_proc);
++            self.emit_unused_param_diagnostics(
++                function_unit,
++                ir_proc,
++                module.map(|owner| owner.original_source_module()),
++            );
+         }
+     }
+ 
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -3053,6 +3053,38 @@
+             .original_procedure_formals_at(declaration.declaration_site(), registry)
+     }
+ 
++    /// Readonly formal names at this exact original declaration. Native topology
++    /// and the independently selected Logical source recipe remain separate.
++    #[must_use]
++    pub fn original_procedure_formal_name_sources(
++        &self,
++        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
++        if !self.original_procedure_metadata.contains(declaration)
++            || !self.matches_original_source_image(
++                declaration.name_input().source_image(),
++                declaration.name_input().lexer_config(),
++            )
++        {
++            return None;
++        }
++        let input = self.resolved_input.as_ref()?;
++        if input.has_logical_source_name_context() {
++            self.command_realm
++                .as_ref()?
++                .source_bindings_ref()
++                .original_logical_formal_name_sources_at(
++                    declaration.declaration_site(),
++                    registry,
++                    input,
++                )
++        } else {
++            self.original_procedure_formals(declaration, registry)
++                .map(|formals| formals.name_sources())
++        }
++    }
++
+     /// Semantic alpha equivalence of a closed source containing one procedure
+     /// whose sole required scalar formal is returned as the same whole object.
+     /// Actual frame/read/handler effects are proved separately from source
+--- a/rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+@@ -44,6 +44,7 @@
+     pub(super) parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+     logical_name: Option<String>,
+     logical_parameters_text: Option<String>,
++    logical_parameters_word: Option<tcl_lexer::NativeWord>,
+     pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
+     pub(super) frame: crate::var_resolve::VariableExecutionFrame,
+ }
+@@ -670,6 +671,38 @@
+             agreed = Some(topology);
+         }
+         Some(crate::signature_scan::formal_parameters::SignatureSourceFormalParameters::from_original_topology(&agreed?))
++    }
++
++    /// Source-only Logical formals retain the selected declaration recipe and
++    /// original word. They never acquire Native topology or an entered frame.
++    pub(crate) fn original_logical_formal_name_sources_at(
++        &self,
++        site: &CommandAllocationSite,
++        registry: &tcl_registry::CommandRegistry,
++        input: &crate::analyser::ResolvedAnalysisInput,
++    ) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
++        if !input.has_logical_source_name_context()
++            || !self.matches_original_source_image(site.source.source_image(), input.lexer_config())
++        {
++            return None;
++        }
++        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
++            if row.config != input.lexer_config()
++                || row.snapshot.state.logical_source_name_advice_input() != Some(input)
++            {
++                return None;
++            }
++        }
++        let body = self.original_declared_procedure_at(site, registry)?;
++        if body.original_parameters.is_some() || body.logical_name.is_none() {
++            return None;
++        }
++        super::logical_definition::formal_name_sources(
++            body.logical_parameters_word.as_ref(),
++            body.logical_parameters_text.as_deref()?,
++            &body.parameters,
++            input.lexer_config(),
++        )
+     }
+ 
+     /// Preserve only original lexical layouts when the declaration's runtime
+@@ -1478,6 +1511,18 @@
+             parameters,
+             logical_name: Some(name.to_owned()),
+             logical_parameters_text: Some(words.get(shape.parameters + 1)?.literal()?.to_owned()),
++            logical_parameters_word: match effective.origins.get(shape.parameters + 1)? {
++                crate::registry_invocation::InvocationWordOrigin::Written(written) => {
++                    crate::registry_invocation::original_native_compiler_words(
++                        site.source.source_image(),
++                        tokens.words(),
++                        site.offset,
++                        observation.config,
++                    )
++                    .and_then(|original| original.get(*written).cloned())
++                }
++                _ => None,
++            },
+             original_parameters: None,
+         };
+         if agreed.as_ref().is_some_and(|previous| previous != &body) {
+@@ -1673,6 +1718,7 @@
+         parameters: header.parameters,
+         logical_name: None,
+         logical_parameters_text: None,
++        logical_parameters_word: None,
+         original_parameters: header.original_parameters,
+         frame: header.frame,
+     })
+--- a/rust/tcl-compiler/src/command_binding/logical_definition.rs
++++ b/rust/tcl-compiler/src/command_binding/logical_definition.rs
+@@ -296,6 +296,56 @@
+     Some(parameters)
+ }
+ 
++/// Map names in the independently selected Logical recipe to original list
++/// geometry. Escaped parent values keep names but withhold source extents.
++pub(super) fn formal_name_sources(
++    original: Option<&NativeWord>,
++    text: &str,
++    parameters: &[tcl_syntax::formal_params::FormalParameter],
++    config: tcl_lexer::LexerConfig,
++) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
++    use crate::signature_scan::formal_parameters::OriginalSourceFormalName;
++    let syntax = config.list_parse;
++    if static_formals(text, syntax)?.as_slice() != parameters {
++        return None;
++    }
++    let content = original.and_then(|word| {
++        let span = word.content_span().ok()?;
++        let raw = word.image().bytes().get(span.as_range())?;
++        (raw == text.as_bytes()).then_some(span)
++    });
++    let specifiers = tcl_syntax::word_rules::WordValueRules::from_config(&config)
++        .split_list(text)
++        .ok()?;
++    let mut next = 0;
++    let mut result = Vec::with_capacity(parameters.len());
++    for (formal, specifier) in parameters.iter().zip(specifiers) {
++        let outer = tcl_syntax::list::find_element_with_syntax(text, next, syntax).ok()??;
++        next = outer.next;
++        let inner = tcl_syntax::list::find_element_with_syntax(&specifier, 0, syntax).ok()??;
++        let span = content.and_then(|content| {
++            if !outer.literal {
++                return None;
++            }
++            let start = outer.value.start.checked_add(inner.value.start)?;
++            let end = outer.value.start.checked_add(inner.value.end)?;
++            Some(tcl_lexer::Span::new(
++                content.start().checked_add(u32::try_from(start).ok()?)?,
++                content.start().checked_add(u32::try_from(end).ok()?)?,
++            ))
++        });
++        let quoted = span.zip(original).is_some_and(|(span, word)| {
++            OriginalSourceFormalName::source_is_quoted(word.image(), span)
++        });
++        result.push(OriginalSourceFormalName::new(
++            formal.name.as_bytes().to_vec(),
++            span,
++            quoted,
++        ));
++    }
++    (result.len() == parameters.len()).then_some(result)
++}
++
+ /// Construct a conditional authored declaration slot in its retained namespace.
+ /// This does not invoke the native publication recipe or allocate a command.
+ pub(super) fn source_procedure_key(
+@@ -355,6 +405,89 @@
+             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+             tcl_lexer::LexerConfig::for_profile(Some(profile)),
+         )
++    }
++
++    #[test]
++    fn logical_formal_source_geometry_survives_same_labels_and_missing_reports() {
++        let input = input();
++        let context = input.context_registry();
++        let registry = context.commands();
++        let source = r#"proc p {first {"as" ""} {third value}} {return FIRST}
++proc p "other {last default}" {return SECOND}"#;
++        let mut analysis = crate::analyser::Analyser::new()
++            .with_resolved_input(input.clone())
++            .analyse(source, input.analyser_profile().name);
++        let declarations = analysis
++            .original_procedure_declarations()
++            .cloned()
++            .collect::<Vec<_>>();
++        assert_eq!(declarations.len(), 2);
++        analysis.all_procs.clear();
++        analysis.superseded_procs.clear();
++        for (declaration, expected) in declarations
++            .iter()
++            .zip([vec!["first", "as", "third"], vec!["other", "last"]])
++        {
++            assert!(
++                analysis
++                    .original_procedure_formals(declaration, registry)
++                    .is_none()
++            );
++            let fields = analysis
++                .original_procedure_formal_name_sources(declaration, registry)
++                .expect("independent actual Logical source recipe");
++            assert_eq!(
++                fields.iter().map(|field| field.name()).collect::<Vec<_>>(),
++                expected
++                    .iter()
++                    .map(|name| name.as_bytes())
++                    .collect::<Vec<_>>()
++            );
++            for (field, name) in fields.iter().zip(expected) {
++                assert_eq!(&source[field.source_span().unwrap().as_range()], name);
++                assert_eq!(field.quoted_marker(), name == "as");
++            }
++        }
++        let mut foreign = tcl_registry::CommandRegistry::build_default();
++        let mut added = foreign.get("set").unwrap().clone();
++        added.name = "foreign_formal_probe";
++        foreign.insert(added);
++        assert!(
++            analysis
++                .original_procedure_formal_name_sources(&declarations[0], &foreign)
++                .is_none()
++        );
++        analysis.resolved_input = None;
++        assert!(
++            analysis
++                .original_procedure_formal_name_sources(&declarations[0], registry)
++                .is_none()
++        );
++    }
++
++    #[test]
++    fn escaped_logical_formal_parent_keeps_names_without_fabricating_spans() {
++        let input = input();
++        let context = input.context_registry();
++        let registry = context.commands();
++        let source = r#"proc p "first\x20second" {return VALUE}"#;
++        let analysis = crate::analyser::Analyser::new()
++            .with_resolved_input(input.clone())
++            .analyse(source, input.analyser_profile().name);
++        let declaration = analysis.original_procedure_declarations().next().unwrap();
++        let fields = analysis
++            .original_procedure_formal_name_sources(declaration, registry)
++            .unwrap();
++        assert_eq!(
++            fields.iter().map(|field| field.name()).collect::<Vec<_>>(),
++            [b"first".as_slice(), b"second".as_slice()]
++        );
++        assert!(fields.iter().all(|field| field.source_span().is_none()));
++        assert!(
++            analysis
++                .original_procedure_formals(declaration, registry)
++                .is_none()
++        );
+     }
+ 
+     fn final_presence(source: &str, input: &ResolvedAnalysisInput) -> SourceCommandSlotPresence {
+--- a/rust/tcl-compiler/src/interprocedural/transfer.rs
++++ b/rust/tcl-compiler/src/interprocedural/transfer.rs
+@@ -960,6 +960,11 @@
+         })
+     }
+ 
++    /// Retained source Module; callers still own their declaration/input joins.
++    pub(crate) const fn original_source_module(&self) -> &'a crate::ir::Module {
++        self.ir
++    }
++
+     /// Reborrow this function's complete input only under the same Module owner.
+     pub(crate) fn invocation_metadata_context_for_function<'f>(
+         &self,
+--- a/rust/tcl-compiler/src/signature_scan/formal_parameters.rs
++++ b/rust/tcl-compiler/src/signature_scan/formal_parameters.rs
+@@ -24,6 +24,49 @@
+ pub struct SignatureSourceFormalField {
+     input: SignatureSourceNameInput,
+     span: Option<tcl_lexer::Span>,
++}
++
++/// Readonly name bytes and optional original name extent. Quote markers are
++/// source conventions; these rows supply no frame, cell or edit permission.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct OriginalSourceFormalName {
++    name: Vec<u8>,
++    span: Option<tcl_lexer::Span>,
++    quoted_marker: bool,
++}
++
++impl OriginalSourceFormalName {
++    pub(crate) fn new(name: Vec<u8>, span: Option<tcl_lexer::Span>, quoted_marker: bool) -> Self {
++        Self {
++            name,
++            span,
++            quoted_marker,
++        }
++    }
++
++    #[must_use]
++    pub fn name(&self) -> &[u8] {
++        &self.name
++    }
++
++    #[must_use]
++    pub const fn source_span(&self) -> Option<tcl_lexer::Span> {
++        self.span
++    }
++
++    #[must_use]
++    pub const fn quoted_marker(&self) -> bool {
++        self.quoted_marker
++    }
++
++    pub(crate) fn source_is_quoted(image: &tcl_lexer::SourceImage, span: tcl_lexer::Span) -> bool {
++        let bytes = image.bytes();
++        span.start()
++            .checked_sub(1)
++            .and_then(|start| bytes.get(start as usize))
++            == Some(&b'"')
++            && bytes.get(span.end() as usize) == Some(&b'"')
++    }
+ }
+ 
+ impl SignatureSourceFormalField {
+@@ -92,6 +135,23 @@
+     #[must_use]
+     pub fn name_field(&self, parameter: usize) -> Option<SignatureSourceFormalField> {
+         self.original_field(parameter, 0)
++    }
++
++    /// Name bytes and readonly original source geometry from this retained
++    /// Native topology, independently of declaration or activation liveness.
++    #[must_use]
++    pub fn name_sources(&self) -> Vec<OriginalSourceFormalName> {
++        self.parameters
++            .iter()
++            .enumerate()
++            .map(|(index, formal)| {
++                let span = self.name_field(index).and_then(|field| field.source_span());
++                let quoted = span.is_some_and(|span| {
++                    OriginalSourceFormalName::source_is_quoted(self.input.source_image(), span)
++                });
++                OriginalSourceFormalName::new(formal.name.clone(), span, quoted)
++            })
++            .collect()
+     }
+ 
+     /// Exact optional second specifier field. Jim rest-name semantics remain

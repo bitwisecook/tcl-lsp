@@ -1,0 +1,888 @@
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -64,6 +64,7 @@
+ mod incomplete_body_metadata;
+ mod logical_definition;
+ mod logical_operation;
++mod logical_prefix;
+ mod materialized_footprint;
+ mod native_list_assignment;
+ mod original_callback_lookup;
+@@ -1414,6 +1415,7 @@
+     /// Original producers of captured prefix values, joined at every actual
+     /// alias allocation. They supply no written operand or compiler geometry.
+     original_prepended: Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>>,
++    logical_original_prefix: Option<logical_prefix::LogicalCapturedCommandPrefix>,
+     /// Only registry-backed implementations may select registry semantics.
+     pub registry_backed: bool,
+     /// Registry, procedure, object, or generic implementation category.
+@@ -1426,6 +1428,21 @@
+     pub implementation_allocation: Option<CommandAllocation>,
+ }
+ 
++impl SourceInvocationBinding {
++    pub(crate) fn original_logical_prefix_source_input(
++        &self,
++    ) -> Option<&crate::analyser::ResolvedAnalysisInput> {
++        let state = &self.lookup_state.as_ref()?.state;
++        let input = state.logical_source_name_advice_input()?;
++        (input.has_logical_source_name_context()
++            && state.baseline.native_entry.is_none()
++            && !state.baseline.unknown_entry
++            && state.baseline.execution_name_policy.is_none()
++            && state.baseline.hosted_execution_context.is_none())
++        .then_some(input)
++    }
++}
++
+ impl SourceCommandTarget {
+     /// Captured prefix inputs from this exact selected implementation chain.
+     /// A missing or conflicting producer never falls back to literal bytes.
+@@ -1436,6 +1453,24 @@
+         let inputs = self.original_prepended.as_deref()?;
+         (inputs.len() == self.prepended.len()).then_some(inputs)
+     }
++    /// Genuine captured Logical source words, independently of Native prefix inputs.
++    pub(crate) fn original_logical_prepended_name_inputs(
++        &self,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        image: &tcl_lexer::SourceImage,
++        config: tcl_lexer::LexerConfig,
++    ) -> Option<&[crate::signature_scan::scope::SignatureSourceNameInput]> {
++        let prefix = self.logical_original_prefix.as_ref()?;
++        (prefix.matches_source_input(input, image, config)
++            && prefix.inputs().len() == self.prepended.len()
++            && prefix
++                .inputs()
++                .iter()
++                .zip(&self.prepended)
++                .all(|(input, word)| word.literal_bytes() == Some(input.bytes())))
++        .then(|| prefix.inputs())
++    }
++
+     /// Original registry descriptor identity, independent of the current slot.
+     /// Native issuers preserve their exact identifier bytes; authored registry
+     /// rows may use a rooted descriptor name. This supplies no lookup spelling.
+@@ -12021,6 +12056,7 @@
+                     command: target.command,
+                     prepended: target.prepended,
+                     original_prepended,
++                    logical_original_prefix: None,
+                     registry_backed: target.registry_backed,
+                     kind: target.kind,
+                     identity: target.token,
+@@ -12080,6 +12116,8 @@
+     let (declared_command, catalogue_command) =
+         state.original_advice_candidates_for_metadata(namespace_key.as_ref(), head);
+     let keys = state.source_keys(head, namespace);
++    let selection =
++        state.resolve_targets_with_prefixes_in(head, namespace, &mut BTreeSet::new(), lookup);
+     let may_be_absent = keys.last().is_none_or(|key| {
+         state
+             .binding_alternatives(key)
+@@ -12148,20 +12186,29 @@
+         frozen_written_names: None,
+         frozen_head_object: None,
+         method_prefix_arguments: Vec::new(),
+-        targets: state
+-            .resolve_targets_in(head, namespace, &mut BTreeSet::new(), lookup)
++        targets: selection
++            .targets
+             .into_iter()
+-            .map(|target| SourceCommandTarget {
+-                runtime_implementation_generation: state
+-                    .runtime_implementation_generation(target.token.as_ref()),
+-                command: target.command,
+-                prepended: target.prepended,
+-                original_prepended: None,
+-                registry_backed: target.registry_backed,
+-                kind: target.kind,
+-                identity: target.token,
+-                implementation_generation: target.implementation_generation,
+-                implementation_allocation: target.implementation_allocation,
++            .map(|target| {
++                let logical_original_prefix = selection
++                    .prefixes
++                    .get(&target)
++                    .cloned()
++                    .flatten()
++                    .filter(|_| !target.prepended.is_empty());
++                SourceCommandTarget {
++                    runtime_implementation_generation: state
++                        .runtime_implementation_generation(target.token.as_ref()),
++                    command: target.command,
++                    prepended: target.prepended,
++                    original_prepended: None,
++                    logical_original_prefix,
++                    registry_backed: target.registry_backed,
++                    kind: target.kind,
++                    identity: target.token,
++                    implementation_generation: target.implementation_generation,
++                    implementation_allocation: target.implementation_allocation,
++                }
+             })
+             .collect(),
+         may_be_absent,
+@@ -12208,6 +12255,8 @@
+ #[allow(clippy::struct_excessive_bools)] // Mirrors independent monotone observation axes.
+ struct NonBindingObservationStamp {
+     original_command_world: Arc<source_command_world::OriginalSourceCommandWorld>,
++    logical_alias_prefixes:
++        Arc<BTreeMap<ResolvedCommandTarget, Option<Arc<logical_prefix::LogicalAliasPrefix>>>>,
+     ordinary_literal_pool: Option<literal_object_pool::SourceOrdinaryLiteralPool>,
+     class_definitions: Arc<BTreeMap<CommandIdentity, ClassDefinitionReceipt>>,
+     object_instances: Arc<object_instance::SourceObjectState>,
+@@ -12299,6 +12348,8 @@
+ pub struct ModuleCommandBindings {
+     /// Canonical original byte publications and modeled namespace geometry.
+     original_command_world: Arc<source_command_world::OriginalSourceCommandWorld>,
++    logical_alias_prefixes:
++        Arc<BTreeMap<ResolvedCommandTarget, Option<Arc<logical_prefix::LogicalAliasPrefix>>>>,
+     current_source_origin: Option<Arc<SourceOriginId>>,
+     /// Original fresh pool provenance, permanently withdrawn by unknown host
+     /// or object methods. New result objects cannot restore this history.
+@@ -12404,6 +12455,7 @@
+         // equal even though each owns a distinct baseline allocation.
+         self.baseline == other.baseline
+             && self.original_command_world == other.original_command_world
++            && self.logical_alias_prefixes == other.logical_alias_prefixes
+             && self.current_source_origin == other.current_source_origin
+             && self.ordinary_literal_pool == other.ordinary_literal_pool
+             && self.allocation_counts == other.allocation_counts
+@@ -13344,6 +13396,7 @@
+         Arc::ptr_eq(&self.baseline, &other.baseline)
+             && (Arc::ptr_eq(&self.original_command_world, &other.original_command_world)
+                 || self.original_command_world == other.original_command_world)
++            && self.logical_alias_prefixes == other.logical_alias_prefixes
+             && self.ordinary_literal_pool == other.ordinary_literal_pool
+             && self.class_definitions == other.class_definitions
+             && self.object_instances == other.object_instances
+@@ -13383,6 +13436,7 @@
+     fn non_binding_observation_stamp(&self) -> NonBindingObservationStamp {
+         NonBindingObservationStamp {
+             original_command_world: Arc::clone(&self.original_command_world),
++            logical_alias_prefixes: Arc::clone(&self.logical_alias_prefixes),
+             ordinary_literal_pool: self.ordinary_literal_pool.clone(),
+             class_definitions: Arc::clone(&self.class_definitions),
+             object_instances: Arc::clone(&self.object_instances),
+@@ -13422,6 +13476,7 @@
+ impl std::hash::Hash for ModuleCommandBindings {
+     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+         self.original_command_world.hash(state);
++        self.logical_alias_prefixes.hash(state);
+         self.current_source_origin.hash(state);
+         self.ordinary_literal_pool.hash(state);
+         self.allocation_counts.hash(state);
+@@ -13947,6 +14002,7 @@
+         if top_level_root {
+             initial.bindings = Arc::new(SourceCommandTable::default());
+             initial.root_boundary_bindings = Arc::new(SourceCommandTable::default());
++            initial.logical_alias_prefixes = Arc::new(BTreeMap::new());
+             initial.opaque_domain = false;
+             initial.opaque_binding_mutation = false;
+             initial.dynamic_proc_binding = false;
+@@ -15165,7 +15221,18 @@
+         visiting: &mut BTreeSet<SourceCommandKey>,
+         lookup: CommandTargetLookup,
+     ) -> BTreeSet<ResolvedCommandTarget> {
+-        let mut resolved = BTreeSet::new();
++        self.resolve_targets_with_prefixes_in(name, namespace, visiting, lookup)
++            .targets
++    }
++
++    fn resolve_targets_with_prefixes_in(
++        &self,
++        name: &str,
++        namespace: &(impl NamespaceKeyQuery + ?Sized),
++        visiting: &mut BTreeSet<SourceCommandKey>,
++        lookup: CommandTargetLookup,
++    ) -> logical_prefix::LogicalPrefixResolution {
++        let mut resolved = logical_prefix::LogicalPrefixResolution::default();
+         let keys = self.source_keys(name, namespace);
+         for (index, key) in keys.iter().enumerate() {
+             if !visiting.insert(key.clone()) {
+@@ -15179,18 +15246,23 @@
+                             for implementation in implementations {
+                                 if let MayBinding::Target(target) = implementation {
+                                     if target.terminal {
+-                                        resolved.insert(target.clone());
++                                        resolved.insert(target.clone(), target.prepended.is_empty().then(|| logical_prefix::LogicalCapturedCommandPrefix::empty(self)).flatten());
+                                     } else {
+-                                        for mut terminal in self.resolve_targets_in(
++                                        let children = self.resolve_targets_with_prefixes_in(
+                                             &target.command,
+                                             &self.alias_target_namespace_key(target, namespace),
+                                             visiting,
+                                             lookup,
+-                                        ) {
++                                        );
++                                        for mut terminal in children.targets {
++                                            let prefix = self.compose_logical_alias_prefix(
++                                                target,
++                                                children.prefixes.get(&terminal).cloned().flatten(),
++                                            );
+                                             terminal
+                                                 .prepended
+                                                 .extend(target.prepended.iter().cloned());
+-                                            resolved.insert(terminal);
++                                            resolved.insert(terminal, prefix);
+                                         }
+                                     }
+                                 }
+@@ -15198,17 +15270,29 @@
+                         }
+                     }
+                     MayBinding::Target(target) if target.terminal => {
+-                        resolved.insert(target.clone());
++                        resolved.insert(
++                            target.clone(),
++                            target
++                                .prepended
++                                .is_empty()
++                                .then(|| logical_prefix::LogicalCapturedCommandPrefix::empty(self))
++                                .flatten(),
++                        );
+                     }
+                     MayBinding::Target(target) => {
+-                        for mut terminal in self.resolve_targets_in(
++                        let children = self.resolve_targets_with_prefixes_in(
+                             &target.command,
+                             &self.alias_target_namespace_key(target, namespace),
+                             visiting,
+                             lookup,
+-                        ) {
++                        );
++                        for mut terminal in children.targets {
++                            let prefix = self.compose_logical_alias_prefix(
++                                target,
++                                children.prefixes.get(&terminal).cloned().flatten(),
++                            );
+                             terminal.prepended.extend(target.prepended.iter().cloned());
+-                            resolved.insert(terminal);
++                            resolved.insert(terminal, prefix);
+                         }
+                     }
+                     MayBinding::Missing
+@@ -15216,7 +15300,9 @@
+                             && matches!(lookup, CommandTargetLookup::WithFallback)
+                             && !self.namespace_unknown_handlers.contains(namespace) =>
+                     {
+-                        resolved.extend(self.unresolved_targets(name, visiting));
++                        for target in self.unresolved_targets(name, visiting) {
++                            resolved.insert(target, None);
++                        }
+                     }
+                     MayBinding::Missing | MayBinding::Unknown => {}
+                 }
+@@ -15431,6 +15517,7 @@
+             changed |=
+                 Arc::make_mut(&mut self.original_command_world).join(&other.original_command_world);
+         }
++        changed |= self.join_logical_alias_prefixes(other);
+         changed |= self.join_lookup_support(other);
+         changed |= self.join_binding_history(other);
+         if !Arc::ptr_eq(&self.bindings, &other.bindings) && self.bindings != other.bindings {
+--- a/rust/tcl-compiler/src/command_binding/logical_operation.rs
++++ b/rust/tcl-compiler/src/command_binding/logical_operation.rs
+@@ -194,11 +194,22 @@
+         {
+             return None;
+         }
+-        let mut arguments = target
+-            .prepended
+-            .iter()
+-            .map(super::logical_definition::captured_static_value)
+-            .collect::<Option<Vec<_>>>()?;
++        let mut arguments = if target.prepended.is_empty() {
++            Vec::new()
++        } else {
++            let prefix = target.logical_original_prefix.as_ref()?;
++            prefix.matches_state(state).then_some(())?;
++            let input = state.logical_source_name_advice_input()?;
++            let captured = target.original_logical_prepended_name_inputs(
++                input,
++                state.current_source_origin.as_ref()?.source_image(),
++                context.config,
++            )?;
++            captured
++                .iter()
++                .map(|input| std::str::from_utf8(input.bytes()).ok().map(str::to_owned))
++                .collect::<Option<Vec<_>>>()?
++        };
+         arguments.extend(values.into_iter().skip(1));
+         Some(Self {
+             words: original,
+@@ -400,6 +411,13 @@
+                     if selected.unknown {
+                         return None;
+                     }
++                    retain_logical_alias_prefix(
++                        original,
++                        transition,
++                        &mut candidate,
++                        offset,
++                        context,
++                    )?;
+                 }
+             }
+             _ => return None,
+@@ -409,6 +427,87 @@
+         return None;
+     }
+     *state = candidate;
++    Some(())
++}
++
++fn retain_logical_alias_prefix(
++    original: &LogicalOriginalInvocation,
++    transition: &CommandBindingTransition,
++    state: &mut ModuleCommandBindings,
++    offset: u32,
++    context: SourceExecutionContext<'_>,
++) -> Option<()> {
++    let CommandBindingTransition::Alias {
++        alias, arguments, ..
++    } = transition
++    else {
++        return None;
++    };
++    let input = super::logical_definition::logical_entry(state, context)?.clone();
++    let site = super::CommandAllocationSite {
++        source: Arc::clone(state.current_source_origin.as_ref()?),
++        offset,
++    };
++    (original.words.first()?.span().start() == offset).then_some(())?;
++    let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
++        .authored_name_policy()?;
++    (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
++        == Some(policy))
++    .then_some(())?;
++    let purpose =
++        crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
++            &input, None, policy,
++        );
++    let captured = arguments
++        .iter()
++        .map(|subject| {
++            let effective = subject.argument_index()?;
++            let value = original.arguments.get(effective)?;
++            (subject.literal() == Some(value.as_str())).then_some(())?;
++            let input = if effective < original.target.prepended.len() {
++                original
++                    .target
++                    .logical_original_prefix
++                    .as_ref()?
++                    .inputs()
++                    .get(effective)?
++                    .clone()
++            } else {
++                let written = effective
++                    .checked_sub(original.target.prepended.len())?
++                    .checked_add(1)?;
++                let word = original.words.get(written)?;
++                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(purpose.key(
++                    word,
++                    tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
++                )?)
++            };
++            (input.bytes() == value.as_bytes() && input.policy() == policy).then_some(input)
++        })
++        .collect::<Option<Vec<_>>>()?;
++    let key = state.publication_key_at(
++        &SourceNamespaceKey::authored("::"),
++        alias.literal()?,
++        super::namespace_slots::PublicationPurpose::Alias,
++    )?;
++    let bindings = state.binding_alternatives(&key);
++    let mut targets = bindings.iter().filter_map(|binding| match binding {
++        MayBinding::Target(target) if !target.terminal && target.kind == BindingKind::Alias => {
++            Some(target)
++        }
++        _ => None,
++    });
++    let target = targets.next()?.clone();
++    (targets.next().is_none() && bindings.len() == 1 && target.prepended.len() == captured.len())
++        .then_some(())?;
++    let receipt = super::logical_prefix::LogicalAliasPrefix {
++        input,
++        site,
++        words: original.words.clone(),
++        arguments: captured,
++        parent: original.target.logical_original_prefix.clone(),
++    };
++    Arc::make_mut(&mut state.logical_alias_prefixes).insert(target, Some(Arc::new(receipt)));
+     Some(())
+ }
+ 
+@@ -703,6 +802,111 @@
+                 .count(),
+             1
+         );
++    }
++
++    #[test]
++    fn logical_captured_prefix_keeps_original_words_without_native_prefix_permission() {
++        for source in [
++            "interp alias {} branch {} if 1\nbranch {puts $value}",
++            "interp alias {} inner {} if 1\ninterp alias {} branch {} inner\nbranch {puts $value}",
++        ] {
++            let input = input();
++            let analysis = Analyser::new()
++                .with_resolved_input(input.clone())
++                .analyse(source, "tcl");
++            let head = u32::try_from(source.rfind("branch {").unwrap()).unwrap();
++            let binding = analysis
++                .retained_command_realm()
++                .unwrap()
++                .invocation_at_source("", head);
++            let [target] = binding.targets.as_slice() else {
++                panic!("one actual Logical alias target")
++            };
++            let image = tcl_lexer::SourceImage::document(source);
++            let captured = target
++                .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
++                .unwrap();
++            assert_eq!(captured.len(), 1);
++            assert_eq!(captured[0].bytes(), b"1");
++            assert_eq!(
++                captured[0].policy().authority(),
++                tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
++            );
++            assert_eq!(
++                captured[0]
++                    .original_word_key()
++                    .unwrap()
++                    .original_word()
++                    .image(),
++                &image
++            );
++            assert!(target.original_prepended_name_inputs().is_none());
++            assert!(binding.proved_handler_target().is_none());
++            let stale = tcl_lexer::SourceImage::document(&format!("{source} "));
++            assert!(
++                target
++                    .original_logical_prepended_name_inputs(&input, &stale, input.lexer_config())
++                    .is_none()
++            );
++            let mut changed = input.lexer_config();
++            changed.strict_quoting = !changed.strict_quoting;
++            assert!(
++                target
++                    .original_logical_prepended_name_inputs(&input, &image, changed)
++                    .is_none()
++            );
++            let foreign = ResolvedAnalysisInput::new(
++                input.analyser_profile(),
++                input.unit_profile(),
++                Arc::new(
++                    input.context_registry().with_command_store(
++                        input
++                            .context_registry()
++                            .commands()
++                            .snapshot()
++                            .shared_registry(),
++                    ),
++                ),
++                input.lexer_config(),
++            );
++            assert!(
++                target
++                    .original_logical_prepended_name_inputs(&foreign, &image, input.lexer_config())
++                    .is_none()
++            );
++            let mut changed = target.clone();
++            changed.prepended[0] =
++                crate::registry_invocation::EffectiveInvocationWord::Literal("0".to_owned());
++            assert!(
++                changed
++                    .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
++                    .is_none()
++            );
++            let state = &binding.lookup_state.as_ref().unwrap().state;
++            let cloned = state.clone();
++            assert!(
++                target
++                    .logical_original_prefix
++                    .as_ref()
++                    .unwrap()
++                    .matches_state(&cloned)
++            );
++            let mut missing = cloned.clone();
++            missing.logical_alias_prefixes = Arc::new(std::collections::BTreeMap::new());
++            assert_ne!(&missing, state);
++            let mut joined = cloned;
++            joined.join(&missing);
++            let unavailable = super::source_binding_projection(
++                &joined,
++                "branch",
++                &SourceNamespaceKey::authored("::"),
++            );
++            assert!(unavailable.targets.iter().all(|target| {
++                target
++                    .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
++                    .is_none()
++            }));
++        }
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/command_binding/source_read_scope.rs
++++ b/rust/tcl-compiler/src/command_binding/source_read_scope.rs
+@@ -202,7 +202,16 @@
+             return false;
+         }
+         if !prefix.is_empty() {
+-            let Some(inputs) = target.original_prepended_name_inputs() else {
++            let inputs = if let Some(input) = advice.logical_source_input() {
++                target.original_logical_prepended_name_inputs(
++                    input,
++                    advice.site().source.source_image(),
++                    input.lexer_config(),
++                )
++            } else {
++                target.original_prepended_name_inputs()
++            };
++            let Some(inputs) = inputs else {
+                 return false;
+             };
+             let captured = advice.arguments().iter().filter(|word| {
+--- a/rust/tcl-compiler/src/command_binding/native_class_factory_roles.rs
++++ b/rust/tcl-compiler/src/command_binding/native_class_factory_roles.rs
+@@ -454,6 +454,7 @@
+         command: raw.command.clone(),
+         prepended: raw.prepended.clone(),
+         original_prepended: None,
++        logical_original_prefix: None,
+         registry_backed: raw.registry_backed,
+         kind: raw.kind,
+         identity: raw.token.clone(),
+--- a/rust/tcl-compiler/src/command_binding/source_command_world.rs
++++ b/rust/tcl-compiler/src/command_binding/source_command_world.rs
+@@ -1112,6 +1112,7 @@
+             command: raw.command.clone(),
+             prepended: raw.prepended.clone(),
+             original_prepended: None,
++            logical_original_prefix: None,
+             registry_backed: raw.registry_backed,
+             kind: raw.kind,
+             identity: raw.token.clone(),
+--- a/rust/tcl-compiler/src/command_binding/compiled_invocation.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_invocation.rs
+@@ -466,6 +466,7 @@
+                     command: target.command,
+                     prepended: target.prepended,
+                     original_prepended: None,
++                    logical_original_prefix: None,
+                     registry_backed: target.registry_backed,
+                     kind: target.kind,
+                     identity: target.token,
+@@ -605,6 +606,7 @@
+                 command: target.command,
+                 prepended: target.prepended,
+                 original_prepended: None,
++                logical_original_prefix: None,
+                 registry_backed: target.registry_backed,
+                 kind: target.kind,
+                 identity: target.token,
+--- a/rust/tcl-compiler/src/command_binding/deferred_method.rs
++++ b/rust/tcl-compiler/src/command_binding/deferred_method.rs
+@@ -2109,6 +2109,7 @@
+         command: target.command,
+         prepended: target.prepended,
+         original_prepended: None,
++        logical_original_prefix: None,
+         registry_backed: target.registry_backed,
+         kind: target.kind,
+         identity: target.token,
+--- a/rust/tcl-compiler/src/command_binding/registered_class_factory.rs
++++ b/rust/tcl-compiler/src/command_binding/registered_class_factory.rs
+@@ -74,6 +74,7 @@
+                             command: raw.command,
+                             prepended: raw.prepended,
+                             original_prepended: None,
++                            logical_original_prefix: None,
+                             registry_backed: raw.registry_backed,
+                             kind: raw.kind,
+                             identity: raw.token,
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -832,6 +832,19 @@
+     for target in advice.targets() {
+         if !target.registry_backed {
+             return None;
++        }
++        if !target.prepended.is_empty() && context.permits_logical_source_names() {
++            let purpose = tokens
++                .source_binding
++                .as_ref()?
++                .original_source_advice_purpose(tokens, context, registry)?;
++            if purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical {
++                original_logical_prefix_for_tokens(
++                    tokens,
++                    target,
++                    context.source_analysis_input()?,
++                )?;
++            }
+         }
+         let effective =
+             compose_original_effective_words(tokens, &target.command, &target.prepended)?;
+@@ -4567,11 +4580,32 @@
+     }
+ }
+ 
++fn original_logical_prefix_for_tokens<'a>(
++    tokens: &CommandTokens,
++    target: &'a crate::command_binding::SourceCommandTarget,
++    input: &crate::analyser::ResolvedAnalysisInput,
++) -> Option<&'a [crate::signature_scan::scope::SignatureSourceNameInput]> {
++    let binding = tokens.source_binding.as_ref()?;
++    target.original_logical_prepended_name_inputs(
++        input,
++        binding.invocation_site()?.source.source_image(),
++        binding.original_lexer_config_for_tokens(tokens)?,
++    )
++}
++
+ /// Compose a single candidate using the same ordering as proved dispatch.
+ pub(crate) fn effective_words_for_target(
+     tokens: &CommandTokens,
+     target: &crate::command_binding::SourceCommandTarget,
+ ) -> Option<EffectiveCommandWords> {
++    if !target.prepended.is_empty()
++        && let Some(input) = tokens
++            .source_binding
++            .as_ref()
++            .and_then(|binding| binding.original_logical_prefix_source_input())
++    {
++        original_logical_prefix_for_tokens(tokens, target, input)?;
++    }
+     let mut effective = compose_effective_words(tokens, &target.command, &target.prepended)?;
+     if let Some(named) = tokens
+         .source_binding
+@@ -4587,6 +4621,14 @@
+     tokens: &CommandTokens,
+     target: &crate::command_binding::SourceCommandTarget,
+ ) -> Option<EffectiveCommandWords> {
++    if !target.prepended.is_empty()
++        && let Some(input) = tokens
++            .source_binding
++            .as_ref()
++            .and_then(|binding| binding.original_logical_prefix_source_input())
++    {
++        original_logical_prefix_for_tokens(tokens, target, input)?;
++    }
+     // Source descriptors retain their selectors; private handler argv does not.
+     compose_effective_words(tokens, &target.command, &target.prepended)
+ }
+--- /dev/null
++++ b/rust/tcl-compiler/src/command_binding/logical_prefix.rs
+@@ -0,0 +1,209 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Original captured words in the independently retained Logical alias model.
++
++use super::{
++    Arc, BTreeMap, CommandAllocationSite, ModuleCommandBindings, ResolvedCommandTarget,
++    SourceOriginId,
++};
++use crate::analyser::ResolvedAnalysisInput;
++use crate::signature_scan::scope::SignatureSourceNameInput;
++use tcl_lexer::{LexerConfig, NativeWord, SourceImage};
++
++#[derive(Debug, Clone, PartialEq, Eq, Hash)]
++pub(super) struct LogicalAliasPrefix {
++    pub(super) input: ResolvedAnalysisInput,
++    pub(super) site: CommandAllocationSite,
++    pub(super) words: Vec<NativeWord>,
++    pub(super) arguments: Vec<SignatureSourceNameInput>,
++    pub(super) parent: Option<LogicalCapturedCommandPrefix>,
++}
++
++#[derive(Debug, Clone, PartialEq, Eq, Hash)]
++pub(super) struct LogicalCapturedCommandPrefix {
++    input: ResolvedAnalysisInput,
++    source: Arc<SourceOriginId>,
++    inputs: Vec<SignatureSourceNameInput>,
++    recipes: Vec<Arc<LogicalAliasPrefix>>,
++}
++
++impl LogicalCapturedCommandPrefix {
++    pub(super) fn empty(state: &ModuleCommandBindings) -> Option<Self> {
++        let input = state.logical_source_name_advice_input()?;
++        if !input.has_logical_source_name_context()
++            || state.baseline.native_entry.is_some()
++            || state.baseline.unknown_entry
++            || state.baseline.execution_name_policy.is_some()
++            || state.baseline.hosted_execution_context.is_some()
++            || state.has_opaque_domain()
++            || !state.command_observers.is_quiet()
++        {
++            return None;
++        }
++        Some(Self {
++            input: input.clone(),
++            source: Arc::clone(state.current_source_origin.as_ref()?),
++            inputs: Vec::new(),
++            recipes: Vec::new(),
++        })
++    }
++
++    pub(super) fn from_alias(
++        state: &ModuleCommandBindings,
++        target: &ResolvedCommandTarget,
++    ) -> Option<Self> {
++        let mut prefix = Self::empty(state)?;
++        let receipt = state.logical_alias_prefixes.get(target)?.as_ref()?;
++        if receipt.input != prefix.input
++            || receipt.site.source != prefix.source
++            || receipt.words.first()?.span().start() != receipt.site.offset
++            || receipt.words.iter().any(|word| {
++                word.image() != prefix.source.source_image()
++                    || word.config() != receipt.input.lexer_config()
++            })
++            || receipt.arguments.len() != target.prepended.len()
++            || receipt
++                .arguments
++                .iter()
++                .zip(&target.prepended)
++                .any(|(input, value)| value.literal_bytes() != Some(input.bytes()))
++        {
++            return None;
++        }
++        prefix.inputs.clone_from(&receipt.arguments);
++        prefix.recipes.push(Arc::clone(receipt));
++        Some(prefix)
++    }
++
++    pub(super) fn append(&mut self, other: &Self) -> Option<()> {
++        if self.input != other.input || self.source != other.source {
++            return None;
++        }
++        self.inputs.extend(other.inputs.iter().cloned());
++        self.recipes.extend(other.recipes.iter().cloned());
++        Some(())
++    }
++
++    pub(super) fn matches_state(&self, state: &ModuleCommandBindings) -> bool {
++        Self::empty(state)
++            .is_some_and(|current| self.input == current.input && self.source == current.source)
++    }
++
++    pub(super) fn inputs(&self) -> &[SignatureSourceNameInput] {
++        &self.inputs
++    }
++
++    pub(super) fn matches_source_input(
++        &self,
++        input: &ResolvedAnalysisInput,
++        image: &SourceImage,
++        config: LexerConfig,
++    ) -> bool {
++        let Some(policy) = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
++            .authored_name_policy()
++        else {
++            return false;
++        };
++        input.has_logical_source_name_context()
++            && tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy() == Some(policy)
++            && self.inputs.iter().all(|input| {
++                let Some(key) = input.original_word_key() else { return false; };
++                let word = key.original_word();
++                word.image() == image && word.config() == config
++                    && crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
++                        word, tcl_syntax::word_rules::WordValueRules::from_config(&config), policy,
++                    ).as_ref() == Some(key)
++            })
++            && &self.input == input
++            && config == input.lexer_config()
++            && self.source.source_image() == image
++            && self.recipes.iter().all(|receipt| {
++                receipt.input == *input
++                    && receipt.site.source == self.source
++                    && receipt
++                        .words
++                        .iter()
++                        .all(|word| word.image() == image && word.config() == config)
++                    && receipt
++                        .parent
++                        .as_ref()
++                        .is_none_or(|parent| parent.matches_source_input(input, image, config))
++            })
++    }
++}
++
++#[derive(Default)]
++pub(super) struct LogicalPrefixResolution {
++    pub(super) targets: super::BTreeSet<ResolvedCommandTarget>,
++    pub(super) prefixes: BTreeMap<ResolvedCommandTarget, Option<LogicalCapturedCommandPrefix>>,
++}
++
++impl LogicalPrefixResolution {
++    pub(super) fn insert(
++        &mut self,
++        target: ResolvedCommandTarget,
++        prefix: Option<LogicalCapturedCommandPrefix>,
++    ) {
++        if self.targets.contains(&target) {
++            if self.prefixes.get(&target) != Some(&prefix) {
++                self.prefixes.insert(target.clone(), None);
++            }
++        } else if prefix.is_some() {
++            self.prefixes.insert(target.clone(), prefix);
++        }
++        self.targets.insert(target);
++    }
++}
++
++impl ModuleCommandBindings {
++    pub(super) fn join_logical_alias_prefixes(&mut self, other: &Self) -> bool {
++        if self.logical_alias_prefixes == other.logical_alias_prefixes {
++            return false;
++        }
++        let keys = self
++            .logical_alias_prefixes
++            .keys()
++            .chain(other.logical_alias_prefixes.keys())
++            .cloned()
++            .collect::<super::BTreeSet<_>>();
++        let mut joined = self.logical_alias_prefixes.as_ref().clone();
++        for target in keys {
++            let left = self.logical_alias_prefixes.get(&target);
++            let right = other.logical_alias_prefixes.get(&target);
++            let receipt = match (left, right) {
++                (Some(left), Some(right)) if left == right => left.clone(),
++                (Some(left), None) if !other.has_logical_alias_prototype(&target) => left.clone(),
++                (None, Some(right)) if !self.has_logical_alias_prototype(&target) => right.clone(),
++                _ => None,
++            };
++            joined.insert(target, receipt);
++        }
++        if joined == *self.logical_alias_prefixes {
++            return false;
++        }
++        self.logical_alias_prefixes = Arc::new(joined);
++        true
++    }
++
++    fn has_logical_alias_prototype(&self, target: &ResolvedCommandTarget) -> bool {
++        self.bindings
++            .iter()
++            .map(|(_, bindings)| bindings)
++            .chain(self.objects.values())
++            .any(|bindings| bindings.contains(&super::MayBinding::Target(target.clone())))
++    }
++}
++
++impl ModuleCommandBindings {
++    pub(super) fn compose_logical_alias_prefix(
++        &self,
++        target: &ResolvedCommandTarget,
++        child: Option<LogicalCapturedCommandPrefix>,
++    ) -> Option<LogicalCapturedCommandPrefix> {
++        let mut prefix = child?;
++        prefix.append(&LogicalCapturedCommandPrefix::from_alias(self, target)?)?;
++        Some(prefix)
++    }
++}

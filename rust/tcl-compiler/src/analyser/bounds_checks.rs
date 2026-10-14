@@ -625,11 +625,6 @@ fn plan_words<'a>(
     }
 }
 
-/// The catalogue's registry, for an analyse with none.
-pub(super) fn default_registry<'a>() -> &'a tcl_registry::CommandRegistry {
-    tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
-}
-
 /// The loop's counter ([`LoopCounter`]): the condition is `$v OP INT`, and
 /// either the counted plan's step script is one integer increment of `v`, or
 /// the conditional plan's body holds exactly one at its top level; nothing
@@ -1960,7 +1955,7 @@ mod tests {
     /// route over literal words from 0: no command is read by its spelling.
     #[test]
     fn the_step_runs_its_route() {
-        let registry = super::default_registry();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let step = |text: &str| {
             let cmd = sole_command(text, config()).expect("one command");
             super::command_increment(

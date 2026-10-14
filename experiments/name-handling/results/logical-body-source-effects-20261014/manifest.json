@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "before_sha256": "b51006f18bb4db58731aedcbc51d7176a13a5bbf52d2122d0d4c27e6263eb029",
+      "after_sha256": "1fbbbfbd11c6177b3c9b62b768c9896bf84ebf1036679b89db83877be437bb48"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "before_sha256": "c9574009809fd2d0e8d2c8b9fd1f9ee1c867cbddda10cddc38809ee67b845cad",
+      "after_sha256": "33baaac8cba986e0e8cf425786edfd26b21eafbf86d274259f2fe54d3715e42c"
+    }
+  ],
+  "patch_sha256": "0720b9cf8c6ee62004a1c877ebb959c0a6fcce4213130217fd762dcfe036d853",
+  "scope": "Move existing BodyWalk source effect adapter unchanged into AdviceInvocationContext and use it for deferred Logical source catalogue; preserve command-resolution writes/unknown barriers, separately retain variable/observer callback uncertainty. No top-level wider transition behaviour changed.",
+  "validation": "isolated rustfmt and apply-check only, Rust unexecuted",
+  "tests": [
+    "command_binding::source_transition_advice::logical_body::tests::logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate",
+    "command_binding::source_transition_advice::logical_body::tests::logical_deferred_source_body_keeps_mutations_and_cooked_geometry_separate",
+    "command_binding::source_transition_advice::body_effects::tests::logical_immediate_body_schema_keeps_original_geometry_and_unknown_effects_separate"
+  ]
+}

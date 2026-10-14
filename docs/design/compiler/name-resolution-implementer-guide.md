@@ -9481,6 +9481,19 @@ source frame/namespace, selected Registry target and actual availability. Static
 captured alias arguments compose with genuine written values under that same
 selected operation. The Proc-specific definition transfer remains independent.
 
+Use `SourceCommandTarget::original_logical_prepended_name_inputs` for captured
+arguments in the positively Logical source model. Supply the actual retained
+`ResolvedAnalysisInput`, whole `SourceImage` and original `LexerConfig`; do not
+construct prefix inputs from `target.prepended` values. The private
+`logical_prefix` owner retains complete original alias argv, original allocation
+and inherited captures alongside the existing target lookup. Source-read roles,
+declared layouts, effective argv and Logical value transfer consume this owner.
+Its image/configuration/context and authored-policy checks remain required after
+snapshot or join. Missing or conflicting provenance refuses the Logical
+projection. `original_prepended_name_inputs` remains the separate Native owner;
+Native/hosted entries cannot borrow the Logical carrier. Neither carrier alone
+grants a reached handler, entered frame or edit span.
+
 The selected scalar store updates quiet symbolic contents only; dynamic
 bindings/traces, observers, arrays, physical storage identities and missing/stale
 ownership refuse. Command moves/deletions/alias transitions require bounded

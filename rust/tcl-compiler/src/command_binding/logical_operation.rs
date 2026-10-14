@@ -194,11 +194,22 @@ impl LogicalOriginalInvocation {
         {
             return None;
         }
-        let mut arguments = target
-            .prepended
-            .iter()
-            .map(super::logical_definition::captured_static_value)
-            .collect::<Option<Vec<_>>>()?;
+        let mut arguments = if target.prepended.is_empty() {
+            Vec::new()
+        } else {
+            let prefix = target.logical_original_prefix.as_ref()?;
+            prefix.matches_state(state).then_some(())?;
+            let input = state.logical_source_name_advice_input()?;
+            let captured = target.original_logical_prepended_name_inputs(
+                input,
+                state.current_source_origin.as_ref()?.source_image(),
+                context.config,
+            )?;
+            captured
+                .iter()
+                .map(|input| std::str::from_utf8(input.bytes()).ok().map(str::to_owned))
+                .collect::<Option<Vec<_>>>()?
+        };
         arguments.extend(values.into_iter().skip(1));
         Some(Self {
             words: original,
@@ -400,6 +411,13 @@ fn command_transfer(
                     if selected.unknown {
                         return None;
                     }
+                    retain_logical_alias_prefix(
+                        original,
+                        transition,
+                        &mut candidate,
+                        offset,
+                        context,
+                    )?;
                 }
             }
             _ => return None,
@@ -409,6 +427,87 @@ fn command_transfer(
         return None;
     }
     *state = candidate;
+    Some(())
+}
+
+fn retain_logical_alias_prefix(
+    original: &LogicalOriginalInvocation,
+    transition: &CommandBindingTransition,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    let CommandBindingTransition::Alias {
+        alias, arguments, ..
+    } = transition
+    else {
+        return None;
+    };
+    let input = super::logical_definition::logical_entry(state, context)?.clone();
+    let site = super::CommandAllocationSite {
+        source: Arc::clone(state.current_source_origin.as_ref()?),
+        offset,
+    };
+    (original.words.first()?.span().start() == offset).then_some(())?;
+    let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+        .authored_name_policy()?;
+    (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
+        == Some(policy))
+    .then_some(())?;
+    let purpose =
+        crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+            &input, None, policy,
+        );
+    let captured = arguments
+        .iter()
+        .map(|subject| {
+            let effective = subject.argument_index()?;
+            let value = original.arguments.get(effective)?;
+            (subject.literal() == Some(value.as_str())).then_some(())?;
+            let input = if effective < original.target.prepended.len() {
+                original
+                    .target
+                    .logical_original_prefix
+                    .as_ref()?
+                    .inputs()
+                    .get(effective)?
+                    .clone()
+            } else {
+                let written = effective
+                    .checked_sub(original.target.prepended.len())?
+                    .checked_add(1)?;
+                let word = original.words.get(written)?;
+                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(purpose.key(
+                    word,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
+                )?)
+            };
+            (input.bytes() == value.as_bytes() && input.policy() == policy).then_some(input)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let key = state.publication_key_at(
+        &SourceNamespaceKey::authored("::"),
+        alias.literal()?,
+        super::namespace_slots::PublicationPurpose::Alias,
+    )?;
+    let bindings = state.binding_alternatives(&key);
+    let mut targets = bindings.iter().filter_map(|binding| match binding {
+        MayBinding::Target(target) if !target.terminal && target.kind == BindingKind::Alias => {
+            Some(target)
+        }
+        _ => None,
+    });
+    let target = targets.next()?.clone();
+    (targets.next().is_none() && bindings.len() == 1 && target.prepended.len() == captured.len())
+        .then_some(())?;
+    let receipt = super::logical_prefix::LogicalAliasPrefix {
+        input,
+        site,
+        words: original.words.clone(),
+        arguments: captured,
+        parent: original.target.logical_original_prefix.clone(),
+    };
+    Arc::make_mut(&mut state.logical_alias_prefixes).insert(target, Some(Arc::new(receipt)));
     Some(())
 }
 
@@ -703,6 +802,111 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn logical_captured_prefix_keeps_original_words_without_native_prefix_permission() {
+        for source in [
+            "interp alias {} branch {} if 1\nbranch {puts $value}",
+            "interp alias {} inner {} if 1\ninterp alias {} branch {} inner\nbranch {puts $value}",
+        ] {
+            let input = input();
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "tcl");
+            let head = u32::try_from(source.rfind("branch {").unwrap()).unwrap();
+            let binding = analysis
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", head);
+            let [target] = binding.targets.as_slice() else {
+                panic!("one actual Logical alias target")
+            };
+            let image = tcl_lexer::SourceImage::document(source);
+            let captured = target
+                .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
+                .unwrap();
+            assert_eq!(captured.len(), 1);
+            assert_eq!(captured[0].bytes(), b"1");
+            assert_eq!(
+                captured[0].policy().authority(),
+                tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+            );
+            assert_eq!(
+                captured[0]
+                    .original_word_key()
+                    .unwrap()
+                    .original_word()
+                    .image(),
+                &image
+            );
+            assert!(target.original_prepended_name_inputs().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            let stale = tcl_lexer::SourceImage::document(&format!("{source} "));
+            assert!(
+                target
+                    .original_logical_prepended_name_inputs(&input, &stale, input.lexer_config())
+                    .is_none()
+            );
+            let mut changed = input.lexer_config();
+            changed.strict_quoting = !changed.strict_quoting;
+            assert!(
+                target
+                    .original_logical_prepended_name_inputs(&input, &image, changed)
+                    .is_none()
+            );
+            let foreign = ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                Arc::new(
+                    input.context_registry().with_command_store(
+                        input
+                            .context_registry()
+                            .commands()
+                            .snapshot()
+                            .shared_registry(),
+                    ),
+                ),
+                input.lexer_config(),
+            );
+            assert!(
+                target
+                    .original_logical_prepended_name_inputs(&foreign, &image, input.lexer_config())
+                    .is_none()
+            );
+            let mut changed = target.clone();
+            changed.prepended[0] =
+                crate::registry_invocation::EffectiveInvocationWord::Literal("0".to_owned());
+            assert!(
+                changed
+                    .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
+                    .is_none()
+            );
+            let state = &binding.lookup_state.as_ref().unwrap().state;
+            let cloned = state.clone();
+            assert!(
+                target
+                    .logical_original_prefix
+                    .as_ref()
+                    .unwrap()
+                    .matches_state(&cloned)
+            );
+            let mut missing = cloned.clone();
+            missing.logical_alias_prefixes = Arc::new(std::collections::BTreeMap::new());
+            assert_ne!(&missing, state);
+            let mut joined = cloned;
+            joined.join(&missing);
+            let unavailable = super::source_binding_projection(
+                &joined,
+                "branch",
+                &SourceNamespaceKey::authored("::"),
+            );
+            assert!(unavailable.targets.iter().all(|target| {
+                target
+                    .original_logical_prepended_name_inputs(&input, &image, input.lexer_config())
+                    .is_none()
+            }));
+        }
     }
 
     #[test]

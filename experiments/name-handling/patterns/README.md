@@ -36,6 +36,11 @@ Tcl8.4 unavailable dict rows. Current SSA controls retain actual source-role
 ownership; the separate F5 packet is unanswered. These reductions measure
 name payloads and do not establish native frame or compilation authority.
 
+The [original formal-name source forms](../results/original-formal-name-source/README.md)
+retain distinct C5/Jim quoted/default/escaped-parent formal reports. Current readonly
+source geometry keeps Native topology separate from Logical declaration advice;
+W214 quote markers are a reporting convention. The F5 packet is unanswered.
+
 ## Source evidence
 
 The [maintained corpus manifest](../../../scripts/perf/MANIFEST.toml) pins all

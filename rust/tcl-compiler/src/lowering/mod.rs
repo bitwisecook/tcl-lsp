@@ -5477,7 +5477,7 @@ impl<'r> Lowerer<'r> {
         let surface = self
             .invocation_metadata_context()
             .map(|context| context.context().authoring_query());
-        let class_ivars = declared_member_vars(call.grammar, &segments, surface);
+        let class_ivars = declared_member_vars(call.grammar, &segments, surface, self.config);
         // This block sees only its own declarations; a sibling `oo::define`
         // block may declare more state for the same class, and may be walked
         // *after* the methods that use it.  Accumulate the whole-class union
@@ -6028,6 +6028,7 @@ fn declared_member_vars(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     segments: &[crate::segmenter::SegmentedCommand],
     surface: Option<tcl_dialect::model::SurfaceQuery<'_>>,
+    config: tcl_lexer::LexerConfig,
 ) -> HashSet<String> {
     let mut out = HashSet::new();
     for seg in segments {
@@ -6040,7 +6041,7 @@ fn declared_member_vars(
         };
         // Unwrap an access-modifier prefix (itcl `public variable x`,
         // TclOO 9's `private variable x`) one level.
-        let (member, args): (&tcl_registry::definer::MemberSpec, &[String]) =
+        let (member, args, base): (&tcl_registry::definer::MemberSpec, &[String], usize) =
             if member.kind == tcl_registry::definer::MemberKind::Wrapper {
                 match seg
                     .texts
@@ -6051,36 +6052,46 @@ fn declared_member_vars(
                         if inner_member.kind == tcl_registry::definer::MemberKind::Flat
                             && seg.texts.len() >= 3 =>
                     {
-                        (inner_member, &seg.texts[2..])
+                        (inner_member, &seg.texts[2..], 2)
                     }
                     _ => continue,
                 }
             } else {
-                (member, &seg.texts[1..])
+                (member, &seg.texts[1..], 1)
             };
+        let decoded: Vec<Option<String>> = args
+            .iter()
+            .enumerate()
+            .map(|(relative, text)| {
+                let index = base.checked_add(relative)?;
+                if seg.single_token_word.get(index) != Some(&true) {
+                    return None;
+                }
+                let token = seg.argv.get(index)?;
+                crate::value_transfer::literal_token_value(text, token.kind, &config)
+                    .map(std::borrow::Cow::into_owned)
+            })
+            .collect();
+        let Some(values) = decoded.iter().cloned().collect::<Option<Vec<_>>>() else {
+            // Unknown member operands widen the union of known literal names.
+            out.extend(decoded.into_iter().flatten());
+            continue;
+        };
         if member.all_args_var {
-            // The `TclOO` `variable` slot: a leading operation word names
-            // no variable.
-            let values = match member.slot {
-                Some(slot) => match slot.split_call(args) {
-                    Some((_, values)) => values,
+            let names = match member.slot {
+                Some(slot) => match slot.split_call(&values) {
+                    Some((_, names)) => names,
                     None => continue,
                 },
-                None => args,
+                None => &values,
             };
-            for nm in values {
-                if is_instance_var_name(nm) {
-                    out.insert(normalise_var_name(nm).to_string());
-                }
-            }
+            out.extend(names.iter().cloned());
         } else {
-            for rel in member.indices_for_call_in(args, surface, ArgRole::VarWrite) {
-                if let Some(nm) = args.get(rel)
-                    && is_instance_var_name(nm)
-                {
-                    out.insert(normalise_var_name(nm).to_string());
-                }
-            }
+            out.extend(
+                member
+                    .indices_for_call_in(&values, surface, ArgRole::VarWrite)
+                    .filter_map(|relative| values.get(relative).cloned()),
+            );
         }
     }
     out
@@ -10163,6 +10174,71 @@ mod tests {
             args,
             &vec!["", "$counter", "brace{name}", "a(b)", "-dash", "$dynamic"]
         );
+    }
+
+    #[test]
+    fn class_variable_source_union_keeps_decoded_names_and_slot_operation_boundaries() {
+        let registry = reg();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let source = r"variable -set {} {$counter} {brace{name}} {-dash}; variable \$counter";
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let names = declared_member_vars(
+            &tcl_registry::definer::TCLOO_GRAMMAR,
+            &segments,
+            Some(profile.surface_query()),
+            config,
+        );
+        assert_eq!(
+            names,
+            HashSet::from([
+                "".to_owned(),
+                "$counter".to_owned(),
+                "brace{name}".to_owned(),
+                "-dash".to_owned()
+            ])
+        );
+        assert!(!names.contains("counter"));
+        assert!(!names.contains("-set"));
+        let escaped_segments = crate::segmenter::segment_commands_with_offset_and_config(
+            r"variable \$counter",
+            0,
+            config,
+        );
+        assert_eq!(
+            declared_member_vars(
+                &tcl_registry::definer::TCLOO_GRAMMAR,
+                &escaped_segments,
+                Some(profile.surface_query()),
+                config,
+            ),
+            HashSet::from(["$counter".to_owned()])
+        );
+    }
+
+    #[test]
+    fn class_variable_unknown_operands_keep_known_literal_protection_without_reference_parsing() {
+        let registry = reg();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+            "variable $dynamic {} {$counter} {a(b)}",
+            0,
+            config,
+        );
+        let names = declared_member_vars(
+            &tcl_registry::definer::TCLOO_GRAMMAR,
+            &segments,
+            Some(profile.surface_query()),
+            config,
+        );
+        assert_eq!(
+            names,
+            HashSet::from(["".to_owned(), "$counter".to_owned(), "a(b)".to_owned()])
+        );
+        assert!(!names.contains("counter"));
+        assert!(!names.contains("a"));
+        assert!(!names.contains("dynamic"));
     }
 
     #[test]

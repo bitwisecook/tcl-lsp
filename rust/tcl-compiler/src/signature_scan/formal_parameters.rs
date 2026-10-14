@@ -26,6 +26,49 @@ pub struct SignatureSourceFormalField {
     span: Option<tcl_lexer::Span>,
 }
 
+/// Readonly name bytes and optional original name extent. Quote markers are
+/// source conventions; these rows supply no frame, cell or edit permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceFormalName {
+    name: Vec<u8>,
+    span: Option<tcl_lexer::Span>,
+    quoted_marker: bool,
+}
+
+impl OriginalSourceFormalName {
+    pub(crate) fn new(name: Vec<u8>, span: Option<tcl_lexer::Span>, quoted_marker: bool) -> Self {
+        Self {
+            name,
+            span,
+            quoted_marker,
+        }
+    }
+
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        &self.name
+    }
+
+    #[must_use]
+    pub const fn source_span(&self) -> Option<tcl_lexer::Span> {
+        self.span
+    }
+
+    #[must_use]
+    pub const fn quoted_marker(&self) -> bool {
+        self.quoted_marker
+    }
+
+    pub(crate) fn source_is_quoted(image: &tcl_lexer::SourceImage, span: tcl_lexer::Span) -> bool {
+        let bytes = image.bytes();
+        span.start()
+            .checked_sub(1)
+            .and_then(|start| bytes.get(start as usize))
+            == Some(&b'"')
+            && bytes.get(span.end() as usize) == Some(&b'"')
+    }
+}
+
 impl SignatureSourceFormalField {
     /// Exact original list child, without a displayed-name conversion.
     #[must_use]
@@ -92,6 +135,23 @@ impl SignatureSourceFormalParameters {
     #[must_use]
     pub fn name_field(&self, parameter: usize) -> Option<SignatureSourceFormalField> {
         self.original_field(parameter, 0)
+    }
+
+    /// Name bytes and readonly original source geometry from this retained
+    /// Native topology, independently of declaration or activation liveness.
+    #[must_use]
+    pub fn name_sources(&self) -> Vec<OriginalSourceFormalName> {
+        self.parameters
+            .iter()
+            .enumerate()
+            .map(|(index, formal)| {
+                let span = self.name_field(index).and_then(|field| field.source_span());
+                let quoted = span.is_some_and(|span| {
+                    OriginalSourceFormalName::source_is_quoted(self.input.source_image(), span)
+                });
+                OriginalSourceFormalName::new(formal.name.clone(), span, quoted)
+            })
+            .collect()
     }
 
     /// Exact optional second specifier field. Jim rest-name semantics remain

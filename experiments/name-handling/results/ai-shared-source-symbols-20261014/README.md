@@ -1,0 +1,1 @@
+AI context source symbols and event declarations use the shared LSP DocumentSymbol provider with exact source, selected Tcl language and document currency checks. Regex fallbacks and kind/name/line deduplication are removed. Unavailable metadata remains unavailable. Isolated TypeScript typecheck passed; the real LSP/Electron consumer controls remain unexecuted.

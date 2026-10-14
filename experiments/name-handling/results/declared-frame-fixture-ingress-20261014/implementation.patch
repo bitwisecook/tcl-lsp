@@ -1,0 +1,22 @@
+--- a/rust/tcl-compiler/src/declared_frame_effects.rs
++++ b/rust/tcl-compiler/src/declared_frame_effects.rs
+@@ -54,8 +54,7 @@
+ 
+     #[test]
+     fn selected_declaration_coordinates_preserve_literal_geometry_and_withdraw_collisions() {
+-        let registry =
+-            tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::plain_tcl());
++        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+         let mut declared = DeclaredSurface::new();
+         for label in [
+             "",
+@@ -90,8 +89,7 @@
+ 
+     #[test]
+     fn unstated_colliding_declaration_and_selected_registry_command_withdraw_assistance() {
+-        let registry =
+-            tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::plain_tcl());
++        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+         let mut declared = DeclaredSurface::new();
+         declared.declare(stated("expr"));
+         declared.declare(stated("::expr"));

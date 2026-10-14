@@ -1,0 +1,44 @@
+--- a/editors/vscode/src/chat/contextPack.ts
++++ b/editors/vscode/src/chat/contextPack.ts
+@@ -210,14 +210,29 @@
+         : (Object.entries(LANGUAGE_ID_DIALECTS).find(
+             ([, dialect]) => dialect === activeDialect(),
+           )?.[0] ?? "tcl"));
+-    const original = document?.getText() === source ? document : undefined;
++    if (!isTclLanguage(language)) {
++      return undefined;
++    }
++    const original =
++      document?.getText() === source &&
++      isTclLanguage(document.languageId) &&
++      document.languageId === language
++        ? document
++        : undefined;
+     const owner =
+       original ?? (await vscode.workspace.openTextDocument({ language, content: source }));
+     const version = owner.version;
+     const symbols = await vscode.commands.executeCommand<
+       ReadonlyArray<vscode.DocumentSymbol | vscode.SymbolInformation> | undefined
+     >("vscode.executeDocumentSymbolProvider", owner.uri);
+-    if (!symbols || owner.version !== version || owner.getText() !== source) {
++    if (
++      !symbols ||
++      owner.isClosed ||
++      owner.version !== version ||
++      owner.getText() !== source ||
++      !isTclLanguage(owner.languageId) ||
++      owner.languageId !== language
++    ) {
+       return undefined;
+     }
+     const definitions: SourceSymbolDefinition[] = [];
+@@ -388,6 +403,9 @@
+     );
+   }
+ 
++  if (includeEventMetadata && code && !sourceSymbols) {
++    sections.push("Event metadata: unavailable.");
++  }
+   if (includeEventMetadata && sourceSymbols) {
+     const events = detectIruleEvents(sourceSymbols, options.maxEvents ?? DEFAULT_MAX_EVENTS);
+     if (events.length > 0) {

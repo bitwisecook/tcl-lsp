@@ -1,0 +1,1820 @@
+{
+  "scope": "Exact accidental duplicate delivery copies removed; byte-identical original issue oracle records retained at their canonical path. No original observation, unique artifact or digest replaced.",
+  "files": [
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/outcomes.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/outcomes.json",
+      "sha256": "0ea43a435c78474c8d006b0d7a2cc96279fad237c7227dc2d5c8fbeb189468e3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/provider-inputs-after.json.gz",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/provider-inputs-after.json.gz",
+      "sha256": "6fe3004f9d2445fb60dd03dcc2dad8fde4878cfec2d95d674f249d55c0aeab5b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/provider-inputs-before.json.gz",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/provider-inputs-before.json.gz",
+      "sha256": "d2ed2ee38176c118da2645082fd325af45824dc37cb26286cea1785dffba18a8"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2339-assignment-name-evaluation/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2339-assignment-name-evaluation/source.tcl",
+      "sha256": "3ba83a7a53f0f88c105e9511c13e99768fbd0e901f848a82e6559c9100f19163"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2339-assignment-name-evaluation/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2339-assignment-name-evaluation/stdout",
+      "sha256": "25306aaa469b360353309d67b9b88284863e603a7173eaa0ae54a7264164dc73"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2339-assignment-name-evaluation/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2339-assignment-name-evaluation/receipt.json",
+      "sha256": "c6d06687b6152887144620001d79f6c44cec4f45af1945a26040b3df23b2ecf2"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2339-assignment-name-evaluation/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2339-assignment-name-evaluation/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2289-child-created-in-procedure/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2289-child-created-in-procedure/source.tcl",
+      "sha256": "84179fb6007371a776ff781575256c462abe7cf7f3539a215473bcb1e672d55f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2289-child-created-in-procedure/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2289-child-created-in-procedure/stdout",
+      "sha256": "35a587ec4688c2240c2d6bef6ab2a7a3efca8633217ffff4b7affa7cb0521c61"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2289-child-created-in-procedure/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2289-child-created-in-procedure/receipt.json",
+      "sha256": "b27526535577508d400312c6956e9ceb99c5269a6999bccd987ddcfe40800f79"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2289-child-created-in-procedure/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2289-child-created-in-procedure/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2268-unknown-and-distinct-array-key/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2268-unknown-and-distinct-array-key/source.tcl",
+      "sha256": "1393985397327774af3eea76165a528b7f2a4e8e69bfb3f8a45a52ee14b5f98f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2268-unknown-and-distinct-array-key/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2268-unknown-and-distinct-array-key/stdout",
+      "sha256": "355d0e91fb476df16e679765fe8f0254b324d04bb2ab3c0327aaffccd78c09a4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2268-unknown-and-distinct-array-key/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2268-unknown-and-distinct-array-key/receipt.json",
+      "sha256": "1dbd40b73ea661b5958d138888dc2e7bc23843b7b7940d4d9294800241b246d4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2268-unknown-and-distinct-array-key/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2268-unknown-and-distinct-array-key/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2209-catch-array-options/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2209-catch-array-options/source.tcl",
+      "sha256": "9b9f1f1fc81b54b444fa6f5afdfa61b61d368ae5733fbfb7c7a819a668d77c30"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2209-catch-array-options/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2209-catch-array-options/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2209-catch-array-options/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2209-catch-array-options/receipt.json",
+      "sha256": "d5624507692db32c3a253363ccdac34c339ff0343c91cc5201bf352b088f76cf"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2209-catch-array-options/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2209-catch-array-options/stderr",
+      "sha256": "b1abeb8b61a2178cb0e71b33a0c0c5b35aa3fa983adf051aa59672e8cbb6f74d"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2209-catch-array-result/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2209-catch-array-result/source.tcl",
+      "sha256": "ebe7026f3383912b4fdbe834bde30e48fe34f9ca2f2cffd3be3424f45c1f745a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2209-catch-array-result/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2209-catch-array-result/stdout",
+      "sha256": "dd39356e7ee7be7029863a1c955529777a1e66ce2005e8ebf0ec04536c1b06d3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2209-catch-array-result/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2209-catch-array-result/receipt.json",
+      "sha256": "7699e321b9ae4fc766d2ed9cc1c385f0868eeaec97718c0f8044b0b7e9e6dd4b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2209-catch-array-result/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2209-catch-array-result/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2399-global-read-store-before-unset/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2399-global-read-store-before-unset/source.tcl",
+      "sha256": "d33eebbb82c3f0afb837a3cc045eb35d4c278f3081fd69837ccaaf177904a901"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2399-global-read-store-before-unset/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2399-global-read-store-before-unset/stdout",
+      "sha256": "eb0559d0c42615543bf69498169f99eaa768350d06c869f2f6d992048df69d46"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2399-global-read-store-before-unset/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2399-global-read-store-before-unset/receipt.json",
+      "sha256": "180de9ccfc788cb23f1ff645cfd8461a7845f607723324818867a87833f9fa61"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2399-global-read-store-before-unset/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2399-global-read-store-before-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2235-braced-incr-amount/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2235-braced-incr-amount/source.tcl",
+      "sha256": "cf73c40260e39faaee7ffa845c4c3fb0b1bed5262fe795fad2fbaaa64d31dea2"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2235-braced-incr-amount/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2235-braced-incr-amount/stdout",
+      "sha256": "85417929949750458921b9db9c49857473dcf74d67392fca498e6e994b39984b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2235-braced-incr-amount/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2235-braced-incr-amount/receipt.json",
+      "sha256": "24b16c19cefe0e22c34c145b25056eae3dc93b38ce53f72621cf9198b7eeb5c0"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2235-braced-incr-amount/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2235-braced-incr-amount/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2218-dynamic-proc-head-rebinding/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2218-dynamic-proc-head-rebinding/source.tcl",
+      "sha256": "57396d7c041ad7025e5eb9d536b27ae71669f4dae395a27e0a6e1163d19c8c92"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2218-dynamic-proc-head-rebinding/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2218-dynamic-proc-head-rebinding/stdout",
+      "sha256": "5b17a86760b5894673c3068bb5b77c03be58b438f68d0611bc10efc13b3dd9b4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2218-dynamic-proc-head-rebinding/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2218-dynamic-proc-head-rebinding/receipt.json",
+      "sha256": "c35787360d9788a245a20900e5c4c6f779ac130ba28241f71b6fd9891b9d29a1"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2218-dynamic-proc-head-rebinding/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2218-dynamic-proc-head-rebinding/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2324-original-tk-computed-head/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2324-original-tk-computed-head/source.tcl",
+      "sha256": "f14c5a32af23b17786eddaf74b65f794f9c12a86bc7ae2b6de10732ed8bc9255"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2324-original-tk-computed-head/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2324-original-tk-computed-head/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2324-original-tk-computed-head/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2324-original-tk-computed-head/receipt.json",
+      "sha256": "a42390e9ffbcd38defc097089213d2f5655fac235943079ab86babb124237759"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2324-original-tk-computed-head/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2324-original-tk-computed-head/stderr",
+      "sha256": "ac48c06461a0fb08179728a6f2364021e509d7ca49050b393bcbd7406ec026b9"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2255-array-index-outer-mask/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2255-array-index-outer-mask/source.tcl",
+      "sha256": "76f8a5fd96fa967b41633106d1aead794014e588003d55e100855f9de396640e"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2255-array-index-outer-mask/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2255-array-index-outer-mask/stdout",
+      "sha256": "80076180faa346e7858e9e9b3c68586f18c14ab4d7322393d0e96a87a0ac05de"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2255-array-index-outer-mask/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2255-array-index-outer-mask/receipt.json",
+      "sha256": "c380a4976311a46e1ea2c5ecd789b3c6350091a2f43cb6f9531290c532cf4f53"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2255-array-index-outer-mask/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2255-array-index-outer-mask/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2143-materialised-factory/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2143-materialised-factory/source.tcl",
+      "sha256": "451c832399b295ae24b86eb2433cf267eb3fdefa0e1c5540c2df3be6ec4015a8"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2143-materialised-factory/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2143-materialised-factory/stdout",
+      "sha256": "5eab4b7190201cf7f6308297ef8eae74089aae672402847a0c8af46370ca365c"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2143-materialised-factory/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2143-materialised-factory/receipt.json",
+      "sha256": "e16a716377a99047cac9181f256a3aca2566d87c59d269c2432af2dabacccc3d"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2143-materialised-factory/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2143-materialised-factory/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2296-computed-array-key-read/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2296-computed-array-key-read/source.tcl",
+      "sha256": "3e9f6addf113812f25678bd66fc4546e57a83ce69de870631449297fffc9c12b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2296-computed-array-key-read/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2296-computed-array-key-read/stdout",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2296-computed-array-key-read/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2296-computed-array-key-read/receipt.json",
+      "sha256": "69a3216b4c27fb928c975cd6016d00847d988c103ea5f03bf0f3406057e10df9"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2296-computed-array-key-read/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2296-computed-array-key-read/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2419-tcllib-variable-writers/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2419-tcllib-variable-writers/source.tcl",
+      "sha256": "25d50438174ffcdd4e90cdfa4ee0cef323737afa1261553064ffef054daeb233"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2419-tcllib-variable-writers/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2419-tcllib-variable-writers/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2419-tcllib-variable-writers/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2419-tcllib-variable-writers/receipt.json",
+      "sha256": "446aa0b8d7f54192624ac4a0d08ee72f47fbd9e5970d9a54997302b756f370d3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2419-tcllib-variable-writers/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2419-tcllib-variable-writers/stderr",
+      "sha256": "50b12cab7dcbee2d62782db654fffd638d18ba9c3786300c8293e118cec75db4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2417-root-body-collision/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2417-root-body-collision/source.tcl",
+      "sha256": "90d752862ed541af9a65ea29649a91cbde30fcc96f3447ae4660ea9781bb98c0"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2417-root-body-collision/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2417-root-body-collision/stdout",
+      "sha256": "2dd118853612a1a7e83af728b092f85a8f3234d79ea49de67e45383fee29df70"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2417-root-body-collision/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2417-root-body-collision/receipt.json",
+      "sha256": "86577177307d4abb7fc85bc7290a72371ca7f6df560a8c9bf16b5c82dce1efc7"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2417-root-body-collision/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2417-root-body-collision/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2332-external-global-reads/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2332-external-global-reads/source.tcl",
+      "sha256": "8b9e335bc77b550306a979ad1bee05649fc8475318cdf5319e7048a8dcaee813"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2332-external-global-reads/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2332-external-global-reads/stdout",
+      "sha256": "b748630f118cd1a6a116b36d367ab068616ddd96ae7ff215dfc23deae610a504"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2332-external-global-reads/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2332-external-global-reads/receipt.json",
+      "sha256": "425ae7aa4fb7712adbe0e2e6676c4027626e19deff2fc46f9f9bab86e925a39a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.4.20/2332-external-global-reads/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.4.20/2332-external-global-reads/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2339-assignment-name-evaluation/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2339-assignment-name-evaluation/source.tcl",
+      "sha256": "3ba83a7a53f0f88c105e9511c13e99768fbd0e901f848a82e6559c9100f19163"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2339-assignment-name-evaluation/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2339-assignment-name-evaluation/stdout",
+      "sha256": "25306aaa469b360353309d67b9b88284863e603a7173eaa0ae54a7264164dc73"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2339-assignment-name-evaluation/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2339-assignment-name-evaluation/receipt.json",
+      "sha256": "a8444df86baa58e5996c34b0382feefeac3b5ff46b6003d55a37c9d95465fe59"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2339-assignment-name-evaluation/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2339-assignment-name-evaluation/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2289-child-created-in-procedure/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2289-child-created-in-procedure/source.tcl",
+      "sha256": "84179fb6007371a776ff781575256c462abe7cf7f3539a215473bcb1e672d55f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2289-child-created-in-procedure/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2289-child-created-in-procedure/stdout",
+      "sha256": "35a587ec4688c2240c2d6bef6ab2a7a3efca8633217ffff4b7affa7cb0521c61"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2289-child-created-in-procedure/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2289-child-created-in-procedure/receipt.json",
+      "sha256": "707608cbdf92157e7b64e1c61168de3f86063ba115bc4bd597d5ecae20a264d4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2289-child-created-in-procedure/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2289-child-created-in-procedure/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2268-unknown-and-distinct-array-key/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2268-unknown-and-distinct-array-key/source.tcl",
+      "sha256": "1393985397327774af3eea76165a528b7f2a4e8e69bfb3f8a45a52ee14b5f98f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2268-unknown-and-distinct-array-key/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2268-unknown-and-distinct-array-key/stdout",
+      "sha256": "355d0e91fb476df16e679765fe8f0254b324d04bb2ab3c0327aaffccd78c09a4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2268-unknown-and-distinct-array-key/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2268-unknown-and-distinct-array-key/receipt.json",
+      "sha256": "e84e1105aa61697280b0ed799fcb20a49160590dd317f6f68a334f8fb7fa7378"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2268-unknown-and-distinct-array-key/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2268-unknown-and-distinct-array-key/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2209-catch-array-options/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2209-catch-array-options/source.tcl",
+      "sha256": "9b9f1f1fc81b54b444fa6f5afdfa61b61d368ae5733fbfb7c7a819a668d77c30"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2209-catch-array-options/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2209-catch-array-options/stdout",
+      "sha256": "c792c625b71f9321230a89f493778ba4fece811fa6230852ea0925203ad789f7"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2209-catch-array-options/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2209-catch-array-options/receipt.json",
+      "sha256": "64a9c76c660f138551cf6c424b8ab60c2810f4c249369db4b521afc3ab75fe6d"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2209-catch-array-options/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2209-catch-array-options/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2209-catch-array-result/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2209-catch-array-result/source.tcl",
+      "sha256": "ebe7026f3383912b4fdbe834bde30e48fe34f9ca2f2cffd3be3424f45c1f745a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2209-catch-array-result/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2209-catch-array-result/stdout",
+      "sha256": "dd39356e7ee7be7029863a1c955529777a1e66ce2005e8ebf0ec04536c1b06d3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2209-catch-array-result/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2209-catch-array-result/receipt.json",
+      "sha256": "356467d1fc81eac374c0b1c251a7adc5f2df3d5791cd81f4e5aa4937af1eabc2"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2209-catch-array-result/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2209-catch-array-result/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2399-global-read-store-before-unset/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2399-global-read-store-before-unset/source.tcl",
+      "sha256": "d33eebbb82c3f0afb837a3cc045eb35d4c278f3081fd69837ccaaf177904a901"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2399-global-read-store-before-unset/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2399-global-read-store-before-unset/stdout",
+      "sha256": "eb0559d0c42615543bf69498169f99eaa768350d06c869f2f6d992048df69d46"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2399-global-read-store-before-unset/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2399-global-read-store-before-unset/receipt.json",
+      "sha256": "eeb0fef5fa959042c5d7875930694d00aac71e739c70ca69ce5bc1c48863603b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2399-global-read-store-before-unset/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2399-global-read-store-before-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2235-braced-incr-amount/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2235-braced-incr-amount/source.tcl",
+      "sha256": "cf73c40260e39faaee7ffa845c4c3fb0b1bed5262fe795fad2fbaaa64d31dea2"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2235-braced-incr-amount/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2235-braced-incr-amount/stdout",
+      "sha256": "85417929949750458921b9db9c49857473dcf74d67392fca498e6e994b39984b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2235-braced-incr-amount/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2235-braced-incr-amount/receipt.json",
+      "sha256": "cf8c814e2c6deabe6a94fab14531a537fab0acaeed7ec36617f3f336b47ed5dc"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2235-braced-incr-amount/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2235-braced-incr-amount/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2218-dynamic-proc-head-rebinding/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2218-dynamic-proc-head-rebinding/source.tcl",
+      "sha256": "57396d7c041ad7025e5eb9d536b27ae71669f4dae395a27e0a6e1163d19c8c92"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2218-dynamic-proc-head-rebinding/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2218-dynamic-proc-head-rebinding/stdout",
+      "sha256": "5b17a86760b5894673c3068bb5b77c03be58b438f68d0611bc10efc13b3dd9b4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2218-dynamic-proc-head-rebinding/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2218-dynamic-proc-head-rebinding/receipt.json",
+      "sha256": "384d1100b26ce282e57bf390ca152b163962b9039bf3fd5f130f1eeb006693a0"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2218-dynamic-proc-head-rebinding/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2218-dynamic-proc-head-rebinding/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2324-original-tk-computed-head/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2324-original-tk-computed-head/source.tcl",
+      "sha256": "f14c5a32af23b17786eddaf74b65f794f9c12a86bc7ae2b6de10732ed8bc9255"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2324-original-tk-computed-head/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2324-original-tk-computed-head/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2324-original-tk-computed-head/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2324-original-tk-computed-head/receipt.json",
+      "sha256": "74a3ede6c6abf5a1d1bb2920efb12139f0e1dbce4911fc7ea12d2d8c787ff06a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2324-original-tk-computed-head/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2324-original-tk-computed-head/stderr",
+      "sha256": "cbf17795c20eb188ee708f9c476162b291f2c3ee6908d1de0b5e7ced80a3d970"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2255-array-index-outer-mask/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2255-array-index-outer-mask/source.tcl",
+      "sha256": "76f8a5fd96fa967b41633106d1aead794014e588003d55e100855f9de396640e"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2255-array-index-outer-mask/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2255-array-index-outer-mask/stdout",
+      "sha256": "80076180faa346e7858e9e9b3c68586f18c14ab4d7322393d0e96a87a0ac05de"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2255-array-index-outer-mask/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2255-array-index-outer-mask/receipt.json",
+      "sha256": "5d4979c9c1a8b5de72c92da892ab18f8a77b5883a6cbbd206b6468cbf0801fde"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2255-array-index-outer-mask/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2255-array-index-outer-mask/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2143-materialised-factory/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2143-materialised-factory/source.tcl",
+      "sha256": "451c832399b295ae24b86eb2433cf267eb3fdefa0e1c5540c2df3be6ec4015a8"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2143-materialised-factory/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2143-materialised-factory/stdout",
+      "sha256": "5eab4b7190201cf7f6308297ef8eae74089aae672402847a0c8af46370ca365c"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2143-materialised-factory/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2143-materialised-factory/receipt.json",
+      "sha256": "c9a4aad621500221e464f7ab006f4079d99d945840c0913ad2d52e5ab2d78585"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2143-materialised-factory/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2143-materialised-factory/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2296-computed-array-key-read/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2296-computed-array-key-read/source.tcl",
+      "sha256": "3e9f6addf113812f25678bd66fc4546e57a83ce69de870631449297fffc9c12b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2296-computed-array-key-read/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2296-computed-array-key-read/stdout",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2296-computed-array-key-read/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2296-computed-array-key-read/receipt.json",
+      "sha256": "0380164bd19c76107e5d1e8d9d1274ba33dc20f8b2a1787e97a3690c1bd888af"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2296-computed-array-key-read/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2296-computed-array-key-read/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2419-tcllib-variable-writers/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2419-tcllib-variable-writers/source.tcl",
+      "sha256": "25d50438174ffcdd4e90cdfa4ee0cef323737afa1261553064ffef054daeb233"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2419-tcllib-variable-writers/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2419-tcllib-variable-writers/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2419-tcllib-variable-writers/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2419-tcllib-variable-writers/receipt.json",
+      "sha256": "dac65fd7591a849426d00515cd4f8009119a078bc562beeee80d16c60e6421f5"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2419-tcllib-variable-writers/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2419-tcllib-variable-writers/stderr",
+      "sha256": "3833fed96008d6f8415c7810c8dc6f6e80d1b8401bd1ffa16e1572178d9c7b11"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2417-root-body-collision/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2417-root-body-collision/source.tcl",
+      "sha256": "90d752862ed541af9a65ea29649a91cbde30fcc96f3447ae4660ea9781bb98c0"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2417-root-body-collision/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2417-root-body-collision/stdout",
+      "sha256": "2dd118853612a1a7e83af728b092f85a8f3234d79ea49de67e45383fee29df70"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2417-root-body-collision/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2417-root-body-collision/receipt.json",
+      "sha256": "570f193c1c99859c93fd533a2a9486da994b106cb63cef8fa3d20837cfb30efe"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2417-root-body-collision/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2417-root-body-collision/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2332-external-global-reads/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2332-external-global-reads/source.tcl",
+      "sha256": "8b9e335bc77b550306a979ad1bee05649fc8475318cdf5319e7048a8dcaee813"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2332-external-global-reads/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2332-external-global-reads/stdout",
+      "sha256": "b748630f118cd1a6a116b36d367ab068616ddd96ae7ff215dfc23deae610a504"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2332-external-global-reads/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2332-external-global-reads/receipt.json",
+      "sha256": "7db91abd998fafede783f10333b04433a3eaf86b8f70ff675c59297050ef5f75"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.6.18/2332-external-global-reads/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.6.18/2332-external-global-reads/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2339-assignment-name-evaluation/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2339-assignment-name-evaluation/source.tcl",
+      "sha256": "3ba83a7a53f0f88c105e9511c13e99768fbd0e901f848a82e6559c9100f19163"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2339-assignment-name-evaluation/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2339-assignment-name-evaluation/stdout",
+      "sha256": "25306aaa469b360353309d67b9b88284863e603a7173eaa0ae54a7264164dc73"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2339-assignment-name-evaluation/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2339-assignment-name-evaluation/receipt.json",
+      "sha256": "6200141f8342f1d63474f1355527b1ad7a769a1fc7fc7aca0b90c6c082f3e95f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2339-assignment-name-evaluation/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2339-assignment-name-evaluation/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2289-child-created-in-procedure/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2289-child-created-in-procedure/source.tcl",
+      "sha256": "84179fb6007371a776ff781575256c462abe7cf7f3539a215473bcb1e672d55f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2289-child-created-in-procedure/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2289-child-created-in-procedure/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2289-child-created-in-procedure/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2289-child-created-in-procedure/receipt.json",
+      "sha256": "f6c676b348ecc6772f5202977c7d80c6d3819579fbf8e82187d2ba6bc5accbb3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2289-child-created-in-procedure/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2289-child-created-in-procedure/stderr",
+      "sha256": "ac0291f983e54d76dfefb0bd505778d2bbd6dc242f5f157929139e0cfa6ae155"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2268-unknown-and-distinct-array-key/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2268-unknown-and-distinct-array-key/source.tcl",
+      "sha256": "1393985397327774af3eea76165a528b7f2a4e8e69bfb3f8a45a52ee14b5f98f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2268-unknown-and-distinct-array-key/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2268-unknown-and-distinct-array-key/stdout",
+      "sha256": "355d0e91fb476df16e679765fe8f0254b324d04bb2ab3c0327aaffccd78c09a4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2268-unknown-and-distinct-array-key/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2268-unknown-and-distinct-array-key/receipt.json",
+      "sha256": "16b3a0c81d2686f187be680be4fcc58f0cb5dadf8b8e4a470ff19cd52a6857e4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2268-unknown-and-distinct-array-key/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2268-unknown-and-distinct-array-key/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2209-catch-array-options/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2209-catch-array-options/source.tcl",
+      "sha256": "9b9f1f1fc81b54b444fa6f5afdfa61b61d368ae5733fbfb7c7a819a668d77c30"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2209-catch-array-options/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2209-catch-array-options/stdout",
+      "sha256": "c792c625b71f9321230a89f493778ba4fece811fa6230852ea0925203ad789f7"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2209-catch-array-options/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2209-catch-array-options/receipt.json",
+      "sha256": "5605e87cd271bf4c2a6ef2d5afce817328bfacb3195ed9fadab196ee9f1e743b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2209-catch-array-options/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2209-catch-array-options/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2209-catch-array-result/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2209-catch-array-result/source.tcl",
+      "sha256": "ebe7026f3383912b4fdbe834bde30e48fe34f9ca2f2cffd3be3424f45c1f745a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2209-catch-array-result/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2209-catch-array-result/stdout",
+      "sha256": "dd39356e7ee7be7029863a1c955529777a1e66ce2005e8ebf0ec04536c1b06d3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2209-catch-array-result/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2209-catch-array-result/receipt.json",
+      "sha256": "9a3f443655d572522e70882e833d66b987e4ef7eef8a6d915095f5b022b6b7e3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2209-catch-array-result/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2209-catch-array-result/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2399-global-read-store-before-unset/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2399-global-read-store-before-unset/source.tcl",
+      "sha256": "d33eebbb82c3f0afb837a3cc045eb35d4c278f3081fd69837ccaaf177904a901"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2399-global-read-store-before-unset/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2399-global-read-store-before-unset/stdout",
+      "sha256": "eb0559d0c42615543bf69498169f99eaa768350d06c869f2f6d992048df69d46"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2399-global-read-store-before-unset/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2399-global-read-store-before-unset/receipt.json",
+      "sha256": "ad7cb0f1f4d609d337ac16d6af492842ca16d92b5be37f74a39b744e7474b399"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2399-global-read-store-before-unset/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2399-global-read-store-before-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2235-braced-incr-amount/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2235-braced-incr-amount/source.tcl",
+      "sha256": "cf73c40260e39faaee7ffa845c4c3fb0b1bed5262fe795fad2fbaaa64d31dea2"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2235-braced-incr-amount/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2235-braced-incr-amount/stdout",
+      "sha256": "d77b4b601e94cb0a1b2122f3ba6a50973de9d478cac4f63377c9d3d7bd3ad401"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2235-braced-incr-amount/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2235-braced-incr-amount/receipt.json",
+      "sha256": "0c2d20545bdb916d46e6317ebc1a96879323a1c69521d64ade27b633dc78119d"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2235-braced-incr-amount/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2235-braced-incr-amount/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2218-dynamic-proc-head-rebinding/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2218-dynamic-proc-head-rebinding/source.tcl",
+      "sha256": "57396d7c041ad7025e5eb9d536b27ae71669f4dae395a27e0a6e1163d19c8c92"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2218-dynamic-proc-head-rebinding/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2218-dynamic-proc-head-rebinding/stdout",
+      "sha256": "5b17a86760b5894673c3068bb5b77c03be58b438f68d0611bc10efc13b3dd9b4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2218-dynamic-proc-head-rebinding/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2218-dynamic-proc-head-rebinding/receipt.json",
+      "sha256": "66b864b40c244f046d879ccbca116407fefb40aafeccd4cfb46def244557c30d"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2218-dynamic-proc-head-rebinding/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2218-dynamic-proc-head-rebinding/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2324-original-tk-computed-head/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2324-original-tk-computed-head/source.tcl",
+      "sha256": "f14c5a32af23b17786eddaf74b65f794f9c12a86bc7ae2b6de10732ed8bc9255"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2324-original-tk-computed-head/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2324-original-tk-computed-head/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2324-original-tk-computed-head/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2324-original-tk-computed-head/receipt.json",
+      "sha256": "3f681aace426045c882fd9627481f501e57ff66a52e7ab0a936d607b81357dc3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2324-original-tk-computed-head/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2324-original-tk-computed-head/stderr",
+      "sha256": "5d37966fe6baed44a878fdea222aa5f2915f22a7a2830a47f07ac63cbc19df40"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2255-array-index-outer-mask/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2255-array-index-outer-mask/source.tcl",
+      "sha256": "76f8a5fd96fa967b41633106d1aead794014e588003d55e100855f9de396640e"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2255-array-index-outer-mask/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2255-array-index-outer-mask/stdout",
+      "sha256": "80076180faa346e7858e9e9b3c68586f18c14ab4d7322393d0e96a87a0ac05de"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2255-array-index-outer-mask/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2255-array-index-outer-mask/receipt.json",
+      "sha256": "a535eda05a260d5773ac7fedf23bdcff30beff264c110c539b5c7eb854e9a860"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2255-array-index-outer-mask/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2255-array-index-outer-mask/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2143-materialised-factory/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2143-materialised-factory/source.tcl",
+      "sha256": "451c832399b295ae24b86eb2433cf267eb3fdefa0e1c5540c2df3be6ec4015a8"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2143-materialised-factory/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2143-materialised-factory/stdout",
+      "sha256": "5eab4b7190201cf7f6308297ef8eae74089aae672402847a0c8af46370ca365c"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2143-materialised-factory/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2143-materialised-factory/receipt.json",
+      "sha256": "7bf0ea12ef3037fa6f96a75de064ed7449505109708fc0d58500850bffe16194"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2143-materialised-factory/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2143-materialised-factory/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2296-computed-array-key-read/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2296-computed-array-key-read/source.tcl",
+      "sha256": "3e9f6addf113812f25678bd66fc4546e57a83ce69de870631449297fffc9c12b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2296-computed-array-key-read/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2296-computed-array-key-read/stdout",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2296-computed-array-key-read/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2296-computed-array-key-read/receipt.json",
+      "sha256": "07ed4f74f3678b65122082c8c91d72325947214d0296f8568ccd1ad7e71cb49d"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2296-computed-array-key-read/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2296-computed-array-key-read/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2419-tcllib-variable-writers/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2419-tcllib-variable-writers/source.tcl",
+      "sha256": "25d50438174ffcdd4e90cdfa4ee0cef323737afa1261553064ffef054daeb233"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2419-tcllib-variable-writers/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2419-tcllib-variable-writers/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2419-tcllib-variable-writers/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2419-tcllib-variable-writers/receipt.json",
+      "sha256": "3cf62076f62be75d707e4deeacdb5f2ae8c7b89e2d2a3004f83ceaea23032efc"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2419-tcllib-variable-writers/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2419-tcllib-variable-writers/stderr",
+      "sha256": "ecb81b00281570b807d0c114a82686361109046e90b180d3eeb8c09b25e47963"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2417-root-body-collision/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2417-root-body-collision/source.tcl",
+      "sha256": "90d752862ed541af9a65ea29649a91cbde30fcc96f3447ae4660ea9781bb98c0"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2417-root-body-collision/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2417-root-body-collision/stdout",
+      "sha256": "2dd118853612a1a7e83af728b092f85a8f3234d79ea49de67e45383fee29df70"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2417-root-body-collision/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2417-root-body-collision/receipt.json",
+      "sha256": "9e207685356b34c1397955bf89f3443fcd91b6df2dfe14bf0d6fc53d2d94a1b6"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2417-root-body-collision/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2417-root-body-collision/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2332-external-global-reads/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2332-external-global-reads/source.tcl",
+      "sha256": "8b9e335bc77b550306a979ad1bee05649fc8475318cdf5319e7048a8dcaee813"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2332-external-global-reads/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2332-external-global-reads/stdout",
+      "sha256": "b748630f118cd1a6a116b36d367ab068616ddd96ae7ff215dfc23deae610a504"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2332-external-global-reads/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2332-external-global-reads/receipt.json",
+      "sha256": "36c281ebf2f8a72442003f548a5ffa23a72eb0c9f69e198f943852a96805c8c4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/jim/2332-external-global-reads/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/jim/2332-external-global-reads/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2339-assignment-name-evaluation/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2339-assignment-name-evaluation/source.tcl",
+      "sha256": "3ba83a7a53f0f88c105e9511c13e99768fbd0e901f848a82e6559c9100f19163"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2339-assignment-name-evaluation/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2339-assignment-name-evaluation/stdout",
+      "sha256": "25306aaa469b360353309d67b9b88284863e603a7173eaa0ae54a7264164dc73"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2339-assignment-name-evaluation/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2339-assignment-name-evaluation/receipt.json",
+      "sha256": "73b51fe84fac246897516e486d20fdc38df3637945bf7cba800bd1dc8c7752c8"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2339-assignment-name-evaluation/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2339-assignment-name-evaluation/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2289-child-created-in-procedure/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2289-child-created-in-procedure/source.tcl",
+      "sha256": "84179fb6007371a776ff781575256c462abe7cf7f3539a215473bcb1e672d55f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2289-child-created-in-procedure/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2289-child-created-in-procedure/stdout",
+      "sha256": "35a587ec4688c2240c2d6bef6ab2a7a3efca8633217ffff4b7affa7cb0521c61"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2289-child-created-in-procedure/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2289-child-created-in-procedure/receipt.json",
+      "sha256": "5780300adb63d5024dba3213d682c95f6a6bab375f4a237f1e79b609e8f8d87a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2289-child-created-in-procedure/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2289-child-created-in-procedure/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2268-unknown-and-distinct-array-key/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2268-unknown-and-distinct-array-key/source.tcl",
+      "sha256": "1393985397327774af3eea76165a528b7f2a4e8e69bfb3f8a45a52ee14b5f98f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2268-unknown-and-distinct-array-key/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2268-unknown-and-distinct-array-key/stdout",
+      "sha256": "355d0e91fb476df16e679765fe8f0254b324d04bb2ab3c0327aaffccd78c09a4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2268-unknown-and-distinct-array-key/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2268-unknown-and-distinct-array-key/receipt.json",
+      "sha256": "4ec6cb36860da480abddf3b706e3e6b4d68da8ce8a189a2b81f54561f222288b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2268-unknown-and-distinct-array-key/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2268-unknown-and-distinct-array-key/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2209-catch-array-options/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2209-catch-array-options/source.tcl",
+      "sha256": "9b9f1f1fc81b54b444fa6f5afdfa61b61d368ae5733fbfb7c7a819a668d77c30"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2209-catch-array-options/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2209-catch-array-options/stdout",
+      "sha256": "c792c625b71f9321230a89f493778ba4fece811fa6230852ea0925203ad789f7"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2209-catch-array-options/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2209-catch-array-options/receipt.json",
+      "sha256": "d17e63a944b46fbe8f254a22d02d26d0e129a0e840cc4d4cbc2752575f73d262"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2209-catch-array-options/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2209-catch-array-options/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2209-catch-array-result/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2209-catch-array-result/source.tcl",
+      "sha256": "ebe7026f3383912b4fdbe834bde30e48fe34f9ca2f2cffd3be3424f45c1f745a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2209-catch-array-result/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2209-catch-array-result/stdout",
+      "sha256": "dd39356e7ee7be7029863a1c955529777a1e66ce2005e8ebf0ec04536c1b06d3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2209-catch-array-result/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2209-catch-array-result/receipt.json",
+      "sha256": "e4f992eaf542ad6b9b0fbb42cb31422486eac7ec1a373657f44512479e6c1a69"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2209-catch-array-result/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2209-catch-array-result/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2399-global-read-store-before-unset/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2399-global-read-store-before-unset/source.tcl",
+      "sha256": "d33eebbb82c3f0afb837a3cc045eb35d4c278f3081fd69837ccaaf177904a901"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2399-global-read-store-before-unset/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2399-global-read-store-before-unset/stdout",
+      "sha256": "eb0559d0c42615543bf69498169f99eaa768350d06c869f2f6d992048df69d46"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2399-global-read-store-before-unset/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2399-global-read-store-before-unset/receipt.json",
+      "sha256": "8115c1654a5b1a80c33a503b2fe7dc435955852b82dfcd1ce6bfd8ce5a5684cf"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2399-global-read-store-before-unset/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2399-global-read-store-before-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2235-braced-incr-amount/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2235-braced-incr-amount/source.tcl",
+      "sha256": "cf73c40260e39faaee7ffa845c4c3fb0b1bed5262fe795fad2fbaaa64d31dea2"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2235-braced-incr-amount/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2235-braced-incr-amount/stdout",
+      "sha256": "85417929949750458921b9db9c49857473dcf74d67392fca498e6e994b39984b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2235-braced-incr-amount/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2235-braced-incr-amount/receipt.json",
+      "sha256": "db0b5989c9be7bafafa0e4c188e4387352e92fc8e38c12a4f4dbf88f4baaa494"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2235-braced-incr-amount/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2235-braced-incr-amount/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2218-dynamic-proc-head-rebinding/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2218-dynamic-proc-head-rebinding/source.tcl",
+      "sha256": "57396d7c041ad7025e5eb9d536b27ae71669f4dae395a27e0a6e1163d19c8c92"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2218-dynamic-proc-head-rebinding/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2218-dynamic-proc-head-rebinding/stdout",
+      "sha256": "5b17a86760b5894673c3068bb5b77c03be58b438f68d0611bc10efc13b3dd9b4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2218-dynamic-proc-head-rebinding/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2218-dynamic-proc-head-rebinding/receipt.json",
+      "sha256": "52aee88caef22893da15b60f0d33dd2c254ad63cfee383637d1d6cf1af5a7548"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2218-dynamic-proc-head-rebinding/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2218-dynamic-proc-head-rebinding/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2324-original-tk-computed-head/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2324-original-tk-computed-head/source.tcl",
+      "sha256": "f14c5a32af23b17786eddaf74b65f794f9c12a86bc7ae2b6de10732ed8bc9255"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2324-original-tk-computed-head/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2324-original-tk-computed-head/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2324-original-tk-computed-head/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2324-original-tk-computed-head/receipt.json",
+      "sha256": "e3caaea8777334a98bda899628d3c17e45d39b2cf143b69f6edea17cb551f67d"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2324-original-tk-computed-head/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2324-original-tk-computed-head/stderr",
+      "sha256": "4305058fea4b7dad6f43e54705ca886e28edbc65384f836bb2ace3d1557445e9"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2255-array-index-outer-mask/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2255-array-index-outer-mask/source.tcl",
+      "sha256": "76f8a5fd96fa967b41633106d1aead794014e588003d55e100855f9de396640e"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2255-array-index-outer-mask/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2255-array-index-outer-mask/stdout",
+      "sha256": "80076180faa346e7858e9e9b3c68586f18c14ab4d7322393d0e96a87a0ac05de"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2255-array-index-outer-mask/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2255-array-index-outer-mask/receipt.json",
+      "sha256": "b7dd2eda5ecdd41c6912cef9d61de7a69ce17cde70c5b1a680d4bfa577d3d1a7"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2255-array-index-outer-mask/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2255-array-index-outer-mask/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2143-materialised-factory/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2143-materialised-factory/source.tcl",
+      "sha256": "451c832399b295ae24b86eb2433cf267eb3fdefa0e1c5540c2df3be6ec4015a8"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2143-materialised-factory/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2143-materialised-factory/stdout",
+      "sha256": "5eab4b7190201cf7f6308297ef8eae74089aae672402847a0c8af46370ca365c"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2143-materialised-factory/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2143-materialised-factory/receipt.json",
+      "sha256": "066c575e901398eb025abee9030c9b25d6ca8d6bae23a140ee47ebe53ac4092f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2143-materialised-factory/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2143-materialised-factory/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2296-computed-array-key-read/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2296-computed-array-key-read/source.tcl",
+      "sha256": "3e9f6addf113812f25678bd66fc4546e57a83ce69de870631449297fffc9c12b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2296-computed-array-key-read/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2296-computed-array-key-read/stdout",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2296-computed-array-key-read/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2296-computed-array-key-read/receipt.json",
+      "sha256": "8a10d730e26e19c45256f1acaece0d18d622a655e6ddd1bca8f5e5c27174a608"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2296-computed-array-key-read/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2296-computed-array-key-read/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2419-tcllib-variable-writers/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2419-tcllib-variable-writers/source.tcl",
+      "sha256": "25d50438174ffcdd4e90cdfa4ee0cef323737afa1261553064ffef054daeb233"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2419-tcllib-variable-writers/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2419-tcllib-variable-writers/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2419-tcllib-variable-writers/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2419-tcllib-variable-writers/receipt.json",
+      "sha256": "fe43fa2494023cde1115ba67e6aa284f38393c2646e701e17d2450ad56747cae"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2419-tcllib-variable-writers/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2419-tcllib-variable-writers/stderr",
+      "sha256": "aa53fcef2912b50e503e0181c9603afdcf34b2324e74250c0066c1935121ed97"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2417-root-body-collision/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2417-root-body-collision/source.tcl",
+      "sha256": "90d752862ed541af9a65ea29649a91cbde30fcc96f3447ae4660ea9781bb98c0"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2417-root-body-collision/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2417-root-body-collision/stdout",
+      "sha256": "2dd118853612a1a7e83af728b092f85a8f3234d79ea49de67e45383fee29df70"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2417-root-body-collision/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2417-root-body-collision/receipt.json",
+      "sha256": "8f1230cd9ec291b56dc14b11791a2b9e9079b270ef87426fe95ecc2ab4f0cd94"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2417-root-body-collision/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2417-root-body-collision/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2332-external-global-reads/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2332-external-global-reads/source.tcl",
+      "sha256": "8b9e335bc77b550306a979ad1bee05649fc8475318cdf5319e7048a8dcaee813"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2332-external-global-reads/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2332-external-global-reads/stdout",
+      "sha256": "b748630f118cd1a6a116b36d367ab068616ddd96ae7ff215dfc23deae610a504"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2332-external-global-reads/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2332-external-global-reads/receipt.json",
+      "sha256": "5add33e61cb236ae760cddeb341ffe2853c1f43e6fa8ae90c57ad063ab73887f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.0.4/2332-external-global-reads/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.0.4/2332-external-global-reads/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2339-assignment-name-evaluation/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2339-assignment-name-evaluation/source.tcl",
+      "sha256": "3ba83a7a53f0f88c105e9511c13e99768fbd0e901f848a82e6559c9100f19163"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2339-assignment-name-evaluation/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2339-assignment-name-evaluation/stdout",
+      "sha256": "25306aaa469b360353309d67b9b88284863e603a7173eaa0ae54a7264164dc73"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2339-assignment-name-evaluation/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2339-assignment-name-evaluation/receipt.json",
+      "sha256": "89153f493d4841d933d03782398d46a827553259f838c451aac13cf27046aafb"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2339-assignment-name-evaluation/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2339-assignment-name-evaluation/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2289-child-created-in-procedure/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2289-child-created-in-procedure/source.tcl",
+      "sha256": "84179fb6007371a776ff781575256c462abe7cf7f3539a215473bcb1e672d55f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2289-child-created-in-procedure/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2289-child-created-in-procedure/stdout",
+      "sha256": "35a587ec4688c2240c2d6bef6ab2a7a3efca8633217ffff4b7affa7cb0521c61"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2289-child-created-in-procedure/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2289-child-created-in-procedure/receipt.json",
+      "sha256": "577b9d9704eb93e201fb77c96c54e7b15aaa5ae80fd8b5cedc219603f60c1857"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2289-child-created-in-procedure/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2289-child-created-in-procedure/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2268-unknown-and-distinct-array-key/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2268-unknown-and-distinct-array-key/source.tcl",
+      "sha256": "1393985397327774af3eea76165a528b7f2a4e8e69bfb3f8a45a52ee14b5f98f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2268-unknown-and-distinct-array-key/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2268-unknown-and-distinct-array-key/stdout",
+      "sha256": "355d0e91fb476df16e679765fe8f0254b324d04bb2ab3c0327aaffccd78c09a4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2268-unknown-and-distinct-array-key/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2268-unknown-and-distinct-array-key/receipt.json",
+      "sha256": "f312a5e3d22c5ba4852cc0d82dcfc0234d88fc8be97931e7f840d8b290d5c589"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2268-unknown-and-distinct-array-key/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2268-unknown-and-distinct-array-key/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2209-catch-array-options/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2209-catch-array-options/source.tcl",
+      "sha256": "9b9f1f1fc81b54b444fa6f5afdfa61b61d368ae5733fbfb7c7a819a668d77c30"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2209-catch-array-options/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2209-catch-array-options/stdout",
+      "sha256": "c792c625b71f9321230a89f493778ba4fece811fa6230852ea0925203ad789f7"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2209-catch-array-options/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2209-catch-array-options/receipt.json",
+      "sha256": "33803f5f5c6809ee6e339d0645c694a305395a098abd66821997a5956a48bc00"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2209-catch-array-options/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2209-catch-array-options/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2209-catch-array-result/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2209-catch-array-result/source.tcl",
+      "sha256": "ebe7026f3383912b4fdbe834bde30e48fe34f9ca2f2cffd3be3424f45c1f745a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2209-catch-array-result/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2209-catch-array-result/stdout",
+      "sha256": "dd39356e7ee7be7029863a1c955529777a1e66ce2005e8ebf0ec04536c1b06d3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2209-catch-array-result/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2209-catch-array-result/receipt.json",
+      "sha256": "253e2ac6caa3625cdb260a56bb234f65bde3464e084833c378a5f1be916cf6c4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2209-catch-array-result/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2209-catch-array-result/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2399-global-read-store-before-unset/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2399-global-read-store-before-unset/source.tcl",
+      "sha256": "d33eebbb82c3f0afb837a3cc045eb35d4c278f3081fd69837ccaaf177904a901"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2399-global-read-store-before-unset/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2399-global-read-store-before-unset/stdout",
+      "sha256": "eb0559d0c42615543bf69498169f99eaa768350d06c869f2f6d992048df69d46"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2399-global-read-store-before-unset/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2399-global-read-store-before-unset/receipt.json",
+      "sha256": "83fc92a3b46d25631b323719f8bb285e6f16c06b0a43284df659df2a9156847f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2399-global-read-store-before-unset/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2399-global-read-store-before-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2235-braced-incr-amount/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2235-braced-incr-amount/source.tcl",
+      "sha256": "cf73c40260e39faaee7ffa845c4c3fb0b1bed5262fe795fad2fbaaa64d31dea2"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2235-braced-incr-amount/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2235-braced-incr-amount/stdout",
+      "sha256": "85417929949750458921b9db9c49857473dcf74d67392fca498e6e994b39984b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2235-braced-incr-amount/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2235-braced-incr-amount/receipt.json",
+      "sha256": "6c195ee3180399a36dc184a0efb59bd6e48312ab4f7aff07d73eeb856d679dae"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2235-braced-incr-amount/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2235-braced-incr-amount/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2218-dynamic-proc-head-rebinding/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2218-dynamic-proc-head-rebinding/source.tcl",
+      "sha256": "57396d7c041ad7025e5eb9d536b27ae71669f4dae395a27e0a6e1163d19c8c92"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2218-dynamic-proc-head-rebinding/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2218-dynamic-proc-head-rebinding/stdout",
+      "sha256": "5b17a86760b5894673c3068bb5b77c03be58b438f68d0611bc10efc13b3dd9b4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2218-dynamic-proc-head-rebinding/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2218-dynamic-proc-head-rebinding/receipt.json",
+      "sha256": "8fd4c1febe437c26ba01b27d435ec30f246afd6e7449e3aa97e3c38bf3a489c1"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2218-dynamic-proc-head-rebinding/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2218-dynamic-proc-head-rebinding/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2324-original-tk-computed-head/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2324-original-tk-computed-head/source.tcl",
+      "sha256": "f14c5a32af23b17786eddaf74b65f794f9c12a86bc7ae2b6de10732ed8bc9255"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2324-original-tk-computed-head/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2324-original-tk-computed-head/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2324-original-tk-computed-head/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2324-original-tk-computed-head/receipt.json",
+      "sha256": "b4c25b144def5c8173fd05423701db58cbc0e272daad50830878cf768fe7002f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2324-original-tk-computed-head/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2324-original-tk-computed-head/stderr",
+      "sha256": "82dab83b5d3bff2f1568186036e1f4f2d0fcbf735f7b90352de72ae8c065bd8e"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2255-array-index-outer-mask/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2255-array-index-outer-mask/source.tcl",
+      "sha256": "76f8a5fd96fa967b41633106d1aead794014e588003d55e100855f9de396640e"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2255-array-index-outer-mask/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2255-array-index-outer-mask/stdout",
+      "sha256": "80076180faa346e7858e9e9b3c68586f18c14ab4d7322393d0e96a87a0ac05de"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2255-array-index-outer-mask/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2255-array-index-outer-mask/receipt.json",
+      "sha256": "c69df141466a778ab6af779c3f0d3882d90ba04d9cb6335d475835f5fc96e197"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2255-array-index-outer-mask/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2255-array-index-outer-mask/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2143-materialised-factory/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2143-materialised-factory/source.tcl",
+      "sha256": "451c832399b295ae24b86eb2433cf267eb3fdefa0e1c5540c2df3be6ec4015a8"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2143-materialised-factory/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2143-materialised-factory/stdout",
+      "sha256": "5eab4b7190201cf7f6308297ef8eae74089aae672402847a0c8af46370ca365c"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2143-materialised-factory/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2143-materialised-factory/receipt.json",
+      "sha256": "9da00727fa671cf263db259e401fbe6981bf98a6138b35e0daff3dd3ff8bcd7a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2143-materialised-factory/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2143-materialised-factory/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2296-computed-array-key-read/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2296-computed-array-key-read/source.tcl",
+      "sha256": "3e9f6addf113812f25678bd66fc4546e57a83ce69de870631449297fffc9c12b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2296-computed-array-key-read/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2296-computed-array-key-read/stdout",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2296-computed-array-key-read/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2296-computed-array-key-read/receipt.json",
+      "sha256": "418e169abdcedb8cb1c22f7e769dba55db0a269930bfca298b8716b360de5f6c"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2296-computed-array-key-read/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2296-computed-array-key-read/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2419-tcllib-variable-writers/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2419-tcllib-variable-writers/source.tcl",
+      "sha256": "25d50438174ffcdd4e90cdfa4ee0cef323737afa1261553064ffef054daeb233"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2419-tcllib-variable-writers/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2419-tcllib-variable-writers/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2419-tcllib-variable-writers/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2419-tcllib-variable-writers/receipt.json",
+      "sha256": "6ea1e055ade61d16c28bf04c06218e02272155466c82551a16240dceb2f069bf"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2419-tcllib-variable-writers/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2419-tcllib-variable-writers/stderr",
+      "sha256": "26016e6f7a2b887a3d37cf5a5d77ccc8324da67f9ce700102c6976b9a848a879"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2417-root-body-collision/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2417-root-body-collision/source.tcl",
+      "sha256": "90d752862ed541af9a65ea29649a91cbde30fcc96f3447ae4660ea9781bb98c0"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2417-root-body-collision/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2417-root-body-collision/stdout",
+      "sha256": "2dd118853612a1a7e83af728b092f85a8f3234d79ea49de67e45383fee29df70"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2417-root-body-collision/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2417-root-body-collision/receipt.json",
+      "sha256": "203247a083c7773115e1ba2657229dba4084d1e463278dd6412ea3aef0b0247b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2417-root-body-collision/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2417-root-body-collision/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2332-external-global-reads/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2332-external-global-reads/source.tcl",
+      "sha256": "8b9e335bc77b550306a979ad1bee05649fc8475318cdf5319e7048a8dcaee813"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2332-external-global-reads/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2332-external-global-reads/stdout",
+      "sha256": "b748630f118cd1a6a116b36d367ab068616ddd96ae7ff215dfc23deae610a504"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2332-external-global-reads/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2332-external-global-reads/receipt.json",
+      "sha256": "22f84f9a5b295ea189ab0062a53ce73c0c33e1bbb5d173b2e33bed87d61972c4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl9.1.0/2332-external-global-reads/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl9.1.0/2332-external-global-reads/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2339-assignment-name-evaluation/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2339-assignment-name-evaluation/source.tcl",
+      "sha256": "3ba83a7a53f0f88c105e9511c13e99768fbd0e901f848a82e6559c9100f19163"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2339-assignment-name-evaluation/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2339-assignment-name-evaluation/stdout",
+      "sha256": "25306aaa469b360353309d67b9b88284863e603a7173eaa0ae54a7264164dc73"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2339-assignment-name-evaluation/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2339-assignment-name-evaluation/receipt.json",
+      "sha256": "86b752ea78aa9de06c5fffd884341eb07b687ef080fd3297ea959be4049fcfe6"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2339-assignment-name-evaluation/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2339-assignment-name-evaluation/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2289-child-created-in-procedure/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2289-child-created-in-procedure/source.tcl",
+      "sha256": "84179fb6007371a776ff781575256c462abe7cf7f3539a215473bcb1e672d55f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2289-child-created-in-procedure/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2289-child-created-in-procedure/stdout",
+      "sha256": "35a587ec4688c2240c2d6bef6ab2a7a3efca8633217ffff4b7affa7cb0521c61"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2289-child-created-in-procedure/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2289-child-created-in-procedure/receipt.json",
+      "sha256": "e45fa41081b9cd44e7f7ec83b739569a65ff14fac281ffbd384a808226360f19"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2289-child-created-in-procedure/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2289-child-created-in-procedure/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2268-unknown-and-distinct-array-key/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2268-unknown-and-distinct-array-key/source.tcl",
+      "sha256": "1393985397327774af3eea76165a528b7f2a4e8e69bfb3f8a45a52ee14b5f98f"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2268-unknown-and-distinct-array-key/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2268-unknown-and-distinct-array-key/stdout",
+      "sha256": "355d0e91fb476df16e679765fe8f0254b324d04bb2ab3c0327aaffccd78c09a4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2268-unknown-and-distinct-array-key/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2268-unknown-and-distinct-array-key/receipt.json",
+      "sha256": "79cc4a66d7e281e63c7614326766122a7af1a2fc72419c0bd6f086969cff20ca"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2268-unknown-and-distinct-array-key/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2268-unknown-and-distinct-array-key/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2209-catch-array-options/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2209-catch-array-options/source.tcl",
+      "sha256": "9b9f1f1fc81b54b444fa6f5afdfa61b61d368ae5733fbfb7c7a819a668d77c30"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2209-catch-array-options/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2209-catch-array-options/stdout",
+      "sha256": "c792c625b71f9321230a89f493778ba4fece811fa6230852ea0925203ad789f7"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2209-catch-array-options/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2209-catch-array-options/receipt.json",
+      "sha256": "7a2e5c06dfd3226442119f03a3f528b614c2a6283b2ac947dc519f03f7446472"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2209-catch-array-options/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2209-catch-array-options/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2209-catch-array-result/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2209-catch-array-result/source.tcl",
+      "sha256": "ebe7026f3383912b4fdbe834bde30e48fe34f9ca2f2cffd3be3424f45c1f745a"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2209-catch-array-result/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2209-catch-array-result/stdout",
+      "sha256": "dd39356e7ee7be7029863a1c955529777a1e66ce2005e8ebf0ec04536c1b06d3"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2209-catch-array-result/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2209-catch-array-result/receipt.json",
+      "sha256": "72c76ddccd55e2e19a83971881d7239dbae9de11c344bb8c34c62b09f8e00cf4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2209-catch-array-result/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2209-catch-array-result/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2399-global-read-store-before-unset/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2399-global-read-store-before-unset/source.tcl",
+      "sha256": "d33eebbb82c3f0afb837a3cc045eb35d4c278f3081fd69837ccaaf177904a901"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2399-global-read-store-before-unset/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2399-global-read-store-before-unset/stdout",
+      "sha256": "eb0559d0c42615543bf69498169f99eaa768350d06c869f2f6d992048df69d46"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2399-global-read-store-before-unset/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2399-global-read-store-before-unset/receipt.json",
+      "sha256": "095179dbe8d98fb0ecd23228859c5f7de1e80c2d32874eddc7b6a7adfca6d52e"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2399-global-read-store-before-unset/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2399-global-read-store-before-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2235-braced-incr-amount/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2235-braced-incr-amount/source.tcl",
+      "sha256": "cf73c40260e39faaee7ffa845c4c3fb0b1bed5262fe795fad2fbaaa64d31dea2"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2235-braced-incr-amount/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2235-braced-incr-amount/stdout",
+      "sha256": "85417929949750458921b9db9c49857473dcf74d67392fca498e6e994b39984b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2235-braced-incr-amount/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2235-braced-incr-amount/receipt.json",
+      "sha256": "ebe8bec216e7366aa3040a40a2688487e11324f45c2cc573104217592d3d2c54"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2235-braced-incr-amount/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2235-braced-incr-amount/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2218-dynamic-proc-head-rebinding/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2218-dynamic-proc-head-rebinding/source.tcl",
+      "sha256": "57396d7c041ad7025e5eb9d536b27ae71669f4dae395a27e0a6e1163d19c8c92"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2218-dynamic-proc-head-rebinding/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2218-dynamic-proc-head-rebinding/stdout",
+      "sha256": "5b17a86760b5894673c3068bb5b77c03be58b438f68d0611bc10efc13b3dd9b4"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2218-dynamic-proc-head-rebinding/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2218-dynamic-proc-head-rebinding/receipt.json",
+      "sha256": "9f082249fd93dea8099ce9a7857f07b1d4a13e6351dfbc174b5bcb2d449deb01"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2218-dynamic-proc-head-rebinding/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2218-dynamic-proc-head-rebinding/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2324-original-tk-computed-head/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2324-original-tk-computed-head/source.tcl",
+      "sha256": "f14c5a32af23b17786eddaf74b65f794f9c12a86bc7ae2b6de10732ed8bc9255"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2324-original-tk-computed-head/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2324-original-tk-computed-head/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2324-original-tk-computed-head/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2324-original-tk-computed-head/receipt.json",
+      "sha256": "fdf7e36f03c742abc722e7372eea98ea5ab9d7a7227357cf851867cf4365303b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2324-original-tk-computed-head/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2324-original-tk-computed-head/stderr",
+      "sha256": "f3258e9c7394730cb24a6538e98a8c27be75fdcf91a62962a61dc6fbb1a95a14"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2255-array-index-outer-mask/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2255-array-index-outer-mask/source.tcl",
+      "sha256": "76f8a5fd96fa967b41633106d1aead794014e588003d55e100855f9de396640e"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2255-array-index-outer-mask/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2255-array-index-outer-mask/stdout",
+      "sha256": "80076180faa346e7858e9e9b3c68586f18c14ab4d7322393d0e96a87a0ac05de"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2255-array-index-outer-mask/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2255-array-index-outer-mask/receipt.json",
+      "sha256": "c4f7edc34f34c0a6417c228ac08f6a2c8710a663641da35ffaf032d8f68f9874"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2255-array-index-outer-mask/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2255-array-index-outer-mask/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2143-materialised-factory/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2143-materialised-factory/source.tcl",
+      "sha256": "451c832399b295ae24b86eb2433cf267eb3fdefa0e1c5540c2df3be6ec4015a8"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2143-materialised-factory/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2143-materialised-factory/stdout",
+      "sha256": "5eab4b7190201cf7f6308297ef8eae74089aae672402847a0c8af46370ca365c"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2143-materialised-factory/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2143-materialised-factory/receipt.json",
+      "sha256": "9f5e555b6e947864a6281351efec2f8b3ef3eaf5e574992cd92e70800c18c366"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2143-materialised-factory/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2143-materialised-factory/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2296-computed-array-key-read/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2296-computed-array-key-read/source.tcl",
+      "sha256": "3e9f6addf113812f25678bd66fc4546e57a83ce69de870631449297fffc9c12b"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2296-computed-array-key-read/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2296-computed-array-key-read/stdout",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2296-computed-array-key-read/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2296-computed-array-key-read/receipt.json",
+      "sha256": "1f78135a4e9ae43a0d1e593a7f7f1c51f6e9ae92d4b60f3bdef8f19265205684"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2296-computed-array-key-read/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2296-computed-array-key-read/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2419-tcllib-variable-writers/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2419-tcllib-variable-writers/source.tcl",
+      "sha256": "25d50438174ffcdd4e90cdfa4ee0cef323737afa1261553064ffef054daeb233"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2419-tcllib-variable-writers/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2419-tcllib-variable-writers/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2419-tcllib-variable-writers/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2419-tcllib-variable-writers/receipt.json",
+      "sha256": "b0b24f2a7f3d5d33486c8362e5ca8577297c031595144da4188a80ad6a566fe8"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2419-tcllib-variable-writers/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2419-tcllib-variable-writers/stderr",
+      "sha256": "7889160f4e011cddb874b37cdb1e8a9f16e17ec3a289ca8ab75fdae053d5f43e"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2417-root-body-collision/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2417-root-body-collision/source.tcl",
+      "sha256": "90d752862ed541af9a65ea29649a91cbde30fcc96f3447ae4660ea9781bb98c0"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2417-root-body-collision/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2417-root-body-collision/stdout",
+      "sha256": "2dd118853612a1a7e83af728b092f85a8f3234d79ea49de67e45383fee29df70"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2417-root-body-collision/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2417-root-body-collision/receipt.json",
+      "sha256": "b1972c6e4db58e3e09057153865a69cff66a797e736070dc032ca0a0945addd1"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2417-root-body-collision/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2417-root-body-collision/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2332-external-global-reads/source.tcl",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2332-external-global-reads/source.tcl",
+      "sha256": "8b9e335bc77b550306a979ad1bee05649fc8475318cdf5319e7048a8dcaee813"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2332-external-global-reads/stdout",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2332-external-global-reads/stdout",
+      "sha256": "b748630f118cd1a6a116b36d367ab068616ddd96ae7ff215dfc23deae610a504"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2332-external-global-reads/receipt.json",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2332-external-global-reads/receipt.json",
+      "sha256": "cf6a488e33b95716b892195db89db5b1c65d915416481d67cc1349248a42a487"
+    },
+    {
+      "copied": "experiments/name-handling/results/cli-shared-symbols-20261014/oracles/tcl8.5.19/2332-external-global-reads/stderr",
+      "retained_original": "experiments/name-handling/results/issue-refresh-20261014/oracles/tcl8.5.19/2332-external-global-reads/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

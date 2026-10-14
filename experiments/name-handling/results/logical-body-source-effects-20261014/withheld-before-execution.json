@@ -1,0 +1,4 @@
+{
+  "patch_sha256": "0720b9cf8c6ee62004a1c877ebb959c0a6fcce4213130217fd762dcfe036d853",
+  "scope": "Initial delivered extraction restored exactly before compilation or execution; final adapter must preserve independently projected immediate child effects. Original immutable delivery retained; no acceptance claimed."
+}
