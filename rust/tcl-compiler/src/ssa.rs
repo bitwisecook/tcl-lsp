@@ -8591,6 +8591,67 @@ mod tests {
     }
 
     #[test]
+    fn readonly_logical_roles_retain_source_reads_without_normal_or_native_ownership() {
+        let (context, unit) = logical_metadata_fixture("info exists {}; info exists {$name}");
+        let registry = context.commands();
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .unwrap();
+        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
+        for statement in &unit.ir_module.top_level.statements {
+            let tokens = statement.tokens().unwrap();
+            assert!(selection.logical_structure(tokens).is_some());
+            assert!(selection.normal(tokens).is_none());
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .variable_context
+                    .interpreter
+                    .is_none()
+            );
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .variable_context
+                    .execution
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn readonly_logical_roles_keep_unknown_read_hazards_after_unclosed_commands() {
+        let (context, unit) =
+            logical_metadata_fixture("info exists {}; opaque_reader; info exists {$name}");
+        let registry = context.commands();
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .unwrap();
+        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
+        let statement = unit.ir_module.top_level.statements.last().unwrap();
+        assert!(
+            selection
+                .logical_structure(statement.tokens().unwrap())
+                .is_none()
+        );
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions::default(),
+            unit.top_level.source_lexer_config(),
+        );
+        assert!(
+            uses_of_classified_in_context(statement, &mut scanner, selection)
+                .iter()
+                .any(|(name, _)| name == "name")
+        );
+    }
+
+    #[test]
     fn original_literal_empty_reads_and_mutations_keep_name_data() {
         // Native cases: experiments/name-handling/results/ssa-empty-read-write-names.
         let source = "info exists {}; info exists {$name}; incr {}; incr {$counter}; dict with {} {}; dict with {$dict} {}";

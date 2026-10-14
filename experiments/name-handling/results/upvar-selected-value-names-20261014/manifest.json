@@ -1,0 +1,10 @@
+{
+  "patch_sha256": "a1df461e2c68655c981b1ef663c69d2b2d4b03fdbbe635aed0c8ee9a771b922d",
+  "purpose": "Decoded literal caller values delegate shared scalar/array partition and selected source write projection",
+  "source_before_sha256": "86b77aaffb492854219d2884aebeefad279855740e471e746544ebde32b753f1",
+  "source_after_sha256": "f2c54b866feeb8ddd7bf94f22dfca03b3dd47ad9800ec41d8448f923df8a08b0",
+  "oracles_sha256": "cae1ecbcb261adbbb34e3ae44d59bc5198c423f916df8c82b5aba57daca11b6d",
+  "test": "cfg_builder::upvar_info::tests::original_caller_argument_values_preserve_literal_scalar_names",
+  "guards": "Original checked caller argument selection and unknown frame/namespace opacity retained; array-element defaults remain Unplaceable to preserve existing caller-store obligation; old zero-production-reader caller_side_defs compatibility assertions unchanged",
+  "validation": "Rustfmt parse/applycheck only; no Cargo/current acceptance claimed"
+}

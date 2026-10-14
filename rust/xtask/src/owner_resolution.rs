@@ -30,6 +30,8 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 
+mod source_internal;
+
 const CONTRACT_PATH: &str = "docs/design/contracts/shared-utility-contracts-rust.md";
 const MAKEFILE_PATH: &str = "Makefile";
 const XTASK_MAIN_PATH: &str = "rust/xtask/src/main.rs";
@@ -180,7 +182,7 @@ fn validate_f5_string_predicate_consumers(root: &Path) -> Result<Vec<String>> {
 }
 
 fn validate_manifest(root: &Path, contract: &str, makefile: &str, xtask_main: &str) -> Vec<String> {
-    let mut problems = Vec::new();
+    let (source_routes, mut problems) = source_internal::validate(root, contract);
     let rows = match parse_manifest(contract) {
         Ok(rows) => rows,
         Err(problem) => {
@@ -271,6 +273,11 @@ fn validate_manifest(root: &Path, contract: &str, makefile: &str, xtask_main: &s
                             .filter(|(prefix, _)| Some(*prefix) == module)
                             .map_or(entry.as_str(), |(_, rest)| rest);
                         file_declares(file, entry)
+                            || source_routes.contains(&(
+                                row.surface.clone(),
+                                source.to_string(),
+                                entry.to_owned(),
+                            ))
                     })
             });
             if resolved_source.is_none() {

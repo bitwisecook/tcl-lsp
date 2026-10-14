@@ -29,14 +29,13 @@
 use std::collections::HashMap;
 
 use serde_json::{Map, Value, json};
-use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
 use tcl_compiler::ir::{
     CommandTokens, HandlerMatch, Module, Procedure, Script, Statement, SwitchArm, TryHandler,
 };
 use tcl_compiler::registry_invocation::effective_command_arguments;
-use tcl_lexer::SourceImage;
 use tcl_registry::CommandRegistry;
 use tcl_registry::InvocationArguments;
 use tcl_registry::events::EventRegistry;
@@ -1769,6 +1768,7 @@ mod original_source_tests {
     use super::*;
     use std::collections::HashSet;
     use std::sync::Arc;
+    use tcl_compiler::analyser::ResolvedAnalysisInput;
 
     fn analysed(
         source: &str,

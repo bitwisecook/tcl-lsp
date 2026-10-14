@@ -36,7 +36,6 @@ use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
 use crate::compilation_unit::CompilationUnit;
-use crate::ir::when_event_name;
 use crate::taint::is_irules_dialect;
 
 use super::helpers::spans::full_rewrite_span;
@@ -59,16 +58,25 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         return;
     }
 
-    // Partition procs: event handlers (`::when::*`) vs user procs.
+    let Some(registry) = ctx.registry.or_else(|| {
+        ir_module
+            .source_metadata_input
+            .as_ref()
+            .map(|input| input.borrowed_context_registry().commands())
+    }) else {
+        return;
+    };
     let mut event_procs: HashSet<crate::ir::ProcedureId> = HashSet::new();
     let mut event_names: HashSet<String> = HashSet::new();
     let mut user_procs: Vec<crate::ir::ProcedureId> = Vec::new();
-
     for (id, procedure) in ir_module.procedures.iter() {
-        let qname = &procedure.qualified_name;
-        if procedure.body_kind == crate::ir::ProcedureBodyKind::Event {
+        if let Some(event) =
+            crate::source_graph::event_body_for_procedure(ir_module, id, procedure, registry)
+        {
             event_procs.insert(*id);
-            event_names.insert(when_event_name(qname).to_owned());
+            event_names.insert(event.event().to_owned());
+        } else if procedure.body_kind == crate::ir::ProcedureBodyKind::Event {
+            return;
         } else {
             user_procs.push(*id);
         }
@@ -323,8 +331,41 @@ mod tests {
             actual.procedures.insert(body_id, bound);
         }
         let mut ctx = PassContext::with_dialect(&cu.source, actual, dialect);
+        ctx.registry = Some(registry);
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    #[test]
+    fn event_reporting_name_cannot_turn_request_handler_into_rule_init_library() {
+        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .default_context_registry();
+        let source = "proc helper {} {return unused}\nwhen HTTP_REQUEST {puts request}\n";
+        let mut cu = CompilationUnit::build_for(source, context.commands(), false);
+        let event_id = *cu.ir_module.irules_event_bodies.keys().next().unwrap();
+        cu.ir_module
+            .procedures
+            .get_mut(&event_id)
+            .unwrap()
+            .qualified_name = "::when::RULE_INIT".into();
+        let mut ctx = PassContext::with_dialect(
+            &cu.source,
+            InterproceduralAnalysis::default(),
+            Some(tcl_dialect::DialectProfile::irules()),
+        );
+        ctx.registry = Some(context.commands());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations
+                .iter()
+                .any(|candidate| candidate.code == DiagCode::O124)
+        );
+        let mut foreign = cu.ir_module.clone();
+        foreign.irules_event_bodies.clear();
+        cu.ir_module = foreign;
+        ctx.optimisations.clear();
+        run(&mut ctx, &cu);
+        assert!(ctx.optimisations.is_empty());
     }
 
     #[test]

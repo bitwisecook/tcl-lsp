@@ -28,9 +28,9 @@ use std::collections::BTreeMap;
 
 use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, SwitchMode};
 use tcl_compiler::lowering::lower_to_ir_with_config;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_compiler::registry_invocation::source_structure::original_single_source_command_substitution;
 use tcl_core_types::DiagCode;
-use tcl_lexer::Span;
+use tcl_lexer::{NativeWord, SourceImage, Span, native_script_words_in};
 use tcl_registry::CommandRegistry;
 use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp, expr_text};
 use tcl_syntax::expr::parse_expr;
@@ -72,90 +72,100 @@ struct EnclosingContext {
 
 // Low-level helpers
 
-/// Strip a leading `[` / trailing `]` from a command-substitution text and
-/// trim surrounding whitespace.
-fn strip_brackets(text: &str) -> &str {
-    let t = text.trim();
-    if t.starts_with('[') && t.ends_with(']') && t.len() >= 2 {
-        t[1..t.len() - 1].trim()
-    } else {
-        t
-    }
-}
-
-/// Extract the command name from a `[CMD ...]` substitution text (naive
-/// whitespace split).
-fn extract_command_name(text: &str) -> Option<&str> {
-    strip_brackets(text).split_whitespace().next()
-}
-
-/// If *text* is a `[HTTP::xxx]` getter, return the command name. Also
-/// recognises `[string tolower [HTTP::xxx]]` / `[string toupper [...]]` as
-/// case-insensitive wrappers.
-fn is_http_getter(text: &str) -> Option<String> {
-    let cmd = extract_command_name(text)?;
-    if cmd.starts_with("HTTP::") {
-        return Some(cmd.to_owned());
-    }
-    if cmd == "string" {
-        // Split into three whitespace fields: the leading `string`, the
-        // subcommand, and the argument (which keeps any embedded
-        // whitespace). Recurse when it is a `tolower` / `toupper` wrapper.
-        let inner = strip_brackets(text);
-        if let Some((subcommand, arg)) = string_subcommand_and_arg(inner)
-            && (subcommand == "tolower" || subcommand == "toupper")
-        {
-            return is_http_getter(arg);
-        }
-    }
-    None
-}
-
-/// For a `string SUBCMD ARG…` text, return `(subcommand, argument)` where
-/// the argument retains any embedded whitespace. Returns `None` if fewer
-/// than three whitespace fields are present.
-fn string_subcommand_and_arg(s: &str) -> Option<(&str, &str)> {
-    let (_string, rest) = split_first_word(s.trim_start())?;
-    let (subcommand, rest) = split_first_word(rest.trim_start())?;
-    let arg = rest.trim_start().trim_end();
-    if arg.is_empty() {
-        return None;
-    }
-    Some((subcommand, arg))
-}
-
-/// Split off the first whitespace-delimited word, returning `(word, rest)`.
-fn split_first_word(s: &str) -> Option<(&str, &str)> {
-    if s.is_empty() {
-        return None;
-    }
-    match s.find(char::is_whitespace) {
-        Some(i) => Some((&s[..i], &s[i..])),
-        None => Some((s, "")),
-    }
-}
-
-/// Split `[cmd arg1 "arg2"]` into argv parts (command name + args), using
-/// the Tcl segmenter's word reconstruction. Returns an empty vec when the
-/// text is not exactly one command.
-///
-/// This crate only ever translates iRules text, so the segmenter reads it
-/// under the iRules grammar — the same resolution
-/// [`translate_irule_with_registry`] performs for the whole document.
-fn parse_command_parts(text: &str) -> Vec<String> {
-    let inner = strip_brackets(text);
+/// Original words from one complete source command under the translation grammar.
+fn original_command_words(text: &str) -> Option<Vec<NativeWord>> {
     let config = tcl_lexer::LexerConfig::from_grammar(
         tcl_registry::model::resolve_environment("f5-irules").grammar(),
     );
-    let cmds = segment_commands_with_offset_and_config(inner, 0, config);
-    if cmds.len() != 1 {
-        return Vec::new();
+    let image = SourceImage::document(text);
+    let region = Span::new(0, u32::try_from(text.len()).ok()?);
+    let mut plan = native_script_words_in(image.clone(), region, config).ok()?;
+    if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+        return None;
     }
-    let cmd = &cmds[0];
-    let mut parts = Vec::with_capacity(cmd.args().len() + 1);
-    parts.push(cmd.name().to_owned());
-    parts.extend(cmd.args().iter().cloned());
-    parts
+    let words = plan.commands.pop()?.words;
+    if words.iter().any(|word| word.group().expand) {
+        return None;
+    }
+    if words.len() == 1 && text.trim_start().starts_with('[') {
+        return Some(
+            original_single_source_command_substitution(&words[0])?
+                .command()
+                .words
+                .clone(),
+        );
+    }
+    Some(words)
+}
+
+fn original_literal_value(word: &NativeWord) -> Option<String> {
+    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        word,
+    )?)
+    .ok()
+}
+
+/// Scalar getter advice requires a complete zero-argument command or a sole
+/// executable getter operand of a case conversion. Literal brackets are data.
+fn is_http_getter(text: &str) -> Option<String> {
+    scalar_getter(text).filter(|name| name.starts_with("HTTP::"))
+}
+
+fn scalar_getter(text: &str) -> Option<String> {
+    scalar_getter_words(original_command_words(text)?)
+}
+
+fn scalar_getter_words(mut words: Vec<NativeWord>) -> Option<String> {
+    loop {
+        let command = original_literal_value(words.first()?)?;
+        if words.len() == 1 {
+            return Some(command);
+        }
+        if command != "string" || words.len() != 3 {
+            return None;
+        }
+        let subcommand = original_literal_value(&words[1])?;
+        if !matches!(subcommand.as_str(), "tolower" | "toupper") {
+            return None;
+        }
+        words = original_single_source_command_substitution(&words[2])?
+            .command()
+            .words
+            .clone();
+    }
+}
+
+fn scalar_getter_operand(word: &NativeWord) -> Option<String> {
+    scalar_getter_words(
+        original_single_source_command_substitution(word)?
+            .command()
+            .words
+            .clone(),
+    )
+}
+
+/// Literal fields and sole executable command operands retain shared geometry.
+/// Dynamic values and expanded words cannot supply static translation facts.
+fn parse_command_parts(text: &str) -> Vec<String> {
+    let Some(words) = original_command_words(text) else {
+        return Vec::new();
+    };
+    let parts: Option<Vec<String>> = words
+        .iter()
+        .map(|word| {
+            original_literal_value(word).or_else(|| {
+                original_single_source_command_substitution(word)?;
+                Some(
+                    word.image()
+                        .try_text()
+                        .ok()?
+                        .get(word.span().as_range())?
+                        .to_owned(),
+                )
+            })
+        })
+        .collect();
+    parts.unwrap_or_default()
 }
 
 /// Classify what a switch subject switches on.
@@ -767,7 +777,7 @@ fn condition_to_direct_ip(node: &ExprNode) -> Option<String> {
     }
     let (cmd, val) = binary_cmd_and_str(left, right);
     let cmd_text = cmd?;
-    if extract_command_name(cmd_text) == Some("IP::client_addr") {
+    if scalar_getter(cmd_text).as_deref() == Some("IP::client_addr") {
         return val;
     }
     None
@@ -777,14 +787,16 @@ fn condition_to_ip_prefix_set(node: &ExprNode) -> Option<String> {
     let ExprNode::Command { text, .. } = node else {
         return None;
     };
-    let inner = strip_brackets(text);
-    let parts: Vec<&str> = inner.split_whitespace().collect();
-    if parts.len() >= 5
+    let parts = parse_command_parts(text);
+    if parts.len() == 5
         && parts[0] == "class"
         && parts[1] == "match"
-        && inner.contains("IP::client_addr")
+        && original_command_words(text)
+            .and_then(|words| scalar_getter_operand(words.get(2)?))
+            .as_deref()
+            == Some("IP::client_addr")
     {
-        return parts.last().map(|s| (*s).to_owned());
+        return parts.last().cloned();
     }
     None
 }
@@ -794,10 +806,13 @@ fn condition_to_class_match_method(node: &ExprNode) -> Option<XCMethodMatch> {
         return None;
     };
     let parts = parse_command_parts(text);
-    if parts.len() >= 5
+    if parts.len() == 5
         && parts[0] == "class"
         && parts[1] == "match"
-        && text.contains("HTTP::method")
+        && original_command_words(text)
+            .and_then(|words| scalar_getter_operand(words.get(2)?))
+            .as_deref()
+            == Some("HTTP::method")
     {
         // Data-group name is last part — cannot resolve statically. Return a
         // placeholder match indicating method matching.
@@ -1742,4 +1757,68 @@ fn round_1dp(x: f64) -> f64 {
     let scaled = x * 10.0;
     let rounded = scaled.round_ties_even();
     rounded / 10.0
+}
+
+#[cfg(test)]
+mod original_getter_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn scalar_getter_advice_matches_original_command_word_geometry() {
+        for text in [
+            "[HTTP::path]",
+            "[{HTTP::path}]",
+            "[\"HTTP::path\"]",
+            r"[HTTP\x3a\x3apath]",
+            "[string tolower [HTTP::path]]",
+            "[string {tolower} [HTTP::path]]",
+        ] {
+            assert_eq!(
+                is_http_getter(text).as_deref(),
+                Some("HTTP::path"),
+                "{text}"
+            );
+        }
+        for text in [
+            "[string tolower {[HTTP::path]}]",
+            "[HTTP::path extra]",
+            "[HTTP::path; HTTP::method]",
+            "[HTTP::path]suffix",
+            "[$getter]",
+            "[HTTP::path",
+            "[{*}HTTP::path]",
+            "[string tolower [HTTP::path] extra]",
+        ] {
+            assert_eq!(is_http_getter(text), None, "{text}");
+        }
+    }
+
+    #[test]
+    fn class_match_advice_reads_the_original_operand_instead_of_substrings() {
+        let node = |text: &str| parse_expr(text, Some("f5-irules"));
+        assert_eq!(
+            condition_to_ip_prefix_set(&node("[class match [IP::client_addr] equals {allow set}]")),
+            Some("allow set".into())
+        );
+        assert!(
+            condition_to_ip_prefix_set(&node("[class match literal equals IP::client_addr]"))
+                .is_none()
+        );
+        assert!(
+            condition_to_class_match_method(&node("[class match [HTTP::method] equals methods]"))
+                .is_some()
+        );
+        assert!(
+            condition_to_class_match_method(&node("[class match literal equals HTTP::method]"))
+                .is_none()
+        );
+        assert!(
+            condition_to_ip_prefix_set(&node("[class match {[IP::client_addr]} equals allow]"))
+                .is_none()
+        );
+        assert!(
+            condition_to_class_match_method(&node("[class match {[HTTP::method]} equals methods]"))
+                .is_none()
+        );
+    }
 }

@@ -1,0 +1,155 @@
+--- a/rust/tcl-compiler/src/cfg_builder/upvar_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/upvar_info.rs
+@@ -214,9 +214,8 @@
+     Raises,
+     /// The caller-frame variable its default names.
+     Names(&'a str),
+-    /// A default that names no variable the analysis can place — an
+-    /// element, a name with a substitution character — or a parameter
+-    /// list that cannot be read.
++    /// An array-element default or an unreadable parameter list retains
++    /// the caller-frame widening obligation.
+     Unplaceable,
+ }
+ 
+@@ -227,8 +226,8 @@
+ }
+ 
+ fn push_caller_side_def(effects: &mut CallerSideEffects, name: &str) {
+-    let name = crate::naming::normalise_var_name(name);
+-    if !name.is_empty() && !effects.defs.iter().any(|found| found == name) {
++    let name = crate::naming::split_array_name_braced(name, true).0;
++    if !effects.defs.iter().any(|found| found == name) {
+         effects.defs.push(name.to_owned());
+     }
+ }
+@@ -306,7 +305,9 @@
+     pub(super) fn default_name(&self, param: &str) -> OmittedName<'_> {
+         match self.param_defaults.get(param) {
+             None => OmittedName::Raises,
+-            Some(Some(name)) if is_var_name(name) => OmittedName::Names(name),
++            Some(Some(name)) if crate::naming::split_element_ref(name).is_none() => {
++                OmittedName::Names(name)
++            }
+             Some(_) => OmittedName::Unplaceable,
+         }
+     }
+@@ -1634,13 +1635,7 @@
+             depth + 1,
+         );
+     }
+-    for name in projected_names {
+-        if is_literal_name(&name) {
+-            info.uplevel_literal_writes.insert(name);
+-        } else {
+-            info.caller_frame_opaque_writes = true;
+-        }
+-    }
++    info.uplevel_literal_writes.extend(projected_names);
+     info.caller_frame_opaque_writes |= projection.opaque_variable_frame;
+ 
+     // A relative `uplevel` evaluates in the *target frame's* namespace. The
+@@ -1865,7 +1860,9 @@
+                 .literal()
+                 .map_or(SelectedAliasTarget::SameOpaque, |name| {
+                     SelectedAliasTarget::SameExact(
+-                        crate::naming::normalise_var_name(name).to_owned(),
++                        crate::naming::split_array_name_braced(name, true)
++                            .0
++                            .to_owned(),
+                     )
+                 })
+         }
+@@ -1904,16 +1901,14 @@
+ ) {
+     let local_written = alias.writes_value
+         || alias.local.literal().map_or(any_write, |local| {
+-            projected_names.contains(crate::naming::normalise_var_name(local))
++            projected_names.contains(crate::naming::split_array_name_braced(local, true).0)
+         });
+     if !local_written {
+         return;
+     }
+     match selected_alias_target(&alias.target, registry, dialect) {
+         SelectedAliasTarget::SameExact(target) => {
+-            if !target.is_empty() {
+-                info.uplevel_literal_writes.insert(target);
+-            }
++            info.uplevel_literal_writes.insert(target);
+         }
+         SelectedAliasTarget::SameOpaque => info.caller_frame_opaque_writes = true,
+         SelectedAliasTarget::Past => widen_beyond_caller(info),
+@@ -2095,35 +2090,10 @@
+         command,
+         &arg_refs,
+     ) {
+-        // A registry command: its own `VarWrite` roles say which words name
+-        // the variables it creates, and they name them in whatever frame it
+-        // runs in — here, the caller's.
+-        let facts = invocation.facts();
+-        let indices: Vec<usize> = facts
+-            .arg_roles
+-            .iter()
+-            .filter(|(_, role)| *role == ArgRole::VarWrite)
+-            .map(|(index, _)| facts.argument_offset + usize::from(*index))
+-            .collect();
+-        if indices.is_empty() {
+-            // A known command that writes no variable (`uplevel 1 [list
+-            // puts hi]`) has no caller-frame effect at all.
+-            return true;
+-        }
+-        for idx in indices {
+-            let Some(target) = arg_refs.get(idx) else {
+-                continue;
+-            };
+-            if is_literal_name(target) {
+-                info.uplevel_literal_writes.insert((*target).to_string());
+-            } else {
+-                // Constructor projection returns evaluated Tcl values, not
+-                // source expressions. A value such as `$name` came from a
+-                // quoted literal operand and names that literal variable; it
+-                // must never be reinterpreted as parameter substitution.
+-                info.caller_frame_opaque_writes = true;
+-            }
+-        }
++        let projection =
++            CommandRegistry::variable_write_projection_for_selected_source(&invocation);
++        info.uplevel_literal_writes.extend(projection.literal_names);
++        info.caller_frame_opaque_writes |= projection.opaque_variable_frame;
+         return true;
+     }
+     // Not a registry command — a candidate user proc. Its own `upvar 1`
+@@ -2413,6 +2383,33 @@
+     }
+ 
+     #[test]
++    fn original_caller_argument_values_preserve_literal_scalar_names() {
++        // experiments/name-handling/results/upvar-selected-value-names-20261014/oracles/observations.json
++        let mut info = module_proc_info("proc helper {source} {upvar 1 $source local}", "::helper");
++        let params = vec!["source".to_owned()];
++        for name in ["", "$name", "a b", "{literal}"] {
++            let words = [InvocationWord::Literal(name)];
++            let explicit =
++                info.caller_side_effects(InvocationArguments::Structured(&words), &params);
++            assert_eq!(explicit.defs, vec![name.to_owned()]);
++            assert!(!explicit.opaque);
++            info.param_defaults = name_param_defaults(
++                &info,
++                &format!("{{source {{{name}}}}}"),
++                tcl_syntax::word_rules::WordValueRules::from_config(
++                    &tcl_lexer::LexerConfig::default(),
++                ),
++            );
++            let omitted = info.caller_side_effects(InvocationArguments::Structured(&[]), &params);
++            assert_eq!(omitted.defs, vec![name.to_owned()]);
++            assert!(!omitted.opaque);
++        }
++        let dynamic = [InvocationWord::Dynamic];
++        let effects = info.caller_side_effects(InvocationArguments::Structured(&dynamic), &params);
++        assert!(effects.opaque);
++    }
++
++    #[test]
+     fn uplevel_literal_body_records_caller_frame_writes() {
+         // `uplevel 1 {set litVar hello}` — the lowering inlines the literal
+         // body as `Statement::UpFrame`; its writes land in the caller. The

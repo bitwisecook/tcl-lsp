@@ -1,10 +1,10 @@
 # Remaining name-handling obligations
 
-Temporary current snapshot on `work`; remove before PR. Tracking checkpoint05:43 UTC, next05:58 UTC; hourly report06:13 UTC. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised, while PR gates remain mandatory.
+Temporary current snapshot on `work`; remove before PR. Tracking checkpoint05:58 UTC, next06:13 UTC; hourly report06:13 UTC. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised, while PR gates remain mandatory.
 
 | Obligation | Current evidence | Next action |
 | --- | --- | --- |
-| Compiler original body/frame consumers | Compiler40 production replay running; Compiler33 scoped194/304, source0. | Seal capture; repair actual protected-body, global/deferred/SSA/slot producers with original assertions retained. |
+| Compiler original body/frame consumers | Compiler42 fresh production replay running; Compiler33 scoped194/304, source0. | Seal capture; repair actual protected-body, global/deferred/SSA/slot producers with original assertions retained. |
 | DB reuse/source metadata | DB38 exact10:2 pass/8 fail, source0. | Restore genuine cold/edit reuse and supplied source metadata, preserving counts and uncached comparisons. |
 | LSP joins and graph analysis | Core34:39/64, source0; original30 gains2, no regression; scope9:8/9. | Fix source definitions/types, linked navigation/rename, coordinate mapping and analyser stack overflow; replay actual seed/provider controls. |
 | Runtime/VM/Engine and #2286 | Runtime09:78/79; original77 pass; full closure drift0. | Replay current measured diagnostic correction/visibility; current Engine/VM/original source-scope closures. |
@@ -15,4 +15,4 @@ Temporary current snapshot on `work`; remove before PR. Tracking checkpoint05:43
 
 See [current state](current-state.md), [consumer inventory](consumer-inventory.md), [issue map](issues.md) and [plan](plan.md). No whole-codebase completion or PR-ready claim is made.
 
-Current checkpoint05:43 UTC: Compiler40 production311 controls205 pass/106 fail, source subset drift0;303 common with Compiler33 improve7 without regression. Actual native server build03 passes; real VSCode11 exact tests pass with source/out/binary drift0. Shared MCP target grammar, authored support slots, original realm owner and protected-body consumer are integrated; affected fresh tests remain required. Source-internal gate is held for four independent review findings. Next tracking05:58 UTC; hourly report06:13 UTC.
+Current checkpoint05:58 UTC: Compiler40 production311 controls205 pass/106 fail, source subset drift0;303 common with Compiler33 improve7 without regression. Compiler42 fresh replay is running with readonly/event/literal/protected-body consumers. MCP41 stopped before controls on a linker bus error at nearly full disk, source subset drift0; its build cache was replaced, preserving exact prior test binaries and evidence. Actual native server build03 passes; real VSCode11 exact tests pass with source/out/binary drift0. Shared MCP target grammar, authored support slots, original realm owner and protected-body consumer are integrated; affected fresh tests remain required. Source-internal gate and exact13 mappings are integrated after independent review of seven repaired AST gaps;15 focused controls and full actual gate execution remain pending. Next tracking06:13 UTC; hourly report06:13 UTC.

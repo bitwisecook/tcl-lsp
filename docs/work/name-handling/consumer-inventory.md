@@ -94,7 +94,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 ## Current implementation and audit priorities
 
 The [outstanding audit](outstanding-consumer-audit.md) and JSON current refresh
-record the bounded 05:43 UTC snapshot. Compiler40 seals 311 controls: 205 PASS
+record the bounded 05:58 UTC snapshot. Compiler40 seals 311 controls: 205 PASS
 and 106 FAIL, with zero authored-source drift. Its 303 common Compiler33 controls
 gain seven without regressions. Full Runtime09 executes
 79 controls: 78 PASS and one new C8.5 error-code FAIL; all original 77 pass, with
@@ -157,7 +157,20 @@ context and is integrated. AI regex retirement, actual selected slot pairs,
 original realm restamping and immediate protected body consumers are integrated;
 their exact original controls remain required. The actual native server build
 passes and 11 selected editor checks pass, with zero source, output and binary
-drift in that bounded capture. Accurate private owner/module/consumer registration
-remains on hold for receiver shadowing, enclosing generics, intermediate module
-visibility and macro handling. Compiler40 is partial acceptance; Core, DB,
+drift in that bounded capture. Private owner/module/consumer registration is integrated after independent source
+review of receiver shadowing, scoped generics, local items, intermediate module
+access and macros. Its 15 controls and actual owner manifest remain unexecuted. The existing Runtime typed getter checks remain unchanged. Compiler40 is partial acceptance; Core, DB,
 Runtime and the full surface roster retain independent remaining gates.
+
+MCP41 stops in the dependency build with a linker bus error; zero semantic
+controls execute and authored-source drift is zero. The current source
+registration packet passes apply-check only. Documentation link/index cleanup
+rechecks 3,259 Markdown files and 126,064 local links with zero broken links
+or unindexed design/KCS entries in the read-only mirror; the real Rust gates
+remain required. Integrated narrow retired-owner proof descriptions preserve all original
+provider/evidence/source/replay fields and do not renew changed evidence hashes.
+
+Shared event/provider consumers, readonly source value roles, upvar value
+protection and the F5 selected parameter getter are integrated. The dead lexical
+adapter is retired. Formatting is running; fresh Compiler41 under a clean target
+has no result yet. Original retained binaries and their hashes are preserved.

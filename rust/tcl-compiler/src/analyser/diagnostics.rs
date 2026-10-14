@@ -653,7 +653,7 @@ impl Analyser {
             Some(&module),
         );
         self.emit_channel_diagnostics(&cu.top_level);
-        self.emit_irules_cell_diagnostics(&cu.top_level, "::top", registry);
+        self.emit_irules_cell_diagnostics(&cu.top_level, None, registry);
         #[cfg(any(test, debug_assertions))]
         trace_phase("top-level");
         self.emit_procedure_body_diagnostics(
@@ -711,12 +711,9 @@ impl Analyser {
         ),
     ) {
         for (id, fu) in &cu.procedures {
-            let qname = &fu.name;
-            // For ``::when::*`` procs, threaded
-            // ``cross_event_defs | cross_event_imports`` from the
-            // ConnectionScope so dead-store / unused-variable
-            // diagnostics suppress vars that may be read in a
-            // different iRule event.
+            let event =
+                crate::source_graph::event_body_for_function(&cu.ir_module, id, fu, registry);
+            // Other event bodies may read these same retained connection cells.
             let (mut cross_event_vars, mut extra_known_defined) =
                 when_proc_cross_event_names(cu, id);
             extra_known_defined.extend(
@@ -745,8 +742,12 @@ impl Analyser {
                 Some(&module),
             );
             self.emit_channel_diagnostics(fu);
-            self.emit_irules_cell_diagnostics(fu, qname, registry);
-            if let Some(event) = fu.irules_event_body.as_ref()
+            self.emit_irules_cell_diagnostics(
+                fu,
+                event.map(crate::ir::SourceIrulesEventBody::event),
+                registry,
+            );
+            if let Some(event) = event
                 && let Some(concerns) = cu
                     .connection_scope
                     .as_ref()
@@ -760,43 +761,23 @@ impl Analyser {
                     &cu.ir_module,
                 );
             }
-            // IRULE4005 — racy ``static::``
-            // cross-event flow.  Only fires for non-RULE_INIT
-            // ``when`` procs when ``ConnectionScope::racy_static_defs``
-            // is non-empty.
-            if let Some(scope) = cu.connection_scope.as_ref()
-                && qname.starts_with("::when::")
+            if let Some(event) = event
+                && event.event() != "RULE_INIT"
+                && let Some(scope) = cu.connection_scope.as_ref()
                 && !scope.racy_static_cells.is_empty()
             {
-                let event = crate::ir::when_event_name(qname);
-                if event != "RULE_INIT" {
-                    self.emit_racy_static_diagnostics(
-                        fu,
-                        event,
-                        &scope.racy_static_cells,
-                        registry,
-                        &cu.ir_module,
-                    );
-                }
+                self.emit_racy_static_diagnostics(
+                    fu,
+                    event.event(),
+                    &scope.racy_static_cells,
+                    registry,
+                    &cu.ir_module,
+                );
             }
         }
     }
 
-    /// `TclOO`/snit method bodies.  `cu.methods` is kept in a *separate* map
-    /// from `cu.procedures` so that
-    /// [`Self::emit_cfg_ssa_diagnostics_with_cu`]'s procs loop is unaffected by
-    /// them (see [`crate::compilation_unit::CompilationUnit::methods`]'s own
-    /// doc), so without this loop the whole CFG/SSA dataflow family (W210
-    /// read-before-set and siblings) would never run on a method body — a
-    /// systemic false negative: a real `Vector3d.tcl::* {type}` method reading
-    /// `$other` (a variable belonging to a *sibling* method, never bound in
-    /// `*`'s own scope) crashes at runtime the moment it is called with an
-    /// object operand (tclsh8.6/9.0.4-verified), while the same unbound-read
-    /// shape inside a plain `proc` fires W210 twice. No `::when::`/`ConnectionScope`
-    /// handling needed — a method's qualified name (`{class}::{method}`)
-    /// never has that prefix, so every one of the procs loop's
-    /// iRule-specific branches would always take their empty-set arm
-    /// anyway.
+    /// Emit CFG diagnostics for each separately retained method body.
     fn emit_method_body_diagnostics(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,

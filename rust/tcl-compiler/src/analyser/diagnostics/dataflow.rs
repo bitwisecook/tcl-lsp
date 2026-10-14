@@ -3505,7 +3505,7 @@ is renamed or deleted in this file."
     pub(super) fn emit_irules_cell_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
-        qname: &str,
+        event: Option<&str>,
         registry: &tcl_registry::CommandRegistry,
     ) {
         if !self.profile.is_irules() {
@@ -3524,7 +3524,7 @@ is renamed or deleted in this file."
                 let before = points.before_statement(id, index);
                 let after = points.after_statement(id, index);
                 for access in irules_cell_accesses(statement, before, after, &context) {
-                    self.emit_irules_cell_access(fu, qname, statement, access, &mut emitted);
+                    self.emit_irules_cell_access(fu, event, statement, access, &mut emitted);
                 }
                 for name in irules_possible_namespace_writes(statement, before, after, &context) {
                     let span = fu.abs_span(statement.span());
@@ -3547,7 +3547,7 @@ is renamed or deleted in this file."
     fn emit_irules_cell_access(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
-        qname: &str,
+        event: Option<&str>,
         statement: &crate::ir::Statement,
         access: IrulesCellAccess,
         emitted: &mut FxHashSet<(DiagCode, u32, String)>,
@@ -3565,7 +3565,7 @@ is renamed or deleted in this file."
             tcl_registry::f5::namespace_storage_domain(BigIpExecutionContext::TmmIRule, &place.ns);
         let code = match domain {
             VariableStorageDomain::WorkerNamespace
-                if crate::ir::when_event_name(qname) != "RULE_INIT" && import.is_none() =>
+                if event != Some("RULE_INIT") && import.is_none() =>
             {
                 DiagCode::Irule4001
             }
@@ -3595,7 +3595,7 @@ is renamed or deleted in this file."
             )
         };
         let fixes = if code == DiagCode::Irule6001 {
-            self.irules_global_name_fix(fu, qname, statement, &place)
+            self.irules_global_name_fix(fu, event, statement, &place)
                 .into_iter()
                 .collect()
         } else {
@@ -3610,7 +3610,7 @@ is renamed or deleted in this file."
     fn irules_global_name_fix(
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
-        qname: &str,
+        event: Option<&str>,
         statement: &crate::ir::Statement,
         place: &crate::place::Place,
     ) -> Option<crate::analyser::types::CodeFix> {
@@ -3621,7 +3621,7 @@ is renamed or deleted in this file."
         else {
             return None;
         };
-        if !name.starts_with("::") && crate::ir::when_event_name(qname) != "RULE_INIT" {
+        if !name.starts_with("::") && event != Some("RULE_INIT") {
             return None;
         }
         let (base, index) = crate::naming::split_array_name(name);

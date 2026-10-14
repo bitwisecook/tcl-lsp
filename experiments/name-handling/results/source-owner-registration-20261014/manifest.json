@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "2eaa46d5f593a0d56e94038af38bdd1892e866edb1c4639ee33e7fe605d784c4",
+  "files": [
+    {
+      "path": "rust/xtask/Cargo.toml",
+      "before_sha256": "63d4444541a184de744c0afc645790e8783c261d7ba8b412b46e46a31a4f3c30",
+      "after_sha256": "ab2d8f08dbb228f4473656fb28e82f0d5d33043381f32370507d1c6e69944252"
+    },
+    {
+      "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+      "before_sha256": null,
+      "after_sha256": "a68e56cb67241164109fd40393c2cecc8de50b3f587bac45a830215fc62ee1b3"
+    },
+    {
+      "path": "rust/xtask/src/owner_resolution.rs",
+      "before_sha256": "6a1a966ec72eeeff1856a15d03a70de1fbd2803a1b730f689e013528878373a6",
+      "after_sha256": "1810a27182226c1f71815498e1ecd0e7ec1a8ea21d820eb5b7c2df7f63074650"
+    }
+  ],
+  "validation": "scratch Rustfmt/apply-check PASS; Cargo unexecuted; independent AST refusal review ongoing",
+  "source_registration": "Separate exact AST source declaration+consumer table. Existing Runtime typed receiver mode unchanged. Source lookup provides no Native/receiver authority.",
+  "test_filter": "owner_resolution::source_internal::",
+  "controls": "15 deterministic gate controls; original Runtime receiver-mode controls unchanged"
+}

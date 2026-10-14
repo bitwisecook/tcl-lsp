@@ -114,8 +114,9 @@ provider, replay or census hash is renewed; current-source inspection does not
 certify immutable execution or Native acceptance.
 
 Public owner rows require actual unrestricted public declarations. Accurate
-private source registration remains on hold for receiver shadowing, enclosing
-generics, intermediate module visibility and macro handling. Exact module/consumer
+private source registration completes independent review of receiver shadowing,
+scoped generics, local items, intermediate module visibility and macros. Source registration is integrated; its 15 controls and full manifest checks
+remain unexecuted. Exact source
 routes preserve the existing Runtime typed getter rule.
 Thirteen exact new mappings and 217 restricted/private-looking entries across
 69 surfaces are retained for AST review; trait and re-export cases are not
@@ -134,3 +135,15 @@ its 303 common Compiler33 controls gain seven without regressions. The actual
 native server build passes and 11 selected editor checks pass with zero source,
 output and binary drift. These bounded checks do not close remaining Core, DB,
 Runtime, private registration, proof or whole-surface gates.
+
+The integrated link/index cleanup rechecks clean in the read-only mirror:
+3,259 Markdown files, 126,064 local links and no missing design/KCS index entries.
+Real Rust KCS, tag and audience checks remain required. MCP41 fails dependency
+linking with a bus error before any semantic controls; authored-source drift is
+zero. Narrow current-owner proof records are integrated without renewing original
+provider/evidence/source/replay fields or resolving their changed-source digests.
+
+Event/provider, readonly source value, upvar protection and F5 selected parameter
+getter consumers are integrated; the dead lexical adapter is retired. Formatting
+is running before fresh Compiler41, which has no result yet. Retained original
+binaries and hashes remain unchanged after build target cleanup.

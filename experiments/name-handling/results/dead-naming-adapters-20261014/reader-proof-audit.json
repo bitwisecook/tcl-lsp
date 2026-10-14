@@ -1,0 +1,49 @@
+{
+  "production_readers": {
+    "explorer_known_and_catalogue": [],
+    "server_fresh_index_seed": [],
+    "diagram_SourceImage": []
+  },
+  "retained_test_selectors": [
+    "the_ingress_forms_differ_only_at_tk",
+    "fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+    "workspace_index_seed_refuses_stale_and_withdrawn_source_owners",
+    "original_diagram_metadata_keeps_actual_availability_and_source_currency"
+  ],
+  "proof_manifest_matches": [
+    {
+      "needle": "workspace_index_seed_refuses_stale_and_withdrawn_source_owners",
+      "path": [
+        "proofs",
+        1540,
+        "tests",
+        170,
+        "selector"
+      ],
+      "value": "original_document_metadata_tests::workspace_index_seed_refuses_stale_and_withdrawn_source_owners"
+    },
+    {
+      "needle": "fresh_index_driver_keeps_keyed_availability_on_the_same_store",
+      "path": [
+        "proofs",
+        1540,
+        "tests",
+        171,
+        "selector"
+      ],
+      "value": "original_document_metadata_tests::fresh_index_driver_keeps_keyed_availability_on_the_same_store"
+    },
+    {
+      "needle": "original_diagram_metadata_keeps_actual_availability_and_source_currency",
+      "path": [
+        "proofs",
+        1590,
+        "tests",
+        4,
+        "selector"
+      ],
+      "value": "data::original_source_tests::original_diagram_metadata_keeps_actual_availability_and_source_currency"
+    }
+  ],
+  "scope": "Actual source readers and canonical proof selector references; other crates with similarly named adapters are not changed. Test assertions remain exact."
+}

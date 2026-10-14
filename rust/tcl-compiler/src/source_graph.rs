@@ -331,3 +331,137 @@ pub fn event_body_for_procedure<'a>(
         .owns_procedure(procedure, &module.source, module.lexer_config, registry)
         .then_some(event.as_ref())
 }
+
+/// The same authentic event retained by a current module-issued function body.
+/// Source correspondence supplies no event activation or worker authority.
+#[must_use]
+pub fn event_body_for_function<'a>(
+    module: &'a Module,
+    id: &ProcedureId,
+    function: &crate::compilation_unit::FunctionUnit,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<&'a SourceIrulesEventBody> {
+    (function.body_id == Some(*id)).then_some(())?;
+    let procedure = module.procedures.get(id)?;
+    function.invocation_metadata_context_for_module(registry, module)?;
+    let original = module.irules_event_bodies.get(id)?;
+    let retained = function.irules_event_body.as_ref()?;
+    std::sync::Arc::ptr_eq(original, retained).then_some(())?;
+    event_body_for_procedure(module, id, procedure, registry)
+}
+
+#[cfg(test)]
+mod event_function_owner_tests {
+    use super::*;
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+
+    fn build_unit(
+        source: &str,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::irules();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let options = UnitBuildOptions {
+            registry: context.commands(),
+            defer_top_level: false,
+            config,
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        CompilationUnit::build_with_context_registry(
+            source,
+            options,
+            None,
+            std::sync::Arc::clone(&context),
+        )
+    }
+
+    #[test]
+    fn ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning() {
+        let source = "namespace eval ::when {}\nproc ::when::RULE_INIT {} {set ::static::counter 1}\nwhen HTTP_REQUEST {puts request}\n";
+        let result = crate::analyser::Analyser::new().analyse(source, "f5-irules");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::Irule4001)
+        );
+    }
+
+    #[test]
+    fn ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix() {
+        let source = "namespace eval ::when {}\nproc ::when::RULE_INIT {} {global counter; set counter 1}\nwhen HTTP_REQUEST {puts request}\n";
+        let result = crate::analyser::Analyser::new().analyse(source, "f5-irules");
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::Irule6001)
+            .collect::<Vec<_>>();
+        assert!(!diagnostics.is_empty());
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.fixes.is_empty())
+        );
+    }
+
+    #[test]
+    fn event_function_owner_uses_actual_body_identity_and_ignores_report_names() {
+        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .default_context_registry();
+        let source = "proc ::when::RULE_INIT {} {set static::fake 1}\nwhen HTTP_REQUEST {set static::counter 1}\n";
+        let unit = build_unit(source, std::sync::Arc::clone(&context));
+        let (id, original) = unit
+            .procedures
+            .iter()
+            .find(|(id, _)| unit.ir_module.irules_event_bodies.contains_key(id))
+            .unwrap();
+        let event =
+            event_body_for_function(&unit.ir_module, id, original, context.commands()).unwrap();
+        assert_eq!(event.event(), "HTTP_REQUEST");
+        let mut forged = original.clone();
+        forged.name = "::when::RULE_INIT".into();
+        assert_eq!(
+            event_body_for_function(&unit.ir_module, id, &forged, context.commands())
+                .unwrap()
+                .event(),
+            "HTTP_REQUEST"
+        );
+        let (ordinary_id, ordinary) = unit
+            .procedures
+            .iter()
+            .find(|(id, _)| !unit.ir_module.irules_event_bodies.contains_key(id))
+            .unwrap();
+        assert!(
+            event_body_for_function(&unit.ir_module, ordinary_id, ordinary, context.commands())
+                .is_none()
+        );
+        assert!(
+            event_body_for_function(&unit.ir_module, ordinary_id, original, context.commands())
+                .is_none()
+        );
+        forged.irules_event_body = forged
+            .irules_event_body
+            .map(|event| std::sync::Arc::new(event.as_ref().clone()));
+        assert!(
+            event_body_for_function(&unit.ir_module, id, &forged, context.commands()).is_none()
+        );
+        let mut changed = unit.ir_module.clone();
+        changed.source = SourceImage::document(&format!("{source} "));
+        assert!(event_body_for_function(&changed, id, original, context.commands()).is_none());
+        let foreign = build_unit(source, context.clone());
+        assert!(
+            event_body_for_function(&foreign.ir_module, id, original, context.commands()).is_none()
+        );
+        assert!(
+            event_body_for_function(
+                &unit.ir_module,
+                id,
+                original,
+                tcl_registry::default_registry()
+            )
+            .is_none()
+        );
+    }
+}

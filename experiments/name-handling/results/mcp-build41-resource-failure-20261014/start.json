@@ -1,0 +1,25 @@
+{
+  "started_utc": "2026-10-14T05:44:21.992928+00:00",
+  "label": "Actual selected-dialect MCP source name consumer and original context guards",
+  "package": "tcl-mcp",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34694,
+  "plan": {
+    "exact": [
+      "spectcl::tests::hook_context_references_use_the_selected_original_c_and_jim_grammar",
+      "spectcl::tests::hook_context_report_threads_the_requested_target_grammar",
+      "spectcl::tests::an_unattributable_ctx_use_leaves_the_declaration_unconfirmed",
+      "spectcl::tests::a_ctx_key_outside_the_calling_convention_is_flagged",
+      "spectcl::tests::the_shape_key_extends_past_the_words",
+      "spectcl::tests::a_body_reading_past_its_declaration_is_flagged_as_a_conflict",
+      "spectcl::tests::an_undeclared_body_is_uncacheable_whatever_it_reads",
+      "spectcl::tests::a_consistent_declared_implementation_has_no_evaluate_findings",
+      "spectcl::tests::collisions_are_scoped_to_the_target_dialect"
+    ],
+    "scope": "New selectedtargetgrammar controls plusoriginalhookcacheability/ctxkey/conflict/evaluation/domaincollision guards; exactlisting mustconfirm9selectors, alloldassertionsunchanged. NoNative hook/cache authority orF5provideracceptance."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "96eab1ae218ab529c9f5c005a5334650708a9c16149c05cf94fc219ae70d9b97",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

@@ -538,6 +538,13 @@ Shared command, variable and namespace-operation vectors live in
 the release manifest in `tcl-dialect`. Consumer tests must derive expectations
 from retained real-oracle observations for the supported release/context.
 C Tcl, Jim and F5 can differ; expectations carry that axis explicitly.
+
+F5 XC getter advice consumes complete original words with the selected source
+grammar. `original_single_source_command_substitution` supplies executable child
+geometry; literal bracket text remains data. Shared static word values supply
+authored command and argument text. Source descriptor applicability and current
+original source sites remain separate from geometry, and neither grants F5/TMM
+execution.
 Upstream C Tcl `tcltest` cases and Jim's equivalent suite are valid evidence
 when executed on the identified real reference interpreter. A `tcltest` run
 uses that version's original `tcltest.tcl` and `init.tcl`, with its matching
@@ -554,9 +561,14 @@ proc/class scans. Neither gate proves that every consumer has adopted the
 owners; representation-aware consumer tests and a complete inventory are
 also necessary.
 
-Runtime bootstrap/support publication consumes shared `WrittenCommandParts`
-without acquiring Original publication authority. Its selected last-nonempty
-bootstrap policy and physical retained/dying holders remain adapter-owned.
+Authored Runtime support publication has explicit slot purposes.
+`Namespaces::support_command_publication_at` consumes shared
+`WrittenCommandParts` once, retaining the actual current or root namespace token
+and counted literal tail, including empty. Rooted bootstrap registration uses
+Syntax's `support_command_registration_slot` last-nonempty policy independently.
+Physical retained/dying holders remain Runtime-owned. Native script and C API
+publication, and Jim's original alias keys, use their own operation recipes;
+a support label grants none of their authority.
 `NativeOoVarnameLookup` carries original-versus-constructed operand selection;
 actual caller objects, lookup purposes, cells and currency remain separate.
 

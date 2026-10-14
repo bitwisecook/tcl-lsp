@@ -11751,6 +11751,7 @@ impl Backend {
             && *self.class_factory_generation.read().await == seed.class_factory_generation
     }
 
+    #[cfg(test)]
     async fn fresh_index_seed_is_current(&self, source: &str, seed: &FreshAnalysisSeed) -> bool {
         self.fresh_index_generation_is_current(seed).await
             && tcl_compiler::source_graph::current_analysis(source, &seed.analysis).is_some()

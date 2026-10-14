@@ -1,0 +1,13 @@
+{
+  "package": "f5-xc",
+  "tests": [
+    {
+      "index": 1,
+      "selector": "translator::original_getter_geometry_tests::scalar_getter_advice_matches_original_command_word_geometry"
+    },
+    {
+      "index": 2,
+      "selector": "translator::original_getter_geometry_tests::class_match_advice_reads_the_original_operand_instead_of_substrings"
+    }
+  ]
+}

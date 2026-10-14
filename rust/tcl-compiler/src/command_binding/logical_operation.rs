@@ -70,7 +70,13 @@ pub(super) fn transfer(
             offset,
             context,
         )?;
-    } else {
+    } else if !readonly_continuation(
+        &original,
+        &facts,
+        &schema.state_transitions(),
+        state,
+        context,
+    ) {
         return None;
     }
     // A continuation of this authored model has no Native handler, command
@@ -272,6 +278,56 @@ fn bounded_effects(facts: &InvocationFacts, domains: &[WorldStateDomain]) -> boo
             && (domains.contains(&access.domain)
                 || (access.domain == WorldStateDomain::InterpreterPolicy
                     && access.mode == EffectAccessMode::Read))
+    })
+}
+
+fn readonly_continuation(
+    original: &LogicalOriginalInvocation,
+    facts: &InvocationFacts,
+    transitions: &StateTransitions,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    if !original.is_current(state, context)
+        || !transitions.facts().is_empty()
+        || !facts.arg_roles_complete
+        || state.source_variables.dynamic_bindings
+        || state.source_variables.dynamic_traces
+        || !bounded_effects(
+            facts,
+            &[
+                WorldStateDomain::VariableStore,
+                WorldStateDomain::VariableTraces,
+            ],
+        )
+        || facts
+            .effects
+            .accesses()
+            .iter()
+            .any(|access| access.mode != EffectAccessMode::Read)
+        || facts
+            .arg_roles
+            .iter()
+            .any(|(_, role)| *role != ArgRole::VarRead)
+        || facts.arg_roles.is_empty()
+    {
+        return false;
+    }
+    facts.arg_roles.iter().all(|(ordinal, _)| {
+        let Some(name) = original
+            .arguments
+            .get(facts.argument_offset + usize::from(*ordinal))
+        else {
+            return false;
+        };
+        let access = crate::var_resolve::resolve_literal_access(
+            name,
+            &state.source_variables,
+            false,
+            context.registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        !access.dynamic && !access.observed && logical_cell_is_local(&access, state, context)
     })
 }
 

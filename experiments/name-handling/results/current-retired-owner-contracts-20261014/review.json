@@ -1,0 +1,17 @@
+{
+  "reviewed_utc": "2026-10-14T05:49:21.599570+00:00",
+  "records": [
+    "naming.analysis.constructed-key-consumer-projections",
+    "naming.analysis.procedure-summary-candidate-keys",
+    "naming.source.logical-procedure-definition-model"
+  ],
+  "protected_fields_equal": [
+    "providers",
+    "evidence",
+    "source_anchors",
+    "replay"
+  ],
+  "all_other_records_equal": true,
+  "evidence_hashes_refreshed": false,
+  "scope": "Current source owner contracts only; original evidence/provenance and stale implementation digests retained. No renewed execution or Native acceptance."
+}

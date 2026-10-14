@@ -53002,11 +53002,6 @@
           "purpose": "Reuse the central one-root descriptive label projection while preserving actual original call selection, indirect-head exclusion and exact-span deduplication; the public naming contract remains independent."
         },
         {
-          "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
-          "symbol": "normalise_fn_name",
-          "purpose": "Project one optional root from an already constructed FunctionUnit/analyser scope label, preserving literal-colon and Unicode components; the public hint entry retains independent whole-source, configuration, Registry and declaration/SSA owners."
-        },
-        {
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "symbol": "itcl_class_proc_at_in_registry",
           "purpose": "Explicit standalone metadata supplies its Registry for shared holder/tail, Itcl descriptor-family and class-method row selection; this helper does not establish contextual source currency."
@@ -53036,10 +53031,10 @@
       "id": "naming.analysis.procedure-summary-candidate-keys",
       "kind": "implementation-contract",
       "document": "docs/design/analysis/name-resolution-proofs/procedure-summary-candidate-keys.md",
-      "problem_statement": "Procedure summary maps can overwrite a same-named namespace candidate or select an arbitrary first parameter summary. This can lose possible caller reads and report one conflicting caller alias/default/signature as definite. Trimming constructed leading colon segments also changes metadata identity.",
-      "question": "How do constructed procedure summary keys share one pure geometry owner, retain all original same-source candidates, refuse conflicting complete signatures/frame aliases, and union protective by-name reads without turning a label or missing candidate into Native lookup or effect-absence authority?",
-      "conclusion": "key_suffixes delegates the existing constructed key_segments split and retains complete keys, lone-colon segments and nonempty unique suffix labels. CFG frame and parameter indexes preserve all members under the original retained Module/header/body owner; one unavailable, changed or redefined member leaves the shared key unavailable. Parameter publication requires equal ordered names and raw declarations, preserving defaults and variadic position. Frame composition/publication also requires unanimous own or composed frame summaries; conflicts and unknown callees widen to opaque caller reads/writes without definite alias maps. ProcIndex retains every parameter-summary candidate and unions possible literal by-name arguments/defaults. A missing/dynamic key protects literal passed names; it grants no effect-free callee. The sole production elimination consumer uses this as extra MAY protection and independently retains binding/opaque CFG, positioned source-read and RHS/raise/store proof owners. Six genuine fixed source-defined controls cover constructed colon/Unicode/NUL geometry, conflicting caller aliases, default/order/variadic disagreement, changed member/foreign source refusal, every colliding read/default and missing-key literal protection. All255 previous true test bodies remain exact. No assertion/provider execution is attached.",
-      "scope": "Finite Syntax constructed-key query and Compiler frame/parameter/protective-index consumers. The global-write and deferred-write index adapters share the same query through qualified_lookup_keys without changing their existing independent effect/source guards. Possible keys and ProcIndex candidates are MAY metadata, never selected Native command, namespace incarnation, frame, alias/cell contents, observer history, successful completion or store-removal authority. Empty neutral indexes preserve their compatibility short circuit; unknown hidden frame effects remain the existing binding/CFG owner. This is not a claim of all Compiler naming, whole optimisation soundness or external Tcl/Jim/BIG-IP behavior.",
+      "problem_statement": "Display labels can collide across original declarations. Procedure-effect summaries must retain each issued body identity and its genuine original Module, allocation, source body and signature; missing ownership cannot select a body or erase possible caller effects.",
+      "question": "How do shared original procedure owners retain distinct body-keyed summaries and signatures, select conditional original call edges, and preserve protective by-name reads without treating a display label as Native lookup or effect-absence authority?",
+      "conclusion": "OriginalProcedureSummaryOwners retains the actual unchanged Module and its original Registry correspondence. Module.original_source_procedure_bodies enumerates primary procedures with the same Module issuer; OriginalDeclaration body units additionally require their actual declaration site, allocation, source image and body kind. Module.original_source_procedure_for_target uniquely joins a genuine target allocation/site and authored implementation image. Complete retained Module correspondence independently validates current signatures before OriginalProcedureSummaryOwners accepts its owner. CFG caller-frame, parameter and outer-write summaries remain keyed by those identities; equal labels do not merge distinct signatures or alias targets. Missing, foreign or changed ownership, a missing body, stale original vectors and unmatched retained metadata decline source selection or retain opaque caller hazards. Original execution and Logical source purposes may supply conditional MAY call summaries with their original effective arguments; Native source_procedure_for_target and Native callable admission remain independent. Protective ProcIndex candidates preserve every colliding parameter-summary possibility and union literal by-name arguments/defaults. Missing or dynamic keys protect possible literal names without proving an effect-free callee. Shared constructed key_suffixes remains pure presentation geometry for that protective index. Elimination retains its independent binding/opaque CFG, positioned original reads and RHS/raise/store proof owners. Linked fixed controls describe distinct body summaries, original signatures, changed/foreign ownership refusal and protective unions. No current assertion, external provider or Native acceptance is attached.",
+      "scope": "Current original-source procedure inventory, issued body-keyed CFG frame/parameter/global summaries and protective constructed-key ProcIndex projections. Conditional source summaries supply MAY effects, not Native command admission, namespace incarnation, physical frame/cell contents, successful completion or store-removal authority. Registry-only template memo identity remains independently certified; source-bound raw memo identity retains its actual Module owner. C Tcl, Jim and BIG-IP behaviour and whole optimisation conformance require their independent original oracle and consumer controls.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -53243,21 +53238,21 @@
         },
         {
           "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
-          "selector": "cfg_builder::tests::colliding_summary_keys_decline_conflicting_caller_alias_targets",
+          "selector": "cfg_builder::tests::distinct_body_summaries_preserve_conflicting_alias_targets",
           "status": "linked",
-          "assertion": "Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached."
+          "assertion": "Actual original namespace declarations retain distinct issued bodies and conflicting left/right alias targets; ambiguous forwarding retains no definite alias and opaque caller reads/writes. Definition only; current matched execution remains independent."
         },
         {
           "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
-          "selector": "cfg_builder::tests::summary_parameter_keys_require_complete_unanimous_original_signatures",
+          "selector": "cfg_builder::tests::summary_parameters_retain_each_original_signature",
           "status": "linked",
-          "assertion": "Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached."
+          "assertion": "Each original issued body retains its own ordered parameters, defaults and variadic placement, including conflicting equal-tail declarations. Definition only; current matched execution remains independent."
         },
         {
           "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
           "selector": "cfg_builder::tests::summary_keys_decline_one_changed_member_and_foreign_module_source",
           "status": "linked",
-          "assertion": "Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached."
+          "assertion": "Changed original parameters withhold only the changed body parameter summary and retain its opaque frame hazard; a replaced foreign whole source withholds all parameter summaries and retains opaque frame effects. Original assertions unchanged; no current execution acceptance."
         },
         {
           "path": "rust/tcl-compiler/tests/inlining_interproc_residual.rs",
@@ -53280,13 +53275,13 @@
         },
         {
           "path": "rust/tcl-compiler/src/cfg_builder/summary_candidates.rs",
-          "symbol": "ProcedureSummaryCandidates",
-          "purpose": "Retain all possible procedures under exact original Module/header/body membership; invalid members refuse key availability and complete raw signatures must agree."
+          "symbol": "OriginalProcedureSummaryOwners",
+          "purpose": "Retain the genuine complete Module/Registry owner; original issued body candidates and effective arguments select conditional MAY summaries, never display-name lookup or Native callable admission."
         },
         {
           "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
-          "symbol": "agreed_frame_summary",
-          "purpose": "Compose/publish a frame summary only when all original candidates share a complete signature and identical frame effects; otherwise opaque without definite caller alias maps."
+          "symbol": "detect_upvar_bodies_with_registry",
+          "purpose": "Keep independent caller-frame summaries for each actual issued body and original signature; missing or changed source ownership and unavailable call edges retain opaque caller hazards."
         },
         {
           "path": "rust/tcl-compiler/src/interprocedural.rs",
@@ -53312,6 +53307,21 @@
           "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
           "symbol": "dead_store_observation_unbounded",
           "purpose": "Existing opaque Native access/CFG observer refusal remains before store advice; this projection never proves Native read absence."
+        },
+        {
+          "path": "rust/tcl-compiler/src/ir.rs",
+          "symbol": "Module::original_source_procedure_bodies",
+          "purpose": "Enumerate primary procedures under the same issuing Module and OriginalDeclaration body units with their actual declaration site/allocation/image/body kind; retained signature correspondence is independently checked by the original Module owner."
+        },
+        {
+          "path": "rust/tcl-compiler/src/ir.rs",
+          "symbol": "Module::original_source_procedure_for_target",
+          "purpose": "Uniquely join the genuine target allocation/site and authored implementation image to an issued body in the same Module; independent retained owner checks validate current signatures and Native source_procedure_for_target admission remains unchanged."
+        },
+        {
+          "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+          "symbol": "prepare_cfg_context_bundle",
+          "purpose": "Retain the actual original Module owner alongside body-keyed parameter/frame/outer-write summaries and closed command bindings."
         }
       ],
       "replay": {
@@ -1120778,8 +1120788,8 @@
         },
         {
           "path": "rust/tcl-compiler/src/command_binding/logical_definition.rs",
-          "symbol": "captured_static_value",
-          "purpose": "Project shared exact literal_bytes through checked UTF8/no-zero source text only; original owner/vector/context/store and capture order remain separately required."
+          "symbol": "static_bytes_text",
+          "purpose": "Project the selected shared literal_bytes facet through checked UTF8/no-zero source text; original source/vector/context/store, captured origins and order retain their independent guards."
         }
       ],
       "tests": [

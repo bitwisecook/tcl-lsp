@@ -1,0 +1,2 @@
+QUIET_EXISTENCE 1 1 EMPTY LITERAL
+TRACE_INSTALL 1 {bad option "variable": must be add, info, or remove}

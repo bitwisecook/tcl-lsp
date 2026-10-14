@@ -1,0 +1,8 @@
+explicit {} EXPLICIT
+default {} DEFAULT
+explicit {$name} EXPLICIT
+default {$name} DEFAULT
+explicit {a b} EXPLICIT
+default {a b} DEFAULT
+explicit {{literal}} EXPLICIT
+default {{literal}} DEFAULT
