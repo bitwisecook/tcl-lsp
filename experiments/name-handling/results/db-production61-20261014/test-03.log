@@ -1,0 +1,17 @@
+
+running 1 test
+test tests::function_lattice_reused_on_body_shift ... 
+thread 'tests::function_lattice_reused_on_body_shift' (304380) panicked at rust/tcl-lsp-db/src/lib.rs:10206:9:
+assertion `left == right` failed: length-changing body edit -> exactly ONE lattice recomputes (offset-invariant): ["file_analysis_incremental(Id(100))", "declared_command_surface(Id(80))", "compilation_unit_for_config(Id(280))", "function_lattice(Id(402))", "function_lattice(Id(403))", "taint_cascade(Id(502))", "taint_cascade(Id(503))", "item_body_analysis(Id(581))"]
+  left: 2
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    tests::function_lattice_reused_on_body_shift
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 157 filtered out; finished in 1.66s
+

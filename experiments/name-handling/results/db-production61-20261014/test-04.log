@@ -1,0 +1,17 @@
+
+running 1 test
+test tests::function_lattice_reused_on_whole_file_shift ... 
+thread 'tests::function_lattice_reused_on_whole_file_shift' (304397) panicked at rust/tcl-lsp-db/src/lib.rs:10148:9:
+assertion `left == right` failed: whole-file shift must reuse every proc lattice (deterministic key): 1 re-ran
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    tests::function_lattice_reused_on_whole_file_shift
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 157 filtered out; finished in 2.91s
+

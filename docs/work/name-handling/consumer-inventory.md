@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T08:41:02Z. The [outstanding audit](outstanding-consumer-audit.md)
+Current bounded snapshot: 2026-10-14T08:55:41Z. The [outstanding audit](outstanding-consumer-audit.md)
 and machine inventory retain original issue and source observations.
 
 The current shared consumers retain complete original source, analysis input,
@@ -130,9 +130,10 @@ zero total drift is not claimed. Diagnostic54 is build PASS/2 FAIL/source drift
 zero; temporary diagnostics are removed, and actual producer repairs remain
 required.
 
-DB48 builds and executes all ten original controls: 1 PASS/9 FAIL, source drift
-zero and no missing/empty selectors. Whole-file lattice shift passes; the
-original quoted/braced callee-edit control regresses from DB38. Unchanged cold,
+DB61 builds and executes all ten original controls: 0 PASS/10 FAIL, source drift
+zero and no missing/empty selectors. Whole-file lattice shift regresses from
+DB48; cold lower/optimisation counts, taint cascade counts, edit reuse and actual
+memo/direct diagnostics remain failures. Quoted/braced callee edit still fails. Unchanged cold,
 edit, supplied-input and uncached comparison assertions remain required. Core34
 retains 39 PASS/25 FAIL across 64 controls with zero source drift; linked hover,
 rename, graph producer and strict Native inlay remain open. Runtime09 retains
@@ -159,9 +160,14 @@ source grammar independently of runtime invocation and Native entry. Current
 contracts, guarded arity, original retained fixture and body geometry corrections
 are integrated; Diagnostic59 stops at a test-only context-helper type mismatch, zero semantic
 controls and source drift zero. The actual helper correction and unused wrapper
-API retirement are integrated. Diagnostic60 is running five source-producer
-controls; temporary instrumentation is excluded from production checkpoints and
-removed after seal. No new semantic result is claimed.
+API retirement are integrated. Diagnostic60 seals five controls: 4 PASS/1 FAIL, source drift zero and no
+missing/empty selectors. All three original Native card controls and the original
+source-advice join pass; protected source-frame scope still fails. Its actual
+logs include temporary source-facade instrumentation despite an inaccurate
+no-diagnostics source_channel label; the original receipt is preserved. Temporary
+code is retired exactly before production work resumes. The subsequent Native
+issuer guard requires complete original input, including genuinely same-context
+changed analyser/unit refusal controls; those new controls await replay.
 
 Appliance questions remain unanswered; software and C/Jim observations do not
 establish Native F5 dispatch or execution.
@@ -200,11 +206,15 @@ installed allocation, publication, callable body or entered frame.
 Native FunctionLattice-only correspondence is independently reviewed with full
 current source entry, actual dependencies and injective relocation. Integration,
 negative-control replay and whole BodyAnalysisCapsule transport remain pending.
-The taint replay-report v2 source review resolves full current Module ownership
+The taint replay-report v3 and display-consumer source review resolves full current Module ownership
 and synthetic-span provenance: complete source entry and actual retained Module
 owner must match; residual spans require complete original/synthetic bounds or a
 genuine registration anchor, with no borrowed original snapshot on unmapped
-synthetic bytes. New controls and the downstream reader union remain pending.
+synthetic bytes. Actual whole-CU callback and per-function command-head scopes remain distinct
+in Compiler/DB and Explorer/Core reports. The reviewed report/display integration
+and new controls remain pending. Namespace frame/context heap transport is
+independently reviewed with unchanged depth, budget, source and Native guards;
+its fresh fixed-budget graph replay remains required.
 These source reviews establish no cache or whole-report acceptance.
 
 The 52 workspace members, 11 excluded packages and inherited 330 lexical LSP

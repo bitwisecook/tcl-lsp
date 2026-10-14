@@ -1,0 +1,732 @@
+
+running 1 test
+test command_binding::logical_source_advice_join_tests::logical_source_advice_join_requires_the_same_complete_original_owner ... ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request_input offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.reached_lookup offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.point_metadata offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.known offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.present offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.closed_domain offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.quiet offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.no_step offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.origin offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.image offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.store offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.config offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_CHILD_GUARD label=module.enter offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.initial offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.metadata offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.realm offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.binding offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.layout offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.metadata offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.purpose offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.config offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.recorded offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(0) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.represented_advice offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_context offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_source offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.target_match offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_CHILD_GUARD label=transition.advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_CHILD_GUARD label=transition.words offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.layout_result offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(7) passed=false
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(7) passed=false
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.represented_advice offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_context offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_source offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_vector offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.target_match offset=Some(7) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_CHILD_GUARD label=module.enter offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.initial offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.metadata offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.realm offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.binding offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.layout offset=Some(7) passed=false
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_CHILD_GUARD label=module.carrier offset=Some(7) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(7) passed=false
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(7) passed=false
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.represented_advice offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_context offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_source offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_vector offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.target_match offset=Some(7) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request_input offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.reached_lookup offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.point_metadata offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.known offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.present offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.closed_domain offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.quiet offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.no_step offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.origin offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.image offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.store offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.config offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_CHILD_GUARD label=module.enter offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.initial offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.metadata offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.realm offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.binding offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.layout offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.metadata offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.purpose offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.config offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=supplied.recorded offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=2 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(0) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.represented_advice offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_context offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_source offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.target_match offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_CHILD_GUARD label=transition.advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_CHILD_GUARD label=transition.words offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=module.layout_result offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(7) passed=false
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(7) passed=false
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.represented_advice offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_context offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_source offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_vector offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.target_match offset=Some(7) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_CHILD_GUARD label=module.enter offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.initial offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.metadata offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.realm offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.binding offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=module.layout offset=Some(7) passed=false
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_CHILD_GUARD label=module.carrier offset=Some(7) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.inventory offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.expressions offset=Some(0) passed=true count=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.original_vector offset=Some(0) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=regions.coverage offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(7) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.regions offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.retained_advice offset=Some(0) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=immediate.represented offset=Some(0) passed=true count=1
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(7) passed=false
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(7) passed=false
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.represented_advice offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_context offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_source offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.advice_vector offset=Some(7) passed=true
+ORIGINAL_CHILD_GUARD label=retained.target_match offset=Some(7) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=7 passed=true count=3
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9740 filtered out; finished in 0.34s
+

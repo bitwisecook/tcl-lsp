@@ -1,0 +1,20 @@
+{
+  "started_utc": "2026-10-14T08:39:51.764959+00:00",
+  "label": "Diagnostic authentic Native body producer and protected source facade with unchanged assertions",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014",
+  "source_paths": 34699,
+  "plan": {
+    "exact": [
+      "command_binding::logical_source_advice_join_tests::logical_source_advice_join_requires_the_same_complete_original_owner",
+      "registry_invocation::logical_frame::tests::protected_frame_bodies_use_actual_logical_scope_and_reject_unknown_callers",
+      "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_retain_unentered_declarations_and_actual_ids",
+      "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_refuse_changed_and_foreign_owner_inputs",
+      "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_require_complete_original_header_grammar"
+    ]
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "4c5410f7a221df31b95d78e96699b3bb21e5c3de6c3d634287bb67fbc6278030",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

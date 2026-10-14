@@ -1,0 +1,17 @@
+
+running 1 test
+test tests::function_optimisations_reused_on_unrelated_edit ... 
+thread 'tests::function_optimisations_reused_on_unrelated_edit' (304402) panicked at rust/tcl-lsp-db/src/lib.rs:7919:9:
+assertion `left == right` failed: cold build: every procedure's optimise runs once
+  left: 0
+ right: 3
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    tests::function_optimisations_reused_on_unrelated_edit
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 157 filtered out; finished in 0.57s
+

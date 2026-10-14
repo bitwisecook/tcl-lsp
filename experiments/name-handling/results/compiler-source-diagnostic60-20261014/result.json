@@ -1,0 +1,187 @@
+{
+  "started_utc": "2026-10-14T08:39:51.764959+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 289.47243723800057,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+    "sha256": "e44ed139f7f320aaa946f769099f7aeeb14fbb8dddc2c76b6ab47004c902ed9c",
+    "bytes": 379949768
+  },
+  "selected_tests": [
+    "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_refuse_changed_and_foreign_owner_inputs",
+    "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_require_complete_original_header_grammar",
+    "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_retain_unentered_declarations_and_actual_ids",
+    "command_binding::logical_source_advice_join_tests::logical_source_advice_join_requires_the_same_complete_original_owner",
+    "registry_invocation::logical_frame::tests::protected_frame_bodies_use_actual_logical_scope_and_reject_unknown_callers"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_refuse_changed_and_foreign_owner_inputs",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.4150306579977041,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_refuse_changed_and_foreign_owner_inputs",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_require_complete_original_header_grammar",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.615574850991834,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_require_complete_original_header_grammar",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_retain_unentered_declarations_and_actual_ids",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.21444842100027017,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_retain_unentered_declarations_and_actual_ids",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "command_binding::logical_source_advice_join_tests::logical_source_advice_join_requires_the_same_complete_original_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.36475855999742635,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "command_binding::logical_source_advice_join_tests::logical_source_advice_join_requires_the_same_complete_original_owner",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "registry_invocation::logical_frame::tests::protected_frame_bodies_use_actual_logical_scope_and_reject_unknown_callers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.21437456499552354,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "registry_invocation::logical_frame::tests::protected_frame_bodies_use_actual_logical_scope_and_reject_unknown_callers",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T08:44:45.803916+00:00",
+  "changed_sources": {}
+}

@@ -1,0 +1,17 @@
+
+running 1 test
+test tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input ... 
+thread 'tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input' (304378) panicked at rust/tcl-lsp-db/src/lib.rs:6059:9:
+assertion `left == right` failed
+  left: Some(Goto { target: BlockId(1), span: None })
+ right: Some(Complete { route: Tcl(Error), span: Some(Span { start: 0, end: 19 }) })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 157 filtered out; finished in 0.56s
+

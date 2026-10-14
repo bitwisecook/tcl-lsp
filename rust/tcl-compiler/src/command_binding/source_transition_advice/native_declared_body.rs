@@ -90,7 +90,10 @@ impl SourceCommandBindings {
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<Vec<Arc<OriginalNativeSourceDeclaration>>> {
-        if input.has_logical_source_name_context() || input.has_hosted_source_name_context() {
+        if input.has_logical_source_name_context()
+            || input.has_hosted_source_name_context()
+            || self.source_metadata_owner().source_analysis_input() != Some(input)
+        {
             return None;
         }
         let seed = self.original_source_transition_seed()?;

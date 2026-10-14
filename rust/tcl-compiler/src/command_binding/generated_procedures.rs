@@ -669,6 +669,52 @@ mod original_native_body_tests {
     }
 
     #[test]
+    fn native_source_declaration_birth_requires_complete_actual_input() {
+        let actual = module("proc f {x} {return $x}\n", "tcl8.6");
+        let input = actual.source_metadata_input.as_ref().unwrap();
+        let retained = actual.retained_source_bindings.as_ref().unwrap();
+        let bindings = retained
+            .positioned_for_module(&actual, input.borrowed_context_registry().commands())
+            .unwrap();
+        assert_eq!(
+            bindings
+                .original_native_source_declarations(input)
+                .unwrap()
+                .len(),
+            1
+        );
+        let foreign_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        for changed in [
+            crate::analyser::ResolvedAnalysisInput::new(
+                foreign_profile,
+                input.unit_profile(),
+                input.context_registry(),
+                input.lexer_config(),
+            ),
+            crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                foreign_profile,
+                input.context_registry(),
+                input.lexer_config(),
+            ),
+        ] {
+            assert!(std::sync::Arc::ptr_eq(
+                &input.context_registry(),
+                &changed.context_registry()
+            ));
+            assert_eq!(input.lexer_config(), changed.lexer_config());
+            assert!(!changed.has_logical_source_name_context());
+            assert!(!changed.has_hosted_source_name_context());
+            assert!(
+                bindings
+                    .original_native_source_declarations(&changed)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
     fn original_native_source_cards_require_complete_original_header_grammar() {
         for source in [
             "proc $name {} {return VALUE}",

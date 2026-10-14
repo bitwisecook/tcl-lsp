@@ -1,18 +1,16 @@
 # Remaining name-handling obligations
 
-Temporary current snapshot on `work`; remove before PR. Tracking checkpoint06:43 UTC, next06:58 UTC; hourly report07:13 UTC. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised, while PR gates remain mandatory.
+Temporary current snapshot on `work`; remove before PR. Tracking checkpoint08:58 UTC; next09:13 UTC, hourly report09:13 UTC. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised. Required PR gates remain mandatory.
 
 | Obligation | Current evidence | Next action |
 | --- | --- | --- |
-| Compiler original body/frame consumers | Compiler43 fresh replay322 controls208 pass/114 fail, source0; Compiler33 scoped194/304, source0. | Seal capture; repair actual protected-body, global/deferred/SSA/slot producers with original assertions retained. |
-| DB reuse/source metadata | DB48 exact10:1 pass/9 fail, source0. | Restore genuine cold/edit reuse and supplied source metadata, preserving counts and uncached comparisons. |
-| LSP joins and graph analysis | Core34:39/64, source0; original30 gains2, no regression; scope9:8/9. | Fix source definitions/types, linked navigation/rename, coordinate mapping and analyser stack overflow; replay actual seed/provider controls. |
-| Runtime/VM/Engine and #2286 | Runtime09:78/79; original77 pass; full closure drift0. | Replay current measured diagnostic correction/visibility; current Engine/VM/original source-scope closures. |
-| Remaining surfaces and editors | MCP selected-dialect patch prepared from real6-provider probe; actual VSCode/Xvfb provisioned. | Integrate remaining audited consumers; Actual native server/fresh extension:11 exact real editor controls pass, source/out/binary drift0; finish remaining surfaces. |
-| Shared private-owner gates |217 private-looking entries/69 surfaces inventoried; bounded gate implementation active. | Preserve private ownership and existing Native gates; meaningful positive/refusal tests. |
-| Documentation/proofs/issues | Strict audit1959 structural errors; link/index review identifies current defects. | Semantic corrections and executed closure reseals; final current-state docs/comments, generated drift and required gates. |
-| F5 | Real returned answers retained; unanswered requests remain. | Receive actual BIG-IP answer documents on work; no substitute acceptance. |
+| Compiler source/body/frame consumers | Compiler58:388/542 pass, source subset drift0; diagnostic60:4/5 pass, original Native3 and Logical join pass, protected scope fails. | Integrate reviewed Logical inventory stamping and finish actual source summary/SSA/variable producers; replay unchanged controls. |
+| DB reuse/source metadata | DB61 original10:0 pass/10 fail, source subset drift0; whole-file shift regresses. | Move original Native child/schema, summary and cache consumers to actual cards; preserve counts and uncached equivalence. |
+| LSP joins and graph analysis | Core34:39/64 pass, source subset drift0; original30 gains2/no regression; scope9:8/9. | Integrate reviewed stack transport; finish actual definition/type and coordinate owners, replay linked navigation. |
+| Taint consumers | Shared status/report and Core/Explorer display migrations independently reviewed, unexecuted. | Integrate actual snapshot/currentness/status transport and run original plus new refusal controls. |
+| Runtime/VM/Engine and #2286 | Runtime09:78/79; original77 pass, full captured closure drift0. | Replay current measured fixes, VM/Engine and original source-scope closures. |
+| Remaining surfaces/editors | Actual native server/fresh extension:11 real editor controls pass, source/out/binary drift0. | Complete surface audits and MCP typed path provenance; current affected replays. |
+| Private owners/docs/issues | Strict proof audit1959 structural errors; bounded private-owner gates integrated. | Correct semantic records, execute narrow closure reseals; current minimal docs/comments, generated files and required gates. |
+| F5 | Real returned answers retained; unanswered requests remain. | Replay current original32 software controls; receive actual BIG-IP answers on work. |
 
 See [current state](current-state.md), [consumer inventory](consumer-inventory.md), [issue map](issues.md) and [plan](plan.md). No whole-codebase completion or PR-ready claim is made.
-
-Current checkpoint target08:43 UTC: Native frame-free source declaration/body/schema/formal tape recipe is integrated separately from the unchanged ReadFlow/physical-frame route; current card guards and original3 controls remain mandatory. Hosted59 test helper type is corrected and unused wrapper methods retired; stronger refusal tests retained. Diagnostic60 runs5 original Native/protected-body controls with source frozen; temporary source-facade trace code is excluded from this checkpoint and must be removed after sealing. Latest semantic58 remains388/542PASS/source subset drift0, all337 previous controls gain9/no regression. Independent namespace stack transport and taint report/display source reviews are complete or ongoing; integration/execution pending. Source child/MAY/cache/body propagation remains unfinished. Next tracking08:58 UTC; hourly09:13 UTC.
