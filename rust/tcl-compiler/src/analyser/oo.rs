@@ -1285,7 +1285,7 @@ impl Analyser {
         bodies
     }
 
-    fn retain_logical_member_name_operand(
+    pub(super) fn retain_logical_member_name_operand(
         &self,
         grammar: &DefinitionBodyGrammar,
         cmd: &crate::segmenter::SegmentedCommand,
@@ -1366,6 +1366,23 @@ impl Analyser {
         else {
             return;
         };
+        if !words.iter().zip(&cmd.argv).all(|(word, token)| {
+            word.group().span == token.span
+                && word.tokens().first().is_some_and(|original| {
+                    original.kind == token.kind
+                        && original.content_offset == token.content_offset
+                        && original.in_quote == token.in_quote
+                })
+        }) || words[..=statement.row.keyword_index]
+            .iter()
+            .zip(&cmd.texts)
+            .any(|(word, text)| {
+                tcl_syntax::word_rules::original_static_word_ascii_presentation(word).as_deref()
+                    != Some(text.as_bytes())
+            })
+        {
+            return;
+        }
         let Some(word) = words.get(name_ordinal) else {
             return;
         };
@@ -1374,25 +1391,17 @@ impl Analyser {
         {
             return;
         }
-        let methods = match side {
-            MemberSide::Instance => &class.methods,
-            MemberSide::ClassObject => &class.class_methods,
-        };
-        let Some(method) = methods.get(name) else {
+        let (Some(name_token), Some(body_token)) =
+            (cmd.argv.get(name_ordinal), cmd.argv.get(body.0))
+        else {
             return;
         };
-        if cmd.argv.get(name_ordinal).map(|token| token.span) != Some(method.name_span)
-            || cmd.argv.get(body.0).map(|token| token.span) != Some(method.body_span)
-        {
-            return;
-        }
-        let method = method.clone();
         class.original_members.retain_logical_name_operand(
             input,
             words,
             name_ordinal,
             side,
-            &method,
+            (name_token.span, body_token.span),
         );
     }
 
@@ -1526,9 +1535,6 @@ impl Analyser {
                     rules: self.word_rules(),
                 },
             );
-            if spliced.is_none() && expanded.is_none() {
-                self.retain_logical_member_name_operand(grammar, cmd, class_def);
-            }
             self.retain_class_relation_lookups(texts, class_def, scope_path);
             self.record_member_command_references(grammar, texts, argv, scope_path);
             if let Some(method) = collect_method_body(
@@ -4762,6 +4768,120 @@ mod tests {
                     .is_none()
             );
         }
+    }
+
+    #[test]
+    fn logical_method_name_roles_follow_the_selected_family_grammar() {
+        for source in [
+            "snit::type C {method {two words} {} {}}",
+            "itcl::class C {method {two words} {} {}}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let class = &analysis.all_classes["::C"];
+            let method = &class.methods["two words"];
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let image = analysis
+                .retained_command_realm()
+                .unwrap()
+                .original_source_image()
+                .unwrap();
+            let word = class
+                .original_members
+                .logical_name_operand(MemberSide::Instance, method, input, image)
+                .unwrap();
+            assert_eq!(
+                tcl_syntax::word_rules::original_static_word_ascii_presentation(word).unwrap(),
+                b"two words"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_member_name_ingress_refuses_reconstructed_wrapper_vectors() {
+        let source = "oo::class create C {self {method m {} {}}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let class = &analysis.all_classes["::C"];
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = analysis
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        assert!(
+            class
+                .original_members
+                .logical_name_operand(
+                    MemberSide::ClassObject,
+                    &class.class_methods["m"],
+                    input,
+                    image
+                )
+                .is_none()
+        );
+
+        let direct_source = "oo::class create C {method m {} {}}";
+        let mut analyser = Analyser::new();
+        let analysis = analyser
+            .analyse_and_retain_result_for_test(direct_source, "tcl")
+            .clone();
+        let mut class = analysis.all_classes["::C"].clone();
+        class.original_members = Default::default();
+        let current = &analysis.all_classes["::C"];
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            &direct_source[current.body_span.as_range()],
+            current.body_span.start(),
+            input.lexer_config().nested(),
+        );
+        let mut command = commands
+            .into_iter()
+            .find(|command| command.name() == "method")
+            .unwrap();
+        analyser.retain_logical_member_name_operand(
+            &tcl_registry::definer::TCLOO_GRAMMAR,
+            &command,
+            &mut class,
+        );
+        let actual_input = analysis.resolved_input.as_ref().unwrap();
+        let actual_image = analysis
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        assert!(
+            class
+                .original_members
+                .logical_name_operand(
+                    MemberSide::Instance,
+                    &class.methods["m"],
+                    actual_input,
+                    actual_image
+                )
+                .is_some()
+        );
+        class.original_members = Default::default();
+        command.argv[2] = command.argv[1];
+        analyser.retain_logical_member_name_operand(
+            &tcl_registry::definer::TCLOO_GRAMMAR,
+            &command,
+            &mut class,
+        );
+        let actual_input = analysis.resolved_input.as_ref().unwrap();
+        let actual_image = analysis
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        assert!(
+            class
+                .original_members
+                .logical_name_operand(
+                    MemberSide::Instance,
+                    &class.methods["m"],
+                    actual_input,
+                    actual_image
+                )
+                .is_none()
+        );
     }
 
     #[test]

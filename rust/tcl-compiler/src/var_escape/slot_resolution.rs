@@ -59,15 +59,96 @@ use crate::var_escape::types::ProcEscapeSummary;
 /// constant too.
 pub const LOCALS_ARRAY_CAP: usize = 16;
 
-/// True when *value* is a Tcl value with substitutions.
-fn is_dynamic_value(value: &str) -> bool {
-    if value.is_empty() {
-        return false;
+/// Scalar destination data and its independent original Normal correspondence.
+/// Missing source evidence cannot borrow the standalone IR compatibility lane.
+fn typed_local_slot_name<'a>(
+    script: &Script,
+    statement: &'a Statement,
+) -> Result<Option<&'a str>, ()> {
+    let name = match statement {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. } => name.as_str(),
+        _ => return Ok(None),
+    };
+    let tokens = script.retained_source_tokens_for_statement(statement);
+    if let Some(tokens) = tokens {
+        let binding = tokens.source_binding.as_ref().ok_or(())?;
+        let registry = binding.retained_registry_for_tokens(tokens).ok_or(())?;
+        let metadata = binding
+            .original_source_metadata_for_advice(tokens, registry)
+            .map_err(|_| ())?;
+        let normal =
+            crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+            .ok_or(())?;
+        let selected =
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+            .or_else(|| {
+                crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                    registry, metadata, tokens,
+                )
+            })
+            .ok_or(())?;
+        if normal.descriptor_key() != Some(selected.facts.descriptor_key())
+            || normal.argument_offset() != selected.facts.argument_offset
+        {
+            return Err(());
+        }
+        let argument = selected.facts.argument_offset;
+        let word = selected.effective.words.get(argument + 1).ok_or(())?;
+        if !matches!(
+            selected.effective.origins.get(argument + 1),
+            Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+        ) || crate::registry_invocation::compiled_local_name_word(word)
+            != crate::registry_invocation::CompiledLocalNameWord::Direct
+            || name.contains('\0')
+        {
+            return Err(());
+        }
+        let (original, unknown) =
+            crate::registry_invocation::original_assignment_name_operand(registry, tokens, name)
+                .ok_or(())?;
+        if unknown
+            || normal.argument_literal(normal.argument_offset()).as_deref()
+                != Some(original.as_str())
+            || binding.variable_context.frame_kind != crate::var_resolve::VariableFrameKind::Local
+        {
+            return Err(());
+        }
+        let policy = binding
+            .variable_context
+            .invocation_dialect
+            .and_then(|dialect| dialect.variable_lookup_policy)
+            .ok_or(())?;
+        if tcl_syntax::naming::split_element_ref(name).is_some()
+            || !tcl_syntax::naming::source_variable_name_is_frame_local(name.as_bytes(), policy)
+        {
+            return Ok(None);
+        }
+        return Ok(Some(name));
     }
-    if value.starts_with('$') || value.starts_with('[') {
-        return true;
+    if script.executed_source.is_some()
+        || script.command_binding_sites.iter().next().is_some()
+        || statement.tokens().is_some()
+    {
+        return Err(());
     }
-    value.contains('$') || value.contains('[')
+    if crate::ir_helpers::structural_variable_write_projection(statement).opaque_variable_frame {
+        return Err(());
+    }
+    // Unattributed IR retains only the common, unambiguous scalar shape.
+    if name.is_empty() || tcl_syntax::naming::is_dynamic_word(name) {
+        return Err(());
+    }
+    if name.contains('(') || tcl_syntax::naming::is_qualified(name.as_bytes()) {
+        return Ok(None);
+    }
+    Ok(Some(name))
 }
 
 /// Pre-screen on the escape summary alone.  Cheap path — bails
@@ -174,21 +255,10 @@ fn stmt_disables_slots(
 ) -> bool {
     match stmt {
         Statement::Barrier { .. } => true,
-        // Dynamic-name writes via the `Assign*` / `Incr` variants
-        // would target any local at runtime; we can't know which
-        // one and indexed storage can't satisfy the by-name lookup
-        // the runtime would perform.  Disable the whole proc.
-        // The IR lowering can preserve dynamic names on these
-        // assignment variants directly, so an empty or dynamic
-        // name here is enough to bail.
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. }
-            if name.is_empty() || is_dynamic_value(name) =>
-        {
-            true
-        }
+        Statement::AssignConst { .. }
+        | Statement::AssignExpr { .. }
+        | Statement::AssignValue { .. }
+        | Statement::Incr { .. } => typed_local_slot_name(script, stmt).is_err(),
         Statement::Call { .. } => call_disables_slots(script, stmt, ineligible_names),
         _ => false,
     }
@@ -335,25 +405,10 @@ pub fn assign_local_slots(
         if stmt_disables_slots(owner, stmt, &mut ineligible) {
             return BTreeMap::new();
         }
-        // Record assign target names in source order.
-        let target: Option<&str> = match stmt {
-            Statement::AssignConst { name, .. }
-            | Statement::AssignExpr { name, .. }
-            | Statement::AssignValue { name, .. }
-            | Statement::Incr { name, .. } => Some(name.as_str()),
-            _ => None,
-        };
-        if let Some(name) = target {
-            // Skip names that include array-element notation —
-            // those route through the array directory regardless.
-            if !name.is_empty()
-                && !seen.contains(name)
-                && !name.contains('(')
-                && !name.starts_with("::")
-            {
-                ordered_names.push(name.to_string());
-                seen.insert(name.to_string());
-            }
+        if let Ok(Some(name)) = typed_local_slot_name(owner, stmt)
+            && seen.insert(name.to_owned())
+        {
+            ordered_names.push(name.to_owned());
         }
     }
 
@@ -861,6 +916,76 @@ mod tests {
                 Some(&0),
             );
         }
+    }
+
+    #[test]
+    fn original_typed_slot_names_preserve_literal_data_under_actual_lookup_policy() {
+        for (label, qualified_local) in [("tcl8.6", false), ("jim", true)] {
+            let context = tcl_registry::model::ingress::static_context_for(label);
+            let registry = context.commands();
+            let profile = registry.profile().unwrap();
+            let source = "namespace eval N {}; proc p {} {set {$literal} 1; set {[literal]} 2; set {} 3; set N::x 4}";
+            let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+                source,
+                registry,
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                Some(profile),
+            );
+            let procedure = module
+                .procedures
+                .values()
+                .find(|procedure| procedure.name == "p" || procedure.name == "::p")
+                .unwrap();
+            let slots = assign_local_slots(&procedure.body, &ProcEscapeSummary::default(), &[]);
+            assert_eq!(slots.get("$literal"), Some(&0), "{label}: {slots:?}");
+            assert_eq!(slots.get("[literal]"), Some(&1), "{label}: {slots:?}");
+            assert_eq!(slots.get(""), Some(&2), "{label}: {slots:?}");
+            assert_eq!(
+                slots.contains_key("N::x"),
+                qualified_local,
+                "{label}: {slots:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn typed_slot_data_refuses_changed_or_unowned_original_names() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+            "proc p {} {set {$literal} 1}",
+            registry,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            Some(profile),
+        );
+        let procedure = module.procedures.values().next().unwrap();
+        assert_eq!(
+            assign_local_slots(&procedure.body, &ProcEscapeSummary::default(), &[]).get("$literal"),
+            Some(&0)
+        );
+        let mut changed = procedure.body.clone();
+        let statement = changed.statements.first_mut().unwrap();
+        match statement {
+            Statement::AssignConst { name, .. } => *name = "relabelled".to_owned(),
+            _ => panic!("actual typed scalar assignment"),
+        }
+        assert!(assign_local_slots(&changed, &ProcEscapeSummary::default(), &[]).is_empty());
+        let mut missing = procedure.body.clone();
+        missing.command_binding_sites = Default::default();
+        assert!(assign_local_slots(&missing, &ProcEscapeSummary::default(), &[]).is_empty());
+        let mut unowned = assign_const("$literal", "1");
+        if let Statement::AssignConst { name_braced, .. } = &mut unowned {
+            *name_braced = true;
+        }
+        assert!(
+            assign_local_slots(
+                &script_with(vec![unowned]),
+                &ProcEscapeSummary::default(),
+                &[]
+            )
+            .is_empty()
+        );
     }
 
     #[test]

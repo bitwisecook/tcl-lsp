@@ -613,6 +613,17 @@ impl Frame {
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
         let compiler_generation = jim_script.is_none().then(|| compiler.generation());
+        let jim_evaluation_script =
+            jim_script
+                .is_none()
+                .then(|| tcl_runtime_api::jim_error_stack::JimScriptLocation {
+                    file: Value::string(
+                        source_location
+                            .as_ref()
+                            .map_or("", |location| location.file.as_str()),
+                    ),
+                    line: source_location.as_ref().map_or(1, |location| location.line),
+                });
         Self {
             jim_script_entry: jim_script,
             jim_script: None,
@@ -620,14 +631,7 @@ impl Frame {
                 procedure_level: 0,
                 command: None,
                 is_procedure: false,
-                script: Some(tcl_runtime_api::jim_error_stack::JimScriptLocation {
-                    file: Value::string(
-                        source_location
-                            .as_ref()
-                            .map_or("", |location| location.file.as_str()),
-                    ),
-                    line: source_location.as_ref().map_or(1, |location| location.line),
-                }),
+                script: jim_evaluation_script,
                 invocation: Value::empty(),
             },
             asm,
@@ -8522,7 +8526,9 @@ impl Vm {
             } else {
                 Value::empty()
             };
-            if let Some(location) = f.jim_evaluation.script.as_mut() {
+            if f.jim_script.is_none()
+                && let Some(location) = f.jim_evaluation.script.as_mut()
+            {
                 let line = f
                     .asm
                     .instructions

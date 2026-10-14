@@ -54,18 +54,40 @@ impl Vm {
 
     pub(super) fn tick_native_jim_script(&mut self, frame: &mut Frame) -> Tick {
         if let Some(entry) = frame.jim_script_entry.take() {
-            match NativeJimScriptState::new(entry, self) {
+            let prepared = NativeJimScriptState::new_for_evaluation_frame(
+                entry,
+                self,
+                &mut frame.jim_evaluation.script,
+            );
+            match prepared {
                 Ok(state) => frame.jim_script = Some(state),
-                Err(error) => return Tick::Return(completion_from_tcl_error(self, error)),
+                Err(error) => {
+                    if let Some(current) = self.jim_errors.frames.last_mut() {
+                        *current = Self::borrow_jim_evaluation_frame(&frame.jim_evaluation);
+                    }
+                    return Tick::Return(completion_from_tcl_error(self, error));
+                }
             }
         }
         loop {
-            let step = match frame
+            let reached = frame
                 .jim_script
                 .as_mut()
                 .expect("native Script state")
-                .next(self)
-            {
+                .next(self);
+            let location = frame
+                .jim_script
+                .as_ref()
+                .expect("native Script state")
+                .current_script_location();
+            match location {
+                Ok(location) => frame.jim_evaluation.script = location,
+                Err(error) => return Tick::Return(completion_from_tcl_error(self, error)),
+            }
+            if let Some(current) = self.jim_errors.frames.last_mut() {
+                *current = Self::borrow_jim_evaluation_frame(&frame.jim_evaluation);
+            }
+            let step = match reached {
                 Ok(step) => step,
                 Err(error) => return Tick::Return(completion_from_tcl_error(self, error)),
             };

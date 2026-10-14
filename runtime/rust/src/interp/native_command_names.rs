@@ -1639,6 +1639,7 @@ mod repinned_registration_key_tests {
         assert!(!interp.host_refusal_pending());
         let moved = obj::Owned::fresh(obj::new_string_bytes(b"moved"));
         assert!(interp.resolve_original_command(moved.as_ptr()).is_err());
+        assert_eq!(interp.eval_str(b"moved"), Code::Error);
         assert!(interp.host_refusal_pending());
     }
     #[test]

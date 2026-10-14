@@ -1,0 +1,17 @@
+
+running 1 test
+test retained_import_original_jim ... 
+thread 'retained_import_original_jim' (386908) panicked at tests/native_namespace_command_query.rs:127:5:
+assertion `left == right` failed: jim: result=[105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 78, 58, 58, 120, 34]; refusal=Some(ValueAccessRefusal(CommandProtocolUnavailable("retired native object"))); stdout=[73, 68, 69, 78, 84, 73, 84, 89, 32, 48, 46, 56, 52, 10]
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    retained_import_original_jim
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 49 filtered out; finished in 0.46s
+

@@ -238,6 +238,88 @@ impl RetainedSourceModuleBindings {
             && snapshot.state.baseline == self.observed.baseline
     }
 
+    /// Exact original declaration geometry in this current issued body. Its
+    /// source preview supplies no reached invocation, frame or stored value.
+    pub(crate) fn owns_original_body_tokens(
+        &self,
+        module: &Module,
+        body: crate::ir::ProcedureId,
+        tokens: &crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> bool {
+        let Some(input) = module.source_metadata_input.as_ref() else {
+            return false;
+        };
+        let Some((_, procedure)) = module
+            .original_source_procedure_bodies()
+            .find(|(id, _)| **id == body)
+        else {
+            return false;
+        };
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            return false;
+        };
+        if !self.matches_module(module, registry)
+            || !self.matches_original_procedure_summary(body, procedure)
+            || !self.owns_original_analysis_attachment(tokens)
+            || !input.has_logical_source_name_context()
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || binding.lookup_state.is_some()
+            || binding.has_original_native_source_command()
+            || binding.has_original_logical_source_advice()
+        {
+            return false;
+        }
+        let Some(metadata) = binding.original_declaration_metadata_for_source(tokens, registry)
+        else {
+            return false;
+        };
+        if metadata
+            .source_analysis_input()
+            .is_none_or(|held| held != input && held != &input.for_nested_source())
+        {
+            return false;
+        }
+        let Some(site) = binding.invocation_site() else {
+            return false;
+        };
+        let Some(observations) = binding.declaration_layout_observations.as_deref() else {
+            return false;
+        };
+        let Some(rows) = super::declaration_layout::original_declaration_layouts(observations)
+        else {
+            return false;
+        };
+        let mut seen = false;
+        for row in rows {
+            seen = true;
+            let source_matches = match row.entry.as_ref() {
+                super::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredProcedure(
+                    declared,
+                ) => declared.matches_original_procedure_source(procedure, &module.source),
+                super::declaration_layout::OriginalDiagnosticFrameEntry::Body(_) => {
+                    procedure.body.executed_source.as_deref() == Some(row.entry.source())
+                }
+                _ => false,
+            };
+            if !source_matches
+                || !row.entry.owns_source(&site.source, site.offset)
+                || row.words.as_ref() != tokens.words()
+                || row.snapshot.state.current_source_origin.as_ref() != Some(&site.source)
+                || row.snapshot.state.baseline != self.observed.baseline
+                || row.config.nested().normalized() != self.grammar.nested().normalized()
+                || site
+                    .source
+                    .original_lexical_command(tokens.words(), site.offset, row.config)
+                    .is_none()
+            {
+                return false;
+            }
+        }
+        seen
+    }
+
     pub(super) fn projection(
         &self,
         module: &Module,

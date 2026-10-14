@@ -395,15 +395,15 @@ impl OriginalSourceMemberLedger {
         words: Vec<tcl_lexer::NativeWord>,
         name_ordinal: usize,
         side: MemberSide,
-        method: &MethodDef,
+        spans: (tcl_lexer::Span, tcl_lexer::Span),
     ) {
         self.logical_names.push(LogicalSourceMemberNameOperand {
             input,
             words,
             name_ordinal,
             side,
-            name_span: method.name_span,
-            body_span: method.body_span,
+            name_span: spans.0,
+            body_span: spans.1,
         });
     }
 

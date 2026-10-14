@@ -1150,10 +1150,13 @@ struct LogicalProviders {
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 enum NativeBootstrapPurpose {
     Distribution,
-    Core,
+    Core {
+        protocol: tcl_registry::special_vars::NativeBootstrapProtocol,
+        inputs: tcl_registry::special_vars::NativeBootstrapInputs,
+    },
 }
 
 /// Hidden command allocations and their exact token and provenance indexes.
@@ -2839,8 +2842,11 @@ impl Vm {
         let owner_nonce =
             tcl_runtime_api::native_compilation::NativeInterpreterIdentity::fresh_owner();
         let mut state = Box::new(InterpState::fresh(out, owner_nonce, 0));
-        if let Some((host, profile, _, _)) = &native {
-            state.bootstrap = NativeBootstrapPurpose::Core;
+        if let Some((host, profile, protocol, inputs)) = &native {
+            state.bootstrap = NativeBootstrapPurpose::Core {
+                protocol: *protocol,
+                inputs: inputs.clone(),
+            };
             state.host = Rc::clone(host);
             state.runtime_version = profile.vm_runtime_version;
             state.pin = tcl_registry::model::PinnedContext::for_profile(*profile);
@@ -7422,6 +7428,7 @@ impl Vm {
         child.host = Rc::clone(&self.host);
         child.runtime_version = self.runtime_version;
         child.actual_engine_profile = self.actual_engine_profile;
+        child.bootstrap = self.bootstrap.clone();
         child.logical_providers.quote = self.logical_providers.quote;
         child.logical_providers.expression_parse = self.logical_providers.expression_parse;
         child.logical_providers.source_words = self.logical_providers.source_words;
@@ -7507,16 +7514,40 @@ impl Vm {
         let safe = safe || self.is_safe();
         let parent = self.cur;
         let child = self.fork_child_state();
+        if let NativeBootstrapPurpose::Core { protocol, .. } = &child.bootstrap {
+            let actual = child.actual_engine_profile.and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).native_bootstrap_protocol()
+            });
+            if actual != Some(*protocol) {
+                return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
+            }
+        }
         let id = self.new_interp_slot(child, parent);
-        // Populate the child by making it current and running the ordinary
-        // interpreter bootstrap (register builtins, seed globals, optionally
-        // make it safe) — the same paths the root interp uses.
+        // The child replays its constructor's inputs in its own command world.
         self.in_interp(id, |vm| {
             let saved = vm.active_native_profile;
             vm.active_native_profile = vm.actual_engine_profile.or(saved);
-            register_builtins(vm);
+            match vm.bootstrap.clone() {
+                NativeBootstrapPurpose::Core { protocol, inputs } => {
+                    crate::command::register_builtins_with_native_core(vm, Some(protocol));
+                    vm.bootstrap_native_core(protocol, &inputs);
+                    if protocol
+                        .child_initialisation()
+                        .initialises_jim_static_extensions()
+                    {
+                        for &library in
+                            tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL
+                        {
+                            vm.install_scripted_library(library);
+                        }
+                    }
+                }
+                NativeBootstrapPurpose::Distribution => {
+                    register_builtins(vm);
+                    vm.bootstrap_globals();
+                }
+            }
             vm.active_native_profile = saved;
-            vm.bootstrap_globals();
             vm.enable_command_semantics_tracking();
             if vm.authored_timers.installed {
                 crate::retained_activation::register_provider(vm);
@@ -22961,7 +22992,7 @@ impl Vm {
     /// Bootstrap each real scripted procedure once per selected distribution library.
     /// Replacement and deletion remain visible through subsequent profile repinning.
     pub(crate) fn refresh_scripted_distribution_libraries(&mut self) {
-        if self.bootstrap == NativeBootstrapPurpose::Core {
+        if matches!(self.bootstrap, NativeBootstrapPurpose::Core { .. }) {
             return;
         }
         use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
@@ -32105,5 +32136,118 @@ mod debug_owned_cell_tests {
         assert_eq!(snapshot.stack[0].name, "inspection");
         vm.pop_call_frame();
         assert!(vm.debug_snapshot(8, "after").variables.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod native_child_constructor_tests {
+    use super::*;
+
+    fn core(engine: &str) -> Vm {
+        Vm::with_native_core(
+            Box::new(std::io::sink()),
+            Rc::new(crate::host_native::NativeHost::new()),
+            tcl_registry::model::resolve_environment(engine).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs {
+                package_path: b"original-library".to_vec(),
+                default_library: Some(b"original-default".to_vec()),
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn child_core_publication_uses_its_retained_constructor_inputs_and_engine() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut vm = core(engine);
+            vm.write_scalar_raw("tcl_pkgPath", Value::string("changed-parent"));
+            vm.write_scalar_raw("auto_path", Value::string("changed-parent"));
+            let id = vm
+                .create_child_named_bytes(NameBytes::from(b"child"), false)
+                .unwrap();
+            vm.in_interp(id, |child| {
+                let NativeBootstrapPurpose::Core { protocol, inputs } = &child.bootstrap else {
+                    panic!("actual child core constructor");
+                };
+                assert_eq!(inputs.package_path, b"original-library");
+                assert_eq!(
+                    inputs.default_library.as_deref(),
+                    Some(b"original-default".as_slice())
+                );
+                assert_eq!(
+                    child
+                        .actual_native_invocation_dialect()
+                        .native_bootstrap_protocol(),
+                    Some(*protocol),
+                );
+                assert!(
+                    child
+                        .command_at_exact_slot(
+                            &CommandSlot {
+                                namespace: ROOT_NS,
+                                simple: NameBytes::from(b"set"),
+                            },
+                            false
+                        )
+                        .is_some()
+                );
+                if protocol.names().is_jim084() {
+                    let world = child.name_world.borrow();
+                    assert!(world.jim_command_original_keys.contains_key(&CommandSlot {
+                        namespace: ROOT_NS,
+                        simple: NameBytes::from(b"set"),
+                    }));
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn jim_child_extension_library_has_its_own_original_command_key() {
+        let mut vm = core("jim");
+        let slot = CommandSlot {
+            namespace: ROOT_NS,
+            simple: NameBytes::from(b"namespace info"),
+        };
+        assert!(vm.command_at_exact_slot(&slot, false).is_none());
+        let id = vm
+            .create_child_named_bytes(NameBytes::from(b"child"), false)
+            .unwrap();
+        vm.in_interp(id, |child| {
+            assert!(child.command_at_exact_slot(&slot, false).is_some());
+            let world = child.name_world.borrow();
+            let original = &world.jim_command_original_keys[&slot].original;
+            assert_eq!(original.string_bytes().as_ref(), b"namespace info");
+        });
+        assert!(vm.command_at_exact_slot(&slot, false).is_none());
+    }
+
+    #[test]
+    fn child_constructor_refuses_a_foreign_engine_before_allocating_a_slot() {
+        let mut vm = core("tcl9.0");
+        let foreign = tcl_registry::model::resolve_environment("tcl8.6").unit_profile();
+        assert!(vm.set_native_engine_profile(foreign));
+        let count = vm.interps.len();
+        assert!(matches!(
+            vm.create_child_named_bytes(NameBytes::from(b"child"), false),
+            Err(NativeCommandLookupUnavailable::ProtocolUnavailable),
+        ));
+        assert_eq!(vm.interps.len(), count);
+        assert!(!vm.children.contains_key(b"child".as_slice()));
+    }
+
+    #[test]
+    fn distribution_child_keeps_its_independent_bootstrap_purpose() {
+        let mut vm = Vm::new();
+        let id = vm
+            .create_child_named_bytes(NameBytes::from(b"child"), false)
+            .unwrap();
+        vm.in_interp(id, |child| {
+            assert!(matches!(
+                child.bootstrap,
+                NativeBootstrapPurpose::Distribution
+            ));
+            assert!(child.get_var("argv").is_some());
+        });
     }
 }

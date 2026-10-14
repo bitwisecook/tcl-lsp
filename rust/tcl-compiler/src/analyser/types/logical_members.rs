@@ -237,6 +237,28 @@ mod tests {
     }
 
     #[test]
+    fn logical_family_insertions_require_selected_original_names() {
+        for source in [
+            "snit::type C {method {two words} {} {}}",
+            "itcl::class C {method {two words} {} {}}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let class = &analysis.all_classes["::C"];
+            let method = &class.methods["two words"];
+            let insertion = analysis
+                .logical_source_member_insertion(class, MemberSide::Instance, method)
+                .expect("selected original family method-name operand");
+            assert_eq!(insertion.name(), "two words");
+            assert_eq!(insertion.source_word(), "{two words}");
+            assert!(
+                analysis
+                    .logical_source_member_insertion(class, MemberSide::Instance, &method.clone())
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
     fn logical_member_declarations_keep_actual_side_source_and_current_metadata() {
         let source = "oo::class create Base {method m {arg} {}; self method m {} {}}";
         let analysis = Analyser::new().analyse(source, "tcl");

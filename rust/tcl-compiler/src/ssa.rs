@@ -833,10 +833,15 @@ pub fn original_source_read_at_unit<'a>(
                         if std::sync::Arc::ptr_eq(&advice.site().source, origin))
                 })
             } else {
-                retained.owns_original_tokens(&original)
-                    && binding
-                        .invocation_site()
-                        .is_some_and(|site| std::sync::Arc::ptr_eq(&site.source, origin))
+                function.body_id.map_or_else(
+                    || {
+                        retained.owns_original_tokens(&original)
+                            && binding
+                                .invocation_site()
+                                .is_some_and(|site| std::sync::Arc::ptr_eq(&site.source, origin))
+                    },
+                    |body| retained.owns_original_body_tokens(module, body, &original, registry),
+                )
             };
             if !owner {
                 continue;
@@ -979,11 +984,16 @@ pub fn original_analysis_words_for_statement(
         }
         input.lexer_config()
     } else {
-        if !retained.owns_original_tokens(&original)
-            || binding
-                .invocation_site()
-                .is_none_or(|site| !std::sync::Arc::ptr_eq(&site.source, origin))
-        {
+        let owned = function.body_id.map_or_else(
+            || {
+                retained.owns_original_tokens(&original)
+                    && binding
+                        .invocation_site()
+                        .is_some_and(|site| std::sync::Arc::ptr_eq(&site.source, origin))
+            },
+            |body| retained.owns_original_body_tokens(module, body, &original, registry),
+        );
+        if !owned {
             return None;
         }
         binding.original_lexer_config_for_tokens(&original)?
@@ -1269,7 +1279,7 @@ pub fn original_analysis_definition_at_unit<'a>(
                         }
                     }
                 } else if input.has_logical_source_name_context() {
-                    let words = if binding.has_original_logical_source_advice() {
+                    if binding.has_original_logical_source_advice() {
                         let Some(words) =
                             binding.original_logical_source_words(&original, input, registry)
                         else {
@@ -1280,35 +1290,69 @@ pub fn original_analysis_definition_at_unit<'a>(
                         {
                             continue;
                         }
-                        words
+                        for (argument, role) in words.written_argument_roles() {
+                            if role != tcl_registry::ArgRole::VarWrite {
+                                continue;
+                            }
+                            let Some(word) = original.words().get(argument + 1) else {
+                                continue;
+                            };
+                            let Some(name) = original_written_source_variable_name(
+                                &words,
+                                argument,
+                                word.source().span,
+                            ) else {
+                                continue;
+                            };
+                            let Some(symbol) = view.symbol(name) else {
+                                continue;
+                            };
+                            let Some(&version) = statement.defs.get(&symbol) else {
+                                continue;
+                            };
+                            if !statement.may_defs.contains(&symbol) {
+                                definitions.push((word.source().span, symbol, version));
+                            }
+                        }
                     } else {
-                        let Some(words) = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(module, registry, &original) else { continue; };
-                        words
-                    };
-                    for (argument, role) in words.written_argument_roles() {
-                        if role != tcl_registry::ArgRole::VarWrite {
+                        let owned = function.body_id.map_or_else(
+                            || retained.owns_original_tokens(&original),
+                            |body| {
+                                retained
+                                    .owns_original_body_tokens(module, body, &original, registry)
+                            },
+                        );
+                        if !owned {
                             continue;
                         }
-                        let Some(word) = original.words().get(argument + 1) else {
+                        let Some(metadata) =
+                            function.invocation_metadata_context_for_module(registry, module)
+                        else {
                             continue;
                         };
-                        let Some(name) = original_written_source_variable_name(
-                            &words,
-                            argument,
-                            word.source().span,
-                        ) else {
-                            continue;
-                        };
-                        let Some(symbol) = view.symbol(name) else {
-                            continue;
-                        };
-                        let Some(&version) = statement.defs.get(&symbol) else {
-                            continue;
-                        };
-                        if statement.may_defs.contains(&symbol) {
-                            continue;
+                        let Some(invocation) = crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                            registry, metadata, &original, Some(positioned)) else { continue; };
+                        for (argument, role) in invocation.written_roles() {
+                            if role != tcl_registry::ArgRole::VarWrite {
+                                continue;
+                            }
+                            let Some(word) = original.words().get(argument + 1) else {
+                                continue;
+                            };
+                            let Some(name) = invocation.written_variable_name_operand(argument)
+                            else {
+                                continue;
+                            };
+                            let Some(symbol) = view.symbol(&name) else {
+                                continue;
+                            };
+                            let Some(&version) = statement.defs.get(&symbol) else {
+                                continue;
+                            };
+                            if !statement.may_defs.contains(&symbol) {
+                                definitions.push((word.source().span, symbol, version));
+                            }
                         }
-                        definitions.push((word.source().span, symbol, version));
                     }
                 } else {
                     let metadata =
@@ -7045,6 +7089,54 @@ impl<'a> RenameWalk<'a> {
                             self.unknown_source_names.insert(name.to_owned());
                         }
                     }
+                }
+            }
+        }
+        if let Statement::AssignConst { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::Incr { name, .. } = stmt
+            && let Some(tokens) = self.points.source_tokens_at(point.0, point.1)
+        {
+            let original_name = if let Some(metadata) = self.metadata
+                && metadata
+                    .source_analysis_input()
+                    .is_some_and(|input| input.has_logical_source_name_context())
+                && tokens.source_binding.as_ref().is_some_and(|binding| {
+                    !binding.has_original_logical_source_advice()
+                        && !binding.has_original_native_source_command()
+                }) {
+                crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                    registry, metadata, tokens, None,
+                )
+                .is_some_and(|invocation| {
+                    invocation.written_roles().iter().any(|&(argument, role)| {
+                        role == tcl_registry::ArgRole::VarWrite
+                            && invocation
+                                .written_variable_name_operand(argument)
+                                .as_deref()
+                                == Some(name.as_str())
+                    })
+                })
+            } else {
+                crate::registry_invocation::original_assignment_name_operand(registry, tokens, name)
+                    .is_some()
+            };
+            if original_name
+                && let Some(bound) = definition_source_name(
+                    stmt,
+                    name,
+                    self.points.after_statement(point.0, point.1),
+                    registry,
+                )
+            {
+                let symbol = self.interner.intern(&bound);
+                if source_symbols
+                    .insert(name.clone(), symbol)
+                    .is_some_and(|old| old != symbol)
+                {
+                    source_symbols.remove(name);
+                    self.unknown_source_names.insert(name.clone());
                 }
             }
         }
@@ -13890,6 +13982,89 @@ mod original_analysis_definition_selector_tests {
         let mut stale = unit.clone();
         stale.source.push(' ');
         assert!(original_analysis_definition_at_unit(&stale, span, context.commands()).is_none());
+    }
+
+    #[test]
+    fn named_source_body_tokens_require_the_actual_header_body_and_attachment() {
+        let source = "proc p {} {set value TEXT; return $value}\n";
+        let (unit, context) = unit(source);
+        let retained = unit.ir_module.retained_source_bindings.as_deref().unwrap();
+        let body = unit.ir_module.procedure_ids.unique_display("::p").unwrap();
+        let function = unit.function_for_body(Some(body)).unwrap();
+        let tokens = function
+            .ssa
+            .point_contexts
+            .as_ref()
+            .unwrap()
+            .source_token_inventory()
+            .values()
+            .map(|tokens| {
+                let mut original = tokens.clone();
+                crate::lattice_rebase::rebase_command_tokens(&mut original, function.base_offset);
+                original
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(tokens.len(), 2);
+        for original in &tokens {
+            assert!(retained.owns_original_body_tokens(
+                &unit.ir_module,
+                body,
+                original,
+                context.commands()
+            ));
+            let mut missing = original.clone();
+            missing.source_binding = None;
+            assert!(!retained.owns_original_body_tokens(
+                &unit.ir_module,
+                body,
+                &missing,
+                context.commands()
+            ));
+        }
+        let (other, _) = self::unit(source);
+        let foreign_body = other.ir_module.procedure_ids.unique_display("::p").unwrap();
+        assert!(!retained.owns_original_body_tokens(
+            &unit.ir_module,
+            foreign_body,
+            &tokens[0],
+            context.commands()
+        ));
+        let foreign_function = other.function_for_body(Some(foreign_body)).unwrap();
+        for original in foreign_function
+            .ssa
+            .point_contexts
+            .as_ref()
+            .unwrap()
+            .source_token_inventory()
+            .values()
+        {
+            let mut original = original.clone();
+            crate::lattice_rebase::rebase_command_tokens(
+                &mut original,
+                foreign_function.base_offset,
+            );
+            assert!(!retained.owns_original_body_tokens(
+                &unit.ir_module,
+                body,
+                &original,
+                context.commands()
+            ));
+        }
+        for formals in [false, true] {
+            let mut changed = unit.ir_module.clone();
+            let procedure = changed.procedures.get_mut(&body).unwrap();
+            if formals {
+                procedure.params.push("added".into());
+            } else {
+                procedure.body_source = Some("return OTHER".into());
+            }
+            assert!(!retained.owns_original_body_tokens(
+                &changed,
+                body,
+                &tokens[0],
+                context.commands()
+            ));
+        }
     }
 
     #[test]

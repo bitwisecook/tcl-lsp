@@ -326,6 +326,29 @@ impl LogicalStructuredInvocation {
         )
     }
 
+    /// Literal name at one genuine written variable-role operand. Captured
+    /// prefix words and ambiguous effective correspondence have no occurrence.
+    pub(crate) fn written_variable_name_operand(&self, written: usize) -> Option<String> {
+        self.written_roles()
+            .iter()
+            .any(|&(argument, role)| {
+                argument == written
+                    && matches!(
+                        role,
+                        tcl_registry::ArgRole::VarRead | tcl_registry::ArgRole::VarWrite
+                    )
+            })
+            .then_some(())?;
+        let mut arguments = (0..self.invocation.arguments.len()).filter(|&argument| {
+            self.invocation.effective.written_argument(argument) == Some(written)
+        });
+        let argument = arguments.next()?;
+        if arguments.next().is_some() {
+            return None;
+        }
+        self.invocation.argument_literal(argument)
+    }
+
     /// Literal payload under the retained grammar; direct written slots were
     /// checked by the source issuer. This grants no evaluated Native operand.
     pub(crate) fn argument_literal(&self, argument: usize) -> Option<String> {
@@ -2994,6 +3017,11 @@ impl NormalRepresentationInvocation {
             name: invocation.argument_literal(0)?,
             value: invocation.effective.words.get(2)?.clone(),
         })
+    }
+
+    /// The actual selected handler key, without borrowing diagnostic spelling.
+    pub(crate) fn descriptor_key(&self) -> Option<tcl_registry::CanonicalCommandDescriptorKey<'_>> {
+        Some(self.handler()?.facts.descriptor_key())
     }
 
     /// Whether the selected normal handler uses no caller frame access.

@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_namespace::original_import_alias_tests::original_jim_import_uses_rooted_hash_key_spelling_in_helper_operations ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2159 filtered out; finished in 0.52s
+

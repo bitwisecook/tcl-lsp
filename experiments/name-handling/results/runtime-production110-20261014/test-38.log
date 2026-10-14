@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_command_names::repinned_registration_key_tests::jim_repin_declines_moved_or_nonroot_original_registration_slots ... 
+thread 'interp::native_command_names::repinned_registration_key_tests::jim_repin_declines_moved_or_nonroot_original_registration_slots' (386477) panicked at src/interp/native_command_names.rs:1642:9:
+assertion failed: interp.host_refusal_pending()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_command_names::repinned_registration_key_tests::jim_repin_declines_moved_or_nonroot_original_registration_slots
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2159 filtered out; finished in 3.87s
+

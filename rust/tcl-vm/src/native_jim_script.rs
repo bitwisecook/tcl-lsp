@@ -169,9 +169,46 @@ impl PendingOriginalDictionary {
 }
 
 impl NativeJimScriptState {
+    #[cfg(test)]
     pub(crate) fn new(
         entry: NativeJimScriptEntry,
         vm: &mut crate::Vm,
+    ) -> Result<Self, crate::TclError> {
+        Self::prepare(entry, vm, None)
+    }
+
+    pub(crate) fn new_for_evaluation_frame(
+        entry: NativeJimScriptEntry,
+        vm: &mut crate::Vm,
+        location: &mut Option<tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>>,
+    ) -> Result<Self, crate::TclError> {
+        Self::prepare(entry, vm, Some(location))
+    }
+
+    fn original_script_location(
+        backing: &NativeJimScript,
+    ) -> Result<tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>, crate::TclError> {
+        let script = backing.ordinary()?;
+        Ok(tcl_runtime_api::jim_error_stack::JimScriptLocation {
+            file: script.filename.native_lifetime_lease().into_value(),
+            line: script.linenr.get().cast_unsigned(),
+        })
+    }
+
+    pub(crate) fn current_script_location(
+        &self,
+    ) -> Result<Option<tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>>, crate::TclError>
+    {
+        if self.substitution_flags.is_some() {
+            return Ok(None);
+        }
+        Self::original_script_location(&self.backing).map(Some)
+    }
+
+    fn prepare(
+        entry: NativeJimScriptEntry,
+        vm: &mut crate::Vm,
+        location: Option<&mut Option<tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>>>,
     ) -> Result<Self, crate::TclError> {
         let context = vm.native_jim_object_context()?;
         let flags = entry.substitution_flags;
@@ -189,6 +226,13 @@ impl NativeJimScriptState {
                 .value()
                 .prepare_native_jim_script(&context, vm.lexer_config())?,
         };
+        if let Some(location) = location {
+            *location = if flags.is_none() {
+                Some(Self::original_script_location(&backing)?)
+            } else {
+                None
+            };
+        }
         if flags.is_none() {
             if let Some(message) =
                 tcl_syntax::jim_script_objects::missing_message(backing.ordinary()?.objects.missing)
@@ -540,4 +584,69 @@ pub(crate) fn native_script_bytes(value: &Value) -> Result<Rc<[u8]>, crate::TclE
             )
             .into()
         })
+}
+
+#[cfg(test)]
+mod original_source_location_tests {
+    use super::*;
+    use crate::value::NativeJimSourceInfo;
+
+    fn provided(source: &[u8]) -> (crate::Vm, Value, Value) {
+        let mut vm = crate::Vm::new();
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        let context = vm.native_jim_object_context().unwrap();
+        let filename = Value::new_native_string_bytes(b"ACTUAL".as_slice());
+        let original = Value::new_native_string_bytes(source);
+        original
+            .install_native_jim_source(
+                NativeJimSourceInfo {
+                    filename: filename.clone(),
+                    line: 7,
+                },
+                &context,
+            )
+            .unwrap();
+        (vm, original, filename)
+    }
+
+    #[test]
+    fn evaluation_location_borrows_the_original_filename_and_actual_line() {
+        let (mut vm, original, filename) = provided(b"\nset x ONE\nset y TWO");
+        let entry = NativeJimScriptEntry::borrowed(original.native_lifetime_lease(), None);
+        let mut location = None;
+        let mut state =
+            NativeJimScriptState::new_for_evaluation_frame(entry, &mut vm, &mut location).unwrap();
+        assert!(location.as_ref().unwrap().file.is_same_object(&filename));
+        let references = filename.native_object_reference_count();
+        assert!(matches!(
+            state.next(&mut vm).unwrap(),
+            ScriptStep::Token { .. }
+        ));
+        let reached = state.current_script_location().unwrap().unwrap();
+        assert!(reached.file.is_same_object(&filename));
+        assert_eq!(reached.line, 8);
+        assert_eq!(filename.native_object_reference_count(), references);
+    }
+
+    #[test]
+    fn missing_script_retains_actual_location_and_subst_has_no_script_layout() {
+        let (mut vm, original, filename) = provided(b"\nset x \"");
+        let entry = NativeJimScriptEntry::borrowed(original.native_lifetime_lease(), None);
+        let mut location = None;
+        assert!(
+            NativeJimScriptState::new_for_evaluation_frame(entry, &mut vm, &mut location,).is_err()
+        );
+        let reached = location.as_ref().unwrap();
+        assert!(reached.file.is_same_object(&filename));
+        assert_eq!(reached.line, 8);
+
+        let substituted = Value::new_native_string_bytes(b"$x".as_slice());
+        let entry = NativeJimScriptEntry::borrowed(substituted.native_lifetime_lease(), Some(0));
+        let state =
+            NativeJimScriptState::new_for_evaluation_frame(entry, &mut vm, &mut location).unwrap();
+        assert!(location.is_none());
+        assert!(state.current_script_location().unwrap().is_none());
+    }
 }

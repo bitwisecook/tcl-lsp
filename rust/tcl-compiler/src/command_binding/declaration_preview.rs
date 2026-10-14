@@ -101,6 +101,25 @@ impl OriginalProcedureReadFlowEntry {
 }
 
 impl DeclaredProcedureBody {
+    pub(super) fn matches_original_procedure_source(
+        &self,
+        procedure: &crate::ir::Procedure,
+        image: &tcl_lexer::SourceImage,
+    ) -> bool {
+        procedure.declaration_site.as_ref() == Some(&self.declaration)
+            && self.declaration.source.source_image() == image
+            && self.logical_parameters_text.as_deref() == Some(procedure.params_raw.as_str())
+            && self
+                .parameters
+                .iter()
+                .map(|formal| formal.name.as_str())
+                .eq(procedure.params.iter().map(String::as_str))
+            && self.source.origin.source_image() == image
+            && self.source.base() == procedure.body_offset
+            && self.source.text.try_text().ok() == procedure.body_source.as_deref()
+            && procedure.body.namespace_context.as_deref() == Some(&self.namespace)
+    }
+
     pub(super) fn declaration_site(&self) -> &CommandAllocationSite {
         &self.declaration
     }

@@ -471,6 +471,15 @@ selected Jim context and actual namespace paths. A constructed C path, a checked
 Unicode display or equal bytes from another object do not supply a Jim frame,
 command cache, native object role or namespace token.
 
+Jim byte-registration inputs retain their actual publication namespace, tail
+and generation. Selected key construction uses the shared C-API publication
+recipe only while that root slot is unchanged; retired input receipts are
+pruned. Namespace-import helpers carry actual enumerated hash-key objects
+through their List, local operand and alias-prefix owners. Read helper spelling
+from that original object, including rooted spelling, rather than its comparison
+slot. A replacement supplies no substitute key, and these producer roles grant
+no automatic-frame reference or permission to read a retired observation.
+
 Pure source naming selects `InvocationDialect::authored_name_policy`. The
 returned `NamePolicyProtocol` carries `AuthoredSimulation` authority even when
 its recipe matches a known C release or pinned Jim. Unversioned Tcl uses the

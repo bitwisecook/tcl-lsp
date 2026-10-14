@@ -6399,6 +6399,30 @@ mod configured_receiver_completion_tests {
     }
 
     #[test]
+    fn logical_family_method_completion_uses_selected_source_name_words() {
+        for source in [
+            "snit::type C {method {two words} {} {}}",
+            "itcl::class C {method {two words} {} {}}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let items = method_items(
+                &analysis,
+                analysis.resolved_registry(),
+                "::C",
+                crate::definition::MethodBucket::Instance,
+                None,
+                analysis.resolved_profile().unwrap(),
+            )
+            .unwrap();
+            let item = items
+                .iter()
+                .find(|item| item.label == "two words")
+                .expect("actual selected family method");
+            assert_eq!(item.insert_text, "{two words}");
+        }
+    }
+
+    #[test]
     fn logical_method_completion_keeps_whole_scalar_heads_and_current_source() {
         // naming.consumer.original-receiver-completion-domain
         // docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md

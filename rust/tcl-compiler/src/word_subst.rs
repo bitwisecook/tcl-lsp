@@ -3200,6 +3200,99 @@ mod native_source_lifted_inventory_owner_tests {
     use super::*;
 
     #[test]
+    fn native_source_braced_expression_inventory_preserves_child_geometry_and_refuses_expansion() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        for (source, expanded) in [
+            ("proc p {} {expr {[helper] + 1}}\n", false),
+            ("proc p {} {expr {*}{[helper] + 1}}\n", true),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    config,
+                    dialect: Some(profile),
+                    defer_top_level: false,
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            assert_eq!(
+                unit.ir_module.original_native_declaration_body_units.len(),
+                1
+            );
+            let (&body, _) = unit
+                .ir_module
+                .original_native_declaration_body_units
+                .iter()
+                .next()
+                .unwrap();
+            let script = &unit.ir_module.body_units.get(&body).unwrap().body;
+            let offset = source.find("expr").unwrap() as u32;
+            let originals = script
+                .statements
+                .iter()
+                .filter_map(|statement| script.retained_source_tokens_for_statement(statement))
+                .filter(|tokens| {
+                    tokens.synthetic.is_none()
+                        && tokens
+                            .words()
+                            .first()
+                            .is_some_and(|word| word.source().span.start() == offset)
+                })
+                .collect::<Vec<_>>();
+            let tokens = *originals
+                .first()
+                .expect("actual original expression command");
+            assert!(originals.iter().all(|original| *original == tokens));
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .has_original_native_source_command()
+            );
+            let calls = checked_original_lifted_calls_with_metadata_context(
+                tokens, config, registry, metadata,
+            );
+            if expanded {
+                assert!(calls.is_none());
+            } else {
+                let calls = calls.expect("actual braced source-expression child inventory");
+                assert_eq!(calls.len(), 1);
+                let child = &calls[0];
+                assert_eq!(&source[child.span.as_range()], "[helper]");
+                let retained = child.tokens.as_ref().expect("original child word vector");
+                assert_eq!(retained.argv_texts, ["helper"]);
+                let mut missing = tokens.clone();
+                missing.nested_bindings.clear();
+                assert!(
+                    checked_original_lifted_calls_with_metadata_context(
+                        &missing, config, registry, metadata,
+                    )
+                    .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn native_source_child_inventory_uses_its_own_full_word_receipt() {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
