@@ -400,6 +400,25 @@ pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
     dispatch_with_backend(name, args)
 }
 
+/// [`dispatch`] as an implementation reading numbers under `numbers`
+/// computes `name`, or `None` where this table does not model its answer.
+///
+/// Jim's `pow` is its `**` operator (`JimExprOpBin`, `jim.c`), an integer
+/// power when both operands are integers
+/// ([`NumberSyntax::pow_of_integers_is_integer`]): jimsh 0.84 prints `8` for
+/// `pow(2,3)` and `0` for `pow(2,-1)`, where tclsh 8.4.20 to 9.1.0 print `8.0`
+/// and `0.5`. That case declines; a double operand computes alike.
+///
+/// [`NumberSyntax::pow_of_integers_is_integer`]: tcl_dialect::NumberSyntax::pow_of_integers_is_integer
+#[must_use]
+pub fn dispatch_under(name: &str, args: &[Num], numbers: tcl_dialect::NumberSyntax) -> Option<Num> {
+    let integer_operands = args.iter().all(|arg| matches!(arg, Num::Int(_)));
+    if name == "pow" && integer_operands && numbers.pow_of_integers_is_integer() {
+        return None;
+    }
+    dispatch(name, args)
+}
+
 /// Dispatch through the same math-function table while preserving the
 /// caller's arbitrary-precision integer backend, release-agnostic
 /// ([`IntWidth::Unresolved`]).
@@ -1318,6 +1337,32 @@ mod tests {
             dispatch("pow", &[Num::Int(2), Num::Int(10)]),
             Some(Num::Float(1024.0))
         );
+    }
+
+    /// Jim's `pow` of two integers is an integer power (jimsh 0.84: `pow(2,3)`
+    /// is `8`, `pow(2,-1)` is `0`); every Tcl release computes C `pow`.
+    #[test]
+    fn dispatch_under_declines_jims_integer_pow() {
+        use tcl_dialect::NumberSyntax;
+        let ints = [Num::Int(2), Num::Int(3)];
+        for jim in [NumberSyntax::Jim, NumberSyntax::Jim080] {
+            assert_eq!(dispatch_under("pow", &ints, jim), None);
+            assert_eq!(
+                dispatch_under("pow", &[Num::Float(2.0), Num::Int(3)], jim),
+                Some(Num::Float(8.0))
+            );
+            assert_eq!(
+                dispatch_under("hypot", &[Num::Int(3), Num::Int(4)], jim),
+                Some(Num::Float(5.0))
+            );
+        }
+        for tcl in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            assert_eq!(dispatch_under("pow", &ints, tcl), Some(Num::Float(8.0)));
+        }
     }
 
     #[test]

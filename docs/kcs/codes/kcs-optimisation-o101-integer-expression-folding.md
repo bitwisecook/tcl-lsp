@@ -38,6 +38,10 @@ puts 5
   unsupported command or an observable write prevents an effect-free fold.
 - Skipped when a leading-zero operand (`010`) is ambiguous between octal and decimal and the document's Tcl dialect/version isn't known.
 - Skipped on a domain error, such as `0.0/0.0` or a negative exponent of `0`.
+- Skipped when the expression uses an operator or math function your Tcl
+  version does not have — `**`, `in` and `ni` before 8.5, `lt`/`le`/`gt`/`ge`
+  before 9.0, `max` or `entier` before 8.5 — because the program raises
+  an error there. `W003` reports the operator.
 - A floating-point result is written the way your Tcl version prints it:
   `1e-05` for Tcl 8.4 and Jim, `1e-5` from Tcl 8.5. It is skipped when that
   text would not read back as the same number — `1.0/3` under Tcl 8.4 and

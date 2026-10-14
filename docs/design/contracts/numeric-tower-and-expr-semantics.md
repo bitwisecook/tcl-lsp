@@ -389,7 +389,11 @@ later double spelling (`TclPrecTraceProc`; 8.4 accepts 1 to 17, 8.5 and 8.6
 source names the variable, or it writes a variable whose name it computes
 (`ModuleCommandMutations::may_set_precision`, carried to the evaluators as
 `AnalysisContext::precision_written`) — has no compile-time spelling for a
-computed double under 8.4 to 8.6, and the folder writes none.
+computed double under 8.4 to 8.6, and the folder writes none. `format %g`
+is not affected: it is C's `%g` at its own precision, and after `set
+tcl_precision 3` every tclsh from 8.4.20 to 9.1.0 prints `format %g
+1.23456` as `1.23456` (a computed double's own string rep, `format %s [expr
+{1.23456 * 1}]`, is `1.23` through 8.6).
 
 **A computed `INT64_MIN` under 8.4 and 8.5.** tclsh 8.4.20 and 8.5.19 print
 `expr {-9223372036854775807 - 1}`, `~9223372036854775807`,
@@ -503,7 +507,22 @@ as the 64-bit `IntWidth::Windowed`.
   the whole expression falls back to `exprStk` and the engines' one gate
   produces C Tcl's own diagnostic. Constant folding is downstream of that
   check, or `expr {2 ** 3}` folds to `8` for an 8.4 target that cannot parse
-  `**` (issue #1435).
+  `**` (issue #1435): the const-folder's two entry points
+  (`tcl_expr_eval::evaluate_expression`, the route every rewrite and the
+  lattice take, and the legacy `eval_with_config`) ask the profile-only
+  `tcl_registry::expr_surface::validate_operators` first and decline when
+  it names an operator the release lacks. Measured on tclsh 8.4.20:
+  `2**3` is `syntax error in expression "2**3": unexpected operator *`,
+  `1 in {1 2}` an `invalid bareword`; `eq`/`ne` exist from 8.4,
+  `lt`/`le`/`gt`/`ge` from 9.0 (and in jimsh 0.84). A math function
+  is gated the same way through the registry's `math_function` service:
+  `bool`, `entier`, `isqrt`, `max`, `min` from 8.5, the `is*`
+  classifiers from 9.0, TIP 745's from 9.1; Jim has 8.4's set. Jim's `pow`
+  is its `**` operator (`pow(2,3)` is `8` on jimsh 0.84, `8.0` on every
+  tclsh), so `mathfunc::dispatch_under` declines `pow` of two integers there
+  (`NumberSyntax::pow_of_integers_is_integer`). The `TIP 461` operators fold
+  under no Jim profile: `operator_admitted` reads the operator's
+  `tcl::mathop` command surface, which Jim lacks, though its `expr` has them.
 
 ## See also
 

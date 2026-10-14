@@ -750,6 +750,16 @@ impl NumberSyntax {
     pub fn double_read_rejects_range_error(self) -> bool {
         matches!(self, Self::Tcl84)
     }
+
+    /// Whether the `pow()` math function of two integers is an integer power
+    /// rather than a double: Jim implements `pow` as its `**` operator
+    /// (`JimExprOpBin` in `jim.c`), while every Tcl release calls C `pow`.
+    /// Measured: `expr {pow(2,3)}` is `8` and `expr {pow(2,-1)}` is `0` on
+    /// jimsh 0.84, `8.0` and `0.5` on tclsh 8.4.20 to 9.1.0.
+    #[must_use]
+    pub fn pow_of_integers_is_integer(self) -> bool {
+        matches!(self, Self::Jim | Self::Jim080)
+    }
 }
 
 /// The spelling a release gives a double it computed — its string rep —

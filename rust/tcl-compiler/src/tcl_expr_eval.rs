@@ -39,7 +39,9 @@
 //!
 //! The iRules
 //! word operators (`contains`/`starts_with`/`matches_glob`/`matches_regex`/
-//! `equals`/`in`/`ni`) fold via [`tcl_syntax::expr::ExprOps::binary_other`].
+//! `equals`) fold via [`tcl_syntax::expr::ExprOps::binary_other`]; an operator
+//! the target release's `expr` lacks (`**`, `in`, `ni` before 8.5, the F5
+//! core included) folds nothing ([`operators_in_release`]).
 
 #![allow(
     clippy::cast_precision_loss,
@@ -529,6 +531,17 @@ pub fn mathfunc_command_wrappers_available_in_dialect(
     tcl_registry::mathfunc::command_wrappers_available(dialect)
 }
 
+/// Whether every operator in `node` is one the release `policy` names has
+/// ([`tcl_registry::expr_surface::validate_operators`]): tclsh 8.4.20
+/// rejects `2**3` as a syntax error and `1 in {1 2}` as a bareword, and
+/// 8.4 to 8.6 reject `lt`/`le`/`gt`/`ge`, so the program raises and no
+/// fold may give it a value. A policy naming no dialect admits them all.
+fn operators_in_release(node: &ExprNode, policy: FoldPolicy) -> bool {
+    policy
+        .dialect
+        .is_none_or(|profile| tcl_registry::expr_surface::validate_operators(profile, node).is_ok())
+}
+
 fn eval_with_config(
     node: &ExprNode,
     env: &Env,
@@ -554,6 +567,9 @@ fn eval_with_config(
         is_irules: policy.is_irules,
         word_rules: policy.word_rules,
     };
+    if !operators_in_release(node, policy) {
+        return None;
+    }
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
     let result = tcl_syntax::expr::eval(node, &mut ops).ok()?;
@@ -784,7 +800,7 @@ impl FoldOps<'_> {
     /// over `args` through the shared dispatcher, the one the runtime
     /// evaluates with; `Err` when it declines.
     fn math_call(&self, name: &str, args: &[FoldValue]) -> Result<FoldValue, ()> {
-        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, dispatch};
+        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, dispatch_under};
         // Map `TclValue` → `Num` → result. Every function except `bool`
         // reads its operand as a strict number — `Tcl_GetBoolean` coercion
         // (`true`→1) would let the folder turn an error (`abs(true)`) into
@@ -812,7 +828,8 @@ impl FoldOps<'_> {
                 })
             })
             .collect();
-        match dispatch(name, &nums.ok_or(())?).ok_or(())? {
+        // The release's own semantics: Jim's `pow` is its `**` operator.
+        match dispatch_under(name, &nums.ok_or(())?, self.spelling.numbers()).ok_or(())? {
             Num::Int(i) => Ok(FoldValue::Int(i)),
             Num::Float(f) => Ok(FoldValue::Float(f)),
         }
@@ -2116,6 +2133,9 @@ pub(crate) fn evaluate_expression(
     policy: FoldPolicy,
 ) -> ExprAnswer {
     services.configure(policy);
+    if !operators_in_release(node, policy) {
+        return ExprAnswer::Declined(DeclineReason::WrongRepresentation);
+    }
     if let Err(reason) = services.budget.charge_work(node_count(node)) {
         return ExprAnswer::Declined(reason);
     }
@@ -3677,21 +3697,12 @@ mod tests {
         );
     }
 
+    /// The F5 core is 8.4.6, which has no `in`/`ni` (measured; W003), so
+    /// the iRules fold of a membership test declines.
     #[test]
-    fn irules_in_list_membership() {
-        assert_eq!(eval_irules(r#""b" in "a b c""#), Some(TclValue::Int(1)));
-        assert_eq!(eval_irules(r#""d" in "a b c""#), Some(TclValue::Int(0)));
-        // Braced element grouping.
-        assert_eq!(
-            eval_irules(r#""b c" in "{a b} {b c} d""#),
-            Some(TclValue::Int(1))
-        );
-    }
-
-    #[test]
-    fn irules_ni_negated_membership() {
-        assert_eq!(eval_irules(r#""d" ni "a b c""#), Some(TclValue::Int(1)));
-        assert_eq!(eval_irules(r#""b" ni "a b c""#), Some(TclValue::Int(0)));
+    fn irules_in_and_ni_fold_nothing() {
+        assert_eq!(eval_irules(r#""b" in "a b c""#), None);
+        assert_eq!(eval_irules(r#""d" ni "a b c""#), None);
     }
 
     #[test]
