@@ -1902,12 +1902,12 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `encoding subcommand ?arg …?` — matches the tree-walking runtime
-/// (`runtime/rust`): the internal string model is UTF-8, so
-/// `convertto`/`convertfrom` pass the data through unchanged, `system` reports
-/// the host's typed locale fact, `names` lists the supported channel encodings,
-/// and `dirs` is accepted and ignored (no encoding-file search). This is a
-/// documented simplification — real codepage conversion (cp1252, shiftjis, …)
-/// is not implemented on either side.
+/// (`runtime/rust`): `convertto`/`convertfrom` convert through
+/// `tcl_cmd_core::encoding` for the encodings `names` lists, `system` reports
+/// the host's typed locale fact, and `dirs` is accepted and ignored (no
+/// encoding-file search). Other codepages (cp1252, shiftjis, …) are not
+/// implemented on either side.
+///
 /// `encoding`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
 /// 9.0's table also carries `profiles` and `user`, which need the encoding
 /// machinery this engine does not model; like its other ensembles it names
@@ -1953,12 +1953,53 @@ fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             _ => err_wrong_args("encoding system ?encoding?"),
         },
         "names" => ok(Value::string("utf-8 unicode ascii iso8859-1")),
-        // Unreachable: `ENCODING_SUBS` has exactly these five names.
-        _ => {
-            if args.len() < 2 {
-                return err("wrong # args: should be \"encoding convertto ?encoding? data\"");
+        "convertfrom" => encoding_convert(vm, tcl_cmd_core::encoding::Direction::From, &args[1..]),
+        _ => encoding_convert(vm, tcl_cmd_core::encoding::Direction::To, &args[1..]),
+    }
+}
+
+/// `encoding convertfrom|convertto ?options? ?encoding? data`.
+fn encoding_convert(
+    vm: &mut Vm,
+    direction: tcl_cmd_core::encoding::Direction,
+    args: &[Value],
+) -> Completion<Value> {
+    use tcl_cmd_core::encoding;
+    let version = vm.runtime_version();
+    let words: Vec<_> = args.iter().map(Value::to_str).collect();
+    let words: Vec<&str> = words.iter().map(AsRef::as_ref).collect();
+    let parsed = match encoding::parse_convert_args(version, direction, &words) {
+        Ok(parsed) => parsed,
+        Err(error) => return completion_from_cmd_error(error),
+    };
+    let name = parsed.encoding.unwrap_or_else(|| vm.system_encoding());
+    let data = words[parsed.data];
+    let (value, failure) = match direction {
+        encoding::Direction::From => {
+            let bytes = match encoding::text_bytes(data, version.byte_string_encoding()) {
+                Ok(bytes) => bytes,
+                Err(error) => return completion_from_cmd_error(error.into()),
+            };
+            let converted = encoding::convert_from(&bytes, name, version, parsed.profile);
+            (Value::string(converted.value), converted.failure)
+        }
+        encoding::Direction::To => {
+            let converted = encoding::convert_to(data, name, version, parsed.profile);
+            let text: String = converted.value.iter().copied().map(char::from).collect();
+            (Value::string(text), converted.failure)
+        }
+    };
+    match (parsed.fail_var, failure) {
+        (None, Some(failure)) => completion_from_cmd_error(failure.error),
+        (None, None) => ok(value),
+        (Some(var), failure) => {
+            let index = failure.map_or(-1, |failure| {
+                i64::try_from(failure.index).unwrap_or(i64::MAX)
+            });
+            match vm.var_set(words[var], Value::int(index)) {
+                Ok(()) => ok(value),
+                Err(completion) => completion,
             }
-            ok(args.last().expect("len >= 2").clone())
         }
     }
 }

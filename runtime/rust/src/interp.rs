@@ -1859,15 +1859,8 @@ impl Interp {
     /// interpreter boundary makes every `binary` subcommand use the same
     /// dual-representation and version rule.
     pub(crate) fn binary_bytes(&mut self, obj: *mut TclObj) -> Result<Vec<u8>, Code> {
-        crate::bytearray::binary_bytes(obj, self.runtime_version().byte_string_encoding()).map_err(
-            |err| {
-                let message = format!(
-                    "expected code point values below 0xff but value at byte offset {} was 0x{:x}",
-                    err.byte_offset, err.code_point
-                );
-                self.error_with_code(message.as_bytes(), b"TCL VALUE BYTES")
-            },
-        )
+        crate::bytearray::binary_bytes(obj, self.runtime_version().byte_string_encoding())
+            .map_err(|err| self.report_cmd_error(err.into()))
     }
 
     /// Invoke a Tcl 8.4 fixed-table `expr` math function selected by the
