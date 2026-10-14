@@ -1,0 +1,78 @@
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -5146,7 +5146,7 @@
+     registry: &CommandRegistry,
+ ) -> Option<String> {
+     let binding = tokens.source_binding.as_ref()?;
+-    binding.original_source_advice_purpose(tokens, metadata, registry)?;
++    let purpose = binding.original_source_advice_purpose(tokens, metadata, registry)?;
+     let input = binding.original_written_name_input(tokens, index.checked_add(1)?)?;
+     let key = input.original_word_key()?;
+     // Empty linked-input options disconnect; dollar signs in static values are data.
+@@ -5154,8 +5154,14 @@
+     if value.is_empty() {
+         return None;
+     }
+-    let variable = key.policy().recipe().combined_variable_input(value);
+-    let name = std::str::from_utf8(variable.root().selected()).ok()?;
++    let variable = (purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical)
++        .then(|| key.policy().recipe().combined_variable_input(value));
++    // Logical words retain Unicode values; they are not a Native string pool.
++    let root = variable.as_ref().map_or_else(
++        || tcl_syntax::naming::split_element_ref_bytes(value).map_or(value, |(root, _)| root),
++        |variable| variable.root().selected(),
++    );
++    let name = std::str::from_utf8(root).ok()?;
+     Some(
+         if global && tcl_syntax::naming::unroot_rooted_key(name).is_none() {
+             tcl_syntax::naming::root_unrooted_key(name)
+@@ -9383,6 +9389,49 @@
+     }
+ 
+     #[test]
++    fn logical_linked_option_unicode_nul_retains_complete_qualified_name_data() {
++        for (source, expected) in [
++            (
++                "info exists \"original_scope::literal\\u0000tail\"",
++                "::original_scope::literal\0tail",
++            ),
++            (
++                "info exists \"original_scope::items\\u0000tail(key)\"",
++                "::original_scope::items\0tail",
++            ),
++        ] {
++            let (context, unit) = logical_metadata_fixture(source);
++            let registry = context.commands();
++            let metadata = unit
++                .top_level
++                .invocation_metadata_context_for_module(registry, &unit.ir_module)
++                .unwrap();
++            let tokens = unit.ir_module.top_level.statements[0].tokens().unwrap();
++            assert_eq!(
++                linked_option_definition_name(tokens, 1, true, metadata, registry).as_deref(),
++                Some(expected)
++            );
++            let binding = tokens.source_binding.as_ref().unwrap();
++            let input = binding.original_written_name_input(tokens, 2).unwrap();
++            let key = input.original_word_key().unwrap();
++            assert!(key.bytes().contains(&0));
++            assert_ne!(
++                key.policy()
++                    .recipe()
++                    .combined_variable_input(key.bytes())
++                    .root()
++                    .selected(),
++                key.bytes()
++            );
++            assert!(
++                SsaInvocationContext::supplied(registry, Some(metadata))
++                    .normal(tokens)
++                    .is_none()
++            );
++        }
++    }
++
++    #[test]
+     fn top_label_and_option_definition_cannot_supply_global_frame_ownership() {
+         let registry = tcl_registry::model::ingress::static_context_for("tk").commands();
+         let mut function = Function::new("::top", "entry");

@@ -1,0 +1,18 @@
+{
+  "path": "rust/tcl-lsp-db/src/lib.rs",
+  "before_sha256": "a772c22692e7ef34125a35fbdb408fcfa8c29079cabb21c130a7f42101db2b21",
+  "after_sha256": "7db39c12b2e227dd81c02c63043c0ad42982fa39e4f5b6b44f3c09273e8b87df",
+  "patch_sha256": "b464abca97fa36fb6207b1838b3ccbed7ad744e6d1b57bb047e3c7dacbc7e2b0",
+  "purpose": "Two original source-availability fixtures now explicitly retain the complete actual C Tcl8.6 input, same current availability Arc and exact config. Supplying only a ContextRegistry does not supply a ResolvedAnalysisInput. No entry/grant/profile substitution or assertion changes.",
+  "validation": "git apply --check only; no Cargo or Main edits; original controls must be replayed.",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "a772c22692e7ef34125a35fbdb408fcfa8c29079cabb21c130a7f42101db2b21",
+      "after_sha256": "7db39c12b2e227dd81c02c63043c0ad42982fa39e4f5b6b44f3c09273e8b87df"
+    }
+  ],
+  "rustfmt_parse": "workspace rustfmt edition2024 skip_children=true accepted all afterimages; no Cargo/test acceptance",
+  "apply_check_exit": 0,
+  "apply_check_stderr": ""
+}

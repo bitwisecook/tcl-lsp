@@ -1,0 +1,127 @@
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -6001,7 +6001,24 @@
+             source_symbols.remove(name);
+             self.unknown_source_names.insert(name.clone());
+         }
+-        if context.execution_name_policy.is_none() {
++        if let Some(store) = self
++            .points
++            .conditional_logical_scalar_store_at(point.0, point.1, registry)
++            && let Some(place) = store.definition_place(registry)
++            && let Some(bound) = crate::var_resolve::canonical_binding_value_key(&place)
++        {
++            let name = store.source_name().to_owned();
++            let symbol = self.interner.intern(&bound);
++            if source_symbols
++                .insert(name.clone(), symbol)
++                .is_some_and(|previous| previous != symbol)
++            {
++                source_symbols.remove(&name);
++                self.unknown_source_names.insert(name);
++            }
++        } else if context.execution_name_policy.is_none()
++            && SsaInvocationContext::supplied(registry, self.metadata).standalone
++        {
+             for name in defs_of_in_context(
+                 stmt,
+                 Some(SsaInvocationContext::supplied(registry, self.metadata)),
+@@ -8652,6 +8669,83 @@
+     }
+ 
+     #[test]
++    fn conditional_logical_store_symbols_keep_original_empty_and_dollar_names() {
++        let (context, unit) = logical_metadata_fixture("set {$literal} 9; set {} 8");
++        let registry = context.commands();
++        let function = &unit.top_level;
++        let points = function.ssa.point_contexts.as_ref().unwrap();
++        let mut found = HashSet::new();
++        for (&block, data) in &function.cfg.blocks {
++            for (index, _) in data.statements.iter().enumerate() {
++                let Some(store) =
++                    points.conditional_logical_scalar_store_at(block, index, registry)
++                else {
++                    continue;
++                };
++                let place = store.definition_place(registry).unwrap();
++                let key = crate::var_resolve::canonical_binding_value_key(&place).unwrap();
++                let source = function.ssa.source_symbols_at(block, index).unwrap();
++                let symbol = source
++                    .get(store.source_name())
++                    .expect("original conditional store name");
++                assert_eq!(function.ssa.cell_key(*symbol), &key);
++                assert!(place.cell.as_ref().unwrap().interpreter.is_none());
++                assert!(place.cell.as_ref().unwrap().execution.is_none());
++                assert!(!source.contains_key("literal"));
++                let tokens = points.source_tokens_at(block, index).unwrap();
++                let metadata = function
++                    .invocation_metadata_context_for_module(registry, &unit.ir_module)
++                    .unwrap();
++                assert!(
++                    SsaInvocationContext::supplied(registry, Some(metadata))
++                        .normal(tokens)
++                        .is_none()
++                );
++                found.insert(store.source_name().to_owned());
++            }
++        }
++        assert_eq!(found, HashSet::from(["$literal".to_owned(), String::new()]));
++    }
++
++    #[test]
++    fn conditional_store_symbol_owner_refuses_after_dynamic_target_and_unknown_command() {
++        let (context, unit) = logical_metadata_fixture(
++            "set {$literal} 9; set $target 8; opaque_writer; set {$later} 7",
++        );
++        let registry = context.commands();
++        let function = &unit.top_level;
++        let points = function.ssa.point_contexts.as_ref().unwrap();
++        let mut checked = 0;
++        for (&block, data) in &function.cfg.blocks {
++            for (index, statement) in data.statements.iter().enumerate() {
++                let Some(tokens) = statement.tokens() else {
++                    continue;
++                };
++                if tokens
++                    .argv_texts
++                    .get(1)
++                    .is_some_and(|name| name == "$later")
++                {
++                    checked += 1;
++                    assert!(
++                        points
++                            .conditional_logical_scalar_store_at(block, index, registry)
++                            .is_none()
++                    );
++                    assert!(
++                        !function
++                            .ssa
++                            .source_symbols_at(block, index)
++                            .unwrap()
++                            .contains_key("$later")
++                    );
++                }
++            }
++        }
++        assert_eq!(checked, 1);
++    }
++
++    #[test]
+     fn original_literal_empty_reads_and_mutations_keep_name_data() {
+         // Native cases: experiments/name-handling/results/ssa-empty-read-write-names.
+         let source = "info exists {}; info exists {$name}; incr {}; incr {$counter}; dict with {} {}; dict with {$dict} {}";
+--- a/rust/tcl-compiler/src/variable_bindings.rs
++++ b/rust/tcl-compiler/src/variable_bindings.rs
+@@ -211,6 +211,12 @@
+     }
+     pub(crate) fn value(&self) -> &str {
+         &self.value
++    }
++
++    /// Original variable input retained by this conditional source store.
++    /// This is readonly name advice, without an editable word or Native grant.
++    pub(crate) fn source_name(&self) -> &str {
++        &self.name
+     }
+ 
+     pub(crate) fn definition_place(&self, registry: &CommandRegistry) -> Option<Place> {

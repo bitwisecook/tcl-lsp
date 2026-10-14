@@ -1,0 +1,15 @@
+{
+  "status": "unexecuted consumer draft",
+  "patch_sha256": "426c39071d2fb6afb3b0ed82bb06d4dde04ec496c5d9c46419426f35126188ba",
+  "bytes": 10017,
+  "files": {
+    "rust/tcl-compiler/src/source_graph.rs": "d372484e97b9e83b7d67d1e98b1ace6f17cc6cd8a9760c7a61ee802202927d63",
+    "rust/tcl-compiler/src/analyser/diagnostics.rs": "c1859a4c973d7bdf6e9d44f56f954523a68c6209e4130550637a185b47d70924"
+  },
+  "depends": [
+    "Hosted owner35d416",
+    "Compiler readonly Hosted flag/map transport",
+    "DB held FU Arc/current conditional source entry"
+  ],
+  "tests": "real hosted body positive; report-label-only mutations; held pointer/ID/entry/body/body-kind/registry negatives; original new control assertions retained. No Cargo."
+}

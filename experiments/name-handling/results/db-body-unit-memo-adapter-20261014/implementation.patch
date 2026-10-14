@@ -1,0 +1,571 @@
+diff --git a/rust/tcl-compiler/src/body_analysis_capsule.rs b/rust/tcl-compiler/src/body_analysis_capsule.rs
+--- a/rust/tcl-compiler/src/body_analysis_capsule.rs
++++ b/rust/tcl-compiler/src/body_analysis_capsule.rs
+@@ -91,12 +91,12 @@
+         if !module.procedure_ids.owns(body) {
+             return None;
+         }
+-        let procedure = module.procedures.get(&body)?;
+-        let function = unit.procedures.get(&body)?;
++        let procedure = unit.original_procedure_for_body(body)?;
++        let function = unit.function_for_body(Some(body))?;
+         let retained = module.retained_source_bindings.as_deref()?;
+         retained.positioned_for_module(module, registry)?;
+         if function.body_id != Some(body)
+-            || unit.cfg_module.procedures.get(&body) != Some(&function.cfg)
++            || unit.original_procedure_cfg_for_body(body) != Some(&function.cfg)
+             || module.source.try_text().ok()? != unit.source
+             || procedure.declaration_site.is_none()
+             || !retained.matches_original_procedure(procedure)
+@@ -145,9 +145,7 @@
+     #[must_use]
+     pub fn procedure(&self) -> &Procedure {
+         self.unit
+-            .ir_module
+-            .procedures
+-            .get(&self.body)
++            .original_procedure_for_body(self.body)
+             .expect("retained capsule declaration")
+     }
+ 
+@@ -155,8 +153,7 @@
+     #[must_use]
+     pub fn function(&self) -> &FunctionUnit {
+         self.unit
+-            .procedures
+-            .get(&self.body)
++            .function_for_body(Some(self.body))
+             .expect("retained capsule function")
+     }
+ 
+diff --git a/rust/tcl-compiler/src/compilation_unit.rs b/rust/tcl-compiler/src/compilation_unit.rs
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -565,6 +565,7 @@
+         procedures,
+         methods,
+         body_units,
++        source_body_cfgs,
+         interproc,
+         connection_scope,
+         caller_scope,
+@@ -1337,6 +1338,56 @@
+         unit
+     }
+ 
++    /// Source declaration analysis with its independently retained namespace.
++    /// The original script supplies no entered activation or Native frame grant.
++    #[must_use]
++    pub fn build_for_original_declaration_lattice(
++        body_id: crate::ir::ProcedureId,
++        name: &str,
++        cfg: CfgFunction,
++        params: &[String],
++        inputs: FunctionLatticeInputs<'_>,
++    ) -> Self {
++        let FunctionLatticeInputs {
++            dialect:
++                UnitDialect {
++                    registry,
++                    config,
++                    source_metadata_input,
++                },
++            param_constants,
++            known_classes,
++            trace_facts,
++            analysis_context: _,
++            command_trust,
++            event_body: _,
++        } = inputs;
++        let entry = conditional_function_source_entry(&cfg, source_metadata_input);
++        Self::build_full(
++            name,
++            cfg,
++            FunctionBuildInputs {
++                is_event_body: false,
++                analysis_body: Some(Some(body_id)),
++                initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
++                source_metadata_input,
++                entry_context: Some(&entry),
++                config,
++                params,
++                registry,
++                param_constants,
++                known_classes,
++                extra_global_escaping: &HashSet::new(),
++                trace_facts,
++                analysis_context: None,
++                command_trust,
++                object_state: None,
++                initial_global: false,
++                procedures: None,
++            },
++        )
++    }
++
+     /// Conditional inherited-frame facts for an admitted original child CFG.
+     /// The actual source namespace is independent of the synthetic report name.
+     fn build_conditional_original_body(
+@@ -2268,6 +2319,8 @@
+     /// Anonymous and selected-namespace body analyses keyed by retained body ID.
+     /// [`Self::body_function_units`] exposes them with their actual source owners.
+     pub body_units: HashMap<crate::ir::ProcedureId, FunctionUnit>,
++    /// Genuine prepared child CFGs, retained before any function analysis.
++    source_body_cfgs: HashMap<crate::ir::ProcedureId, CfgFunction>,
+     /// Interprocedural summary (optional — populated when the
+     /// interprocedural pass has been run).
+     pub interproc: Option<InterproceduralAnalysis>,
+@@ -2659,6 +2712,14 @@
+     config: tcl_lexer::LexerConfig,
+ }
+ 
++struct DeclaredBodyMemoContext<'a> {
++    prepared: Option<&'a CfgContext>,
++    dialect: Option<&'static tcl_dialect::DialectProfile>,
++    known_classes: &'a [String],
++    traced_variables: &'a [String],
++    analysis_context: &'a crate::value_transfer::AnalysisContextKey,
++}
++
+ /// Module-wide, read-only inputs [`build_procedure_units`] shares across
+ /// every procedure in the loop.  Grouped into one struct so the extracted
+ /// helper takes two parameters instead of a dozen.
+@@ -3254,7 +3315,7 @@
+     fn build_with_retained_entry(
+         source: &str,
+         options: UnitBuildOptions<'_>,
+-        cache: Option<&mut ProcLatticeCache<'_>>,
++        mut cache: Option<&mut ProcLatticeCache<'_>>,
+         body_cache: Option<&BodyLoweringCache<'_>>,
+         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+         context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+@@ -3375,7 +3436,7 @@
+                 tainted_global_writes: &tainted_global_writes,
+                 procedures: Some(&module_procedures),
+             },
+-            cache,
++            cache.as_mut().map(|callback| &mut **callback),
+             options.config,
+         );
+         #[cfg(any(test, debug_assertions))]
+@@ -3390,7 +3451,29 @@
+             config: options.config,
+         };
+         let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
+-        let body_units = Self::build_body_units(&ir_module, &extra_callers, body_unit_context);
++        let source_body_cfgs = ir_module
++            .body_units
++            .iter()
++            .filter_map(|(id, _)| {
++                extra_callers
++                    .iter()
++                    .find_map(|caller| caller.body_analysis_cfg(*id))
++                    .map(|cfg| (*id, cfg.clone()))
++            })
++            .collect();
++        let body_units = Self::build_body_units(
++            &ir_module,
++            &extra_callers,
++            body_unit_context,
++            cache.as_mut().map(|callback| &mut **callback),
++            DeclaredBodyMemoContext {
++                prepared: cfg_context.map(|prepared| &prepared.context),
++                dialect,
++                known_classes: &known_classes,
++                traced_variables: &traced_variable_names,
++                analysis_context: &analysis_context,
++            },
++        );
+         #[cfg(any(test, debug_assertions))]
+         phase_trace.phase("method-and-body-lattices");
+         let connection_scope = Self::build_connection_scope(&procedures, registry, &ir_module);
+@@ -3411,6 +3494,7 @@
+             procedures,
+             methods,
+             body_units,
++            source_body_cfgs,
+             interproc: None,
+             connection_scope,
+             caller_scope: UnitCallerScope {
+@@ -3566,6 +3650,8 @@
+         ir_module: &IrModule,
+         extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
+         ctx: BodyUnitContext<'_>,
++        mut cache: Option<&mut ProcLatticeCache<'_>>,
++        memo_context: DeclaredBodyMemoContext<'_>,
+     ) -> HashMap<crate::ir::ProcedureId, FunctionUnit> {
+         let BodyUnitContext {
+             registry,
+@@ -3594,76 +3680,140 @@
+                 let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;
+                 let declaration_body = ir_module.original_declaration_body_units.contains_key(id)
+                     || ir_module.installed_procedure_body_units.contains_key(id);
+-                let mut entry_context = if declaration_body {
+-                    if let Some(namespace) = proc.body.namespace_context.as_deref() {
+-                        // This is the original declaration's analytical local
+-                        // frame, not an actual invocation of this internal unit.
+-                        let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+-                            namespace: namespace.display().unwrap_or_default(),
+-                            identity: qname.clone(),
++                let mut entry_context =
++                    if ir_module.original_declaration_body_units.contains_key(id) {
++                        conditional_function_source_entry(
++                            &cfg,
++                            module_source_metadata_input(ir_module, registry),
++                        )
++                    } else if declaration_body {
++                        if let Some(namespace) = proc.body.namespace_context.as_deref() {
++                            // This is the original declaration's analytical local
++                            // frame, not an actual invocation of this internal unit.
++                            let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
++                                namespace: namespace.display().unwrap_or_default(),
++                                identity: id.reporting_key(),
++                            }
++                            .with_namespace_identity(namespace.clone());
++                            crate::var_resolve::ResolveContext::default().in_frame(&frame)
++                        } else {
++                            crate::var_resolve::ResolveContext::default()
++                                .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
++                        }
++                    } else if let Some(namespace) = proc.body.namespace_context.as_deref() {
++                        let frame = if ir_module.lambda_body_units.contains(id) {
++                            crate::var_resolve::VariableExecutionFrame::Procedure {
++                                namespace: namespace.display().unwrap_or_default(),
++                                identity: id.reporting_key(),
++                            }
++                        } else {
++                            crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
++                                namespace: namespace.display().unwrap_or_default(),
++                                identity: id.reporting_key(),
++                            }
+                         }
+                         .with_namespace_identity(namespace.clone());
+                         crate::var_resolve::ResolveContext::default().in_frame(&frame)
+                     } else {
+                         crate::var_resolve::ResolveContext::default()
+                             .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
+-                    }
+-                } else if let Some(namespace) = proc.body.namespace_context.as_deref() {
+-                    let frame = if ir_module.lambda_body_units.contains(id) {
+-                        crate::var_resolve::VariableExecutionFrame::Procedure {
+-                            namespace: namespace.display().unwrap_or_default(),
+-                            identity: id.reporting_key(),
+-                        }
+-                    } else {
+-                        crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+-                            namespace: namespace.display().unwrap_or_default(),
+-                            identity: id.reporting_key(),
+-                        }
+-                    }
+-                    .with_namespace_identity(namespace.clone());
+-                    crate::var_resolve::ResolveContext::default().in_frame(&frame)
+-                } else {
+-                    crate::var_resolve::ResolveContext::default()
+-                        .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
+-                };
++                    };
+                 entry_context.namespace_cells.closed = false;
+-                let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
+-                    FunctionUnit::trivial_guarded(qname, cfg).with_source_metadata(
+-                        module_source_metadata_input(ir_module, registry),
+-                        config,
+-                    )
+-                } else {
+-                    FunctionUnit::build_full(
+-                        qname.clone(),
+-                        cfg,
+-                        FunctionBuildInputs {
+-                            is_event_body: false,
+-                            analysis_body: Some(Some(*id)),
+-                            initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
+-                            source_metadata_input: module_source_metadata_input(
+-                                ir_module, registry,
+-                            ),
+-                            entry_context: Some(&entry_context),
+-                            config,
+-                            params: &proc.params,
+-                            registry,
+-                            param_constants: None,
+-                            known_classes: known_class_set,
+-                            extra_global_escaping: &no_extra_escaping,
+-                            trace_facts,
+-                            analysis_context: None,
+-                            command_trust,
+-                            object_state: None,
+-                            initial_global: false,
+-                            procedures: None,
+-                        },
+-                    )
+-                }
+-                .with_retained_semantic_analysis(
+-                    registry,
+-                    Some(&proc.body),
+-                    crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+-                );
++                let memoised = (body_bytes <= crate::ssa::DEEP_ANALYSIS_BODY_BYTES
++                    && ir_module.original_declaration_body_units.contains_key(id)
++                    && ir_module
++                        .original_source_procedure_bodies()
++                        .any(|(body, _)| body == id))
++                .then(|| {
++                    let memo = cache.as_mut()?;
++                    let (
++                        upvar_procs,
++                        proc_params,
++                        global_write_procs,
++                        command_bindings,
++                        procedure_summary_owners,
++                    ) = memo_context.prepared?;
++                    let source = ir_module.source.try_text().ok()?;
++                    let memo_config = config.nested().normalized();
++                    let memo_input = module_source_metadata_input(ir_module, registry)
++                        .map(crate::analyser::ResolvedAnalysisInput::for_nested_source);
++                    let mut body = proc.body.clone();
++                    crate::lattice_rebase::rebase_script(&mut body, -i64::from(proc.span.start()));
++                    let mut unit = memo(&LatticeRequest {
++                        module: ir_module,
++                        body_id: *id,
++                        qname,
++                        body: &body,
++                        source,
++                        original_body_offset: proc.span.start(),
++                        executable_body_offset: proc.body_offset,
++                        body_source: proc.body_source.as_deref(),
++                        irules_event_body: None,
++                        command_trust,
++                        params: &proc.params,
++                        upvar_procs,
++                        proc_params,
++                        global_write_procs,
++                        command_bindings,
++                        procedure_summary_owners,
++                        source_metadata_input: memo_input.as_ref(),
++                        lexer_config: memo_config,
++                        dialect: memo_context.dialect,
++                        plain_command_dispatch: ir_module.plain_command_dispatch,
++                        param_constants: &[],
++                        known_classes: memo_context.known_classes,
++                        traced_variables: memo_context.traced_variables,
++                        analysis_context: memo_context.analysis_context,
++                        has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
++                    });
++                    crate::lattice_rebase::rebase_function_unit(
++                        &mut unit,
++                        i64::from(proc.span.start()),
++                    );
++                    (unit.cfg == cfg && !unit.sccp.reads_module).then_some(unit)
++                })
++                .flatten();
++                let fu = memoised
++                    .unwrap_or_else(|| {
++                        if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
++                            FunctionUnit::trivial_guarded(qname, cfg).with_source_metadata(
++                                module_source_metadata_input(ir_module, registry),
++                                config,
++                            )
++                        } else {
++                            FunctionUnit::build_full(
++                                qname.clone(),
++                                cfg,
++                                FunctionBuildInputs {
++                                    is_event_body: false,
++                                    analysis_body: Some(Some(*id)),
++                                    initial_state:
++                                        crate::sccp::ExistenceInitialState::DeclaredFrame,
++                                    source_metadata_input: module_source_metadata_input(
++                                        ir_module, registry,
++                                    ),
++                                    entry_context: Some(&entry_context),
++                                    config,
++                                    params: &proc.params,
++                                    registry,
++                                    param_constants: None,
++                                    known_classes: known_class_set,
++                                    extra_global_escaping: &no_extra_escaping,
++                                    trace_facts,
++                                    analysis_context: None,
++                                    command_trust,
++                                    object_state: None,
++                                    initial_global: false,
++                                    procedures: None,
++                                },
++                            )
++                        }
++                    })
++                    .with_retained_semantic_analysis(
++                        registry,
++                        Some(&proc.body),
++                        crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
++                    );
+                 (*id, fu.with_body_id(*id))
+             })
+             .collect()
+@@ -4068,6 +4218,35 @@
+         (function.body_id == Some(id)).then_some(function)
+     }
+ 
++    /// Actual CFG prepared from an original source declaration under this issuer.
++    /// Anonymous and installed-only bodies do not supply declaration evidence.
++    #[must_use]
++    pub fn original_procedure_cfg_for_body(
++        &self,
++        id: crate::ir::ProcedureId,
++    ) -> Option<&CfgFunction> {
++        self.ir_module
++            .original_source_procedure_bodies()
++            .any(|(body, _)| *body == id)
++            .then_some(())?;
++        if self.ir_module.procedures.contains_key(&id) {
++            self.cfg_module.procedures.get(&id)
++        } else {
++            self.source_body_cfgs.get(&id)
++        }
++    }
++
++    /// Actual original declaration, independently of whether it entered the runtime.
++    #[must_use]
++    pub fn original_procedure_for_body(
++        &self,
++        id: crate::ir::ProcedureId,
++    ) -> Option<&crate::ir::Procedure> {
++        self.ir_module
++            .original_source_procedure_bodies()
++            .find_map(|(body, declaration)| (*body == id).then_some(declaration))
++    }
++
+     /// Select a uniquely named authored test fixture, then its actual issued body.
+     #[cfg(test)]
+     pub(crate) fn function(&self, name: &str) -> Option<&FunctionUnit> {
+diff --git a/rust/tcl-lsp-db/src/lib.rs b/rust/tcl-lsp-db/src/lib.rs
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -2696,6 +2696,8 @@
+ /// The descriptor is sealed by actual lowering; dispatch mode grants no event.
+ #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+ pub struct FnLatticeEntry {
++    /// Actual original declaration-body role, independently of a callable entry.
++    pub original_declaration_body: Option<tcl_compiler::ir::ProcedureId>,
+     /// Trace-visible mode preserves ordinary dynamically replaceable dispatch.
+     pub plain_command_dispatch: bool,
+     /// Exact supplied source availability and command generation. Missing input
+@@ -2876,37 +2878,41 @@
+         has_dynamic_variable_trace: key.module_facts(db).has_dynamic_variable_trace,
+         deferred_writes: &key.analysis_context(db).key(db).deferred_writes,
+     };
+-    Arc::new(
+-        FunctionUnit::build_for_lattice(
++    let inputs = tcl_compiler::compilation_unit::FunctionLatticeInputs {
++        dialect: tcl_compiler::compilation_unit::UnitDialect {
++            registry,
++            config,
++            source_metadata_input: key.entry(db).source_metadata_input.as_ref(),
++        },
++        param_constants: param_constants.as_ref(),
++        known_classes: &known_classes,
++        trace_facts,
++        analysis_context: key.analysis_context(db).key(db),
++        command_trust: &command_trust,
++        event_body: key
++            .entry(db)
++            .irules_event_body
++            .as_ref()
++            .map(|event| (event, key.body(db).body())),
++    };
++    let unit = if let Some(body_id) = key.entry(db).original_declaration_body {
++        FunctionUnit::build_for_original_declaration_lattice(
++            body_id,
+             key.qname(db),
+             cfg,
+             key.params(db),
+-            tcl_compiler::compilation_unit::FunctionLatticeInputs {
+-                dialect: tcl_compiler::compilation_unit::UnitDialect {
+-                    registry,
+-                    config,
+-                    source_metadata_input: key.entry(db).source_metadata_input.as_ref(),
+-                },
+-                param_constants: param_constants.as_ref(),
+-                known_classes: &known_classes,
+-                trace_facts,
+-                analysis_context: key.analysis_context(db).key(db),
+-                command_trust: &command_trust,
+-                event_body: key
+-                    .entry(db)
+-                    .irules_event_body
+-                    .as_ref()
+-                    .map(|event| (event, key.body(db).body())),
+-            },
++            inputs,
+         )
+-        .with_retained_semantic_analysis(
+-            registry,
+-            Some(key.body(db).body()),
+-            // A procedure body runs only after arbitrary interposed history,
+-            // so its dispatch proofs start from an unknown world.
+-            tcl_compiler::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+-        ),
+-    )
++    } else {
++        FunctionUnit::build_for_lattice(key.qname(db), cfg, key.params(db), inputs)
++    };
++    Arc::new(unit.with_retained_semantic_analysis(
++        registry,
++        Some(key.body(db).body()),
++        // A procedure body runs only after arbitrary interposed history,
++        // so its dispatch proofs start from an unknown world.
++        tcl_compiler::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
++    ))
+ }
+ 
+ /// Interned identity of one top-level `proc`'s **offset-0** static body source
+@@ -3293,6 +3299,19 @@
+             has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+         },
+         FnLatticeEntry {
++            original_declaration_body: req
++                .module
++                .original_declaration_body_units
++                .get(&req.body_id)
++                .is_some_and(|allocation| {
++                    req.module.procedure_ids.owns(req.body_id)
++                        && req.module.body_units.get(&req.body_id).is_some_and(|body| {
++                            body.body_kind
++                                == tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
++                                && body.declaration_site.as_ref() == Some(&allocation.site)
++                        })
++                })
++                .then_some(req.body_id),
+             plain_command_dispatch: req.plain_command_dispatch,
+             source_metadata_input: req.source_metadata_input.cloned(),
+             irules_event_body: req.irules_event_body.cloned(),
+@@ -5830,6 +5849,7 @@
+                     has_dynamic_variable_trace: false,
+                 },
+                 FnLatticeEntry {
++                    original_declaration_body: None,
+                     plain_command_dispatch: false,
+                     source_metadata_input: unit.ir_module.source_metadata_input.clone(),
+                     irules_event_body: event,
+@@ -5871,6 +5891,7 @@
+             selected.param_constants(&db).clone(),
+             selected.module_facts(&db).clone(),
+             FnLatticeEntry {
++                original_declaration_body: None,
+                 plain_command_dispatch: selected.entry(&db).plain_command_dispatch,
+                 source_metadata_input: selected.entry(&db).source_metadata_input.clone(),
+                 irules_event_body: selected.entry(&db).irules_event_body.clone(),
+@@ -5977,6 +5998,7 @@
+                 has_dynamic_variable_trace: false,
+             },
+             FnLatticeEntry {
++                original_declaration_body: None,
+                 plain_command_dispatch: module.plain_command_dispatch,
+                 source_metadata_input: input,
+                 irules_event_body: None,
+@@ -6171,6 +6193,7 @@
+                     has_dynamic_variable_trace: false,
+                 },
+                 FnLatticeEntry {
++                    original_declaration_body: None,
+                     plain_command_dispatch: false,
+                     source_metadata_input: None,
+                     irules_event_body: None,

@@ -1,0 +1,252 @@
+--- a/rust/tcl-compiler/src/command_binding/logical_operation.rs
++++ b/rust/tcl-compiler/src/command_binding/logical_operation.rs
+@@ -56,28 +56,16 @@
+     if facts.arity_accepts_frozen_arguments() != Some(true) || facts.frame_effect.is_some() {
+         return None;
+     }
++    let transitions = schema.state_transitions();
+     if facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set) {
+-        scalar_store(&original, &facts, state, offset, context)?;
++        variable_continuation(&original, &facts, &transitions, state, offset, context)?;
+     } else if matches!(
+         facts.analyser_hook,
+         Some(AnalyserHookId::Rename | AnalyserHookId::InterpAlias)
+     ) {
+-        command_transfer(
+-            &original,
+-            &facts,
+-            &schema.state_transitions(),
+-            state,
+-            offset,
+-            context,
+-        )?;
+-    } else if !readonly_continuation(
+-        &original,
+-        &facts,
+-        &schema.state_transitions(),
+-        state,
+-        context,
+-    ) {
+-        return None;
++        command_transfer(&original, &facts, &transitions, state, offset, context)?;
++    } else {
++        variable_continuation(&original, &facts, &transitions, state, offset, context)?;
+     }
+     // A continuation of this authored model has no Native handler, command
+     // publication, compiler, frame, argv or Normal completion certificate.
+@@ -329,6 +317,114 @@
+         );
+         !access.dynamic && !access.observed && logical_cell_is_local(&access, state, context)
+     })
++}
++
++fn variable_continuation(
++    original: &LogicalOriginalInvocation,
++    facts: &InvocationFacts,
++    transitions: &StateTransitions,
++    state: &mut ModuleCommandBindings,
++    offset: u32,
++    context: SourceExecutionContext<'_>,
++) -> Option<()> {
++    if (facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set)
++        && scalar_store(original, facts, state, offset, context).is_some())
++        || readonly_continuation(original, facts, transitions, state, context)
++    {
++        return Some(());
++    }
++    scalar_write_continuation(original, facts, transitions, state, offset, context)
++}
++
++fn scalar_write_roles(facts: &InvocationFacts, transitions: &StateTransitions) -> bool {
++    transitions.facts().is_empty()
++        && facts.arg_roles_complete
++        && bounded_effects(
++            facts,
++            &[
++                WorldStateDomain::VariableStore,
++                WorldStateDomain::VariableTraces,
++            ],
++        )
++        && facts
++            .arg_roles
++            .iter()
++            .any(|(_, role)| *role == ArgRole::VarWrite)
++        && facts
++            .arg_roles
++            .iter()
++            .all(|(_, role)| matches!(role, ArgRole::VarRead | ArgRole::VarWrite))
++        && facts.effects.accesses().iter().all(|access| {
++            access.domain == WorldStateDomain::VariableStore
++                || access.mode == EffectAccessMode::Read
++        })
++        && facts.effects.accesses().iter().any(|access| {
++            access.domain == WorldStateDomain::VariableStore
++                && matches!(
++                    access.mode,
++                    EffectAccessMode::Write | EffectAccessMode::ReadWrite
++                )
++        })
++}
++
++fn scalar_write_continuation(
++    original: &LogicalOriginalInvocation,
++    facts: &InvocationFacts,
++    transitions: &StateTransitions,
++    state: &mut ModuleCommandBindings,
++    offset: u32,
++    context: SourceExecutionContext<'_>,
++) -> Option<()> {
++    if !original.is_current(state, context)
++        || !scalar_write_roles(facts, transitions)
++        || state.source_variables.dynamic_bindings
++        || state.source_variables.dynamic_traces
++    {
++        return None;
++    }
++    let mut writes = Vec::new();
++    for (ordinal, role) in &facts.arg_roles {
++        let name = original
++            .arguments
++            .get(facts.argument_offset + usize::from(*ordinal))?;
++        let read = crate::var_resolve::resolve_literal_access(
++            name,
++            &state.source_variables,
++            false,
++            context.registry,
++            tcl_registry::TraceOperation::Read,
++        );
++        if read.dynamic || read.observed || !logical_cell_is_local(&read, state, context) {
++            return None;
++        }
++        if *role == ArgRole::VarWrite {
++            let write = crate::var_resolve::resolve_literal_access(
++                name,
++                &state.source_variables,
++                false,
++                context.registry,
++                tcl_registry::TraceOperation::Write,
++            );
++            if write.dynamic
++                || write.observed
++                || write.kind != crate::place::PlaceKind::Scalar
++                || write.index.is_some()
++                || !logical_cell_is_local(&write, state, context)
++                || state.source_variables.root_contents_kind(&write)
++                    == Some(crate::var_resolve::RootContentsKind::Array)
++                || state.source_variables.store_would_error(&write)
++            {
++                return None;
++            }
++            writes.push(write);
++        }
++    }
++    // Conditional footprints withdraw values without publishing a successful store.
++    let variables = Arc::make_mut(&mut state.source_variables);
++    for write in writes {
++        variables.record_contents_write(&write, offset, true);
++    }
++    Some(())
+ }
+ 
+ fn scalar_store(
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -8652,6 +8652,98 @@
+     }
+ 
+     #[test]
++    fn quiet_logical_scalar_mutations_keep_original_names_without_numeric_or_normal_results() {
++        let (context, unit) =
++            logical_metadata_fixture("incr {}; incr {$counter}; info exists {$counter}");
++        let registry = context.commands();
++        let metadata = unit
++            .top_level
++            .invocation_metadata_context_for_module(registry, &unit.ir_module)
++            .unwrap();
++        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
++        let mut scanner = VarReferenceScanner::with_config(
++            VarScanOptions::default(),
++            unit.top_level.source_lexer_config(),
++        );
++        for (statement, expected) in unit
++            .ir_module
++            .top_level
++            .statements
++            .iter()
++            .zip(["", "$counter", "$counter"])
++        {
++            let tokens = statement.tokens().unwrap();
++            assert!(selection.logical_structure(tokens).is_some());
++            assert!(selection.normal(tokens).is_none());
++            let variables = &tokens.source_binding.as_ref().unwrap().variable_context;
++            assert!(variables.interpreter.is_none());
++            assert!(variables.execution.is_none());
++            assert!(variables.literal_value(expected, registry).is_none());
++            let reads = uses_of_classified_in_context(statement, &mut scanner, selection);
++            assert!(
++                reads.contains(&(expected.to_owned(), UseClass::Name)),
++                "{reads:?}"
++            );
++            assert!(
++                !reads.iter().any(|(name, _)| name == "counter"),
++                "{reads:?}"
++            );
++        }
++    }
++
++    #[test]
++    fn dynamic_scalar_targets_keep_later_unknown_read_hazards() {
++        let (context, unit) = logical_metadata_fixture("incr {}; incr $name; incr {$counter}");
++        let registry = context.commands();
++        let metadata = unit
++            .top_level
++            .invocation_metadata_context_for_module(registry, &unit.ir_module)
++            .unwrap();
++        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
++        let statement = unit.ir_module.top_level.statements.last().unwrap();
++        assert!(
++            selection
++                .logical_structure(statement.tokens().unwrap())
++                .is_none()
++        );
++        let mut scanner = VarReferenceScanner::with_config(
++            VarScanOptions::default(),
++            unit.top_level.source_lexer_config(),
++        );
++        assert!(
++            uses_of_classified_in_context(statement, &mut scanner, selection)
++                .iter()
++                .any(|(name, _)| name == "counter")
++        );
++    }
++
++    #[test]
++    fn quiet_logical_scalar_mutation_withdraws_prior_literal_contents() {
++        let (context, unit) =
++            logical_metadata_fixture("set counter 9; incr counter; info exists counter");
++        let registry = context.commands();
++        let statements = &unit.ir_module.top_level.statements;
++        let before_update = &statements[1]
++            .tokens()
++            .unwrap()
++            .source_binding
++            .as_ref()
++            .unwrap()
++            .variable_context;
++        assert_eq!(before_update.literal_value("counter", registry), Some("9"));
++        let after_update = &statements[2]
++            .tokens()
++            .unwrap()
++            .source_binding
++            .as_ref()
++            .unwrap()
++            .variable_context;
++        assert!(after_update.literal_value("counter", registry).is_none());
++        assert!(!after_update.dynamic_bindings);
++        assert!(!after_update.dynamic_traces);
++    }
++
++    #[test]
+     fn original_literal_empty_reads_and_mutations_keep_name_data() {
+         // Native cases: experiments/name-handling/results/ssa-empty-read-write-names.
+         let source = "info exists {}; info exists {$name}; incr {}; incr {$counter}; dict with {} {}; dict with {$dict} {}";

@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "4a215d18ad6e8db0686d17792693599ba9043301b86e50293b258a1038b51642",
+      "after_sha256": "f3928742165b286b0208d2186dcafec9721ac527b4354411fd9ab9272dbb44bc"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "3efec4281a204cae5030de9835ced60501b221469e78a1807c110da8a2e1e158",
+      "after_sha256": "1306ebc271c4468bb3a2ec1357dfc4094b0d8ac0e96bd67dd0039fda959d1466"
+    }
+  ],
+  "patch_sha256": "95be013156d859eb2116d35dfdec42e434bca4feda966f4582bc332847abd559",
+  "dependency": "Initial DB body-unit memo adapter current-CU original declaration/prepared CFG getters.",
+  "purpose": "After CU builders accept or decline memo candidates, DB retains only baseline keys whose already-built offset-zero candidate matches the actual current retained original header/store/input/registry/prepared CFG after the existing source rebase. No lattice rerun or result-as-key comparison; rejected callbacks cannot feed downstream baseline checks/taints/optimisations.",
+  "validation": "Scratch-only applycheck; original counters and comparisons unchanged/unobserved, no Cargo/Main.",
+  "rustfmt_parse": "workspace rustfmt edition2024 skip_children=true accepted all afterimages; no Cargo/test acceptance",
+  "apply_check_exit": 0,
+  "apply_check_stderr": "",
+  "rebase": "Current Main read-only snapshot 2026-10-14 06:47; retains prior exact header/input/store/preparedCFG/candidate guards."
+}

@@ -1,0 +1,9 @@
+can't trace "(key)": variable isn't array
+    while executing
+"entry .original -textvariable $name"
+    ("foreach" body line 2)
+    invoked from within
+"foreach {name marker} {{} EMPTY {$literal} SIGIL {items(key)} ELEMENT {(key)} EMPTY_ARRAY_ROOT} {
+    entry .original -textvariable $name
+    .origina..."
+    (file "/tmp/name-tk-option-original-values-20261014/empty-array-root/source.tcl" line 11)

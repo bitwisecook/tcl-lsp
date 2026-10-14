@@ -1,0 +1,8 @@
+{
+  "patch_sha256": "92358b170a45f69720b34d90f808b026aaa942bca48ad711a9c40ce396836f3b",
+  "purpose": "Readonly original source recipe validates absent body coverage independently of entered variable frame",
+  "guard": "Exact source invocation/module/metadata preserved; positive complete Logical role projection and absent case grammar certify no bodies; dynamic/unknown body metadata still refuses; advice-purpose keeps reached Native terminal dispatch",
+  "evidence": "/tmp/name-compiler43-source-purpose-guards-20261014/result.json",
+  "current_regression": "cfg_builder::global_write_info::tests::logical_nested_write_projection_requires_original_children_not_literal_brackets",
+  "validation": "Rustfmt parse and applycheck; no Cargo/current semantic acceptance"
+}

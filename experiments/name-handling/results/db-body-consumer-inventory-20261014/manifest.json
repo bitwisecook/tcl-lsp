@@ -1,0 +1,19 @@
+{
+  "path": "rust/tcl-lsp-db/src/lib.rs",
+  "before_sha256": "a772c22692e7ef34125a35fbdb408fcfa8c29079cabb21c130a7f42101db2b21",
+  "after_sha256": "551f026ad2005b0fee0b1ca38d0a7787ad3076c0d9901cd9c4eb05248a566cb4",
+  "patch_sha256": "9e2da967ae325e27cbfd823f14020ad4082b556cebf59def1acb83a775d1c965",
+  "dependency": "Initial DB body-unit memo adapter current-CU original declaration getter.",
+  "purpose": "DB non-taint checks walk every actual body once, selecting original memo offsets by issued ID and preserving real method overlays on fallback. Optimisation capsules/assembly cover genuine original declaration bodies; anonymous/installed-only bodies retain whole-unit fallback. Authored test selectors include original source-body store with genuine getter, retaining all count/value assertions.",
+  "validation": "Scratch applycheck only; original memo controls remain mandatory and unobserved. Native proof/call selectors unchanged.",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "a772c22692e7ef34125a35fbdb408fcfa8c29079cabb21c130a7f42101db2b21",
+      "after_sha256": "551f026ad2005b0fee0b1ca38d0a7787ad3076c0d9901cd9c4eb05248a566cb4"
+    }
+  ],
+  "rustfmt_parse": "workspace rustfmt edition2024 skip_children=true accepted all afterimages; no Cargo/test acceptance",
+  "apply_check_exit": 0,
+  "apply_check_stderr": ""
+}

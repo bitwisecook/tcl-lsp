@@ -1,0 +1,827 @@
+--- /dev/null
++++ b/rust/tcl-compiler/src/command_binding/hosted_procedure_body.rs
+@@ -0,0 +1,201 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Hosted declaration bodies retain source scope without publication or entry.
++
++use std::sync::Arc;
++use super::{CommandAllocationSite, ExecutedScriptSource, SourceCommandBindings, SourceNamespaceKey, SourceRuleDeclarationCandidate};
++use crate::analyser::ResolvedAnalysisInput;
++use crate::signature_scan::vendor_name::VendorSourceNameInput;
++use tcl_lexer::{NativeWord, SourceImage, Span};
++use tcl_syntax::naming::{VendorSourceFormalExtent, VendorSourceNamePurpose};
++
++/// An actual rule-loader declaration's conditional body and authored scope.
++/// Unknown handlers remain retained; this cannot issue a Native namespace,
++/// parameter binder, installed procedure, body entry or rewrite permission.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct OriginalHostedProcedureBody {
++    site: CommandAllocationSite,
++    input: ResolvedAnalysisInput,
++    words: Arc<[NativeWord]>,
++    declaration: tcl_registry::events::IrulesTopLevelDeclaration,
++    alternatives: Vec<SourceRuleDeclarationCandidate>,
++    source: ExecutedScriptSource,
++    namespace: SourceNamespaceKey,
++    name: VendorSourceNameInput,
++    parameters: Vec<VendorSourceFormalExtent>,
++    parameter_word: NativeWord,
++    span: Span,
++    lowered_body: Option<Arc<crate::ir::Script>>,
++    retained_entry: Option<super::SourceAnalysisEntry>,
++}
++impl OriginalHostedProcedureBody {
++    pub(crate) fn site(&self) -> &CommandAllocationSite { &self.site }
++    pub(crate) fn source(&self) -> &ExecutedScriptSource { &self.source }
++    pub(crate) fn namespace(&self) -> &SourceNamespaceKey { &self.namespace }
++    pub(crate) fn name(&self) -> Option<&str> {
++        std::str::from_utf8(self.name.literal_units(VendorSourceNamePurpose::ProcedureName)?).ok()
++    }
++    pub(crate) fn parameters_text(&self) -> Option<&str> {
++        std::str::from_utf8(tcl_syntax::naming::vendor_source_literal_units(self.name.policy(), &self.parameter_word, VendorSourceNamePurpose::FormalList)?).ok()
++    }
++    pub(crate) fn parameter_names(&self) -> Option<Vec<String>> {
++        let units = self.parameters_text()?;
++        self.parameters.iter().map(|formal| Some(units.get(formal.name.clone())?.to_owned())).collect()
++    }
++    pub(crate) fn span(&self) -> Span { self.span }
++    pub(crate) fn retain_lowered_body(mut self, body: &crate::ir::Script, entry: &super::SourceAnalysisEntry) -> Self {
++        self.lowered_body = Some(Arc::new(body.clone()));
++        self.retained_entry = Some(entry.clone());
++        self
++    }
++    pub(crate) fn matches_procedure(&self, module: &crate::ir::Module, procedure: &crate::ir::Procedure, registry: &tcl_registry::CommandRegistry) -> bool {
++        let Some(input) = module.source_metadata_input.as_ref() else { return false; };
++        self.retained_entry.as_ref() == Some(&module.source_entry)
++            && module.source_entry.native_entry.is_none()
++            && module.lexer_config == input.lexer_config()
++            && module.registry_snapshot.as_ref().is_some_and(|snapshot| snapshot.semantic_key() == registry.snapshot().semantic_key())
++            && self.owns_procedure(procedure, &module.source, input, registry)
++    }
++    pub(crate) fn owns_procedure(&self, procedure: &crate::ir::Procedure, image: &SourceImage, input: &ResolvedAnalysisInput, registry: &tcl_registry::CommandRegistry) -> bool {
++        self.matches_source(image, input, registry)
++            && procedure.body_kind == crate::ir::ProcedureBodyKind::OriginalDeclaration
++            && procedure.publication.is_none()
++            && procedure.declaration_site.as_ref() == Some(&self.site)
++            && procedure.span == self.span
++            && procedure.body_offset == self.source.base()
++            && procedure.body.namespace_context.as_deref() == Some(&self.namespace)
++            && self.parameter_names().as_ref() == Some(&procedure.params)
++            && self.parameters_text() == Some(procedure.params_raw.as_str())
++            && self.source.try_text().ok() == procedure.body_source.as_deref()
++            && self.lowered_body.as_deref() == Some(&procedure.body)
++    }
++    pub(crate) fn alternatives(&self) -> &[SourceRuleDeclarationCandidate] { &self.alternatives }
++    pub(crate) fn original_words(&self) -> &[NativeWord] { &self.words }
++    pub(crate) fn matches_source(&self, image: &SourceImage, input: &ResolvedAnalysisInput, registry: &tcl_registry::CommandRegistry) -> bool {
++        &self.input == input
++            && input.has_hosted_source_name_context()
++            && input.borrowed_context_registry().commands().snapshot().semantic_key() == registry.snapshot().semantic_key()
++            && self.site.source.source_image() == image
++            && self.words.iter().all(|word| word.image() == image && word.config() == input.lexer_config())
++    }
++}
++impl SourceCommandBindings {
++    /// Exact hosted declaration alternatives retain their original scope and
++    /// words. A source declaration does not establish a successful installation.
++    pub(crate) fn original_hosted_procedure_body_cards(&self, input: &ResolvedAnalysisInput, registry: &tcl_registry::CommandRegistry) -> Vec<Arc<OriginalHostedProcedureBody>> {
++        if !input.has_hosted_source_name_context()
++            || !input.unit_profile().is_irules()
++            || input.borrowed_context_registry().commands().snapshot().semantic_key() != registry.snapshot().semantic_key()
++            || self.final_state.baseline.vendor_source_input.as_ref() != Some(input)
++            || self.final_state.baseline.native_entry.is_some()
++        { return Vec::new(); }
++        self.rule_declarations.iter().filter_map(|(site, alternatives)| {
++            self.original_hosted_procedure_body_card(site, alternatives, input, registry).map(Arc::new)
++        }).collect()
++    }
++
++    fn original_hosted_procedure_body_card(&self, site: &CommandAllocationSite, alternatives: &[SourceRuleDeclarationCandidate], input: &ResolvedAnalysisInput, registry: &tcl_registry::CommandRegistry) -> Option<OriginalHostedProcedureBody> {
++        if self.root_origin.as_ref()? != &site.source { return None; }
++        let image = site.source.source_image();
++        let text = image.try_text().ok()?;
++        let rows = super::declaration_layout::original_declaration_layouts(self.declaration_layouts.get(site)?)?;
++        let mut agreed = None;
++        for row in rows {
++            if row.config != input.lexer_config()
++                || row.snapshot.realm != tcl_dialect::model::InvocationRealm::RuleLoader
++                || row.snapshot.state.baseline.vendor_source_input.as_ref() != Some(input)
++                || row.snapshot.state.baseline.native_entry.is_some()
++                || !matches!(row.entry.as_ref(), super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript { frame: crate::var_resolve::VariableExecutionFrame::Global, .. })
++                || !row.namespace.is_root()
++            { return None; }
++            let mut tokens = super::declaration_preview::declaration_tokens(site, row)?;
++            self.stamp_original_tokens(&mut tokens);
++            let original = crate::registry_invocation::original_native_compiler_words(image, tokens.words(), site.offset, row.config)?;
++            let hosted = tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(&input.borrowed_context_registry().context().environment.id)?;
++            let policy = input.vendor_source_policy().or_else(|| tcl_syntax::naming::VendorSourceNamePolicy::authored(hosted))?;
++            let head = VendorSourceNameInput::from_original_word(original.first()?, policy);
++            let metadata = crate::registry_invocation::original_conditional_vendor_registry_metadata(input.borrowed_context_registry(), &tokens, &head, &original)?;
++            let end = original.last()?.span().end();
++            let segments = crate::segmenter::segment_commands_with_offset_and_config(text.get(site.offset as usize..end as usize)?, site.offset, row.config.nested());
++            let [segment] = segments.as_slice() else { return None; };
++            let values = segment.args().iter().map(String::as_str).collect::<Vec<_>>();
++            let closed = tcl_registry::events::closed_braced_argument_words(text, segment.arg_tokens(), segment.arg_single_token())?;
++            let arguments = tcl_registry::events::IrulesDeclarationArguments::new(&values, segment.arg_tokens(), segment.arg_single_token(), &closed)?;
++            let declaration = registry.irules_top_level_declaration_shape(metadata.shape().command(), arguments)?;
++            let tcl_registry::events::IrulesTopLevelDeclaration::Procedure { name_index, body_index } = &declaration else { return None; };
++            let name = VendorSourceNameInput::from_original_word(original.get(name_index.checked_add(1)?)?, policy);
++            name.root_procedure_coordinate()?;
++            if !metadata.shape().roles_complete() || metadata.shape().argument_offset() != 0 { return None; }
++            let mut parameter_roles = metadata.shape().roles().iter().filter(|(_, role)| *role == tcl_registry::ArgRole::ParamList).map(|(index, _)| usize::from(*index));
++            let parameter_index = parameter_roles.next()?;
++            if parameter_roles.next().is_some() { return None; }
++            let parameter_word = original.get(parameter_index.checked_add(1)?)?.clone();
++            let parameters = tcl_syntax::naming::vendor_source_formal_extents(policy, &parameter_word)?;
++            let body_word = original.get(body_index.checked_add(1)?)?;
++            let content = body_word.content_span().ok()?;
++            let mut source = None;
++            for alternative in alternatives {
++                if alternative.declaration != declaration || !alternative.target.registry_backed || !alternative.target.prepended.is_empty() || alternative.target.command != metadata.shape().command() { continue; }
++                let body = alternative.body.as_ref()?;
++                if body.origin != site.source || body.base() != content.start() || body.text.bytes() != image.bytes().get(content.as_range())? { return None; }
++                if source.as_ref().is_some_and(|previous| previous != body) { return None; }
++                source = Some(body.clone());
++            }
++            let card = OriginalHostedProcedureBody { site: site.clone(), input: input.clone(), words: Arc::from(original), declaration, alternatives: alternatives.to_vec(), source: source?, namespace: row.namespace.clone(), name, parameters, parameter_word, span: Span::new(site.offset, end), lowered_body: None, retained_entry: None };
++            if agreed.as_ref().is_some_and(|previous| previous != &card) { return None; }
++            agreed = Some(card);
++        }
++        agreed
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    fn fixture(source: &str) -> (SourceCommandBindings, ResolvedAnalysisInput) {
++        let environment = tcl_registry::model::ingress::resolve_environment("f5-irules");
++        let profile = environment.unit_profile();
++        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
++        let input = ResolvedAnalysisInput::new(profile, profile, environment.default_context_registry(), config);
++        let registry = input.borrowed_context_registry().commands();
++        let entry = super::super::SourceAnalysisEntry::for_supplied_source(registry, &input, config, Some(profile));
++        let bindings = SourceCommandBindings::analyse_with_options(source, config, registry, entry.options());
++        (bindings, input)
++    }
++    #[test]
++    fn hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers() {
++        let source = "proc ordinary {value {fallback DEFAULT}} {set static::counter 1; return $value}\nwhen HTTP_REQUEST {puts request}\n";
++        let (bindings, input) = fixture(source);
++        let registry = input.borrowed_context_registry().commands();
++        let cards = bindings.original_hosted_procedure_body_cards(&input, registry);
++        assert_eq!(cards.len(), 1);
++        let card = &cards[0];
++        assert_eq!(card.name(), Some("ordinary"));
++        assert_eq!(card.parameter_names(), Some(vec!["value".into(), "fallback".into()]));
++        assert_eq!(card.source().try_text().unwrap(), "set static::counter 1; return $value");
++        assert_eq!(card.original_words().len(), 4);
++        assert!(card.alternatives().iter().any(|alternative| alternative.unknown));
++        assert!(card.matches_source(&SourceImage::document(source), &input, registry));
++        assert!(card.namespace().native_context().is_none());
++        assert!(bindings.invocation_at_source("proc", 0).proved_execution_target().is_none());
++        assert!(!card.matches_source(&SourceImage::document(&format!("{source} ")), &input, registry));
++        assert!(!card.matches_source(&SourceImage::document(source), &input, tcl_registry::default_registry()));
++    }
++    #[test]
++    fn hosted_declaration_body_refuses_unowned_names_formals_and_other_domains() {
++        for source in ["proc ::when::RULE_INIT {} {set static::counter 1}", "proc $name {} {return VALUE}", "proc ordinary {value\\u0061} {return VALUE}", "proc ordinary $formals {return VALUE}", "proc ordinary {} $body"] {
++            let (bindings, input) = fixture(source);
++            assert!(bindings.original_hosted_procedure_body_cards(&input, input.borrowed_context_registry().commands()).is_empty(), "{source}");
++        }
++        let source = "proc ordinary {} {return VALUE}";
++        let (bindings, input) = fixture(source);
++        let environment = tcl_registry::model::ingress::resolve_environment("tcl");
++        let profile = environment.unit_profile();
++        let logical = ResolvedAnalysisInput::new(profile, profile, environment.default_context_registry(), tcl_lexer::LexerConfig::for_file_grammar(profile.grammar));
++        assert!(bindings.original_hosted_procedure_body_cards(&logical, input.borrowed_context_registry().commands()).is_empty());
++        let other = ResolvedAnalysisInput::new(input.analyser_profile(), input.unit_profile(), environment.default_context_registry(), input.lexer_config());
++        assert!(bindings.original_hosted_procedure_body_cards(&other, input.borrowed_context_registry().commands()).is_empty());
++    }
++}
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+@@ -18,6 +18,94 @@
+ use std::sync::Arc;
+ use tcl_lexer::{NativeScriptCommandWords, NativeWord, Span};
+ use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition, Traits};
++
++/// Authentic readonly procedure header, formals and deferred body context.
++/// The source card supplies no command allocation, publication or body entry.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct OriginalLogicalProcedureBody {
++    scope: Arc<OriginalDeclaredLogicalBodyContext>,
++    site: crate::command_binding::CommandAllocationSite,
++    parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
++    parameters_text: String,
++    module_entry: Option<crate::command_binding::SourceAnalysisEntry>,
++}
++impl OriginalLogicalProcedureBody {
++    pub(crate) fn retain_module_entry(
++        mut self,
++        entry: &crate::command_binding::SourceAnalysisEntry,
++    ) -> Self {
++        self.module_entry = Some(entry.clone());
++        self
++    }
++    pub(crate) fn scope(&self) -> &Arc<OriginalDeclaredLogicalBodyContext> {
++        &self.scope
++    }
++    pub(crate) fn site(&self) -> &crate::command_binding::CommandAllocationSite {
++        &self.site
++    }
++    pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
++        &self.parameters
++    }
++    pub(crate) fn parameters_text(&self) -> &str {
++        &self.parameters_text
++    }
++    pub(crate) fn name(&self) -> Option<&str> {
++        std::str::from_utf8(self.scope.scope_name_input().bytes()).ok()
++    }
++    pub(crate) fn matches_source(
++        &self,
++        image: &tcl_lexer::SourceImage,
++        input: &crate::analyser::ResolvedAnalysisInput,
++    ) -> bool {
++        self.site.source.source_image() == image
++            && self.scope.matches_input(input)
++            && self
++                .scope
++                .scope_body()
++                .matches_source(image, input.lexer_config())
++            && self
++                .scope
++                .scope_body()
++                .matches_context(input.borrowed_context_registry())
++            && self.scope.frame_recipe() == OriginalDeclaredSourceBodyFrame::Procedure
++    }
++    pub(crate) fn matches_procedure(
++        &self,
++        module: &crate::ir::Module,
++        procedure: &crate::ir::Procedure,
++    ) -> bool {
++        let Some(input) = module.source_metadata_input.as_ref() else {
++            return false;
++        };
++        self.module_entry.as_ref() == Some(&module.source_entry)
++            && module.source_entry.native_entry.is_none()
++            && module.source_entry.hosted_execution_context.is_none()
++            && !module.source_entry.unknown_entry
++            && module.native_lexer_config() == input.lexer_config()
++            && self.matches_source(&module.source, input)
++            && procedure.declaration_site.as_ref() == Some(&self.site)
++            && procedure.body_kind == crate::ir::ProcedureBodyKind::OriginalDeclaration
++            && self.name() == Some(procedure.name.as_str())
++            && procedure.params_raw == self.parameters_text
++            && procedure
++                .params
++                .iter()
++                .map(String::as_str)
++                .eq(self.parameters.iter().map(|p| p.name.as_str()))
++            && procedure.body.namespace_context.as_deref()
++                == tcl_syntax::naming::checked_namespace_path_key(self.scope.namespace_recipe())
++                    .map(crate::command_binding::SourceNamespaceKey::authored)
++                    .as_ref()
++            && procedure.body.executed_source.is_none()
++            && procedure.body_offset == self.scope.scope_body().content_span().start()
++            && procedure.body_source.as_deref()
++                == module
++                    .source
++                    .try_text()
++                    .ok()
++                    .and_then(|s| s.get(self.scope.scope_body().content_span().as_range()))
++    }
++}
+ 
+ const MAX_DEPTH: usize = 64;
+ const MAX_COMMANDS: usize = 2048;
+@@ -204,6 +292,33 @@
+             input,
+             parent.cloned(),
+         )?);
++        let positions = schema.authored_source_procedure_arguments()?;
++        let formal = invocation.arguments.get(positions.parameters)?;
++        let parameters_text = std::str::from_utf8(formal.value.as_deref()?).ok()?;
++        if tcl_syntax::word_rules::original_static_word_unicode_value(&formal.original).as_deref()
++            != Some(parameters_text.as_bytes())
++        {
++            return None;
++        }
++        let parameters = crate::command_binding::logical_definition::static_formals(
++            parameters_text,
++            self.context.config.list_parse,
++        )?;
++        let card = Arc::new(OriginalLogicalProcedureBody {
++            scope: Arc::clone(&scope),
++            site: crate::command_binding::CommandAllocationSite {
++                source: Arc::clone(self.context.origin),
++                offset: invocation.native.first()?.span().start(),
++            },
++            parameters,
++            parameters_text: parameters_text.to_owned(),
++            module_entry: None,
++        });
++        super::source_class::merge_receipt(
++            &mut tape.logical_procedure_bodies,
++            card.site.offset,
++            Some(card),
++        );
+         let mut branch = graph.clone();
+         branch.apply(&receipt)?;
+         branch.logical_namespace = Some(key.namespace);
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -52,6 +52,8 @@
+     OriginalSourceProcedureCandidate, OriginalSourceProcedurePublication,
+     OriginalSourceProcedurePublications,
+ };
++
++pub use logical_body::OriginalLogicalProcedureBody;
+ 
+ use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+ use std::collections::{BTreeMap, BTreeSet, HashMap};
+@@ -629,6 +631,7 @@
+     >,
+     configured_classes: BTreeMap<u32, Option<OriginalSourceConfiguredClassReference>>,
+     procedure_publications: Option<OriginalSourceProcedurePublications>,
++    logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
+     class_publications: Option<OriginalSourceClassPublications>,
+     scanned_procedure_declarations: BTreeSet<u32>,
+     class_instance_calls: BTreeMap<u32, Option<OriginalSourceClassInstanceWords>>,
+@@ -782,6 +785,9 @@
+     }
+ 
+     fn extend_inventory(&mut self, other: Self) {
++        for (offset, card) in other.logical_procedure_bodies {
++            source_class::merge_receipt(&mut self.logical_procedure_bodies, offset, card);
++        }
+         for (offset, receipt) in other.body_catalogue {
+             source_class::merge_receipt(&mut self.body_catalogue, offset, receipt);
+         }
+@@ -2097,6 +2103,25 @@
+ 
+     /// Independently interpreted authored root-script transitions. This owner
+     /// never mutates, publishes or borrows the retained runtime command state.
++    pub(crate) fn original_logical_procedure_body_cards(
++        &self,
++    ) -> Option<Vec<Arc<OriginalLogicalProcedureBody>>> {
++        let seed = self.original_source_transition_seed()?;
++        if seed.baseline.native_entry.is_some() {
++            return None;
++        }
++        let input = seed.logical_input.as_ref()?;
++        input.has_logical_source_name_context().then_some(())?;
++        let context = seed.source_context(input.borrowed_context_registry().commands())?;
++        let tape = seed.prepare_for(&context, OriginalSourceCataloguePurpose::CompletePrefix)?;
++        Some(
++            tape.logical_procedure_bodies
++                .into_values()
++                .flatten()
++                .collect(),
++        )
++    }
++
+     pub(crate) fn original_source_transition_advice_tape(
+         &self,
+         context: &ContextRegistry,
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -63,6 +63,8 @@
+ mod future_bodies;
+ mod incomplete_body_metadata;
+ mod logical_definition;
++mod hosted_procedure_body;
++pub use hosted_procedure_body::OriginalHostedProcedureBody;
+ mod logical_operation;
+ mod logical_prefix;
+ mod logical_word_values;
+@@ -141,12 +143,12 @@
+ pub(crate) use source_transition_advice::OriginalSourceCataloguePurpose;
+ pub(crate) use source_transition_advice::original_single_command_substitution_words;
+ pub use source_transition_advice::{
+-    OriginalLogicalSourceNameInput, OriginalSourceAuthoredCommandPrefix,
+-    OriginalSourceCallbackProcedureLookup, OriginalSourceCallbackProcedureRefusal,
+-    OriginalSourceCallbackProcedureTarget, OriginalSourceCallbackProcedureTargetKind,
+-    OriginalSourceCallbackRegistration, OriginalSourceClassCandidate,
+-    OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding, OriginalSourceClassInstance,
+-    OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
++    OriginalLogicalProcedureBody, OriginalLogicalSourceNameInput,
++    OriginalSourceAuthoredCommandPrefix, OriginalSourceCallbackProcedureLookup,
++    OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
++    OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
++    OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
++    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
+     OriginalSourceClassPublications, OriginalSourceClassReference, OriginalSourceCommandTransition,
+     OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
+     OriginalSourceConstructorCall, OriginalSourceConstructorShape,
+--- a/rust/tcl-compiler/src/ir.rs
++++ b/rust/tcl-compiler/src/ir.rs
+@@ -2776,6 +2776,18 @@
+     /// and namespace context retain their identity independently of the ID.
+     pub original_declaration_body_units:
+         std::collections::BTreeMap<ProcedureId, crate::command_binding::CommandAllocation>,
++    /// Original Logical source cards retain analysis-only bodies without a
++    /// successful command allocation, namespace publication or entered frame.
++    pub original_logical_declaration_body_units: std::collections::BTreeMap<
++        ProcedureId,
++        std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
++    >,
++    /// Hosted source declarations retain their actual rule-loader owner,
++    /// independently of Native callable publication or Logical source scopes.
++    pub original_hosted_declaration_body_units: std::collections::BTreeMap<
++        ProcedureId,
++        std::sync::Arc<crate::command_binding::OriginalHostedProcedureBody>,
++    >,
+     /// Original body metadata for exact procedure implementations, including
+     /// retired incarnations. This does not select a callable or grant entry,
+     /// completion, compilation or an executable replacement.
+@@ -2999,6 +3011,25 @@
+                         .then_some((id, procedure))
+                     }),
+             )
++            .chain(
++                self.original_logical_declaration_body_units
++                    .iter()
++                    .filter_map(|(id, card)| {
++                        let procedure = self.body_units.get(id)?;
++                        (self.procedure_ids.owns(*id) && card.matches_procedure(self, procedure))
++                            .then_some((id, procedure))
++                    }),
++            )
++            .chain(
++                self.original_hosted_declaration_body_units
++                    .iter()
++                    .filter_map(|(id, card)| {
++                        let procedure = self.body_units.get(id)?;
++                        (self.procedure_ids.owns(*id)
++                            && card.matches_procedure(self, procedure, self.resolved_registry()))
++                        .then_some((id, procedure))
++                    }),
++            )
+     }
+ 
+     /// Conditional source allocation lookup; no callable publication or Native
+@@ -3294,6 +3325,12 @@
+                 .filter(|(qname, _)| {
+                     !self.installed_procedure_body_units.contains_key(*qname)
+                         && !self.original_declaration_body_units.contains_key(*qname)
++                        && !self
++                            .original_logical_declaration_body_units
++                            .contains_key(*qname)
++                        && !self
++                            .original_hosted_declaration_body_units
++                            .contains_key(*qname)
+                 })
+                 .map(|(_, unit)| {
+                     (
+@@ -3351,6 +3388,77 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++
++    #[test]
++    fn original_logical_declaration_cards_cover_missing_namespace_without_publication() {
++        let profile = tcl_dialect::DialectProfile::plain_tcl();
++        let context = tcl_registry::model::ingress::context_for_profile(profile);
++        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            std::sync::Arc::clone(&context),
++            config,
++        );
++        let source = "proc ::missing::p {argument} {set ::written VALUE}";
++        let module = crate::lowering::lower_to_ir_with(
++            crate::lowering::Lowerer::with_config(context.commands(), config)
++                .with_resolved_analysis_input(input),
++            source,
++        );
++        assert!(module.source_entry.native_entry.is_none());
++        assert!(module.procedures.is_empty());
++        let (id, card) = module
++            .original_logical_declaration_body_units
++            .iter()
++            .next()
++            .expect("actual readonly source card");
++        let procedure = module.body_units.get(id).unwrap();
++        assert_eq!(procedure.name, "::missing::p");
++        assert_eq!(procedure.params, vec!["argument"]);
++        assert!(procedure.publication.is_none());
++        assert!(procedure.body.executed_source.is_none());
++        assert!(procedure.body.native_compilation_failure.is_none());
++        assert!(
++            procedure
++                .body
++                .namespace_context
++                .as_deref()
++                .unwrap()
++                .native_context()
++                .is_none()
++        );
++        assert!(card.matches_procedure(&module, procedure));
++        assert!(
++            module
++                .original_source_procedure_bodies()
++                .any(|(body, _)| body == id)
++        );
++        let retained = module.retained_source_bindings.as_ref().unwrap();
++        let bindings = retained
++            .positioned_for_module(&module, context.commands())
++            .unwrap();
++        assert!(bindings.installed_procedure_body_units().is_empty());
++        let mut stale = module.clone();
++        stale
++            .body_units
++            .get_mut(id)
++            .unwrap()
++            .params
++            .push("changed".to_owned());
++        assert!(
++            !stale
++                .original_source_procedure_bodies()
++                .any(|(body, _)| body == id)
++        );
++        let mut missing = module.clone();
++        missing.source_metadata_input = None;
++        assert!(
++            !missing
++                .original_source_procedure_bodies()
++                .any(|(body, _)| body == id)
++        );
++    }
+ 
+     #[test]
+     fn statement_carriers_require_unanimous_ownership_and_keep_synthetic_phases_distinct() {
+--- /dev/null
++++ b/rust/tcl-compiler/src/lowering/hosted_source_bodies.rs
+@@ -0,0 +1,49 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Conditional hosted bodies keep their genuine declaration scope and issuer.
++
++use super::{IrulesExecutionContext, Lowerer, Procedure};
++
++impl Lowerer<'_> {
++    pub(super) fn retain_hosted_procedure_body_units(&mut self) {
++        let Some(input) = self.module.source_metadata_input.as_ref() else { return; };
++        let cards = self.module_source_bindings.as_ref().map_or_else(Vec::new, |bindings| bindings.original_hosted_procedure_body_cards(input, self.registry));
++        if cards.is_empty() { return; }
++        let retained = self.module_source_bindings.take();
++        let enclosing = self.exchange_boxed_source_bindings(retained);
++        let previous = std::mem::replace(&mut self.suppress_proc_register, true);
++        for card in cards {
++            let retained = self.module.original_hosted_declaration_body_units.values().any(|previous| previous.as_ref() == card.as_ref());
++            if !retained { self.retain_hosted_procedure_body(card); }
++        }
++        self.suppress_proc_register = previous;
++        self.module_source_bindings = self.exchange_boxed_source_bindings(enclosing);
++    }
++
++    fn retain_hosted_procedure_body(&mut self, card: std::sync::Arc<crate::command_binding::OriginalHostedProcedureBody>) {
++        let Some(input) = self.module.source_metadata_input.as_ref() else { return; };
++        let image = card.site().source.source_image();
++        if !card.matches_source(image, input, self.registry) || image.bytes() != self.source.as_bytes() { return; }
++        let (Some(namespace), Some(name), Some(parameters), Some(parameters_text), Ok(text)) = (card.namespace().advisory_key(), card.name().map(str::to_owned), card.parameter_names(), card.parameters_text().map(str::to_owned), card.source().try_text()) else { return; };
++        let text = text.to_owned();
++        let previous = std::mem::replace(&mut self.readonly_hosted_body, true);
++        let mut body = self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| lowerer.lower_body(&text, card.source().base(), &namespace));
++        self.readonly_hosted_body = previous;
++        body.namespace_context = Some(Box::new(card.namespace().clone()));
++        let card = std::sync::Arc::new(card.as_ref().clone().retain_lowered_body(&body, &self.module.source_entry));
++        let label = format!("::original-hosted-body#{}", self.body_unit_count);
++        self.body_unit_count += 1;
++        let id = self.module.retain_body_unit(Procedure {
++            name, qualified_name: label, publication: None,
++            declaration_site: Some(card.site().clone()),
++            body_kind: crate::ir::ProcedureBodyKind::OriginalDeclaration,
++            params: parameters,
++            span: card.span(), body, params_raw: parameters_text,
++            body_source: Some(text), body_offset: card.source().base(),
++            namespace_scoped: false, base_priority: 500,
++        });
++        self.module.original_hosted_declaration_body_units.insert(id, card);
++    }
++}
+--- a/rust/tcl-compiler/src/lowering/installed_bodies.rs
++++ b/rust/tcl-compiler/src/lowering/installed_bodies.rs
+@@ -18,7 +18,13 @@
+                     )
+                 },
+             );
+-        if installed_bodies.is_empty() && declaration_bodies.is_empty() {
++        let logical_cards = self
++            .module_source_bindings
++            .as_ref()
++            .and_then(|bindings| bindings.original_logical_procedure_body_cards())
++            .unwrap_or_default();
++        if installed_bodies.is_empty() && declaration_bodies.is_empty() && logical_cards.is_empty()
++        {
+             return;
+         }
+         let named: Vec<_> = self
+@@ -78,8 +84,87 @@
+             declared.insert(context);
+             self.retain_installed_body(installed, original_declaration);
+         }
++        for card in logical_cards {
++            let already_retained = self
++                .module
++                .procedures
++                .values()
++                .chain(self.module.body_units.values())
++                .any(|procedure| {
++                    procedure.declaration_site.as_ref() == Some(card.site())
++                        && procedure.body_offset == card.scope().scope_body().content_span().start()
++                        && procedure.params_raw == card.parameters_text()
++                });
++            if !already_retained {
++                self.retain_original_logical_body(card);
++            }
++        }
+         self.suppress_proc_register = previous;
+         self.module_source_bindings = self.exchange_boxed_source_bindings(enclosing);
++    }
++
++    fn retain_original_logical_body(
++        &mut self,
++        card: std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
++    ) {
++        let Some(input) = self.module.source_metadata_input.as_ref() else {
++            return;
++        };
++        let image = card.site().source.source_image();
++        if !card.matches_source(image, input) || image.bytes() != self.source.as_bytes() {
++            return;
++        }
++        let Some(namespace) =
++            tcl_syntax::naming::checked_namespace_path_key(card.scope().namespace_recipe())
++        else {
++            return;
++        };
++        let Some(name) = card.name().map(str::to_owned) else {
++            return;
++        };
++        let span = card.scope().scope_body().content_span();
++        let Some(text) = image
++            .try_text()
++            .ok()
++            .and_then(|s| s.get(span.as_range()))
++            .map(str::to_owned)
++        else {
++            return;
++        };
++        let previous = std::mem::replace(&mut self.readonly_logical_body, true);
++        let mut body = self
++            .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
++                lowerer.lower_body(&text, span.start(), &namespace)
++            });
++        self.readonly_logical_body = previous;
++        body.namespace_context = Some(Box::new(
++            crate::command_binding::SourceNamespaceKey::authored(namespace),
++        ));
++        let card = std::sync::Arc::new(
++            card.as_ref()
++                .clone()
++                .retain_module_entry(&self.module.source_entry),
++        );
++        let label = format!("::original-logical-body#{}", self.body_unit_count);
++        self.body_unit_count += 1;
++        let id = self.module.retain_body_unit(Procedure {
++            name,
++            qualified_name: label,
++            publication: None,
++            declaration_site: Some(card.site().clone()),
++            body_kind: crate::ir::ProcedureBodyKind::OriginalDeclaration,
++            params: card.parameters().iter().map(|p| p.name.clone()).collect(),
++            span,
++            body,
++            params_raw: card.parameters_text().to_owned(),
++            body_source: Some(text),
++            body_offset: span.start(),
++            namespace_scoped: false,
++            base_priority: 500,
++        });
++        self.module
++            .original_logical_declaration_body_units
++            .insert(id, card);
+     }
+ 
+     fn retain_installed_body(
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -51,6 +51,7 @@
+ 
+ mod execution_regions;
+ pub(crate) mod hooks;
++mod hosted_source_bodies;
+ mod installed_bodies;
+ #[cfg(test)]
+ mod native_body_context_tests;
+@@ -1114,6 +1115,10 @@
+     /// lowered for analysis; only the premature static registration is
+     /// suppressed.
+     suppress_proc_register: bool,
++    /// Genuine readonly Logical body preparation cannot issue executed-source metadata.
++    readonly_logical_body: bool,
++    /// Hosted source cards keep their independent declaration owner.
++    readonly_hosted_body: bool,
+     /// Lexer config for the document's dialect, threaded into every
+     /// body re-segmentation so `{*}` expansion (off for Tcl 8.4 /
+     /// iRules) and the iRules `}{` ghost SEP are honoured rather than
+@@ -1326,6 +1331,8 @@
+             namespace_directive_sites: HashSet::new(),
+             dead_code_depth: 0,
+             suppress_proc_register: false,
++            readonly_logical_body: false,
++            readonly_hosted_body: false,
+             config,
+             dialect: None,
+             dialect_context: None,
+@@ -1936,6 +1943,7 @@
+         lowerer.source_bindings = Some(positioned.clone().into());
+         lowerer.structured_source_parent = Some(Box::new(parent.clone()));
+         lowerer.suppress_proc_register = true;
++        lowerer.readonly_logical_body = true;
+         let mut script = lowerer.lower_body(
+             text,
+             body.content_span().start(),
+@@ -2007,6 +2015,9 @@
+ 
+     /// Retain an unchanged body slice independently of compiler admission.
+     fn retain_script_source(&self, mut script: Script, text: &str, base: u32) -> Script {
++        if self.readonly_logical_body || self.readonly_hosted_body {
++            return script;
++        }
+         script.executed_source = self
+             .source_bindings
+             .as_ref()
+@@ -2489,6 +2500,9 @@
+ 
+     /// Retain only a failure agreed by every reached compilation entry.
+     fn attach_native_compilation_failure(&self, mut script: Script, chunk: u32) -> Script {
++        if self.readonly_logical_body || self.readonly_hosted_body {
++            return script;
++        }
+         script.native_compilation_failure = self
+             .source_bindings
+             .as_ref()
+@@ -7020,6 +7034,7 @@
+         // (cache-independent — see `extract_oo_methods_pass`).
+         if self.compilation_scope == tcl_runtime_api::SourceCompilationScope::WholeModule {
+             self.retain_installed_procedure_body_units();
++            self.retain_hosted_procedure_body_units();
+             self.extract_oo_methods_pass();
+         }
+         let registry = self.registry;
+--- a/rust/tcl-compiler/src/optimiser/branch_folding.rs
++++ b/rust/tcl-compiler/src/optimiser/branch_folding.rs
+@@ -671,6 +671,8 @@
+                 future_call_sites: Vec::new(),
+                 installed_procedure_body_units: std::collections::BTreeMap::default(),
+                 original_declaration_body_units: std::collections::BTreeMap::default(),
++                original_logical_declaration_body_units: std::collections::BTreeMap::default(),
++                original_hosted_declaration_body_units: std::collections::BTreeMap::default(),
+                 irules_event_bodies: HashMap::new(),
+                 procedure_implementation_bodies: std::sync::Arc::from([]),
+                 top_level_kind: crate::ir::TopLevelKind::Script,
+--- a/rust/tcl-compiler/src/specialise_factories.rs
++++ b/rust/tcl-compiler/src/specialise_factories.rs
+@@ -67,6 +67,32 @@
+         module.original_declaration_body_units.remove(&label);
+         module.body_units.remove(&label);
+         module.lambda_body_units.remove(&label);
++    }
++    let removed: Vec<_> = module
++        .original_logical_declaration_body_units
++        .iter()
++        .filter_map(|(id, card)| {
++            let count = counts.entry(card.site().clone()).or_insert(0usize);
++            *count += 1;
++            (*count > cap).then_some(*id)
++        })
++        .collect();
++    for id in removed {
++        module.original_logical_declaration_body_units.remove(&id);
++        module.body_units.remove(&id);
++    }
++    let removed: Vec<_> = module
++        .original_hosted_declaration_body_units
++        .iter()
++        .filter_map(|(id, card)| {
++            let count = counts.entry(card.site().clone()).or_insert(0usize);
++            *count += 1;
++            (*count > cap).then_some(*id)
++        })
++        .collect();
++    for id in removed {
++        module.original_hosted_declaration_body_units.remove(&id);
++        module.body_units.remove(&id);
+     }
+ }
+ 

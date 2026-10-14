@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+      "before_sha256": "75b802fa1ca2bd1abc34c1532235a3b7d35bb163f7a7aba47d441998b7e353e4",
+      "after_sha256": "280f8af4854b3863c953c0958d41bd6a8ac205b0e2b618548a4618a9cf22d9b8"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "08d8c460f0869a946a60e8eab752e48a97e7794c79142a008eeeafa1fae46172",
+      "after_sha256": "5b4b6ff0536266928ee7a216b46e36a8671b85bf63c742cce0875b55aa8d562f"
+    }
+  ],
+  "patch_sha256": "f6c31919a45f9b0834970616e3ce3fc21e52e97421955a09ce81a6ce8b7db888",
+  "purpose": "Conditional class hierarchy root-chain fallback consumes original relation lookups retained by the same hierarchy owner and the actual root policy/slot selected by user-metaclass source lookup. MRO report labels only address retained rows; they are never parsed/trimmed into a command identity. Conflicting relation rows and known colliding root class publications decline. Existing builtin completion grammar remains final-member only.",
+  "validation": "Scratch-only applycheck, no Cargo/Main; original class-factory assertions mandatory. No Native activation or actual method dispatch claim.",
+  "rustfmt_parse": "workspace rustfmt edition2024 skip_children=true accepted all afterimages; no Cargo/test acceptance",
+  "apply_check_exit": 0,
+  "apply_check_stderr": ""
+}

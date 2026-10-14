@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "before_sha256": "ac4fcf8042c0cda59c982a544f7512559bc2686b8d48fd768c53d63c36b5a840",
+      "after_sha256": "e9739e9b47e5d25300c53fd0e6969cf589db19f31deac6145e4f72394766ce27"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "before_sha256": "e3d57d2280b044e322b27988a3bc4aa28eff33d5f2b139140cad4394b7769865",
+      "after_sha256": "98e019af0277f016d2dbccfdfc4d123ee480f0c83e9d0f51a45bb03af054a0b7"
+    }
+  ],
+  "patch_sha256": "1e2e716a8a9661d725d37dfd40ec7f08615af1c11b99af80ceb584b5c058f2d5",
+  "purpose": "Native-profile source linked-member hover and rename target selectors query their existing genuine original source owner before the separate Logical reporting-map path. Original owner guards unchanged; literal target/current image/list/edit/side correspondence remains mandatory. Existing tests/assertions unchanged.",
+  "evidence": "Compiler40 linked owner tests11-15 all PASS. Core34 linked definitions11-12 PASS; hovers17-20 and rename60 FAIL because of earlier allows_lexical_declaration_advice gates.",
+  "validation": "Scratch-only git apply --check, no Cargo/Main/current pass claim.",
+  "rustfmt_parse": "workspace rustfmt edition2024 skip_children=true accepted all afterimages; no Cargo/test acceptance",
+  "apply_check_exit": 0,
+  "apply_check_stderr": ""
+}

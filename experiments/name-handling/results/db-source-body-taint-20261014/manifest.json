@@ -1,0 +1,26 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "before_sha256": "84124dbfc46e48643af7fc314a04e46b892df69ba0fd78f71742f3cc569513d0",
+      "after_sha256": "329caf2ab91556d9b292b4e7fd351057771f159bff445a816d2360354414280f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "5325ea7aceb4808a44185c3473f5af9080640e4e3960ddc603cf317b162ea99c",
+      "after_sha256": "d0e02b568c042fd32fdcd0a14bbe4dbdac9ba899ab78ffe5d1c3db9d8d69c38b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/taint_interproc.rs",
+      "before_sha256": "0742d6ecaac59317f4b8e149db1d893ec4ee33683173985499afb86d4e0c982e",
+      "after_sha256": "cc2f037d1e9fb204e5a6f0a17621bda97604f24c316c7ed2ec419c8ce6b9acbe"
+    }
+  ],
+  "patch_sha256": "9c25aad1417ca913e79f17da9a812ff58ffc3cb95a1a5277f1095d46cc88e3e7",
+  "dependency": "Apply initial name-db-body-unit-memo-adapter first for CU original_procedure_for_body getter. Disjoint hunks; named Native admission and source calls unchanged.",
+  "contract": "Taint summary/current-FU joins and worklists cover only genuinely issued original source procedure inventory including OriginalDeclaration bodies. Current root/body function getter preserves actual issuer/map/FU stamp. Opaque dependencies remain MAY; no display inverse, call/Native entry/fold grant or assertion changes.",
+  "validation": "Scratch-only git apply --check before adapter; no Cargo; original DB counts/differentials still mandatory and unobserved.",
+  "rustfmt_parse": "workspace rustfmt edition2024 skip_children=true accepted all afterimages; no Cargo/test acceptance",
+  "apply_check_exit": 0,
+  "apply_check_stderr": ""
+}

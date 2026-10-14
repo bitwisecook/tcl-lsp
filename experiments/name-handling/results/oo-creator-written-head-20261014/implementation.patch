@@ -1,0 +1,89 @@
+diff --git a/rust/tcl-compiler/src/analyser/handlers.rs b/rust/tcl-compiler/src/analyser/handlers.rs
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -337,6 +337,8 @@
+     /// Published factory proof for a user-defined metaclass, absent for a
+     /// registry definer.
+     user_factory: Option<ClassFactory>,
++    /// Descriptor selected by the shared catalogue owner for this written head.
++    registry_metaclass: Option<&'static tcl_registry::CommandSpec>,
+     /// Name/body positions and injected definition members.
+     layout: ManufacturerLayout,
+ }
+@@ -10429,6 +10431,7 @@
+         }?;
+         Some(ResolvedClassCreation {
+             user_factory,
++            registry_metaclass: registry_definer,
+             layout,
+         })
+     }
+@@ -10472,45 +10475,10 @@
+         let Some(cmd_tok) = cmd_tok else {
+             return false;
+         };
+-        // Every metaclass name behaves the same shape — ``cmd_name
+-        // create Name ?body?`` — so the cmd-name guard widens to the full set
+-        // and the recorded ``metaclass`` field still distinguishes
+-        // them downstream (hover / outline / class-hierarchy).
+-        // A fully-qualified head (`::oo::class`) names the same global command
+-        // as its bare form, so strip a single leading `::` before matching (and
+-        // use the bare form for the recorded `metaclass`, so both spellings
+-        // produce an identical `ClassDef`).
+-        let cmd_name = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
+-        // Which commands are TclOO class *creators* is registry data, not a
+-        // hardcoded name list: the `IS_OO_METACLASS` trait and a
+-        // `TclOo`-family definition-body grammar.  Both are required:
+-        //  - the trait alone includes `oo::object`, which has it but makes
+-        //    *instances*, not classes (no definition body);
+-        //  - the grammar alone includes `oo::define` / `oo::objdefine`, which
+-        //    *extend* an existing class named at `args[0]` — so `oo::define
+-        //    create method …` (a class literally named `create`) must not be
+-        //    mistaken for a creation and stolen from `handle_oo_define_command`.
+-        // define/objdefine carry no `IS_OO_METACLASS`, so they fall through.
+-        //
+-        // …but *being* a metaclass is a property of the class, not of the
+-        // registry: `oo::class create Megawidget { superclass ::oo::class … }`
+-        // makes `Megawidget` every bit as much a class factory as `oo::class`
+-        // itself, and Tk's own `library/megawidget.tcl` builds `SimpleWidget`
+-        // / `FocusableWidget` / `IconList` that way.
+-        // A registry lookup alone can never see it, so metaclass-ness also
+-        // propagates down the recorded superclass chain — the *seed* is still
+-        // registry data (`IS_OO_METACLASS`), only the inheritance step is
+-        // `TclOO` language semantics.
+-        //
+-        // The factory description is read off the metaclass's own recorded
+-        // `ClassDef` — this file's, or, when the metaclass is written in
+-        // another document, the workspace factory index the host supplied.
+-        // Either way it is a fact *proved where the metaclass
+-        // was written*, never one inferred from this call's shape: with no
+-        // such record `X create Name Supers Body` stays indistinguishable
+-        // from `interp create` and the walk abstains, as before.
++        // Keep the written head for original source and factory lookups.
+         let Some(ResolvedClassCreation {
+             user_factory,
++            registry_metaclass,
+             layout,
+         }) = self.resolve_class_creation(cmd_name, args, arg_tokens, scope_path, cmd_tok)
+         else {
+@@ -10572,7 +10540,10 @@
+             qualified_name: qualified.clone(),
+             name_span,
+             body_span,
+-            metaclass: cmd_name.to_string(),
++            metaclass: registry_metaclass.map_or_else(
++                || cmd_name.to_owned(),
++                |descriptor| descriptor.name.to_owned(),
++            ),
+             metaclass_provenance: MetaclassProvenance::Observed,
+             doc,
+             inheritance_unknown: layout.inheritance_unknown,
+@@ -10586,7 +10557,7 @@
+             .map(super::original_definer::OriginalClassDefinerSource::grammar)
+             .or_else(|| {
+                 user_factory.as_ref().map_or_else(
+-                    || self.definition_grammar(cmd_name),
++                    || registry_metaclass.and_then(|descriptor| descriptor.definition_body),
+                     |factory| self.definition_grammar(&factory.root_metaclass),
+                 )
+             });

@@ -1,0 +1,21 @@
+Can't find a usable tk.tcl in the following directories: 
+    /usr/lib/tcltk/x86_64-linux-gnu/tk8.6 /workspace/tcl-lsp/tmp/tcl8.6.18/library/tk8.6 /workspace/tcl-lsp/tmp/tcl8.6.18/tk8.6 /workspace/tcl-lsp/tmp/tcl8.6.18/lib/tk8.6 /usr/local/lib/tk8.6 /workspace/tcl-lsp/tmp/tcl8.6.18/lib/tk8.6 /workspace/tcl-lsp/tmp/lib/tk8.6 /workspace/tcl-lsp/tmp/tcl8.6.18/library
+
+
+
+This probably means that tk wasn't installed properly.
+
+    while executing
+"error $msg"
+    (procedure "tcl_findLibrary" line 101)
+    invoked from within
+"tcl_findLibrary tk $tk_version $tk_patchLevel tk.tcl TK_LIBRARY tk_library"
+    (procedure "tkInit" line 4)
+    invoked from within
+"tkInit"
+    invoked from within
+"load /usr/lib/x86_64-linux-gnu/libtk8.6.so"
+    ("package ifneeded Tk 8.6.16" script)
+    invoked from within
+"package require Tk"
+    (file "/tmp/name-tk-option-original-values-20261014/source.tcl" line 1)

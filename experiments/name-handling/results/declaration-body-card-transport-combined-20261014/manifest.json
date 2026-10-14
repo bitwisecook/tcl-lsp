@@ -1,0 +1,67 @@
+{
+  "patch_sha256": "0ff03da3247bc12689765d791276b8f79e37a1e00a6a1088bb1b3b925bb02bcc",
+  "hosted_owner_input_sha256": "35d416c05f2c24fd8ecf66df2a62fb536bee09a2e107723b8cae4fbb8ec92980",
+  "sources": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/hosted_procedure_body.rs",
+      "source_before_sha256": null,
+      "source_after_sha256": "75899b074857bdf2906bda469fcea0a217078167c9aa526561b9a04e8017f727"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "source_before_sha256": "896612c814bcc572c25bd48377b468d842531ec89da2e44810cd65f5d50b5fa0",
+      "source_after_sha256": "ce8850dab260afc9545de729d52fa56ae312b698dd246f9c3963235d18178534"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "source_before_sha256": "ac6d00b6e59ee99ee0b7246d9a831780127a8a4b68be53775d24b67d752fe38d",
+      "source_after_sha256": "fc6e8e2b2e2a1a9ba5e7c27198fc980f74d6486439d84df83da0ec7af2ff37aa"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "source_before_sha256": "b0d5f4d1e220b92e5bd73a4a879509a3bdb93b070b0d6a0696b039896f921b29",
+      "source_after_sha256": "c4abb2076e63c442e12072584c0da2c2448f56dfb6a7be7f826d96d48c1326e0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/ir.rs",
+      "source_before_sha256": "49832c78d2f6cbe0a315cade7d86727d1fbf851944a8795ca0d39d90ebb9e0de",
+      "source_after_sha256": "220a1f9298e9049809da6e65f2b0e1f960105c9eec0aea8bbd06c25f6871e78a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/hosted_source_bodies.rs",
+      "source_before_sha256": null,
+      "source_after_sha256": "06e73866695af0da2c327308d0d41890a8c7a6c663959381101713e199d33a9f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/installed_bodies.rs",
+      "source_before_sha256": "d8b684403af3ae3cd9e78945cececc46141b815f358eb92416799475b3bd6f2e",
+      "source_after_sha256": "650383a4a3b633329c7d3d45551efaaa93c0e52147e91f461d81c7e3144a6b66"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "source_before_sha256": "da0da6406331c03e88bc068ddc964508b709d4edcf5db278501d94234d6982ad",
+      "source_after_sha256": "cd444a58f0f69649e243108109b04efd97c3a855b28b7def480107ee2d7d8e6c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/branch_folding.rs",
+      "source_before_sha256": "9dd33192c45e82d51b2ca35d4069358b6620d53838aedca8b9f63ef0fe930ca2",
+      "source_after_sha256": "5cf9e8e953ce727dcdfe1060f8653c0b565ed4d2387f842144afca8c4f31e911"
+    },
+    {
+      "path": "rust/tcl-compiler/src/specialise_factories.rs",
+      "source_before_sha256": "f7a1fe3606db94fb78c2f85158a06ed0b160281418d9753f67c8a7f2b2489fa9",
+      "source_after_sha256": "ccff9681ff21a973a98de9b0e3422f4bd3b7c3d03d3f34d80bab7c0faea197de"
+    }
+  ],
+  "validation": {
+    "apply_check_exit": 0,
+    "apply_check_output": "",
+    "Cargo": "unexecuted",
+    "Main": "untouched"
+  },
+  "scope": "Combined Logical and Hosted readonly source-body card producer/IR transport. Replaces individual Logical patch and incorporates Hosted owner packet; do not apply alongside either. CU/FU/DB consumer adapter separate. Protected-child source metadata gap remains outstanding.",
+  "attachment_guards": "Separate readonly_logical_body and readonly_hosted_body prevent executed-source/math/expression preparation and Native compilation failure attachment at Lowerer producer. Both declaration maps excluded from executable_script_roots.",
+  "tests": [
+    "ir::tests::original_logical_declaration_cards_cover_missing_namespace_without_publication"
+  ]
+}

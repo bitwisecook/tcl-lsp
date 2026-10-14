@@ -1,0 +1,33 @@
+diff --git a/rust/tcl-lsp-db/src/lib.rs b/rust/tcl-lsp-db/src/lib.rs
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -6006,8 +6006,12 @@
+         let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+         let mut lowerer =
+             tcl_compiler::lowering::Lowerer::with_config(generation.commands(), config)
+-                .with_dialect(generation.commands().profile())
+-                .with_context_registry(Arc::clone(&generation));
++                .with_resolved_analysis_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
++                    tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
++                    tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
++                    Arc::clone(&generation),
++                    config,
++                ));
+         let module = lowerer.lower("throw ERROR payload; set reached 1").clone();
+         let input = module.source_metadata_input.as_ref().unwrap();
+         assert!(Arc::ptr_eq(&input.context_registry(), &generation));
+@@ -6092,8 +6096,12 @@
+         let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+         let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+         let mut lowerer = tcl_compiler::lowering::Lowerer::with_config(current.commands(), config)
+-            .with_dialect(current.commands().profile())
+-            .with_context_registry(Arc::clone(&current));
++            .with_resolved_analysis_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
++                tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
++                tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
++                Arc::clone(&current),
++                config,
++            ));
+         let module = lowerer.lower("puts VALUE").clone();
+         let input = module.source_metadata_input.as_ref().unwrap();
+         let selected = supplied_cfg_lattice_key(&db, &module, Some(input.clone()));

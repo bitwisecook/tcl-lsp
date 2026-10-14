@@ -1,0 +1,59 @@
+diff --git a/rust/tcl-compiler/src/compilation_unit.rs b/rust/tcl-compiler/src/compilation_unit.rs
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -4305,6 +4305,42 @@
+             .find_map(|(body, declaration)| (*body == id).then_some(declaration))
+     }
+ 
++    /// Whether a memo candidate agrees with this original body's prepared CFG.
++    /// A declined callback cannot supply a downstream baseline for a fresh unit.
++    #[must_use]
++    pub fn accepts_original_procedure_lattice(
++        &self,
++        id: crate::ir::ProcedureId,
++        candidate: &FunctionUnit,
++        registry: &CommandRegistry,
++    ) -> bool {
++        let Some(procedure) = self.original_procedure_for_body(id) else {
++            return false;
++        };
++        let Some(current) = self.function_for_body(Some(id)) else {
++            return false;
++        };
++        let Some(retained) = self.ir_module.retained_source_bindings.as_deref() else {
++            return false;
++        };
++        if retained
++            .positioned_for_module(&self.ir_module, registry)
++            .is_none()
++            || !retained.matches_original_procedure(procedure)
++            || self.ir_module.source.try_text().ok() != Some(self.source.as_str())
++            || self.original_procedure_cfg_for_body(id) != Some(&current.cfg)
++            || candidate.sccp.reads_module
++        {
++            return false;
++        }
++        let mut positioned = candidate.clone();
++        crate::lattice_rebase::rebase_function_unit(
++            &mut positioned,
++            i64::from(procedure.span.start()),
++        );
++        positioned.cfg == current.cfg
++    }
++
+     /// Select a uniquely named authored test fixture, then its actual issued body.
+     #[cfg(test)]
+     pub(crate) fn function(&self, name: &str) -> Option<&FunctionUnit> {
+diff --git a/rust/tcl-lsp-db/src/lib.rs b/rust/tcl-lsp-db/src/lib.rs
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -3239,6 +3239,9 @@
+             ),
+         }
+     };
++    lattice_keys.retain(|id, key| {
++        cu.accepts_original_procedure_lattice(*id, &function_lattice(db, *key), registry)
++    });
+     // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
+     // The whole-module summary is still rebuilt here (it is the memo's input);
+     // only unchanged procedures' `propagate_taints` is skipped.

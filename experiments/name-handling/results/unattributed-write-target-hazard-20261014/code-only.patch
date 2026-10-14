@@ -1,0 +1,68 @@
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -2514,37 +2514,7 @@
+         .is_some_and(|sub| sub.loop_list_header)
+ }
+ 
+-/// Whether an IR assignment target `name` (as written) is a *dynamic* write
+-/// target — its variable name is computed at runtime from a substitution
+-/// (`set $p …`, `set ${tok} …`, `set a$b(k) …`).  Such a target is opaque
+-/// (no static def) and *reads* the substituted name-bearing variable(s).
+-///
+-/// A leading `$`
+-/// marks a substituted write-target name, and a substitution in the array
+-/// *base* (`a$b(k)`) is dynamic too.  A bare array element (`arr($i)`) keeps
+-/// its static base `arr` (only the index is dynamic), so it is **not** a
+-/// dynamic target here.
+-///
+-/// `braced_literal` is the statement's own `name_braced` flag: a brace-quoted
+-/// word (`set {$n} 1`) substitutes nothing, so its `$` is part of a perfectly
+-/// static name and the target is **not** dynamic.  Reading the name text
+-/// alone calls it dynamic, withholds the def, and records a read of `n` — a
+-/// `W210 Variable 'n' is read before it is set` on code that never mentions
+-/// `n`.
+-#[must_use]
+-pub fn is_dynamic_write_target(name: &str, braced_literal: bool) -> bool {
+-    if braced_literal {
+-        return false;
+-    }
+-    if name.starts_with('$') {
+-        return true;
+-    }
+-    let base = match name.find('(') {
+-        Some(i) => &name[..i],
+-        None => name,
+-    };
+-    base.is_empty() || base.contains('$') || base.contains('[')
+-}
++pub use tcl_syntax::naming::unattributed_dynamic_written_variable_target as is_dynamic_write_target;
+ 
+ /// Whether a loop-variable-list word is **static** — its source performs no
+ /// substitution, so the word's text *is* the Tcl list of names the loop binds.
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -195,6 +195,24 @@
+     .expect("joining Unicode namespace and name bytes preserves Unicode")
+ }
+ 
++/// Conservative dynamic-target hazard over an unattributed name presentation.
++/// The caller supplies the brace marker. This does not establish a decoded
++/// value, original word, static definition, variable lookup or cell identity.
++#[must_use]
++pub fn unattributed_dynamic_written_variable_target(name: &str, braced_literal: bool) -> bool {
++    if braced_literal {
++        return false;
++    }
++    if name.starts_with('$') {
++        return true;
++    }
++    let base = match name.find('(') {
++        Some(index) => &name[..index],
++        None => name,
++    };
++    base.is_empty() || base.contains('$') || base.contains('[')
++}
++
+ /// Does `name` contain a `::` namespace separator (i.e. is it qualified)?
+ #[must_use]
+ pub fn is_qualified(name: &[u8]) -> bool {

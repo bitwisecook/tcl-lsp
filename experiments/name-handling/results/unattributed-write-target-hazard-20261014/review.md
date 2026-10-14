@@ -1,0 +1,5 @@
+# Unattributed assignment-target hazards
+
+The conservative legacy IR target-name predicate has one Syntax implementation. Its exact former behaviour is retained: an explicit brace marker suppresses the hazard; otherwise leading dollar, dollar/bracket in the base before the first opening parenthesis, or an empty base remains a hazard. This preserves every existing SSA/ir_helpers/global-write consumer without treating the query as proof of an original name, actual substitution or definite write. The empty-name rule applies only to this unattributed presentation purpose; original Tcl name handling remains independent.
+
+Specialised statements can independently retain original tokens through consumed `CommandBindingSite.source_tokens` and `PointResolveContexts.source_tokens_at`. The hazard query cannot replace those owners. This patch centralises the existing predicate; it does not claim to remove the separate need for genuine original operand correspondence. All old assertions remain unchanged. Rustfmt and current Main applicability are checked; Cargo unexecuted under the root lease.

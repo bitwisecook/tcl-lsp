@@ -1,0 +1,21 @@
+{
+  "dependency": "Apply initial DB body-unit memo adapter first, plus Compiler genuine original_logical_declaration_body_units and original_hosted_declaration_body_units maps/iterator and exported OriginalHostedProcedureBody owner. No fabrication of missing APIs/maps.",
+  "contract": "LatticeRequest readonly original_source_procedure validates current complete source/body/offset/formal/header/issuer through shared inventory. Logical/Hosted original bodies retain declaration role with unknown physical frame and actual source context. FU attaches only current exact Hosted owner Arc after card.matches_procedure(module,procedure,actualregistry). No allocation/worker/ABI/Native name/Normal grant.",
+  "validation": "Pending rustfmt parser and exact original tests; scratch only.",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "2c8ebaa15e067e9f9fc30304ce77233c202aa8f92d4180fec3cfc55be68137cc",
+      "after_sha256": "42eb72ba399b61a51ff531e5198e691dd9f8cc2a53d85224e0f33bf3a39f3e2c"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "b1f9a6d465c3aa8d2728e1b77facf3066d6a4902c19460cb1b71aaeb05adb992",
+      "after_sha256": "c2dc8411bfa0a19f33a52f013b01528811e2d56875d0a8ceecd9ec68e29d16d7"
+    }
+  ],
+  "patch_sha256": "c6191a67dc627f8cfa37c4fc58b57d43ac2779dd7710584f76f70caf849653e4",
+  "rustfmt_parse": "Workspace rustfmt edition2024 skip_children=true exit0 both afterimages; no compiler/test acceptance.",
+  "apply_check_exit_against_dependency": 0,
+  "apply_check_stderr": ""
+}

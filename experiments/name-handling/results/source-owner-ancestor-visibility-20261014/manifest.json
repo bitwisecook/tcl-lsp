@@ -1,0 +1,9 @@
+{
+  "status": "unexecuted source-only ancestor visibility repair",
+  "patch_sha256": "86505a13d1a99e34be59c2f1ff2438797d5be150a0eb135688405ff6aecf04fa",
+  "bytes": 8006,
+  "source_sha256": "4fa35c76c10ad55343b91354050121961778081d7cfe546bbbf49fcca983f395",
+  "before_sha256": "6abc3818fcdb0bda9f6f7f4e11d50c6a40d74b84800c7ebf3ba8a800e334f0bb",
+  "tests": "2 meaningful controls: exact ancestor visibility and real file-module loading/current parent visibility; no Cargo",
+  "runtime_internal": "No owner_resolution.rs or Runtime internal-mode bytes changed"
+}

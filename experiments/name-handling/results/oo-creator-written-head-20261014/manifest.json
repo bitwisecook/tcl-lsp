@@ -1,0 +1,18 @@
+{
+  "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+  "before_sha256": "08d8c460f0869a946a60e8eab752e48a97e7794c79142a008eeeafa1fae46172",
+  "after_sha256": "c1ed8704f8cda2f9a932470aff370fa8387fe7fd9293ec153e44460d10de478a",
+  "patch_sha256": "349db7cea59cdc54ca7f44a2745dbdb0321436b40bec55e1af03aee51544c1b1",
+  "contract": "Written class-manufacturer head remains unchanged for shared original user-factory/source lookup and catalogue availability. Retained selected registry descriptor supplies catalogue metaclass key and grammar; no local leading-root mutation. Source metaclass lookup retains exact written command. Existing asserts unchanged.",
+  "validation": "Scratch only, git apply --check; no Cargo or current acceptance.",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "08d8c460f0869a946a60e8eab752e48a97e7794c79142a008eeeafa1fae46172",
+      "after_sha256": "c1ed8704f8cda2f9a932470aff370fa8387fe7fd9293ec153e44460d10de478a"
+    }
+  ],
+  "rustfmt_parse": "workspace rustfmt edition2024 skip_children=true accepted all afterimages; no Cargo/test acceptance",
+  "apply_check_exit": 0,
+  "apply_check_stderr": ""
+}

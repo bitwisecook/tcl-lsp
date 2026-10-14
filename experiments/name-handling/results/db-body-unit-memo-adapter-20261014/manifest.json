@@ -1,0 +1,25 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "before_sha256": "84124dbfc46e48643af7fc314a04e46b892df69ba0fd78f71742f3cc569513d0",
+      "after_sha256": "a2b92cd0bac445cbbb3b8b15a56103c79deadf08d0bfc40b3b97d0c13bfcb936"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "5325ea7aceb4808a44185c3473f5af9080640e4e3960ddc603cf317b162ea99c",
+      "after_sha256": "2c8ebaa15e067e9f9fc30304ce77233c202aa8f92d4180fec3cfc55be68137cc"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "a772c22692e7ef34125a35fbdb408fcfa8c29079cabb21c130a7f42101db2b21",
+      "after_sha256": "b1f9a6d465c3aa8d2728e1b77facf3066d6a4902c19460cb1b71aaeb05adb992"
+    }
+  ],
+  "patch_sha256": "8ba182995415f479c233dcdaf9e39e8a744d5d7ad2aa82f9f41e55d97dedd63c",
+  "validation": "Scratch initial original-body ownership/memo callback migration only. No Cargo/Main. Same actual issuer/header/CFG/current source retained; Native Template permissions unchanged. Build/tests/cold/warm counts unobserved. Source-only Native neutral certificate and lowering-cache correspondence remain genuine unresolved obligations; no precomputed result key.",
+  "no_hidden_recomputation": "Original declaration body memo is demanded before FunctionUnit::build_full; fresh lattice build runs only on real decline/mismatch. Current prepared CFG comparison is independently retained producer state, not a precomputed lattice/result-key comparison.",
+  "rustfmt_parse": "workspace rustfmt edition2024 skip_children=true accepted all afterimages; no Cargo/test acceptance",
+  "apply_check_exit": 0,
+  "apply_check_stderr": ""
+}

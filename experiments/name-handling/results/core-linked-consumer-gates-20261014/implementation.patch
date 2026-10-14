@@ -1,0 +1,117 @@
+diff --git a/rust/tcl-lsp-core/src/hover.rs b/rust/tcl-lsp-core/src/hover.rs
+--- a/rust/tcl-lsp-core/src/hover.rs
++++ b/rust/tcl-lsp-core/src/hover.rs
+@@ -906,6 +906,10 @@
+         return Some(hover);
+     }
+ 
++    let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
++    if let Some(text) = original_linked_member_hover_text(source, analysis, &word, cursor_offset) {
++        return Some(Hover::markdown(text));
++    }
+     if !analysis.allows_lexical_declaration_advice() {
+         return original_registry::hover(source, analysis, cursor_offset).or_else(|| {
+             let (word, _, _) = find_word_span_at_position(source, line, character)?;
+@@ -913,8 +917,6 @@
+         });
+     }
+ 
+-    let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
+-
+     // `$obj m` / `my m` method-dispatch hover, including the per-object
+     // visibility mask — `Break(None)` is a definitive
+     // no-hover.
+@@ -3317,9 +3319,8 @@
+     None
+ }
+ 
+-/// Original linked heads hover as their retained target member; declaration
+-/// names and constructor/destructor keywords keep their own source paths.
+-fn class_member_hover_text(
++/// Original linked command heads retain their conditional member owner.
++fn original_linked_member_hover_text(
+     source: &str,
+     analysis: &AnalysisResult,
+     word: &str,
+@@ -3351,6 +3352,20 @@
+             nparam = method.params.len()
+         ));
+     }
++    None
++}
++
++/// Original linked heads hover as their retained target member; declaration
++/// names and constructor/destructor keywords keep their own source paths.
++fn class_member_hover_text(
++    source: &str,
++    analysis: &AnalysisResult,
++    word: &str,
++    cursor_offset: u32,
++) -> Option<String> {
++    if let Some(text) = original_linked_member_hover_text(source, analysis, word, cursor_offset) {
++        return Some(text);
++    }
+     let class_def = analysis
+         .all_classes
+         .get(crate::definition::enclosing_class_at(
+diff --git a/rust/tcl-lsp-core/src/rename.rs b/rust/tcl-lsp-core/src/rename.rs
+--- a/rust/tcl-lsp-core/src/rename.rs
++++ b/rust/tcl-lsp-core/src/rename.rs
+@@ -1232,13 +1232,30 @@
+     analysis: &AnalysisResult,
+     index: Option<(&crate::workspace_index::WorkspaceIndex, &str)>,
+ ) -> Option<(String, String, bool, crate::workspace_index::MethodAccess)> {
+-    if !analysis.allows_lexical_declaration_advice() {
+-        return None;
+-    }
+     use crate::workspace_index::MethodAccess;
+     let line_index = LineIndex::new(source);
+     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
+     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
++    // Only the retained single-field link form couples command and member edits.
++    if let Some(linked) =
++        tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor)
++    {
++        if linked.has_coupled_name()
++            && linked.editable_target_span(source).is_some()
++            && linked.alias_input().bytes() == word.as_bytes()
++            && linked.target_input().bytes() == word.as_bytes()
++        {
++            return Some((
++                linked.class_declaration().metadata().qualified_name.clone(),
++                linked.target().metadata().name.clone(),
++                linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject,
++                MethodAccess::Internal,
++            ));
++        }
++    }
++    if !analysis.allows_lexical_declaration_advice() {
++        return None;
++    }
+     if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor).is_some()
+     {
+         let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor)?;
+@@ -1288,23 +1305,6 @@
+         }
+         return None;
+     }
+-    // Only the retained single-field link form couples command and member edits.
+-    if let Some(linked) =
+-        tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor)
+-    {
+-        if linked.has_coupled_name()
+-            && linked.editable_target_span(source).is_some()
+-            && linked.alias_input().bytes() == word.as_bytes()
+-            && linked.target_input().bytes() == word.as_bytes()
+-        {
+-            return Some((
+-                linked.class_declaration().metadata().qualified_name.clone(),
+-                linked.target().metadata().name.clone(),
+-                linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject,
+-                MethodAccess::Internal,
+-            ));
+-        }
+-    }
+     // Inside a class body on one of its method / classmethod names — the
+     // declaration side, an internal context.
+     if let Some(class_def) = crate::definition::enclosing_class_at(analysis, cursor)

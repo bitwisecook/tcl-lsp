@@ -1,0 +1,7 @@
+couldn't connect to display ":110"
+    while executing
+"load /usr/lib/x86_64-linux-gnu/libtk8.6.so"
+    ("package ifneeded Tk 8.6.16" script)
+    invoked from within
+"package require Tk"
+    (file "/tmp/name-tk-option-original-values-20261014/source.tcl" line 1)
