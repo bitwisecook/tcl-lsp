@@ -29,4 +29,6 @@ Source gate1883, exact Named/method/slot registrations, current retired-owner re
 
 ## Checkpoint
 
-Current18:08 BST (17:08 UTC). Next tracking18:20 BST; hourly report18:13 BST. Root owns Main integration, commit/push and the active lease. Red development pushes are authorised; no whole-codebase, Native, F5 or PR-ready acceptance is claimed.
+Current18:08 BST (17:08 UTC). Next tracking18:20 BST; hourly report19:13 BST. Root owns Main integration, commit/push and the active lease. Red development pushes are authorised; no whole-codebase, Native, F5 or PR-ready acceptance is claimed.
+
+Current ordinary Core117 is building the101-control LSP plan after a sibling API re-export correction. Core115 executed zero semantic tests; its failed-build and source-subset receipts are retained.
