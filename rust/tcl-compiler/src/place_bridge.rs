@@ -35,6 +35,7 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 use crate::cfg::{Function, Terminator};
 use crate::ir::{CommandTokens, Statement};
 use crate::place::{self, Place, PlaceKind, overlap, places_read_to_form};
+#[cfg(test)]
 use crate::segmenter::segment_commands_with_offset_and_config;
 use crate::ssa::structural_body_indices;
 use crate::var_refs::{
@@ -43,16 +44,6 @@ use crate::var_refs::{
 use crate::var_resolve::ResolveContext;
 #[cfg(test)]
 use crate::var_resolve::resolve_place;
-
-/// True when `name`'s `VarRead`-role argument names the *whole* array,
-/// not a scalar (so a write to any element is observed) — the registry's
-/// [`Traits::WHOLE_ARRAY_ARG`] (`array` / `parray`). `registry.get`
-/// resolves the bare and `::`-qualified forms alike.
-fn is_whole_array_command(registry: &CommandRegistry, name: &str) -> bool {
-    registry
-        .get(name)
-        .is_some_and(|s| s.traits.contains(Traits::WHOLE_ARRAY_ARG))
-}
 
 pub use crate::variable_bindings::{
     PointResolveContexts, build_point_resolve_contexts, build_point_resolve_contexts_with_entry,
@@ -546,41 +537,73 @@ fn command_reads(
     out: &mut Vec<Place>,
     registry: &CommandRegistry,
 ) {
-    // The registry carries the environment's profile, so the embedded script
-    // is segmented under the document's own grammar.
-    for cmd in segment_commands_with_offset_and_config(
-        script_text,
-        0,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    ) {
-        let name = cmd.name();
-        if name.is_empty() {
-            continue;
+    let config = ctx.invocation_dialect.map_or_else(
+        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+    );
+    let image = tcl_lexer::SourceImage::document(script_text);
+    let Ok(end) = u32::try_from(image.len()) else {
+        out.push(place::unknown_top());
+        return;
+    };
+    let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
+        image.clone(),
+        tcl_lexer::Span::new(0, end),
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    ) else {
+        out.push(place::unknown_top());
+        return;
+    };
+    if plan.fatal_tail.is_some() {
+        out.push(place::unknown_top());
+    }
+    let dialect = ctx.invocation_dialect.or_else(|| {
+        registry
+            .profile()
+            .map(tcl_registry::InvocationDialect::of_profile)
+    });
+    for command in plan.commands {
+        match crate::registry_invocation::standalone_written_source_name_roles(
+            registry,
+            &command.words,
+            dialect,
+        ) {
+            Some(invocation) => {
+                let whole = invocation.facts().traits.contains(Traits::WHOLE_ARRAY_ARG);
+                if invocation.has_unknown_residual() {
+                    out.push(place::unknown_top());
+                }
+                for &(argument, role) in invocation.roles() {
+                    if role != ArgRole::VarRead {
+                        continue;
+                    }
+                    let name = invocation.original_variable_name_operand(argument);
+                    out.push(
+                        name.as_ref()
+                            .filter(|name| !name.as_str().contains('\0'))
+                            .map_or_else(place::unknown_top, |name| {
+                                crate::var_resolve::resolve_literal_access(
+                                    name.as_str(),
+                                    ctx,
+                                    whole,
+                                    registry,
+                                    tcl_registry::TraceOperation::Read,
+                                )
+                            }),
+                    );
+                }
+            }
+            None => out.push(place::unknown_top()),
         }
-        let args = cmd.args();
-        let whole = is_whole_array_command(registry, name);
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        for i in registry.arg_indices_for_role(name, &arg_strs, ArgRole::VarRead) {
-            if let Some(a) = args.get(i) {
-                if !a.starts_with('$') && !a.starts_with('[') {
-                    out.push(crate::var_resolve::resolve_access(
-                        a,
-                        ctx,
-                        whole,
-                        registry,
-                        tcl_registry::TraceOperation::Read,
-                    ));
+        for word in command.words {
+            if word.group().kind != tcl_lexer::WordKind::Braced {
+                if let Some(original) = script_text.get(word.word_span().as_range()) {
+                    word_reads(original, ctx, out, registry);
                 } else {
-                    // Dynamic VAR_READ name (`array get $arr_name`): the read
-                    // target is computed → UNKNOWN (overlaps everything) so a
-                    // write to any array is not falsely flagged dead.
                     out.push(place::unknown_top());
                 }
             }
-        }
-        word_reads(name, ctx, out, registry);
-        for arg in args {
-            word_reads(arg, ctx, out, registry);
         }
     }
 }
@@ -1707,5 +1730,49 @@ mod tests {
                 .any(|r| overlap(r, &scalar("i", LOCAL_NS, false))),
             "the dynamic index read of `i` must be recovered, reads={reads:?}",
         );
+    }
+
+    #[test]
+    fn standalone_command_reads_keep_original_literal_name_data_and_braced_inert_words() {
+        let registry = registry();
+        let context = ResolveContext::for_function("::f");
+        let mut reads = Vec::new();
+        command_reads(
+            "info exists {$literal}; info exists {${literal}}; info exists {}; puts {$inert}",
+            &context,
+            &mut reads,
+            &registry,
+        );
+        for name in ["$literal", "${literal}", ""] {
+            assert!(
+                reads.iter().any(|place| place.name == name),
+                "missing {name:?}"
+            );
+        }
+        assert!(!reads.iter().any(|place| place.name == "inert"));
+        assert!(!reads.iter().any(|place| place.name == "literal"));
+        assert!(!reads.iter().any(|place| place.kind == PlaceKind::Unknown));
+    }
+
+    #[test]
+    fn standalone_command_reads_keep_dynamic_names_expansion_and_missing_selection_unknown() {
+        let registry = registry();
+        let context = ResolveContext::for_function("::f");
+        for script in [
+            "info exists $computed",
+            "$handler {$literal}",
+            "info {*}{exists literal}",
+            "missing_reader",
+        ] {
+            let mut reads = Vec::new();
+            command_reads(script, &context, &mut reads, &registry);
+            assert!(
+                reads.iter().any(|place| place.kind == PlaceKind::Unknown),
+                "{script}"
+            );
+        }
+        let mut reads = Vec::new();
+        command_reads("info exists $computed", &context, &mut reads, &registry);
+        assert!(reads.iter().any(|place| place.name == "computed"));
     }
 }

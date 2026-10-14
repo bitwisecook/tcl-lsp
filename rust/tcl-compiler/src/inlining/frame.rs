@@ -861,8 +861,32 @@ mod tests {
 
     #[test]
     fn original_inline_definition_name_uses_publication_instead_of_reporting_label() {
-        let (_, mut module) =
-            crate::inlining::tests::logical_module_for("proc p {x} {return $x}; p VALUE");
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context = tcl_registry::model::ingress::resolve_environment(profile.name)
+            .default_context_registry();
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(native.command_name_policy().is_some());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(native)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let mut module = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            "proc p {x} {return $x}; p VALUE",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        )
+        .ir_module;
         let id = fixture_id(&module.procedures, "::p");
         let procedure = module.procedures.get_mut(&id).unwrap();
         let expected = procedure

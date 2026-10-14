@@ -3645,25 +3645,18 @@ fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok
             out.push(ExprTok::Other(text[start..i].to_owned()));
         } else if c == b'[' {
             let start = i;
-            i += 1;
-            let mut depth = 1;
-            while i < n && depth > 0 {
-                match bytes[i] {
-                    b'[' => depth += 1,
-                    b']' => depth -= 1,
-                    _ => {}
-                }
-                i += 1;
-            }
-            // Clamp the inner slice to a char boundary: on an unbalanced
-            // `[` the scan runs to EOF and `i - 1` can land mid-codepoint
-            // (`expr {[é}`), which would panic the slice in debug *and*
-            // release (a char-boundary violation, not an overflow) (F2a).
-            let mut end = i.saturating_sub(1).max(start + 1);
-            while end > start + 1 && !text.is_char_boundary(end) {
-                end -= 1;
-            }
-            let inner = &text[start + 1..end];
+            let Ok(end) = tcl_lexer::command_subst_close(
+                bytes,
+                start,
+                tcl_lexer::SubstFlags::default(),
+                env.config,
+            ) else {
+                return vec![ExprTok::Other(text.to_owned())];
+            };
+            let Some(inner) = text.get(start + 1..end.saturating_sub(1)) else {
+                return vec![ExprTok::Other(text.to_owned())];
+            };
+            i = end;
             out.push(ExprTok::Cmd(format!(
                 "[{}]",
                 minify_body(inner, env, nest_depth + 1, env.config.nested())
@@ -3843,6 +3836,55 @@ mod tests {
         );
         assert!(out.contains("$plain"), "{out}");
         assert!(!out.contains("${plain}"), "{out}");
+    }
+
+    #[test]
+    fn expression_commands_keep_configured_literal_closers_and_unavailable_extents() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(label).analyser_profile();
+            for expression in [
+                "[list {literal ] value}] + 1",
+                "[list \"literal ] value\"] + 1",
+                "[list [list {literal ] value}]] + 1",
+                "[\n# literal ]\nlist {literal [ value}\n] + 1",
+            ] {
+                let source = format!("expr {{{expression}}}");
+                let output = min_dialect(&source, profile);
+                let data = if expression.contains("literal [ value") {
+                    "literal [ value"
+                } else {
+                    "literal ] value"
+                };
+                assert!(output.contains(data), "{label}: {output}");
+                let opener = output.find('[').unwrap();
+                let end = tcl_lexer::command_subst_close(
+                    output.as_bytes(),
+                    opener,
+                    tcl_lexer::SubstFlags::default(),
+                    LexerConfig::for_file_grammar(profile.grammar),
+                )
+                .unwrap();
+                assert_eq!(&output[end..], "+1}", "{label}: {output}");
+            }
+            let source = "expr {[é + 1}";
+            let registry = CommandRegistry::build_default();
+            let analysis = original::analysis_for_profile(source, profile, &registry);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let env = MinifyEnv {
+                input,
+                dialect: input.unit_profile(),
+                config: input.lexer_config(),
+                registry: context.commands(),
+                context: &context,
+                identities: analysis.retained_command_realm().unwrap(),
+            };
+            let expression = "[é + 1";
+            let tokens = tokenise_expr(expression, env, 0);
+            assert!(matches!(tokens.as_slice(), [ExprTok::Other(value)] if value == expression));
+            assert_eq!(strip_expr_whitespace(expression, env, 0), expression);
+        }
     }
 
     #[test]

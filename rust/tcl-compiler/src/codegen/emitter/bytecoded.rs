@@ -1022,12 +1022,7 @@ fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 
 // unset
 
-/// `unset ?-nocomplain? ?--? name ...` — statement-position specialisation
-/// in a proc body. Each variable unsets via `unsetScalar`/`unsetArray`
-/// (compiled locals) or `unsetStk` (qualified / dynamic names); the command's
-/// empty-string result is then `push ""; pop` (folded to `nop`s mid-body, or
-/// the bare `push ""` return in tail position). Mirrors C Tcl's
-/// `TclCompileUnsetCmd`. Toplevel falls back to the generic invoke.
+/// Emit one already validated original compiler variable operand.
 fn emit_original_unset_operand(
     ctx: &mut CodegenCtx,
     argument: usize,
@@ -1083,6 +1078,12 @@ fn emit_original_unset_operand(
     }
 }
 
+/// `unset ?-nocomplain? ?--? name ...` — statement-position specialisation
+/// in a proc body. Each variable unsets via `unsetScalar`/`unsetArray`
+/// (compiled locals) or `unsetStk` (qualified / dynamic names); the command's
+/// empty-string result is then `push ""; pop` (folded to `nop`s mid-body, or
+/// the bare `push ""` return in tail position). Mirrors C Tcl's
+/// `TclCompileUnsetCmd`. Toplevel falls back to the generic invoke.
 fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if !ctx.compiles_locals() {
         return false;
@@ -2587,6 +2588,7 @@ mod tests {
         assert_eq!(ctx.instructions.last().unwrap().op, Op::UNSET_ARRAY);
         assert!(
             ctx.literals
+                .entries()
                 .iter()
                 .any(|literal| literal.bytes() == b"$index")
         );

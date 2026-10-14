@@ -127,6 +127,82 @@ impl SourceNameRoleInventory {
     }
 }
 
+/// Explicit Standalone syntax inventory under the caller's actual grammar.
+/// These literal values supply possible names, never point or handler ownership.
+pub(crate) fn standalone_written_source_name_roles(
+    registry: &CommandRegistry,
+    words: &[tcl_lexer::NativeWord],
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Option<SourceNameRoleInventory> {
+    let first = words.first()?;
+    let config = first.config();
+    if words
+        .iter()
+        .any(|word| word.image() != first.image() || word.config() != config || word.group().expand)
+    {
+        return None;
+    }
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        first.image().clone(),
+        tcl_lexer::Span::new(first.word_span().start(), words.last()?.word_span().end()),
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    if plan.fatal_tail.is_some() || command.words != words {
+        return None;
+    }
+    let values: Vec<Option<String>> = words
+        .iter()
+        .map(|word| {
+            String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+                word,
+            )?)
+            .ok()
+        })
+        .collect();
+    let head = values.first()?.as_deref()?;
+    if head.contains('\0') {
+        return None;
+    }
+    let arguments: Vec<_> = values
+        .iter()
+        .skip(1)
+        .map(|value| {
+            value.as_deref().map_or(
+                tcl_registry::InvocationWord::Dynamic,
+                tcl_registry::InvocationWord::Literal,
+            )
+        })
+        .collect();
+    let invocation = registry
+        .resolve_structured_invocation(
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(head),
+                &arguments,
+            ),
+            dialect.and_then(|dialect| dialect.authoring_query()),
+        )
+        .resolved()?;
+    let facts = Box::new(invocation.facts());
+    let (roles, roles_complete) = invocation.authored_source_argument_roles();
+    let roles = roles
+        .into_iter()
+        .map(|(ordinal, role)| (facts.argument_offset + usize::from(ordinal), role))
+        .collect();
+    Some(SourceNameRoleInventory {
+        facts,
+        values: values.into_iter().skip(1).collect(),
+        roles,
+        roles_complete,
+        config,
+        unknown_residual: !roles_complete,
+    })
+}
+
 pub(crate) fn original_assignment_name_operand(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
@@ -448,5 +524,30 @@ mod tests {
             changed.argv_texts[2] = "changed".to_owned();
             assert!(original_source_name_roles(&registry, &changed).is_none());
         }
+    }
+
+    #[test]
+    fn standalone_written_roles_require_one_complete_original_command_vector() {
+        let registry = CommandRegistry::build_default();
+        let source = "info exists {$literal}; info exists {$other}";
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .unwrap();
+        let first = &plan.commands[0].words;
+        let selected = standalone_written_source_name_roles(&registry, first, None)
+            .expect("exact Standalone original word vector");
+        assert_eq!(
+            selected.original_variable_name_operand(1).unwrap().as_str(),
+            "$literal"
+        );
+        let mut donated = first.clone();
+        donated[2] = plan.commands[1].words[2].clone();
+        assert!(standalone_written_source_name_roles(&registry, &donated, None).is_none());
     }
 }

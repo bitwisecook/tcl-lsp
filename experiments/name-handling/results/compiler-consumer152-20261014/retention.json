@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "e3fe7fb5add8de063db0ce625fdc29b84c6fbc0477eeef6f64e7798950279af6",
+    "source-after.json.gz": "88c302e1084c610cee82ec16a7ff7a8c53279a96a454cb10d4f474c78be0cfad",
+    "build.log": "1515b6e9d36a9da25786d75d52779c2bdfea73c81bd24e1bb3bc88419a824e32",
+    "start.json": "d02c9dfcce11b286c4c9db4f6c2a2ed91982e09a7d28d4341b4e1f032acaab77",
+    "source-before.json.gz": "c3fe9c1b41c57c764424db8ab22685df3453cb9c8eb2ede0fcc2e47c8ed489ea"
+  },
+  "scope": "Production compiler build failed on nested optional SurfaceQuery actualAPI; zero selectors run; source subset drift zero."
+}

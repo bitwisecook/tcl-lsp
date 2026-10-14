@@ -64,7 +64,7 @@ pub(crate) fn original_logical_source_definition_layout(
     super::original_written_script_body_span(original)?;
     words.with_source_schema(input.borrowed_context_registry(), |schema| {
         let grammar = schema.authored_source_definition_body_grammar()?;
-        let (_, complete) = schema.authored_source_argument_roles();
+        let (_, complete) = schema.authored_logical_source_argument_roles();
         if !complete
             || schema.facts().arity_accepts_frozen_arguments() != Some(true)
             || !grammar.family.manufactures_runtime_commands()
@@ -126,14 +126,15 @@ mod tests {
             panic!("one original definition")
         };
         let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, command);
-        bindings.stamp_original_tokens(&mut tokens);
+        crate::command_binding::RetainedSourceBodyInventory::from(bindings)
+            .stamp_original_tokens(&mut tokens);
         tokens
     }
 
     #[test]
     fn logical_definition_layout_uses_original_source_without_a_handler_grant() {
         let mut analyser = crate::analyser::Analyser::new();
-        let input = analyser.prepare_analysis_input("tcl").unwrap();
+        let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
         let registry = input.borrowed_context_registry().commands();
         let source = "oo::class create C {method m {} {return VALUE}}";
         let tokens = source_tokens(source, &input);
@@ -177,7 +178,7 @@ mod tests {
     #[test]
     fn logical_definition_layout_refuses_missing_changed_and_expanded_source_owners() {
         let mut analyser = crate::analyser::Analyser::new();
-        let input = analyser.prepare_analysis_input("tcl").unwrap();
+        let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
         let registry = input.borrowed_context_registry().commands();
         let tokens = source_tokens("oo::class create C {method m {} {return VALUE}}", &input);
         assert!(original_logical_source_definition_layout(registry, &input, &tokens).is_some());

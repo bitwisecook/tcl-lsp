@@ -984,10 +984,13 @@ impl BodyWalk<'_, '_> {
             graph.record_uncertainty(&native.words);
             return Some(());
         };
-        if let Some(tape) = &mut self.inventory {
-            self.context
-                .retain_native_procedure_may_command(tape, graph, &native.words, &written);
-        }
+        // Syntax ownership survives unavailable handler/effect inventory.
+        let tape = self
+            .inventory
+            .as_mut()
+            .unwrap_or(&mut self.authored_prefixes);
+        self.context
+            .retain_native_procedure_may_command(tape, graph, &native.words, &written);
         let Some(head) = written
             .first()
             .and_then(|word| word.input.as_ref())

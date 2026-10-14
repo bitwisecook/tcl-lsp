@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "20ebb4360786ccfc8f61020f328b29fd00fedfb16f9d0c7fd32fdb3b49d5e91e",
+    "source-after.json.gz": "d43b32473d09e33ca5f667cd911c9a246d8b92aa8ba87c6f5ea2ce25d5e65ec0",
+    "build.log": "b5affcb75cacd130e44d0c1c7f7ef2ac9c23e4d9e2025ff05707b70440c8a494",
+    "start.json": "e37482c2f32093c38d19d01a419f6b0e4a488ec56ba6a0c50dfc3177e2956d2d",
+    "source-before.json.gz": "3efe7a1402d52846d77816f01cad1c18be960d3dc932ddaaa8399190430e353a"
+  },
+  "scope": "Focused compiler test build failed on LiteralTable fixture API; zero selectors run; source subset drift zero. Actual entries() API correction preserves byte assertion."
+}

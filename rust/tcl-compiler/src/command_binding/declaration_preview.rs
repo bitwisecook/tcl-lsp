@@ -1396,6 +1396,9 @@ fn declared_body(
     {
         return logical_procedure_body_recipe(site, tokens, observation, registry, input, &advice);
     }
+    if advice.is_authored_standalone_source() {
+        return standalone_procedure_body_recipe(site, tokens, observation, registry, &advice);
+    }
     let dialect = advice.dialect();
     let mut agreed = None;
     for target in advice.targets() {
@@ -1446,6 +1449,121 @@ fn declared_body(
         agreed = Some(recipe);
     }
     agreed
+}
+
+/// Conditional Standalone layouts use original source slots and strict formals,
+/// independently of Native operand naming or procedure installation.
+fn standalone_procedure_body_recipe(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    observation: &DeclarationLayoutObservation,
+    registry: &tcl_registry::CommandRegistry,
+    advice: &super::OriginalCompilationLookupAdvice,
+) -> Option<DeclaredProcedureBody> {
+    if advice.has_unclosed_source_coverage()
+        || !matches!(
+            advice.original_declaration_metadata_context(registry, tokens),
+            Ok(None)
+        )
+        || observation.config.list_parse != tcl_dialect::ListParse::Strict
+        || !matches!(&observation.namespace, super::SourceNamespaceKey::Authored(current) if current == "::")
+        || !observation.entry.owns_source(&site.source, site.offset)
+        || !observation
+            .entry
+            .owns_original_context(&observation.snapshot.state.source_variables)
+        || observation.snapshot.state.variable_frame != *observation.entry.frame()
+        || observation.snapshot.state.current_source_origin.as_ref() != Some(&site.source)
+    {
+        return None;
+    }
+    let [target] = advice.targets() else {
+        return None;
+    };
+    if !target.registry_backed
+        || target.kind != super::BindingKind::Builtin
+        || !target.prepended.is_empty()
+    {
+        return None;
+    }
+    let original = crate::registry_invocation::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        observation.config,
+    )?;
+    if original.iter().any(|word| word.group().expand) {
+        return None;
+    }
+    let values = original
+        .iter()
+        .map(|word| {
+            let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+            Some(std::str::from_utf8(&value).ok()?.to_owned())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let arguments = values
+        .get(1..)?
+        .iter()
+        .map(|value| tcl_registry::InvocationWord::Literal(value))
+        .collect::<Vec<_>>();
+    let resolution =
+        tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+            registry,
+            None,
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(&target.command),
+                &arguments,
+            )
+            .with_dialect(advice.dialect()),
+            advice.realm(),
+        );
+    let shape = resolution
+        .resolved()?
+        .authored_source_procedure_arguments()?;
+    let name = values.get(shape.name.checked_add(1)?)?;
+    let parameters_text = values.get(shape.parameters.checked_add(1)?)?;
+    let parameters =
+        super::logical_definition::static_formals(parameters_text, observation.config.list_parse)?;
+    let coordinate = tcl_syntax::naming::authored_source_command_slot(
+        &tcl_core_types::ByteNamespacePath::root(),
+        name.as_bytes(),
+    )?;
+    let namespace = super::SourceNamespaceKey::authored(
+        tcl_syntax::naming::checked_namespace_path_key(&coordinate.namespace)?,
+    );
+    observation
+        .snapshot
+        .state
+        .namespaces
+        .contains(&namespace)
+        .then_some(())?;
+    let key = super::SourceCommandKey::authored(
+        tcl_syntax::naming::authored_source_command_spelling(&coordinate)?,
+    );
+    let written = shape.body.checked_add(1)?;
+    let source = ExecutedScriptSource::from_word(
+        site.clone(),
+        shape.body,
+        tokens.words().get(written)?,
+        values.get(written)?,
+        observation.config,
+    );
+    if source.origin != site.source {
+        return None;
+    }
+    Some(DeclaredProcedureBody {
+        declaration: site.clone(),
+        candidate: target.clone(),
+        slot: key,
+        frame: declared_procedure_frame(site, &namespace),
+        source,
+        namespace,
+        parameters,
+        logical_name: Some(name.clone()),
+        logical_parameters_text: Some(parameters_text.clone()),
+        logical_parameters_word: Some(original.get(shape.parameters.checked_add(1)?)?.clone()),
+        original_parameters: None,
+    })
 }
 
 fn logical_procedure_body_recipe(

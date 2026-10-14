@@ -1,0 +1,38 @@
+{
+  "started_utc": "2026-10-14T19:35:54.307927+00:00",
+  "label": "currentcentralconsumer and sourceproducer originals aftergenuinepurpose/fixture corrections",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "source_paths": 34723,
+  "plan": {
+    "exact": [
+      "codegen::emitter::bytecoded::tests::unset_literal_operand_keeps_name_and_index_data_in_compiler_slots",
+      "codegen::emitter::bytecoded::tests::unset_source_without_original_compiler_ownership_emits_no_partial_mutation",
+      "registry_invocation::source_receiver_names::tests::original_receiver_syntax_preserves_literal_data_and_scalar_reference_names",
+      "lowering::original_script_purpose_tests::original_definer_targets_keep_literal_data_distinct_from_scalar_references",
+      "cfg_builder::global_write_info::tests::global_body_summaries_use_issued_identity_and_preserve_current_header_truth",
+      "inlining::frame::tests::original_inline_definition_name_uses_publication_instead_of_reporting_label",
+      "codegen::emitter::tests::unavailable_procedure_namespace_keeps_the_original_declaration_call",
+      "command_binding::namespace_context::native_root_tests::original_native_root_requires_the_actual_entry_incarnation",
+      "command_binding::retained_source::tests::named_logical_body_receipt_keeps_its_actual_header_and_child_scope",
+      "ssa::original_analysis_definition_selector_tests::named_source_body_tokens_require_the_actual_header_body_and_attachment",
+      "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+      "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+      "word_subst::native_source_lifted_inventory_owner_tests::native_source_braced_expression_inventory_preserves_child_geometry_and_refuses_expansion"
+    ],
+    "filters": [
+      "codegen::emitter::bytecoded::tests::unset_",
+      "registry_invocation::source_definition::tests::",
+      "ir::definition_script::tests::",
+      "object_types::report_comparison::tests::",
+      "place_bridge::tests::",
+      "registry_invocation::authored_controls::tests::",
+      "body_analysis_capsule::native_source_lattice_tests::"
+    ],
+    "scope": "Current central naming consumer batch exact controls and unchanged original unset suite; independent original broad146 retainsallprecedingcoverage"
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

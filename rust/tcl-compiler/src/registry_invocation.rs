@@ -50,6 +50,7 @@ mod source_name_roles;
 pub(crate) use source_name_roles::{
     OriginalVariableNameOperand, SourceNameRoleInventory, original_assignment_name_operand,
     original_authored_substitution_name_roles, original_source_name_roles,
+    standalone_written_source_name_roles,
 };
 mod authored_source_structure;
 pub(crate) use authored_source_structure::original_authored_source_structure;
