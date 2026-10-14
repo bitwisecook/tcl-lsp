@@ -1314,33 +1314,43 @@ where
     // counts 4. C's remaining term, "the pattern holds none of
     // `*+?{}()[].\|^$`", is implied by the pattern being empty. Measured
     // identical on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
-    // …and only where one replacement per scalar is the release's own answer.
-    // The substitution count tracks `string length`, so it follows the
-    // release's `StringCharacterModel`, not the Unicode-scalar count: for
-    // U+1D11E, `regsub -all {} $s X` counts 4 on tclsh 8.4.20/8.5.19 (the
-    // scalar is never assembled, so each UTF-8 byte is a position), 2 on
-    // 8.6.18 (UTF-16 code units) and 1 on 9.0.4/9.1b0 (scalars).
     //
-    // The emit below walks scalars, so it can only be right where the model
-    // counts scalars too — always under 9.x, and under 8.x exactly when the
-    // subject holds no supplementary scalar. Where it would not be, this
-    // declines the fast path rather than assert one release's count under
-    // another. The general loop's answer is also wrong there, differently;
-    // correcting it needs the model's *units* threaded through the emit, not
-    // just its count (#2170).
-    let scalars_are_the_models_units = std::str::from_utf8(str_bytes)
-        .is_ok_and(|text| version.string_character_model().count(text) == char_len);
-
+    // The characters are the release's (#2170): the count is `string length`
+    // under its `StringCharacterModel`, and the replacement goes before each
+    // of the model's units. Measured with `regsub -all {} $s X out` over a
+    // literal U+1D11E, `LANG=C.UTF-8`, `out` read back with `scan … %c`:
+    //
+    //   8.4.20, 8.5.19   4   X 240 X 157 X 132 X 158
+    //   8.6.18           2   X 55348 X 56606
+    //   9.0.4, 9.1.0     1   X 119070
+    //
+    // 8.4/8.5 never assemble the scalar, so its units are its four UTF-8
+    // bytes, each a character of its own, and the output holds them as such.
+    // 8.6 puts its second replacement between the surrogate halves, which
+    // takes a lone surrogate no Rust string holds; both replacements go
+    // before the whole pair instead (`XX<U+1D11E>`), which keeps the count,
+    // the length, every replacement ahead of its unit and nothing after the
+    // last one (`semantic-aot-optimisation.md` § *Tcl 8
+    // supplementary-character boundary*).
     if c.all
         && offset == 0
         && !command
         && pattern.is_empty()
-        && scalars_are_the_models_units
         && !subspec.iter().any(|&b| b == b'&' || b == b'\\')
     {
+        let (text, count) = match std::str::from_utf8(str_bytes) {
+            Ok(text) => {
+                substitute_before_each_unit(subspec, text, version.string_character_model())
+            }
+            // Bytes no Rust string holds: one replacement per decoded position.
+            Err(_) => (
+                substitute_before_each_character(subspec, str_bytes, &byteoff),
+                char_len,
+            ),
+        };
         return Ok(RegsubResult {
-            text: substitute_before_each_character(subspec, str_bytes, &byteoff),
-            count: i64::try_from(char_len).unwrap_or(i64::MAX),
+            text,
+            count: i64::try_from(count).unwrap_or(i64::MAX),
             var,
         });
     }
@@ -1421,8 +1431,33 @@ where
     Ok(RegsubResult { text, count, var })
 }
 
-/// The literal empty pattern's substitution: `subspec` before each
-/// character of `str_bytes`, never at end-of-string (see `regsub_run`).
+/// The literal empty pattern's substitution: `subspec` before each of
+/// `model`'s units of `text`, never at end-of-string (see `regsub_run`), and
+/// the number of units.
+fn substitute_before_each_unit(
+    subspec: &[u8],
+    text: &str,
+    model: StringCharacterModel,
+) -> (Vec<u8>, usize) {
+    // Saturating, as below. A unit is at most one byte of `text`, and 8.4/8.5
+    // spell a byte of a supplementary scalar as a two-byte character.
+    let hint = subspec.len().saturating_add(2).saturating_mul(text.len());
+    let mut out = Vec::with_capacity(hint);
+    let mut count = 0usize;
+    let mut held = [0u8; 4];
+    for run in model.units(text) {
+        for _ in 0..run.units {
+            out.extend_from_slice(subspec);
+        }
+        count += run.units;
+        out.extend_from_slice(run.held.encode_utf8(&mut held).as_bytes());
+    }
+    (out, count)
+}
+
+/// The literal empty pattern's substitution over bytes that are not UTF-8:
+/// `subspec` before each decoded position of `str_bytes`, never at
+/// end-of-string.
 fn substitute_before_each_character(
     subspec: &[u8],
     str_bytes: &[u8],
@@ -2180,6 +2215,73 @@ mod tests {
         assert_eq!(
             regsub_at(v, &[b"", b"abc", b"X"]).unwrap(),
             ("Xabc".to_owned(), 1)
+        );
+    }
+
+    #[test]
+    fn regsub_all_literal_empty_pattern_walks_the_releases_characters() {
+        // Regression (#2170): a supplementary subject declined the fast path
+        // and the general loop answered one replacement per scalar plus one
+        // at end-of-string (2 for U+1D11E on every release). Measured with
+        // `regsub -all {} $s X out`, `$s` built as
+        // `[encoding convertfrom utf-8 "\xf0\x9d\x84\x9e"]`, `out` read back
+        // with `scan … %c` over `split $out {}`, under LANG=C.UTF-8 and
+        // unset alike:
+        //
+        //   subject   8.4.20, 8.5.19                  8.6.18                    9.0.4, 9.1.0
+        //   G         4: X 240 X 157 X 132 X 158      2: X 55348 X 56606        1: X 119070
+        //   aGb       6: X a X 240 … X 158 X b        4: X a X 55348 X 56606 X b 3: X a X G X b
+        //
+        // With an empty replacement 8.4/8.5 still answer the four characters
+        // 240 157 132 158. 8.6's second replacement sits between the
+        // surrogate halves, which a Rust string cannot hold apart, so both go
+        // before the pair; the count and the length are tclsh's.
+        let g = "\u{1D11E}".as_bytes();
+        let a_g_b = "a\u{1D11E}b".as_bytes();
+        let latin1 = "\u{F0}\u{9D}\u{84}\u{9E}";
+        for v in [TclVersion::V8_4, TclVersion::V8_5] {
+            assert_eq!(
+                regsub_at(v, &[b"-all", b"", g, b"X"]).unwrap(),
+                ("X\u{F0}X\u{9D}X\u{84}X\u{9E}".to_owned(), 4),
+                "{v:?}"
+            );
+            assert_eq!(
+                regsub_at(v, &[b"-all", b"", a_g_b, b"X"]).unwrap(),
+                ("XaX\u{F0}X\u{9D}X\u{84}X\u{9E}Xb".to_owned(), 6),
+                "{v:?}"
+            );
+            assert_eq!(
+                regsub_at(v, &[b"-all", b"", g, b""]).unwrap(),
+                (latin1.to_owned(), 4),
+                "{v:?}"
+            );
+        }
+        assert_eq!(
+            regsub_at(TclVersion::V8_6, &[b"-all", b"", g, b"X"]).unwrap(),
+            ("XX\u{1D11E}".to_owned(), 2)
+        );
+        assert_eq!(
+            regsub_at(TclVersion::V8_6, &[b"-all", b"", a_g_b, b"X"]).unwrap(),
+            ("XaXX\u{1D11E}Xb".to_owned(), 4)
+        );
+        for v in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                regsub_at(v, &[b"-all", b"", g, b"X"]).unwrap(),
+                ("X\u{1D11E}".to_owned(), 1),
+                "{v:?}"
+            );
+            assert_eq!(
+                regsub_at(v, &[b"-all", b"", a_g_b, b"X"]).unwrap(),
+                ("XaX\u{1D11E}Xb".to_owned(), 3),
+                "{v:?}"
+            );
+        }
+        // `-start 0` resolves to 0 and takes the same path (8.4.20: 4).
+        assert_eq!(
+            regsub_at(TclVersion::V8_4, &[b"-all", b"-start", b"0", b"", g, b"<>"])
+                .unwrap()
+                .1,
+            4
         );
     }
 }

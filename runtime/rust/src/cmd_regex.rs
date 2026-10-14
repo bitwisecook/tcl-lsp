@@ -530,4 +530,30 @@ mod tests {
             }
         }
     }
+
+    /// `regsub -all {}` substitutes before each of the pinned release's
+    /// characters (#2170). Measured with `regsub -all {} $s X out` over
+    /// U+1D11E, `out` read back with `scan … %c`: tclsh 8.4.20 / 8.5.19
+    /// count 4 (X 240 X 157 X 132 X 158), 8.6.18 2 (X 55348 X 56606) and
+    /// 9.0.4 / 9.1.0 1 (X 119070). 8.6's surrogate halves cannot be held
+    /// apart, so both replacements go before the pair.
+    #[test]
+    fn regsub_literal_empty_pattern_walks_the_releases_characters() {
+        use tcl_dialect::TclVersion;
+        let script = "set r [regsub -all {} \"\u{1D11E}\" X out]\n\
+                      foreach c [split $out {}] {lappend r [scan $c %c]}\n\
+                      set r";
+        for (version, want) in [
+            (TclVersion::V8_4, "4 88 240 88 157 88 132 88 158"),
+            (TclVersion::V8_5, "4 88 240 88 157 88 132 88 158"),
+            (TclVersion::V8_6, "2 88 88 119070"),
+            (TclVersion::V9_0, "1 88 119070"),
+            (TclVersion::V9_1, "1 88 119070"),
+        ] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(ok(i, script.as_bytes()), want.as_bytes(), "{version:?}");
+            });
+        }
+    }
 }
