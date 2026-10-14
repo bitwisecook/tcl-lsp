@@ -1913,6 +1913,20 @@ pub(crate) fn method_references_for_declaration(
     calls.extend(crate::receiver_identity::definition_method_reference_spans(
         analysis, source, class, method, receiver,
     ));
+    calls.extend(
+        tcl_compiler::analyser::types::original_source_linked_member_reference_spans(
+            analysis,
+            source,
+            class,
+            method,
+            if is_classmethod {
+                tcl_compiler::analyser::MemberSide::ClassObject
+            } else {
+                tcl_compiler::analyser::MemberSide::Instance
+            },
+        )
+        .unwrap_or_default(),
+    );
     (method.name_span, calls)
 }
 

@@ -1,0 +1,27 @@
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -34,6 +34,7 @@
+ <!-- owner-resolution-manifest -->
+ | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
+ | --- | --- | --- | --- | --- |
++| Contextual catalogue case advice | `rust/tcl-registry/src/model/context.rs`; `rust/tcl-lsp-server/src/lib.rs` | `ResolvedContext::resolve_spec_case_advice` | literal catalogue query and actual command store under the selected full availability context; exact admitted lookup wins, unique case-folded admitted descriptor supplies advice, and distinct descriptor ambiguity declines; spaces and empty names remain data in the shared query; descriptor metadata is returned directly without reconstructing identity from its display label; UI advice supplies no Native binding, dispatch, presence, runtime case policy or edit grant | `xtask-owner-resolution` |
+ | Authored F5 configuration object paths | `rust/tcl-bigip/src/object_names.rs` | `ObjectNamePolicy`; `ObjectNameCandidates`; `object_name_candidates`; `ObjectNameCandidates::first_in_order`; `ObjectNameCandidates::first_exact_in_order_or_unique`; `ObjectNameCandidates::unique`; `owner_partition_reference_paths`; `reference_without_numeric_service`; `EmptyServiceSuffix` | literal authored slash-domain paths; caller-filtered actual configuration/module/type and input order; explicit exact, partition/Common, suffix and leaf policies; ordered selections retain duplicate exact rows without unique identity, unique fallback declines ambiguity; service suffix grammar remains purpose-specific; independent of Tcl namespace paths, C/Jim lookup and unmeasured BIG-IP execution | `xtask-owner-resolution` |
+ | incomplete variable completion source geometry | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-lsp-core/src/completion.rs` | `array_variable_completion_prefix` | editor fragment already excludes the substitution opener; preserves name/index source prefixes without stripping arbitrary braces; supplies no evaluated variable name, complete reference, cell or read proof | `xtask-owner-resolution` |
+ | Logical variable source-scope eligibility | `rust/tcl-compiler/src/analyser/scope.rs`; `rust/tcl-compiler/src/analyser/types.rs`; `rust/tcl-compiler/src/analyser/handlers.rs`; `rust/tcl-lsp-core/src/definition.rs`; `rust/tcl-lsp-core/src/completion.rs`; `rust/tcl-lsp-core/src/rename.rs` | `LogicalVariableScopeAdvice`; `AnalysisResult::logical_variable_scope_advice`; `LogicalVariableScopeAdvice::eligible_scopes`; `LogicalVariableScopeAdvice::root_names_require_qualification` | independently retained Logical input, exact whole image/channel/configuration and checked cursor; shared smallest-body descent and Registry frame-level grammar; distinct namespace/local/root/current/unknown-caller source tables; missing namespace coordinates retain only their own body tables without guessed qualification or bare root fallback; interpreter source bodies and foreign domain owners decline document-root borrowing; consumers retain table/cell selection and independent edit checks; Native/hosted bodies and original readonly aliases cannot issue this source-only selector | `xtask-owner-resolution` |
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -534,3 +534,14 @@
+ Class declaration navigation in Native source delegates OriginalDeclaration selection and its current Class metadata. A missing or withdrawn original selection does not fall back to the Logical class-name inventory. Logical navigation uses its separately admitted source inventory.
+ 
+ Procedure IR retains optional SignatureSourceCommand publication from the original written operand and caller naming scope. Publication geometry does not borrow physical compiler permission and issues no Native body or dispatch admission. Installed and synthetic bodies retain their independent producers.
++
++## Catalogue case advice
++
++`ResolvedContext::resolve_spec_case_advice` selects metadata under the caller's
++actual availability context and command store. An exact admitted descriptor
++wins. Otherwise, case-folded catalogue spellings select only one admitted
++descriptor; distinct matching descriptors decline instead of depending on map
++iteration. Empty names and whitespace remain literal query data. Consumers
++return the selected descriptor's metadata directly. Any UI input cleanup is
++separate from this shared query. Catalogue advice supplies no source/runtime
++binding, Native case policy, command presence, dispatch or edit authority.

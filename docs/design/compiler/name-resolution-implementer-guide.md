@@ -7230,6 +7230,17 @@ procedure name cannot supply the join. `event_body_for_procedure` requires the
 retained `SourceIrulesEventBody` descriptor and exact procedure/body context;
 a `when`-shaped internal label supplies no event identity or TMM entry.
 
+W214 dispatch-protocol suppression uses the same current declaration-to-body
+join. Every issued body retains its publication policy and independently
+selected body-scope geometry. Distinct original publication slots establish
+peer count; repeated definitions of one slot remain separate bodies but do not
+become additional peers. Dispatcher evidence requires an actual unexpanded
+variable-head word and complete argv receipt in its retained source scope.
+Unknown or conflicting scopes cannot suppress a diagnostic. Namespace ancestry
+uses `SignatureNamespaceScope::is_strict_ancestor_of` with the retained policy;
+rendered procedure labels supply no scope or dispatcher identity. This grouping
+supplies no Native call, entered frame, completed argument or edit permission.
+
 `tcl_diagram::diagram_data_for_analysis` checks those owners against the actual
 supplied `ContextRegistry`. `diagram_data_for_dialect` retains that supplied
 Registry through `snapshot().shared_registry()` before creating analysis; it

@@ -534,3 +534,14 @@ actual caller objects, lookup purposes, cells and currency remain separate.
 Class declaration navigation in Native source delegates OriginalDeclaration selection and its current Class metadata. A missing or withdrawn original selection does not fall back to the Logical class-name inventory. Logical navigation uses its separately admitted source inventory.
 
 Procedure IR retains optional SignatureSourceCommand publication from the original written operand and caller naming scope. Publication geometry does not borrow physical compiler permission and issues no Native body or dispatch admission. Installed and synthetic bodies retain their independent producers.
+
+## Catalogue case advice
+
+`ResolvedContext::resolve_spec_case_advice` selects metadata under the caller's
+actual availability context and command store. An exact admitted descriptor
+wins. Otherwise, case-folded catalogue spellings select only one admitted
+descriptor; distinct matching descriptors decline instead of depending on map
+iteration. Empty names and whitespace remain literal query data. Consumers
+return the selected descriptor's metadata directly. Any UI input cleanup is
+separate from this shared query. Catalogue advice supplies no source/runtime
+binding, Native case policy, command presence, dispatch or edit authority.

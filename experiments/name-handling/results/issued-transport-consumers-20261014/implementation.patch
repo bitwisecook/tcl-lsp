@@ -1,0 +1,121 @@
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -11586,7 +11586,9 @@
+         let absolute = tcl_registry::mathfunc::qualified_name(function);
+         let mut effective = vec![
+             crate::registry_invocation::EffectiveInvocationWord::Literal(
+-                absolute.trim_start_matches("::").to_owned(),
++                tcl_syntax::naming::unroot_rooted_key(&absolute)
++                    .unwrap_or(&absolute)
++                    .to_owned(),
+             ),
+         ];
+         effective.extend(std::iter::repeat_n(
+@@ -11616,11 +11618,16 @@
+                 .is_none()
+                 .then(|| SourceNamespaceKey::authored(context.namespace))
+         });
+-        let mut binding = namespace_key
+-            .as_ref()
+-            .map_or_else(SourceInvocationBinding::default, |namespace| {
+-                source_binding(state, absolute.trim_start_matches("::"), namespace)
+-            });
++        let mut binding =
++            namespace_key
++                .as_ref()
++                .map_or_else(SourceInvocationBinding::default, |namespace| {
++                    source_binding(
++                        state,
++                        tcl_syntax::naming::unroot_rooted_key(&absolute).unwrap_or(&absolute),
++                        namespace,
++                    )
++                });
+         binding.entered_execution_observer = if scope.was_observed {
+             SourceObserverExecution::MayObserved
+         } else {
+@@ -17708,7 +17715,7 @@
+     } else {
+         Some(tcl_syntax::naming::qualify(
+             parent,
+-            canonical.strip_prefix("::").unwrap_or(&canonical),
++            tcl_syntax::naming::unroot_rooted_key(&canonical).unwrap_or(&canonical),
+         ))
+     }
+ }
+@@ -19459,9 +19466,9 @@
+     /// natively (C Tcl then raises `invalid command name`).
+     #[must_use]
+     pub fn rebinds_under(&self, prefix: &str) -> bool {
+-        let bare = prefix.strip_prefix("::").unwrap_or(prefix);
++        let bare = tcl_syntax::naming::unroot_rooted_key(prefix).unwrap_or(prefix);
+         self.rebound.iter().any(|name| {
+-            let canonical = name.strip_prefix("::").unwrap_or(name);
++            let canonical = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
+             canonical.starts_with(bare)
+         })
+     }
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -4437,10 +4437,7 @@
+                 &binding.lookup_namespace,
+                 static_command_word(tokens, escapes, word_rules)
+                     .ok_or(Decline::MissingStaticHead)?,
+-                selected
+-                    .target
+-                    .command
+-                    .strip_prefix("::")
++                tcl_syntax::naming::unroot_rooted_key(&selected.target.command)
+                     .unwrap_or(&selected.target.command),
+             )
+             .with_namespace_context(compiled_namespace_context(tokens))
+@@ -4543,10 +4540,7 @@
+         tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
+             &dependency.namespace,
+             &dependency.head,
+-            dependency
+-                .target
+-                .command
+-                .strip_prefix("::")
++            tcl_syntax::naming::unroot_rooted_key(&dependency.target.command)
+                 .unwrap_or(&dependency.target.command),
+         )
+         .with_namespace_context(dependency.namespace_key.to_compiled_context())
+--- a/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
++++ b/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
+@@ -216,11 +216,8 @@
+             let target = source.proved_handler_target()?;
+             Some(crate::ir::CommandBindingSite {
+                 span: statement.span(),
+-                binding: tcl_runtime_api::CommandBindingIdentity::in_namespace(
+-                    source
+-                        .lookup_namespace
+-                        .strip_prefix("::")
+-                        .unwrap_or(&source.lookup_namespace),
++                binding: tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
++                    &source.lookup_namespace,
+                     tokens.argv_texts.first()?.clone(),
+                     target.command.clone(),
+                 ),
+--- a/rust/tcl-compiler/src/native_lowering/lower.rs
++++ b/rust/tcl-compiler/src/native_lowering/lower.rs
+@@ -1454,7 +1454,7 @@
+                 == NativeLowering::Structured(LoweringHookId::Expr)
+             && inner.len() == 2
+             && let WordExpr::BracedLiteral { text, .. } = &inner[1]
+-            && self.command_trusted(&facts.canonical_command)
++            && self.command_trusted(facts.descriptor_key())
+         {
+             let expr = tcl_syntax::expr::parser::parse_expr_for_profile(text, self.dialect);
+             let value = self.lower_expression_text(&expr, text);
+@@ -1474,8 +1474,9 @@
+ 
+     /// Whether the module keeps `name` bound to its registry builtin at every
+     /// point, so a nested command word may take the builtin's native shape.
+-    fn command_trusted(&self, name: &str) -> bool {
+-        let bare = name.strip_prefix("::").unwrap_or(name);
++    fn command_trusted(&self, descriptor: tcl_registry::CanonicalCommandDescriptorKey<'_>) -> bool {
++        let name = descriptor.label();
++        let bare = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
+         self.mutations.trusts(bare)
+             && !self.input.module.has_dynamic_trace
+             && !self.input.module.traced_commands.contains(bare)

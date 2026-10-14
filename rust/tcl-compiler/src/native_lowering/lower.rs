@@ -1454,7 +1454,7 @@ impl<'a> Lowerer<'a> {
                 == NativeLowering::Structured(LoweringHookId::Expr)
             && inner.len() == 2
             && let WordExpr::BracedLiteral { text, .. } = &inner[1]
-            && self.command_trusted(&facts.canonical_command)
+            && self.command_trusted(facts.descriptor_key())
         {
             let expr = tcl_syntax::expr::parser::parse_expr_for_profile(text, self.dialect);
             let value = self.lower_expression_text(&expr, text);
@@ -1474,8 +1474,9 @@ impl<'a> Lowerer<'a> {
 
     /// Whether the module keeps `name` bound to its registry builtin at every
     /// point, so a nested command word may take the builtin's native shape.
-    fn command_trusted(&self, name: &str) -> bool {
-        let bare = name.strip_prefix("::").unwrap_or(name);
+    fn command_trusted(&self, descriptor: tcl_registry::CanonicalCommandDescriptorKey<'_>) -> bool {
+        let name = descriptor.label();
+        let bare = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
         self.mutations.trusts(bare)
             && !self.input.module.has_dynamic_trace
             && !self.input.module.traced_commands.contains(bare)

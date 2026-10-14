@@ -407,9 +407,26 @@ mod tests {
         )
     }
 
+    fn formal_source_input() -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        assert!(input.has_logical_source_name_context());
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .authored_name_policy()
+                .is_some()
+        );
+        input
+    }
+
     #[test]
     fn logical_formal_source_geometry_survives_same_labels_and_missing_reports() {
-        let input = input();
+        let input = formal_source_input();
         let context = input.context_registry();
         let registry = context.commands();
         let source = r#"proc p {first {"as" ""} {third value}} {return FIRST}
@@ -467,7 +484,7 @@ proc p "other {last default}" {return SECOND}"#;
 
     #[test]
     fn escaped_logical_formal_parent_keeps_names_without_fabricating_spans() {
-        let input = input();
+        let input = formal_source_input();
         let context = input.context_registry();
         let registry = context.commands();
         let source = r#"proc p "first\x20second" {return VALUE}"#;

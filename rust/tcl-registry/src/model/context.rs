@@ -844,6 +844,28 @@ impl ResolvedContext {
         )
     }
 
+    /// Exact catalogue lookup first, then case-insensitive advice for one
+    /// admitted descriptor. Ambiguity refuses; this grants no runtime binding.
+    #[must_use]
+    pub fn resolve_spec_case_advice(
+        &self,
+        registry: &CommandRegistry,
+        name: &str,
+    ) -> Option<&'static CommandSpec> {
+        if let Some(spec) = self.resolve_spec(registry, name) {
+            return Some(spec);
+        }
+        let folded = name.to_lowercase();
+        let mut matches = registry
+            .command_names()
+            .filter(|candidate| candidate.to_lowercase() == folded)
+            .filter_map(|candidate| self.resolve_spec(registry, candidate));
+        let selected = matches.next()?;
+        matches
+            .all(|candidate| std::ptr::eq(candidate, selected))
+            .then_some(selected)
+    }
+
     /// Resolve command availability in an explicitly selected execution phase.
     /// This never establishes native command/compiler implementation identity.
     #[must_use]
@@ -1798,6 +1820,56 @@ mod tests {
             ..CommandSpec::DEFAULT
         })
         .into_vec()
+    }
+
+    #[test]
+    fn catalogue_case_advice_keeps_exact_names_availability_and_ambiguity() {
+        let mut registry = CommandRegistry::build_default();
+        for (name, surface) in [
+            ("CaseItem", None),
+            ("CASEITEM", Some(SpecSurface::TCL90_PLUS)),
+            ("caseitem ", None),
+            ("", None),
+        ] {
+            registry.insert(CommandSpec {
+                name,
+                surface,
+                ..CommandSpec::DEFAULT
+            });
+        }
+        let older = context("tcl8.6");
+        let newer = context("tcl9.0");
+        assert_eq!(
+            older
+                .resolve_spec_case_advice(&registry, "caseitem")
+                .unwrap()
+                .name,
+            "CaseItem"
+        );
+        assert!(
+            newer
+                .resolve_spec_case_advice(&registry, "caseitem")
+                .is_none()
+        );
+        for name in ["CaseItem", "CASEITEM", "caseitem ", ""] {
+            assert_eq!(
+                newer
+                    .resolve_spec_case_advice(&registry, name)
+                    .unwrap()
+                    .name,
+                name
+            );
+        }
+        assert!(
+            older
+                .resolve_spec_case_advice(&registry, " caseitem")
+                .is_none()
+        );
+        assert!(
+            older
+                .resolve_spec_case_advice(&registry, "missing")
+                .is_none()
+        );
     }
 
     #[test]

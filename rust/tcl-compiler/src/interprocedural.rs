@@ -2284,26 +2284,13 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         identities,
         ..
     } = ctx;
-    // The head's *effective command identity*.  Every registry
-    // query below reads it, so a call through a proven `interp alias` /
-    // `rename` gets the target's traits, prefixes, and effect profile, and a
-    // spelling whose binding was provably taken over gets none of them.  The
-    // The written head retains a `$receiver` variable for instance dispatch;
-    // procedure targets require their original source receipts.
+    // Effective metadata keeps its selected descriptor spelling; procedure
+    // targets independently require their original source receipts.
     let resolved: &str = identities.resolve_unpositioned(command).spec_name();
-    // Resolve internal-proc call targets first.  A command the registry marks
-    // `INVOKES_USER_PROC` (the iRules `call PROC ?args?` form) invokes the
-    // procedure its *first argument* names, so the edge goes there, not to the
-    // invoker.  Registry-driven rather than a `command == "call"` name match:
-    // the old spelling both misfired on a user proc of that name under a
-    // dialect where `call` is not the invoker, and would have missed any other
-    // dialect's equivalent.
-    let invokes_named_proc = registry
-        .get(resolved.strip_prefix("::").unwrap_or(resolved))
-        .is_some_and(|spec| {
-            spec.traits
-                .contains(tcl_registry::Traits::INVOKES_USER_PROC)
-        });
+    let invokes_named_proc = registry.get(resolved).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::INVOKES_USER_PROC)
+    });
     let internal_target =
         if invokes_named_proc && let Some(name) = args.first().filter(|n| is_plain_proc_name(n)) {
             possible_body_id(name, ctx)

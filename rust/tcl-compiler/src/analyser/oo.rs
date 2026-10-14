@@ -1152,11 +1152,7 @@ impl Analyser {
             scope_path,
             definer_disabled,
         );
-        // A bareword-callable-from-this-class fact, gathered before the
-        // per-method body walk below starts (so it's already populated by the
-        // time member-lookup
-        // consumers — go-to-definition / hover — read `class_def`, and
-        // regardless of *which* method body called `link`).
+        // The display inventory is separate from original source link authority.
         self.collect_oo_links(&method_bodies, class_def);
 
         // Walk each method / accessor / class-init body in its own
@@ -1521,27 +1517,8 @@ impl Analyser {
         )
     }
 
-    /// Scan every collected method/constructor/destructor body's own
-    /// top-level statements for a `link`-headed call (`oo::Helpers::link`,
-    /// a genuine core `TclOO` builtin since 8.6 — `TclOOLinkObjCmd`, on
-    /// every method body's namespace path via `::oo::Helpers`), recording each
-    /// alias into [`ClassDef::linked_members`].
-    ///
-    /// `link NAME` installs a per-object-namespace command `NAME` that
-    /// dispatches to `my NAME`; `link {NAME TARGET}` dispatches to `my
-    /// TARGET` instead. Each argument word of one `link` call is an
-    /// independent alias (`link foo bar` installs both `foo` and `bar`),
-    /// and a name/target built from a variable or command substitution is
-    /// skipped (mirrors [`crate::alias::detect_interp_alias`]'s
-    /// literal-only requirement — no lattice lookup here, this runs
-    /// before the per-method scope walk even exists).
-    ///
-    /// Deliberately shallow: only a `link` call written directly at a
-    /// body's own top level is recognised, not one nested inside an
-    /// `if`/`catch`/… body argument — the same scope boundary
-    /// `scan_my_method_region`/`scan_obj_method_region` (`references.rs`)
-    /// already accept for this class of "scan a method body for one
-    /// specific call shape" problem.
+    /// Collect display-only alias/target pairs from the selected catalogue.
+    /// Positive source consumers authenticate original invocation receipts.
     fn collect_oo_links(&self, method_bodies: &[CollectedMethodBody], class_def: &mut ClassDef) {
         for mb in method_bodies {
             if mb.body_tok.kind != TokenType::Str {
@@ -1554,15 +1531,6 @@ impl Analyser {
                 self.file_lexer_config().nested(),
             );
             for cmd in &cmds {
-                // `link` is deliberately *not* a method-dispatch keyword:
-                // it *creates* per-object bareword commands
-                // rather than dispatching one, so the barewords it installs
-                // are per-class data, not language keywords. That creation
-                // is itself a declared behavioural fact —
-                // `Traits::TCLOO_BINDS_METHOD_ALIAS` — so the head is
-                // recognised through the registry rather than by its
-                // spelling; a dialect without `link` (8.5, or
-                // 8.6 with no `ooutil`) therefore records no aliases here.
                 if cmd.is_partial
                     || !cmd.texts.first().is_some_and(|head| {
                         let generation = self.analysis_context();
@@ -1582,13 +1550,24 @@ impl Analyser {
                     }
                     match crate::tcl_expr_eval::split_tcl_list(word, self.word_rules()).as_slice() {
                         [name] if !name.is_empty() => {
-                            let key = name.trim_start_matches("::").to_string();
+                            let key = {
+                                let written = tcl_syntax::naming::canonical_written_command(name);
+                                tcl_syntax::naming::unroot_rooted_key(&written)
+                                    .unwrap_or(&written)
+                                    .to_owned()
+                            };
                             class_def.linked_members.entry(key.clone()).or_insert(key);
                         }
                         [name, target] if !name.is_empty() => {
                             class_def
                                 .linked_members
-                                .entry(name.trim_start_matches("::").to_string())
+                                .entry({
+                                    let written =
+                                        tcl_syntax::naming::canonical_written_command(name);
+                                    tcl_syntax::naming::unroot_rooted_key(&written)
+                                        .unwrap_or(&written)
+                                        .to_owned()
+                                })
                                 .or_insert_with(|| target.clone());
                         }
                         _ => {}

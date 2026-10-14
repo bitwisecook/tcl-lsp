@@ -1288,6 +1288,23 @@ pub fn method_target_with_access_in_workspace(
         }
         return None;
     }
+    // Only the retained single-field link form couples command and member edits.
+    if let Some(linked) =
+        tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor)
+    {
+        if linked.has_coupled_name()
+            && linked.editable_target_span(source).is_some()
+            && linked.alias_input().bytes() == word.as_bytes()
+            && linked.target_input().bytes() == word.as_bytes()
+        {
+            return Some((
+                linked.class_declaration().metadata().qualified_name.clone(),
+                linked.target().metadata().name.clone(),
+                linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject,
+                MethodAccess::Internal,
+            ));
+        }
+    }
     // Inside a class body on one of its method / classmethod names — the
     // declaration side, an internal context.
     if let Some(class_def) = crate::definition::enclosing_class_at(analysis, cursor)
@@ -1295,34 +1312,17 @@ pub fn method_target_with_access_in_workspace(
     {
         let method_decl = class_def.methods.get(&word);
         let classmethod_decl = class_def.class_methods.get(&word);
-        // A member-name-shaped word anywhere inside the class body is not by
-        // itself a reference to that member.  It only is when the cursor sits
-        // on the member's **own declaration name**, or on a bareword that
-        // `link` genuinely made bareword-callable and pointed back at this
-        // same member (`ClassDef::linked_members` — an un-linked bareword
-        // errors "invalid command name" in real Tcl, so it names nothing).
-        // This is the gate the in-document provider's
-        // `definition::lookup_class_member` already applies; without it here,
-        // any same-spelled word — a parameter, a literal, an un-linked
-        // sibling call — reads as the member and reaches the workspace
-        // resolver, which then answers non-deterministically.
         let on_declaration = |m: &tcl_compiler::analyser::MethodDef| {
             m.name_span.start() <= cursor && cursor < m.name_span.end()
         };
         let cursor_on_method_decl = method_decl.is_some_and(on_declaration);
         let cursor_on_classmethod_decl = classmethod_decl.is_some_and(on_declaration);
-        let linked_to_self = class_def
-            .linked_members
-            .get(&word)
-            .is_some_and(|target| *target == word);
         if (method_decl.is_some() || classmethod_decl.is_some())
-            && (cursor_on_method_decl || cursor_on_classmethod_decl || linked_to_self)
+            && (cursor_on_method_decl || cursor_on_classmethod_decl)
         {
             // A `method` and a `classmethod` of the same name are distinct
             // members; unambiguous when only one exists, otherwise prefer
-            // whichever one's declaration the cursor is actually on (a linked
-            // bareword that could be either falls back to the method — the
-            // pre-existing preference).
+            // whichever one's declaration the cursor is actually on.
             let is_classmethod =
                 classmethod_decl.is_some() && (method_decl.is_none() || cursor_on_classmethod_decl);
             return Some((

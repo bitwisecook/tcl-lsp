@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "before_sha256": "5f73d93cb718776c22e0a06a72c9f1051d3671a4c18fe32325df2fe7de84d0d2",
+      "after_sha256": "b1c99e6a3520595b5c7a1d2533d400e70a445d989c304b12cacd2f6e6c3c7486"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/logical_definition.rs",
+      "before_sha256": "2b621345afb5be1f8dbcdfab7c4c1eb5baffe16473535bb8bbe0cf05ff574e3d",
+      "after_sha256": "eed912d8e7f499125e615a72b92685ac29befe8c29d6540388e91f870be87877"
+    }
+  ],
+  "patch_sha256": "9716efb701e644f047326e3f2ca868fdcacb90af4b1287fb92ee8b307658b677",
+  "scope": "Only three new formal positive controls move from unmeasured Jim079 (authored_name_policy None) to genuine explicit unversioned Tcl source model; original sources and assertions unchanged; old unmeasured-Jim tests unchanged. No Native admission/grammar enabled.",
+  "validation": "fmt/apply check; tests unexecuted"
+}

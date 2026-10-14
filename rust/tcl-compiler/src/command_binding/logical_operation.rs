@@ -79,6 +79,24 @@ pub(super) fn transfer(
 }
 
 impl super::SourceInvocationBinding {
+    /// Quiet Logical store from its exact retained original source phase.
+    /// A public address-phase report cannot replace this snapshot. All scalar,
+    /// contents-provenance, input and observer checks remain in the store owner.
+    pub(crate) fn original_conditional_logical_scalar_store(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::variable_bindings::ConditionalLogicalScalarStore> {
+        let original = self.original_conditional_operand_layout_advice(tokens, registry)?;
+        self.conditional_logical_scalar_store(
+            tokens,
+            original.original_variable_context(),
+            metadata,
+            registry,
+        )
+    }
+
     /// Quiet scalar contents in the exact authored source continuation. This
     /// receipt does not prove a Native store, completed handler or Normal exit.
     pub(crate) fn conditional_logical_scalar_store(

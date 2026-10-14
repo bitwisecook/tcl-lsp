@@ -1,0 +1,55 @@
+diff --git a/rust/tcl-compiler/src/source_graph.rs b/rust/tcl-compiler/src/source_graph.rs
+--- a/rust/tcl-compiler/src/source_graph.rs
++++ b/rust/tcl-compiler/src/source_graph.rs
+@@ -126,6 +126,9 @@
+                 .then_some(())?;
+             let executed = procedure.body.executed_source.as_deref()?;
+             let namespace = procedure.body.namespace_context.as_deref()?;
++            if matches_original_logical_declaration(analysis, module, declaration, *id, procedure) {
++                return Some((*id, procedure));
++            }
+             let owner = module.procedure_implementation_bodies.iter().find(|body| {
+                 &body.allocation.site == declaration.declaration_site()
+                     && body.source == *executed
+@@ -146,6 +149,41 @@
+     bodies.next().is_none().then_some(first)
+ }
+ 
++fn matches_original_logical_declaration(
++    analysis: &AnalysisResult,
++    module: &Module,
++    declaration: &SourceDeclarationMetadata<ProcDef>,
++    id: ProcedureId,
++    procedure: &Procedure,
++) -> bool {
++    let Some(input) = analysis.resolved_input.as_ref() else { return false; };
++    if !input.has_logical_source_name_context()
++        || module.source_metadata_input.as_ref() != Some(input)
++        || procedure.body_kind != crate::ir::ProcedureBodyKind::Named
++        || !module.procedure_ids.owns(id)
++        || !module.procedures.get(&id).is_some_and(|current| std::ptr::eq(current, procedure))
++    { return false; }
++    let Some(realm) = analysis.retained_command_realm() else { return false; };
++    let binding = realm.invocation_at_source("", declaration.declaration_site().offset);
++    let Some((_, tokens)) = binding.original_recorded_command() else { return false; };
++    if tokens.source_binding.as_ref().and_then(|binding| binding.invocation_site()) != Some(declaration.declaration_site()) {
++        return false;
++    }
++    let Some(registry) = analysis.resolved_registry() else { return false; };
++    let Some(recipe) = realm.source_bindings_ref().original_logical_procedure_declaration(&tokens, registry, input) else { return false; };
++    procedure.body.executed_source.as_deref() == Some(recipe.source())
++        && procedure.body.namespace_context.as_deref() == Some(recipe.namespace())
++        && procedure.body_offset == recipe.source().base()
++        && procedure.body_source.as_deref() == recipe.source().try_text().ok()
++        && Some(procedure.params_raw.as_str()) == recipe.parameters_text()
++        && procedure.params.iter().map(String::as_str).eq(recipe.parameters().iter().map(|formal| formal.name.as_str()))
++        && declaration.metadata().params.len() == recipe.parameters().len()
++        && declaration.metadata().params.iter().zip(recipe.parameters()).all(|(stored, original)| {
++            stored.name == original.name && stored.has_default == original.default.is_some()
++                && stored.default_value.as_deref() == original.default.as_deref()
++        })
++}
++
+ /// Select a unanimous source call body from the actual Module's original words.
+ /// The issued ID supplies readonly reachability, without Native dispatch,
+ /// argument evaluation, frame, completion or erasure permission.

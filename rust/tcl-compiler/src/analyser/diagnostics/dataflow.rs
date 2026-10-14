@@ -74,6 +74,64 @@ use tcl_registry::value_transfer::{DomainFact, Existence, FactView};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct OriginalDispatchProtocol {
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    params: Vec<String>,
+}
+
+struct OriginalDispatchPeer {
+    protocol: OriginalDispatchProtocol,
+    body_span: tcl_lexer::Span,
+    publication: crate::signature_scan::scope::SignatureSourceCommand,
+}
+
+fn original_dispatch_site(
+    module: &crate::ir::Module,
+    site: &super::super::state::VarCommandSite,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    let mut retained = false;
+    for (script, _) in module.executable_script_roots() {
+        crate::ir::for_each_statement(script, &mut |statement| {
+            let Some(tokens) = statement.tokens() else {
+                return;
+            };
+            let Some(head) = tokens.words().first() else {
+                return;
+            };
+            if head.source().span != site.cmd_span
+                || head.source().provenance != crate::ir::Provenance::Source
+                || tokens.words().len() != site.argc + 1
+                || !head
+                    .sole_variable_substitution()
+                    .is_some_and(|(spelling, _)| {
+                        tcl_lexer::word_parts::whole_var_ref(
+                            spelling.as_bytes(),
+                            module.lexer_config,
+                        )
+                        .ok()
+                        .flatten()
+                        .is_some_and(|reference| {
+                            reference.index.is_none() && reference.name == site.var_name.as_bytes()
+                        })
+                    })
+                || tokens.synthetic.is_some()
+                || !tokens.original_words_match_argv_text()
+            {
+                return;
+            }
+            retained |= tokens.source_binding.as_ref().is_some_and(|binding| {
+                binding
+                    .original_argument_metadata_for_module(tokens, module, registry)
+                    .is_some()
+            });
+        });
+    }
+    retained
+}
+
 use super::helpers::{
     PhiUndefMemo, UndefSuppression, block_dominated_by, build_phi_undef_index,
     collect_existence_guards, find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef,
@@ -1385,27 +1443,21 @@ is renamed or deleted in this file."
         if unused.is_empty() {
             return;
         }
-        // Dispatch-protocol suppression: when ≥3 peer procs in this
-        // namespace share this proc's leading-param signature AND an
-        // arity-compatible variable-command dispatcher exists, the leading
-        // params are an external contract, not genuinely unused.  Computed
-        // only when there is something to report.
-        let ns = namespace_of(&ir_proc.qualified_name);
-        let leading: Vec<String> = ir_proc
-            .params
-            .iter()
-            .take_while(|p| *p != "args")
-            .cloned()
-            .collect();
-        let protocol_params: HashSet<String> = if !leading.is_empty()
-            && self
-                .dispatch_protocol_signatures()
-                .contains(&(ns, leading.clone()))
-        {
-            leading.into_iter().collect()
-        } else {
-            HashSet::new()
-        };
+        let protocol_params = module
+            .and_then(|module| {
+                let id = fu.body_id?;
+                if !module.procedure_ids.owns(id)
+                    || !std::ptr::eq(module.procedures.get(&id)?, ir_proc)
+                {
+                    return None;
+                }
+                let peers = self.original_dispatch_peers(module);
+                let peer = peers.get(&id)?;
+                self.dispatch_protocol_signatures(module, &peers)
+                    .contains(&peer.protocol)
+                    .then(|| peer.protocol.params.iter().cloned().collect::<HashSet<_>>())
+            })
+            .unwrap_or_default();
         for (idx, param) in unused {
             if protocol_params.contains(&param) {
                 continue;
@@ -1428,56 +1480,122 @@ is renamed or deleted in this file."
         }
     }
 
-    /// Identify `(namespace, leading-param-list)` pairs that look like a
-    /// **dispatch protocol** — ≥3 peer procs in the same namespace sharing a
-    /// leading-param signature dictated by an arity-compatible
-    /// variable-command dispatcher.
-    fn dispatch_protocol_signatures(&self) -> HashSet<(String, Vec<String>)> {
-        // Group user procs by (namespace, leading-param-tuple stopping at `args`).
-        let mut groups: FxHashMap<(String, Vec<String>), usize> = FxHashMap::default();
-        for (qname, pdef) in &self.result.all_procs {
-            let leading: Vec<String> = pdef
-                .params
-                .iter()
-                .take_while(|p| p.name != "args")
-                .map(|p| p.name.clone())
-                .collect();
-            if leading.is_empty() {
+    fn original_dispatch_peers(
+        &self,
+        module: &crate::ir::Module,
+    ) -> FxHashMap<crate::ir::ProcedureId, OriginalDispatchPeer> {
+        let mut peers = FxHashMap::default();
+        if crate::source_graph::current_analysis(&self.source, &self.result).is_none() {
+            return peers;
+        }
+        for declaration in self.result.original_procedure_declarations() {
+            let Some((id, body)) = crate::source_graph::procedure_body_for_declaration(
+                &self.source,
+                &self.result,
+                module,
+                declaration,
+            ) else {
+                continue;
+            };
+            if body.publication.as_ref() != Some(declaration.name()) {
                 continue;
             }
-            *groups.entry((namespace_of(qname), leading)).or_insert(0) += 1;
-        }
-        let peer_protos: HashSet<(String, Vec<String>)> = groups
-            .into_iter()
-            .filter(|(_, n)| *n >= 3)
-            .map(|(k, _)| k)
-            .collect();
-        if peer_protos.is_empty() {
-            return HashSet::new();
-        }
-        // Dispatcher evidence: map each dispatcher namespace → the argument
-        // counts observed at its variable-command sites.
-        let mut dispatcher_ns_argc: FxHashMap<String, FxHashSet<usize>> = FxHashMap::default();
-        for site in &self.var_command_sites {
-            let off = site.cmd_span.start();
-            let dns = self
-                .result
-                .all_procs
+            let Some(namespace) = declaration.name().body_scope() else {
+                continue;
+            };
+            let params = body
+                .params
                 .iter()
-                .find(|(_, p)| p.body_span.start() <= off && off <= p.body_span.end())
-                .map_or_else(|| "::".to_string(), |(q, _)| namespace_of(q));
-            dispatcher_ns_argc.entry(dns).or_default().insert(site.argc);
+                .take_while(|name| *name != "args")
+                .cloned()
+                .collect::<Vec<_>>();
+            if params.is_empty() {
+                continue;
+            }
+            peers.insert(
+                id,
+                OriginalDispatchPeer {
+                    protocol: OriginalDispatchProtocol {
+                        policy: declaration.name().policy(),
+                        namespace,
+                        params,
+                    },
+                    body_span: declaration.metadata().body_span,
+                    publication: declaration.name().clone(),
+                },
+            );
         }
-        peer_protos
+        peers
+    }
+
+    /// Suppress protocol parameters only for distinct original publications
+    /// with an authentic, arity-compatible dispatcher in the same source scope.
+    fn dispatch_protocol_signatures(
+        &self,
+        module: &crate::ir::Module,
+        peers: &FxHashMap<crate::ir::ProcedureId, OriginalDispatchPeer>,
+    ) -> HashSet<OriginalDispatchProtocol> {
+        let Some(registry) = self.result.resolved_registry() else {
+            return HashSet::new();
+        };
+        let mut groups: FxHashMap<OriginalDispatchProtocol, HashSet<_>> = FxHashMap::default();
+        for peer in peers.values() {
+            groups
+                .entry(peer.protocol.clone())
+                .or_default()
+                .insert(&peer.publication);
+        }
+        groups
             .into_iter()
-            .filter(|(ns_key, params)| {
-                let min_argc = params.len();
-                dispatcher_ns_argc.iter().any(|(dns, argcs)| {
-                    (dns == ns_key || dns.starts_with(&format!("{ns_key}::")))
-                        && argcs.iter().any(|&a| a >= min_argc)
+            .filter(|(_, publications)| publications.len() >= 3)
+            .map(|(protocol, _)| protocol)
+            .filter(|protocol| {
+                self.var_command_sites.iter().any(|site| {
+                    if site.in_method
+                        || site.has_expand
+                        || site.argc < protocol.params.len()
+                        || !original_dispatch_site(module, site, registry)
+                    {
+                        return false;
+                    }
+                    let Some(namespace) = self.original_dispatch_namespace(site, peers) else {
+                        return false;
+                    };
+                    namespace == &protocol.namespace
+                        || protocol
+                            .namespace
+                            .is_strict_ancestor_of(namespace, protocol.policy)
+                            == Some(true)
                 })
             })
             .collect()
+    }
+
+    fn original_dispatch_namespace<'a>(
+        &'a self,
+        site: &super::super::state::VarCommandSite,
+        peers: &'a FxHashMap<crate::ir::ProcedureId, OriginalDispatchPeer>,
+    ) -> Option<&'a crate::signature_scan::scope::SignatureNamespaceScope> {
+        let mut containing = peers
+            .values()
+            .filter(|peer| {
+                peer.body_span.start() <= site.cmd_span.start()
+                    && site.cmd_span.end() <= peer.body_span.end()
+            })
+            .collect::<Vec<_>>();
+        containing.sort_by_key(|peer| peer.body_span.as_range().len());
+        if let Some(first) = containing.first() {
+            if containing
+                .iter()
+                .skip(1)
+                .any(|other| other.body_span == first.body_span && other.protocol != first.protocol)
+            {
+                return None;
+            }
+            return Some(&first.protocol.namespace);
+        }
+        self.result
+            .original_namespace_scope_at(site.cmd_span.start())
     }
 
     /// W210 + W213 — read-before-set / unset on possibly-undefined.
@@ -4481,8 +4599,7 @@ fn use_site_safe_initialises(
         .any(|place| crate::var_resolve::canonical_place_key(place).as_ref() == Some(cell))
 }
 
-/// Literal reporting prefix for W214's analytical dispatch grouping.
-/// This presentation does not identify an execution namespace or dispatcher.
+#[cfg(test)]
 fn namespace_of(qualified_name: &str) -> String {
     tcl_syntax::naming::reported_qname_namespace(
         qualified_name,
@@ -5849,18 +5966,17 @@ mod constructed_projection_tests {
 mod original_formal_diagnostic_source_tests {
     #[test]
     fn w214_uses_original_tight_name_spans_and_quoted_markers() {
-        let profile = tcl_dialect::DialectProfile::projected_from_point(
-            "w214-logical-formal-source",
-            &[],
-            "Logical formal source",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
-        )
-        .intern();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
-            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .authored_name_policy()
+                .is_some()
         );
         assert!(input.has_logical_source_name_context());
         let source = r#"proc p {"as" value extra} {return 1}"#;

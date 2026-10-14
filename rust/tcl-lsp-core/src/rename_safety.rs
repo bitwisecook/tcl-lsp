@@ -203,6 +203,40 @@ pub fn method_rename_hazard(
             None,
         ));
     }
+    for class in target
+        .family
+        .iter()
+        .filter_map(|name| analysis.all_classes.get(name))
+    {
+        let method = if target.is_classmethod {
+            &class.class_methods
+        } else {
+            &class.methods
+        }
+        .get(target.method);
+        if let Some(method) = method {
+            if tcl_compiler::analyser::types::original_source_linked_member_reference_spans(
+                analysis,
+                source,
+                class,
+                method,
+                if target.is_classmethod {
+                    tcl_compiler::analyser::MemberSide::ClassObject
+                } else {
+                    tcl_compiler::analyser::MemberSide::Instance
+                },
+            )
+            .is_none()
+            {
+                return Some(RenameRefusal::new(
+                    "cannot prove every original link target and coupled alias edit".to_owned(),
+                    source,
+                    line_index,
+                    Some(method.name_span),
+                ));
+            }
+        }
+    }
     unlocatable_member_reference(source, dialect, analysis, target, line_index)
         .or_else(|| renamed_member_would_abort(source, analysis, target, line_index))
         .or_else(|| {

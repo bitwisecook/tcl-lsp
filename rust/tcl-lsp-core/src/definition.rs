@@ -428,7 +428,7 @@ pub fn definition_with(
     // constructors / destructor for a name match.  Covers
     // `my method` calls inside the body plus bare member
     // references.
-    if let Some(span) = lookup_class_member(analysis, &word, cursor_offset) {
+    if let Some(span) = lookup_class_member(source, analysis, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
     Vec::new()
@@ -766,41 +766,24 @@ fn instance_method_definition(
     None
 }
 
-/// Walk every class whose `body_span` contains the cursor
-/// offset and look up `word` in that class's methods,
-/// class-methods, or properties — but ONLY when `word` is
-/// itself genuinely bareword-callable from a method body of
-/// this class: a bareword sibling call only actually dispatches
-/// when `link` (`oo::Helpers::link`) exposed it that way
-/// (`ClassDef::linked_members`); an
-/// un-linked member of the same name errors "invalid command
-/// name" at runtime, so it must not resolve here either. Also
-/// checks constructors/destructor, unconditionally (a distinct,
-/// unrelated feature — see [`ClassDef::linked_members`]'s doc).
-/// Returns the matched member's `name_span` when found.
-///
-/// The keyword a constructor or destructor was declared by (`constructor`,
-/// `destructor`) matches that member — the recorded member says which, not
-/// the word's spelling.  Other words match against the member's `name`.
+/// Original linked command heads select their retained method declaration.
+/// Constructor and destructor keywords retain their own declaration path.
 fn lookup_class_member(
+    source: &str,
     analysis: &AnalysisResult,
     word: &str,
     cursor_offset: u32,
 ) -> Option<tcl_lexer::Span> {
+    if let Some(linked) = tcl_compiler::analyser::types::original_source_linked_member_at(
+        analysis,
+        source,
+        cursor_offset,
+    ) {
+        return Some(linked.target().metadata().name_span);
+    }
     let class_def = analysis
         .all_classes
         .get(enclosing_class_at(analysis, cursor_offset)?)?;
-    if let Some(target) = class_def.linked_members.get(word) {
-        if let Some(m) = class_def.methods.get(target) {
-            return Some(m.name_span);
-        }
-        if let Some(m) = class_def.class_methods.get(target) {
-            return Some(m.name_span);
-        }
-        if let Some(p) = class_def.properties.get(target) {
-            return Some(p.name_span);
-        }
-    }
     // A constructor or destructor keyword: the member it declared says so.
     if let Some(c) = class_def
         .constructors

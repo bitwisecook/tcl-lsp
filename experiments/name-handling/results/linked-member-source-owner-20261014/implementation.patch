@@ -1,0 +1,749 @@
+diff --git a/rust/tcl-compiler/src/analyser/oo.rs b/rust/tcl-compiler/src/analyser/oo.rs
+--- a/rust/tcl-compiler/src/analyser/oo.rs
++++ b/rust/tcl-compiler/src/analyser/oo.rs
+@@ -1152,11 +1152,7 @@
+             scope_path,
+             definer_disabled,
+         );
+-        // A bareword-callable-from-this-class fact, gathered before the
+-        // per-method body walk below starts (so it's already populated by the
+-        // time member-lookup
+-        // consumers — go-to-definition / hover — read `class_def`, and
+-        // regardless of *which* method body called `link`).
++        // The display inventory is separate from original source link authority.
+         self.collect_oo_links(&method_bodies, class_def);
+ 
+         // Walk each method / accessor / class-init body in its own
+@@ -1521,27 +1517,8 @@
+         )
+     }
+ 
+-    /// Scan every collected method/constructor/destructor body's own
+-    /// top-level statements for a `link`-headed call (`oo::Helpers::link`,
+-    /// a genuine core `TclOO` builtin since 8.6 — `TclOOLinkObjCmd`, on
+-    /// every method body's namespace path via `::oo::Helpers`), recording each
+-    /// alias into [`ClassDef::linked_members`].
+-    ///
+-    /// `link NAME` installs a per-object-namespace command `NAME` that
+-    /// dispatches to `my NAME`; `link {NAME TARGET}` dispatches to `my
+-    /// TARGET` instead. Each argument word of one `link` call is an
+-    /// independent alias (`link foo bar` installs both `foo` and `bar`),
+-    /// and a name/target built from a variable or command substitution is
+-    /// skipped (mirrors [`crate::alias::detect_interp_alias`]'s
+-    /// literal-only requirement — no lattice lookup here, this runs
+-    /// before the per-method scope walk even exists).
+-    ///
+-    /// Deliberately shallow: only a `link` call written directly at a
+-    /// body's own top level is recognised, not one nested inside an
+-    /// `if`/`catch`/… body argument — the same scope boundary
+-    /// `scan_my_method_region`/`scan_obj_method_region` (`references.rs`)
+-    /// already accept for this class of "scan a method body for one
+-    /// specific call shape" problem.
++    /// Collect display-only alias/target pairs from the selected catalogue.
++    /// Positive source consumers authenticate original invocation receipts.
+     fn collect_oo_links(&self, method_bodies: &[CollectedMethodBody], class_def: &mut ClassDef) {
+         for mb in method_bodies {
+             if mb.body_tok.kind != TokenType::Str {
+@@ -1554,15 +1531,6 @@
+                 self.file_lexer_config().nested(),
+             );
+             for cmd in &cmds {
+-                // `link` is deliberately *not* a method-dispatch keyword:
+-                // it *creates* per-object bareword commands
+-                // rather than dispatching one, so the barewords it installs
+-                // are per-class data, not language keywords. That creation
+-                // is itself a declared behavioural fact —
+-                // `Traits::TCLOO_BINDS_METHOD_ALIAS` — so the head is
+-                // recognised through the registry rather than by its
+-                // spelling; a dialect without `link` (8.5, or
+-                // 8.6 with no `ooutil`) therefore records no aliases here.
+                 if cmd.is_partial
+                     || !cmd.texts.first().is_some_and(|head| {
+                         let generation = self.analysis_context();
+@@ -1582,13 +1550,19 @@
+                     }
+                     match crate::tcl_expr_eval::split_tcl_list(word, self.word_rules()).as_slice() {
+                         [name] if !name.is_empty() => {
+-                            let key = name.trim_start_matches("::").to_string();
++                            let key = {
++                                let written = tcl_syntax::naming::canonical_written_command(name);
++                                tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written).to_owned()
++                            };
+                             class_def.linked_members.entry(key.clone()).or_insert(key);
+                         }
+                         [name, target] if !name.is_empty() => {
+                             class_def
+                                 .linked_members
+-                                .entry(name.trim_start_matches("::").to_string())
++                                .entry({
++                                let written = tcl_syntax::naming::canonical_written_command(name);
++                                tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written).to_owned()
++                            })
+                                 .or_insert_with(|| target.clone());
+                         }
+                         _ => {}
+diff --git a/rust/tcl-compiler/src/analyser/types/original_linked_member.rs b/rust/tcl-compiler/src/analyser/types/original_linked_member.rs
+new file mode 100644
+--- /dev/null
++++ b/rust/tcl-compiler/src/analyser/types/original_linked_member.rs
+@@ -0,0 +1,295 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Conditional original TclOO link descriptions and their member declarations.
++
++use super::{AnalysisResult, ClassDef, MemberSide, OriginalSourceMethodMetadata, Scope};
++use crate::{
++    analyser::ResolvedAnalysisInput,
++    registry_invocation::source_structure::{OriginalRegistryWords, source_registry_words_at},
++    signature_scan::{
++        original_name::{OriginalSourceNamePurpose, SourceDeclarationMetadata},
++        scope::SignatureSourceNameInput,
++    },
++};
++use tcl_lexer::{NativeWord, SourceImage, Span};
++use tcl_syntax::{
++    naming::{native_oo_link_alias_geometry, native_oo_link_call_geometry},
++    word_rules::WordValueRules,
++};
++
++/// Original alias and target fields under an authentic selected link schema.
++/// This is conditional source advice, without an entered receiver or alias.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct OriginalSourceLinkedMember {
++    class: SourceDeclarationMetadata<ClassDef>,
++    target: OriginalSourceMethodMetadata,
++    invocation: OriginalRegistryWords,
++    alias: SignatureSourceNameInput,
++    target_input: SignatureSourceNameInput,
++    target_span: Option<Span>,
++    coupled: bool,
++}
++
++impl OriginalSourceLinkedMember {
++    /// Genuine source class publication owning the original member table.
++    #[must_use]
++    pub const fn class_declaration(&self) -> &SourceDeclarationMetadata<ClassDef> { &self.class }
++    /// Exact current source member; its name is literal method data.
++    #[must_use]
++    pub const fn target(&self) -> &OriginalSourceMethodMetadata { &self.target }
++    /// Selected original helper invocation and all retained source obligations.
++    #[must_use]
++    pub const fn original_invocation(&self) -> &OriginalRegistryWords { &self.invocation }
++    /// Alias and target share one original list field only in the one-element form.
++    #[must_use]
++    pub const fn has_coupled_name(&self) -> bool { self.coupled }
++    /// Readonly source extent of the target; it alone is not replacement permission.
++    #[must_use]
++    pub const fn target_source_span(&self) -> Option<Span> { self.target_span }
++    /// A current static list field whose literal bytes survive a safe-name
++    /// replacement. Decoded or evaluated containers supply no editable span.
++    #[must_use]
++    pub fn editable_target_span(&self, source: &str) -> Option<Span> {
++        let span = self.target_span?;
++        (self.invocation.matches_source(&SourceImage::document(source), self.target_input.original_static_list_container()?.parent_word().config())
++            && source.as_bytes().get(span.as_range()) == Some(self.target_input.bytes())
++            && self.target_input.original_static_list_container().is_some())
++            .then_some(span)
++    }
++    /// Original target field, retaining static list ancestry for edit validation.
++    #[must_use]
++    pub const fn target_input(&self) -> &SignatureSourceNameInput { &self.target_input }
++    /// Original alias field; command publication and method data stay separate.
++    #[must_use]
++    pub const fn alias_input(&self) -> &SignatureSourceNameInput { &self.alias }
++}
++
++fn scope_owner<'a>(
++    scope: &'a Scope,
++    analysis: &'a AnalysisResult,
++    image: &SourceImage,
++) -> Option<(&'a SourceDeclarationMetadata<ClassDef>, &'a NativeWord, &'a ResolvedAnalysisInput, MemberSide)> {
++    if let Some(context) = &scope.original_member_context {
++        if !context.matches_source(image, context.resolved_input().lexer_config()) { return None; }
++        return Some((context.source_class(analysis)?, context.body_word(), context.resolved_input(), context.side()));
++    }
++    let context = scope.original_receiver_body_declaration.as_ref()?;
++    let input = analysis.resolved_input.as_ref()?;
++    if !context.matches_source(image, input) { return None; }
++    let mut classes = analysis.original_class_declarations().filter(|class| {
++        class.metadata().original_members.declarations().any(|method| method == context.method())
++    });
++    let class = classes.next()?;
++    if classes.next().is_some() { return None; }
++    Some((class, context.body_word(), context.resolved_input(), context.side()))
++}
++
++fn original_body_commands(body: &NativeWord, input: &ResolvedAnalysisInput) -> Option<Vec<tcl_lexer::NativeScriptCommandWords>> {
++    let root = body.content_span().ok()?;
++    let mut pending = vec![root];
++    let mut visited = std::collections::HashSet::new();
++    let mut commands = Vec::new();
++    while let Some(region) = pending.pop() {
++        if !visited.insert(region) { continue; }
++        if region.start() < root.start() || region.end() > root.end() { return None; }
++        let plan = tcl_lexer::native_script_words_in_with_purpose(
++            body.image().clone(), region, input.lexer_config(), tcl_lexer::SourceSegmentationPurpose::NestedScript,
++        ).ok()?;
++        if plan.fatal_tail.is_some() { return None; }
++        for command in plan.commands {
++            for word in &command.words {
++                for part in word.executable_parts().all_parts() {
++                    if let tcl_lexer::ExecutablePart::Command { body } = part.part { pending.push(body); }
++                }
++            }
++            commands.push(command);
++        }
++    }
++    Some(commands)
++}
++
++fn scope_links(scope: &Scope, analysis: &AnalysisResult, source: &str) -> Option<Vec<OriginalSourceLinkedMember>> {
++    let image = SourceImage::document(source);
++    let Some((class, body, input, side)) = scope_owner(scope, analysis, &image) else { return Some(Vec::new()); };
++    let Some(publication) = class.metadata().source_name.as_ref() else { return Some(Vec::new()); };
++    let commands = original_body_commands(body, input)?;
++    let registry = input.context_registry();
++    let mut links = Vec::new();
++    for command in commands {
++        let Some(head) = command.words.first() else { return None; };
++        let Some(invocation) = source_registry_words_at(source, analysis, head.span().start()) else { continue; };
++        if invocation.with_source_schema(&registry, |schema| {
++            schema.semantics.traits.contains(tcl_registry::Traits::TCLOO_BINDS_METHOD_ALIAS)
++        }) != Some(true) { continue; }
++        for index in 0..invocation.arguments().len() {
++            let parent = invocation.original_argument_value_input(index)?;
++            let fields = parent.original_list_elements_with_source_spans()?;
++            let (alias, target, coupled) = match fields.as_slice() {
++                [one] => (one, one, true),
++                [alias, target] => (alias, target, false),
++                _ => return None,
++            };
++            if alias.0.policy() != publication.policy()
++                || native_oo_link_alias_geometry(alias.0.policy().recipe(), alias.0.bytes()).is_none()
++            { return None; }
++            let method = class.metadata().original_members.method_for_input(side, &target.0)?;
++            links.push(OriginalSourceLinkedMember {
++                class: class.clone(), target: method, invocation: invocation.clone(),
++                alias: alias.0.clone(), target_input: target.0.clone(), target_span: target.1, coupled,
++            });
++        }
++    }
++    Some(links)
++}
++
++/// Original link descriptions for one actual class declaration. Unknown list
++/// values poison the class's source alias advice instead of donating absence.
++#[must_use]
++pub fn original_source_linked_members_for_class(
++    analysis: &AnalysisResult, source: &str, class: &SourceDeclarationMetadata<ClassDef>,
++) -> Option<Vec<OriginalSourceLinkedMember>> {
++    fn visit(scope: &Scope, analysis: &AnalysisResult, source: &str, class: &SourceDeclarationMetadata<ClassDef>, output: &mut Vec<OriginalSourceLinkedMember>) -> Option<()> {
++        if let Some((owner, _, _, _)) = scope_owner(scope, analysis, &SourceImage::document(source))
++            && owner.name() == class.name()
++        { output.extend(scope_links(scope, analysis, source)?); }
++        for child in &scope.children { visit(child, analysis, source, class, output)?; }
++        Some(())
++    }
++    if !analysis.original_class_declarations().any(|current| current == class) { return None; }
++    let mut output = Vec::new();
++    visit(&analysis.global_scope, analysis, source, class, &mut output)?;
++    Some(output)
++}
++
++/// Select only an original command head in a genuine member body. Ambiguous
++/// source aliases decline; literal operands and reporting maps cannot select.
++#[must_use]
++pub fn original_source_linked_member_at(
++    analysis: &AnalysisResult, source: &str, cursor: u32,
++) -> Option<OriginalSourceLinkedMember> {
++    fn scope_at(scope: &Scope, cursor: u32) -> &Scope {
++        scope.children.iter().find(|child| child.body_span.is_some_and(|span| {
++            span.start() <= cursor && cursor < span.end()
++        })).map_or(scope, |child| scope_at(child, cursor))
++    }
++    let scope = scope_at(&analysis.global_scope, cursor);
++    let image = SourceImage::document(source);
++    let (class, body, input, side) = scope_owner(scope, analysis, &image)?;
++    let publication = class.metadata().source_name.as_ref()?;
++    let command = original_body_commands(body, input)?.into_iter().find(|command| {
++        command.words.first().is_some_and(|head| head.span().start() <= cursor && cursor < head.span().end())
++    })?;
++    let words = command.words;
++    let key = OriginalSourceNamePurpose::for_analysis_input(input, None, publication.policy()).key(
++        words.first()?, WordValueRules::from_config(&input.lexer_config()),
++    )?;
++    let called = native_oo_link_call_geometry(publication.policy().recipe(), key.bytes())?;
++    let mut candidates = original_source_linked_members_for_class(analysis, source, class)?.into_iter().filter(|link| {
++        link.class.name() == class.name() && link.target.side() == side
++            && native_oo_link_alias_geometry(link.alias.policy().recipe(), link.alias.bytes()) == Some(called.clone())
++    });
++    let selected = candidates.next()?;
++    for candidate in candidates {
++        if candidate.target != selected.target || candidate.coupled != selected.coupled
++            || candidate.target_input != selected.target_input { return None; }
++    }
++    Some(selected)
++}
++
++/// Editable original link targets and coupled calls for one actual member.
++/// Unknown list ancestry or a publication that changes the call spelling
++/// declines the complete edit set rather than returning partial references.
++#[must_use]
++pub fn original_source_linked_member_reference_spans(
++    analysis: &AnalysisResult, source: &str, class: &ClassDef,
++    method: &super::MethodDef, side: MemberSide,
++) -> Option<Vec<Span>> {
++    let Some(publication) = class.source_name.as_ref() else { return Some(Vec::new()); };
++    if publication.publication() != crate::signature_scan::scope::SourceCommandPublication::TclOoObject { return Some(Vec::new()); }
++    let mut classes = analysis.original_class_declarations().filter(|record| {
++        record.name() == publication && record.metadata().name_span == class.name_span
++    });
++    let record = classes.next()?;
++    if classes.next().is_some() { return None; }
++    let mut members = record.metadata().original_members.methods(side)?.into_iter().filter(|member| {
++        member.metadata().name_span == method.name_span
++            && member.metadata().body_span == method.body_span
++    });
++    let member = members.next()?;
++    if members.next().is_some() { return None; }
++    let links = original_source_linked_members_for_class(analysis, source, record)?;
++    let mut spans = Vec::new();
++    for link in links.iter().filter(|link| link.target == member) {
++        spans.push(link.editable_target_span(source)?);
++        if link.coupled && native_oo_link_alias_geometry(link.alias.policy().recipe(), link.alias.bytes())
++            != native_oo_link_call_geometry(link.alias.policy().recipe(), link.alias.bytes())
++        { return None; }
++    }
++    fn visit(scope: &Scope, analysis: &AnalysisResult, source: &str, class: &SourceDeclarationMetadata<ClassDef>, member: &OriginalSourceMethodMetadata, spans: &mut Vec<Span>) -> Option<()> {
++        if let Some((owner, body, input, side)) = scope_owner(scope, analysis, &SourceImage::document(source))
++            && owner.name() == class.name() && side == member.side()
++        {
++            for command in original_body_commands(body, input)? {
++                let head = command.words.first()?;
++                let Some(link) = original_source_linked_member_at(analysis, source, head.span().start()) else { continue; };
++                if link.target != *member || !link.coupled { continue; }
++                let key = OriginalSourceNamePurpose::for_analysis_input(input, None, link.alias.policy()).key(head, WordValueRules::from_config(&input.lexer_config()))?;
++                let span = head.content_span().ok()?;
++                if key.bytes() != link.alias.bytes() || source.as_bytes().get(span.as_range()) != Some(key.bytes()) { return None; }
++                spans.push(span);
++            }
++        }
++        for child in &scope.children { visit(child, analysis, source, class, member, spans)?; }
++        Some(())
++    }
++    visit(&analysis.global_scope, analysis, source, record, &member, &mut spans)?;
++    spans.sort_by_key(|span| (span.start(), span.end()));
++    spans.dedup();
++    Some(spans)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::analyser::Analyser;
++
++    #[test]
++    fn linked_method_navigation_retains_source_schema_and_literal_target_data() {
++        let source = "oo::class create C {method :target {} {}; constructor {} {link {:shortcut :target}}; method use {} {shortcut; :shortcut; return shortcut}}";
++        for dialect in ["tcl9.0", "tcl9.1"] {
++            let mut analysis = Analyser::new().analyse(source, dialect);
++            analysis.all_classes.clear();
++            let cursor = u32::try_from(source.find("{shortcut;").unwrap() + 1).unwrap();
++            let selected = original_source_linked_member_at(&analysis, source, cursor).expect(dialect);
++            assert_eq!(selected.target().original_name_input().bytes(), b":target");
++            assert_eq!(selected.alias_input().bytes(), b":shortcut");
++            assert!(!selected.has_coupled_name());
++            assert!(selected.editable_target_span(source).is_some());
++            assert!(original_source_linked_member_at(&analysis, source, cursor + 10).is_none());
++            let operand = u32::try_from(source.rfind("shortcut").unwrap()).unwrap();
++            assert!(original_source_linked_member_at(&analysis, source, operand).is_none());
++            assert!(original_source_linked_member_at(&analysis, &source.replace("shortcut", "changed"), cursor).is_none());
++        }
++        let analysis = Analyser::new().analyse(source, "tcl8.6");
++        let cursor = u32::try_from(source.find("{shortcut;").unwrap() + 1).unwrap();
++        assert!(original_source_linked_member_at(&analysis, source, cursor).is_none());
++    }
++
++    #[test]
++    fn link_list_fields_keep_alias_target_and_edit_topology_separate() {
++        let source = "oo::class create C {method foo {} {}; constructor {} {link foo {bar foo}}; method use {} {return [foo]; bar}}";
++        let analysis = Analyser::new().analyse(source, "tcl9.0");
++        let call = u32::try_from(source.rfind("[foo]").unwrap() + 1).unwrap();
++        let selected = original_source_linked_member_at(&analysis, source, call).unwrap();
++        assert!(selected.has_coupled_name());
++        let class = selected.class_declaration().metadata();
++        let spans = original_source_linked_member_reference_spans(&analysis, source, class, selected.target().metadata(), MemberSide::Instance).unwrap();
++        let values: Vec<_> = spans.iter().map(|span| &source[span.as_range()]).collect();
++        assert_eq!(values, ["foo", "foo", "foo"]);
++        let pair_call = u32::try_from(source.rfind("bar").unwrap()).unwrap();
++        assert!(!original_source_linked_member_at(&analysis, source, pair_call).unwrap().has_coupled_name());
++        let unknown = source.replace("{bar foo}", "$descriptor");
++        let analysis = Analyser::new().analyse(&unknown, "tcl9.0");
++        let call = u32::try_from(unknown.rfind("[foo]").unwrap() + 1).unwrap();
++        assert!(original_source_linked_member_at(&analysis, &unknown, call).is_none());
++    }
++}
+diff --git a/rust/tcl-compiler/src/analyser/types.rs b/rust/tcl-compiler/src/analyser/types.rs
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -26,6 +26,8 @@
+ 
+ mod original_configurations;
+ mod original_constructor_call;
++mod original_linked_member;
++pub use original_linked_member::{OriginalSourceLinkedMember, original_source_linked_member_at, original_source_linked_members_for_class, original_source_linked_member_reference_spans};
+ mod original_member_context;
+ mod original_members;
+ mod original_properties;
+@@ -1611,14 +1613,8 @@
+     /// re-analyses the document and reads it from the recorded class, so it has
+     /// to survive into `all_classes`.
+     pub renamed_members: Vec<RenamedMember>,
+-    /// Names genuinely bareword-callable from any method body of this
+-    /// class, because ``link`` (``oo::Helpers::link``) installed a
+-    /// per-object-namespace alias — keyed by the alias name, valued by
+-    /// the real member name it dispatches to via ``my TARGET`` (alias ==
+-    /// target for the plain ``link NAME`` form). In contrast, a bareword
+-    /// matching an un-linked sibling method/classmethod/property name is
+-    /// **not** reachable that way and errors "invalid command name" at
+-    /// runtime.
++    /// Readonly alias/target display inventory. Navigation and edits use
++    /// original link invocations and member declarations instead.
+     pub linked_members: HashMap<String, String>,
+     /// Doc-comment text harvested from the line(s) above the
+     /// ``oo::class create`` / ``oo::define`` statement.
+diff --git a/rust/tcl-lsp-core/src/definition.rs b/rust/tcl-lsp-core/src/definition.rs
+--- a/rust/tcl-lsp-core/src/definition.rs
++++ b/rust/tcl-lsp-core/src/definition.rs
+@@ -428,7 +428,7 @@
+     // constructors / destructor for a name match.  Covers
+     // `my method` calls inside the body plus bare member
+     // references.
+-    if let Some(span) = lookup_class_member(analysis, &word, cursor_offset) {
++    if let Some(span) = lookup_class_member(source, analysis, &word, cursor_offset) {
+         return vec![span_to_range(source, &line_index, span)];
+     }
+     Vec::new()
+@@ -766,41 +766,20 @@
+     None
+ }
+ 
+-/// Walk every class whose `body_span` contains the cursor
+-/// offset and look up `word` in that class's methods,
+-/// class-methods, or properties — but ONLY when `word` is
+-/// itself genuinely bareword-callable from a method body of
+-/// this class: a bareword sibling call only actually dispatches
+-/// when `link` (`oo::Helpers::link`) exposed it that way
+-/// (`ClassDef::linked_members`); an
+-/// un-linked member of the same name errors "invalid command
+-/// name" at runtime, so it must not resolve here either. Also
+-/// checks constructors/destructor, unconditionally (a distinct,
+-/// unrelated feature — see [`ClassDef::linked_members`]'s doc).
+-/// Returns the matched member's `name_span` when found.
+-///
+-/// The keyword a constructor or destructor was declared by (`constructor`,
+-/// `destructor`) matches that member — the recorded member says which, not
+-/// the word's spelling.  Other words match against the member's `name`.
++/// Original linked command heads select their retained method declaration.
++/// Constructor and destructor keywords retain their own declaration path.
+ fn lookup_class_member(
++    source: &str,
+     analysis: &AnalysisResult,
+     word: &str,
+     cursor_offset: u32,
+ ) -> Option<tcl_lexer::Span> {
++    if let Some(linked) = tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor_offset) {
++        return Some(linked.target().metadata().name_span);
++    }
+     let class_def = analysis
+         .all_classes
+         .get(enclosing_class_at(analysis, cursor_offset)?)?;
+-    if let Some(target) = class_def.linked_members.get(word) {
+-        if let Some(m) = class_def.methods.get(target) {
+-            return Some(m.name_span);
+-        }
+-        if let Some(m) = class_def.class_methods.get(target) {
+-            return Some(m.name_span);
+-        }
+-        if let Some(p) = class_def.properties.get(target) {
+-            return Some(p.name_span);
+-        }
+-    }
+     // A constructor or destructor keyword: the member it declared says so.
+     if let Some(c) = class_def
+         .constructors
+diff --git a/rust/tcl-lsp-core/src/hover.rs b/rust/tcl-lsp-core/src/hover.rs
+--- a/rust/tcl-lsp-core/src/hover.rs
++++ b/rust/tcl-lsp-core/src/hover.rs
+@@ -979,7 +979,7 @@
+     // a one-line method / property summary.  Fires when the
+     // cursor sits inside a class body and `word` matches one
+     // of that class's members.
+-    if let Some(text) = class_member_hover_text(analysis, &word, cursor_offset) {
++    if let Some(text) = class_member_hover_text(source, analysis, &word, cursor_offset) {
+         return Some(Hover::markdown(text));
+     }
+     if let Some(answer) = original_registry::hover(source, analysis, cursor_offset) {
+@@ -3325,20 +3325,26 @@
+     None
+ }
+ 
+-/// Hover text for a class member at the cursor's byte
+-/// offset.  Walks every class whose body span contains the
+-/// cursor and looks `word` up against `methods` /
+-/// `class_methods` / `properties` — but ONLY when `word` is
+-/// genuinely bareword-callable from a method body of this class
+-/// (`ClassDef::linked_members`; see
+-/// `lookup_class_member`'s doc for the full rationale) — plus the
+-/// `constructor` / `destructor` keywords, unconditionally.
+-/// Returns a one-line markdown summary on hit, `None` otherwise.
++/// Original linked heads hover as their retained target member; declaration
++/// names and constructor/destructor keywords keep their own source paths.
+ fn class_member_hover_text(
++    source: &str,
+     analysis: &AnalysisResult,
+     word: &str,
+     cursor_offset: u32,
+ ) -> Option<String> {
++    if let Some(linked) = tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor_offset) {
++        let class = linked.class_declaration().metadata();
++        let method = linked.target().metadata();
++        let qname = &class.qualified_name;
++        let kind = if linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject { "classmethod" } else { "method" };
++        let linked_note = if linked.alias_input().bytes() == linked.target_input().bytes() {
++            String::new()
++        } else { format!("  \nlinked from `{word}`") };
++        let note = oo_method_resolution_note(analysis, qname, &method.name)
++            .map_or(String::new(), |note| format!("  \n{note}"));
++        return Some(format!("**{kind}** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}", name=method.name, nparam=method.params.len()));
++    }
+     let class_def = analysis
+         .all_classes
+         .get(crate::definition::enclosing_class_at(
+@@ -3366,37 +3372,6 @@
+     if let Some(text) = member_declaration_hover_text(analysis, class_def, word, cursor_offset) {
+         return Some(text);
+     }
+-    if let Some(target) = class_def.linked_members.get(word) {
+-        let linked_note = if target == word {
+-            String::new()
+-        } else {
+-            format!("  \nlinked from `{word}`")
+-        };
+-        if let Some(m) = class_def.methods.get(target) {
+-            let note = oo_method_resolution_note(analysis, qname, target)
+-                .map_or(String::new(), |n| format!("  \n{n}"));
+-            return Some(format!(
+-                "**method** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
+-                name = m.name,
+-                nparam = m.params.len(),
+-            ));
+-        }
+-        if let Some(m) = class_def.class_methods.get(target) {
+-            let note = oo_method_resolution_note(analysis, qname, target)
+-                .map_or(String::new(), |n| format!("  \n{n}"));
+-            return Some(format!(
+-                "**classmethod** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
+-                name = m.name,
+-                nparam = m.params.len(),
+-            ));
+-        }
+-        if let Some(p) = class_def.properties.get(target) {
+-            return Some(format!(
+-                "**property** `{qname}::{name}`{linked_note}",
+-                name = p.name
+-            ));
+-        }
+-    }
+     // A constructor or destructor keyword: the member it declared says what
+     // it is.
+     if let Some(ctor) = class_def
+diff --git a/rust/tcl-lsp-core/src/references.rs b/rust/tcl-lsp-core/src/references.rs
+--- a/rust/tcl-lsp-core/src/references.rs
++++ b/rust/tcl-lsp-core/src/references.rs
+@@ -1913,6 +1913,10 @@
+     calls.extend(crate::receiver_identity::definition_method_reference_spans(
+         analysis, source, class, method, receiver,
+     ));
++    calls.extend(tcl_compiler::analyser::types::original_source_linked_member_reference_spans(
++        analysis, source, class, method,
++        if is_classmethod { tcl_compiler::analyser::MemberSide::ClassObject } else { tcl_compiler::analyser::MemberSide::Instance },
++    ).unwrap_or_default());
+     (method.name_span, calls)
+ }
+ 
+diff --git a/rust/tcl-lsp-core/src/rename.rs b/rust/tcl-lsp-core/src/rename.rs
+--- a/rust/tcl-lsp-core/src/rename.rs
++++ b/rust/tcl-lsp-core/src/rename.rs
+@@ -1288,6 +1288,15 @@
+         }
+         return None;
+     }
++        // Only the retained single-field link form couples command and member edits.
++        if let Some(linked) = tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor) {
++            if linked.has_coupled_name() && linked.editable_target_span(source).is_some()
++                && linked.alias_input().bytes() == word.as_bytes()
++                && linked.target_input().bytes() == word.as_bytes()
++            {
++                return Some((linked.class_declaration().metadata().qualified_name.clone(), linked.target().metadata().name.clone(), linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject, MethodAccess::Internal));
++            }
++        }
+     // Inside a class body on one of its method / classmethod names — the
+     // declaration side, an internal context.
+     if let Some(class_def) = crate::definition::enclosing_class_at(analysis, cursor)
+@@ -1295,34 +1304,17 @@
+     {
+         let method_decl = class_def.methods.get(&word);
+         let classmethod_decl = class_def.class_methods.get(&word);
+-        // A member-name-shaped word anywhere inside the class body is not by
+-        // itself a reference to that member.  It only is when the cursor sits
+-        // on the member's **own declaration name**, or on a bareword that
+-        // `link` genuinely made bareword-callable and pointed back at this
+-        // same member (`ClassDef::linked_members` — an un-linked bareword
+-        // errors "invalid command name" in real Tcl, so it names nothing).
+-        // This is the gate the in-document provider's
+-        // `definition::lookup_class_member` already applies; without it here,
+-        // any same-spelled word — a parameter, a literal, an un-linked
+-        // sibling call — reads as the member and reaches the workspace
+-        // resolver, which then answers non-deterministically.
+         let on_declaration = |m: &tcl_compiler::analyser::MethodDef| {
+             m.name_span.start() <= cursor && cursor < m.name_span.end()
+         };
+         let cursor_on_method_decl = method_decl.is_some_and(on_declaration);
+         let cursor_on_classmethod_decl = classmethod_decl.is_some_and(on_declaration);
+-        let linked_to_self = class_def
+-            .linked_members
+-            .get(&word)
+-            .is_some_and(|target| *target == word);
+         if (method_decl.is_some() || classmethod_decl.is_some())
+-            && (cursor_on_method_decl || cursor_on_classmethod_decl || linked_to_self)
++            && (cursor_on_method_decl || cursor_on_classmethod_decl)
+         {
+             // A `method` and a `classmethod` of the same name are distinct
+             // members; unambiguous when only one exists, otherwise prefer
+-            // whichever one's declaration the cursor is actually on (a linked
+-            // bareword that could be either falls back to the method — the
+-            // pre-existing preference).
++            // whichever one's declaration the cursor is actually on.
+             let is_classmethod =
+                 classmethod_decl.is_some() && (method_decl.is_none() || cursor_on_classmethod_decl);
+             return Some((
+diff --git a/rust/tcl-lsp-core/src/rename_safety.rs b/rust/tcl-lsp-core/src/rename_safety.rs
+--- a/rust/tcl-lsp-core/src/rename_safety.rs
++++ b/rust/tcl-lsp-core/src/rename_safety.rs
+@@ -203,6 +203,17 @@
+             None,
+         ));
+     }
++    for class in target.family.iter().filter_map(|name| analysis.all_classes.get(name)) {
++        let method = if target.is_classmethod { &class.class_methods } else { &class.methods }.get(target.method);
++        if let Some(method) = method {
++            if tcl_compiler::analyser::types::original_source_linked_member_reference_spans(
++                analysis, source, class, method,
++                if target.is_classmethod { tcl_compiler::analyser::MemberSide::ClassObject } else { tcl_compiler::analyser::MemberSide::Instance },
++            ).is_none() {
++                return Some(RenameRefusal::new("cannot prove every original link target and coupled alias edit".to_owned(), source, line_index, Some(method.name_span)));
++            }
++        }
++    }
+     unlocatable_member_reference(source, dialect, analysis, target, line_index)
+         .or_else(|| renamed_member_would_abort(source, analysis, target, line_index))
+         .or_else(|| {
+diff --git a/rust/tcl-syntax/src/naming/tcloo_link.rs b/rust/tcl-syntax/src/naming/tcloo_link.rs
+new file mode 100644
+--- /dev/null
++++ b/rust/tcl-syntax/src/naming/tcloo_link.rs
+@@ -0,0 +1,82 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Symbolic source geometry of the stock C9 TclOO link worker.
++
++use super::{NativeNameProtocol, canonical_written_command};
++use tcl_dialect::TclVersion;
++
++/// A source location relative to the actual receiver or the interpreter root.
++/// It supplies neither an object namespace nor an installed alias allocation.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub enum NativeOoLinkAliasGeometry {
++    /// The link worker prefixes the actual receiver namespace.
++    ReceiverRelative(String),
++    /// The original alias names a root-relative slot.
++    Absolute(String),
++}
++
++/// Stock C9 `link` concatenates its receiver namespace and `::` before parsing
++/// a relative alias. That separator absorbs a single leading colon.
++#[must_use]
++pub fn native_oo_link_alias_geometry(
++    protocol: NativeNameProtocol,
++    alias: &[u8],
++) -> Option<NativeOoLinkAliasGeometry> {
++    if !matches!(protocol, NativeNameProtocol::C(version) if version >= TclVersion::V9_0)
++        || alias.contains(&0)
++    {
++        return None;
++    }
++    let alias = std::str::from_utf8(alias).ok()?;
++    if alias.starts_with("::") {
++        Some(NativeOoLinkAliasGeometry::Absolute(canonical_written_command(alias)))
++    } else {
++        let relative = alias.strip_prefix(':').unwrap_or(alias);
++        Some(NativeOoLinkAliasGeometry::ReceiverRelative(canonical_written_command(relative)))
++    }
++}
++
++/// Original call spelling has its own separator geometry. A lone leading
++/// colon remains data here, independently of how `link` published its alias.
++#[must_use]
++pub fn native_oo_link_call_geometry(
++    protocol: NativeNameProtocol,
++    command: &[u8],
++) -> Option<NativeOoLinkAliasGeometry> {
++    if !matches!(protocol, NativeNameProtocol::C(version) if version >= TclVersion::V9_0)
++        || command.contains(&0)
++    {
++        return None;
++    }
++    let command = std::str::from_utf8(command).ok()?;
++    let geometry = canonical_written_command(command);
++    Some(if command.starts_with("::") {
++        NativeOoLinkAliasGeometry::Absolute(geometry)
++    } else {
++        NativeOoLinkAliasGeometry::ReceiverRelative(geometry)
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn stock_link_publication_and_call_geometry_match_original_c9_results() {
++        for (version, output) in [
++            (TclVersion::V9_0, include_str!("../../../../experiments/name-handling/tcloo-linked-source/publication-followon/9.0.4/stdout.bin")),
++            (TclVersion::V9_1, include_str!("../../../../experiments/name-handling/tcloo-linked-source/publication-followon/9.1.0/stdout.bin")),
++        ] {
++            assert!(output.contains("PUBLICATION {ordinary 0 TARGET loneColon 1 {invalid command name \":shortcut\"} zeroArguments 0 {}}"));
++            let recipe = NativeNameProtocol::C(version);
++            let alias = native_oo_link_alias_geometry(recipe, b":shortcut").unwrap();
++            assert_eq!(Some(alias.clone()), native_oo_link_call_geometry(recipe, b"shortcut"));
++            assert_ne!(Some(alias), native_oo_link_call_geometry(recipe, b":shortcut"));
++            assert_eq!(native_oo_link_alias_geometry(recipe, b"nested:::shortcut"), native_oo_link_call_geometry(recipe, b"nested::shortcut"));
++            assert_eq!(native_oo_link_alias_geometry(recipe, b":::rootAlias"), native_oo_link_call_geometry(recipe, b"::rootAlias"));
++            assert_eq!(native_oo_link_alias_geometry(recipe, b""), native_oo_link_call_geometry(recipe, b""));
++            assert_eq!(native_oo_link_alias_geometry(recipe, b"$literal"), native_oo_link_call_geometry(recipe, b"$literal"));
++        }
++        assert!(native_oo_link_alias_geometry(NativeNameProtocol::C(TclVersion::V8_6), b"shortcut").is_none());
++        assert!(native_oo_link_alias_geometry(NativeNameProtocol::Jim084, b"shortcut").is_none());
++    }
++}
+diff --git a/rust/tcl-syntax/src/naming.rs b/rust/tcl-syntax/src/naming.rs
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -78,6 +78,8 @@
+ mod jim_enumeration;
+ mod jim_table_key;
+ pub use jim_table_key::NativeJimCommandTableKey;
++mod tcloo_link;
++pub use tcloo_link::{NativeOoLinkAliasGeometry, native_oo_link_alias_geometry, native_oo_link_call_geometry};
+ mod oo_variables;
+ pub use compiled_variables::{
+     NativeCompiledScalarName, NativeCompiledVariableAuthority, NativeCompiledVariableEnvironment,

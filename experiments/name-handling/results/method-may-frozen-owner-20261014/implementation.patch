@@ -1,0 +1,93 @@
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -5064,6 +5064,51 @@
+         apply(&selected)
+     }
+ 
++    /// Literal names this original candidate may link into a method frame.
++    /// Exact frozen prefix/argument values stay data; this inventory grants no
++    /// Native cell, handler, completed store, observer absence or erasure proof.
++    #[must_use]
++    pub fn possible_method_instance_variable_names(
++        &self,
++        registry: &CommandRegistry,
++        context: InvocationMetadataContext<'_>,
++        tokens: &CommandTokens,
++    ) -> Option<Vec<String>> {
++        let current = original_registry_invocation_assistance_with_metadata_context(
++            registry,
++            Some(context),
++            tokens,
++        )?;
++        if current.unknown_residual || current.may_be_absent || !current.candidates.contains(self) {
++            return None;
++        }
++        if self.operation
++            != tcl_registry::SemanticOperationId::StructuredLowering(
++                tcl_registry::hooks::LoweringHookId::Variable,
++            )
++        {
++            return Some(Vec::new());
++        }
++        if !self.roles_complete {
++            return None;
++        }
++        let words = frozen_argument_words(tokens, &self.effective);
++        self.roles
++            .iter()
++            .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
++            .map(|(argument, _)| {
++                let index = self.argument_offset.checked_add(usize::from(*argument))?;
++                match words.get(index)? {
++                    EffectiveInvocationWord::Literal(value) => Some(value.clone()),
++                    EffectiveInvocationWord::ByteLiteral(value) => {
++                        std::str::from_utf8(value).ok().map(str::to_owned)
++                    }
++                    _ => None,
++                }
++            })
++            .collect()
++    }
++
+     /// Original written operands mentioned by this possible candidate.
+     /// These roles grant assistance only, not reads, stores or body execution.
+     #[must_use]
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -4940,20 +4940,11 @@
+             }
+             let mut names = Vec::new();
+             for candidate in &advice.candidates {
+-                names.extend(candidate.with_source_schema(self.registry, context, tokens, |selected| {
+-                    if selected.authored_source_descriptors().command.lowering_hook != Some(LoweringHookId::Variable) {
+-                        return Some(Vec::new());
+-                    }
+-                    let (roles, complete) = selected.argument_roles();
+-                    if !complete {
+-                        return None;
+-                    }
+-                    roles.into_iter().filter(|(_, role)| *role == ArgRole::VarWrite)
+-                        .map(|(argument, _)| {
+-                            let argument = selected.semantics.argument_offset.checked_add(usize::from(argument))?;
+-                            Some(selected.words.arguments().get(argument)?.literal()?.to_owned())
+-                        }).collect::<Option<Vec<_>>>()
+-                })?);
++                names.extend(candidate.possible_method_instance_variable_names(
++                    self.registry,
++                    context,
++                    tokens,
++                )?);
+             }
+             Some(names)
+         });
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -52,7 +52,7 @@
+ | Source-owned analysis cache correspondence | `rust/tcl-compiler/src/body_analysis_capsule.rs` | `BodyAnalysisCapsule`; `BodyAnalysisCapsule::retain`; `BodyAnalysisCapsule::body_id`; `BodyLatticeInputs`; `BodyLatticeInputs::retain`; `BodyLatticeInputs::rebind_cached`; `BodyLatticeCommandBindings`; `BodyLatticeCommandBindings::bindings`; `BodySummaryInputs`; `BodySummaryInputs::retain` | genuine compilation, Module issuer, body ID, FunctionUnit and original source/input/configuration own every analysis; exact source and variable relocation or a closed registry-only Logical dependency certificate permit analytical reuse; cached results rebind onto the current owner and retain current proofs; missing/changed dependencies recompute, and analytical equality supplies no Native compiler, callable, frame, object or execution authority | `xtask-owner-resolution` |
+ | Typed event-body connection scope | `rust/tcl-compiler/src/connection_scope.rs` | `EventCell`; `ConnectionScope`; `ConnectionScope::handler_source_names`; `ConnectionScope::observes_cross_event_place`; `build_connection_scope`; `build_connection_scope_with_registry` | actual CompilationUnit/Module-issued handler IDs and independently retained event metadata preserve repeated event labels; resolved cells and supplied worker/interpreter/storage domains remain separate from report unions; written protection labels project only from the matching handler keys and establish no arbitrary event order or current value | `xtask-owner-resolution` |
+ | Declared frame-effect metadata coordinates | `rust/tcl-registry/src/model/declaration.rs`; `rust/tcl-compiler/src/declared_frame_effects.rs`; `rust/tcl-compiler/src/dynamic_names.rs`; `rust/tcl-compiler/src/deferred_writes.rs` | `DocumentCommandSurface::plain_call_frame_effect_descriptor_keys`; `collect_declared_frame_effects`; `declared_frame_effect_for_metadata` | genuine selected document descriptor labels retain exact optional-root metadata coordinates; distinct colliding declarations withdraw assistance and selected registry commands retain precedence; standalone catalogue readers use this owner while original-source and entered Native frame evidence remain independent | `xtask-owner-resolution` |
+-| Selected lowering descriptor transport | `rust/tcl-registry/src/resolved_invocation.rs`; `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/registry_invocation.rs`; `rust/tcl-compiler/src/lowering/mod.rs` | `InvocationFacts::descriptor_key`; `ResolvedInvocation::descriptor_key`; `AdmittedNativeCompilerInvocation::descriptor_key`; `SourceInvocationBinding::evaluated_written_argument_value` | genuine retained selected facts supply exact metadata labels to admitted and Logical hook selection and generic role reporting; private SelectedLoweringBindingIdentity separates actual admitted Native registration requirements from Logical descriptor metadata and delegates their one-root transport to Syntax; compiler admission, original argv/context/guard and reached handler remain independent; method-variable MAY protection reads exact decoded literal VarWrite operands from the selected source schema, including captured prefixes, empty names and literal sigils/braces; class declaration unions likewise decode original member tokens under the retained lexer configuration before slot/role selection, keep exact literal names and widen known-name protection on unknown operands; unavailable advice retains separate unparsed source-text protection instead of proving absence; explicit body-text shape classification selects exact-first Registry metadata and never issues Native lookup or frame authority; local body-literal retention requires the genuine ConditionalLogicalScalarStore quiet positioned source receipt, actual constant-assignment IR and matching original tokens; retained literal names decode with the current lexer through value_transfer and exact literal/array-root writes invalidate their entries; Logical map reads use the selected lexer whole-variable reference owner and reject separate or combined array elements and compound source; Native invocations cannot borrow that Logical receipt; independently retained original Native entries validate exact stamped source purpose before reading evaluated_written_argument_value at the original source ordinal, with compiler/body/context/guard admission unchanged; generic calls and evaluated expressions/values/increments withdraw the map because reported targets do not prove absence of computed, caller-frame or observer writes | `xtask-owner-resolution` |
++| Selected lowering descriptor transport | `rust/tcl-registry/src/resolved_invocation.rs`; `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/registry_invocation.rs`; `rust/tcl-compiler/src/lowering/mod.rs` | `InvocationFacts::descriptor_key`; `ResolvedInvocation::descriptor_key`; `AdmittedNativeCompilerInvocation::descriptor_key`; `SourceInvocationBinding::evaluated_written_argument_value`; `RegistryInvocationShape::possible_method_instance_variable_names` | genuine retained selected facts supply exact metadata labels to admitted and Logical hook selection and generic role reporting; private SelectedLoweringBindingIdentity separates actual admitted Native registration requirements from Logical descriptor metadata and delegates their one-root transport to Syntax; compiler admission, original argv/context/guard and reached handler remain independent; method-variable MAY protection validates current original readonly assistance and reads exact frozen literal VarWrite operands through their selected argument offset; supplied-source and explicit authored/standalone purposes retain their original owners separately, including captured prefixes, empty names and literal sigils/braces; class declaration unions likewise decode original member tokens under the retained lexer configuration before slot/role selection, keep exact literal names and widen known-name protection on unknown operands; unavailable advice retains separate unparsed source-text protection instead of proving absence; explicit body-text shape classification selects exact-first Registry metadata and never issues Native lookup or frame authority; local body-literal retention requires the genuine ConditionalLogicalScalarStore quiet positioned source receipt, actual constant-assignment IR and matching original tokens; retained literal names decode with the current lexer through value_transfer and exact literal/array-root writes invalidate their entries; Logical map reads use the selected lexer whole-variable reference owner and reject separate or combined array elements and compound source; Native invocations cannot borrow that Logical receipt; independently retained original Native entries validate exact stamped source purpose before reading evaluated_written_argument_value at the original source ordinal, with compiler/body/context/guard admission unchanged; generic calls and evaluated expressions/values/increments withdraw the map because reported targets do not prove absence of computed, caller-frame or observer writes | `xtask-owner-resolution` |
+ | Conditional variable observation names | `rust/tcl-compiler/src/variable_observation_names.rs` | `VariableObservationNameSet`; `VariableProtectionPurpose`; `VariableWriteObservationPurpose`; `module_observation_key`; `variable_name_may_be_observed`; `record_variable_write_name` | explicit textual MAY inventories select module report-key, mixed exact/report or one-root native-lowering protection separately; deferred/global and outer-scope write projections retain their own aliases and array-root policies; decoded literal sigils, braces and empty variable names remain data, unknown inventories protect every name; exact VariableCellKey checks and genuine entered-Native observer guards remain independent, with no interpreted lookup, cell identity, callback-free state, absence or erasure permission | `xtask-owner-resolution` |
+ | APL variable convention | `rust/tcl-bigip/src/apl/variable_names.rs` | `tcl_var_to_apl_name`; `apl_name_to_tcl_var` | pure field convention delegates written root/qualifier geometry to Syntax; rooted and simple roots preserve lone colons while namespace-qualified roots decline; conventional export text is reporting only and supplies no appliance publication, native variable lookup or source-edit authority | `xtask-owner-resolution` |
+ | External script command inventory | `rust/tcl-syntax/src/naming/script_name_query.rs`; `rust/tcl-syntax/src/naming/script_command_inventory.rs`; `rust/tcl-cli/src/commands/spec_probe.rs` | `original_script_name_query_support`; `original_script_command_inventory_support`; `render_script` | real shell observations select query grammar without Native authority; C original simple words retain namespace context and checked root addressing; Jim uses its independent flat table; opaque or ambiguous inventory refuses as a whole; scanned registration literals remain unresolved authoring inputs | `xtask-owner-resolution` |

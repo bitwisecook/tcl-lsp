@@ -1,0 +1,5 @@
+[
+  "rust/tcl-compiler/src/command_binding/logical_operation.rs",
+  "rust/tcl-compiler/src/lowering/mod.rs",
+  "docs/design/contracts/shared-utility-contracts-rust.md"
+]

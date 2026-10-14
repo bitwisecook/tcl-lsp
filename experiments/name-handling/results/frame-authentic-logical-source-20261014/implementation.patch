@@ -1,0 +1,60 @@
+--- a/rust/tcl-compiler/src/inlining/tests.rs
++++ b/rust/tcl-compiler/src/inlining/tests.rs
+@@ -31,28 +31,22 @@
+ pub(super) fn logical_module_for(
+     source: &str,
+ ) -> (std::sync::Arc<tcl_registry::model::ContextRegistry>, Module) {
+-    let mut profile = tcl_dialect::DialectProfile::projected_from_point(
+-        "logical-inlining-frame-control",
+-        &[],
+-        "Logical inlining frame control",
+-        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+-    );
+-    profile.runtime_base = Some(tcl_dialect::TclVersion::V8_6);
+-    let profile = profile.intern();
+-    let context =
+-        tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
++    let profile = tcl_dialect::DialectProfile::plain_tcl();
++    let context = tcl_registry::model::ingress::context_for_profile(profile);
+     let input = crate::analyser::ResolvedAnalysisInput::new(
+         profile,
+         profile,
+         std::sync::Arc::clone(&context),
+-        LexerConfig::for_profile(Some(profile)),
++        LexerConfig::for_file_grammar(profile.grammar),
+     );
+     assert!(input.has_logical_source_name_context());
+-    let entry = crate::command_binding::SourceAnalysisEntry {
+-        logical_source_input: Some(input.clone()),
+-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+-        ..Default::default()
+-    };
++    assert!(
++        tcl_registry::InvocationDialect::of_profile(profile)
++            .authored_name_policy()
++            .is_some()
++    );
++    let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(&input)
++        .expect("actual explicit Logical source input");
+     let module = crate::compilation_unit::CompilationUnit::build_with_source_entry(
+         source,
+         crate::compilation_unit::UnitBuildOptions {
+--- a/rust/tcl-compiler/src/inlining/frame.rs
++++ b/rust/tcl-compiler/src/inlining/frame.rs
+@@ -152,8 +152,14 @@
+     }
+     fn accepts_tokens(self, tokens: &CommandTokens) -> Option<()> {
+         let binding = tokens.source_binding.as_ref()?;
+-        (binding.logical_source_name_advice_input() == self.metadata.source_analysis_input()
+-            && binding.source_origin()?.source_image() == self.image
++        let metadata = binding.original_invocation_metadata_for_input(
++            tokens,
++            self.metadata.source_analysis_input()?,
++            self.registry,
++        )?;
++        (binding.original_source_advice_purpose(tokens, metadata, self.registry)?
++            == crate::command_binding::OriginalInvocationSourcePurpose::Logical
++            && binding.invocation_site()?.source.source_image() == self.image
+             && binding
+                 .original_lexer_config_for_tokens(tokens)?
+                 .normalized()

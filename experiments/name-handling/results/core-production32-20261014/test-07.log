@@ -1,0 +1,6 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3024 filtered out; finished in 0.42s
+

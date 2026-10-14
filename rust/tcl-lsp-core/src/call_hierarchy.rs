@@ -211,7 +211,12 @@ type EdgeBuckets = std::collections::BTreeMap<CallItemKey, (CallHierarchyItem, V
 /// naming inputs use their independent original declaration identities.
 pub struct LogicalCallTarget<'a> {
     current: crate::original_context::CurrentSourceContext<'a>,
+    source_context: crate::workspace_index::WorkspaceDiagnosticSourceContext,
+    input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
     declaration: LogicalCallDeclaration<'a>,
+    class_occurrence:
+        Option<tcl_compiler::signature_scan::original_name::SourceOriginalNameOccurrence>,
+    member: Option<&'a tcl_compiler::analyser::types::OriginalSourceMethodMetadata>,
 }
 
 /// Readonly metadata issued by [`LogicalCallTarget`]. This is source advice,
@@ -304,10 +309,74 @@ impl<'a> LogicalCallTarget<'a> {
                 }
             }
         }
+        let declaration = selected?;
+        let (class_occurrence, member) = if let LogicalCallDeclaration::Member {
+            class,
+            definition,
+            side,
+        } = declaration
+        {
+            let mut classes = analysis.original_class_declarations().filter(|original| {
+                original.metadata().name_span == class.name_span
+                    && original.metadata().body_span == class.body_span
+                    && class.source_name.as_ref() == Some(original.name())
+            });
+            let class_occurrence = classes
+                .next()
+                .filter(|_| classes.next().is_none())
+                .map(|original| original.original_occurrence().clone());
+            let mut members = class.original_members.declarations().filter(|original| {
+                original.side() == side
+                    && original.metadata().name_span == definition.name_span
+                    && original.metadata().body_span == definition.body_span
+            });
+            let member = members.next().filter(|_| members.next().is_none());
+            (class_occurrence, member)
+        } else {
+            (None, None)
+        };
         Some(Self {
             current,
-            declaration: selected?,
+            source_context: crate::workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(
+                analysis,
+            )?,
+            input: analysis.resolved_input.as_ref()?,
+            declaration,
+            class_occurrence,
+            member,
         })
+    }
+
+    pub(crate) fn matches_indexed_member_provider(
+        &self,
+        declaring_uri: &str,
+        provider: &crate::workspace_index::WorkspaceClass,
+        context: &crate::workspace_index::WorkspaceDiagnosticSourceContext,
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        let LogicalCallDeclaration::Member { class, side, .. } = self.declaration else {
+            return false;
+        };
+        let Some(member) = self.member else {
+            return false;
+        };
+        if provider.uri != declaring_uri
+            || context != &self.source_context
+            || input != self.input
+            || provider.name_span != class.name_span
+            || provider.source_name_ambiguous
+            || provider.source_name != class.source_name
+            || provider.original_declaration != self.class_occurrence
+        {
+            return false;
+        }
+        let Some(members) = provider.original_members.as_ref() else {
+            return false;
+        };
+        let mut selected = members.declarations().filter(|original| {
+            original.side() == side && original.declaration() == member.declaration()
+        });
+        selected.next().is_some_and(|original| original == member) && selected.next().is_none()
     }
 
     /// Selected original metadata, with procedure/member and member-side axes.
@@ -2807,6 +2876,66 @@ mod logical_call_target_tests {
         assert_eq!(outgoing.len(), 1, "{outgoing:?}");
         assert_eq!(outgoing[0].to.name, "::C::visible");
         assert_eq!(outgoing[0].from_ranges.len(), 1);
+    }
+
+    #[test]
+    fn logical_workspace_member_provider_uses_current_source_owners_instead_of_labels() {
+        use crate::workspace_index::{MethodAccess, WorkspaceIndex};
+        let source = "oo::class create Base {method m {} {}; self method m {} {}}";
+        let analysis = analysed(source);
+        let uri = "file:///provider.tcl";
+        for side in [MemberSide::Instance, MemberSide::ClassObject] {
+            let item = member_item(source, &analysis, "::Base", "m", side);
+            let target = LogicalCallTarget::capture(source, &analysis, &item).unwrap();
+            let mut index = WorkspaceIndex::new();
+            index.add_document(uri, &analysis);
+            let chain = match side {
+                MemberSide::Instance => {
+                    index.method_dispatch_chain("::Base", "m", MethodAccess::Internal)
+                }
+                MemberSide::ClassObject => {
+                    index.class_method_dispatch_chain("::Base", "m", MethodAccess::Internal)
+                }
+            };
+            let provider = chain.first().unwrap();
+            assert!(index.logical_member_provider_matches_target(uri, provider, &target));
+            assert!(!index.logical_member_provider_matches_target(
+                "file:///other.tcl",
+                provider,
+                &target
+            ));
+            let mut label_analysis = analysis.clone();
+            label_analysis
+                .all_classes
+                .get_mut("::Base")
+                .unwrap()
+                .qualified_name = "an unrelated display".to_owned();
+            let mut label_index = WorkspaceIndex::new();
+            label_index.add_document(uri, &label_analysis);
+            let label_provider = label_index.classes().next().unwrap();
+            assert!(label_index.logical_member_provider_matches_target(
+                uri,
+                label_provider,
+                &target
+            ));
+            let mut detached = (**provider).clone();
+            detached.qualified_name = "an unrelated display".to_owned();
+            assert!(!index.logical_member_provider_matches_target(uri, &detached, &target));
+            index.replace_document(uri, &analysed(&format!("# changed\n{source}")));
+            let provider = match side {
+                MemberSide::Instance => {
+                    index.method_dispatch_chain("::Base", "m", MethodAccess::Internal)
+                }
+                MemberSide::ClassObject => {
+                    index.class_method_dispatch_chain("::Base", "m", MethodAccess::Internal)
+                }
+            };
+            assert!(!index.logical_member_provider_matches_target(
+                uri,
+                provider.first().unwrap(),
+                &target
+            ));
+        }
     }
 
     #[test]

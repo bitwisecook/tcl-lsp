@@ -1,0 +1,7 @@
+{
+  "path": "rust/tcl-lsp-core/src/graphs.rs",
+  "before_sha256": "3046808046dad83dff198d843bebdec3b663e87b0fe2b67f209ec84cb7c9bf92",
+  "after_sha256": "fe0490093cc91b3457cf8fd6070b69bacbce4449358c748f7fa34a58fae31dc5",
+  "patch_sha256": "f7acb9a1c58e8abf859c45f2294e4ba43693d70da270c5c0416fa2eaabc9b6da",
+  "validation": "All Map constructors are explicitly serde_json::Map; imported Map has zero readers. No Main writes or Cargo."
+}

@@ -112,6 +112,28 @@ impl<'a> SsaInvocationContext<'a> {
         }
     }
 
+    /// Conditional source roles retain their original Logical owner. They
+    /// cannot replace an unavailable Native handler or Normal transfer.
+    fn logical_structure(
+        self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::LogicalStructuredInvocation> {
+        let metadata = self.token_metadata(tokens)?;
+        metadata.source_analysis_input()?;
+        (tokens
+            .source_binding
+            .as_ref()?
+            .original_source_advice_purpose(tokens, metadata, self.registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(())?;
+        crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+            self.registry,
+            metadata,
+            tokens,
+            None,
+        )
+    }
+
     fn normal(
         self,
         tokens: &CommandTokens,
@@ -2652,6 +2674,40 @@ fn selected_barrier_defs(
     selection: SsaInvocationContext<'_>,
     tokens: &CommandTokens,
 ) -> Vec<String> {
+    if let Some(source) = selection.logical_structure(tokens) {
+        if source
+            .traits()
+            .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
+            || source.loop_bindings_conditional()
+        {
+            return Vec::new();
+        }
+        let Some(config) = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_lexer_config_for_tokens(tokens))
+        else {
+            return Vec::new();
+        };
+        return source
+            .written_roles()
+            .into_iter()
+            .filter(|(_, role)| *role == tcl_registry::ArgRole::LoopVarList)
+            .filter_map(|(argument, _)| source.argument_literal(argument))
+            .filter_map(|text| {
+                tcl_syntax::word_rules::WordValueRules::from_config(&config)
+                    .split_list(&text)
+                    .ok()
+                    .map(|names| {
+                        names
+                            .into_iter()
+                            .map(std::borrow::Cow::into_owned)
+                            .collect::<Vec<_>>()
+                    })
+            })
+            .flatten()
+            .collect();
+    }
     let Some(crate::registry_invocation::RegistryInvocationResolution::Resolved(facts)) =
         selection.resolve(tokens)
     else {
@@ -3931,6 +3987,13 @@ fn uses_in_barrier(
         selection,
         found,
     );
+    if tokens
+        .as_ref()
+        .is_some_and(|tokens| selection.logical_structure(tokens).is_some())
+    {
+        selected_handler_name_reads(tokens.as_ref(), &[], selection, found, reads_own_def);
+        return;
+    }
     // Scope-alias subcommands (`dict with` / `dict update` — any
     // resolved subcommand with `creates_scope_alias`): the aliased
     // variable name is a plain string, not a $-substitution, so
@@ -4099,18 +4162,35 @@ fn set_value_reads(
     selection.word_reads(scanner, value)
 }
 
-/// Variable reads of a [`Statement::Call`]: its head + non-body argument
-/// words, generic lowering-provided reads (`reads`), a read-modify-write
-/// target (`reads_own_defs`), and the ordinary direct-registry fallback for a
-/// `set`-style value word. Mirrors [`uses_in_assignment`]'s shape; extracted
-/// from [`uses_of`].
-fn normal_handler_reads(
+/// Named reads from the independently selected Normal or conditional Logical
+/// role owner. Literal operand data keeps empty names and dollar sigils.
+fn selected_handler_name_reads(
     tokens: Option<&CommandTokens>,
     defs: &[String],
     selection: SsaInvocationContext<'_>,
     found: &mut ClassifiedUses,
     reads_own_def: &mut BTreeSet<String>,
 ) {
+    if let Some(source) = tokens.and_then(|tokens| selection.logical_structure(tokens)) {
+        for (argument, role) in source.written_roles() {
+            if role != tcl_registry::ArgRole::VarRead
+                && !(role == tcl_registry::ArgRole::VarWrite
+                    && source
+                        .traits()
+                        .contains(tcl_registry::Traits::READS_BEFORE_WRITE))
+            {
+                continue;
+            }
+            if let Some(name) = source.argument_literal(argument) {
+                let name = tcl_syntax::naming::normalise_var_name_braced(&name, true).to_owned();
+                found.by_name.insert(name.clone());
+                if defs.contains(&name) {
+                    reads_own_def.insert(name);
+                }
+            }
+        }
+        return;
+    }
     if let Some(invocation) = tokens.and_then(|tokens| selection.normal(tokens)) {
         for (index, role) in invocation.variable_roles() {
             if role != tcl_registry::ArgRole::VarRead
@@ -4209,7 +4289,7 @@ fn uses_in_call(
             reads_own_def.insert(name.clone());
         }
     }
-    normal_handler_reads(tokens.as_ref(), defs, selection, found, reads_own_def);
+    selected_handler_name_reads(tokens.as_ref(), defs, selection, found, reads_own_def);
     // A destroying command (`unset a(k)`) consumes the target's *existence*:
     // the killed store is not dead — deleting it would make the unset error
     // on every call. Record the prior version as a read (DESTROYS_VARIABLE,
@@ -4397,6 +4477,17 @@ fn scan_command_words(
     let mut body_indices = HashSet::new();
     let mut name_role_braced = HashSet::new();
     let mut in_frame_braced = HashSet::new();
+    if let Some(source) = tokens.and_then(|tokens| selection.logical_structure(tokens)) {
+        for (written, role) in source.written_roles() {
+            if matches!(
+                role,
+                tcl_registry::ArgRole::VarWrite | tcl_registry::ArgRole::VarRead
+            ) && tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(written))
+            {
+                name_role_braced.insert(written);
+            }
+        }
+    }
     if let (Some(facts), Some(effective)) = (facts, effective.as_ref()) {
         for &(index, role) in &facts.arg_roles {
             let Some(written) =
@@ -8467,14 +8558,23 @@ mod tests {
     #[test]
     fn lowered_literal_read_names_keep_empty_and_dollar_data() {
         // Public native literal-name cases: experiments/name-handling/results/frame-local-name-geometry.
-        let registry = default_registry();
-        let module = crate::lowering::lower_to_ir("info exists {}; info exists {$name}", &registry);
-        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
-        let reads: Vec<_> = module
+        let (context, unit) = logical_metadata_fixture("info exists {}; info exists {$name}");
+        let registry = context.commands();
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .expect("actual retained Logical source input");
+        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions::default(),
+            unit.top_level.source_lexer_config(),
+        );
+        let reads: Vec<_> = unit
+            .ir_module
             .top_level
             .statements
             .iter()
-            .map(|statement| uses_of_classified(statement, &mut scanner, &registry))
+            .map(|statement| uses_of_classified_in_context(statement, &mut scanner, selection))
             .collect();
         assert!(
             reads[0].contains(&(String::new(), UseClass::Name)),

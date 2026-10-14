@@ -1,0 +1,11 @@
+{
+  "base/docs/design/contracts/shared-utility-contracts-rust.md": "742b1c2b94336741e850cc5ff5bcdfb842187d873f62f3c6c3e86d92f4f39035",
+  "base/rust/tcl-compiler/src/command_binding.rs": "6adda5a5ca729bb118b07d7e18bc80936f3d111b9925edcce0aae98783e7bcc6",
+  "base/rust/tcl-compiler/src/interprocedural.rs": "0ca176a96777b72e783d219e534078429849b6df32c73b4e70307ec3369084dc",
+  "files.json": "662fc81d1be5227958f20c71dfde386c6d0d8d0d9e649344ad861ab6cc81b67d",
+  "implementation.patch": "bf157465e784ef768792b605dc63fef99c525795e24104f9a6878c95413871ee",
+  "proposal/docs/design/contracts/shared-utility-contracts-rust.md": "ea859db9eaca38c72028a647c4504b090fa262644c69a979027064f3ebffdbb4",
+  "proposal/rust/tcl-compiler/src/command_binding.rs": "dddba46a5f3355b3e09e1fef855398dddbfcaf39c95d171ef83e66ca832487f4",
+  "proposal/rust/tcl-compiler/src/interprocedural.rs": "2d8a39c0e33d24c2a0611ad4830f85b47862f5d9eb57793a240c2d1ba8ad08f9",
+  "review.md": "fc3329bb970c16a47388a529b1e843385f79d977b72df16b670960f6dbc8f51c"
+}

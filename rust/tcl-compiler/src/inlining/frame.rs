@@ -152,8 +152,14 @@ impl<'a> SourceContext<'a> {
     }
     fn accepts_tokens(self, tokens: &CommandTokens) -> Option<()> {
         let binding = tokens.source_binding.as_ref()?;
-        (binding.logical_source_name_advice_input() == self.metadata.source_analysis_input()
-            && binding.source_origin()?.source_image() == self.image
+        let metadata = binding.original_invocation_metadata_for_input(
+            tokens,
+            self.metadata.source_analysis_input()?,
+            self.registry,
+        )?;
+        (binding.original_source_advice_purpose(tokens, metadata, self.registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+            && binding.invocation_site()?.source.source_image() == self.image
             && binding
                 .original_lexer_config_for_tokens(tokens)?
                 .normalized()

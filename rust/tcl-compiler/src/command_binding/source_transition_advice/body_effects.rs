@@ -139,8 +139,7 @@ impl AdviceInvocationContext<'_> {
                     access.domain,
                     WorldStateDomain::CommandBindings | WorldStateDomain::NamespaceLookup
                 )
-        }) && receipt.is_none()
-        {
+        }) {
             graph.widen(invocation.native);
         }
     }

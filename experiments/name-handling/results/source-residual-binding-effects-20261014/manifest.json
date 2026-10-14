@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "3061ccfb37017819a4e7965aa37874c45b5de8a4adec4fde915e4e29159e403e",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "before_sha256": "1fbbbfbd11c6177b3c9b62b768c9896bf84ebf1036679b89db83877be437bb48",
+      "after_sha256": "e469710a3725ceab3739559826cac01c4b1dd1b1c4014869cd22f16b76248173"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "before_sha256": "1bf8c58e1cdc69b9b8c638855bbf0c688937d5da6759cd0592722d4024b0f089",
+      "after_sha256": "78851019b77b2a2dfc4f70fc32c306c8372cafd1f6fa758f4b8953340e39a537"
+    }
+  ],
+  "scope": "Residual naming writes are already transition-coverage filtered by shared Registry; an empty captured source recipe cannot suppress them. Preserve complete source controls and all original assertions, add actual retained source-schema residual footprint witness and valid unknown/unavailable header negatives.",
+  "evidence": "Compiler31 test147 final original unknown-source negative FAILED; all previous positive/currentness/shadow/deletion checks passed",
+  "validation": "isolated rustfmt/apply-check only, Rust unexecuted",
+  "tests": [
+    "command_binding::source_transition_advice::logical_body::tests::logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate",
+    "command_binding::source_transition_advice::logical_body::tests::logical_empty_transition_recipe_keeps_residual_naming_writes_uncovered",
+    "command_binding::logical_operation::tests::logical_captured_prefix_keeps_original_words_without_native_prefix_permission",
+    "command_binding::source_transition_advice::logical_body::tests::logical_selected_frame_children_keep_root_current_and_unknown_source_owners_distinct"
+  ]
+}

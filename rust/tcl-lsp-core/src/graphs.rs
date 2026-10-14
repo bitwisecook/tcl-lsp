@@ -29,7 +29,7 @@
 
 mod original;
 
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use tcl_compiler::analyser::{
     Analyser, AnalysisResult, ProcDef, ResolvedAnalysisInput, Scope, ScopeKind, VarDef,
 };

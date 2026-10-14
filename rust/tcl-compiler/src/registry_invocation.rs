@@ -304,6 +304,18 @@ impl LogicalStructuredInvocation {
         )
     }
 
+    /// Literal payload under the retained grammar; direct written slots were
+    /// checked by the source issuer. This grants no evaluated Native operand.
+    pub(crate) fn argument_literal(&self, argument: usize) -> Option<String> {
+        self.invocation.argument_literal(argument)
+    }
+
+    pub(crate) fn loop_bindings_conditional(&self) -> bool {
+        self.invocation.facts.repeated_args.iter().any(|layout| {
+            layout.conditional_binding && layout.role == tcl_registry::ArgRole::LoopVarList
+        })
+    }
+
     pub(crate) fn traits(&self) -> tcl_registry::Traits {
         self.invocation.facts.traits
     }
@@ -4437,10 +4449,7 @@ pub fn native_operation_selection_plan(
                 &binding.lookup_namespace,
                 static_command_word(tokens, escapes, word_rules)
                     .ok_or(Decline::MissingStaticHead)?,
-                selected
-                    .target
-                    .command
-                    .strip_prefix("::")
+                tcl_syntax::naming::unroot_rooted_key(&selected.target.command)
                     .unwrap_or(&selected.target.command),
             )
             .with_namespace_context(compiled_namespace_context(tokens))
@@ -4543,10 +4552,7 @@ pub fn native_implementation_dependency(
         tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
             &dependency.namespace,
             &dependency.head,
-            dependency
-                .target
-                .command
-                .strip_prefix("::")
+            tcl_syntax::naming::unroot_rooted_key(&dependency.target.command)
                 .unwrap_or(&dependency.target.command),
         )
         .with_namespace_context(dependency.namespace_key.to_compiled_context())
@@ -5062,6 +5068,51 @@ impl RegistryInvocationShape {
         let selected = selected.resolved()?;
         (selected.facts().canonical_command == self.command).then_some(())?;
         apply(&selected)
+    }
+
+    /// Literal names this original candidate may link into a method frame.
+    /// Exact frozen prefix/argument values stay data; this inventory grants no
+    /// Native cell, handler, completed store, observer absence or erasure proof.
+    #[must_use]
+    pub fn possible_method_instance_variable_names(
+        &self,
+        registry: &CommandRegistry,
+        context: InvocationMetadataContext<'_>,
+        tokens: &CommandTokens,
+    ) -> Option<Vec<String>> {
+        let current = original_registry_invocation_assistance_with_metadata_context(
+            registry,
+            Some(context),
+            tokens,
+        )?;
+        if current.unknown_residual || current.may_be_absent || !current.candidates.contains(self) {
+            return None;
+        }
+        if self.operation
+            != tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Variable,
+            )
+        {
+            return Some(Vec::new());
+        }
+        if !self.roles_complete {
+            return None;
+        }
+        let words = frozen_argument_words(tokens, &self.effective);
+        self.roles
+            .iter()
+            .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
+            .map(|(argument, _)| {
+                let index = self.argument_offset.checked_add(usize::from(*argument))?;
+                match words.get(index)? {
+                    EffectiveInvocationWord::Literal(value) => Some(value.clone()),
+                    EffectiveInvocationWord::ByteLiteral(value) => {
+                        std::str::from_utf8(value).ok().map(str::to_owned)
+                    }
+                    _ => None,
+                }
+            })
+            .collect()
     }
 
     /// Original written operands mentioned by this possible candidate.

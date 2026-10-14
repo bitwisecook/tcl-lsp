@@ -1,0 +1,17 @@
+
+running 1 test
+test graphs::tests::graph_calls_keep_consumed_names_as_references ... 
+thread 'graphs::tests::graph_calls_keep_consumed_names_as_references' (227407) panicked at rust/tcl-lsp-core/src/graphs.rs:1472:9:
+assertion `left == right` failed: {"projection":"original-source-declarations","nodes":[{"id":"declaration-0","bodyId":null,"bodyKey":null,"name":"::target","params":[],"line":0,"span":{"start":5,"end":11},"pure":null,"effects":null},{"id":"declaration-1","bodyId":null,"bodyKey":null,"name":"::caller","params":[],"line":0,"span":{"start":33,"end":39},"pure":null,"effects":null}],"edges":[{"caller_id":"<top-level>","callee_id":"declaration-0","caller":"<top-level>","callee":"::target","call_sites":[{"line":0,"character":89}]}],"references":[{"id":"declaration-0","name":"::target","sites":[{"line":0,"character":89}]},{"id":"declaration-1","name":"::caller","sites":[]}],"roots":["::caller"],"leaf_procs":["::target","::caller"],"root_ids":["declaration-1"],"leaf_ids":["declaration-0","declaration-1"],"compiled":{"projection":"compiled-ir","nodes":[],"edges":[],"roots":["<top-level>"],"root_ids":["<top-level>"],"leaf_ids":[],"leaf_procs":[]}}
+  left: 1
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    graphs::tests::graph_calls_keep_consumed_names_as_references
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3024 filtered out; finished in 1.30s
+

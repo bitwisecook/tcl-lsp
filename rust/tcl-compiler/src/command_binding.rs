@@ -11586,7 +11586,9 @@ impl SourceCommandBindings {
         let absolute = tcl_registry::mathfunc::qualified_name(function);
         let mut effective = vec![
             crate::registry_invocation::EffectiveInvocationWord::Literal(
-                absolute.trim_start_matches("::").to_owned(),
+                tcl_syntax::naming::unroot_rooted_key(&absolute)
+                    .unwrap_or(&absolute)
+                    .to_owned(),
             ),
         ];
         effective.extend(std::iter::repeat_n(
@@ -11616,11 +11618,16 @@ impl SourceCommandBindings {
                 .is_none()
                 .then(|| SourceNamespaceKey::authored(context.namespace))
         });
-        let mut binding = namespace_key
-            .as_ref()
-            .map_or_else(SourceInvocationBinding::default, |namespace| {
-                source_binding(state, absolute.trim_start_matches("::"), namespace)
-            });
+        let mut binding =
+            namespace_key
+                .as_ref()
+                .map_or_else(SourceInvocationBinding::default, |namespace| {
+                    source_binding(
+                        state,
+                        tcl_syntax::naming::unroot_rooted_key(&absolute).unwrap_or(&absolute),
+                        namespace,
+                    )
+                });
         binding.entered_execution_observer = if scope.was_observed {
             SourceObserverExecution::MayObserved
         } else {
@@ -17708,7 +17715,7 @@ fn qualified_namespace(parent: &str, child: &str) -> Option<String> {
     } else {
         Some(tcl_syntax::naming::qualify(
             parent,
-            canonical.strip_prefix("::").unwrap_or(&canonical),
+            tcl_syntax::naming::unroot_rooted_key(&canonical).unwrap_or(&canonical),
         ))
     }
 }
@@ -18186,24 +18193,11 @@ impl Binding {
     }
 }
 
-/// The unperturbed binding of `qname` before any rename/proc/alias.
-///
-/// A name the registry knows is a `Builtin`, global or namespaced alike:
-/// `::string` → `string`, a math function's wrapper — from 8.5
-/// `expr` dispatches `abs(…)` to `::tcl::mathfunc::abs`, so a `proc` or
-/// `rename` of it rebinds the builtin every `abs(…)` reaches (tclsh 8.5 to
-/// 9.1 run the module's `proc`) — and a package's command such as
-/// `::base32::encode`, which a `proc` of that name, or of `encode` inside
-/// `namespace eval base32`, replaces for every caller (tclsh 8.5 to 9.1 run
-/// the module's `proc`). A name the registry does not know is `Opaque`.
+/// Catalogue baseline at the supplied key, using exact-first Registry selection.
+/// Rooted method-only names cannot borrow a bare descriptor. This baseline
+/// does not establish a current Native command binding or implementation.
 fn default_binding(qname: &str, registry: &CommandRegistry) -> Binding {
-    let bare = qname.strip_prefix("::").unwrap_or(qname);
-    let builtin = if bare.contains("::") {
-        registry.get(qname).is_some()
-    } else {
-        registry.get(bare).is_some()
-    };
-    if builtin {
+    if registry.get(qname).is_some() {
         Binding::of(BindingKind::Builtin)
     } else {
         Binding::of(BindingKind::Opaque)
@@ -19472,9 +19466,9 @@ impl ModuleCommandMutations {
     /// natively (C Tcl then raises `invalid command name`).
     #[must_use]
     pub fn rebinds_under(&self, prefix: &str) -> bool {
-        let bare = prefix.strip_prefix("::").unwrap_or(prefix);
+        let bare = tcl_syntax::naming::unroot_rooted_key(prefix).unwrap_or(prefix);
         self.rebound.iter().any(|name| {
-            let canonical = name.strip_prefix("::").unwrap_or(name);
+            let canonical = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
             canonical.starts_with(bare)
         })
     }
@@ -19819,6 +19813,27 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
 #[cfg(test)]
 mod tests {
     use crate::interprocedural::test_body_identity::fixture_id;
+
+    #[test]
+    fn catalogue_baseline_retains_rootability_and_exact_descriptor_coordinates() {
+        let mut registry = CommandRegistry::build_default();
+        assert!(registry.get("my").is_some());
+        assert!(registry.get("::my").is_none());
+        assert_eq!(default_binding("::my", &registry).kind, BindingKind::Opaque);
+        for label in ["expr", "::expr"] {
+            assert_eq!(default_binding(label, &registry).kind, BindingKind::Builtin);
+        }
+        for label in [":expr", "::::expr", "::missing", "::"] {
+            assert_eq!(default_binding(label, &registry).kind, BindingKind::Opaque);
+        }
+        let mut rooted = registry.get_exact("expr").unwrap().clone();
+        rooted.name = "::my";
+        registry.insert(rooted);
+        assert_eq!(
+            default_binding("::my", &registry).kind,
+            BindingKind::Builtin
+        );
+    }
 
     use super::*;
     use crate::compilation_unit::CompilationUnit;

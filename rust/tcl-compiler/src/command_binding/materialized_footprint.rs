@@ -353,7 +353,7 @@ impl SourceInvocationBinding {
         if let Some(point) = &self.lookup_state {
             return Some(point.realm);
         }
-        (self.original_invocation_source_purpose(tokens, metadata, registry)?
+        (self.original_source_advice_purpose(tokens, metadata, registry)?
             == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
             .then_some(())?;
         let advice = self

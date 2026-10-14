@@ -26,6 +26,11 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 mod original_configurations;
 mod original_constructor_call;
+mod original_linked_member;
+pub use original_linked_member::{
+    OriginalSourceLinkedMember, original_source_linked_member_at,
+    original_source_linked_member_reference_spans, original_source_linked_members_for_class,
+};
 mod original_member_context;
 mod original_members;
 mod original_properties;
@@ -1611,14 +1616,8 @@ pub struct ClassDef {
     /// re-analyses the document and reads it from the recorded class, so it has
     /// to survive into `all_classes`.
     pub renamed_members: Vec<RenamedMember>,
-    /// Names genuinely bareword-callable from any method body of this
-    /// class, because ``link`` (``oo::Helpers::link``) installed a
-    /// per-object-namespace alias — keyed by the alias name, valued by
-    /// the real member name it dispatches to via ``my TARGET`` (alias ==
-    /// target for the plain ``link NAME`` form). In contrast, a bareword
-    /// matching an un-linked sibling method/classmethod/property name is
-    /// **not** reachable that way and errors "invalid command name" at
-    /// runtime.
+    /// Readonly alias/target display inventory. Navigation and edits use
+    /// original link invocations and member declarations instead.
     pub linked_members: HashMap<String, String>,
     /// Doc-comment text harvested from the line(s) above the
     /// ``oo::class create`` / ``oo::define`` statement.

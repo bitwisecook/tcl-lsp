@@ -4035,10 +4035,35 @@ impl CompilationUnit {
         let Some(id) = body else {
             return self.top_level.body_id.is_none().then_some(&self.top_level);
         };
-        if !self.ir_module.procedure_ids.owns(id) || !self.ir_module.procedures.contains_key(&id) {
+        if !self.ir_module.procedure_ids.owns(id) {
             return None;
         }
-        let function = self.procedures.get(&id)?;
+        let owners = [
+            self.ir_module.procedures.contains_key(&id),
+            self.ir_module.methods.contains_key(&id),
+            self.ir_module.body_units.contains_key(&id),
+        ];
+        if owners.into_iter().filter(|owns| *owns).count() != 1 {
+            return None;
+        }
+        let stores = [
+            (
+                &self.procedures,
+                self.ir_module.procedures.contains_key(&id),
+            ),
+            (&self.methods, self.ir_module.methods.contains_key(&id)),
+            (
+                &self.body_units,
+                self.ir_module.body_units.contains_key(&id),
+            ),
+        ];
+        let mut functions = stores
+            .into_iter()
+            .filter_map(|(store, owns)| owns.then(|| store.get(&id)).flatten());
+        let function = functions.next()?;
+        if functions.next().is_some() {
+            return None;
+        }
         (function.body_id == Some(id)).then_some(function)
     }
 
@@ -4656,6 +4681,14 @@ mod tests {
         let foreign_id = fixture_id(&foreign_unit.ir_module.procedures, "::p");
         let mut foreign_owner = unit.clone();
         foreign_owner.ir_module.procedure_ids = foreign_unit.ir_module.procedure_ids.clone();
+        for (&id, function) in unit.methods.iter().chain(unit.body_units.iter()) {
+            assert!(std::ptr::eq(
+                unit.function_for_body(Some(id))
+                    .expect("actual retained body unit"),
+                function
+            ));
+            assert!(foreign_owner.function_for_body(Some(id)).is_none());
+        }
         assert!(foreign_owner.function_for_body(Some(body_id)).is_none());
         assert!(unit.function_for_body(Some(foreign_id)).is_none());
         for function in std::iter::once(&unit.top_level)

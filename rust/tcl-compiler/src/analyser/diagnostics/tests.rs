@@ -11521,6 +11521,61 @@ fn w214_dispatch_protocol_suppresses_peer_family() {
 }
 
 #[test]
+fn w214_repeated_publication_does_not_count_as_three_protocol_peers() {
+    let source = "namespace eval n {
+\
+        proc peer {ctx token} {puts $ctx}
+\
+        proc peer {ctx token} {puts $ctx}
+\
+        proc peer {ctx token} {puts $ctx}
+\
+        proc dispatch {cmd ctx token} {$cmd $ctx $token}
+\
+    }";
+    let result = Analyser::new().analyse(source, "tcl");
+    assert!(
+        result.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == DiagCode::W214 && diagnostic.message.contains("'token'")
+        }),
+        "one repeated publication does not establish three peers: {:?}",
+        result.diagnostics,
+    );
+}
+
+#[test]
+fn w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers() {
+    let source = "namespace eval n {
+\
+        proc a {ctx token} {puts $ctx}
+\
+        proc b {ctx token} {puts $ctx}
+\
+        proc c {ctx token} {puts $ctx}
+\
+    }
+\
+    namespace eval other {
+\
+        proc dispatch {cmd ctx token} {$cmd $ctx $token}
+\
+    }";
+    let result = Analyser::new().analyse(source, "tcl");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.code == DiagCode::W214 && diagnostic.message.contains("'token'")
+            })
+            .count()
+            >= 3,
+        "independent dispatcher namespace must retain each unused peer parameter: {:?}",
+        result.diagnostics,
+    );
+}
+
+#[test]
 fn w214_no_dispatcher_still_fires_on_peer_family() {
     // TP control: 3 peers sharing `{ctx token}` but NO dispatcher — the
     // shared shape is coincidence, so `token` still fires.

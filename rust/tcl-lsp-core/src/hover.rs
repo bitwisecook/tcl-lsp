@@ -979,7 +979,7 @@ fn hover_impl(
     // a one-line method / property summary.  Fires when the
     // cursor sits inside a class body and `word` matches one
     // of that class's members.
-    if let Some(text) = class_member_hover_text(analysis, &word, cursor_offset) {
+    if let Some(text) = class_member_hover_text(source, analysis, &word, cursor_offset) {
         return Some(Hover::markdown(text));
     }
     if let Some(answer) = original_registry::hover(source, analysis, cursor_offset) {
@@ -3325,20 +3325,40 @@ fn infer_var_taint(unit: &CompilationUnit, var_name: &str) -> Option<String> {
     None
 }
 
-/// Hover text for a class member at the cursor's byte
-/// offset.  Walks every class whose body span contains the
-/// cursor and looks `word` up against `methods` /
-/// `class_methods` / `properties` — but ONLY when `word` is
-/// genuinely bareword-callable from a method body of this class
-/// (`ClassDef::linked_members`; see
-/// `lookup_class_member`'s doc for the full rationale) — plus the
-/// `constructor` / `destructor` keywords, unconditionally.
-/// Returns a one-line markdown summary on hit, `None` otherwise.
+/// Original linked heads hover as their retained target member; declaration
+/// names and constructor/destructor keywords keep their own source paths.
 fn class_member_hover_text(
+    source: &str,
     analysis: &AnalysisResult,
     word: &str,
     cursor_offset: u32,
 ) -> Option<String> {
+    if let Some(linked) = tcl_compiler::analyser::types::original_source_linked_member_at(
+        analysis,
+        source,
+        cursor_offset,
+    ) {
+        let class = linked.class_declaration().metadata();
+        let method = linked.target().metadata();
+        let qname = &class.qualified_name;
+        let kind = if linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject {
+            "classmethod"
+        } else {
+            "method"
+        };
+        let linked_note = if linked.alias_input().bytes() == linked.target_input().bytes() {
+            String::new()
+        } else {
+            format!("  \nlinked from `{word}`")
+        };
+        let note = oo_method_resolution_note(analysis, qname, &method.name)
+            .map_or(String::new(), |note| format!("  \n{note}"));
+        return Some(format!(
+            "**{kind}** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
+            name = method.name,
+            nparam = method.params.len()
+        ));
+    }
     let class_def = analysis
         .all_classes
         .get(crate::definition::enclosing_class_at(
@@ -3365,37 +3385,6 @@ fn class_member_hover_text(
     // the body (those keep falling through to the tiers below).
     if let Some(text) = member_declaration_hover_text(analysis, class_def, word, cursor_offset) {
         return Some(text);
-    }
-    if let Some(target) = class_def.linked_members.get(word) {
-        let linked_note = if target == word {
-            String::new()
-        } else {
-            format!("  \nlinked from `{word}`")
-        };
-        if let Some(m) = class_def.methods.get(target) {
-            let note = oo_method_resolution_note(analysis, qname, target)
-                .map_or(String::new(), |n| format!("  \n{n}"));
-            return Some(format!(
-                "**method** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
-                name = m.name,
-                nparam = m.params.len(),
-            ));
-        }
-        if let Some(m) = class_def.class_methods.get(target) {
-            let note = oo_method_resolution_note(analysis, qname, target)
-                .map_or(String::new(), |n| format!("  \n{n}"));
-            return Some(format!(
-                "**classmethod** `{qname}::{name}` ({nparam} param(s)){note}{linked_note}",
-                name = m.name,
-                nparam = m.params.len(),
-            ));
-        }
-        if let Some(p) = class_def.properties.get(target) {
-            return Some(format!(
-                "**property** `{qname}::{name}`{linked_note}",
-                name = p.name
-            ));
-        }
     }
     // A constructor or destructor keyword: the member it declared says what
     // it is.

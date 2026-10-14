@@ -31,28 +31,22 @@ use tcl_registry::CommandRegistry;
 pub(super) fn logical_module_for(
     source: &str,
 ) -> (std::sync::Arc<tcl_registry::model::ContextRegistry>, Module) {
-    let mut profile = tcl_dialect::DialectProfile::projected_from_point(
-        "logical-inlining-frame-control",
-        &[],
-        "Logical inlining frame control",
-        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
-    );
-    profile.runtime_base = Some(tcl_dialect::TclVersion::V8_6);
-    let profile = profile.intern();
-    let context =
-        tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+    let profile = tcl_dialect::DialectProfile::plain_tcl();
+    let context = tcl_registry::model::ingress::context_for_profile(profile);
     let input = crate::analyser::ResolvedAnalysisInput::new(
         profile,
         profile,
         std::sync::Arc::clone(&context),
-        LexerConfig::for_profile(Some(profile)),
+        LexerConfig::for_file_grammar(profile.grammar),
     );
     assert!(input.has_logical_source_name_context());
-    let entry = crate::command_binding::SourceAnalysisEntry {
-        logical_source_input: Some(input.clone()),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-        ..Default::default()
-    };
+    assert!(
+        tcl_registry::InvocationDialect::of_profile(profile)
+            .authored_name_policy()
+            .is_some()
+    );
+    let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(&input)
+        .expect("actual explicit Logical source input");
     let module = crate::compilation_unit::CompilationUnit::build_with_source_entry(
         source,
         crate::compilation_unit::UnitBuildOptions {

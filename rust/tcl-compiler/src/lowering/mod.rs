@@ -2556,9 +2556,8 @@ impl<'r> Lowerer<'r> {
         let quiet_store = if matches!(stmt, Statement::AssignConst { .. }) {
             let tokens = self.cmd_tokens(seg);
             tokens.source_binding.as_ref().and_then(|binding| {
-                binding.conditional_logical_scalar_store(
+                binding.original_conditional_logical_scalar_store(
                     &tokens,
-                    &binding.variable_context,
                     self.invocation_metadata_context()?,
                     self.registry,
                 )
@@ -4940,20 +4939,11 @@ impl<'r> Lowerer<'r> {
             }
             let mut names = Vec::new();
             for candidate in &advice.candidates {
-                names.extend(candidate.with_source_schema(self.registry, context, tokens, |selected| {
-                    if selected.authored_source_descriptors().command.lowering_hook != Some(LoweringHookId::Variable) {
-                        return Some(Vec::new());
-                    }
-                    let (roles, complete) = selected.argument_roles();
-                    if !complete {
-                        return None;
-                    }
-                    roles.into_iter().filter(|(_, role)| *role == ArgRole::VarWrite)
-                        .map(|(argument, _)| {
-                            let argument = selected.semantics.argument_offset.checked_add(usize::from(argument))?;
-                            Some(selected.words.arguments().get(argument)?.literal()?.to_owned())
-                        }).collect::<Option<Vec<_>>>()
-                })?);
+                names.extend(candidate.possible_method_instance_variable_names(
+                    self.registry,
+                    context,
+                    tokens,
+                )?);
             }
             Some(names)
         });
@@ -10147,7 +10137,7 @@ mod tests {
         assert!(reads.is_empty());
         assert_eq!(
             lowerer.advisory_method_instance_names(&statement),
-            vec!["local", "$dynamic"]
+            vec!["local", "${dynamic}"]
         );
     }
 
@@ -10191,7 +10181,7 @@ mod tests {
         assert_eq!(lowerer.advisory_method_instance_names(&statement), *args);
         assert_eq!(
             args,
-            &vec!["", "$counter", "brace{name}", "a(b)", "-dash", "$dynamic"]
+            &vec!["", "$counter", "brace{name}", "a(b)", "-dash", "${dynamic}"]
         );
     }
 

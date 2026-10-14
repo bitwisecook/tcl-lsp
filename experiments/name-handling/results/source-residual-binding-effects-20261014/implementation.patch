@@ -1,0 +1,53 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -139,8 +139,7 @@
+                     access.domain,
+                     WorldStateDomain::CommandBindings | WorldStateDomain::NamespaceLookup
+                 )
+-        }) && receipt.is_none()
+-        {
++        }) {
+             graph.widen(invocation.native);
+         }
+     }
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+@@ -703,6 +703,29 @@
+     }
+ 
+     #[test]
++    fn logical_empty_transition_recipe_keeps_residual_naming_writes_uncovered() {
++        let source = "namespace eval N {proc p {} {unknown missing; uplevel #0 {puts $x}}}";
++        let analysis = analyse_source(source);
++        let input = analysis.resolved_input.as_ref().unwrap();
++        let words = words_at(source, &analysis, "unknown missing").unwrap();
++        assert_eq!(
++            words.with_source_schema(input.borrowed_context_registry(), |schema| {
++                assert!(schema.state_transitions().facts().is_empty());
++                schema.effects().accesses().iter().any(|access| {
++                    access.mode != tcl_registry::world_effect::EffectAccessMode::Read
++                        && matches!(
++                            access.domain,
++                            tcl_registry::world_effect::WorldStateDomain::CommandBindings
++                                | tcl_registry::world_effect::WorldStateDomain::NamespaceLookup
++                        )
++                })
++            }),
++            Some(true)
++        );
++        assert!(words_at(source, &analysis, "uplevel #0 {puts $x}").is_none());
++    }
++
++    #[test]
+     fn logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate() {
+         for (source, fragment) in [
+             (
+@@ -753,6 +776,8 @@
+             "namespace eval N {proc uplevel args {}; proc p {} {set x LOCAL; uplevel #0 {puts $x}}}",
+             "namespace eval N {proc p {} {set x LOCAL; rename ::uplevel {}; uplevel #0 {puts $x}}}",
+             "namespace eval N {proc p {} {set x LOCAL; unknown; uplevel #0 {puts $x}}}",
++            "namespace eval N {proc p {} {set x LOCAL; unknown missing; uplevel #0 {puts $x}}}",
++            "namespace eval N {proc p {} {set x LOCAL; command_without_catalogue; uplevel #0 {puts $x}}}",
+         ] {
+             let analysis = analyse_source(source);
+             assert!(

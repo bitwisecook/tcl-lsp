@@ -78,6 +78,10 @@ pub use variable_spelling::{NativeScalarSourceSpelling, native_scalar_source_spe
 mod jim_enumeration;
 mod jim_table_key;
 pub use jim_table_key::NativeJimCommandTableKey;
+mod tcloo_link;
+pub use tcloo_link::{
+    NativeOoLinkAliasGeometry, native_oo_link_alias_geometry, native_oo_link_call_geometry,
+};
 mod oo_variables;
 pub use compiled_variables::{
     NativeCompiledScalarName, NativeCompiledVariableAuthority, NativeCompiledVariableEnvironment,

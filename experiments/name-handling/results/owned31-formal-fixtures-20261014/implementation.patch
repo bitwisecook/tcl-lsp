@@ -1,0 +1,68 @@
+--- a/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
+@@ -5849,18 +5849,17 @@
+ mod original_formal_diagnostic_source_tests {
+     #[test]
+     fn w214_uses_original_tight_name_spans_and_quoted_markers() {
+-        let profile = tcl_dialect::DialectProfile::projected_from_point(
+-            "w214-logical-formal-source",
+-            &[],
+-            "Logical formal source",
+-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+-        )
+-        .intern();
++        let profile = tcl_dialect::DialectProfile::plain_tcl();
+         let input = crate::analyser::ResolvedAnalysisInput::new(
+             profile,
+             profile,
+-            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+-            tcl_lexer::LexerConfig::for_profile(Some(profile)),
++            tcl_registry::model::ingress::context_for_profile(profile),
++            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++        );
++        assert!(
++            tcl_registry::InvocationDialect::of_profile(profile)
++                .authored_name_policy()
++                .is_some()
+         );
+         assert!(input.has_logical_source_name_context());
+         let source = r#"proc p {"as" value extra} {return 1}"#;
+--- a/rust/tcl-compiler/src/command_binding/logical_definition.rs
++++ b/rust/tcl-compiler/src/command_binding/logical_definition.rs
+@@ -407,9 +407,26 @@
+         )
+     }
+ 
++    fn formal_source_input() -> ResolvedAnalysisInput {
++        let profile = tcl_dialect::DialectProfile::plain_tcl();
++        let input = ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            tcl_registry::model::ingress::context_for_profile(profile),
++            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++        );
++        assert!(input.has_logical_source_name_context());
++        assert!(
++            tcl_registry::InvocationDialect::of_profile(profile)
++                .authored_name_policy()
++                .is_some()
++        );
++        input
++    }
++
+     #[test]
+     fn logical_formal_source_geometry_survives_same_labels_and_missing_reports() {
+-        let input = input();
++        let input = formal_source_input();
+         let context = input.context_registry();
+         let registry = context.commands();
+         let source = r#"proc p {first {"as" ""} {third value}} {return FIRST}
+@@ -467,7 +484,7 @@
+ 
+     #[test]
+     fn escaped_logical_formal_parent_keeps_names_without_fabricating_spans() {
+-        let input = input();
++        let input = formal_source_input();
+         let context = input.context_registry();
+         let registry = context.commands();
+         let source = r#"proc p "first\x20second" {return VALUE}"#;

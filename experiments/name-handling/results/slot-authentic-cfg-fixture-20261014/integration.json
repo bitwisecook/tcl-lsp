@@ -1,0 +1,6 @@
+{
+  "patch_sha256": "8105963b5a7c7bb53f0d047d6d072ceacded9ea0d4d1ae59c8ade21481de5c30",
+  "integration": "git apply --check then git apply",
+  "semantic_replay": "pending",
+  "scope": "consumer migration; no oracle or Native acceptance inferred"
+}

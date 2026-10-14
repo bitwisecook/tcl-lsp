@@ -335,7 +335,7 @@ fn collect_type_hints(
     }
     if !analysis.allows_lexical_declaration_advice() {
         let mut hints = std::collections::BTreeMap::new();
-        for function in cu.functions() {
+        for function in cu.all_body_function_units() {
             let metadata = function.invocation_metadata_context_for_module(registry, &cu.ir_module);
             for (&block, body) in &function.ssa.blocks {
                 for (index, statement) in body.statements.iter().enumerate() {
@@ -403,7 +403,7 @@ fn collect_type_hints(
         types
     };
     let mut by_function = FxHashMap::default();
-    for (&body_id, function) in &cu.procedures {
+    for (&body_id, function) in cu.procedures.iter().chain(cu.body_units.iter()) {
         if cu
             .function_for_body(Some(body_id))
             .is_some_and(|retained| std::ptr::eq(retained, function))

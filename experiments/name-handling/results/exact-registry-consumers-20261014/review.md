@@ -1,0 +1,7 @@
+# Exact-first descriptor consumers
+
+command_binding::default_binding consumes a supplied constructed/catalogue key for the coarse initial binding kind. It delegates that key directly to CommandRegistry::get instead of pre-stripping simple rooted names. This preserves exact-first rows and rootability refusal: bare method-only my exists in the catalogue, but ::my cannot borrow it. An actual exact ::my descriptor still wins. The catalogue baseline supplies no Native lookup, availability, implementation or command-table authority. Current source/native binding observations retain their independent original owners.
+
+interprocedural::scan_call_facts takes metadata from CommandBindingRealm::resolve_unpositioned and asks the Registry whether that exact selected label invokes a named procedure. The selected key now reaches Registry::get unchanged. Original ProcedureId/source-target selection, currentness, named callee eligibility, unavailable assistance and source/Native boundaries remain unchanged. Other queries in the same scan already pass the original selected key.
+
+Fixed control catalogue_baseline_retains_rootability_and_exact_descriptor_coordinates exercises actual Registry rootability, exact rooted override, ordinary fallback and literal-colon/overroot/empty/missing negatives. Interprocedural original call/body/alias/currentness controls remain required; no Native tests are reclassified or weakened. No new interpreter observations or proof renewals are claimed. Rustfmt and Main apply-check passed; Main unchanged, Cargo/tests unrun.

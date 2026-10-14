@@ -2112,7 +2112,12 @@ impl DocumentRecords {
                 original_declaration: original
                     .map(|original| original.original_occurrence().clone()),
                 original_members: original
-                    .map(|original| original.metadata().original_members.clone()),
+                    .map(|original| original.metadata().original_members.clone())
+                    .or_else(|| {
+                        analysis
+                            .allows_retained_logical_declaration_advice()
+                            .then(|| class_def.original_members.clone())
+                    }),
                 original_relations: original
                     .map(|original| original.metadata().original_relations.clone()),
                 source_name: class_def.source_name.clone(),
@@ -3659,6 +3664,34 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn contains_document(&self, uri: &str) -> bool {
         self.slots.contains_key(uri)
+    }
+
+    /// Match one actual indexed provider to the selected Logical declaration.
+    /// Complete source/input, canonical member and document ownership stay exact.
+    #[must_use]
+    pub fn logical_member_provider_matches_target(
+        &self,
+        declaring_uri: &str,
+        provider: &WorkspaceClass,
+        target: &crate::call_hierarchy::LogicalCallTarget<'_>,
+    ) -> bool {
+        let Some(document) = self
+            .slots
+            .get(&provider.uri)
+            .and_then(|slot| self.docs.get(*slot))
+        else {
+            return false;
+        };
+        let (Some(context), Some(input)) =
+            (&document.diagnostic_source, &document.original_source_input)
+        else {
+            return false;
+        };
+        document
+            .classes
+            .iter()
+            .any(|current| std::ptr::eq(current, provider))
+            && target.matches_indexed_member_provider(declaring_uri, provider, context, input)
     }
 
     /// Retained document source/configuration for diagnostic dependency checks.

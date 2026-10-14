@@ -1,0 +1,27 @@
+--- a/rust/tcl-compiler/src/slot_allocation.rs
++++ b/rust/tcl-compiler/src/slot_allocation.rs
+@@ -608,19 +608,13 @@
+         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+         let (context, unit) = supplied_function(src);
+         assert!(std::sync::Arc::ptr_eq(registry, context.commands()));
+-        let procedure = unit
+-            .ir_module
++        let body = unit
+             .procedures
+-            .get(&crate::interprocedural::test_body_identity::fixture_id(
+-                &unit.ir_module.procedures,
+-                proc,
+-            ))
++            .values()
++            .find(|body| body.name == proc)
+             .unwrap_or_else(|| panic!("proc {proc} not lowered"));
+-        // `false` / `false` = the analysis CFG: no loop inlining, matching
+-        // every other liveness consumer.
+-        let cfg =
+-            crate::cfg_builder::build_cfg_function(proc, &procedure.body, false, registry, false);
+-        let ssa = crate::ssa::build_ssa(&cfg, registry);
++        let cfg = body.cfg.clone();
++        let ssa = body.ssa.clone();
+         (cfg, ssa, registry)
+     }
+ 

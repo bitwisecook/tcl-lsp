@@ -1,0 +1,5 @@
+[
+  "rust/tcl-compiler/src/registry_invocation.rs",
+  "rust/tcl-compiler/src/lowering/mod.rs",
+  "docs/design/contracts/shared-utility-contracts-rust.md"
+]

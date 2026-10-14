@@ -18649,9 +18649,9 @@ impl Backend {
                 .await;
             match target.declaration() {
                 core_call_hierarchy::LogicalCallDeclaration::Member {
-                    class: target_class,
                     definition: method,
                     side,
+                    ..
                 } => {
                     let receivers: Vec<(String, bool)> = {
                         let index = self.workspace_index.read().await;
@@ -18673,15 +18673,22 @@ impl Backend {
                                 let internal = chain(core_workspace_index::MethodAccess::Internal)
                                     .first()
                                     .is_some_and(|provider| {
-                                        provider.qualified_name == target_class.qualified_name
+                                        index.logical_member_provider_matches_target(
+                                            current_uri.as_str(),
+                                            provider,
+                                            target,
+                                        )
                                     });
                                 internal.then(|| {
                                     let external =
                                         chain(core_workspace_index::MethodAccess::External)
                                             .first()
                                             .is_some_and(|provider| {
-                                                provider.qualified_name
-                                                    == target_class.qualified_name
+                                                index.logical_member_provider_matches_target(
+                                                    current_uri.as_str(),
+                                                    provider,
+                                                    target,
+                                                )
                                             });
                                     (receiver.clone(), external)
                                 })
@@ -19228,32 +19235,16 @@ impl Backend {
             .first()
             .and_then(serde_json::Value::as_str)
             .unwrap_or("")
-            .trim()
             .to_owned();
         let registry = self.registry_for_dialect("f5-irules").await;
-        let resolved = if !name.is_empty() && registry.get(&name).is_some() {
-            Some(name.clone())
-        } else if name.is_empty() {
-            None
-        } else {
-            let lowered = name.to_lowercase();
-            registry
-                .command_names()
-                .find(|c| c.to_lowercase() == lowered)
-                .map(str::to_owned)
-        };
+        let context = tcl_lsp_core::context_for_dialect("f5-irules");
+        let resolved = context.resolve_spec_case_advice(&registry, &name);
         let value = match resolved {
-            Some(canonical) => {
-                let summary = registry
-                    .get(&canonical)
-                    .and_then(|s| s.hover.as_ref())
-                    .map(|h| h.summary.to_owned());
-                serde_json::json!({
-                    "found": true,
-                    "command": canonical,
-                    "summary": summary,
-                })
-            }
+            Some(spec) => serde_json::json!({
+                "found": true,
+                "command": spec.name,
+                "summary": spec.hover.as_ref().map(|hover| hover.summary.to_owned()),
+            }),
             None => serde_json::json!({ "found": false, "command": name }),
         };
         Ok(Some(value))
@@ -37176,6 +37167,47 @@ info exists ::N::v\uD800";
             unknown.get("known").and_then(serde_json::Value::as_bool),
             Some(false),
         );
+    }
+
+    #[tokio::test]
+    async fn describe_irule_command_keeps_context_unavailable_descriptors_out_of_case_advice() {
+        let backend = test_backend();
+        let registry = backend.registry_for_dialect("f5-irules").await;
+        let context = tcl_lsp_core::context_for_dialect("f5-irules");
+        assert!(registry.get("oo::configurable").is_some());
+        assert!(
+            context
+                .resolve_spec(&registry, "oo::configurable")
+                .is_none()
+        );
+        for name in ["oo::configurable", "OO::CONFIGURABLE"] {
+            let response = backend
+                .describe_irule_command_command(&[serde_json::json!(name)])
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(response["found"], false, "{name}: {response}");
+        }
+    }
+
+    #[tokio::test]
+    async fn describe_irule_command_preserves_literal_space_and_empty_queries() {
+        let backend = test_backend();
+        for name in [
+            "",
+            " HTTP::header",
+            "HTTP::header ",
+            "\tHTTP::header",
+            "http::HEADER ",
+        ] {
+            let response = backend
+                .describe_irule_command_command(&[serde_json::json!(name)])
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(response["found"], false, "{name:?}: {response}");
+            assert_eq!(response["command"], name);
+        }
     }
 
     #[tokio::test]

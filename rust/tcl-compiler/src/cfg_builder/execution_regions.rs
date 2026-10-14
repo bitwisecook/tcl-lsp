@@ -216,11 +216,8 @@ impl CfgBuilder<'_> {
             let target = source.proved_handler_target()?;
             Some(crate::ir::CommandBindingSite {
                 span: statement.span(),
-                binding: tcl_runtime_api::CommandBindingIdentity::in_namespace(
-                    source
-                        .lookup_namespace
-                        .strip_prefix("::")
-                        .unwrap_or(&source.lookup_namespace),
+                binding: tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
+                    &source.lookup_namespace,
                     tokens.argv_texts.first()?.clone(),
                     target.command.clone(),
                 ),

@@ -1,0 +1,70 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/oo.rs",
+      "before_sha256": "6f090b1a7cf70346169572b2c7f706b033889f7ad5897a13ec1b708d23ac056d",
+      "after_sha256": "0759bbafbe67b5b50a80f6204bf401c7ff72d855efc20355889298fa4f4561a9"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/original_linked_member.rs",
+      "before_sha256": null,
+      "after_sha256": "b173a5c91982150297fae9b3f93f32690379ee2295929c9d336310a852739a01"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "b002674ba06d45f50e62daf0bc7b051694bec1dfafa3975ea1082c499603bd01",
+      "after_sha256": "33823bd6b1dac613f9077aaee2fa76706a41beaf0e032bfd202a66d049ae6105"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "before_sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2",
+      "after_sha256": "18935769e48b22569fc873405e6b7d3061168b6e46bbdfa6d7adb11239685697"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "before_sha256": "5d82ab10ff65d039c0bc822dde9a1e0749a479cebe926f519cfeb6d6d224479c",
+      "after_sha256": "43e73fb3e1391de63baa69a83f1990c2020692b8735c5d90b5e2110dc6342730"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "before_sha256": "107f003717d55ea11e8b257fd245f9a9b793db03dd3cabfa47dd85b56b7add79",
+      "after_sha256": "975ea67b638eab601a493dafffa6d13e7aaa5801bc90d04a667c8c7bd3287208"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "before_sha256": "8c3215538e34096178e4df4c092e96a5c5d704d2d8de7f5b6890f8fe1a8fbb22",
+      "after_sha256": "e1045a039b5de702cd277240d51619a9025e7f1694c6c3d061771e272173b4d4"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "before_sha256": "695cad15375304bdfca3d0c56f09e690d3d6a0fefb5f07d533c33f10d5c2bb32",
+      "after_sha256": "e6d228a8dcbcafd6e74520163d7823b8458db4c27cf73a2d69e20801c8a8c844"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/tcloo_link.rs",
+      "before_sha256": null,
+      "after_sha256": "cd1d0c37ccf9a14d43d5bdb90e25b16df3fa8e0c671ca360f944dd808699d9b5"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "before_sha256": "b4b043c9f4f2795e6bff519f6b1654983e08eda6c3eabe7881d43366b1b0c428",
+      "after_sha256": "dc4f7839a1b8cf7036c3f3b697f96d85a51482cdadfc548e9a2e66d1e13bc8c4"
+    }
+  ],
+  "patch_sha256": "2b7b86c492d90fdf81baa46d1db65d4481589c5ac1b8e6ea8c4e901b0faa6844",
+  "validation": "Scratch draft, no Cargo/Main writes; source-only conditional link owner and edit guards; actual compile/test acceptance pending",
+  "experiments_bundle": "/tmp/name-tcloo-linked-source-20261014/bundle",
+  "experiments_manifest": "/tmp/name-tcloo-linked-source-20261014/restoration-manifest.json",
+  "tests": [
+    "naming::tcloo_link::tests::stock_link_publication_and_call_geometry_match_original_c9_results",
+    "analyser::types::original_linked_member::tests::linked_method_navigation_retains_source_schema_and_literal_target_data",
+    "analyser::types::original_linked_member::tests::link_list_fields_keep_alias_target_and_edit_topology_separate",
+    "rename::tests::method_target_fires_on_a_linked_bareword_call"
+  ],
+  "risks": [
+    "Conditional source link advice is not runtime alias occupancy/entered receiver authority.",
+    "Stock C9 geometry only; C86 oo::util and Jim TclOO are not certified by these stock captures.",
+    "Native/private runtime and Unicode/native-byte forms outside accepted UTF8/NUL-free geometry remain unavailable.",
+    "Compile/tests and original editor regressions await Root execution; no green claim."
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "started_utc": "2026-10-14T03:40:47.833440+00:00",
+  "label": "Current shared source, scope, graph and body-hint consumers",
+  "package": "tcl-lsp-core",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34685,
+  "plan": {
+    "exact": [
+      "definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent",
+      "definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates",
+      "definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct",
+      "definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards",
+      "definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner",
+      "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+      "definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table",
+      "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables",
+      "definition::logical_variable_scope_owner_tests::logical_unknown_namespace_retains_body_tables_without_a_coordinate",
+      "source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles"
+    ],
+    "scope": "Current production LSP source-scope, prefix, hierarchy, graph and exact body hint consumers. Generic capture seals authored Rust/runtime/data subset only; complete provider/compiled closure and Native acceptance remain independent.",
+    "filters": [
+      "implementation::tests::logical_method_implementations",
+      "logical_navigation_uses_the_current_source_table_without_writable_symbol_permission",
+      "logical_navigation_refuses_a_source_reference_without_a_declaration",
+      "inlay_hints::retained_hint_context_tests::",
+      "graphs::tests::"
+    ]
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "4c5410f7a221df31b95d78e96699b3bb21e5c3de6c3d634287bb67fbc6278030",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

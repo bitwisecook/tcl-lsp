@@ -1,0 +1,3 @@
+# Exact fallback report fixtures
+
+Compiler31 selectors195/196 retain the invariant advisory_method_instance_names(statement)==Statement::Call.args. That equality passes. Their only failure is the hardcoded final report spelling: segmenter::word_piece(TokenType::Var), src/segmenter.rs261–301, renders a simple source $dynamic as ${dynamic}. The patch corrects only these two expected report vectors to the actual producer spelling. It preserves the complete equality, empty/literal-dollar/brace/array/dash assertions, original source input and all production behavior. No original oracle, Native fixture, admission assertion or conformance expectation changes. Compiler31 failures and original inputs remain retained. Formatting/apply check pass; semantic rerun pending Root.

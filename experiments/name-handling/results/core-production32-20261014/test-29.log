@@ -1,0 +1,6 @@
+
+running 1 test
+test variable_symbol::tests::logical_navigation_refuses_a_source_reference_without_a_declaration ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3024 filtered out; finished in 0.27s
+

@@ -761,6 +761,14 @@ fn accumulate_state(
                 command_namespace.as_ref(),
             );
         }
+        if semantics.logical_source()
+            && let Some(tokens) = script.retained_source_tokens_for_statement(stmt)
+        {
+            let (_, aliases) = original_nested_footprint(tokens, semantics);
+            for alias in &aliases {
+                collect_renamed_outer_alias_transition(alias, renamed_aliases, semantics);
+            }
+        }
         let embedded = source_substitutions(stmt, semantics, namespace);
         for words in embedded.all_commands() {
             let Some(head) = words
@@ -780,6 +788,45 @@ fn accumulate_state(
             accumulate_state(body, state, renamed_aliases, semantics, &body_namespace);
         }
     }
+}
+
+/// Child words retain their own original lookup and complete source input;
+/// the parent's text cannot select a descriptor for an extracted fragment.
+fn original_nested_footprint(
+    tokens: &crate::ir::CommandTokens,
+    semantics: &GlobalWriteSemantics<'_>,
+) -> (
+    tcl_registry::VariableWriteProjection,
+    Vec<tcl_registry::VariableCellAliasTransition>,
+) {
+    let mut writes = tcl_registry::VariableWriteProjection::default();
+    let mut aliases = Vec::new();
+    let Some(metadata) = semantics.metadata else {
+        writes.opaque_variable_frame = true;
+        return (writes, aliases);
+    };
+    let Some(children) = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+        tokens,
+        semantics.config,
+        semantics.registry,
+        metadata,
+    ) else {
+        writes.opaque_variable_frame = true;
+        return (writes, aliases);
+    };
+    for child in children {
+        let Some(child) = child.tokens else {
+            writes.opaque_variable_frame = true;
+            continue;
+        };
+        if let Some((child_writes, child_aliases)) = semantics.logical_footprint(&child) {
+            merge_write_projection(&mut writes, child_writes);
+            aliases.extend(child_aliases);
+        } else {
+            writes.opaque_variable_frame = true;
+        }
+    }
+    (writes, aliases)
 }
 
 fn source_substitutions(
@@ -1068,6 +1115,13 @@ fn own_write_targets(
     let mut opaque =
         structural.opaque_variable_frame || direct.opaque_variable_frame || embedded.opaque;
     out.extend(direct.literal_names);
+    if semantics.logical_source()
+        && let Some(tokens) = script.retained_source_tokens_for_statement(stmt)
+    {
+        let (nested, _) = original_nested_footprint(tokens, semantics);
+        out.extend(nested.literal_names);
+        opaque |= nested.opaque_variable_frame;
+    }
     for words in embedded.all_commands() {
         let Some(holder) = words
             .first()
@@ -2154,6 +2208,38 @@ mod tests {
                 .names
                 .contains("x")
         );
+    }
+
+    #[test]
+    fn logical_nested_write_projection_requires_original_children_not_literal_brackets() {
+        let registry = CommandRegistry::build_default();
+        for (source, expected) in [
+            ("proc p {} {set y [incr x]}", true),
+            ("proc p {} {set y {[incr x]}}", false),
+        ] {
+            let module = module_with_registry(source, &registry);
+            let bindings = ModuleCommandBindings::analyse(&module, &registry);
+            let semantics =
+                GlobalWriteSemantics::from_module(&module, &registry, &bindings).unwrap();
+            let procedure = &module.procedures[&summary_id(&module, "::p")];
+            let statement = procedure.body.statements.first().unwrap();
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let (writes, _) = original_nested_footprint(tokens, &semantics);
+            assert_eq!(
+                writes.literal_names.contains(&"x".to_owned()),
+                expected,
+                "{source}"
+            );
+            assert!(!writes.opaque_variable_frame, "{source}");
+            let mut changed = tokens.clone();
+            changed.argv_texts[2] = "[incr foreign]".to_owned();
+            let (rejected, _) = original_nested_footprint(&changed, &semantics);
+            assert!(rejected.opaque_variable_frame, "{source}");
+            assert!(rejected.literal_names.is_empty(), "{source}");
+        }
     }
 
     #[test]

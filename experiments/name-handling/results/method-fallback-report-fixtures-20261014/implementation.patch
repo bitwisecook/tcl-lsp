@@ -1,0 +1,20 @@
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -10147,7 +10147,7 @@
+         assert!(reads.is_empty());
+         assert_eq!(
+             lowerer.advisory_method_instance_names(&statement),
+-            vec!["local", "$dynamic"]
++            vec!["local", "${dynamic}"]
+         );
+     }
+ 
+@@ -10191,7 +10191,7 @@
+         assert_eq!(lowerer.advisory_method_instance_names(&statement), *args);
+         assert_eq!(
+             args,
+-            &vec!["", "$counter", "brace{name}", "a(b)", "-dash", "$dynamic"]
++            &vec!["", "$counter", "brace{name}", "a(b)", "-dash", "${dynamic}"]
+         );
+     }
+ 

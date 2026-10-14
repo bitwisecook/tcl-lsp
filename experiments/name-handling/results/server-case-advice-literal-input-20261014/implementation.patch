@@ -1,0 +1,37 @@
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -19228,7 +19228,6 @@
+             .first()
+             .and_then(serde_json::Value::as_str)
+             .unwrap_or("")
+-            .trim()
+             .to_owned();
+         let registry = self.registry_for_dialect("f5-irules").await;
+         let context = tcl_lsp_core::context_for_dialect("f5-irules");
+@@ -37185,6 +37184,26 @@
+     }
+ 
+     #[tokio::test]
++    async fn describe_irule_command_preserves_literal_space_and_empty_queries() {
++        let backend = test_backend();
++        for name in [
++            "",
++            " HTTP::header",
++            "HTTP::header ",
++            "\tHTTP::header",
++            "http::HEADER ",
++        ] {
++            let response = backend
++                .describe_irule_command_command(&[serde_json::json!(name)])
++                .await
++                .unwrap()
++                .unwrap();
++            assert_eq!(response["found"], false, "{name:?}: {response}");
++            assert_eq!(response["command"], name);
++        }
++    }
++
++    #[tokio::test]
+     async fn describe_irule_command_command_resolves_case_insensitively() {
+         let backend = test_backend();
+         let found = backend
