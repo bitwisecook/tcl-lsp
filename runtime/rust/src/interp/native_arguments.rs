@@ -7,8 +7,8 @@
 //! stage and keeps this context alive through subsequent effects and cleanup.
 
 use super::{
-    Code, Interp,
     native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
+    Code, Interp,
 };
 use crate::obj::{self, NativeObjectLifetime, TclObj};
 use std::rc::Rc;

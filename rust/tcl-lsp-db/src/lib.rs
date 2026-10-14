@@ -2671,6 +2671,9 @@ pub struct FnLatticeEntry {
     pub original_declaration_body: Option<tcl_compiler::ir::ProcedureId>,
     /// Trace-visible mode preserves ordinary dynamically replaceable dispatch.
     pub plain_command_dispatch: bool,
+    /// Original availability purpose; explicit standalone and missing supplied
+    /// metadata are distinct even when both lack a complete source input.
+    pub metadata_context: tcl_compiler::registry_invocation::OwnedInvocationMetadataContext,
     /// Exact supplied source availability and command generation. Missing input
     /// declines metadata rather than rebuilding a profile-default context.
     pub source_metadata_input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
@@ -2813,7 +2816,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     // The request's exact grammar, not one reconstructed from the registry or
     // environment name: grammar overrides are part of the memo identity.
     let config = key.lexer_config(db);
-    let prepared = PreparedCfgContext::from_source_input(
+    let prepared = PreparedCfgContext::from_metadata_input(
         (
             upvar,
             proc_params,
@@ -2822,7 +2825,9 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
             context.procedure_summary_owners(db).clone(),
         ),
         registry,
-        key.entry(db).source_metadata_input.as_ref(),
+        tcl_compiler::registry_invocation::InvocationMetadataInput::Retained(
+            &key.entry(db).metadata_context,
+        ),
     );
     let cfg = build_cfg_function_with_prepared_context(
         key.qname(db),
@@ -3089,6 +3094,7 @@ fn build_unit_with_keys_and_input<'db>(
                 req.procedure_summary_owners.clone(),
             )
         });
+        let metadata_context = req.original_metadata_context(registry);
         let template = req.body_source.and_then(|body_source| {
             req.command_bindings.prepare_native_body_template(
                 req.body,
@@ -3097,10 +3103,9 @@ fn build_unit_with_keys_and_input<'db>(
                     body_source,
                     original_body_offset: req.original_body_offset,
                     executable_body_offset: req.executable_body_offset,
-                    metadata:
-                        tcl_compiler::registry_invocation::InvocationMetadataInput::SuppliedSource(
-                            req.source_metadata_input,
-                        ),
+                    metadata: tcl_compiler::registry_invocation::InvocationMetadataInput::Retained(
+                        &metadata_context,
+                    ),
                     config: req.lexer_config,
                 },
                 registry,
@@ -3302,6 +3307,7 @@ fn lattice_request_key<'db>(
                 })
                 .flatten(),
             plain_command_dispatch: req.plain_command_dispatch,
+            metadata_context: req.original_metadata_context(registry.registry()),
             source_metadata_input: req.source_metadata_input.cloned(),
             irules_event_body: req.irules_event_body.cloned(),
             command_trust: req.command_trust.snapshot(),
@@ -5834,6 +5840,7 @@ p\uD801 ordinary";
                 FnLatticeEntry {
                     original_declaration_body: None,
                     plain_command_dispatch: false,
+                    metadata_context: unit.ir_module.source_entry.metadata_context.clone(),
                     source_metadata_input: unit.ir_module.source_metadata_input.clone(),
                     irules_event_body: event,
                     command_trust: tcl_compiler::command_binding::ModuleCommandMutations::default()
@@ -5876,6 +5883,7 @@ p\uD801 ordinary";
             FnLatticeEntry {
                 original_declaration_body: None,
                 plain_command_dispatch: selected.entry(&db).plain_command_dispatch,
+                metadata_context: selected.entry(&db).metadata_context.clone(),
                 source_metadata_input: selected.entry(&db).source_metadata_input.clone(),
                 irules_event_body: selected.entry(&db).irules_event_body.clone(),
                 command_trust: tcl_compiler::command_binding::ModuleCommandMutations::distrust_all(
@@ -5983,6 +5991,7 @@ p\uD801 ordinary";
             FnLatticeEntry {
                 original_declaration_body: None,
                 plain_command_dispatch: module.plain_command_dispatch,
+                metadata_context: tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::for_source_input(input.as_ref()),
                 source_metadata_input: input,
                 irules_event_body: None,
                 command_trust: tcl_compiler::command_binding::ModuleCommandMutations::default()
@@ -6186,6 +6195,7 @@ p\uD801 ordinary";
                 FnLatticeEntry {
                     original_declaration_body: None,
                     plain_command_dispatch: false,
+                    metadata_context: tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::Unavailable,
                     source_metadata_input: None,
                     irules_event_body: None,
                     command_trust: tcl_compiler::command_binding::ModuleCommandMutations::default()

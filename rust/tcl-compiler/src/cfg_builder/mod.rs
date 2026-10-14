@@ -3358,9 +3358,24 @@ impl PreparedCfgContext {
         registry: &CommandRegistry,
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
     ) -> Self {
+        Self::from_metadata_input(
+            context,
+            registry,
+            crate::registry_invocation::InvocationMetadataInput::SuppliedSource(input),
+        )
+    }
+
+    /// Retain the original metadata ingress purpose without converting absent
+    /// supplied input into standalone catalogue compatibility.
+    #[must_use]
+    pub fn from_metadata_input(
+        context: CfgContext,
+        registry: &CommandRegistry,
+        metadata: crate::registry_invocation::InvocationMetadataInput<'_>,
+    ) -> Self {
         Self {
             context,
-            command_classes: CfgCommandClasses::from_source_input(registry, input),
+            command_classes: CfgCommandClasses::from_metadata_input(registry, metadata),
         }
     }
 
@@ -3421,12 +3436,28 @@ pub(crate) fn prepare_cfg_context_bundle(
             command_bindings,
             procedure_summary_owners,
         ),
-        command_classes: CfgCommandClasses::from_source_input(
+        command_classes: CfgCommandClasses::from_metadata_input(
             registry,
-            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
-                .and_then(
-                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
-                ),
+            if module
+                .retained_source_bindings
+                .as_ref()
+                .is_some_and(|retained| retained.positioned_for_module(module, registry).is_some())
+                && match &module.source_entry.metadata_context {
+                    CfgMetadataContext::SuppliedSource(_) => {
+                        crate::registry_invocation::InvocationMetadataContext::for_module(
+                            registry, module,
+                        )
+                        .is_some()
+                    }
+                    _ => module.source_metadata_input.is_none(),
+                }
+            {
+                crate::registry_invocation::InvocationMetadataInput::Retained(
+                    &module.source_entry.metadata_context,
+                )
+            } else {
+                crate::registry_invocation::InvocationMetadataInput::SuppliedSource(None)
+            },
         ),
     }
 }
@@ -3980,6 +4011,20 @@ impl CfgCommandClasses {
             .map_or(CfgMetadataContext::Unavailable, |input| {
                 CfgMetadataContext::SuppliedSource(Box::new(input.clone()))
             });
+        classes
+    }
+
+    fn from_metadata_input(
+        registry: &CommandRegistry,
+        input: crate::registry_invocation::InvocationMetadataInput<'_>,
+    ) -> Self {
+        let mut classes = Self::from_registry(registry);
+        let retained = input.retain();
+        classes.metadata = if retained.metadata_context(registry).is_some() {
+            retained
+        } else {
+            CfgMetadataContext::Unavailable
+        };
         classes
     }
 
@@ -5479,6 +5524,59 @@ mod tests {
         assert!(builder.command_classes.metadata_context().is_none());
         // Complete source metadata is still independently retained by its owner.
         assert_eq!(wrong_profile.source_metadata_input.as_ref(), Some(&input));
+    }
+
+    #[test]
+    fn original_cfg_metadata_preserves_explicit_standalone_and_missing_purposes() {
+        let context = tcl_registry::model::ingress::context_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let registry = context.commands();
+        let mut lowerer = crate::lowering::Lowerer::with_config(
+            registry,
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        )
+        .with_dialect(registry.profile());
+        let module = lowerer.lower("set value 1; puts $value").clone();
+        assert!(module.source_entry.metadata_context.is_standalone());
+        assert!(module.source_metadata_input.is_none());
+        let original = prepare_cfg_context_bundle(&module, registry);
+        assert!(matches!(
+            original.command_classes.metadata,
+            CfgMetadataContext::Standalone
+        ));
+        let explicit = PreparedCfgContext::from_metadata_input(
+            original.context.clone(),
+            registry,
+            crate::registry_invocation::InvocationMetadataInput::Retained(
+                &module.source_entry.metadata_context,
+            ),
+        );
+        assert!(matches!(
+            explicit.command_classes.metadata,
+            CfgMetadataContext::Standalone
+        ));
+        let missing =
+            PreparedCfgContext::from_source_input(original.context.clone(), registry, None);
+        assert!(matches!(
+            missing.command_classes.metadata,
+            CfgMetadataContext::Unavailable
+        ));
+        let mut changed = module.clone();
+        changed.source_entry.metadata_context = CfgMetadataContext::Unavailable;
+        assert!(matches!(
+            prepare_cfg_context_bundle(&changed, registry)
+                .command_classes
+                .metadata,
+            CfgMetadataContext::Unavailable
+        ));
+        let foreign = CommandRegistry::build_default();
+        assert!(matches!(
+            prepare_cfg_context_bundle(&module, &foreign)
+                .command_classes
+                .metadata,
+            CfgMetadataContext::Unavailable
+        ));
     }
 
     #[test]

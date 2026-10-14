@@ -876,11 +876,9 @@ mod tests {
     fn origin_string_result_requires_actual_native_core_issuer() {
         let mut interp = Interp::new();
         interp.set_dialect_profile(tcl_dialect::DialectProfile::irules());
-        assert!(
-            interp
-                .native_namespace_origin_result(b"::selected")
-                .is_err()
-        );
+        assert!(interp
+            .native_namespace_origin_result(b"::selected")
+            .is_err());
     }
 
     #[test]
@@ -1067,12 +1065,10 @@ mod tests {
             .ensure_namespace(GLOBAL, b"n");
         interp.set_current_ns(namespace);
         let original = head(b"p\0original");
-        assert!(
-            interp
-                .resolve_original_command(original.as_ptr())
-                .unwrap()
-                .is_some()
-        );
+        assert!(interp
+            .resolve_original_command(original.as_ptr())
+            .unwrap()
+            .is_some());
         let global_cache = obj::native_command_name_cache(original.as_ptr()).unwrap();
         assert_eq!(global_cache.namespace_token, GLOBAL as u64);
         interp.bind_command_replacement(namespace, b"p", Command::Builtin(worker));
@@ -1158,13 +1154,11 @@ mod tests {
             interp.hide_command(b"p", b"hidden"),
             super::super::CommandVisibilityOutcome::Moved
         );
-        assert!(
-            interp
-                .native_command_name_lookup_state(&initial)
-                .unwrap()
-                .target
-                .is_none()
-        );
+        assert!(interp
+            .native_command_name_lookup_state(&initial)
+            .unwrap()
+            .target
+            .is_none());
         assert_eq!(
             interp.expose_command(b"hidden", b"p"),
             super::super::CommandVisibilityOutcome::Moved
@@ -1195,27 +1189,23 @@ mod tests {
             during.target.as_ref().unwrap().namespace_token,
             namespace as u64
         );
-        assert!(
-            interp
-                .native_invocation_dialect()
-                .native_command_name_protocol()
-                .unwrap()
-                .cache_is_current(&refreshed, &during)
-        );
+        assert!(interp
+            .native_invocation_dialect()
+            .native_command_name_protocol()
+            .unwrap()
+            .cache_is_current(&refreshed, &during));
         interp
             .namespaces
             .borrow_mut()
             .retire_rename_source(&publication);
-        assert!(
-            !interp
-                .native_invocation_dialect()
-                .native_command_name_protocol()
-                .unwrap()
-                .cache_is_current(
-                    &refreshed,
-                    &interp.native_command_name_lookup_state(&refreshed).unwrap()
-                )
-        );
+        assert!(!interp
+            .native_invocation_dialect()
+            .native_command_name_protocol()
+            .unwrap()
+            .cache_is_current(
+                &refreshed,
+                &interp.native_command_name_lookup_state(&refreshed).unwrap()
+            ));
     }
 
     #[test]
@@ -1273,12 +1263,10 @@ mod tests {
                 .unwrap();
             let initial = obj::native_command_name_cache(original.as_ptr()).unwrap();
             interp.namespaces.borrow_mut().delete(GLOBAL, b"p");
-            assert!(
-                interp
-                    .resolve_original_command(original.as_ptr())
-                    .unwrap()
-                    .is_none()
-            );
+            assert!(interp
+                .resolve_original_command(original.as_ptr())
+                .unwrap()
+                .is_none());
             if version < TclVersion::V9_0 {
                 assert_eq!(obj::native_command_name_cache(original.as_ptr()), None);
                 assert_eq!(
@@ -1306,12 +1294,10 @@ mod tests {
         let worker = std::rc::Rc::downgrade(&procedure.declaration());
         drop(procedure);
         let original = head(b"p");
-        assert!(
-            interp
-                .resolve_original_command(original.as_ptr())
-                .unwrap()
-                .is_some()
-        );
+        assert!(interp
+            .resolve_original_command(original.as_ptr())
+            .unwrap()
+            .is_some());
         let cache = obj::native_command_name_cache(original.as_ptr()).unwrap();
         assert!(interp.namespaces.borrow_mut().delete(GLOBAL, b"p"));
         assert!(worker.upgrade().is_none());
@@ -1319,13 +1305,11 @@ mod tests {
             obj::native_command_name_cache(original.as_ptr()),
             Some(cache.clone())
         );
-        assert!(
-            interp
-                .native_command_name_lookup_state(&cache)
-                .unwrap()
-                .target
-                .is_none()
-        );
+        assert!(interp
+            .native_command_name_lookup_state(&cache)
+            .unwrap()
+            .target
+            .is_none());
     }
 }
 
@@ -1533,18 +1517,14 @@ mod original_key_construction_tests {
             interp.eval_str(b"namespace eval key_scope {rename list missing_original_key}"),
             crate::interp::Code::Error,
         );
-        assert!(
-            interp
-                .namespaces()
-                .command_in(crate::namespace::GLOBAL, b"list")
-                .is_some()
-        );
-        assert!(
-            interp
-                .namespaces()
-                .command_in(crate::namespace::GLOBAL, b"key_scope::missing_original_key")
-                .is_none()
-        );
+        assert!(interp
+            .namespaces()
+            .command_in(crate::namespace::GLOBAL, b"list")
+            .is_some());
+        assert!(interp
+            .namespaces()
+            .command_in(crate::namespace::GLOBAL, b"key_scope::missing_original_key")
+            .is_none());
         assert!(interp.native_execution_refusal().is_none());
     }
 }
@@ -1568,12 +1548,10 @@ mod repinned_registration_key_tests {
                 .namespaces()
                 .command_generation(GLOBAL, b"registered")
                 .unwrap();
-            assert!(
-                interp
-                    .namespaces()
-                    .original_jim_command_key(GLOBAL, b"registered")
-                    .is_none()
-            );
+            assert!(interp
+                .namespaces()
+                .original_jim_command_key(GLOBAL, b"registered")
+                .is_none());
             interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
             assert_eq!(
                 interp
@@ -1620,29 +1598,23 @@ mod repinned_registration_key_tests {
             .command_generation(nonroot, b"relative")
             .unwrap();
         interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
-        assert!(
-            interp
-                .namespaces()
-                .original_jim_command_key(GLOBAL, b"moved")
-                .is_none()
-        );
+        assert!(interp
+            .namespaces()
+            .original_jim_command_key(GLOBAL, b"moved")
+            .is_none());
         assert_eq!(
             interp.namespaces().command_generation(nonroot, b"relative"),
             Some(nonroot_generation)
         );
-        assert!(
-            interp
-                .namespaces()
-                .original_jim_command_key(nonroot, b"relative")
-                .is_none()
-        );
+        assert!(interp
+            .namespaces()
+            .original_jim_command_key(nonroot, b"relative")
+            .is_none());
         let nonroot_name = obj::Owned::fresh(obj::new_string_bytes(b"N::relative"));
-        assert!(
-            interp
-                .resolve_original_command(nonroot_name.as_ptr())
-                .unwrap()
-                .is_none()
-        );
+        assert!(interp
+            .resolve_original_command(nonroot_name.as_ptr())
+            .unwrap()
+            .is_none());
         assert!(!interp.host_refusal_pending());
         let moved = obj::Owned::fresh(obj::new_string_bytes(b"moved"));
         assert!(interp.resolve_original_command(moved.as_ptr()).is_err());

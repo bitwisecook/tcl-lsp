@@ -47,19 +47,19 @@
 
 mod jim_object_pool;
 pub(crate) use jim_object_pool::{
-    JimAllocationScope, JimCommandNameObservation, JimPool,
-    validate_allocator as validate_jim_allocator,
+    validate_allocator as validate_jim_allocator, JimAllocationScope, JimCommandNameObservation,
+    JimPool,
 };
 mod native_jim_lookup;
-pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 pub(crate) use native_jim_lookup::{
     install_command_cache_with_stage_check as install_jim_command_cache_with_stage_check,
     install_variable_cache_with_stage_check as install_jim_variable_cache_with_stage_check,
     with_command_cache as with_jim_command_cache, with_variable_cache as with_jim_variable_cache,
 };
+pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 
 use core::ffi::{c_char, c_void};
-use std::alloc::{Layout, alloc, dealloc, realloc};
+use std::alloc::{alloc, dealloc, realloc, Layout};
 use std::{
     any::Any,
     cell::{Cell, RefCell},

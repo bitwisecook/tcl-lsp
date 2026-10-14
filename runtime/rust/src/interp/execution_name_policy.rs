@@ -424,7 +424,7 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_registry::f5::{BigIpExecutionContext, evidence::BigIpBuild, naming::BigIpNameEvent};
+    use tcl_registry::f5::{evidence::BigIpBuild, naming::BigIpNameEvent, BigIpExecutionContext};
 
     #[test]
     fn standalone_storage_uses_the_selected_actual_engine_recipe() {
@@ -490,12 +490,10 @@ mod tests {
             names.authority(),
             tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
         );
-        assert!(
-            interp
-                .native_invocation_dialect()
-                .native_name_protocol()
-                .is_none()
-        );
+        assert!(interp
+            .native_invocation_dialect()
+            .native_name_protocol()
+            .is_none());
         assert!(interp.variable_storage_matches(tcl_dialect::VariableLookupPolicy::Tcl));
     }
 
@@ -694,15 +692,9 @@ mod tests {
                 interp
                     .observed_variable_set(b"A\0B", level, super::super::new_string(b"counted"))
                     .unwrap();
-                assert!(
-                    interp
-                        .observed_variable_set(
-                            b"A",
-                            level,
-                            super::super::new_string(b"replacement")
-                        )
-                        .is_err()
-                );
+                assert!(interp
+                    .observed_variable_set(b"A", level, super::super::new_string(b"replacement"))
+                    .is_err());
                 let frames = interp.frames.borrow();
                 let Some(slot) = frames.compiled_slot_var(0) else {
                     panic!("retained formal cell")
@@ -760,11 +752,9 @@ mod tests {
             .with_observed_frame_storage(context, |interp| {
                 interp.frames.borrow_mut().pop();
                 let level = interp.frames.borrow_mut().push(crate::namespace::GLOBAL);
-                assert!(
-                    interp
-                        .observed_variable_get(b"__tcl_lsp_2286_r2286m_nul_A", level)
-                        .is_err()
-                );
+                assert!(interp
+                    .observed_variable_get(b"__tcl_lsp_2286_r2286m_nul_A", level)
+                    .is_err());
             })
             .unwrap();
         interp.frames.borrow_mut().pop();

@@ -169,6 +169,62 @@ pub struct LatticeRequest<'a> {
 }
 
 impl LatticeRequest<'_> {
+    /// Preserve this body's original metadata purpose under its exact current
+    /// declaration and module. Missing supplied input remains unavailable.
+    #[must_use]
+    pub fn original_metadata_context(
+        &self,
+        registry: &CommandRegistry,
+    ) -> crate::registry_invocation::OwnedInvocationMetadataContext {
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Metadata;
+        let Some(procedure) = self.original_source_procedure() else {
+            return Metadata::Unavailable;
+        };
+        let Some(retained) = self.module.retained_source_bindings.as_ref() else {
+            return Metadata::Unavailable;
+        };
+        if self.lexer_config != self.module.lexer_config.nested().normalized()
+            || self
+                .dialect
+                .or_else(|| registry.profile())
+                .map(tcl_dialect::DialectProfile::cache_key)
+                != self
+                    .module
+                    .dialect_profile
+                    .map(tcl_dialect::DialectProfile::cache_key)
+            || retained
+                .positioned_for_module(self.module, registry)
+                .is_none()
+            || !retained.matches_original_procedure_summary(self.body_id, procedure)
+        {
+            return Metadata::Unavailable;
+        }
+        match &self.module.source_entry.metadata_context {
+            Metadata::Standalone if self.source_metadata_input.is_none() => Metadata::Standalone,
+            Metadata::Supplied(context) if self.source_metadata_input.is_none() => {
+                Metadata::Supplied(Arc::clone(context))
+            }
+            Metadata::SuppliedSource(original) => {
+                if crate::registry_invocation::InvocationMetadataContext::for_module(
+                    registry,
+                    self.module,
+                )
+                .is_none()
+                {
+                    return Metadata::Unavailable;
+                }
+                let Some(input) = self.source_metadata_input else {
+                    return Metadata::Unavailable;
+                };
+                if input != original.as_ref() && input != &original.for_nested_source() {
+                    return Metadata::Unavailable;
+                }
+                Metadata::for_source_input(Some(input))
+            }
+            _ => Metadata::Unavailable,
+        }
+    }
+
     /// Genuine original declaration in this request's current source and issuer.
     /// Independent declaration cards retain their purpose; no allocation follows.
     #[must_use]
@@ -5581,6 +5637,31 @@ mod tests {
             assert_eq!(input.lexer_config(), config.nested().normalized());
             assert_eq!(input.lexer_config(), req.lexer_config);
             assert_eq!(input.unit_profile().cache_key(), profile.cache_key());
+            assert_eq!(
+                req.original_metadata_context(registry),
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    input
+                )),
+            );
+            let wrong_config = LatticeRequest {
+                lexer_config: tcl_lexer::LexerConfig {
+                    strict_quoting: !req.lexer_config.strict_quoting,
+                    ..req.lexer_config
+                },
+                ..*req
+            };
+            assert!(matches!(
+                wrong_config.original_metadata_context(registry),
+                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+            ));
+            let wrong_profile = LatticeRequest {
+                dialect: Some(tcl_dialect::DialectProfile::find("tcl9.1").unwrap()),
+                ..*req
+            };
+            assert!(matches!(
+                wrong_profile.original_metadata_context(registry),
+                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+            ));
             let selected = retained_memo_fixture_unit(req, registry);
             assert!(semantic_bundle_has_selected_invocation(&selected));
             let mut stale = selected.clone();

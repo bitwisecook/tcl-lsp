@@ -777,15 +777,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(obj::bytes_of(actual), b"reached");
-        assert!(
-            crate::vars::get(
-                &interpreter.frames.borrow(),
-                &interpreter.namespaces.borrow(),
-                interpreter.current_ns.get(),
-                b"after"
-            )
-            .is_none()
-        );
+        assert!(crate::vars::get(
+            &interpreter.frames.borrow(),
+            &interpreter.namespaces.borrow(),
+            interpreter.current_ns.get(),
+            b"after"
+        )
+        .is_none());
         drop(entry);
         assert!(interpreter.entered_native_operations.borrow().is_empty());
     }
@@ -819,11 +817,9 @@ mod tests {
         let prior = interpreter.get_obj_result();
         crate::codegen_abi::tcl_runtime_set_current_interp(&mut interpreter);
         let entry = NativeOperationScope::enter(&interpreter).unwrap();
-        assert!(
-            interpreter
-                .native_object_string_bytes(value.as_ptr())
-                .is_err()
-        );
+        assert!(interpreter
+            .native_object_string_bytes(value.as_ptr())
+            .is_err());
         assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
         assert_eq!(obj::bytes_of(value.as_ptr()), b"reached\0bytes");
         assert_eq!(
@@ -832,14 +828,12 @@ mod tests {
         );
         assert_eq!(unsafe { (*value.as_ptr()).ref_count }, references);
         assert_eq!(interpreter.get_obj_result(), prior);
-        assert!(
-            crate::state_traits::capture_completion_checked(
-                &mut interpreter,
-                entry.currency(),
-                Code::Ok
-            )
-            .is_err()
-        );
+        assert!(crate::state_traits::capture_completion_checked(
+            &mut interpreter,
+            entry.currency(),
+            Code::Ok
+        )
+        .is_err());
         assert_eq!(interpreter.get_obj_result(), prior);
         drop(entry);
         crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
@@ -986,12 +980,10 @@ mod tests {
             assert!(selected);
             assert_ne!(interpreter.native_operation_context_epoch(), before);
             assert_eq!(entry.currency().ensure_current_or_refuse(), Err(stale()));
-            assert!(
-                interpreter
-                    .native_invocation_dialect()
-                    .native_scalar_getter_protocol()
-                    .is_none()
-            );
+            assert!(interpreter
+                .native_invocation_dialect()
+                .native_scalar_getter_protocol()
+                .is_none());
             drop(entry);
         }
     }

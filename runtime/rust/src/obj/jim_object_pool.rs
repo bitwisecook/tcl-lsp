@@ -18,7 +18,7 @@
 
 //! Actual Jim allocation scopes and physical header memory, separate from exact births.
 
-use super::{TclObj, auxiliary, deallocate_object};
+use super::{auxiliary, deallocate_object, TclObj};
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
@@ -237,7 +237,7 @@ impl JimCommandNameObservation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obj::{NativeObjectLifetime, Owned, new_string_bytes};
+    use crate::obj::{new_string_bytes, NativeObjectLifetime, Owned};
 
     fn interpreter() -> crate::interp::Interp {
         crate::interp::Interp::with_native_core(
