@@ -270,6 +270,24 @@ impl OriginalNativeSourceDeclaration {
             }
             commands.insert(offset, original);
         }
+        for receipt in tape.native_procedure_may_commands.values().flatten() {
+            if receipt.body.as_ref() != self.procedure.body.as_ref() {
+                continue;
+            }
+            let original = &receipt.original;
+            let offset = original.first()?.span().start();
+            if original.iter().any(|word| {
+                word.image() != self.site().source.source_image()
+                    || word.config() != input.lexer_config()
+                    || word.group().expand
+                    || word.span().start() < self.body_span().start()
+                    || word.span().end() > self.body_span().end()
+            }) || commands.get(&offset).is_some_and(|held| held != original)
+            {
+                return None;
+            }
+            commands.insert(offset, Arc::clone(original));
+        }
         Some(Arc::new(OriginalNativeSourceBodyChildren {
             declaration: Arc::clone(self),
             input: input.clone(),
@@ -298,6 +316,81 @@ impl OriginalNativeSourceBodyChildren {
             != original.as_ref()
         {
             return None;
+        }
+        let attachment = tokens
+            .source_binding
+            .as_ref()?
+            .original_analysis_owner
+            .as_ref()?;
+        if !Arc::ptr_eq(attachment, &self.declaration.analysis_owner) {
+            return None;
+        }
+        for (&child_offset, child) in &self.commands {
+            if child_offset == offset
+                || !tokens.words().iter().any(|word| {
+                    word.source().span.start() <= child_offset
+                        && child
+                            .last()
+                            .is_some_and(|last| last.span().end() <= word.source().span.end())
+                })
+            {
+                continue;
+            }
+            let Some(Some(receipt)) = self.tape.native_procedure_may_commands.get(&child_offset)
+            else {
+                continue;
+            };
+            if receipt.original.as_ref() != child.as_ref()
+                || receipt.body.as_ref() != self.declaration.procedure.body.as_ref()
+            {
+                return None;
+            }
+            let position = tokens
+                .nested_bindings
+                .iter()
+                .position(|(at, _)| *at == child_offset);
+            let binding = if let Some(position) = position {
+                &mut tokens.nested_bindings[position].1
+            } else {
+                let mut binding = crate::command_binding::SourceInvocationBinding::unknown();
+                binding.original_analysis_owner = Some(Arc::clone(attachment));
+                tokens.nested_bindings.push((child_offset, binding));
+                &mut tokens.nested_bindings.last_mut()?.1
+            };
+            if binding
+                .original_analysis_owner
+                .as_ref()
+                .is_none_or(|held| !Arc::ptr_eq(held, attachment))
+            {
+                return None;
+            }
+            let command = OriginalNativeSourceCommand {
+                owner: Arc::clone(self),
+                original: Arc::clone(child),
+            };
+            if binding
+                .original_native_source_command
+                .as_ref()
+                .is_some_and(|held| held.as_ref() != &command)
+                || binding.invocation_site().is_some_and(|site| {
+                    site.offset != child_offset
+                        || !Arc::ptr_eq(&site.source, &self.declaration.site().source)
+                })
+            {
+                return None;
+            }
+            if let Some((_, recorded)) = binding.original_recorded_command()
+                && crate::registry_invocation::original_native_compiler_words(
+                    self.declaration.site().source.source_image(),
+                    recorded.words(),
+                    child_offset,
+                    self.input.lexer_config(),
+                )
+                .is_none_or(|words| words.as_slice() != child.as_ref())
+            {
+                return None;
+            }
+            binding.original_native_source_command = Some(Arc::new(command));
         }
         tokens
             .source_binding
@@ -338,6 +431,26 @@ impl OriginalNativeSourceCommand {
                 )
                 .is_some_and(|words| words.as_slice() == self.original.as_ref())
             })
+    }
+    fn syntax_offset(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<u32> {
+        if !Arc::ptr_eq(&self.owner.tape, &self.owner.declaration.tape)
+            || !self.matches_tokens(tokens, input, registry)
+            || tokens
+                .source_binding
+                .as_ref()?
+                .original_analysis_owner
+                .as_ref()
+                .is_none_or(|held| !Arc::ptr_eq(held, &self.owner.declaration.analysis_owner))
+        {
+            return None;
+        }
+        let offset = self.original.first()?.span().start();
+        (self.owner.commands.get(&offset)? == &self.original).then_some(offset)
     }
     pub(crate) fn matches_module(
         &self,
@@ -504,6 +617,24 @@ impl crate::command_binding::SourceInvocationBinding {
                 .get(&body)
                 .is_some_and(|card| card.owns_source_declaration(&command.owner.declaration))
     }
+    /// Exact held child syntax, independently of handler/schema applicability.
+    /// Unknown handlers remain opaque; no invocation or executed effect is issued.
+    pub(crate) fn original_native_source_syntax_offset(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<u32> {
+        if tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
+        let command = self.original_native_source_command.as_ref()?;
+        let held = &command.owner.input;
+        if input != held && input != &held.for_nested_source() {
+            return None;
+        }
+        command.syntax_offset(tokens, held, registry)
+    }
     /// Original held source grammar only; no external current Module is selected.
     pub(crate) fn original_native_source_input_for_name_roles(
         &self,
@@ -630,6 +761,14 @@ mod may_terminal_tests {
                     .as_ref()
                     .unwrap()
                     .original_native_source_may_owner(&changed, "not-declared", &module, registry)
+            );
+            assert!(
+                changed
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_native_source_syntax_offset(&changed, &input, registry)
+                    .is_none()
             );
             assert!(crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
                 &changed, "not-declared", &module, registry).is_none());

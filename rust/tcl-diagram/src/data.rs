@@ -1908,6 +1908,8 @@ mod original_source_tests {
 
     #[test]
     fn diagram_source_calls_keep_real_body_owners_and_refuse_foreign_ids() {
+        // naming.consumer.original-structural-diagrams
+        // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
         let source = "proc p {} {return FIRST}; p; proc p {} {return LAST}; p";
         let (analysis, unit, availability) = analysed(source, "tcl8.6");
         let registry = availability.commands();

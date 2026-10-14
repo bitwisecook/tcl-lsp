@@ -13,7 +13,7 @@ pub(crate) enum SourceStructuredInvocation {
     Logical(Box<LogicalStructuredInvocation>),
     Hosted(Box<HostedStructuredInvocation>),
     NativeSource(Box<HostedStructuredInvocation>),
-    Authored(Box<super::authored_controls::AuthoredControlInvocation>),
+    Authored(Box<super::authored_controls::AuthoredSourceInvocation>),
 }
 
 pub(crate) struct HostedStructuredInvocation {

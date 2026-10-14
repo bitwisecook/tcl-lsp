@@ -162,6 +162,45 @@ pub(crate) fn captured_native_entry_with_owner_using(
     profile: &'static tcl_dialect::DialectProfile,
     setup: impl FnOnce(&mut tcl_vm::Vm),
 ) -> (tcl_vm::Vm, tcl_runtime_api::NativeCompilationEntry) {
+    captured_native_entry_with_request(profile, setup, |vm| {
+        assert!(vm.try_compile_function("set entry_probe 1").is_err());
+    })
+}
+
+/// Capture the actual procedure activation after public namespace and definition setup.
+#[cfg(test)]
+pub(crate) fn captured_native_namespace_entry_with_owner(
+    profile: &'static tcl_dialect::DialectProfile,
+    namespace: &str,
+) -> (tcl_vm::Vm, tcl_runtime_api::NativeCompilationEntry) {
+    let procedure = format!("{namespace}::entry_probe");
+    let (owner, entry) = captured_native_entry_with_request(
+        profile,
+        |vm| {
+            let _ = vm.invoke_command("namespace", &["eval".into(), namespace.into(), "".into()]);
+            vm.try_define_procedure(&procedure, &[], "set entry_probe 1")
+                .expect("authentic namespace procedure definition");
+        },
+        |vm| {
+            let _ = vm.invoke_command(&procedure, &[]);
+        },
+    );
+    assert_eq!(
+        crate::command_binding::SourceNamespaceKey::from_native_entry(&entry)
+            .unwrap()
+            .display(),
+        Some(namespace.to_owned()),
+        "actual selected procedure namespace",
+    );
+    (owner, entry)
+}
+
+#[cfg(test)]
+fn captured_native_entry_with_request(
+    profile: &'static tcl_dialect::DialectProfile,
+    setup: impl FnOnce(&mut tcl_vm::Vm),
+    request: impl FnOnce(&mut tcl_vm::Vm),
+) -> (tcl_vm::Vm, tcl_runtime_api::NativeCompilationEntry) {
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -173,6 +212,16 @@ pub(crate) fn captured_native_entry_with_owner_using(
             _: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
             _: &'static tcl_dialect::DialectProfile,
             entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+        fn compile_procedure_bytes_with_entry(
+            &self,
+            _: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+            _: tcl_runtime_api::ProcedureDispatch,
         ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
             *self.0.borrow_mut() = Some(entry.clone());
             self.compile("")
@@ -216,9 +265,7 @@ pub(crate) fn captured_native_entry_with_owner_using(
     .expect("authentic native registration before entry capture");
     setup(&mut vm);
     vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
-    // Capture the compiler's actual entry, including when the physical Jim
-    // Script evaluator has an independent direct execution route.
-    assert!(vm.try_compile_function("set entry_probe 1").is_err());
+    request(&mut vm);
     let entry = captured
         .borrow_mut()
         .take()

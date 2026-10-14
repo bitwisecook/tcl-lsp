@@ -427,6 +427,13 @@ impl CrateModules {
         {
             return false;
         }
+        if !matches!(row.route.as_str(), "static" | "type")
+            && owner
+                .signature
+                .is_none_or(|signature| signature.receiver().is_none())
+        {
+            return false;
+        }
         if let Some(owner_type) = owner.owner_type {
             let Some(identity) = self.resolve(&row.module, owner_type, 0) else {
                 return false;
@@ -870,6 +877,215 @@ impl ConsumerReferences<'_> {
             self.shadowed.insert(name);
         }
     }
+    fn standard_binding(item: &syn::Item, name: &str) -> bool {
+        item_name(item).as_deref() == Some(name)
+            || matches!(item, syn::Item::Union(item) if item.ident == name)
+            || matches!(item, syn::Item::Trait(item) if item.ident == name)
+            || matches!(item, syn::Item::TraitAlias(item) if item.ident == name)
+            || matches!(item, syn::Item::ExternCrate(item) if item.rename.as_ref().map_or(&item.ident, |(_, name)| name) == name)
+    }
+
+    fn standard_path(&self, module: &str, path: &syn::Path, expected: &str) -> bool {
+        if path.leading_colon.is_some()
+            || self.modules.modules.contains_key("crate::std")
+            || path
+                .segments
+                .iter()
+                .take(path.segments.len().saturating_sub(1))
+                .any(|segment| !matches!(segment.arguments, syn::PathArguments::None))
+        {
+            return false;
+        }
+        let Some(file) = self.modules.modules.get(module).map(|module| &module.file) else {
+            return false;
+        };
+        if [module, "crate"].into_iter().any(|scope| {
+            self.modules.modules.get(scope).is_some_and(|module| module.file.items.iter().any(|item| {
+                Self::standard_binding(item, "std")
+                    || matches!(item, syn::Item::Use(import) if super::use_declares(&import.tree, "std"))
+            }))
+        }) {
+            return false;
+        }
+        let written = path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("::");
+        if written == expected {
+            return true;
+        }
+        if path.segments.len() != 1 {
+            return false;
+        }
+        let local = written.as_str();
+        let mut imports = Vec::new();
+        for item in &file.items {
+            if Self::standard_binding(item, local) {
+                return false;
+            }
+            if let syn::Item::Use(import) = item {
+                let mut bindings = Vec::new();
+                if flatten_use(&import.tree, &mut Vec::new(), &mut bindings).is_none() {
+                    return false;
+                }
+                for (name, route) in bindings {
+                    if name == local {
+                        if !super::route_attrs_are_plain(&import.attrs) {
+                            return false;
+                        }
+                        imports.push(route.join("::"));
+                    }
+                }
+            }
+        }
+        if !imports.is_empty() {
+            return imports.as_slice() == [expected];
+        }
+        matches!(
+            expected,
+            "std::option::Option"
+                | "std::vec::Vec"
+                | "std::boxed::Box"
+                | "std::iter::Iterator"
+                | "std::clone::Clone"
+        ) && local == expected.rsplit("::").next().unwrap_or_default()
+    }
+
+    fn unwrapped_pointer(identity: &str) -> Option<&str> {
+        ["Arc<", "Rc<", "Box<"]
+            .into_iter()
+            .find_map(|prefix| identity.strip_prefix(prefix)?.strip_suffix('>'))
+    }
+
+    fn bind_option_pattern(&mut self, pattern: &syn::Pat, value: TypedReference) {
+        let syn::Pat::TupleStruct(pattern) = pattern else {
+            return;
+        };
+        if !super::route_attrs_are_plain(&pattern.attrs)
+            || pattern.elems.len() != 1
+            || !pattern.path.is_ident("Some")
+            || self.shadowed.contains("Some")
+            || self.modules.modules.get(&self.row.consumer_module).is_none_or(|module| {
+                module.file.items.iter().any(|item| {
+                    Self::standard_binding(item, "Some")
+                        || matches!(item, syn::Item::Use(import) if super::use_declares(&import.tree, "Some"))
+                })
+            })
+        {
+            return;
+        }
+        let syn::Pat::Ident(binding) = &pattern.elems[0] else {
+            return;
+        };
+        if binding.subpat.is_some() || !super::route_attrs_are_plain(&binding.attrs) {
+            return;
+        }
+        let Some(inner) = value
+            .identity
+            .strip_prefix("Option<")
+            .and_then(|value| value.strip_suffix('>'))
+        else {
+            return;
+        };
+        self.locals.insert(
+            binding.ident.to_string(),
+            TypedReference {
+                identity: inner.into(),
+                origin: value.origin,
+            },
+        );
+    }
+
+    fn bind_enum_pattern(&mut self, pattern: &syn::Pat, value: TypedReference) {
+        let syn::Pat::TupleStruct(pattern) = pattern else {
+            return;
+        };
+        if !super::route_attrs_are_plain(&pattern.attrs) || pattern.elems.len() != 1 {
+            return;
+        }
+        let syn::Pat::Ident(binding) = &pattern.elems[0] else {
+            return;
+        };
+        if binding.subpat.is_some() || !super::route_attrs_are_plain(&binding.attrs) {
+            return;
+        }
+        let identity = Self::unwrapped_pointer(&value.identity).unwrap_or(&value.identity);
+        let Some((module, name)) = identity.rsplit_once("::") else {
+            return;
+        };
+        let Some(source) = self.modules.modules.get(module) else {
+            return;
+        };
+        let mut enums = source.file.items.iter().filter_map(|item| match item {
+            syn::Item::Enum(item) if item.ident == name => Some(item),
+            _ => None,
+        });
+        let Some(item) = enums.next() else {
+            return;
+        };
+        if enums.next().is_some()
+            || !super::type_attrs_are_plain(&item.attrs)
+            || !supported_generics(&item.generics)
+            || !accessible(&item.vis, module, &self.row.consumer_module)
+            || item.variants.iter().any(|variant| {
+                !source_attrs_preserve_routes(&variant.attrs)
+                    || variant.discriminant.is_some()
+                    || variant
+                        .fields
+                        .iter()
+                        .any(|field| !source_attrs_preserve_routes(&field.attrs))
+            })
+        {
+            return;
+        }
+        let Some(variant_name) = pattern
+            .path
+            .segments
+            .last()
+            .map(|part| part.ident.to_string())
+        else {
+            return;
+        };
+        if !supported_path_arguments(&pattern.path)
+            || self
+                .modules
+                .resolve(&self.row.consumer_module, &pattern.path, 0)
+                .as_deref()
+                != Some(format!("{identity}::{variant_name}").as_str())
+        {
+            return;
+        }
+        let mut variants = item
+            .variants
+            .iter()
+            .filter(|variant| variant.ident == variant_name);
+        let Some(variant) = variants.next() else {
+            return;
+        };
+        if variants.next().is_some() {
+            return;
+        }
+        let syn::Fields::Unnamed(fields) = &variant.fields else {
+            return;
+        };
+        if fields.unnamed.len() != 1 {
+            return;
+        }
+        let Some(field_identity) = self.type_identity_in(module, &fields.unnamed[0].ty, None)
+        else {
+            return;
+        };
+        self.locals.insert(
+            binding.ident.to_string(),
+            TypedReference {
+                identity: field_identity,
+                origin: format!("{}:variant:{variant_name}:0", value.origin),
+            },
+        );
+    }
+
     fn type_identity_in(
         &self,
         module: &str,
@@ -878,36 +1094,61 @@ impl ConsumerReferences<'_> {
     ) -> Option<String> {
         match ty {
             syn::Type::Reference(ty) => self.type_identity_in(module, &ty.elem, self_type),
+            syn::Type::ImplTrait(ty) => {
+                let mut item = None;
+                for bound in &ty.bounds {
+                    let syn::TypeParamBound::Trait(bound) = bound else {
+                        return None;
+                    };
+                    if bound.lifetimes.is_some()
+                        || !matches!(bound.modifier, syn::TraitBoundModifier::None)
+                    {
+                        return None;
+                    }
+                    if self.standard_path(module, &bound.path, "std::clone::Clone")
+                        && matches!(
+                            bound.path.segments.last()?.arguments,
+                            syn::PathArguments::None
+                        )
+                    {
+                        continue;
+                    }
+                    if !self.standard_path(module, &bound.path, "std::iter::Iterator")
+                        || item.is_some()
+                    {
+                        return None;
+                    }
+                    let syn::PathArguments::AngleBracketed(arguments) =
+                        &bound.path.segments.last()?.arguments
+                    else {
+                        return None;
+                    };
+                    let arguments = arguments.args.iter().collect::<Vec<_>>();
+                    let [syn::GenericArgument::AssocType(binding)] = arguments.as_slice() else {
+                        return None;
+                    };
+                    if binding.ident != "Item" || binding.generics.is_some() {
+                        return None;
+                    }
+                    item = Some(self.type_identity_in(module, &binding.ty, self_type)?);
+                }
+                Some(format!("Iter<{}>", item?))
+            }
             syn::Type::Path(ty) if ty.qself.is_none() => {
                 if ty.path.is_ident("Self") {
                     return self.modules.resolve(module, self_type?, 0);
                 }
                 let last = ty.path.segments.last()?;
-                if ["Option", "Vec"].iter().any(|name| last.ident == *name) {
-                    let builtin = ty.path.segments.len() == 1
-                        && !self.modules.modules.get(module)?.file.items.iter().any(|item| {
-                            item_name(item).as_deref() == Some(last.ident.to_string().as_str())
-                            || matches!(item, syn::Item::Use(import) if super::use_declares(&import.tree, &last.ident.to_string()))
-                        });
-                    let qualified = ty
-                        .path
-                        .segments
-                        .iter()
-                        .map(|part| part.ident.to_string())
-                        .collect::<Vec<_>>()
-                        .join("::");
-                    if !builtin
-                        && !matches!(qualified.as_str(), "std::option::Option" | "std::vec::Vec")
-                    {
-                        return None;
-                    }
-                    if qualified.starts_with("std::") && (self.modules.modules.contains_key("crate::std")
-                        || self.modules.modules.get(module)?.file.items.iter().any(|item| {
-                            item_name(item).as_deref() == Some("std")
-                                || matches!(item, syn::Item::Use(import) if super::use_declares(&import.tree, "std"))
-                        })) {
-                        return None;
-                    }
+                if let Some((wrapper, _expected)) = [
+                    ("Option", "std::option::Option"),
+                    ("Vec", "std::vec::Vec"),
+                    ("Arc", "std::sync::Arc"),
+                    ("Rc", "std::rc::Rc"),
+                    ("Box", "std::boxed::Box"),
+                ]
+                .into_iter()
+                .find(|(_, expected)| self.standard_path(module, &ty.path, expected))
+                {
                     let syn::PathArguments::AngleBracketed(arguments) = &last.arguments else {
                         return None;
                     };
@@ -916,8 +1157,7 @@ impl ConsumerReferences<'_> {
                         return None;
                     };
                     return Some(format!(
-                        "{}<{}>",
-                        last.ident,
+                        "{wrapper}<{}>",
                         self.type_identity_in(module, inner, self_type)?
                     ));
                 }
@@ -941,7 +1181,8 @@ impl ConsumerReferences<'_> {
         let syn::Member::Named(field) = field else {
             return None;
         };
-        let (module, owner) = value.identity.rsplit_once("::")?;
+        let identity = Self::unwrapped_pointer(&value.identity).unwrap_or(&value.identity);
+        let (module, owner) = identity.rsplit_once("::")?;
         let file = &self.modules.modules.get(module)?.file;
         let mut fields = file
             .items
@@ -971,9 +1212,22 @@ impl ConsumerReferences<'_> {
         let identity = self.type_identity_in(module, &selected.ty, None)?;
         let origin = if value.origin == "self" {
             format!("field:self.{field}")
+        } else if let Some(fields) = value.origin.strip_prefix("field:self.") {
+            if fields.split('.').count() >= 2 {
+                return None;
+            }
+            format!("field:self.{fields}.{field}")
         } else if let Some(parameter) = value.origin.strip_prefix("parameter:") {
             format!("parameter-field:{parameter}:{field}")
+        } else if let Some(previous) = value.origin.strip_prefix("parameter-field:") {
+            let (parameter, fields) = previous.split_once(':')?;
+            if fields.split('.').count() >= 2 {
+                return None;
+            }
+            format!("parameter-field:{parameter}:{fields}.{field}")
         } else if let Some(producer) = value.origin.strip_prefix("self-producer:") {
+            format!("producer-field:{producer}:{field}")
+        } else if let Some(producer) = value.origin.strip_prefix("producer:") {
             format!("producer-field:{producer}:{field}")
         } else {
             return None;
@@ -1041,6 +1295,15 @@ impl ConsumerReferences<'_> {
                 {
                     return Some(value);
                 }
+                if name == "as_deref" && call.args.is_empty() {
+                    let inner = value.identity.strip_prefix("Option<")?.strip_suffix('>')?;
+                    value.identity = format!("Option<{}>", Self::unwrapped_pointer(inner)?);
+                    return Some(value);
+                }
+                if name == "as_ref" && call.args.is_empty() {
+                    value.identity = Self::unwrapped_pointer(&value.identity)?.into();
+                    return Some(value);
+                }
                 if name == "iter" && call.args.is_empty() {
                     value.identity = format!(
                         "Iter<{}>",
@@ -1099,7 +1362,7 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
             && call.method == member
             && super::route_attrs_are_plain(&call.attrs)
             && let Some(value) = self.expression_identity(&call.receiver)
-            && value.identity == target_type
+            && Self::unwrapped_pointer(&value.identity).unwrap_or(&value.identity) == target_type
             && value.origin == self.row.route
         {
             self.matched = true;
@@ -1178,8 +1441,18 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
         };
         if let Some(init) = &local.init {
             self.visit_expr(&init.expr);
+            if let Some((_, alternative)) = &init.diverge {
+                self.visit_expr(alternative);
+            }
         }
+        let initialized = local
+            .init
+            .as_ref()
+            .and_then(|init| self.expression_identity(&init.expr));
         self.clear_pattern(&local.pat);
+        if let Some(value) = initialized.clone() {
+            self.bind_option_pattern(&local.pat, value);
+        }
         if let Some(name) = name {
             if let Some(value) = local
                 .init
@@ -1210,9 +1483,28 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
             return;
         }
         self.visit_expr(&expression.expr);
+        let item = self
+            .expression_identity(&expression.expr)
+            .and_then(|value| {
+                let identity = value
+                    .identity
+                    .strip_prefix("Iter<")?
+                    .strip_suffix('>')?
+                    .into();
+                Some(TypedReference {
+                    identity,
+                    origin: value.origin,
+                })
+            });
         let previous = self.locals.clone();
         let shadowed = self.shadowed.clone();
         self.clear_pattern(&expression.pat);
+        if let (syn::Pat::Ident(binding), Some(value)) = (expression.pat.as_ref(), item)
+            && binding.subpat.is_none()
+            && super::route_attrs_are_plain(&binding.attrs)
+        {
+            self.locals.insert(binding.ident.to_string(), value);
+        }
         self.visit_block(&expression.body);
         self.locals = previous;
         self.shadowed = shadowed;
@@ -1223,6 +1515,7 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
             return;
         }
         self.visit_expr(&expression.expr);
+        let selected = self.expression_identity(&expression.expr);
         for arm in &expression.arms {
             let previous = self.locals.clone();
             let shadowed = self.shadowed.clone();
@@ -1230,6 +1523,9 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
                 self.invalid = true;
             }
             self.clear_pattern(&arm.pat);
+            if let Some(value) = selected.clone() {
+                self.bind_enum_pattern(&arm.pat, value);
+            }
             self.visit_pat(&arm.pat);
             self.visit_expr(&arm.body);
             self.locals = previous;
@@ -1242,7 +1538,11 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
             return;
         }
         self.visit_expr(&expression.expr);
+        let value = self.expression_identity(&expression.expr);
         self.clear_pattern(&expression.pat);
+        if let Some(value) = value {
+            self.bind_option_pattern(&expression.pat, value);
+        }
     }
     fn visit_expr_if(&mut self, expression: &'ast syn::ExprIf) {
         if !super::route_attrs_are_plain(&expression.attrs) {
@@ -1352,6 +1652,129 @@ mod tests {
     }
 
     #[test]
+    fn source_routes_follow_current_nested_fields_and_standard_pointer_types() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn inspect(&self) {} }";
+        for pointer in ["std::sync::Arc", "std::rc::Rc", "Box"] {
+            let caller = format!(
+                "use super::owner::Ledger; struct Module {{ ledger: Option<{pointer}<Ledger>> }} struct Unit {{ module: Module }} fn consume(unit: &Unit) -> Option<()> {{ let module = &unit.module; let ledger = module.ledger.as_deref()?; ledger.inspect(); Some(()) }}"
+            );
+            let (modules, row) = fixture(
+                owner,
+                &caller,
+                "Ledger::inspect",
+                "parameter-field:unit:module.ledger",
+            );
+            assert!(modules.check_row(&row), "{pointer}");
+        }
+        let caller = "use super::owner::Ledger; use std::sync::Arc as Shared; struct Module { ledger: Option<Shared<Ledger>> } struct Unit { module: Module } fn consume(unit: &Unit) -> Option<()> { let module = &unit.module; let ledger = module.ledger.as_deref()?; ledger.inspect(); Some(()) }";
+        let (modules, row) = fixture(
+            owner,
+            caller,
+            "Ledger::inspect",
+            "parameter-field:unit:module.ledger",
+        );
+        assert!(modules.check_row(&row));
+    }
+
+    #[test]
+    fn source_routes_refuse_shadowed_pointers_and_foreign_nested_field_origins() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn inspect(&self) {} }";
+        for caller in [
+            "use super::owner::Ledger; struct Arc<T>(T); struct Module { ledger: Option<Arc<Ledger>> } struct Unit { module: Module } fn consume(unit: &Unit) -> Option<()> { let ledger = unit.module.ledger.as_deref()?; ledger.inspect(); Some(()) }",
+            "use super::owner::Ledger; type Shared<T> = std::sync::Arc<T>; struct Module { ledger: Option<Shared<Ledger>> } struct Unit { module: Module } fn consume(unit: &Unit) -> Option<()> { let ledger = unit.module.ledger.as_deref()?; ledger.inspect(); Some(()) }",
+            "use super::owner::Ledger; struct Module { #[cfg(any())] ledger: Option<std::sync::Arc<Ledger>> } struct Unit { module: Module } fn consume(unit: &Unit) -> Option<()> { let ledger = unit.module.ledger.as_deref()?; ledger.inspect(); Some(()) }",
+            "use super::owner::Ledger; struct Module { ledger: Option<std::sync::Arc<Ledger>> } struct Unit { module: Module } fn consume(unit: &Unit, other: &Unit) -> Option<()> { let unit = other; let ledger = unit.module.ledger.as_deref()?; ledger.inspect(); Some(()) }",
+        ] {
+            let (modules, row) = fixture(
+                owner,
+                caller,
+                "Ledger::inspect",
+                "parameter-field:unit:module.ledger",
+            );
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+    }
+
+    #[test]
+    fn source_routes_bind_only_actual_optional_constructor_results() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn inspect(&self) {} } pub(super) fn issue() -> Option<Ledger> { None }";
+        for caller in [
+            "fn consume() { if let Some(current) = super::owner::issue() { current.inspect(); } }",
+            "fn consume() { let Some(current) = super::owner::issue() else { return; }; current.inspect(); }",
+        ] {
+            let (modules, row) = fixture(
+                owner,
+                caller,
+                "Ledger::inspect",
+                "producer:crate::shared::owner::issue",
+            );
+            assert!(modules.check_row(&row), "{caller}");
+        }
+        for caller in [
+            "struct Some<T>(T); fn consume() { if let Some(current) = super::owner::issue() { current.inspect(); } }",
+            "fn consume() { if let Some(current) = super::owner::issue() { let current = (); current.inspect(); } }",
+            "fn consume() { let Some(current) = super::owner::issue() else { donate!(); return; }; current.inspect(); }",
+            "fn consume() { if let Some(current) = super::owner::issue() {} current.inspect(); }",
+        ] {
+            let (modules, row) = fixture(
+                owner,
+                caller,
+                "Ledger::inspect",
+                "producer:crate::shared::owner::issue",
+            );
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+    }
+
+    #[test]
+    fn source_enum_receivers_follow_actual_iterator_item_and_tuple_variant_fields() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn inspect(&self) {} } pub(super) enum Entry { Declared(std::sync::Arc<Ledger>), Empty } #[derive(Clone)] pub(super) struct Row { pub(super) entry: std::sync::Arc<Entry> } pub(super) fn rows() -> Option<impl Iterator<Item = Row> + Clone> { None::<std::vec::IntoIter<Row>> }";
+        let caller = "fn consume() { let Some(rows) = super::owner::rows() else { return; }; for row in rows { match row.entry.as_ref() { super::owner::Entry::Declared(current) => current.inspect(), _ => {} } } }";
+        let (modules, row) = fixture(
+            owner,
+            caller,
+            "Ledger::inspect",
+            "producer-field:crate::shared::owner::rows:entry:variant:Declared:0",
+        );
+        assert!(modules.check_row(&row));
+    }
+
+    #[test]
+    fn source_enum_receivers_refuse_other_variants_shadows_and_unavailable_shapes() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn inspect(&self) {} } pub(super) enum Entry { Declared(std::sync::Arc<Ledger>), Other(std::sync::Arc<Ledger>) } #[derive(Clone)] pub(super) struct Row { pub(super) entry: std::sync::Arc<Entry> } pub(super) fn rows() -> Option<impl Iterator<Item = Row> + Clone> { None::<std::vec::IntoIter<Row>> }";
+        for caller in [
+            "fn consume() { let Some(rows) = super::owner::rows() else { return; }; for row in rows { match row.entry.as_ref() { super::owner::Entry::Other(current) => current.inspect(), _ => {} } } }",
+            "fn consume() { let Some(rows) = super::owner::rows() else { return; }; for row in rows { match row.entry.as_ref() { super::owner::Entry::Declared(current) => { let current = (); current.inspect(); }, _ => {} } } }",
+            "fn consume() { let Some(rows) = super::owner::rows() else { return; }; for row in rows { match row.entry.as_ref() { super::owner::Entry::Declared(current) => {}, _ => {} } current.inspect(); } }",
+        ] {
+            let (modules, row) = fixture(
+                owner,
+                caller,
+                "Ledger::inspect",
+                "producer-field:crate::shared::owner::rows:entry:variant:Declared:0",
+            );
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+        for changed in [
+            owner.replace(
+                "Declared(std::sync::Arc<Ledger>)",
+                "#[cfg(any())] Declared(std::sync::Arc<Ledger>)",
+            ),
+            owner.replace("Iterator<Item = Row>", "Iterator<Item = ()>"),
+            owner.replace("pub(super) entry:", "entry:"),
+        ] {
+            let caller = "fn consume() { let Some(rows) = super::owner::rows() else { return; }; for row in rows { match row.entry.as_ref() { super::owner::Entry::Declared(current) => current.inspect(), _ => {} } } }";
+            let (modules, row) = fixture(
+                &changed,
+                caller,
+                "Ledger::inspect",
+                "producer-field:crate::shared::owner::rows:entry:variant:Declared:0",
+            );
+            assert!(!modules.check_row(&row));
+        }
+    }
+
+    #[test]
     fn source_enum_type_rows_require_actual_accessible_field_occurrences() {
         for caller in [
             "enum Selected { Owned(Box<super::owner::Ledger>) }",
@@ -1400,6 +1823,41 @@ mod tests {
         );
         row.consumer_entry = "Selected".into();
         assert!(!modules.check_row(&row));
+    }
+
+    #[test]
+    fn source_standard_wrappers_refuse_local_union_shadows() {
+        for caller in [
+            "union Box<T> { value: std::mem::ManuallyDrop<T> } trait Audit { fn inspect(&self); } impl<T> Audit for Box<T> { fn inspect(&self) {} } fn consume(current: &Box<super::owner::Ledger>) { current.inspect(); }",
+            "union Option<T> { value: std::mem::ManuallyDrop<T> } impl<T> Option<T> { fn as_ref(&self) -> std::option::Option<&Self> { None } } trait Audit { fn inspect(&self); } impl<T> Audit for Option<T> { fn inspect(&self) {} } fn consume(current: &Option<super::owner::Ledger>) -> std::option::Option<()> { current.as_ref()?.inspect(); Some(()) }",
+        ] {
+            let (modules, row) = fixture(
+                "pub(super) struct Ledger; impl Ledger { pub(super) fn inspect(&self) {} }",
+                caller,
+                "Ledger::inspect",
+                "parameter:current",
+            );
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+    }
+
+    #[test]
+    fn source_dot_routes_require_the_actual_owner_receiver() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn inspect() {} } pub(super) trait Audit { fn inspect(&self); } impl Audit for Ledger { fn inspect(&self) {} }";
+        let (modules, row) = fixture(
+            owner,
+            "use super::owner::Audit; fn consume(ledger: &super::owner::Ledger) { ledger.inspect(); }",
+            "Ledger::inspect",
+            "parameter:ledger",
+        );
+        assert!(!modules.check_row(&row));
+        let (modules, row) = fixture(
+            owner,
+            "fn consume() { super::owner::Ledger::inspect(); }",
+            "Ledger::inspect",
+            "static",
+        );
+        assert!(modules.check_row(&row));
     }
 
     #[test]

@@ -2154,6 +2154,68 @@ impl<'a> OriginalDeclarationWordSource<'a> {
 }
 
 impl super::SourceInvocationBinding {
+    /// Closed source-only Builtin layout from an explicitly Standalone original
+    /// declaration. Reached, Native and supplied source owners cannot borrow it.
+    pub(crate) fn original_authored_declaration_scalar_layout(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<super::OriginalCompilationLookupAdvice> {
+        if self.lookup_state.is_some()
+            || self.has_original_native_source_command()
+            || self.has_original_logical_source_advice()
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+        {
+            return None;
+        }
+        let site = self.invocation_site()?;
+        let rows = original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
+        let mut selected = None;
+        for row in rows {
+            if !row.entry.owns_source(&site.source, site.offset)
+                || row.words.as_ref() != tokens.words()
+                || !row.snapshot.state.baseline.metadata_context.is_standalone()
+            {
+                return None;
+            }
+            let advice = super::original_site_operand_layout_advice(
+                site,
+                tokens,
+                &row.snapshot,
+                &row.namespace,
+                row.config,
+            )?;
+            if !matches!(
+                advice.original_declaration_metadata_context(registry, tokens),
+                Ok(None)
+            ) || !advice.is_authored_standalone_source()
+                || advice.has_unclosed_source_coverage()
+            {
+                return None;
+            }
+            let [target] = advice.targets() else {
+                return None;
+            };
+            if !target.registry_backed
+                || target.kind != super::BindingKind::Builtin
+                || !target.prepended.is_empty()
+            {
+                return None;
+            }
+            if selected
+                .as_ref()
+                .is_some_and(|prior: &super::OriginalCompilationLookupAdvice| {
+                    prior.targets() != advice.targets() || prior.namespace() != advice.namespace()
+                })
+            {
+                return None;
+            }
+            selected = Some(advice);
+        }
+        selected
+    }
+
     /// Complete original argument metadata without selecting a declaration's
     /// handler. Only the genuine argv-evaluation boundary shares this purpose.
     pub(crate) fn original_declaration_argument_metadata(

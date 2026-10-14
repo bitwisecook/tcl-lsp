@@ -1,0 +1,11 @@
+{
+  "previous_tests": 92,
+  "retained": 92,
+  "gains": [
+    "code_lens::tests::lens_qname_exists_agrees_with_code_lenses_output",
+    "completion::configured_receiver_completion_tests::logical_variable_completion_keeps_actual_release_reference_closers"
+  ],
+  "regressions": [
+    "code_lens::tests::lens_qname_exists_finds_a_method_and_classmethod_and_disambiguates"
+  ]
+}

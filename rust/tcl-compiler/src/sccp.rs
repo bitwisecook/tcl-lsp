@@ -3946,17 +3946,7 @@ fn define_values(
     // An element write's base def carries no scalar value of its own —
     // `set arr(k) 5` / `set arr($i) 5` refresh `arr` for whole-array
     // readers but must never let `$arr` fold to the element's value.
-    let element_write_base = match &stmt_ssa.statement {
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. }
-            if name.contains('(') =>
-        {
-            ssa.var_symbol(crate::naming::normalise_var_name(name))
-        }
-        _ => None,
-    };
+    let element_write_base = typed_element_write_base(&stmt_ssa.statement, ssa);
     let raised = raised_writes(evaluated.as_ref());
     let keeps_all =
         matches!(&evaluated, Some(DefValues::Raised(raised)) if raised.prefix.is_none());
@@ -4090,6 +4080,24 @@ fn keep_prior(
         }
     }
     changed
+}
+
+fn typed_element_write_base(statement: &Statement, ssa: &SsaFunction) -> Option<Symbol> {
+    if !matches!(
+        statement,
+        Statement::AssignConst { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::AssignValue { .. }
+            | Statement::Incr { .. }
+    ) {
+        return None;
+    }
+    let names = crate::ir_helpers::structural_variable_write_projection(statement);
+    let [name] = names.literal_names.as_slice() else {
+        return None;
+    };
+    let (root, _) = crate::naming::split_element_ref(name)?;
+    ssa.var_symbol(root)
 }
 
 /// The existence step a typed assignment (`set`'s lowering) takes on the
@@ -5966,6 +5974,59 @@ mod tests {
     /// the hand-built statement / lattice tests.
     fn bare_ssa() -> SsaFunction {
         SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()])
+    }
+
+    #[test]
+    fn typed_element_base_keeps_literal_name_data_and_distinct_root_symbols() {
+        let mut ssa = bare_ssa();
+        let ordinary = ssa.intern_var("array");
+        let sigil = ssa.intern_var("$array");
+        let braced_sigil = ssa.intern_var("${array}");
+        let empty = ssa.intern_var("");
+        let nul = ssa.intern_var("array\0tail");
+        let statement = |name: &str, name_braced| Statement::AssignConst {
+            span: Span::new(0, 0),
+            name: name.to_owned(),
+            name_braced,
+            value: "VALUE".into(),
+            value_span: None,
+        };
+        for (name, root) in [
+            ("array(key)", ordinary),
+            ("array()", ordinary),
+            ("$array(key)", sigil),
+            ("${array}()", braced_sigil),
+            ("(key)", empty),
+            ("()", empty),
+            ("array\0tail(key)", nul),
+        ] {
+            assert_eq!(
+                typed_element_write_base(&statement(name, true), &ssa),
+                Some(root),
+                "{name:?}"
+            );
+        }
+        for name in [
+            "array",
+            "$array",
+            "",
+            "array(key",
+            "array(key)tail",
+            ")",
+            "array\0tail",
+        ] {
+            assert_eq!(
+                typed_element_write_base(&statement(name, true), &ssa),
+                None,
+                "{name:?}"
+            );
+        }
+        assert_eq!(
+            typed_element_write_base(&statement("$array(key)", false), &ssa),
+            None
+        );
+        assert_ne!(ordinary, sigil);
+        assert_ne!(ordinary, braced_sigil);
     }
 
     fn assign_const_stmt(ssa: &mut SsaFunction, name: &str, value: &str, ver: u32) -> SsaStatement {

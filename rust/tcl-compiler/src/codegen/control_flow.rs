@@ -2321,13 +2321,20 @@ mod tests {
         profile: &'static tcl_dialect::DialectProfile,
         registry: &tcl_registry::CommandRegistry,
     ) {
+        let (_native_owner, entry) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
         let ir = crate::lowering::lower_procedure_target_module_for_bytecode_with_options(
             target,
             registry,
             tcl_lexer::LexerConfig::for_profile(Some(profile)),
             Some(profile),
             false,
-            None,
+            Some(
+                crate::compile_service::BytecodeCompileService::native_entry_options(
+                    &entry,
+                    Some(profile),
+                ),
+            ),
         );
         let statement = &ir.top_level.statements[0];
         let selection = statement.tokens().and_then(|tokens| {
@@ -2434,10 +2441,13 @@ mod tests {
         };
         assert_captured_body_original_source(target, profile, registry);
         let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+        let (_native_owner, entry) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
         let module = service
-            .compile_procedure_for_profile(
+            .compile_procedure_with_entry(
                 target,
                 profile,
+                &entry,
                 tcl_runtime_api::ProcedureDispatch::Optimised,
             )
             .unwrap();

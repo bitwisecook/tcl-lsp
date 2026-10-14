@@ -10675,6 +10675,13 @@ or another version's contents. Hover selects the exact ValueKey for type, taint
 and `first_use_value_commitments_for_function`; displayed names never join
 functions. Source definition geometry retains its separate readonly selector.
 
+Named body tokens additionally require the current issued procedure snapshot,
+exact header/body/formals, full input and original attachment, and unanimous
+retained declaration rows for the unchanged whole vector. Their selected
+VarWrite name comes from one actual Written origin. These source checks retain
+the independent FU/CFG and represented Symbol/Version requirements; they cannot
+create a version or bypass a stronger Native/Logical child refusal.
+
 `original_source_name_roles` retains actual original role ordinals, literal name
 payloads and source grammar. Known-name/scanner consumers pass the same actual
 Registry through nested scripts and preserve unknown coverage. Physical slot

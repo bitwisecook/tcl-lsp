@@ -575,6 +575,8 @@ mod tests {
     }
     #[test]
     fn logical_cli_symbols_share_current_outline_and_parameter_owners() {
+        // naming.consumer.original-cli-source-symbols
+        // docs/design/analysis/name-resolution-proofs/original-cli-source-symbols.md
         let source = "set global VALUE\nproc top {first} {set local VALUE; proc nested {inside} {}}\nnamespace eval n {variable x VALUE; proc p {second} {}}";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         assert!(analysis.allows_lexical_declaration_advice());

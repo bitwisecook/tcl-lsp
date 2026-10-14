@@ -21224,6 +21224,8 @@ mod tests {
     /// summary fails to compile here until it is carried.
     #[test]
     fn opaque_namespace_imports_preserve_empty_command_tails() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
         let mutations = ModuleCommandMutations {
             opaque_namespaces: ["::ns".to_owned()].into_iter().collect(),
             ..ModuleCommandMutations::default()
@@ -23048,6 +23050,8 @@ Animal new",
 
     #[test]
     fn rebound_candidates_include_relative_qualified_names() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
         let namespace = crate::ir::ExecutionNamespace::exact("::ns");
         for (written, expected) in [
             ("inner::p", vec!["::inner::p", "::ns::inner::p"]),

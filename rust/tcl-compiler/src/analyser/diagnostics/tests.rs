@@ -11501,6 +11501,8 @@ fn w214_quoted_keyword_marker_silent() {
 
 #[test]
 fn w214_dispatch_protocol_suppresses_peer_family() {
+    // naming.diagnostic.registry-source-ownership
+    // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
     // ≥3 peers sharing `{ctx token}` + an arity-compatible dispatcher
     // (`$cmd $ctx $token`, 2 args) — `token` is a protocol contract.
     let src = "namespace eval ::n {\n\
@@ -11522,6 +11524,8 @@ fn w214_dispatch_protocol_suppresses_peer_family() {
 
 #[test]
 fn w214_repeated_publication_does_not_count_as_three_protocol_peers() {
+    // naming.diagnostic.registry-source-ownership
+    // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
     let source = "namespace eval n {
 \
         proc peer {ctx token} {puts $ctx}
@@ -11545,6 +11549,8 @@ fn w214_repeated_publication_does_not_count_as_three_protocol_peers() {
 
 #[test]
 fn w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers() {
+    // naming.diagnostic.registry-source-ownership
+    // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
     let source = "namespace eval n {
 \
         proc a {ctx token} {puts $ctx}
@@ -11577,6 +11583,8 @@ fn w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers() 
 
 #[test]
 fn w214_no_dispatcher_still_fires_on_peer_family() {
+    // naming.diagnostic.registry-source-ownership
+    // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
     // TP control: 3 peers sharing `{ctx token}` but NO dispatcher — the
     // shared shape is coincidence, so `token` still fires.
     let src = "namespace eval ::n {\n\

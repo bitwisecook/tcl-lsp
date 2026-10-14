@@ -1895,6 +1895,8 @@ mod tests {
     /// Equal leaf names retain independent body summaries.
     #[test]
     fn same_tailed_bodies_retain_independent_write_summaries() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let m = module(
             "namespace eval ::b {}; namespace eval ::a {}\n\
              proc ::b::run {} { global bbb; set bbb 1 }\n\
@@ -1912,6 +1914,8 @@ mod tests {
 
     #[test]
     fn proc_with_no_global_write_is_empty() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let m = module("proc ::p {} { set x 1 }");
         let info = detect_global_write_procs(&m);
         assert!(info.get(&summary_id(&m, "::p")).unwrap().is_empty());
@@ -1919,6 +1923,8 @@ mod tests {
 
     #[test]
     fn direct_global_write_recorded() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         // The `mutate` repro: global x; set x 99.
         let m = module("proc ::mutate {} { global x; set x 99 }");
         let info = detect_global_write_procs(&m);
@@ -2550,6 +2556,8 @@ mod tests {
 
     #[test]
     fn logical_nested_write_projection_requires_original_children_not_literal_brackets() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let registry = CommandRegistry::build_default();
         for (source, expected) in [
             ("proc p {} {set y [incr x]}", true),
@@ -2582,6 +2590,8 @@ mod tests {
 
     #[test]
     fn embedded_incr_in_command_substitution_recorded() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let m = module("proc ::p {} { global x\nset y [incr x] }");
         let info = detect_global_write_procs(&m);
         assert!(

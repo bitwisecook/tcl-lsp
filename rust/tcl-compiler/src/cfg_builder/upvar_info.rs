@@ -2183,6 +2183,8 @@ mod tests {
 
     #[test]
     fn logical_frame_aliases_keep_real_formals_and_literal_dollar_names() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let formal = module_proc_info("proc helper {source} {upvar 1 $source local}", "::helper");
         assert_eq!(
             formal.param_targets.get("local"),

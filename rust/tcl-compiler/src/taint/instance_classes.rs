@@ -242,8 +242,9 @@ fn bound_factory_value(
     nested.inherit_nested_bindings(tokens);
     let selected = original_invocation(registry, source, &nested)?;
     let class = selected_operation(registry, source, &nested, &selected)?.result_class?;
-    let (root, element) = crate::naming::split_array_name_braced(&name, true);
-    (element.is_none() && !root.is_empty()).then(|| (root.to_owned(), class))
+    crate::naming::split_element_ref(&name)
+        .is_none()
+        .then_some((name, class))
 }
 
 // Each lexical child keeps its own original lookup horizon. Selected expression
@@ -732,6 +733,49 @@ mod tests {
                 .is_none(),
             "conditional class metadata cannot supply an actual result allocation"
         );
+    }
+
+    #[test]
+    fn original_factory_scalar_holders_keep_empty_and_literal_sigil_data() {
+        let context = receiver_context();
+        let registry = context.commands();
+        for (word, name) in [
+            ("{}", ""),
+            ("{$handle}", "$handle"),
+            ("{${handle}}", "${handle}"),
+        ] {
+            let source = format!("set {word} [source_factory .created]; puts MARK");
+            let unit = logical_unit(&source, &context);
+            assert_eq!(
+                reaching(&unit, registry).get(name),
+                Some(&HashSet::from(["source_factory".into()])),
+                "{source}"
+            );
+            let statement = &unit.ir_module.top_level.statements[0];
+            let tokens = unit
+                .ir_module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .proved_construction_result(registry)
+                    .is_none()
+            );
+            let mut changed = unit.clone();
+            changed.ir_module.retained_source_bindings = None;
+            assert!(reaching(&changed, registry).is_empty());
+        }
+        let unit = logical_unit("set {(key)} [source_factory .created]; puts MARK", &context);
+        assert!(!reaching(&unit, registry).contains_key(""));
+        let unit = logical_unit(
+            "set $computed [source_factory .created]; puts MARK",
+            &context,
+        );
+        assert!(!reaching(&unit, registry).contains_key("computed"));
     }
 
     #[test]

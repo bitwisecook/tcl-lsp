@@ -10668,4 +10668,6 @@ mod source_body_names;
 pub(crate) use source_body_names::original_authored_body_name_candidates;
 
 mod authored_controls;
-pub(crate) use authored_controls::original_authored_control_invocation;
+pub(crate) use authored_controls::{
+    original_authored_control_invocation, original_authored_scalar_invocation,
+};

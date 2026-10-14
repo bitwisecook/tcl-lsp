@@ -155,6 +155,25 @@ pub(crate) fn original_source_name_roles(
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
+    if binding.has_original_authored_source_body_name_role_owner()
+        && let Some(scalar) = super::original_authored_scalar_invocation(tokens, registry)
+    {
+        let roles = scalar.written_roles();
+        let facts = scalar.with_source_schema(registry, |schema| Some(Box::new(schema.facts())))?;
+        let values = (0..tokens.words().len().checked_sub(1)?)
+            .map(|argument| scalar.argument_literal(argument))
+            .collect();
+        return Some(SourceNameRoleInventory {
+            facts,
+            values,
+            unknown_residual: true,
+            roles,
+            roles_complete: true,
+            config: binding
+                .original_authored_source_body_scope_for_name_roles(tokens, registry)?
+                .config(),
+        });
+    }
     if !binding.has_original_source_layout_owner() {
         if binding.has_original_logical_source_name_role_owner() {
             let input = binding.original_logical_source_input_for_name_roles(tokens, registry)?;

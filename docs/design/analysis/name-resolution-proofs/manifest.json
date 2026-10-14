@@ -808496,9 +808496,9 @@
       ],
       "owners": [
         {
-          "path": "rust/tcl-lsp-db/src/lib.rs",
-          "symbol": "callback_command_keys",
-          "purpose": "Withdraw legacy reporting-name candidates for any retained original input."
+          "path": "rust/tcl-compiler/src/signature_scan/types.rs",
+          "symbol": "SignatureCommandInvocation::logical_callback_candidate_keys",
+          "purpose": "Withdraw compatibility reporting-name candidates for retained original callback/name inputs; actual Logical DB readers share this projection."
         },
         {
           "path": "rust/tcl-lsp-db/src/lib.rs",
@@ -1120130,8 +1120130,8 @@
         },
         {
           "path": "runtime/rust/src/interp.rs",
-          "symbol": "Interp::materialized_jim_evaluation_frames",
-          "purpose": "Retain the authentic borrowed filename object only during actual diagnostic snapshot, independently of reporting text."
+          "symbol": "Interp::materialized_jim_error_frames",
+          "purpose": "Select authentic error-frame coordinates before retaining their original command-key, filename and invocation objects at actual diagnostic capture; unavailable observations refuse."
         },
         {
           "path": "runtime/rust/src/interp.rs",

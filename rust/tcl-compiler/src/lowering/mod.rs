@@ -2739,7 +2739,18 @@ impl<'r> Lowerer<'r> {
             return crate::registry_invocation::original_authored_control_invocation(
                 tokens,
                 self.registry,
-            );
+            )
+            .or_else(|| {
+                crate::registry_invocation::original_authored_scalar_invocation(
+                    tokens,
+                    self.registry,
+                )
+                .map(|selected| {
+                    crate::registry_invocation::SourceStructuredInvocation::Authored(Box::new(
+                        selected,
+                    ))
+                })
+            });
         }
         let metadata = self.invocation_metadata_context()?;
         if self.readonly_native_declaration_body {

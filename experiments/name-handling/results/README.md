@@ -29,3 +29,5 @@ a completed C release gate or Jim/F5 agreement.
 [VM107](vm-production107-20261014/README.md) records31/35 current naming controls with zero captured drift. [Runtime110](runtime-production110-20261014/README.md) records102/104 with original registration failures repaired and two remaining controls.
 
 [Compiler114](compiler-production114-20261014/README.md) records208/265 ordinary naming controls with source-subset drift0 and lossless large-log retention.
+
+[Core117](core-production117-20261014/README.md) records71/101 ordinary LSP naming controls with all92 prior planned selectors retained and source-subset drift0.

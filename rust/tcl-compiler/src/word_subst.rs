@@ -493,18 +493,7 @@ fn original_call_context(
         }
     }
     if binding.has_original_native_source_command() {
-        let held = binding.original_native_source_input_for_name_roles(tokens, registry)?;
-        if input != held && input != &held.for_nested_source() {
-            return None;
-        }
-        let words = binding.original_native_source_words(tokens, held, registry)?;
-        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
-            advice,
-        ) = words.source()
-        else {
-            return None;
-        };
-        return Some(advice.site().offset);
+        return binding.original_native_source_syntax_offset(tokens, input, registry);
     }
     let original_config = binding.original_lexer_config_for_tokens(tokens)?;
     if original_config.nested().normalized() != config.nested().normalized() {
@@ -3280,6 +3269,37 @@ mod native_source_lifted_inventory_owner_tests {
                 assert_eq!(&source[child.span.as_range()], "[helper]");
                 let retained = child.tokens.as_ref().expect("original child word vector");
                 assert_eq!(retained.argv_texts, ["helper"]);
+                let proof = retained.source_binding.as_ref().unwrap();
+                assert_eq!(
+                    proof.original_native_source_syntax_offset(retained, &input, registry),
+                    Some(retained.words().first().unwrap().source().span.start())
+                );
+                assert!(
+                    proof
+                        .original_native_source_words(retained, &input, registry)
+                        .is_none()
+                );
+                let mut detached = retained.clone();
+                detached.source_binding = None;
+                assert!(
+                    original_call_context(
+                        &detached,
+                        config,
+                        registry,
+                        OriginalLiftedCallContext::Metadata(metadata)
+                    )
+                    .is_none()
+                );
+                let mut changed = retained.clone();
+                changed.argv_texts[0] = "other".into();
+                assert!(
+                    changed
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .original_native_source_syntax_offset(&changed, &input, registry)
+                        .is_none()
+                );
                 let mut missing = tokens.clone();
                 missing.nested_bindings.clear();
                 assert!(

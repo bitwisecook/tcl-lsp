@@ -780,13 +780,18 @@ pub fn original_source_read_at_unit<'a>(
     if module.source.try_text().ok()? != unit.source {
         return None;
     }
-    let input = module.source_metadata_input.as_ref()?;
+    let input = module.source_metadata_input.as_ref();
     let retained = module.retained_source_bindings.as_deref()?;
     let positioned = retained.positioned_for_module(module, registry)?;
     let origin = positioned.source_origin()?;
     let mut selected: Option<OriginalSourceSsaRead<'a>> = None;
     for function in unit.all_body_function_units() {
-        if !current_analysis_function(unit, function, registry) {
+        let current = if input.is_some() {
+            current_analysis_function(unit, function, registry)
+        } else {
+            current_authored_analysis_function(unit, function, registry)
+        };
+        if !current {
             continue;
         }
         for ((block, index, source, spelling), reference) in function
@@ -821,14 +826,18 @@ pub fn original_source_read_at_unit<'a>(
             if !retained.owns_original_analysis_attachment(&original) {
                 continue;
             }
-            let owner = if binding.has_original_native_source_command() {
+            let owner = if input.is_none() {
+                !binding.has_original_native_source_command()
+                    && !binding.has_original_logical_source_advice()
+                    && owns_original_authored_analysis_tokens(unit, function, &original, registry)
+            } else if binding.has_original_native_source_command() {
                 function.body_id.is_some_and(|body| {
                     binding.original_native_source_owner_for_body(&original, module, body, registry)
                 }) && binding
-                    .original_native_source_words(&original, input, registry)
+                    .original_native_source_words(&original, input?, registry)
                     .is_some()
             } else if binding.has_original_logical_source_advice() {
-                binding.original_logical_source_words(&original, input, registry).is_some_and(|words| {
+                binding.original_logical_source_words(&original, input?, registry).is_some_and(|words| {
                     matches!(words.source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice)
                         if std::sync::Arc::ptr_eq(&advice.site().source, origin))
                 })
@@ -1084,6 +1093,47 @@ fn current_authored_analysis_function(
                     && unit.original_procedure_cfg_for_body(body) == Some(&function.cfg)
             }),
         None => function.cfg == unit.cfg_module.top_level,
+    }
+}
+
+fn owns_original_authored_analysis_tokens(
+    unit: &crate::compilation_unit::CompilationUnit,
+    function: &crate::compilation_unit::FunctionUnit,
+    original: &CommandTokens,
+    registry: &CommandRegistry,
+) -> bool {
+    let module = &unit.ir_module;
+    let Some(retained) = module.retained_source_bindings.as_deref() else {
+        return false;
+    };
+    let Some(binding) = original.source_binding.as_ref() else {
+        return false;
+    };
+    if !retained.owns_original_analysis_attachment(original)
+        || original.synthetic.is_some()
+        || !original.original_words_match_argv_text()
+        || binding.has_original_native_source_command()
+        || binding.has_original_logical_source_advice()
+    {
+        return false;
+    }
+    if binding.has_original_authored_source_body_name_role_owner() {
+        let Some(scope) =
+            binding.original_authored_source_body_scope_for_name_roles(original, registry)
+        else {
+            return false;
+        };
+        let Some(body) = function.body_id else {
+            return false;
+        };
+        scope.matches_module(module)
+            && scope.original_words(original, registry).is_some()
+            && module
+                .original_authored_declaration_body_units
+                .get(&body)
+                .is_some_and(|card| card.owns_original_source_scope(scope))
+    } else {
+        function.body_id.is_none() && retained.owns_original_tokens(original)
     }
 }
 

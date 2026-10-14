@@ -3412,6 +3412,11 @@ mod tests {
         for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
             let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            let (_native_owner, entry) =
+                crate::environment_ingress::captured_native_namespace_entry_with_owner(
+                    profile,
+                    "::receiver",
+                );
             for source in [
                 "namespace code {my tick}",
                 "set result [namespace code {my tick}]",
@@ -3420,13 +3425,14 @@ mod tests {
                 "try {error FAIL} on error {message options} {namespace code {my tick}}",
             ] {
                 let module = service
-                    .compile_procedure_for_profile(
+                    .compile_procedure_with_entry(
                         tcl_runtime_api::ProcedureCompileTarget {
                             source,
                             namespace: "::receiver",
                             parameters: &[],
                         },
                         profile,
+                        &entry,
                         tcl_runtime_api::ProcedureDispatch::Optimised,
                     )
                     .unwrap();
@@ -3447,13 +3453,14 @@ mod tests {
                 "namespace code {::namespace inscope :: my}",
             ] {
                 let module = service
-                    .compile_procedure_for_profile(
+                    .compile_procedure_with_entry(
                         tcl_runtime_api::ProcedureCompileTarget {
                             source,
                             namespace: "::receiver",
                             parameters: &[],
                         },
                         profile,
+                        &entry,
                         tcl_runtime_api::ProcedureDispatch::Optimised,
                     )
                     .unwrap();
@@ -3475,6 +3482,8 @@ mod tests {
         for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
             let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            let (_native_owner, entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
             for source in [
                 "namespace origin target",
                 "set result [namespace origin target]",
@@ -3483,13 +3492,14 @@ mod tests {
                 "try {error FAIL} on error {message options} {namespace origin target}",
             ] {
                 let module = service
-                    .compile_procedure_for_profile(
+                    .compile_procedure_with_entry(
                         tcl_runtime_api::ProcedureCompileTarget {
                             source,
                             namespace: "::",
                             parameters: &[],
                         },
                         profile,
+                        &entry,
                         tcl_runtime_api::ProcedureDispatch::Optimised,
                     )
                     .unwrap();
@@ -3514,14 +3524,17 @@ mod tests {
         for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
             let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            let (_native_owner, entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
             let module = service
-                .compile_procedure_for_profile(
+                .compile_procedure_with_entry(
                     tcl_runtime_api::ProcedureCompileTarget {
                         source: "set result [namespace current]",
                         namespace: "::",
                         parameters: &[],
                     },
                     profile,
+                    &entry,
                     tcl_runtime_api::ProcedureDispatch::Optimised,
                 )
                 .unwrap();
@@ -3536,13 +3549,14 @@ mod tests {
                 "{dialect}"
             );
             let statement = service
-                .compile_procedure_for_profile(
+                .compile_procedure_with_entry(
                     tcl_runtime_api::ProcedureCompileTarget {
                         source: "namespace current",
                         namespace: "::",
                         parameters: &[],
                     },
                     profile,
+                    &entry,
                     tcl_runtime_api::ProcedureDispatch::Optimised,
                 )
                 .unwrap();

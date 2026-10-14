@@ -1,12 +1,12 @@
 # Remaining name-handling obligations
 
-Temporary current snapshot on `work`; remove before PR. Checkpoint18:08 BST; next18:20 BST, hourly18:13 BST. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised. Required PR gates remain mandatory.
+Temporary current snapshot on `work`; remove before PR. Checkpoint18:20 BST; next18:35 BST, hourly19:13 BST. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised. Required PR gates remain mandatory.
 
 | Obligation | Current evidence | Next action |
 | --- | --- | --- |
 | Compiler source/body/frame consumers | Compiler114:208/265 PASS, source drift0; three harness timeouts and three fixed-depth SIGABRTs remain, including exact original #2286. | Finish genuine source SSA/scalar and selected naming producers; retain original assertions, fixed budgets and exact current ownership. Fix actual remaining source consumers/producers and run affected original/new controls. |
 | DB reuse/source metadata | DB61 original10:0/10 PASS, source subset drift0. Four separate source-syntax controls pass in Compiler92. | Preserve cold/edit/shift counts and uncached equivalence; replay actual original DB ten after current owner/cache fixes. |
-| LSP joins and graph analysis | Core95:66/92 PASS, source drift0; all71 original Core84 controls retained with two gains and zero regressions. | Finish source-read/value, inlay, graph and original coordinate controls; replay adopted current source owners. |
+| LSP joins and graph analysis | Core117:71/101 PASS,30 FAIL, source drift0/no timeouts; original92 retained in the plan, common-control verified comparison: two gains and one original CodeLens QName regression. | Finish source-read/value, inlay, graph and original coordinate controls; replay adopted current source owners. |
 | Taint consumers | Shared status/report, exact source substitutions and Core/Explorer displays integrated; affected ordinary validation remains required. | Preserve complete current snapshots and unknown residuals; run original and new status/currentness/refusal controls. |
 | Runtime/VM and #2286 | Runtime110:102/104 PASS; VM107:31/35 PASS; captured source/provider/compiled-input/artifact drift maps0. | Replay public moved refusal and integrated VM local/location/child repairs. Original retained-import remains red; implement distinct authentic incarnation/header-residence ownership without extra frame references or revival. Keep unchanged #2286 required. |
 | Remaining surfaces/editors | Existing editor11-control result has source/output/binary drift0; MCP89 build-only capture has zero semantic controls. | Replay actual current MCP/server/editing/metadata consumers; metadata success alone supplies no Native acceptance. |

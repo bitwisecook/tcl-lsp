@@ -1021,23 +1021,7 @@ pub(crate) struct TaintCtx<'a> {
 }
 
 impl TaintCtx<'_> {
-    /// This document's `${…}` close rule, for the shared owner
-    /// [`tcl_lexer::braced_var_name_end`].
-    ///
-    /// Taint is keyed by variable *name*, so a scan that recovers the wrong
-    /// name tracks the wrong cell: the tainted value's colour is dropped and
-    /// the security diagnostics that depend on it (T1xx, W201) go quiet on a
-    /// sink they should flag. With no explicit dialect the document was lexed
-    /// under [`tcl_dialect::BracedVarStyle::default`].
-    pub(crate) fn braced_var(self) -> tcl_dialect::BracedVarStyle {
-        self.source.config.braced_var
-    }
-
-    /// The document's lexer configuration, for the helpers that re-lex a
-    /// word's own text (`interpolation_carve_out`'s literal-fragment scans).
-    /// Same reason as [`Self::braced_var`]: a re-lex under the default
-    /// grammar reads the document's bytes under rules it was not written
-    /// in, and the colour that falls out is about a different word.
+    /// Grammar retained by this word's actual source context.
     pub(crate) fn lexer_config(self) -> tcl_lexer::LexerConfig {
         self.source.config
     }
@@ -1096,82 +1080,64 @@ fn word_taint_at<S: std::hash::BuildHasher>(
     }
     let stripped = word.trim();
 
-    // Pure variable reference — inherit taint directly.
-    if is_pure_var_ref(stripped) {
-        let name = normalise_var_name(stripped);
-        return var_taint(name, uses, taints, ctx.ssa);
-    }
-
     // Bracketed command substitution.
     if let Some((cmd, args)) = parse_command_substitution_with_config(stripped, ctx.lexer_config())
     {
         return substitution_word_taint(word, (&cmd, &args), uses, taints, ctx, depth);
     }
 
-    // Interpolated string: scan for $var references and [cmd] substitutions.
     if stripped.contains('$') || stripped.contains('[') {
+        let Ok(length) = u32::try_from(stripped.len()) else {
+            return TaintLattice::tainted();
+        };
+        let Ok(arena) = tcl_lexer::ExecutablePartArena::decompose(
+            tcl_lexer::SourceImage::native(stripped.as_bytes()),
+            Span::new(0, length),
+            tcl_lexer::SubstFlags::default(),
+            ctx.lexer_config(),
+        ) else {
+            return TaintLattice::tainted();
+        };
         let mut t = TaintLattice::clean();
-
-        // Scan for [cmd ...] command substitutions (non-nested).
-        let mut rest = stripped;
-        while let Some(open) = rest.find('[') {
-            rest = &rest[open..];
-            if let Some(close) = rest.find(']') {
-                let sub = &rest[..=close];
-                // Only recurse when the bracketed slice is strictly
-                // smaller than the word being analysed — i.e. it's a
-                // substitution *embedded* in surrounding text. When the
-                // whole word is itself the bracketed region it was
-                // already handled by the command-substitution branch
-                // above; recursing on it again (e.g. the empty `[]`
-                // inside `{[]}`) makes no progress and would recurse
-                // until the stack overflows.
-                if sub.len() < stripped.len() {
-                    let relative =
-                        (word.len() - word.trim_start().len()) + (stripped.len() - rest.len());
+        for part in arena.all_parts() {
+            match part.part {
+                tcl_lexer::ExecutablePart::Variable { .. } => {
+                    let Some(name) = arena.bytes(part.span).and_then(|bytes| {
+                        tcl_syntax::naming::variable_reference_root_bytes(bytes, ctx.lexer_config())
+                            .ok()
+                            .flatten()
+                            .and_then(|name| std::str::from_utf8(name).ok())
+                            .filter(|name| !name.contains('\0'))
+                    }) else {
+                        return TaintLattice::tainted();
+                    };
+                    t = t.join(var_taint(name, uses, taints, ctx.ssa));
+                }
+                tcl_lexer::ExecutablePart::Command { .. } => {
+                    let Some(sub) = arena
+                        .bytes(part.span)
+                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    else {
+                        return TaintLattice::tainted();
+                    };
+                    if sub.len() >= stripped.len() {
+                        return TaintLattice::tainted();
+                    }
+                    let relative = usize::try_from(part.span.start()).ok().and_then(|start| {
+                        (word.len() - word.trim_start().len()).checked_add(start)
+                    });
                     let sub_ctx = TaintCtx {
                         source_word: None,
-                        word_offset: ctx
-                            .word_offset
-                            .and_then(|offset| offset.checked_add(u32::try_from(relative).ok()?)),
+                        word_offset: relative
+                            .and_then(|relative| u32::try_from(relative).ok())
+                            .and_then(|relative| ctx.word_offset?.checked_add(relative)),
                         ..ctx
                     };
                     t = t.join(word_taint_at(sub, uses, taints, sub_ctx, depth + 1));
                 }
-                rest = &rest[close + 1..];
-            } else {
-                break;
-            }
-        }
-
-        // Scan for $var references.
-        let mut rest = stripped;
-        while let Some(pos) = rest.find('$') {
-            rest = &rest[pos + 1..];
-            // ${name} form.
-            let raw_name = if rest.starts_with('{') {
-                // The name starts just past the `${`; an unterminated
-                // reference names nothing, so stop scanning this word.
-                match tcl_lexer::braced_var_name_end(rest.as_bytes(), 1, ctx.braced_var()) {
-                    tcl_lexer::BracedVarEnd::Closed(end) => {
-                        let n = &rest[1..end];
-                        rest = &rest[end + 1..];
-                        n
-                    }
-                    tcl_lexer::BracedVarEnd::Unterminated => break,
-                }
-            } else {
-                // $name — grab identifier chars (including :: for namespaces).
-                let end = rest
-                    .find(|c: char| !c.is_alphanumeric() && c != '_' && c != ':')
-                    .unwrap_or(rest.len());
-                let n = &rest[..end];
-                rest = &rest[end..];
-                n
-            };
-            if !raw_name.is_empty() {
-                let name = normalise_var_name(raw_name);
-                t = t.join(var_taint(name, uses, taints, ctx.ssa));
+                tcl_lexer::ExecutablePart::Expression { .. }
+                | tcl_lexer::ExecutablePart::ParseError(_) => return TaintLattice::tainted(),
+                tcl_lexer::ExecutablePart::Text(_) => {}
             }
         }
         return interpolation_carve_out(word, t, ctx.lexer_config());
@@ -1784,10 +1750,7 @@ fn evaluate_taint_def<S: std::hash::BuildHasher>(
         }
 
         // incr propagates taint from the variable being incremented.
-        Statement::Incr { name, .. } => {
-            let base = normalise_var_name(name);
-            var_taint(base, uses, taints, ssa)
-        }
+        Statement::Incr { .. } => var_taint(ssa.var_name(defined_var), uses, taints, ssa),
 
         // This query is made for actual SSA definitions. Successful-handler
         // projections can supply them without adding raw IR `Call::defs`.
@@ -8117,6 +8080,112 @@ mod tests {
     use tcl_dialect::model::{Family, SurfaceLayer};
 
     #[test]
+    fn configured_word_taint_keeps_literal_reference_names_and_index_reads() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let cfg = crate::cfg::Function::new("model", "entry");
+            let mut ssa = SsaFunction::trivial("model", cfg.entry, cfg.block_names().to_vec());
+            let mut uses = HashMap::new();
+            let mut taints = HashMap::new();
+            for (name, tainted) in [
+                ("literal", false),
+                ("$literal", true),
+                ("", true),
+                ("arr", false),
+                ("index", true),
+                ("a{b", false),
+                ("a{b}c", true),
+            ] {
+                let symbol = ssa.intern_var(name);
+                uses.insert(symbol, 1);
+                taints.insert(
+                    (symbol, 1),
+                    if tainted {
+                        TaintLattice::tainted()
+                    } else {
+                        TaintLattice::clean()
+                    },
+                );
+            }
+            let ctx = TaintCtx {
+                registry,
+                ssa: &ssa,
+                interproc: None,
+                known_procs: None,
+                dialect: registry.profile(),
+                source: TaintSourceContext::standalone(registry, registry.profile()),
+                taint_summaries: None,
+                instance_classes: None,
+                source_position: None,
+                source_tokens: None,
+                word_offset: None,
+                source_word: None,
+            };
+            for (word, tainted) in [
+                ("$literal", false),
+                ("${$literal}", true),
+                ("${}", true),
+                ("prefix${$literal}", true),
+                (r"prefix\$literal", false),
+                ("$arr($index)", true),
+                ("[missing $literal", true),
+            ] {
+                assert_eq!(
+                    word_taint(word, &uses, &taints, ctx).is_tainted(),
+                    tainted,
+                    "{label}: {word}"
+                );
+            }
+            assert_eq!(
+                word_taint("${a{b}c}", &uses, &taints, ctx).is_tainted(),
+                label == "tcl9.1"
+            );
+            assert!(!word_taint(r"prefix\[gets stdin\]", &uses, &taints, ctx).is_tainted());
+        }
+    }
+
+    #[test]
+    fn incr_taint_uses_the_selected_definition_name_without_reparsing_data() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let cfg = crate::cfg::Function::new("model", "entry");
+        let mut ssa = SsaFunction::trivial("model", cfg.entry, cfg.block_names().to_vec());
+        let literal = ssa.intern_var("$literal");
+        let stripped = ssa.intern_var("literal");
+        let uses = HashMap::from([(literal, 1), (stripped, 1)]);
+        let taints = HashMap::from([
+            ((literal, 1), TaintLattice::tainted()),
+            ((stripped, 1), TaintLattice::clean()),
+        ]);
+        let ctx = TaintCtx {
+            registry,
+            ssa: &ssa,
+            interproc: None,
+            known_procs: None,
+            dialect: registry.profile(),
+            source: TaintSourceContext::standalone(registry, registry.profile()),
+            taint_summaries: None,
+            instance_classes: None,
+            source_position: None,
+            source_tokens: None,
+            word_offset: None,
+            source_word: None,
+        };
+        let statement = Statement::Incr {
+            span: Span::new(0, 0),
+            name: "$literal".into(),
+            name_braced: true,
+            amount: None,
+            amount_braced: false,
+            safe_on_uninit: false,
+        };
+        assert!(evaluate_taint_def(&statement, literal, &uses, &taints, ctx, &ssa).is_tainted());
+        assert!(
+            evaluate_taint_def(&statement, literal, &HashMap::new(), &taints, ctx, &ssa)
+                .is_tainted()
+        );
+    }
+
+    #[test]
     fn unrepresented_variable_contents_have_no_clean_taint_proof() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let unit = crate::compilation_unit::CompilationUnit::build_for(
@@ -12471,6 +12540,8 @@ mod tests {
 
         #[test]
         fn retained_body_scope_ignores_display_and_refuses_detached_units() {
+            // naming.compiler.original-analysis-metadata-context
+            // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
             let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
             let registry = CommandRegistry::build_default().project_for_profile(profile);
             let mut unit = crate::compilation_unit::CompilationUnit::build_for_profile(
