@@ -93,8 +93,7 @@ impl ProbeSetId {
     }
 }
 
-/// Where an observation came from (the review's evidence-discipline
-/// table: five kinds of evidence, kept separate).
+/// The independent source of an observation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EvidenceSource {
     /// Executed inside the named BIG-IP execution context on a live

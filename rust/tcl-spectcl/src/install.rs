@@ -121,8 +121,7 @@ pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> Arc<Co
 /// is), four of them declare a `report_timing`, and a registry that took the
 /// first one would answer a Vivado document with Cadence's spec — which then
 /// fails its own package gate and resolves to nothing at all. Filtering on the
-/// way in leaves each profile the library set
-/// `CommandRegistry::load_eda_packs` used to give it.
+/// way in selects the supplied profile's own ambient library set.
 ///
 /// Hosted packages (`Tk`, tcllib, a private pack's own `package require`) are
 /// never affected: they are ambient in no profile, so the gate passes them.
@@ -430,14 +429,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// A pack whose entire content is `ambient_package` rows still installs.
-    ///
-    /// `PackSet::is_empty` decides whether `registry_with_packs` short-
-    /// circuits, and it used to ask only whether any pack declared a
-    /// *command*. A metadata-only pack answered "empty", the overlay was
-    /// never built, and the floor it declared vanished with no notice —
-    /// the silent-drop class, arriving by the one route the loader's own
-    /// notices cannot cover because the loader read the row perfectly well.
+    /// Metadata-only ambient-package packs participate in the registry overlay.
     #[test]
     fn a_pack_of_nothing_but_ambient_rows_still_reaches_the_registry() {
         let _cache = cache_guard();

@@ -1,0 +1,82 @@
+--- a/docs/design/README.md
++++ b/docs/design/README.md
+@@ -113,6 +113,8 @@
+ 
+ - [name-handling.md](contracts/name-handling.md) - shared name representations,
+   semantic owners and lookup boundaries across all consumers.
++- [bigip-object-name-resolution.md](contracts/bigip-object-name-resolution.md) —
++  authored slash-domain object candidates, explicit precedence and ambiguity.
+ 
+ - [callback-surface-inventory.md](contracts/callback-surface-inventory.md) —
+   registry-derived executable/callback coverage, the audited external and
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -379,7 +379,16 @@
+ F5 protocol command prefixes, iRule procedure namespaces and BIG-IP object
+ paths are distinct concepts. Preserve their registry/context rules. Appliance
+ `tclsh`, TMM iRules, tmsh CLI scripts and iApps are separate oracle contexts.
+-See [namespace-model.md](namespace-model.md).
++See [namespace-model.md](namespace-model.md). Configuration tools and simulation
++setup use [the BIG-IP object-name owner](bigip-object-name-resolution.md) with an
++explicit object domain and precedence policy. Ordered candidates and unique
++selection remain separate; these authored reports supply no appliance lookup.
++
++iRule event reports consume `OriginalIrulesSourceContext` and the selected
++`ResolvedInvocation::authored_event_handler_priority`. Missing original vectors
++or dynamic priority setters retain uncertainty; a later literal setter can
++restore authored priority advice. Source reports grant no event activation or
++appliance priority result.
+ 
+ The private `tcl::clock::ParseFormatArgs`, `tcl::clock::getenv` and
+ `tcl::clock::GetDateFields` workers have selected native C8.6 registry admission,
+--- a/docs/design/contracts/naming-consumer-matrix.md
++++ b/docs/design/contracts/naming-consumer-matrix.md
+@@ -52,6 +52,8 @@
+ | Original body memo inputs | `BodyAnalysisCapsule`, `BodySummaryInputs`, `BodyLatticeInputs` | DB summary, taint, optimisation and initial lattice keys retain genuine original declarations, whole-unit inputs and actual dependency IDs. Checked closed correspondence permits analysis reuse only after restoring the current body's source and variable proofs; absent correspondence keeps exact inputs or recomputes. No Native entry or execution grant follows. |
+ | Logical original scalar value reads | Internal Analyser `lookup_logical_const_substitution`, `lookup_logical_const_component`; `logical_variable_scope_advice` | Dynamic apply, symbol, dictionary, nested value, regex and interpreter-path advice share actual whole words/components, scalar table selection and current dominating provenance. Arrays, links, changed writes and foreign source refuse; inferred dictionary keys supply no editable declaration. |
+ | APL field convention and source candidates | `tcl-bigip::apl::variable_names`; `extract_iapp_var_refs_with_context`; `IappSourceReferences::complete_references` | Model conversions and LSP iApp diagnostics share Syntax root geometry and actual hosted source input. Candidate references are separate from complete absence coverage; relative/computed/unsupported nested references keep coverage partial. No appliance publication or Native cell is inferred. |
++| Authored BIG-IP object candidates | `tcl-bigip::object_names::{object_name_candidates,ObjectNamePolicy,ObjectNameCandidates}`; [object-name contract](bigip-object-name-resolution.md) | Validator, graphs, conversion, packet/TLS enrichment, Wireshark and simulation setup share explicit slash-domain precedence. Ordered first, exact-first-or-unique and unique selection retain distinct ambiguity contracts. Owner-partition alternatives and numeric service suffixes use their own typed purposes; no Tcl namespace, appliance lookup or editable identity follows. |
++| Original iRule event priority reports | `OriginalIrulesSourceContext::top_level_source_vectors`; `ResolvedInvocation::authored_event_handler_priority`; `extract_original_irules_event_handlers` | BIG-IP event/profile and priority diagnostics share one retained rule context and selected source schema. Missing vectors and dynamic setters withhold inherited priority; literal setters restore source advice and inline priority is local to its handler. Authored reports supply no reached event or measured appliance priority. |
+ | Source-read catalogue consumers | `SourceReadScope`; completed-prefix original transition catalogue | Exact original body/argv/image/configuration/context source schemas serve declaration/read graphs and Logical source roles without donating runtime reachability or current stores. |
+ | External command inventory and authoring | Shared Syntax script-family/inventory and Runtime/API structured inventory | CLI keeps original callable root operands, Studio separately records unresolved C registration literals, Engine compares actual interpreter/namespace/generation rows. Reports cannot recover an original command identity; whole-roster ambiguity refuses. |
+ | Alias registration and relocation | Shared selected registration coordinate/table with Runtime/VM actual-generation adapters | C8.4 registration-name lifetime survives renames until actual token retirement. Callbacks require original-input rereads and currentness; later C and Jim remain independent. |
+--- a/docs/design/compiler/name-resolution-implementer-guide.md
++++ b/docs/design/compiler/name-resolution-implementer-guide.md
+@@ -16,6 +16,7 @@
+ | Packages, availability or dialect-dependent syntax | [Actual entry](#carry-the-actual-entry-through-every-layer) | [Host realm](#retain-host-availability-and-invocation-realms), exact provider/version, lexer and nested-source entry |
+ | Expressions, native object conversion or rewriting | [Expression preparation](#prepare-expression-functions-using-their-native-owner) | [Operand and result receipts](#native-scalar-math-results-and-original-argv-addresses), object methods, conversion effects, erasure and both backends |
+ | iRules static/global ownership | [Execution domains](#preserve-irules-execution-domains) | Initialization publication, current TMM, event/connection activation and interprocedural caller domain |
++| BIG-IP object keys and authored iRule reports | [Hosted reports](#project-big-ip-object-and-event-reports) | Actual configuration domain, retained rule source, explicit ambiguity and source-schema boundaries |
+ | Retained bodies, methods, event handlers and memo inputs | [Body ownership](#retain-body-identity-through-consumers) | Original source allocation, module issuer, body kind, immutable input and current-source rebinding |
+ | Shared facts | [Discriminating experiments](#native-regression-requirements) | [Consumer review](#consumer-boundaries-of-shared-facts), owner contract, DSL/rendering parity and gates |
+ 
+@@ -96,6 +97,29 @@
+ coverage. Relative, computed and unsupported nested references keep coverage
+ partial. These reports establish neither appliance publication nor a native
+ variable cell; appliance outcomes require their own original context evidence.
++
++## Project BIG-IP object and event reports
++
++Use `tcl_bigip::object_names::object_name_candidates` with an explicit
++`ObjectNamePolicy` and an already restricted configuration/module/type domain.
++`first_in_order`, `first_exact_in_order_or_unique` and `unique` serve distinct
++reporting contracts; preserve the caller's original candidate order and every
++ambiguity. `owner_partition_reference_paths` supplies bounded exact registry
++reference alternatives. `reference_without_numeric_service` keeps its explicit
++`EmptyServiceSuffix` policy and the caller's address grammar. These slash-domain
++keys are independent of Tcl namespaces, filesystem paths and appliance lookup.
++The [object-name contract](../contracts/bigip-object-name-resolution.md) lists
++actual consumers and selected policies.
++
++Retain `OriginalIrulesSourceContext` once per rule for event reports.
++`top_level_source_vectors` checks the complete source and exposes missing
++original vectors. `ResolvedInvocation::authored_event_handler_priority` reads
++only the already selected source schema. `extract_original_irules_event_handlers`
++keeps inherited-priority uncertainty across dynamic setters or unavailable
++vectors; a later literal setter restores advice, and inline priority affects
++only its own handler. Validation reuses these reports for event/profile and
++priority checks. Neither route establishes event activation, runtime ordering
++or an unobserved BIG-IP result.
+ 
+ ## Select the proof the consumer needs
+ 

@@ -542,11 +542,7 @@ fn opt_over_several_inputs_keeps_the_first_shebang_at_byte_zero() {
     );
 }
 
-/// Regression for #2120: `tcl opt` over several inputs used to concatenate
-/// them into one program before optimising, so a `set` in the first file
-/// could be constant-propagated into a read in the second and the first
-/// file's now-"unused" store eliminated as dead — even though the two files
-/// are never run in the same scope. Each input must be optimised on its own.
+/// Each input is optimised independently; a store cannot flow across files.
 #[test]
 fn opt_does_not_fold_a_store_across_a_file_boundary() {
     let out = String::from_utf8(run_tcl(&[

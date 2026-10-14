@@ -5749,25 +5749,8 @@ impl Analyser {
         }
     }
 
-    // `try` has no handler of its own: its only command-specific
-    // knowledge is its clause plan's timings and its handler variable-list
-    // slot, both a descriptor states, so `try` carries no analyser hook
-    // and falls through to the same generic dispatch `for` uses (see
-    // `Analyser::dispatch_analyser_hook`'s doc comment). The clause-body
-    // depths this handler used to compute by hand (the deleted
-    // `analyse_selected_body`) come from `dispatch_body_arguments`'s
-    // `body_depths` instead — every `Selected` body (every `on` / `trap`
-    // handler) now also raises `control_flow_body_depth`, not
-    // `conditional_depth` alone, which the handler never did (pinned by
-    // `a_rename_in_a_try_handler_is_not_a_straight_line_deletion`: a `rename`
-    // inside a `try` handler is no longer read as a straight-line deletion,
-    // matching how one inside a loop body already was not). The handler
-    // variable list is *not* carried by `handle_var_binding_command`'s flat
-    // role table — `clause_grammar.rs`'s own module doc: a repeating
-    // clause's `LoopVarList` is "bound per clause …, which the flat
-    // `LoopVarList` role … cannot say" — so `dispatch_body_arguments` reads
-    // it straight off `ClausePlan::clauses` instead, the same generic door
-    // that already threads `plan` through for `body_depths`.
+    // Registry clause plans supply body depths and per-clause variable bindings.
+    // Selected handler bodies retain conditional control flow for name mutations.
 
     /// The fixed cell a frame-crossing alias's `otherVar` word names, or
     /// `None` when it names a frame-relative variable with no stable path.

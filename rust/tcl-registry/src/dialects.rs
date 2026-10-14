@@ -271,11 +271,7 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
             continue;
         };
         let rest = rest.trim_start();
-        // `rest.get(..KEY.len())` (unlike `rest[..KEY.len()]`) returns `None`
-        // rather than panicking when `KEY.len()` falls inside a multi-byte
-        // char instead of on a boundary — a real case: a leading comment
-        // with a non-ASCII byte (an em dash, a curly quote, …) before byte
-        // offset 12 used to crash the server on `textDocument/didOpen`.
+        // The prefix length may cross a Unicode boundary in an unrelated comment.
         let Some(prefix) = rest.get(..KEY.len()) else {
             continue;
         };
@@ -1106,9 +1102,7 @@ mod detect_tests {
 
     #[test]
     fn multibyte_comment_before_directive_key_does_not_panic() {
-        // A leading comment with a non-ASCII byte (an em dash here) landing
-        // inside the `tcl-dialect:` key's byte length used to panic on the
-        // `rest[..KEY.len()]` slice instead of just not matching.
+        // An unrelated Unicode comment cannot supply a directive prefix.
         assert_eq!(
             detect_dialect_directive("# Issue #806 — report::defstyle\nputs hi\n"),
             None

@@ -265,29 +265,20 @@ impl Topology {
         Ok(out)
     }
 
-    /// Resolve a virtual server by full path, short name, or `/Common/`-prefixed
-    /// name, in the same spirit as `_resolve_name` in `scf_loader.tcl` over the
-    /// `virtual_servers` table: an exact full-path match wins outright, else
-    /// the first object matching by short name or `/Common/` prefix.
+    /// Resolve an exact virtual-server path, then the first short-name candidate.
     fn resolve_virtual(&self, name: &str) -> Option<&tcl_bigip::model::BigipVirtualServer> {
-        let mut by_short: Option<&tcl_bigip::model::BigipVirtualServer> = None;
-        for placed in &self.config.objects {
-            if placed.table_name != "virtual_servers" {
-                continue;
-            }
-            let ModelObject::VirtualServer(vs) = &placed.object else {
-                continue;
-            };
-            if placed.full_path == name {
-                return Some(vs);
-            }
-            if short_name(&placed.full_path) == name
-                || placed.full_path == format!("/Common/{name}")
-            {
-                by_short.get_or_insert(vs);
-            }
-        }
-        by_short
+        tcl_bigip::object_names::object_name_candidates(
+            name,
+            self.config.objects.iter().filter_map(|placed| {
+                let ModelObject::VirtualServer(server) = &placed.object else {
+                    return None;
+                };
+                (placed.table_name == "virtual_servers")
+                    .then_some((placed.full_path.as_str(), server))
+            }),
+            tcl_bigip::object_names::ObjectNamePolicy::ExactThenShortNameOrCommon,
+        )
+        .first_in_order()
     }
 
     /// Resolve the TMM profile-type tags for a VS by name inference.
@@ -323,17 +314,12 @@ impl Topology {
                     .then_some((placed.full_path.as_str(), rule.source.as_str()))
             })
             .collect();
-        let selected = rules
-            .iter()
-            .find(|(path, _)| *path == rule_ref)
-            .copied()
-            .or_else(|| {
-                let mut matching = rules
-                    .iter()
-                    .filter(|(path, _)| short_name(path) == rule_ref);
-                let first = matching.next().copied()?;
-                matching.next().is_none().then_some(first)
-            })?;
+        let selected = tcl_bigip::object_names::object_name_candidates(
+            rule_ref,
+            rules.iter().map(|(path, source)| (*path, (*path, *source))),
+            tcl_bigip::object_names::ObjectNamePolicy::ExactThenShortName,
+        )
+        .first_exact_in_order_or_unique()?;
         Some(RuleSource::named(
             RuleIdentity::new(selected.0).ok()?,
             selected.1,
@@ -490,6 +476,27 @@ ltm virtual www_vs {
                 .as_path(),
             "/Common/redirect_rule"
         );
+    }
+
+    #[test]
+    fn duplicate_exact_rule_rows_keep_first_source_and_refuse_short_name() {
+        let mut topology = Topology::from_source(CONF);
+        let mut duplicate = topology
+            .config
+            .objects
+            .iter()
+            .find(|placed| placed.table_name == "rules")
+            .unwrap()
+            .clone();
+        let path = duplicate.full_path.clone();
+        let original = topology.rule_source(&path).unwrap().source;
+        let ModelObject::Rule(rule) = &mut duplicate.object else {
+            panic!("rule fixture");
+        };
+        rule.source = "return SECOND".to_owned();
+        topology.config.objects.push(duplicate);
+        assert_eq!(topology.rule_source(&path).unwrap().source, original);
+        assert!(topology.rule_source("redirect_rule").is_none());
     }
 
     #[test]

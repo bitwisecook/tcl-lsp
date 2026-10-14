@@ -1,0 +1,5 @@
+{
+  "initial_generic_non_comment_invariant": "Rejected: unsafe scanner treated Rust attributes as hash comments.",
+  "restoration": "Exact15 original attributes restored; Rust lexer comparison retains all655992 meaningful tokens and original strings/attributes.",
+  "required_receipt": "../comment-attribute-restoration-20261014/lexical-audit.json"
+}

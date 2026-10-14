@@ -1,0 +1,13 @@
+
+running 8 tests
+test tests::attachment_partition_precedes_unique_leaf_fallback ... ok
+test tests::configuration_precedence_is_independent_of_source_order ... ok
+test tests::ambiguity_requires_an_explicit_selection_contract ... ok
+test tests::duplicate_exact_keys_preserve_order_without_unique_identity ... ok
+test tests::generic_suffix_policy_retains_source_order_even_before_exact ... ok
+test tests::service_suffix_policy_preserves_colon_domain_boundaries ... ok
+test tests::literal_paths_are_not_tcl_or_filesystem_canonicalised ... ok
+test tests::short_and_reference_leaf_policies_remain_distinct ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

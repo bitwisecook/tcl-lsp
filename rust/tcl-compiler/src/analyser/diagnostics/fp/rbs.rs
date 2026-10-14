@@ -246,14 +246,7 @@ fn fp_rbs_02_regexp_nocase_silent_on_literal_match() {
 
 #[test]
 fn fp_rbs_02_regexp_unknown_switch_bails() {
-    // FP / safety: estimator must bail on any unrecognised regexp switch.
-    //
-    // `-about` used to be listed here as a second "unknown" switch. It is not
-    // unknown — it is a declared one that takes no match variables at all, so
-    // `regexp -about {x} X v` never creates `v` and `puts $v` really does read
-    // before set: tclsh 8.4.20, 8.6.18 and 9.0.4 all fail it with `can't read
-    // "v": no such variable`. Reporting that is a true positive, and the row
-    // moved to `fp_rbs_02_regexp_about_names_no_match_variable` below (#2135).
+    // Unknown switches cannot establish output-variable writes.
     let src = "proc f {} { regexp -bogus {x} X v; puts $v }";
     assert!(
         !fires(src, D, "W210"),

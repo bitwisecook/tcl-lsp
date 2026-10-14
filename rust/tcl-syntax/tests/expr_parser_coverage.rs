@@ -956,10 +956,7 @@ fn unknown_characters_are_raw() {
     }
 }
 
-/// `1 # 2` used to be listed above as an unknown-character case. That encoded a
-/// gap, not C's behaviour: `#` begins a comment lasting to the end of the line
-/// or the end of the expression (`tclCompExpr.c:1931`, TIP 582), so this parses
-/// as the bare literal `1` — C's `expr {1 # 2}` is `1`, not an error.
+/// The selected Tcl 9 grammar treats `#` as an expression comment (TIP 582).
 #[test]
 fn a_hash_begins_a_comment_not_an_unknown_character() {
     assert!(!is_raw(&p("1 # 2")), "1 # 2 should parse (comment)");

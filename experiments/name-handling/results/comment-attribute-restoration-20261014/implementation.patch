@@ -1,0 +1,150 @@
+--- a/rust/tcl-cli/tests/cli.rs
++++ b/rust/tcl-cli/tests/cli.rs
+@@ -543,6 +543,7 @@
+ }
+ 
+ /// Each input is optimised independently; a store cannot flow across files.
++#[test]
+ fn opt_does_not_fold_a_store_across_a_file_boundary() {
+     let out = String::from_utf8(run_tcl(&[
+         "opt",
+--- a/rust/tcl-compiler/src/analyser/diagnostics/helpers.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/helpers.rs
+@@ -499,6 +499,7 @@
+ 
+ /// Undefinition answers shared by every query in one [`PhiUndefCtx`].
+ /// A worklist over phi operands computes all versions without enumerating paths.
++#[derive(Default)]
+ pub(super) struct PhiUndefMemo {
+     index: Option<PhiUndefIndex>,
+ }
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -38942,6 +38942,7 @@
+ 
+     /// Grouped optimisations retain every member, including empty deletions,
+     /// and cannot be independently applied.
++    #[test]
+     fn a_grouped_optimisation_is_never_independently_applicable_issue_2149() {
+         let registry = CommandRegistry::build_default();
+         // O127 fires on a *computed* single-use assignment.
+--- a/rust/tcl-lsp-server/src/uri_norm.rs
++++ b/rust/tcl-lsp-server/src/uri_norm.rs
+@@ -642,6 +642,7 @@
+     }
+ 
+     /// Raw spaces in a folder URI are repaired before deserialisation.
++    #[test]
+     fn an_unencoded_space_is_repaired() {
+         assert_eq!(
+             repair_uri_string("file:///home/me/my project").as_deref(),
+--- a/rust/tcl-lsp-server/tests/e2e/issue1019_proc_args.rs
++++ b/rust/tcl-lsp-server/tests/e2e/issue1019_proc_args.rs
+@@ -264,6 +264,7 @@
+ 
+ // Constructor `next` selects the superclass constructor independently of the method table.
+ // Original C9.0.4/C8.6.16: Base ctor n=5, then Derived describe.
++#[test]
+ fn tp_next_in_a_constructor_resolves_to_the_superclass_constructor() {
+     let mut lsp = Lsp::tcl();
+     let uri = unique_uri("tcl");
+--- a/rust/tcl-lsp-server/tests/e2e/issue1214_uri_canonicalisation.rs
++++ b/rust/tcl-lsp-server/tests/e2e/issue1214_uri_canonicalisation.rs
+@@ -38,6 +38,7 @@
+ }
+ 
+ /// Unencoded folder URIs are accepted and reported with canonical encoding.
++#[test]
+ fn an_unencoded_workspace_folder_uri_is_accepted_and_normalised() {
+     let root = spaced_workspace("unencoded");
+     let raw_uri = format!("file://{}", root.to_string_lossy());
+--- a/rust/tcl-lsp-server/tests/e2e/tk_dialect.rs
++++ b/rust/tcl-lsp-server/tests/e2e/tk_dialect.rs
+@@ -210,6 +210,7 @@
+ }
+ 
+ /// Generated data mentioning Tk cannot establish package availability.
++#[ignore = "at-scale TK false-positive check (2,000-branch generated proc, ~80 s); run \
+             explicitly with --ignored — the ~20 other tk_dialect tests pin the same \
+             availability and dialect gating on small documents"]
+ #[test]
+--- a/rust/tcl-spec-studio/tests/pack_store.rs
++++ b/rust/tcl-spec-studio/tests/pack_store.rs
+@@ -434,6 +434,7 @@
+ }
+ 
+ /// A programmed document retains an independent patch declaration for lookup.
++#[test]
+ fn a_patched_command_resolves_through_the_patch() {
+     let source = "\
+ speclib mylib 2.0 {
+--- a/rust/tcl-spectcl/src/install.rs
++++ b/rust/tcl-spectcl/src/install.rs
+@@ -430,6 +430,7 @@
+     }
+ 
+     /// Metadata-only ambient-package packs participate in the registry overlay.
++    #[test]
+     fn a_pack_of_nothing_but_ambient_rows_still_reaches_the_registry() {
+         let _cache = cache_guard();
+         let dir = tmpdir("ambient-only");
+--- a/rust/tcl-spectcl/src/loader.rs
++++ b/rust/tcl-spectcl/src/loader.rs
+@@ -9586,6 +9586,7 @@
+ 
+     /// Native folder IDs select their actual command/subcommand callbacks.
+     /// Unknown or mismatched IDs retain a notice and abstaining placeholder.
++    #[test]
+     fn a_native_fold_id_installs_the_shipped_folder() {
+         let pack = evaluate_pack(
+             "speclib probe 2.2 {\n\
+--- a/rust/tcl-spectcl/tests/surface_roster_trust.rs
++++ b/rust/tcl-spectcl/tests/surface_roster_trust.rs
+@@ -57,6 +57,7 @@
+ 
+ /// Workspace Trust determines provenance independently of discovery location.
+ /// Both trusted and untrusted states use the same registration-tier predicate.
++#[test]
+ fn a_tier_decides_trust_only_through_its_provenance_issue_2139() {
+     use tcl_dialect::model::{Provenance, WorkspaceTrust};
+     use tcl_spectcl::discovery::Tier;
+--- a/rust/tcl-sslictcl/src/chain.rs
++++ b/rust/tcl-sslictcl/src/chain.rs
+@@ -659,6 +659,7 @@
+     }
+ 
+     /// Repeated issuer identity is a path loop, independently of a missing issuer.
++    #[test]
+     fn an_issuer_cycle_is_a_path_loop_not_a_missing_issuer() {
+         // leaf → a → b → a: `b`'s issuer `a` is already on the path.
+         let chain = [
+--- a/rust/tcl-syntax/tests/expr_parser_coverage.rs
++++ b/rust/tcl-syntax/tests/expr_parser_coverage.rs
+@@ -957,6 +957,7 @@
+ }
+ 
+ /// The selected Tcl 9 grammar treats `#` as an expression comment (TIP 582).
++#[test]
+ fn a_hash_begins_a_comment_not_an_unknown_character() {
+     assert!(!is_raw(&p("1 # 2")), "1 # 2 should parse (comment)");
+     assert_eq!(p("1 # 2"), p("1      "));
+--- a/rust/tcl-vm/tests/cmd_control_e2e.rs
++++ b/rust/tcl-vm/tests/cmd_control_e2e.rs
+@@ -507,6 +507,7 @@
+ }
+ 
+ /// Eval executes completed commands before a later fatal parse boundary.
++#[test]
+ fn eval_executes_prefix_before_fatal_tail() {
+     // tclsh 8.6.18 / 9.0.4: `1 1 {missing "}`
+     assert_eq!(
+--- a/rust/tcl-vm/tests/language_e2e.rs
++++ b/rust/tcl-vm/tests/language_e2e.rs
+@@ -129,6 +129,7 @@
+ }
+ 
+ /// Compound array indices evaluate their original variable components.
++#[test]
+ fn composite_array_index_substitutes() {
+     let (ok, _r, out) = run(concat!(
+         "array set a {xfoo X -bar Y foosuf Z ab C}\n",

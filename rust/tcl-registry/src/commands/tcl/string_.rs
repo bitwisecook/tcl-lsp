@@ -2533,7 +2533,7 @@ mod tests {
         // `-failindex` writes a var → never folds; an unknown class bails.
         assert_eq!(is(&["alpha", "-failindex", "v", "abc"]), None);
         assert_eq!(is(&["nonclass", "x"]), None, "unknown class bails");
-        // Under 9.0 the formerly-deferred classes fold (their version-gating
+        // Under 9.0 these classes fold (their version-gating
         // and caps are covered by `string_is_number_classes_are_version_aware`).
         assert_eq!(is(&["wideinteger", "42"]).as_deref(), Some("1"));
         assert_eq!(is(&["entier", "42"]).as_deref(), Some("1"));

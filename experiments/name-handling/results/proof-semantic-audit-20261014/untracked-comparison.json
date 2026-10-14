@@ -1,0 +1,222 @@
+[
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/README.md",
+    "bytes": 2181,
+    "sha256": "af9929f13f1192dde6a0c262ee9963930b29467852af662369df338b7e015183",
+    "identical_tracked_files": []
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/artifact-sha256.json",
+    "bytes": 2896,
+    "sha256": "fcadd2e7def4b2d000bab4f7f97c8e111025fbfcb53f573da7dbe4689fe47fe8",
+    "identical_tracked_files": []
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/owned-source.json",
+    "bytes": 1168,
+    "sha256": "ba4488db817caad8913745117bedb1146abdcba28e3891d7bad2d8250a5d729d",
+    "identical_tracked_files": []
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/capture.py",
+    "bytes": 2853,
+    "sha256": "b63478cb5dc0e5a1d40a24d2db47a772051fdee9ec57fab34a8b62a51122f17e",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-01/capture.py"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/compiler.log.gz",
+    "bytes": 451,
+    "sha256": "3427acddc9bda42ea4d8113a5e9082415e5430757be289b134a6f79e087c4e46",
+    "identical_tracked_files": []
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/preexisting-binary-inventory.json",
+    "bytes": 195,
+    "sha256": "c63e0f0a088bb239643bee4fa01495678a66d73e1de516ab1da7e51df438566f",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-01/preexisting-binary-inventory.json",
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-02/preexisting-binary-inventory.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/result.json",
+    "bytes": 384,
+    "sha256": "67044c0ec23b3351e6b3814049c87e877134fcbb359754439eecab87eab0cc86",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-01/result.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/source-after.json.gz",
+    "bytes": 1133914,
+    "sha256": "0c03aafa748df774c206d00b3278cb95129d4fb151a24a13d9e428c7e78d418b",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-01/source-after.json.gz"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/source-before.json.gz",
+    "bytes": 1133915,
+    "sha256": "77947b9541e54d941a9541faebeddec3a3e8a0938a1f8cc0aec7f15240b8fe6f",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-01/source-before.json.gz"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/start.json",
+    "bytes": 724,
+    "sha256": "1ec4d3c69f05653189a71b2948ed64a29c1c84dc03f37bf0a1a7affe30dd4469",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-01/start.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/workspace-after.json",
+    "bytes": 341,
+    "sha256": "f1cac6a08dee6db97b35f63cb0f2bea4cdd0dbdc5aa46a1e15f0434ce4aee514",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-01/workspace-after.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/workspace-before.json",
+    "bytes": 341,
+    "sha256": "b02589c1ebed239716b5f5e4f02a80283ebf325a401d5233520375ccab194b8b",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-01/workspace-before.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-02/capture.py",
+    "bytes": 2853,
+    "sha256": "bd3c39dd092abd583403461b2986e19029960bd67c93a853d0d83ed89b10564a",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-02/capture.py"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-02/compiler.log.gz",
+    "bytes": 882,
+    "sha256": "f9b504a10580a359fcaf3a6ed6943a6e150ff57b47db27ec4f68e930e1145aef",
+    "identical_tracked_files": []
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-02/preexisting-binary-inventory.json",
+    "bytes": 195,
+    "sha256": "c63e0f0a088bb239643bee4fa01495678a66d73e1de516ab1da7e51df438566f",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-01/preexisting-binary-inventory.json",
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-02/preexisting-binary-inventory.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-02/result.json",
+    "bytes": 233,
+    "sha256": "7f5d14829c3c874e5156b5ba595647fcf846578caadf95acb6a2d956004db2ff",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-02/result.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-02/source-after.json.gz",
+    "bytes": 1134047,
+    "sha256": "699e208a7eb88489047dada0012d5f7815a9adb42bb96c1cad0740ad1fbd1629",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-02/source-after.json.gz"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-02/source-before.json.gz",
+    "bytes": 1134048,
+    "sha256": "f631e1fd8296efdc900683115db9ba3fa40c24f33dbc56c30392442ba093d405",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-02/source-before.json.gz"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-02/start.json",
+    "bytes": 724,
+    "sha256": "683eb34f2ceb3aa0accd9dd745d07fd88cd889c31962c0efb40f1b17ac91bdab",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-02/start.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/binary-inventory.json",
+    "bytes": 195,
+    "sha256": "464b53c04075089ed681feff503f6a6df907824d001d1b43622e899d656b3658",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-03/binary-inventory.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/capture.py",
+    "bytes": 3355,
+    "sha256": "a096fa39d56bb7bf2466e7cdcd862f7807d34f864b70ca900a2e6a9c28869d57",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-03/capture.py"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/compiler.log.gz",
+    "bytes": 714,
+    "sha256": "f7db863ef19f0cb91ab76ef6a3e948a95f8a1da8125fa2ec1b9ce479dc44a447",
+    "identical_tracked_files": []
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/executed-binary.json",
+    "bytes": 214,
+    "sha256": "9e9bb3e22e0d253328ed54dc0d3874311498f68438e975c6c5f171642b59ce55",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-03/executed-binary.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/result.json",
+    "bytes": 1661,
+    "sha256": "70ce7b5e396c6d57fcf905df2bb63bf1642f0d2f381f9538764641c0e6044c15",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-03/result.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/source-after.json.gz",
+    "bytes": 1134047,
+    "sha256": "e8216719a4fbaac097369ea48c7db4648b1ae05fcb36dc6ae30d4f3a0fec4c2e",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-03/source-after.json.gz"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/source-before.json.gz",
+    "bytes": 1134048,
+    "sha256": "f32a307ab4d7dc90812631944df8826643421c324084e9d04535da8f28963dd2",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-03/source-before.json.gz"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/start.json",
+    "bytes": 724,
+    "sha256": "0708c9cd1b88c6523758dca25728c45ad74b107ae45579b423c0ea742d19c614",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-03/start.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/termination.json",
+    "bytes": 746,
+    "sha256": "9b9558356ceb8af85488dc8337de73b9d42aedbed79b2464a41820a8aee35164",
+    "identical_tracked_files": [
+      "experiments/name-handling/results/w210-original-program-admission/source-read-flow-20261013/production-03/termination.json"
+    ]
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/source-purpose.patch",
+    "bytes": 39695,
+    "sha256": "5eea4f7becf0b8d06b7040c5d3ee8c576f0c50f23963b5845ba08cf0b6d3ee4d",
+    "identical_tracked_files": []
+  }
+]

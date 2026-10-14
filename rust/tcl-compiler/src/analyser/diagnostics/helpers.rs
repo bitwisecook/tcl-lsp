@@ -497,15 +497,8 @@ impl StartupFacts {
 /// worklist hash and copy a pair of `u32`s.
 type VersionKey = (crate::ssa::Symbol, crate::ssa::Version);
 
-/// Answers for [`phi_can_undef`], built once per [`PhiUndefCtx`] and shared by
-/// every query run against it.
-///
-/// The trace used to be a DFS per query whose `seen` set was a *path* (grey)
-/// set with no result reuse, so it enumerated every simple path through the
-/// phi graph: N sibling conditional writes to one variable followed by a read
-/// cost ~2^N visits, and real Quartus sources reach N ≈ 105 (issue #2021).
-/// [`PhiUndefIndex::build`] answers every version at once instead, in one pass
-/// over the phi operands plus a worklist.
+/// Undefinition answers shared by every query in one [`PhiUndefCtx`].
+/// A worklist over phi operands computes all versions without enumerating paths.
 #[derive(Default)]
 pub(super) struct PhiUndefMemo {
     index: Option<PhiUndefIndex>,

@@ -1091,8 +1091,7 @@ fn string_core_helpers() {
     // count <= 0 yields empty; an out-of-range index yields empty.
     assert_eq!(run("puts \"[string repeat ab 0]<\"").2, "<\n");
     assert_eq!(run("puts \"[string index hello 99]<\"").2, "<\n");
-    // `wordstart`/`wordend` — the VM gained these via the shared core (it errored
-    // "not yet implemented" before). Pinned against tclsh 9.0.
+    // Original Tcl 9.0 word-boundary controls use the shared core.
     assert_eq!(run("string wordstart {hello world} 7").1, "6");
     assert_eq!(run("string wordend {hello world} 0").1, "5");
     assert_eq!(run("string wordstart {a_b.c} 2").1, "0"); // underscore is a word char

@@ -1,0 +1,130 @@
+{
+  "scope": "Authored F5 configuration matching only; no appliance oracle grant",
+  "created_at": "2026-10-14T00:14:41.307386+00:00",
+  "files": [
+    {
+      "path": "rust/tcl-bigip/src/lib.rs",
+      "before_sha256": "1b67951b4014d6efaf6aa3302fa9fac096953bc5680babb905875163aad4ddc4",
+      "after_sha256": "728133b2e67f7f3dbe86a247fedf156aae4a9b2f62997c8ef633cce025b244f3"
+    },
+    {
+      "path": "rust/tcl-bigip/src/lint.rs",
+      "before_sha256": "45e1e36c6ffb8383e9655405657d35ca94f8ad174e9bf1de7f3d644be3744c7c",
+      "after_sha256": "381ea99dc1f07a143b366f29db5547a9889443fb75977d5088be1fb01cec93c2"
+    },
+    {
+      "path": "rust/tcl-bigip/src/graph.rs",
+      "before_sha256": "2a3550e5c999f02ad8de54725dfb0696fe8f5177c5ceb1e5a890d369c0581b02",
+      "after_sha256": "9f9742b6a755c9b58b45ceead3e715b98ad5ce89994bd7e555cec2124b194356"
+    },
+    {
+      "path": "rust/tcl-bigip/src/convert.rs",
+      "before_sha256": "551f4c4ddb31b7ab232c6db46834bf03a1df1b81931fb0c0435d4dd9d2660318",
+      "after_sha256": "9555b254a115119899366daad9ea07b095c0980ad4a0f745c0ffa43696141b31"
+    },
+    {
+      "path": "rust/tcl-bigip/src/pcap_enrich.rs",
+      "before_sha256": "b2695a1a3bb87b1460aebadeb5f79e2a31722dcfb3278b37b2353fda5993b5e2",
+      "after_sha256": "df5f0850804ab7878ecd232ec152c3f2c34f7e55b96967bcbea1e99b8fa7b56b"
+    },
+    {
+      "path": "rust/tcl-bigip/src/wireshark_profile.rs",
+      "before_sha256": "574604ae7757cdeb91b14b5d3af03a5da07f1b8de4c74d89149931b8afd775c5",
+      "after_sha256": "fc6d92566c01892af4a1422c85db9e124679dba52e1656285cc8ec55b5b377c5"
+    },
+    {
+      "path": "rust/tcl-bigip/src/irule_context.rs",
+      "before_sha256": "04286d414000fbc1f26ead467edfb6785cd73567d0d62d7ff030bb4e5bcc60d2",
+      "after_sha256": "4143b7689d845fcc23bb834fdd07b0c498a0306acad0276610f94efed325adf4"
+    },
+    {
+      "path": "rust/tcl-bigip/src/tls.rs",
+      "before_sha256": "3d2cb62ac331dce0d058f039fb9ebce47ea45eecc928ffbdd120d6681a7d9c6b",
+      "after_sha256": "ea954bd755995ed04fef3d17065be85bbb373215fea4fffa599d78f44be530a6"
+    },
+    {
+      "path": "rust/tcl-irule-test/src/topology.rs",
+      "before_sha256": "e2f349c37ab0d0f0e630043603da97609dda533fe4c0a9a00f73f201fb754b61",
+      "after_sha256": "ed4f3d12469618e85c1a5ce811df85475fef7b282f569c90b8663472e8d64481"
+    },
+    {
+      "path": "rust/tcl-bigip/src/validator.rs",
+      "before_sha256": "216a55de6360faeaed31e5e9bfb08efdd1db0bdeda03c951e88c0c2ad3a72ee1",
+      "after_sha256": "1b557a7a01e92295209ce737ff4a2b8c9ef6f48bba97320a0cd2991d8f5ea4a5"
+    },
+    {
+      "path": "rust/tcl-bigip/src/object_names.rs",
+      "before_sha256": null,
+      "after_sha256": "5efd2fed04a7148fef54b0ce3996e8fa8dc91e0fa78cb60fe6cb98355e75631a"
+    },
+    {
+      "path": "docs/design/contracts/bigip-object-name-resolution.md",
+      "before_sha256": null,
+      "after_sha256": "4c1dc9975bb134e6a496c8f956019ac2d9ce02fadf033c30f2fdc4d98911454b"
+    },
+    {
+      "path": "experiments/name-handling/f5/questions/object-path-resolution.md",
+      "before_sha256": null,
+      "after_sha256": "3c9fe6a8b76da75ee484b6e288676669fc3a7a7a7fbd987f36e43e4240454b23"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/README.md",
+      "before_sha256": null,
+      "after_sha256": "cb7a9f12fa135e594bc039635dd493fff2eb9455188b969e75a34f5c1c69a26a"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/manifest.json",
+      "before_sha256": null,
+      "after_sha256": "bd4c568cdd6754320b560da898076acba36115e4056eb36168ee0cc49d186f00"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/migrated-consumer-controls.rs",
+      "before_sha256": null,
+      "after_sha256": "da1f75488616ad876c99a3fd108313395bb568b3ea708fbe73b54ed9d3787af3"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/migrated-consumer-controls.stdout",
+      "before_sha256": null,
+      "after_sha256": "8c6402dd58b066bd88a515a4f972d9b60143473de6a080fa1b69ee6acc6377b6"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/object-owner-source.txt",
+      "before_sha256": null,
+      "after_sha256": "5efd2fed04a7148fef54b0ce3996e8fa8dc91e0fa78cb60fe6cb98355e75631a"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/original-policy-controls.rs",
+      "before_sha256": null,
+      "after_sha256": "e973f102543169179466876341c8e0893f383eec057b1947137caa294d3fe0e4"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/original-policy-controls.stdout",
+      "before_sha256": null,
+      "after_sha256": "8c6402dd58b066bd88a515a4f972d9b60143473de6a080fa1b69ee6acc6377b6"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/owner-tests.stdout",
+      "before_sha256": null,
+      "after_sha256": "3d158b0608bf4a16a8102ccc6dd9e2ffa3f9b73dd0c5425b64acd38c753b7d8a"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/topology-policy-controls.rs",
+      "before_sha256": null,
+      "after_sha256": "a09b12ac41e1f7e9c0a584647f952fd4e558754885ff5bf94aa48d5366868fad"
+    },
+    {
+      "path": "experiments/name-handling/results/f5-object-name-policy/topology-policy-controls.stdout",
+      "before_sha256": null,
+      "after_sha256": "2cea956df42b1717c8e5e8c74c6ce263b6fcb68bb97af7916dec9f621ea1d183"
+    }
+  ],
+  "checks": {
+    "owner_unit_tests": "8 passed via standalone rustc --test",
+    "original_policy_controls": "330 fixed original-source comparisons passed",
+    "migrated_consumer_controls": "330 same fixed comparisons passed using migrated helper implementations",
+    "topology_helper_comparisons": "16 extracted original/migrated actual topology helper comparisons passed; fixture models only",
+    "workspace_cargo": "unexecuted; root owns build lease"
+  },
+  "remaining": "Full workspace typecheck/targeted consumer suites and owner-map documentation integration; appliance question packet unanswered",
+  "patch_sha256": "bf9f8ea544c5b72a8eb5c73fe6f554262b155d1a847f2dc95849ce4254a0e634"
+}

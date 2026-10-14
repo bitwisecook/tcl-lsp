@@ -172,10 +172,15 @@ fn resolve_port(value: &str) -> Option<i64> {
 
 /// Look up a typed object by table and full-path.
 fn find<'a>(cfg: &'a BigipConfig, table: &str, full_path: &str) -> Option<&'a ModelObject> {
-    cfg.objects
-        .iter()
-        .find(|p| p.table_name == table && p.full_path == full_path)
-        .map(|p| &p.object)
+    crate::object_names::object_name_candidates(
+        full_path,
+        cfg.objects
+            .iter()
+            .filter(|placed| placed.table_name == table)
+            .map(|placed| (placed.full_path.as_str(), &placed.object)),
+        crate::object_names::ObjectNamePolicy::Exact,
+    )
+    .first_in_order()
 }
 
 /// Iterate the full-paths of a typed table in source order.
@@ -188,35 +193,15 @@ fn table_paths<'a>(cfg: &'a BigipConfig, table: &str) -> impl Iterator<Item = &'
 
 /// `resolve_name`: resolve a possibly-short name to a full path within `table`.
 fn resolve_name(cfg: &BigipConfig, name: &str, table: &str) -> Option<String> {
-    if find(cfg, table, name).is_some() {
-        return Some(name.to_owned());
-    }
-    if !name.starts_with('/') {
-        let partition = {
-            let p = if cfg.default_partition.is_empty() {
-                "Common"
-            } else {
-                cfg.default_partition.as_str()
-            };
-            p.trim_matches('/').to_owned()
-        };
-        if !partition.is_empty() {
-            let candidate = format!("/{partition}/{name}");
-            if find(cfg, table, &candidate).is_some() {
-                return Some(candidate);
-            }
-        }
-        if partition != "Common" {
-            let candidate = format!("/Common/{name}");
-            if find(cfg, table, &candidate).is_some() {
-                return Some(candidate);
-            }
-        }
-    }
-    let suffix = format!("/{name}");
-    table_paths(cfg, table)
-        .find(|key| key.ends_with(&suffix))
-        .map(ToOwned::to_owned)
+    crate::object_names::object_name_candidates(
+        name,
+        table_paths(cfg, table).map(|path| (path, path)),
+        crate::object_names::ObjectNamePolicy::Configuration {
+            default_partition: &cfg.default_partition,
+        },
+    )
+    .first_in_order()
+    .map(ToOwned::to_owned)
 }
 
 /// `profile_types_for_virtual`: the set of profile types attached to `vs`.

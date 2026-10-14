@@ -36,16 +36,15 @@
 //!
 //! * the **optimiser propagation pass** (`optimiser/propagation.rs`, the
 //!   O129 rewrite) — original retained execution targets and effective argv
-//!   through [`ConstSubstCtx::fold_retained_call`];
+//!   through [`ConstSubstCtx::fold_retained_call_with_metadata_context`];
 //! * **SCCP lattice evaluation itself** (`crate::sccp`) —
 //!   constants resolved per SSA use version, so a folded value re-enters the
 //!   lattice and multi-statement chains
 //!   (`set base [self class]; set ns [namespace qualifiers $base]`) fold to
 //!   fixpoint under SCCP's ordinary monotone iteration;
-//! * the **analyser** (`analyser/handlers.rs`) — constants
-//!   from the scope-chain *dominating* constant-string lattice, trust from a
-//!   lazily-built whole-module mutation scan, so `set ns [namespace
-//!   qualifiers ::tc::X]; ${ns}::setdef …` resolves for navigation.
+//! * the **analyser** — original source words and components with current
+//!   scalar declaration/value provenance through
+//!   [`ConstSubstCtx::fold_original_source_substitution`].
 //!
 //! Soundness stance: **abstain-toward-no-fold**. Every gate that cannot be
 //! answered (a renamed / aliased / shadowed head, a non-literal word, an

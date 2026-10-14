@@ -1869,9 +1869,7 @@ mod tests {
         }
     }
 
-    /// A workspace is trusted until the editor says otherwise — the fact the
-    /// `EvalOptions::tier` doc comment used to deny — and a client that says
-    /// nothing leaves it trusted.
+    /// Explicit editor trust determines workspace provenance; silence retains the default.
     #[test]
     fn a_workspace_is_trusted_until_the_editor_says_otherwise_issue_2139() {
         assert!(!Provenance::WorkspaceTrusted.is_untrusted());

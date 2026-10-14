@@ -641,8 +641,7 @@ mod tests {
         assert_eq!(repair_uri_string("file:///c%3A/Users/me"), None);
     }
 
-    /// Issue #1214 §B: a folder URI with the space left raw used to fail
-    /// deserialisation and take `initialize` down with it.
+    /// Raw spaces in a folder URI are repaired before deserialisation.
     #[test]
     fn an_unencoded_space_is_repaired() {
         assert_eq!(

@@ -287,32 +287,15 @@ impl<'a> ConfigView<'a> {
 /// `default_partition`-qualified,
 /// then `/Common/`, then a suffix match against any partition.
 fn resolve_in<T>(name: &str, entries: &[(&str, &T)], default_partition: &str) -> Option<usize> {
-    if let Some(i) = entries.iter().position(|e| e.0 == name) {
-        return Some(i);
-    }
-    if !name.starts_with('/') {
-        // `(default_partition or "Common").strip("/")`
-        let base = if default_partition.is_empty() {
-            "Common"
-        } else {
-            default_partition
-        };
-        let partition = base.trim_matches('/');
-        if !partition.is_empty() {
-            let candidate = format!("/{partition}/{name}");
-            if let Some(i) = entries.iter().position(|e| e.0 == candidate) {
-                return Some(i);
-            }
-        }
-        if partition != "Common" {
-            let candidate = format!("/Common/{name}");
-            if let Some(i) = entries.iter().position(|e| e.0 == candidate) {
-                return Some(i);
-            }
-        }
-    }
-    let suffix = format!("/{name}");
-    entries.iter().position(|e| e.0.ends_with(&suffix))
+    crate::object_names::object_name_candidates(
+        name,
+        entries
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| (entry.0, index)),
+        crate::object_names::ObjectNamePolicy::Configuration { default_partition },
+    )
+    .first_in_order()
 }
 
 // Source slicing

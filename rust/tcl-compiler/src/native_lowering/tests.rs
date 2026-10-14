@@ -756,13 +756,6 @@ fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols() {
     assert_eq!(top.protocol, EntryProtocol::Script);
 
     let source = "proc p {x} { return $x }\np 1\n";
-    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
-}
-
-fn lower_with_unit(
-    source: &str,
-    config: SemanticOptimisationConfig,
-) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
     let body = fixture_id_if_present(&unit.procedures, "::p")
@@ -814,13 +807,6 @@ fn lower_with_unit(
 #[test]
 fn a_definition_declines_a_body_the_statement_does_not_write_out() {
     let source = "proc make {} {\n set body {return hello}\n proc p {x} $body\n}\nmake\n";
-    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
-}
-
-fn lower_with_unit(
-    source: &str,
-    config: SemanticOptimisationConfig,
-) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
 
@@ -876,13 +862,6 @@ fn lower_with_unit(
 #[test]
 fn a_definition_with_a_written_body_still_binds_under_the_same_proof() {
     let source = "proc make {} {\n proc p {x} {return hello}\n}\nmake\n";
-    lower_with_unit(source, config).map(|(function, report, _)| (function, report))
-}
-
-fn lower_with_unit(
-    source: &str,
-    config: SemanticOptimisationConfig,
-) -> Result<(NativeFunction, FunctionReport, CompilationUnit), FunctionDecline> {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
     let outer = fixture_id_if_present(&unit.procedures, "::make")

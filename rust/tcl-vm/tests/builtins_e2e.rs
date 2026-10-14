@@ -2341,10 +2341,7 @@ fn string_is_classes() {
 
 #[test]
 fn backslash_substituted_command_arguments() {
-    // A non-braced literal command argument with backslash escapes must be
-    // backslash-substituted at call time, like real Tcl. Previously the raw
-    // escapes reached the VM unchanged (e.g. `\{` arrived as the two chars
-    // `\{`). Covers pure escapes and an *escaped* `$`/`[` (no real subst).
+    // Non-braced arguments decode escapes once; escaped sigils remain literal data.
     out_eq(
         "proc p {a} { puts [string length $a]:$a }\n\
          p \\{\n\

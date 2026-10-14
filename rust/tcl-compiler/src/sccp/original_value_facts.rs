@@ -4335,7 +4335,7 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl9.0",
         );
-        let ssa = unit
+        let ssa = &unit
             .procedures
             .get(&fixture_id(&unit.procedures, "::p"))
             .expect("authored fixture body")
@@ -4353,7 +4353,7 @@ mod tests {
                     "second" => 9,
                     _ => continue,
                 };
-                let lookup = SsaSourceView::at_statement(&ssa, block, index);
+                let lookup = SsaSourceView::at_statement(ssa, block, index);
                 let symbol = lookup.symbol("y").expect("point-specific alias read");
                 let version = statement.uses[&symbol];
                 let values = HashMap::from([(
@@ -4369,7 +4369,7 @@ mod tests {
                     env_from_uses(
                         &statement.uses,
                         &values,
-                        SsaSourceView::at_statement(&ssa, BlockId(u32::MAX), index)
+                        SsaSourceView::at_statement(ssa, BlockId(u32::MAX), index)
                     )
                     .len(),
                     0,

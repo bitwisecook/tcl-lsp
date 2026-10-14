@@ -1,0 +1,1398 @@
+[
+  {
+    "surface": "Retained source body identity",
+    "entry": "Module::source_procedure_for_target",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "Retained source body identity",
+    "entry": "Module::source_procedure_for_allocation",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "Original source-read catalogue",
+    "entry": "SourceReadScope",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "Original source-read catalogue",
+    "entry": "OriginalSourceCataloguePurpose",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "Original source-read catalogue",
+    "entry": "DeclarationSchemaOrigin",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "authored naming policy and signature publication",
+    "entry": "ScanCtx::with_selected_schema",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "native variable entry order",
+    "entry": "Frames::var_names_bytes_checked",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native variable entry order",
+    "entry": "Namespaces::vars_in_bytes_checked",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original C9 class-variable links",
+    "entry": "classvariable_original",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original C9 class-variable links",
+    "entry": "prepare_original_c_namespace_link_target",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "retained C scalar aliases and array keys",
+    "entry": "Frames::link",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "retained C scalar aliases and array keys",
+    "entry": "VarStore::get_bytes",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "retained C scalar aliases and array keys",
+    "entry": "VarStore::set_bytes",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "original compiled expression number headers",
+    "entry": "ExprOps::prepared_node",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native string materialisation",
+    "entry": "native_string_bytes_checked_for_value",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "native string materialisation",
+    "entry": "OriginalNumericOps::string_value",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original script bytes and lexical boundaries",
+    "entry": "Emit::emit_command_image",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original script bytes and lexical boundaries",
+    "entry": "CompileService::script_command_plan_bytes_with_entry",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "VM native command placement",
+    "entry": "Namespaces::find_command_bytes_checked",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "VM native command placement",
+    "entry": "Namespaces::find_namespace_bytes_checked",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "VM native command placement",
+    "entry": "Namespaces::command_name_bytes",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "Runtime command registration and identity",
+    "entry": "Interp::register_stock_builtin",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "Runtime command registration and identity",
+    "entry": "bind_builtin",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "Runtime command registration and identity",
+    "entry": "attested_command_identity",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "Runtime command registration and identity",
+    "entry": "stock_ensemble_registry_identity",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "Runtime command registration and identity",
+    "entry": "stock_ensemble_implementation_is_current",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "Runtime command registration and identity",
+    "entry": "synchronise_command_environment_guards",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original namespace-name objects",
+    "entry": "Namespaces::find_namespace_child_bytes_checked",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original Boolean operand purposes and ordered effects",
+    "entry": "ExprOps::to_bool_for_purpose",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "original Boolean operand purposes and ordered effects",
+    "entry": "ExprOps::logical_right_truth",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "checked completion transport",
+    "entry": "Commands::dispatch",
+    "visibility": [
+      "private",
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "checked completion transport",
+    "entry": "Commands::dispatch_id",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "temporal contents folding and existence",
+    "entry": "QueryReading",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "temporal contents folding and existence",
+    "entry": "ConditionReading",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "diagnostic source and overwrite advice",
+    "entry": "Analyser::emit_cfg_ssa_diagnostics_for_function_full",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "conditional literal body name ownership",
+    "entry": "original_literal_body_ownership",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "conditional literal body name ownership",
+    "entry": "DeclarationLayoutObservation::source_body_name_ownership",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "conditional literal body name ownership",
+    "entry": "Scan::lambda",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "conditional literal body name ownership",
+    "entry": "own_frame_global_writes_with_metadata_context",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "conditional literal body name ownership",
+    "entry": "own_frame_global_writes_standalone",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "conditional literal body name ownership",
+    "entry": "SourceScan::original_registration",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "conditional literal body name ownership",
+    "entry": "selected_values",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "conditional literal body name ownership",
+    "entry": "SourceScan::lambda",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "active VM artifact identity",
+    "entry": "Vm::function_identity_claims_match",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "active VM artifact identity",
+    "entry": "Vm::function_live_command_bindings_match",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "active VM artifact identity",
+    "entry": "Vm::run_compiled_unit",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "active VM artifact identity",
+    "entry": "Frame::manifest",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "selected VM execution frame and saved target",
+    "entry": "SelectedFrameRestore",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "selected VM execution frame and saved target",
+    "entry": "select_execution_frame",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "selected VM execution frame and saved target",
+    "entry": "restore_execution_frame",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "selected VM execution frame and saved target",
+    "entry": "SavedExecutionTarget",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "selected VM execution frame and saved target",
+    "entry": "select_execution_frame_checked",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "selected VM execution frame and saved target",
+    "entry": "eval_value_at_level_checked",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "dictionary scope binding",
+    "entry": "DictionaryScopeRead",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "dictionary scope binding",
+    "entry": "dictionary_scope_variable_read",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "dicts",
+    "entry": "ValueOps::dict_pairs",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "dicts",
+    "entry": "ValueOps::dict_hash_bucket_count",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "dicts",
+    "entry": "ValueOps::new_dict_with_hash_bucket_count",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original stock TclOO factory/bootstrap roles",
+    "entry": "OriginalClassFactoryState",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "intrinsic original stock class creation",
+    "entry": "OriginalClassFactoryTransfer::capture",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "intrinsic original stock class creation",
+    "entry": "OriginalClassFactoryTransfer::completed",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "intrinsic original stock class creation",
+    "entry": "closed_definition_member",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "conditional declared overwrite advice",
+    "entry": "Analyser::emit_cfg_ssa_diagnostics_for_function_full",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "complete retained Module source correspondence",
+    "entry": "RetainedSourceModuleBindings::matches_module",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "complete retained Module source correspondence",
+    "entry": "retained_substitution_calls",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "complete retained Module source correspondence",
+    "entry": "proc_dispatch_facts",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "current source refactor and CLI reduction metadata",
+    "entry": "original_assignment_candidate",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "current source refactor and CLI reduction metadata",
+    "entry": "select",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "current source refactor and CLI reduction metadata",
+    "entry": "collect_rename_edits",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original selected Core dispatch and namespace hazards",
+    "entry": "retained_dispatch_context",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original selected Core dispatch and namespace hazards",
+    "entry": "scan_my_method_sites",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original selected Core dispatch and namespace hazards",
+    "entry": "namespace_rename_hazard",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "nested codegen lexical source operands",
+    "entry": "CodegenCtx::nested_command_tokens",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "supplied document compiler findings and unindexed tokens",
+    "entry": "Backend::compiler_diagnostics_for",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "supplied document compiler findings and unindexed tokens",
+    "entry": "unindexed_semantic_tokens",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "supplied document compiler findings and unindexed tokens",
+    "entry": "Backend::semantic_tokens_core_data",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "supplied document compiler findings and unindexed tokens",
+    "entry": "code_action_report",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original source index diagnostics",
+    "entry": "original_index_diagnostics",
+    "visibility": [
+      "pub(in crate::analyser)"
+    ]
+  },
+  {
+    "surface": "supplied unindexed viewport and deep compiler input",
+    "entry": "unindexed_semantic_tokens_for_range",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "supplied unindexed viewport and deep compiler input",
+    "entry": "compute_compiler_diags_after_base",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "supplied unindexed viewport and deep compiler input",
+    "entry": "compute_compiler_diags",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original embedding publication and lossless fact transport",
+    "entry": "PublicationService",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original embedding publication and lossless fact transport",
+    "entry": "authenticate",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original embedding publication and lossless fact transport",
+    "entry": "consume",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original embedding publication and lossless fact transport",
+    "entry": "RuntimeEngine::command_publication_service",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "original embedding publication and lossless fact transport",
+    "entry": "RuntimeEngine::restrict_commands",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original embedding publication and lossless fact transport",
+    "entry": "to_obj",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original embedding publication and lossless fact transport",
+    "entry": "snapshot_value",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original embedding publication and lossless fact transport",
+    "entry": "fail",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original embedding publication and lossless fact transport",
+    "entry": "capture_answer",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "reached original error-context ownership",
+    "entry": "Value::capture_native_error_context",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "reached original error-context ownership",
+    "entry": "NativeListItems::owns_native_header",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "checked tracked document source input",
+    "entry": "Backend::analyse_with_workspace_classes_from_analysis",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "installed embedding handles and typed settlement",
+    "entry": "Interp::install_proc_original_storage",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original Logical procedure completion and no-error source calls",
+    "entry": "RetainedSourceModuleBindings::matches_original_procedure",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original Logical procedure completion and no-error source calls",
+    "entry": "original_logical_procedure_calls_for_module",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original Logical procedure completion and no-error source calls",
+    "entry": "original_procedure_formal_count_shape",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original Logical procedure completion and no-error source calls",
+    "entry": "original_procedure_scalar_bindings",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original Logical procedure completion and no-error source calls",
+    "entry": "CompletionWalk",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original Logical procedure completion and no-error source calls",
+    "entry": "procedures_complete",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "original Logical procedure completion and no-error source calls",
+    "entry": "RaiseProof::calls_complete",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original Logical procedure completion and no-error source calls",
+    "entry": "SourceContext::matches_procedure",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "retained expression assistance and unavailable callback source joins",
+    "entry": "Analyser::original_expression_parser_context",
+    "visibility": [
+      "pub(in crate::analyser)"
+    ]
+  },
+  {
+    "surface": "retained expression assistance and unavailable callback source joins",
+    "entry": "gated_operator_assistance_context",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "retained expression assistance and unavailable callback source joins",
+    "entry": "Analyser::expr_function_calls",
+    "visibility": [
+      "pub(in crate::analyser)"
+    ]
+  },
+  {
+    "surface": "current structural diagram source metadata",
+    "entry": "DiagramContext::metadata_context",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "current structural diagram source metadata",
+    "entry": "registry_command",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "current structural diagram source metadata",
+    "entry": "command_completion",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native byte and checked Unicode access",
+    "entry": "ValueOps::as_bytes",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "native byte and checked Unicode access",
+    "entry": "ValueOps::new_jim_string",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native byte and checked Unicode access",
+    "entry": "ValueOps::try_as_str",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native byte and checked Unicode access",
+    "entry": "ValueOps::try_char_len",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native byte and checked Unicode access",
+    "entry": "ValueOps::string_character_model",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "Jim trim byte cuts and physical result",
+    "entry": "ValueOps::jim_string_trim_result",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original byte encoding names and source order",
+    "entry": "Host::encoding_catalogue",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original byte encoding names and source order",
+    "entry": "Filesystem::open_source_bytes",
+    "visibility": [
+      "private",
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::concat_policy",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::native_concat_list_shape",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::native_concat_empty_list",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::native_concat_copy_list",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::native_concat_append_list",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::native_concat_first_bytes",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::release_native_concat_first",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::native_concat_string_bytes",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::native_concat_string_result",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "native original concat",
+    "entry": "ValueOps::discard_native_concat_result",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "trace-aware array enumeration",
+    "entry": "VarStore::array_target",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "trace-aware array enumeration",
+    "entry": "VarStore::array_read_elem_at",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "trace-aware array enumeration",
+    "entry": "VarStore::array_keys_checked_at",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "trace-aware array enumeration",
+    "entry": "VarStore::array_key_bytes_checked_at",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "trace-aware array enumeration",
+    "entry": "VarStore::array_read_elem_bytes_at",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "trace-aware array enumeration",
+    "entry": "VarStore::unset_elem_bytes_at",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "trace-aware array enumeration",
+    "entry": "VarStore::variable_container_model",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "trace-aware array enumeration",
+    "entry": "ValueOps::pin_value",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "trace-aware array enumeration",
+    "entry": "ValueOps::unpin_value",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "live native compilation entry",
+    "entry": "CompileService::compile_script_with_entry",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "original branch expression source grammar",
+    "entry": "branch_original_expression",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original branch expression source grammar",
+    "entry": "branch_execution_equivalent",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original expression terms and Jim preparation",
+    "entry": "ExprOps::command_bytes_at",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original expression terms and Jim preparation",
+    "entry": "ExprOps::literal_bytes_at",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original expression terms and Jim preparation",
+    "entry": "ExprOps::string_bytes_at",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "reached native math-function folding",
+    "entry": "ExprOps::call_at",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "original namespace string compiler operands",
+    "entry": "ValueOps::native_unicode_string_result",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original external UTF-8 conversion",
+    "entry": "ValueOps::native_external_utf8_result",
+    "visibility": [
+      "private",
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "retained source taint metadata",
+    "entry": "TaintSourceContext",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "retained source taint metadata",
+    "entry": "TaintSourceContext::for_module_function",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "retained source taint metadata",
+    "entry": "RetainedSourceModuleBindings::matches_module",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "retained source taint metadata",
+    "entry": "global_instance_class_source",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original inlining source and alpha-rename geometry",
+    "entry": "SourceContext::for_module",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "original inlining source and alpha-rename geometry",
+    "entry": "SourceContext::invocation",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "original inlining source and alpha-rename geometry",
+    "entry": "reads_only_bound_names",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "original inlining source and alpha-rename geometry",
+    "entry": "build_inlinable_map",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original inlining source and alpha-rename geometry",
+    "entry": "rewrite_value_string",
+    "visibility": [
+      "private",
+      "private"
+    ]
+  },
+  {
+    "surface": "original inlining source and alpha-rename geometry",
+    "entry": "names_a_command",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "original inlining source and alpha-rename geometry",
+    "entry": "substitutes",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original inlining source and alpha-rename geometry",
+    "entry": "root",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "original declaration read metadata",
+    "entry": "LogicalProcedureDeclaration",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original declaration read metadata",
+    "entry": "OriginalProcedureReadDeclaration",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original declaration read metadata",
+    "entry": "original_procedure_read_declaration",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original declaration read metadata",
+    "entry": "authored_procedure_read_advice",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original per-point CFG lookup metadata",
+    "entry": "CfgLookupContexts",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "EnteredVariablePlace",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "CapturedContainerModel",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "CapturedByteStore",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "capture_byte_store_entered",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "publish_scalar",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "publish_elem",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "publish_dictionary_root",
+    "visibility": [
+      "pub(super)",
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "capture_native_compiled_temporary_receiver",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "store_captured_byte_variable",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime byte storage",
+    "entry": "store_native_compiled_temporary_checked",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime variable removal",
+    "entry": "RetiredVariableParts",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime variable removal",
+    "entry": "EnteredVariablePlace::remove",
+    "visibility": [
+      "pub(crate)",
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime variable removal",
+    "entry": "publish_unset",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime variable removal",
+    "entry": "publish_array_destruction",
+    "visibility": [
+      "pub(crate)",
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime variable removal",
+    "entry": "finish_destruction_with_check",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "captured Runtime variable removal",
+    "entry": "remove_captured_byte_variable",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "captured Runtime variable removal",
+    "entry": "retire_namespace_variables",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "original dictionary path publication",
+    "entry": "EnteredNativeDictionary::prepare_original",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original dictionary path publication",
+    "entry": "CapturedJimDictionaryCell",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original dictionary path publication",
+    "entry": "OriginalJimDictionaryRoot",
+    "visibility": [
+      "pub(in crate::interp)"
+    ]
+  },
+  {
+    "surface": "original dictionary path publication",
+    "entry": "Interp::mutate_original_jim_dictionary_path",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original dictionary path publication",
+    "entry": "Vm::jim_dictionary_path_update_bytes",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "selected possible option source metadata",
+    "entry": "conditional_option_arguments_with_metadata_context",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "complete supplied SSA metadata scans",
+    "entry": "SsaInvocationContext",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "complete supplied SSA metadata scans",
+    "entry": "switch_must_defines_with_source_input",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original substitution purity metadata",
+    "entry": "original_substitution_purity_with_metadata_context",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original substitution purity metadata",
+    "entry": "SourceInvocationBinding::original_logical_procedure_call_targets",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "original substitution purity metadata",
+    "entry": "substitutions_are_pure",
+    "visibility": [
+      "pub(super)"
+    ]
+  },
+  {
+    "surface": "original summary source dependencies",
+    "entry": "command_subst_callees_with_config",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original summary source dependencies",
+    "entry": "summary_deps_key",
+    "visibility": [
+      "private"
+    ]
+  },
+  {
+    "surface": "original declared argument read bridge",
+    "entry": "OriginalDeclaredProcedureArgumentSlots::incoming_source_read",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "checked original numeric stages",
+    "entry": "native_scalar_probe_checked_with_string",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "checked original numeric stages",
+    "entry": "native_number_probe_checked_with_string",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "checked original numeric stages",
+    "entry": "native_scalar_getter_checked_with_string",
+    "visibility": [
+      "pub(crate)"
+    ]
+  },
+  {
+    "surface": "checked original numeric stages",
+    "entry": "OriginalNumericOps",
+    "visibility": [
+      "pub(crate)"
+    ]
+  }
+]

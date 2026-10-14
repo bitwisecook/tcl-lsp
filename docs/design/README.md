@@ -113,6 +113,8 @@ fails.
 
 - [name-handling.md](contracts/name-handling.md) - shared name representations,
   semantic owners and lookup boundaries across all consumers.
+- [bigip-object-name-resolution.md](contracts/bigip-object-name-resolution.md) —
+  authored slash-domain object candidates, explicit precedence and ambiguity.
 
 - [callback-surface-inventory.md](contracts/callback-surface-inventory.md) —
   registry-derived executable/callback coverage, the audited external and

@@ -663,7 +663,7 @@ mod tests {
         )
         .unwrap();
         let captured_parent = captured
-            .body_commands(&fixture_id(&module.procedures, "::p"))
+            .body_commands(&fixture_id(&captured_unit.ir_module.procedures, "::p"))
             .unwrap()
             .into_iter()
             .next()
@@ -685,7 +685,7 @@ mod tests {
         )
         .unwrap();
         let parent = shadow
-            .body_commands(&fixture_id(&module.procedures, "::p"))
+            .body_commands(&fixture_id(&shadow_unit.ir_module.procedures, "::p"))
             .unwrap()
             .into_iter()
             .next()

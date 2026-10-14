@@ -458,15 +458,7 @@ fn cu_catch_dynamic_body_arg_is_pessimistic() {
 
 #[test]
 fn cu_catch_literal_body_threads_its_upvar() {
-    // `catch {upvar 1 cv v; set v $w}` — a brace-literal, straight-line body,
-    // so the CFG now lowers it into real blocks (#2207) and the inner `upvar`
-    // *is* seen: `v` is an alias for the caller's `cv`, which is what
-    // `EscapeTag::Frame` says.
-    //
-    // This used to assert `Local`, because `handle_catch` early-returned on
-    // the body text holding `$w` and never walked in. That answer was
-    // conservative-but-safe rather than right — the test's own comment called
-    // the precise upvar source "simply not threaded". It is threaded now.
+    // The literal catch body retains the original upvar caller-frame alias.
     let s = escape_cu("proc ::p {} { catch {upvar 1 cv v\n set v $w} }");
     let p = summary(&s, "::p");
     assert_eq!(

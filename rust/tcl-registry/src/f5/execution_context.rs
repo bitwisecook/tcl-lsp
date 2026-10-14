@@ -42,10 +42,7 @@ mod tests {
         assert_eq!(seen.len(), 7);
     }
 
-    /// §11: four contexts measured, two `Unknown` — and the two unmeasured
-    /// ones stay unknown all the way down. No family, no environment, no
-    /// core profile, and a build profile whose capability answers are
-    /// `Unknown` rather than the canonical column.
+    /// Unmeasured APL contexts supply no family, environment, core or build facts.
     #[test]
     fn unmeasured_contexts_stay_unknown_all_the_way_down() {
         let measured: Vec<_> = BigIpExecutionContext::ALL

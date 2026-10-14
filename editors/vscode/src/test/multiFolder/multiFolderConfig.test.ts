@@ -245,10 +245,7 @@ suite("Multi-folder workspace configuration (#230)", () => {
     const a = vscode.workspace.getConfiguration("tclLsp", folderA.uri).get<string>("dialect");
     const b = vscode.workspace.getConfiguration("tclLsp", folderB.uri).get<string>("dialect");
 
-    // proj-a is tcl8.4, proj-b is f5-irules.  Before the per-folder
-    // dialect refactor, only one of these could be honoured at a time
-    // and the LSP server emitted a "Per-folder dialects are not yet
-    // supported" warning for the loser.
+    // Each folder retains its independently selected dialect.
     assert.strictEqual(a, "tcl8.4", "folder A should report dialect=tcl8.4");
     assert.strictEqual(b, "f5-irules", "folder B should report dialect=f5-irules");
   });

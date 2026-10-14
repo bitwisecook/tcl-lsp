@@ -433,10 +433,7 @@ fn a_stray_word_outside_the_block_is_not_a_program() {
     );
 }
 
-/// A genuinely programmed document still refuses the rewrite (E-R12) — and the
-/// patch that takes the write's place is a definition the surface can read
-/// back. A patch-only command used to resolve nowhere, so the studio crashed
-/// on the command it had just written.
+/// A programmed document retains an independent patch declaration for lookup.
 #[test]
 fn a_patched_command_resolves_through_the_patch() {
     let source = "\

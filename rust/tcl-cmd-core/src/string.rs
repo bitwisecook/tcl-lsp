@@ -1789,11 +1789,8 @@ mod tests {
 
     #[test]
     fn string_repeat_bounds_the_result_before_allocating() {
-        // Regression (#2127): `repeat` used to hand `count` straight to
-        // `str::repeat`, so `string repeat ab 100000000000` attempted a 200 GB
-        // allocation. C refuses first — tclsh 9.0.4/9.1b0:
-        //   % string repeat ab 100000000000
-        //   string size overflow: unable to alloc 200000000000 bytes
+        // Reject the oversized result before allocating its 200 GB payload.
+        // Original C9.0.4/9.1b0: string size overflow: unable to alloc 200000000000 bytes
         let err = repeat_of("ab", "100000000000").expect_err("bounded");
         assert_eq!(
             err.message().unwrap(),

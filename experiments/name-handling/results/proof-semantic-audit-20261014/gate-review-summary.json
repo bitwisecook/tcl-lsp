@@ -1,0 +1,24 @@
+{
+  "gate_exit_code": 1,
+  "errors": 1918,
+  "categories": {
+    "test proof annotation has no catalog binding": 2,
+    "evidence digest changed": 942,
+    "owner declaration absent": 6,
+    "document omits exact conclusion": 2,
+    "document omits exact scope": 2,
+    "census path drift": 12,
+    "census digest changed": 952
+  },
+  "changed_evidence_files": 616,
+  "absent_owners": [
+    "naming.analysis.constructed-key-consumer-projections: owner declaration is absent: qname_eq",
+    "naming.analysis.constructed-key-consumer-projections: owner declaration is absent: is_descendant_of",
+    "naming.analysis.reported-qname-namespace-prefix: owner declaration is absent: namespace_of",
+    "naming.embedding.original-host-publication-and-fact-transport: owner declaration is absent: command_names",
+    "naming.grammar.shared-written-name-boundaries: owner declaration is absent: normalised",
+    "naming.source.original-callback-procedure-target: owner declaration is absent: OriginalSourceCallbackProcedureTarget::original_ir_procedure_name"
+  ],
+  "absent_selectors": [],
+  "warning": "Read-only moving-Main audit, not immutable execution acceptance."
+}

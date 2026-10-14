@@ -1,0 +1,22 @@
+{
+  "base_manifest_sha256": "bbda9258629866c6a91cadf04334b8e8b444774dcbcd5c06b6272ece54e49ea7",
+  "patch_sha256": "b61f1922b5d70efb7a3f6f8c18ea2c5fb9c497dfdce638b0dcc4c6d1784c2207",
+  "record_changes": [
+    {
+      "id": "naming.consumer.original-source-attachment-candidates",
+      "fields": [
+        "conclusion"
+      ],
+      "evidence_and_provider_fields_unchanged": true
+    },
+    {
+      "id": "naming.source.original-registry-header-advice",
+      "fields": [
+        "conclusion",
+        "tests"
+      ],
+      "evidence_and_provider_fields_unchanged": true
+    }
+  ],
+  "scope": "Current authored contract conclusions and real test-definition bindings only; restore2 exact retained redaction boundaries. No provider observation, evidence digest, implementation receipt, assertion, source implementation, oracle seal or census digest renewed. Current Rust assertion acceptance remains pending."
+}

@@ -16,6 +16,7 @@ contract states its required evidence, permitted uses and limitations.
 | Packages, availability or dialect-dependent syntax | [Actual entry](#carry-the-actual-entry-through-every-layer) | [Host realm](#retain-host-availability-and-invocation-realms), exact provider/version, lexer and nested-source entry |
 | Expressions, native object conversion or rewriting | [Expression preparation](#prepare-expression-functions-using-their-native-owner) | [Operand and result receipts](#native-scalar-math-results-and-original-argv-addresses), object methods, conversion effects, erasure and both backends |
 | iRules static/global ownership | [Execution domains](#preserve-irules-execution-domains) | Initialization publication, current TMM, event/connection activation and interprocedural caller domain |
+| BIG-IP object keys and authored iRule reports | [Hosted reports](#project-big-ip-object-and-event-reports) | Actual configuration domain, retained rule source, explicit ambiguity and source-schema boundaries |
 | Retained bodies, methods, event handlers and memo inputs | [Body ownership](#retain-body-identity-through-consumers) | Original source allocation, module issuer, body kind, immutable input and current-source rebinding |
 | Shared facts | [Discriminating experiments](#native-regression-requirements) | [Consumer review](#consumer-boundaries-of-shared-facts), owner contract, DSL/rendering parity and gates |
 
@@ -96,6 +97,29 @@ source input and exposes candidate references separately from complete absence
 coverage. Relative, computed and unsupported nested references keep coverage
 partial. These reports establish neither appliance publication nor a native
 variable cell; appliance outcomes require their own original context evidence.
+
+## Project BIG-IP object and event reports
+
+Use `tcl_bigip::object_names::object_name_candidates` with an explicit
+`ObjectNamePolicy` and an already restricted configuration/module/type domain.
+`first_in_order`, `first_exact_in_order_or_unique` and `unique` serve distinct
+reporting contracts; preserve the caller's original candidate order and every
+ambiguity. `owner_partition_reference_paths` supplies bounded exact registry
+reference alternatives. `reference_without_numeric_service` keeps its explicit
+`EmptyServiceSuffix` policy and the caller's address grammar. These slash-domain
+keys are independent of Tcl namespaces, filesystem paths and appliance lookup.
+The [object-name contract](../contracts/bigip-object-name-resolution.md) lists
+actual consumers and selected policies.
+
+Retain `OriginalIrulesSourceContext` once per rule for event reports.
+`top_level_source_vectors` checks the complete source and exposes missing
+original vectors. `ResolvedInvocation::authored_event_handler_priority` reads
+only the already selected source schema. `extract_original_irules_event_handlers`
+keeps inherited-priority uncertainty across dynamic setters or unavailable
+vectors; a later literal setter restores advice, and inline priority affects
+only its own handler. Validation reuses these reports for event/profile and
+priority checks. Neither route establishes event activation, runtime ordering
+or an unobserved BIG-IP result.
 
 ## Select the proof the consumer needs
 
@@ -812,7 +836,7 @@ refusal leaves previously retained guards intact.
 
 ## Retain compiler coverage independently of runtime reachability
 
-`BodyExecutionSpec::ArrayIteration` describes the C Tcl 9 caller-frame iterator separately from its `Basic3Arg` named worker compiler. `array_iteration::select` retains the two destination names, array name and body operand from frozen argv. Argument acceptance does not prove body entry: the physical owner must establish an array subject and a possible next element, then store the key and value sequentially before entering the body. Missing/scalar subjects, an empty array, invalid binding lists and a failing value destination have different entry and partial-store outcomes. Normal handler proofs also require the actual stock `::tcl::array::for` worker; a replaced private worker cannot donate this body contract. The shared native corpus covers those outcomes and private-worker replacement across all six engines. SpecTcl packs still reject native `body_execution` contracts explicitly rather than pretending to supply the live worker proof.
+`BodyExecutionSpec::ArrayIteration` describes the C Tcl 9 caller-frame iterator separately from its `TclCompileBasic3ArgCmd` named worker compiler. `array_iteration::select` retains the two destination names, array name and body operand from frozen argv. Argument acceptance does not prove body entry: the physical owner must establish an array subject and a possible next element, then store the key and value sequentially before entering the body. Missing/scalar subjects, an empty array, invalid binding lists and a failing value destination have different entry and partial-store outcomes. Normal handler proofs also require the actual stock `::tcl::array::for` worker; a replaced private worker cannot donate this body contract. The shared native corpus covers those outcomes and private-worker replacement across all six engines. SpecTcl packs still reject native `body_execution` contracts explicitly rather than pretending to supply the live worker proof.
 
 The compiler visits source commands in bodies and branches that execution may never enter. `SourceCommandBindings::compiler_invocations` retains their recipes under the complete source identity. `SourceInvocationBinding` keeps that compiler snapshot separate from its runtime `lookup_state`. A compiler-only attachment can answer admission, source origin and `native_compiler_dialect()`; it cannot manufacture a reached target, a frozen runtime argv, normal transfer or a physical frame. Missing runtime evidence therefore does not erase an actual compilation decision.
 
@@ -1476,7 +1500,7 @@ Temporary values created by integer normalization need a transient hold in point
 
 Binary operands use a separate object conversion protocol. Preserve real byte-array payloads independently of their lazily generated strings. A string conversion cache retains the selected `NativeBinaryByteConversion`; repinning cannot reuse a different conversion's cached bytes. Tcl9 encode/scan use checked Latin1 while format can narrow a copy of a wider string. `NativeBinaryDecodeSource` distinguishes a pure C8.6 byte array from its string form and the C9 proper-byte conversion attempt. Decoder errors consume `NativeBinaryDecodeInput`, retaining original Unicode versus byte payload and the actual byte offset. Select exact decoder switches before converting the data, and retain `UuDecodeError::Short` separately from invalid-input presentation. VM values retain arbitrary raw Jim string bytes. Byte-capable list, dictionary, binary and selected string paths use that byte owner; a Unicode-only consumer must check its projection and preserve a reached host refusal if the actual bytes cannot be represented. This remains distinct from pre-execution compiler admission.
 
-The pinned Jim Binary root is scripted. Bootstrap `binary_scripted_ingress()` as a real procedure with its original formals and tailcall body; its lazy body has `UncompiledSource` provenance until a genuine compiler admits it. The canonical compound target remains `binary <operand>` after renaming the root. Registered compound callbacks have their own actual callable identity and no C worker semantic stamp. Abbreviations and replacement dispatch must follow this script's actual lookup, rather than the C ensemble resolver.
+The pinned Jim Binary root is scripted. Bootstrap `binary_scripted_ingress()` as a real procedure with its original formals and tailcall body; its original lazy body remains uncompiled until a genuine compiler admits it. The canonical compound target remains `binary <operand>` after renaming the root. Registered compound callbacks have their own actual callable identity and no C worker semantic stamp. Abbreviations and replacement dispatch must follow this script's actual lookup, rather than the C ensemble resolver.
 
 The standalone Runtime installs actual ensemble tokens and immutable worker
 callbacks through `Interp::register_stock_ensemble` and
@@ -1853,7 +1877,7 @@ An encoder's character data comes from `ByteArrayEffect::encoded_value_argument`
 
 Nested native ensembles use `SuccessfulHandlerSpec::EnsemblePathLeaf` and `NativeHandlerLookupPaths::select`. The exact frozen selector chooses an ordered path; unknown selector values or expansion cardinality decline. For C8.6+ `binary encode hex`, the path first selects the original `::tcl::binary::encode` ensemble, then its original `::tcl::binary::encode::hex` worker. Resolve each intermediate slot as its own target and check its actual mapping and implementation identity before proceeding. A public token or terminal worker alone cannot prove the full path. `SuccessfulHandlerSpec::stock_native_workers` enumerates all eligible path edges for the explicitly trusted stock entry; `stock_native_implementation_slots` and private-registration prefix projection use that same inventory. Enumeration does not prove a live mapping or select a runtime path, and a terminal slot whose semantic argument layout cannot be rebased retains unknown facts. This normal-handler contract supplies no native compiler hook or opcode selection. SpecTcl rejects native path assertions explicitly, and Studio declares that field excluded from round-trip authoring.
 
-Nested worker compilation is a separate `SubSubCommand::native_compilation` descriptor. `SubCommand::nested_native_compilation` selects only an exact frozen selector under the actual dialect; it does not inherit the outer compiler descriptor or rebase result, roles or normal effects. The pinned C8.6–9.1 Binary tables give encode-hex `Basic1Arg`, wrapped encoders no compiler hook, and decoder workers `Basic1Or2Arg`. Preserve those differences when registering private workers and selecting original public invocations. A live nested ensemble map and each intermediate implementation still require their own proof. Studio and SpecTcl explicitly exclude authoring these native worker assertions.
+Nested worker compilation is a separate `SubSubCommand::native_compilation` descriptor. `SubCommand::nested_native_compilation` selects only an exact frozen selector under the actual dialect; it does not inherit the outer compiler descriptor or rebase result, roles or normal effects. The pinned C8.6–9.1 Binary tables give encode-hex `TclCompileBasic1ArgCmd`, wrapped encoders no compiler hook, and decoder workers `TclCompileBasic1Or2ArgCmd`. Preserve those differences when registering private workers and selecting original public invocations. A live nested ensemble map and each intermediate implementation still require their own proof. Studio and SpecTcl explicitly exclude authoring these native worker assertions.
 
 `NativeCompilationGrammar::WithImplementationPath` independently authors those
 ordered compiler prerequisites. `implementation_prerequisites(dialect)` supplies
@@ -2120,7 +2144,7 @@ under its retained `ExprParseContext`. `tree` supplies original operand geometry
 and `lexer_grammar` retains the selected grammar for conditional SSA May reads. `normal_result_representation` combines that tree with the original
 operand advice and an independent `ConditionalExpressionPoolState`. Source
 consumers select the stamped original invocation or declaration receipt before
-calling this query. `TypeInfer` uses those receipts for result, `AssignExpr` and
+calling this query. Type inference uses those receipts for result, `AssignExpr` and
 `Return` advice; a conditional source template retains
 `SourceRuntimeReachability::Conditional`, rather than claiming actual entry.
 A fresh authored numeric-pool receipt is not stock object-class provenance:
@@ -3063,7 +3087,7 @@ retains compact `Module::procedure_implementation_bodies` records from the
 source owner's exact deferred implementations, including retired incarnations.
 Match their full allocation, original body source and formal names to the
 actual analysis unit; installed analysis bodies remain separate from callable
-IR declarations. `TypeInfer` may propagate a conditional normal result only
+IR declarations. Type inference may propagate a conditional normal result only
 when the positioned `proved_handler_target` selects that same full allocation.
 `ObjectHandleFacts::normal_procedure_result` uses this key, so a replacement
 procedure cannot borrow the old result through its name. These result types
@@ -4107,7 +4131,7 @@ identity from a base label.
 | `tcl_syntax::expr::eval` | Engine walk passes original reference text and parser offset; no `Var.name` contents lookup. | Positioned-expression/source controls retain actual grammar. |
 | `tcl_expr_eval::FoldOps::variable_reference_at` | actual invocation grammar supplies complete static-reference lookup independently from object/coercion proof; dynamic index evaluation declines. Explicit mathematical compatibility grants no native proof. | Complete-name/element tests cover the shared cell syntax owner. |
 | `native_numeric::expression_operands` | concrete object receipts come from exact retained reads; environment keys use the proof’s actual lexer and complete static cell spelling. | Static element/sigil controls distinguish identity; index substitution requires its own evaluation receipt. |
-| `sccp::incoming_expression_environment` | Incoming formal evidence additionally requires exact unobserved current Activation scalar read; name alone cannot admit an array. | Alias/static/reference-formal refusals cover physical identity; lexical keys retain the complete name. |
+| `SsaSourceView::read_expression_incoming_slot`; SCCP `semantic_incoming_environment` | Incoming formal evidence additionally requires exact unobserved current Activation scalar read; name alone cannot admit an array. | Alias/static/reference-formal refusals cover physical identity; lexical keys retain the complete name. |
 | `intervals::{eval_expr_with_reads,guard_constraint,refine_interval_for_value}` and `interval_bounds::collect_divzero` | transfer and divisor ranges use original node/base reads with represented SSA versions; guard narrowing additionally requires the same actual symbol/version at the branch. The base-name guard index only selects possible candidates. | `interval_reads_distinguish_elements_with_the_same_base_label` and `divisor_ranges_keep_literal_sigils_and_array_elements_separate`; unknown/missing reads yield TOP. |
 | `uri_split::{expr_traces_to_uri,TraceCtx::variable_origin,trace_to_uri_family}` | URI expression provenance follows the exact original node/base read; backward copies and phi traversal retain the captured Symbol without a display-name round trip. | Root/element and literal-sigil controls distinguish identity; absent represented reads decline. |
 | `common_aot_plan::closed_integer_add_expression` | actual module lexer and shared cell projection must identify an original Named formal; an indexed formal base is insufficient. | Scalar-sigil and array-out-of-subset contrasts check the admitted subset. |
@@ -4219,7 +4243,7 @@ close original VM object-effect obligations. The consumer boundaries are:
 | --- | --- |
 | VM `Value::native_scalar_getter` and Runtime `typed_value::native_scalar_getter` | Select the primitive getter on the actual engine; retain original storage, cache kind and full cache magnitude. Generic arithmetic number parsing and the common Boolean word table cannot replace release-specific primitive behavior. |
 | VM/Runtime `ValueOps::{as_int,as_double,as_bool}` | Consume the physical adapter; retain failure origin through the command API. `ValueError::NotIntegerBytes`, `NotDoubleBytes` or `NotBooleanBytes` alone cannot reconstruct cached-versus-fresh failure, cache-on-error or Unchanged error state. |
-| Runtime `tcl_value_get_*` and generated increment-result extraction | Use the actual current interpreter and apply the selected update before publishing the ABI completion. A fixed-code `TypedError` cannot represent Unchanged error state or retained getter origin. |
+| Runtime `tcl_value_get_*` and generated increment-result extraction | Use the actual current interpreter and apply the selected update before publishing the ABI completion. A fixed error code cannot represent Unchanged error state or retained getter origin. |
 | Runtime `tcl_codegen_value_try_{wide_int,double}` | Keep the speculative purpose explicit: measured cache changes still apply on guest conversion failure, without publishing that guest error; missing native dependency or materialization remains a host refusal. |
 | Direct VM getters in `command`, `cmd_try`, `cmd_chan`, `cmd_binary`, `cmd_namespace`, `cmd_dict`, `cmd_math` and interpreter debug | Engine-specific primitive calls require a selected adapter; unselected `Value::as_*` supplies no such contract. Return codes, Int-width fields, expression functions and conditions retain their own selected protocols rather than borrowing Wide extraction. |
 | Direct Runtime Boolean consumers in dict filters, namespace prefixes, interpreter debug and ensemble options | Pass the actual interpreter/object to the selected adapter. Do not discard metadata into message-only errors or default a failed conversion silently. |
@@ -5074,8 +5098,8 @@ namespace tail and the module's final command map cannot supply its dispatch.
 Expression-contained children use `lifted_calls_with_surface` with the same
 retained carrier and actual lexer policy.
 
-`ConstSubstCtx::fold_retained_call` selects the original execution target,
-actual invocation dialect and shared effective operand mapping. Its
+`ConstSubstCtx::fold_retained_call_with_metadata_context` selects the original execution target,
+actual invocation dialect, complete supplied metadata and shared effective operand mapping. Its
 `retained_arguments` projection preserves written, expanded and captured
 prefix origins. Frozen argument contents do not prove that their evaluation
 can be erased. Variable operands require the original captured read and closed
@@ -5137,7 +5161,7 @@ must be checked at the original invocation. Unpositioned spelling indexes are
 assistance only and cannot resolve these positioned calls.
 
 Stock constant-fold handlers explicitly declare their own native world effects.
-`ConstSubstCtx::fold_retained_call` requires the actual selected handler,
+`ConstSubstCtx::fold_retained_call_with_metadata_context` requires the actual selected handler,
 its implementation lookup, native dialect, selected subcommand and argument
 offset. Original variable operands additionally require closed native string
 access; known text alone does not close an object's getter. Unknown object
@@ -5745,7 +5769,7 @@ measured appliance results.
 
 `AuthoredMathFunctionProvider::Tcl84Core` supplies the checked Tcl 8.4 core
 function set through original-source evaluation. It grants no native fixed-table
-registration, `CALL_BUILTIN_FUNC` admission or native result representation.
+registration, `INST_CALL_BUILTIN_FUNC1` admission or native result representation.
 Installation requires the authored Tcl 8.4 parser and numeric policies. Use
 `Vm::set_logical_math_function_provider` to install or withdraw it; that operation
 invalidates captured compilation and evaluation caches.

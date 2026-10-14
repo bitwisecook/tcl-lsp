@@ -956,10 +956,7 @@ fn cu_includes_top_level_and_proc_keys() {
 #[test]
 fn the_cu_entry_point_answers_from_the_registry_it_is_given() {
     let irules = static_context_for("f5-irules").commands();
-    // A head inside a command substitution is the same command as a direct
-    // one, so both spellings must answer from the selected profile. The
-    // embedded form used to consult the plain-Tcl allow-list instead, which
-    // left the registry-aware entry point supplying incomplete evidence.
+    // Direct and original embedded calls retain the same supplied Registry policy.
     for src in [
         "proc p {} { set x 1 ; puts $x ; return $x }\n",
         "proc p {} { set x 1 ; set y [puts $x] ; return $y }\n",
@@ -985,14 +982,8 @@ fn the_cu_entry_point_answers_from_the_registry_it_is_given() {
     }
 }
 
-/// The IR-walk counterpart of the test above, and the one that reaches an
-/// optimisation decision rather than proof evidence: `pure_leaf` is the
-/// inliner's predicate, and the IR path exists to compute it.
-///
-/// A proc whose only frame-touching call sits inside a command substitution
-/// used to report `pure_leaf` under `f5-irules` where the direct spelling of
-/// the same call correctly reported false — the blind allow-list marks
-/// `puts` frameless, `f5-irules` does not (#2179).
+/// The selected Registry governs frame-touching calls inside substitutions.
+/// Their escape facts retain the inliner's independent pure-leaf gate.
 #[test]
 fn the_ir_entry_point_answers_pure_leaf_from_the_registry_it_is_given() {
     let irules = static_context_for("f5-irules").commands();

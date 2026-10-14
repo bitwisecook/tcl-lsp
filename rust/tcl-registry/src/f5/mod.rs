@@ -29,8 +29,8 @@
 //!
 //! Four layers, and the direction of dependence matters:
 //!
-//! - [`execution_context`] — [`BigIpExecutionContext`], the F1 key. Six
-//!   contexts, four measured, two honestly [`ContextMeasurement::Unmeasured`].
+//! - [`execution_context`] — [`BigIpExecutionContext`]: seven independent
+//!   contexts, including iCall; APL and its Tcl callbacks are unmeasured.
 //! - [`evidence`] — [`EmbeddedRuntimeEvidence`], the F2 truth records:
 //!   `(context, BIG-IP build, fact, provenance)`. An unmeasured build
 //!   resolves to [`EvidenceResolution::Unknown`] or to an explicitly
@@ -46,14 +46,9 @@
 //!   action-local overlays (`requires-bigip-version-min`/`-max`,
 //!   `role-acl`, `run-as`).
 //!
-//! **What this layer is not.** It does not migrate any F5 registry row:
-//! the §0.2 migration hold stands until the review's acceptance matrix has
-//! its coverage (one 17.x build, one older build, the restricted-role tmsh
-//! column, and the two APL contexts). What it does is make the hold
-//! *checkable*: every claim now carries the build and context it was
-//! measured on, and every place the shipping model disagrees with the
-//! appliance is a recorded, asserted corpus row instead of tribal
-//! knowledge.
+//! Semantic facts require their exact measured build and execution context.
+//! Unmeasured releases, restricted-role surfaces and APL contexts remain
+//! unknown; nearest-build assistance cannot supply those facts.
 
 pub mod corpus;
 pub mod evidence;

@@ -38940,20 +38940,8 @@ info exists ::N::v\uD800";
         );
     }
 
-    /// Issues #2123 and #2149, which are the same defect from two sides.
-    ///
-    /// O127 emits a *pair* that must apply together — an inline of the whole
-    /// assignment at the use site, plus a delete of the original. The delete
-    /// is built with an empty replacement, and `data` used to be attached
-    /// only when the replacement was non-empty, so the editor was offered
-    /// exactly one action: the inline, which leaves the original statement in
-    /// place and therefore runs the assignment twice. For
-    /// `set x [gets stdin]` that consumes two lines of input instead of one.
-    ///
-    /// `group` was also absent from `data` entirely, which is what made
-    /// grouped application unreachable for a client (#2123) and is why the
-    /// diagnostics-calculation page described a contract the tree did not
-    /// implement.
+    /// Grouped optimisations retain every member, including empty deletions,
+    /// and cannot be independently applied.
     #[test]
     fn a_grouped_optimisation_is_never_independently_applicable_issue_2149() {
         let registry = CommandRegistry::build_default();

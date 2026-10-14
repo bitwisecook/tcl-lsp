@@ -9584,14 +9584,8 @@ mod tests {
         assert!(!case.warn_unbraced_bodies);
     }
 
-    /// `const_fold -native ID` and `const_fold_versioned -native ID` install
-    /// the shipped folder the id names, at command and subcommand scope, where
-    /// they used to install the abstaining placeholder whatever the id said:
-    /// `string range`'s folder answers `bcd` for `abcdef 1 3` and `string
-    /// is`'s versioned one answers `1` for `integer 42`. An id that is not
-    /// the scope's full `SCOPE::FIELD` spelling, or one that names nothing
-    /// this build ships, is a load notice and the placeholder stays, so the
-    /// call folds nothing.
+    /// Native folder IDs select their actual command/subcommand callbacks.
+    /// Unknown or mismatched IDs retain a notice and abstaining placeholder.
     #[test]
     fn a_native_fold_id_installs_the_shipped_folder() {
         let pack = evaluate_pack(

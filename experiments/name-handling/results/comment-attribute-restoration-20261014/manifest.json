@@ -1,0 +1,127 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-cli/tests/cli.rs",
+      "restored_attributes": [
+        "#[test]"
+      ],
+      "before_sha256": "41d334b7e3ae941c6f21e72a08d70a4af3664950dab8e2c15b4cb02cba30f7cc",
+      "after_sha256": "c53173ef2b2a3a2d832009de56589150cbed5e37bc7832d0377ec928fc77c4d4"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/helpers.rs",
+      "restored_attributes": [
+        "#[derive(Default)]"
+      ],
+      "before_sha256": "ceef6221bba03dca46018050e4537417a8b0d6139f5fd77835f7af82224635da",
+      "after_sha256": "bc3ad2f6f701dfb8a73b6a1ed053dda0e1a975a99beec32f2525e7103b98bacb"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "restored_attributes": [
+        "    #[test]"
+      ],
+      "before_sha256": "f3c2571c585fe003b582d6d684689b9317ef2bd3de75205b5698c7c11bdf4a31",
+      "after_sha256": "e4eb609003ad2da8c9fb6ce2eb05d6d4741227bde59334475ab948a87c39852e"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/uri_norm.rs",
+      "restored_attributes": [
+        "    #[test]"
+      ],
+      "before_sha256": "1c9c85780b944e3b3d9b6f57b84db72432117e575d14371303f526f52c20733f",
+      "after_sha256": "f77f4007292d972d53770a6522cbd6f1772058005706234980ec8cf92904bf68"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/issue1019_proc_args.rs",
+      "restored_attributes": [
+        "#[test]"
+      ],
+      "before_sha256": "cf95f25b5712f89ff245004119529990705fbf11fb3fb22d9a8c65c99aead464",
+      "after_sha256": "10c95a975012a6e2fcefc07b4b5738caab022358304d43f1d047baec19af0922"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/issue1214_uri_canonicalisation.rs",
+      "restored_attributes": [
+        "#[test]"
+      ],
+      "before_sha256": "f3ae076cdd2e299de8a86d4e66aefecdb2d617d9b98635dfc1e49de0f7f4959c",
+      "after_sha256": "f0feb1e36ff35d7422a07fbd9acd9d009a3977866661ac3f3f64cbabf8a0d165"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/tk_dialect.rs",
+      "restored_attributes": [
+        "#[ignore = \"at-scale TK false-positive check (2,000-branch generated proc, ~80 s); run \\"
+      ],
+      "before_sha256": "5c800d18b879c310c5de6faf3923b171302e60a7b1f78f6f3dfd3f74ff29ea51",
+      "after_sha256": "4d64f81822d5163444103307daec9fb3c8abd3acb0044b97853aa1ba9fc07819"
+    },
+    {
+      "path": "rust/tcl-spec-studio/tests/pack_store.rs",
+      "restored_attributes": [
+        "#[test]"
+      ],
+      "before_sha256": "8f0d9046045f2623300d7fdfd2e2569b948f5704e7d604bc858ef3869bb016da",
+      "after_sha256": "ff8280c8d3e9d41d82ae7c0a6c72875f20268227dc682f7bbdfd9ef04c1bec7a"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/install.rs",
+      "restored_attributes": [
+        "    #[test]"
+      ],
+      "before_sha256": "e1c074a851664c5a961cc62557c2963dc640a58076bda873002a6c8f06f604c9",
+      "after_sha256": "a454e0134fbeb180eff29c5263b4c8fdd42925372e8b2110fbde8739ae21e437"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader.rs",
+      "restored_attributes": [
+        "    #[test]"
+      ],
+      "before_sha256": "659add46b37985bf4e5d1fa73fdb849e30c2d4e86177b25105b5157b715629ef",
+      "after_sha256": "5cd021c1200289be603dde193a6745b59949ccfdddd1f7b37e8a9c6663337307"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/surface_roster_trust.rs",
+      "restored_attributes": [
+        "#[test]"
+      ],
+      "before_sha256": "53bf3c0ff91eb1a57e08590a751b4bc730db935daf4d03f95361a1a4aa784ea4",
+      "after_sha256": "649bf5d66b9db01d626b93e049154510d1d7f2e198bd52c6df3dfb1eb943ee0c"
+    },
+    {
+      "path": "rust/tcl-sslictcl/src/chain.rs",
+      "restored_attributes": [
+        "    #[test]"
+      ],
+      "before_sha256": "6643c7a5fdf067aeed895113eea4068cdca971c466279019cacd615c8d549b86",
+      "after_sha256": "b46bd16c8b98d10ee7be3da083724713e269ca1a4e3e1b8fb45e1a132a8724c3"
+    },
+    {
+      "path": "rust/tcl-syntax/tests/expr_parser_coverage.rs",
+      "restored_attributes": [
+        "#[test]"
+      ],
+      "before_sha256": "9f5285f648f831df295e60e44467173fc3ac371f11abc040a60cca72ef90faac",
+      "after_sha256": "3c65124e33d20539d245221801de96b293848895301126da9251b46c9bb7436e"
+    },
+    {
+      "path": "rust/tcl-vm/tests/cmd_control_e2e.rs",
+      "restored_attributes": [
+        "#[test]"
+      ],
+      "before_sha256": "43f5970fee56beb33d1f5f98260cee1571edde3c7667ad3e1e1a756f8905a8ea",
+      "after_sha256": "111ea451b067be2f9c722a08037bb8261e73864cd480d9bdcef54d4d76d0d8ef"
+    },
+    {
+      "path": "rust/tcl-vm/tests/language_e2e.rs",
+      "restored_attributes": [
+        "#[test]"
+      ],
+      "before_sha256": "a3935cd5f1d65d821bfd4e3f402cbd11b520c90756bc4dcc891957a7e73b0859",
+      "after_sha256": "ed81d90a1b5c20de26644e92117072a4c5c30edf3b9109912510ba3fc2498276"
+    }
+  ],
+  "restored_attribute_count": 15,
+  "original_head": "51ad3ca41",
+  "only_attribute_restoration": true
+}

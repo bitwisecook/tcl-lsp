@@ -856,13 +856,8 @@ fn declaration_conflict(hook: &HookDecl, scan: &CtxScan) -> Option<String> {
     })
 }
 
-/// Scan a hook body for `dict get $ctx KEY`.
-///
-/// Textual on purpose: the pack itself is parsed exactly once, by the loader,
-/// which carries a hook body through as verbatim text because the sandbox that
-/// will eventually run it does not exist yet. Until it does there is no
-/// compiled form to interrogate, and a heuristic that can only be pessimistic
-/// is the honest amount of machinery for a report.
+/// Bounded textual hook-context advice; opaque uses remain unattributed.
+/// This report cannot establish an executed hook or compiled context read.
 fn ctx_reads(body: &str) -> CtxScan {
     let mut scan = CtxScan::default();
     let mut attributed = 0usize;

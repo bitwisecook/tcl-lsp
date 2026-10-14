@@ -1,0 +1,32 @@
+[
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/README.md"
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/artifact-sha256.json"
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/owned-source.json"
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-01/compiler.log.gz",
+    "decompressed_sha256": "a591add7bee7ce1a37e51d24f02ee71337254aad78bd20154ece9ac3af9aa85b",
+    "decompressed_bytes": 978,
+    "decompressed_identical_tracked": []
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-02/compiler.log.gz",
+    "decompressed_sha256": "e8c934ce02671481147eb04859c2ab8e0fab8dad0b0522e311babb5ef055ef1d",
+    "decompressed_bytes": 2242,
+    "decompressed_identical_tracked": []
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/production-03/compiler.log.gz",
+    "decompressed_sha256": "780aa5199f4ff5949d2c4ffd588f64449c756830629336643e81baa694b510a6",
+    "decompressed_bytes": 1774,
+    "decompressed_identical_tracked": []
+  },
+  {
+    "path": "experiments/name-handling/results/w210-original-program-admission/source-flow-production-2026-10-13/source-purpose.patch"
+  }
+]

@@ -506,13 +506,7 @@ fn plain_dispatch_try_executes_prefix_before_fatal_tail() {
     );
 }
 
-/// `eval` keeps Tcl's command-at-a-time parse boundary too (#1603): a body
-/// whose *later* commands do not parse still runs the commands ahead of them
-/// before the error is raised, exactly as a `catch`/`try` body does.
-///
-/// The literal-brace form is the one that used to escape entirely — it is
-/// inlined at compile time and lowered leniently, so `eval {set y "a"b}`
-/// quietly meant `set y ab` and the script carried on with status 0 (#1829).
+/// Eval executes completed commands before a later fatal parse boundary.
 #[test]
 fn eval_executes_prefix_before_fatal_tail() {
     // tclsh 8.6.18 / 9.0.4: `1 1 {missing "}`

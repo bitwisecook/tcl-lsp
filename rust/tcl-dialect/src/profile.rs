@@ -1934,26 +1934,11 @@ impl DialectProfile {
             })
     }
 
-    /// The string/character model of the release this profile runs.
-    ///
-    /// Collapses a three-step composition — profile → `runtime_base` →
-    /// [`TclVersion::string_character_model`] — that had four independent
-    /// copies across the compiler, the analyser and the explorer, reached
-    /// through three different spellings of "get the profile". Each copy was
-    /// free to differ in what it did with a profile that names no release.
+    /// The selected character recipe, separately from appliance evidence.
     #[must_use]
     pub fn character_model(&self) -> Option<StringCharacterModel> {
-        // The F5 dialects carry `runtime_base = V8_4`, so deriving straight
-        // from the release would hand them 8.4's model — which #2128 changed
-        // to `BmpCharsElseUtf8Bytes`. `CoreProfileId::character_model` in
-        // `model::family` deliberately keeps `Utf16CodeUnits` for the F5
-        // families, because that value has no measurement citation and no
-        // TMOS `string length` measurement exists to settle it (#2151).
-        //
-        // Both answers must agree, or a fold and its runtime disagree for the
-        // same profile. This arm is what keeps them in step: it mirrors
-        // `f5_core_expr_grammar`'s discriminator above, which is the other
-        // place an F5 profile declines to inherit from its `runtime_base`.
+        // Keep the F5 compatibility projection aligned with CoreProfileId;
+        // its selected recipe supplies no measured appliance character count.
         if matches!(
             self.runtime_core_family(),
             Some(Family::F5Irules | Family::F5Tcl)

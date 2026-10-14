@@ -1,0 +1,22 @@
+{
+  "authority": "authored software policy; no external oracle",
+  "files": {
+    "README.md": "cb7a9f12fa135e594bc039635dd493fff2eb9455188b969e75a34f5c1c69a26a",
+    "manifest.json": "970d00c943a44618788a3e20b11e4598a5fbde691e45ce85532da29af287e2ed",
+    "migrated-consumer-controls.rs": "da1f75488616ad876c99a3fd108313395bb568b3ea708fbe73b54ed9d3787af3",
+    "migrated-consumer-controls.stdout": "8c6402dd58b066bd88a515a4f972d9b60143473de6a080fa1b69ee6acc6377b6",
+    "object-owner-source.txt": "5efd2fed04a7148fef54b0ce3996e8fa8dc91e0fa78cb60fe6cb98355e75631a",
+    "original-policy-controls.rs": "e973f102543169179466876341c8e0893f383eec057b1947137caa294d3fe0e4",
+    "original-policy-controls.stdout": "8c6402dd58b066bd88a515a4f972d9b60143473de6a080fa1b69ee6acc6377b6",
+    "owner-tests.stdout": "3d158b0608bf4a16a8102ccc6dd9e2ffa3f9b73dd0c5425b64acd38c753b7d8a",
+    "topology-policy-controls.rs": "a09b12ac41e1f7e9c0a584647f952fd4e558754885ff5bf94aa48d5366868fad",
+    "topology-policy-controls.stdout": "2cea956df42b1717c8e5e8c74c6ce263b6fcb68bb97af7916dec9f621ea1d183"
+  },
+  "checks": {
+    "owner_controls": 8,
+    "actual_topology_helper_comparisons": 16,
+    "original_helper_comparisons": 330,
+    "migrated_helper_comparisons": 330,
+    "workspace_integration": "unexecuted"
+  }
+}

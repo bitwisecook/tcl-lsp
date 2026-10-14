@@ -1,0 +1,176 @@
+{
+  "base_head": "73766b2d56064bef4cac5571cc421635adc1d416",
+  "files": [
+    {
+      "path": ".claude/hooks/session-start.sh",
+      "before_sha256": "65102e8b8824be4855924c1229f02c952a6d8158a81282cc06646a936441f9ea",
+      "after_sha256": "be582549353cdf7d455b875007db6ef6c6b6681d94d016e232baf82a64a08846"
+    },
+    {
+      "path": "editors/vscode/src/test/issue1019ProcArgs.test.ts",
+      "before_sha256": "f448f06ebf736a03f2786a3467b237e6c44a1bda4aba76acf198212c11f92880",
+      "after_sha256": "6a6e0068250a44d8aba49d2b6679b50b48c7d6af25456e09086d5e18c8c83239"
+    },
+    {
+      "path": "editors/vscode/testFixture/shimmerIndirection.tcl",
+      "before_sha256": "fe3045ee60e4e18fb4ebc9b8f228df7a5429d76bf34e64187704e12e6a8c2e6f",
+      "after_sha256": "fe7bc019c2b07221c78acafd8fcccaea7788e0e1fc33c2bb4f8745a4c111158a"
+    },
+    {
+      "path": "rust/tcl-cli/tests/cli.rs",
+      "before_sha256": "d22a0e385475614dd93945c259c9cef3bf12c9ecbc5e94d46a61180d45f632c2",
+      "after_sha256": "41d334b7e3ae941c6f21e72a08d70a4af3664950dab8e2c15b4cb02cba30f7cc"
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/format.rs",
+      "before_sha256": "967d5be73a91cb81f55d0816ae62e22ecd3834c1e09301e318becaeeb76d5915",
+      "after_sha256": "8708dc303adc5d4a0d1b696ec8b1bb293804fa271b0c4e7b74a0664c757ba520"
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/string.rs",
+      "before_sha256": "fa503bdd2fdc6f97db326e54431f1412dc15ec8f2afa79e40b1c61f2c6270275",
+      "after_sha256": "7e800edf9f25bddfa68bc54e51f18d6d930b1f38b4494f53799f7a05f632c79b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs",
+      "before_sha256": "815146d89eff3c9eece025453cb3a7438a247add47f586508927eaecf8e83e08",
+      "after_sha256": "4c7f89d63bf1a234dfbf3918b75c3c5b9c61c9950e465ec55fd45061f2d7a966"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/helpers.rs",
+      "before_sha256": "fcd48edbfc3e609583ab4f065632b3d4465f163478fe0027d54f849fbd42151f",
+      "after_sha256": "ceef6221bba03dca46018050e4537417a8b0d6139f5fd77835f7af82224635da"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "7c6645eaa9a641a599ac57b233e96ce9b37624bfaf0c6bf25cc1add4f7af3b36",
+      "after_sha256": "7e3f7ec9a1b25512124f4cdddac1057626f4a7004677a4af9364633f2f7031dd"
+    },
+    {
+      "path": "rust/tcl-compiler/src/var_observability.rs",
+      "before_sha256": "b005f4c134bbf96cefc37976bdb259477ae5d692bf0ed4cef198cc8b4dbe146f",
+      "after_sha256": "421a80c6c7eabf0e077f980acf1889bb01b711d3b0afc3a9eeacfdf9bb5bbc67"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/checks.rs",
+      "before_sha256": "240248f7c976315911af41023d75c80c104bb79703a261896d46eab57f2306a0",
+      "after_sha256": "b63bff6e53a5bcde7fa6201b396d11a8eae94e9e159b3a85159bd679dda9151e"
+    },
+    {
+      "path": "rust/tcl-irule-test/tcl/command_mocks.tcl",
+      "before_sha256": "8e132b1707c0d040ef900216c8d304c4bfe7252378e1f31990859c18dad33cdd",
+      "after_sha256": "5bba6a147481b087718c46a7a8e256845b0238f9288a9865e4f6d8dc0115b814"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "789cb52759c72a5e380667db14ded93ec4587cbdaf2d078125b6c046d05f08b0",
+      "after_sha256": "f3c2571c585fe003b582d6d684689b9317ef2bd3de75205b5698c7c11bdf4a31"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/uri_norm.rs",
+      "before_sha256": "c130dd069e653d12fe0597edfbcf057d835b93b81127cfdbcf08de9006e3b38d",
+      "after_sha256": "1c9c85780b944e3b3d9b6f57b84db72432117e575d14371303f526f52c20733f"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/issue1019_proc_args.rs",
+      "before_sha256": "b23d69388434676d9b5f9b7fcc9bd28bdbc3f889d8e7f6b83c0a3d11e7154b62",
+      "after_sha256": "cf95f25b5712f89ff245004119529990705fbf11fb3fb22d9a8c65c99aead464"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/issue1214_uri_canonicalisation.rs",
+      "before_sha256": "f51b43d957d282603cd2fb43d0816b7bfad6f497d9560170c08ddc614f8192d3",
+      "after_sha256": "f3ae076cdd2e299de8a86d4e66aefecdb2d617d9b98635dfc1e49de0f7f4959c"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/tk_dialect.rs",
+      "before_sha256": "6018197a10355790b4a27bf1a07cf687b0a24dbc0edd80f948bd62496f170f5f",
+      "after_sha256": "5c800d18b879c310c5de6faf3923b171302e60a7b1f78f6f3dfd3f74ff29ea51"
+    },
+    {
+      "path": "rust/tcl-mcp/src/spectcl.rs",
+      "before_sha256": "9d7605f915ed37a67c29cb6fa2978476a318336b1983e7788d1e662dbb36da95",
+      "after_sha256": "6b04bf51b66812033f6c260eb6ea95462b6605e9dc179cf3f4b144e7bb50b1ce"
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/string_.rs",
+      "before_sha256": "15e3da2405ac406e2d252236cef340168eeb34c17784d1626154346da8c9ad02",
+      "after_sha256": "a47f2ef3c4f3c10bb53181373e70552c7a0210a2ab583a43d2792549c1bcee35"
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/unset_.rs",
+      "before_sha256": "e8478b46c072a063c422cf36e544b2a0ec427a421f3c54017c74c3ea58efe675",
+      "after_sha256": "7f7b321a5d637a7fbff129d527a6a86350be45a4a58e5f4041dd4127a8358b80"
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/tcl__build_info.rs",
+      "before_sha256": "cd76902ee014be06e599f819d73ae04bab0e65a8104147cdc0c1302dda552a06",
+      "after_sha256": "7e34e9863759a6d98b04b73421a79423abf2d9c47745bb27fa88ff4f45dae257"
+    },
+    {
+      "path": "rust/tcl-spec-studio/src/lib.rs",
+      "before_sha256": "f29603da284e8ea47e331de902975b4e208ad766b30d927c209fd7cf72286ce2",
+      "after_sha256": "61d0d1f4bf29eecb1c194424dc397f6e4d4508f222871ae7cdfbc5b1fa02b865"
+    },
+    {
+      "path": "rust/tcl-spec-studio/tests/pack_store.rs",
+      "before_sha256": "833b52227a2d9a287ae30ed1f89c89fd64d3fbc1f163cccc466245a9a0a2a78e",
+      "after_sha256": "8f0d9046045f2623300d7fdfd2e2569b948f5704e7d604bc858ef3869bb016da"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/bundled.rs",
+      "before_sha256": "b2280ea4e3d1408a71cec80237edab7c0b023276e9413cfcf287bba52a620930",
+      "after_sha256": "72e9ee311b28d76328cd819300372752d922e391ee34ed0c34488c62d4246602"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/install.rs",
+      "before_sha256": "364894889daf18091b1d37a68165e9b90a44734cf6126bcbd481429b60c6f8e9",
+      "after_sha256": "e1c074a851664c5a961cc62557c2963dc640a58076bda873002a6c8f06f604c9"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader.rs",
+      "before_sha256": "5fe69c7d9a1e11b160768a14fe43eb5a5a43e8d985c4f9392aae56b4f169faf8",
+      "after_sha256": "659add46b37985bf4e5d1fa73fdb849e30c2d4e86177b25105b5157b715629ef"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/available.rs",
+      "before_sha256": "1558b8c354db2b5872dcd18ee08142e9b8599f238f78448ed8e32c316c39e89c",
+      "after_sha256": "2d85a9671cd111b05ca0658c6e4233290cc2bdb09eb8938994e76de4c449fa4f"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/surface_roster_trust.rs",
+      "before_sha256": "e5d1d92223dee32bdee393e29c1e5aeb5d54d399075ab7ad7a67ec11fd18c23c",
+      "after_sha256": "53bf3c0ff91eb1a57e08590a751b4bc730db935daf4d03f95361a1a4aa784ea4"
+    },
+    {
+      "path": "rust/tcl-sslictcl/src/chain.rs",
+      "before_sha256": "f93a41cd7a1f5b4e98f8b7b5248d308cafd1a9964a4be1065dd65eefce032eb7",
+      "after_sha256": "6643c7a5fdf067aeed895113eea4068cdca971c466279019cacd615c8d549b86"
+    },
+    {
+      "path": "rust/tcl-syntax/src/expr/errors.rs",
+      "before_sha256": "681becefd6c8879a33c2880a728765c4671c3ce09ba9d4926880fd69c625d758",
+      "after_sha256": "40cc3ddbae182c13d138b56c2ac77f47160ca24191ee78abe61f5bdfd0271b43"
+    },
+    {
+      "path": "rust/tcl-syntax/tests/expr_parser_coverage.rs",
+      "before_sha256": "917bce79312909daaa3750ccf4178a52f5b968fffecbea4a869bb2448d7fd540",
+      "after_sha256": "9f5285f648f831df295e60e44467173fc3ac371f11abc040a60cca72ef90faac"
+    },
+    {
+      "path": "rust/tcl-vm/tests/builtins_e2e.rs",
+      "before_sha256": "8d77fd54327389ed2f80f237068b898736b1b782211b14506492abe3e8b524c3",
+      "after_sha256": "54c49636146e595d37b131c49c4222048b47eae9e9c1af7d9cff0dd84922e19e"
+    },
+    {
+      "path": "rust/tcl-vm/tests/cmd_control_e2e.rs",
+      "before_sha256": "8a53b24698bc86550de4cfc0a7efe43592bef28d881741d21351dacb4f84976b",
+      "after_sha256": "43f5970fee56beb33d1f5f98260cee1571edde3c7667ad3e1e1a756f8905a8ea"
+    },
+    {
+      "path": "rust/tcl-vm/tests/language_e2e.rs",
+      "before_sha256": "232730947d5e500d47e577817ff0997b8b03a811736cef10aba40e8ad997bfc8",
+      "after_sha256": "a3935cd5f1d65d821bfd4e3f402cbd11b520c90756bc4dcc891957a7e73b0859"
+    }
+  ],
+  "non_comment_source_unchanged": true
+}

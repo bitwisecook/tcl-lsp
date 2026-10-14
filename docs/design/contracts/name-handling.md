@@ -379,7 +379,16 @@ namespace/procedure features at its boundary.
 F5 protocol command prefixes, iRule procedure namespaces and BIG-IP object
 paths are distinct concepts. Preserve their registry/context rules. Appliance
 `tclsh`, TMM iRules, tmsh CLI scripts and iApps are separate oracle contexts.
-See [namespace-model.md](namespace-model.md).
+See [namespace-model.md](namespace-model.md). Configuration tools and simulation
+setup use [the BIG-IP object-name owner](bigip-object-name-resolution.md) with an
+explicit object domain and precedence policy. Ordered candidates and unique
+selection remain separate; these authored reports supply no appliance lookup.
+
+iRule event reports consume `OriginalIrulesSourceContext` and the selected
+`ResolvedInvocation::authored_event_handler_priority`. Missing original vectors
+or dynamic priority setters retain uncertainty; a later literal setter can
+restore authored priority advice. Source reports grant no event activation or
+appliance priority result.
 
 The private `tcl::clock::ParseFormatArgs`, `tcl::clock::getenv` and
 `tcl::clock::GetDateFields` workers have selected native C8.6 registry admission,

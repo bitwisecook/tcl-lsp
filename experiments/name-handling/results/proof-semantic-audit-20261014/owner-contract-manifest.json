@@ -1,0 +1,6 @@
+{
+  "base_sha256": "a6381ebeb809231e864ac91fcbdc307b7c8d940c6729afff20c57376a16273f6",
+  "proposal_sha256": "8c831c5c9c442236ed12131db1df792bb0a49b4e610b1a74ca23139d95c37b75",
+  "patch_sha256": "4457dd57e3101dd72959376d954c2f53f2311adbea90c0704f00a60d1de46fd2",
+  "scope": "Contract-only; no API visibility, checker, oracle status, evidence seal or implementation digest changes; static declaration review, xtask not executed."
+}

@@ -27,8 +27,7 @@
 //!   (`cannot use non-numeric string "abc" as left operand of "+"`); Tcl
 //!   8.4-8.6 name neither (`can't use non-numeric string as operand of "+"`),
 //!   and have no separate "a list" branch at all — a multi-element list is
-//!   just a non-numeric string there. Both engines used to emit the 9.0 form
-//!   at every `--tcl-version` (issue #1581).
+//!   just a non-numeric string there.
 //! * The **`-errorcode` is invariant**: `ARITH DOMAIN {<description>}` in
 //!   every release, with `list` as the description for 9.0's list branch.
 //!

@@ -1,0 +1,60 @@
+{
+  "patch_sha256": "07742c429f1a3e10475204e429228a5755b358021bcc6f2253c1f23cd40d5b5e",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+      "before_sha256": "d798fe4d570b56d14fdca735951050b717bee44208a1f20035bc60dd078c3d86",
+      "after_sha256": "0bc3e5ca91a79a92652a356fce7c4e3bc8b252094d87eaedda8a5dcd8c65b206",
+      "selector_count": 8
+    },
+    {
+      "path": "rust/tcl-compiler/src/native_lowering/tests.rs",
+      "before_sha256": "cded1b0099f38107cd32aa4e2fd3e541b762c5f84fd725f217febbe2770798a2",
+      "after_sha256": "ec1783cfe83d2e2b34174071acd63783099ebb8a5222c9a6c590e8440f761fa7",
+      "selector_count": 34
+    },
+    {
+      "path": "rust/tcl-compiler/src/sccp/original_value_facts.rs",
+      "before_sha256": "bb42f220bc5d4f54d3c3de65815afa46ec84926cc369d2b8c4fe945cdf7a6df8",
+      "after_sha256": "a2776bf677a5efd6f9f4b3ba923e8604a7c62b7a7fc35f96d2763bcd203f5e17",
+      "selector_count": 88
+    },
+    {
+      "path": "rust/tcl-compiler/src/ssa.rs",
+      "before_sha256": "87ec69bb8f09e42fe609f1354da02962e1c8b06c739f31253995e2f080ecd769",
+      "after_sha256": "534df5cfd73f1fc4dd410246a78b6ddbe6e6f9c91dc8afda7ab9c98896fb6a0b",
+      "selector_count": 129
+    },
+    {
+      "path": "rust/tcl-compiler/src/var_escape/known_names.rs",
+      "before_sha256": "6c763d90ee346cfaadf49897a5bb666756cd5da822fd8ad298d1262c09800476",
+      "after_sha256": "a6b07901586ed25ad0cc0974d7162e794881c95c997d46addbd3991bd2f0ba3f",
+      "selector_count": 8
+    }
+  ],
+  "scope": "Two cfg(test) files only; repairs regressions introduced by earlier test-only helper rewrite",
+  "test_body_review": [
+    {
+      "selector": "fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols()",
+      "review": "Restored exact original body: Script top-level protocol, independently selected actual proc function, top_level=false, ProcEntry assertion and distinct entry protocols all retained."
+    },
+    {
+      "selector": "fn a_definition_declines_a_body_the_statement_does_not_write_out()",
+      "review": "Restored exact original body: actual materialised inner procedure source ${body}, one body statement, outer ::make executable IR and pristine-entry assumption; GenericInvoke and zero DefineProc assertions retained."
+    },
+    {
+      "selector": "fn a_definition_with_a_written_body_still_binds_under_the_same_proof()",
+      "review": "Restored exact original body: actual literal inner declaration, outer ::make executable IR under same original pristine-entry assumption; one DefineProc assertion retained."
+    }
+  ],
+  "source_context_review": "Captured expression operand joins captured_unit.ir_module-issued body ID; shadowed expression operand joins shadow_unit.ir_module-issued body ID. Both original no-source-grant assertions retained.",
+  "validation": {
+    "rustfmt": "PASS; isolated copies, edition 2024",
+    "restored_bodies_byte_identical_to_pre_repair_snapshot": true,
+    "native_selectors_match_pre_repair_snapshot": true,
+    "lower_with_unit_definitions": 1,
+    "cargo": "NOT RUN; Root holds build lease"
+  },
+  "diagnostic_count": 29,
+  "additional_review": "14 actual compiler E0507 diagnostics fixed by borrowing retained SsaFunction/Script fields. In those exact affected test bodies, SsaSourceView queries receive the borrowed original SSA directly rather than a redundant reference. Original alias/point/source refusal and known-name assertions retained."
+}

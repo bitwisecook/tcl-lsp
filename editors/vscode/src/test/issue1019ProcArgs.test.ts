@@ -60,9 +60,7 @@ async function renameAt(
 // `[$other X]` behind makes both interpreters throw
 // `unknown method "X": must be Get, GetX or destroy`.
 //
-// The gate used to be reachable only from the method's own declaration.  VS
-// Code's rename gesture works from any occurrence of the symbol, so the two
-// positions below are the *common* ones — and they must refuse too.
+// Rename from either a declaration or an occurrence retains the same dispatch hazard.
 suite("Issue #1019 idx 79 — rename refuses an untracked dispatch", () => {
   const docUri = getDocUri("issue1019Idx79Hazard.tcl");
 

@@ -1025,20 +1025,7 @@ mod tests {
         assert!(!folds.iter().any(|edit| edit.replacement.contains("puts 4")));
     }
 
-    // ---- registry-threading coverage (issue #1788) ----
-    //
-    // `scan_module_global_names` used to resolve its alias facts against a
-    // hardcoded `tcl8.6` registry. Every test below therefore has to turn on
-    // a registry whose answer *differs* from `tcl8.6`'s, or it would pass
-    // just as happily with the defect in place.
-    //
-    // No shipped dialect profile gives `global` a different alias grammar —
-    // `global` carries the identical `VariableCellAlias`/`Global`
-    // transition on 8.4 through 9.1, iRules, tmsh and every EDA profile — so
-    // the difference has to come from the other axis the registry varies on:
-    // a command a *custom* registry carries and the plain 8.6 one does not
-    // (a `SpecTcl` workspace pack, an authored overlay). That is the axis the
-    // issue names, and it is the axis on which a missed name is a miscompile.
+    // Custom Registry alias facts distinguish supplied metadata from the stock catalogue.
 
     /// The `global`-shaped alias fact, declared by a command no shipped
     /// `tcl8.6` registry knows: argument 0 becomes a local alias of the

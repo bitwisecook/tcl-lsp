@@ -175,9 +175,7 @@ const W_TCL90_PLUS: [SpecWindow; 1] = [("9.0", Some("9.2"))];
 /// Build a `&'static [SpecSurface]` from rows, for a spec whose surface is
 /// not one of the [`SpecSurface`] shorthands.
 ///
-/// The replacement for the retired mask's `.union(…)`: rows compose by
-/// listing, so `surface![SpecSurface::core(Family::Tcl), SpecSurface::package("iapps")]`
-/// is what `ALL_TCL.union(IAPPS)` used to say.
+/// Rows compose explicitly, preserving each core or package version axis.
 #[macro_export]
 macro_rules! surface {
     ($($row:expr),* $(,)?) => {{

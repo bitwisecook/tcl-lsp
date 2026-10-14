@@ -262,13 +262,8 @@ fn tn_cross_file_hover_abstains_for_a_method_no_class_provides() {
 
 // idx 37: `next` inside a constructor.
 
-// TP, the definition half (the arity half already has an e2e test).
-// `next` in a constructor dispatches to the superclass's *constructor*, which
-// is not in the class's method table at all — so it used to resolve to
-// nothing while the identical `next` in an ordinary method resolved fine.
-//
-// Oracle (9.0.4 / 8.6.16): `Base ctor n=5` then `Derived describe` — the
-// constructor `next` really does run `Base`'s constructor.
+// Constructor `next` selects the superclass constructor independently of the method table.
+// Original C9.0.4/C8.6.16: Base ctor n=5, then Derived describe.
 #[test]
 fn tp_next_in_a_constructor_resolves_to_the_superclass_constructor() {
     let mut lsp = Lsp::tcl();

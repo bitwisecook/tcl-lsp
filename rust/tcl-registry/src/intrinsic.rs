@@ -648,7 +648,7 @@ impl IntrinsicId {
 
     /// Compatibility projection from a legacy value/catch-position `TclVM` hook.
     ///
-    /// See [`Self::from_legacy_codegen`] for the migration contract.
+    /// See [`Self::from_legacy_codegen`] for the conversion contract.
     #[must_use]
     pub const fn from_legacy_inline_codegen(hook: InlineCodegenHookId) -> Option<Self> {
         match hook {

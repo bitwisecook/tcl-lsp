@@ -189,32 +189,14 @@ fn resolve_name<'a>(
     table: &[&'a Placed],
     default_partition: &str,
 ) -> Option<&'a Placed> {
-    if let Some(p) = table.iter().copied().find(|p| p.full_path == name) {
-        return Some(p);
-    }
-    if !name.starts_with('/') {
-        let trimmed = default_partition.trim_matches('/');
-        let partition = if trimmed.is_empty() {
-            "Common"
-        } else {
-            trimmed
-        };
-        let candidate = format!("/{partition}/{name}");
-        if let Some(p) = table.iter().copied().find(|p| p.full_path == candidate) {
-            return Some(p);
-        }
-        if partition != "Common" {
-            let candidate = format!("/Common/{name}");
-            if let Some(p) = table.iter().copied().find(|p| p.full_path == candidate) {
-                return Some(p);
-            }
-        }
-    }
-    let suffix = format!("/{name}");
-    table
-        .iter()
-        .copied()
-        .find(|p| p.full_path.ends_with(&suffix))
+    crate::object_names::object_name_candidates(
+        name,
+        table
+            .iter()
+            .map(|placed| (placed.full_path.as_str(), *placed)),
+        crate::object_names::ObjectNamePolicy::Configuration { default_partition },
+    )
+    .first_in_order()
 }
 
 /// Resolve a generic-object key by identifier: exact identifier, or a
@@ -230,28 +212,18 @@ fn resolve_generic_object<'a>(
     if clean.is_empty() {
         return None;
     }
-    for (key, obj) in &cfg.generic_objects {
-        if let Some(m) = module
-            && obj.module != m
-        {
-            continue;
-        }
-        // The spec's object-types tuple is never empty, so the membership
-        // check always applies.
-        if !object_types.contains(&obj.object_type.as_str()) {
-            continue;
-        }
-        let ident = &obj.identifier;
-        // `ident == clean` (first disjunct) already covers the equality that
-        // is otherwise repeated inside the non-absolute branch.
-        let matches = ident == clean
-            || (clean.starts_with('/') && ident.ends_with(clean))
-            || (!clean.starts_with('/') && ident.ends_with(&format!("/{clean}")));
-        if matches {
-            return Some(key.as_str());
-        }
-    }
-    None
+    crate::object_names::object_name_candidates(
+        clean,
+        cfg.generic_objects
+            .iter()
+            .filter(|(_, object)| {
+                module.is_none_or(|module| object.module == module)
+                    && object_types.contains(&object.object_type.as_str())
+            })
+            .map(|(key, object)| (object.identifier.as_str(), key.as_str())),
+        crate::object_names::ObjectNamePolicy::ExactOrSuffix,
+    )
+    .first_in_order()
 }
 
 /// Resolve `(kind, reference)` across `configs` to `(uri, range_key)`.
@@ -281,7 +253,14 @@ pub fn resolve_kind_in_configs(
                 .iter()
                 .filter(|p| p.table_name == table_name)
                 .collect();
-            let exact = table.iter().copied().find(|p| p.full_path == clean);
+            let exact = crate::object_names::object_name_candidates(
+                clean,
+                table
+                    .iter()
+                    .map(|placed| (placed.full_path.as_str(), *placed)),
+                crate::object_names::ObjectNamePolicy::Exact,
+            )
+            .first_in_order();
             let resolved: Option<&Placed> = if exact.is_some() {
                 exact
             } else if matches!(kind, "node" | "monitor" | "virtual") || ks.resolver_name.is_some() {
@@ -395,20 +374,19 @@ fn is_candidate_reference(token: &str) -> bool {
 /// Normalise a reference token for `kind`: strips delimiters, and for
 /// node/virtual-address kinds drops a trailing `:port` suffix.
 pub(crate) fn normalise_reference_for_kind(kind: &str, token: &str) -> String {
-    let mut reference = token.trim_matches(REF_STRIP).to_owned();
-    let is_addr_kind = matches!(
+    let reference = token.trim_matches(REF_STRIP);
+    if matches!(
         kind,
         "node" | "virtual_address" | "ltm_node" | "ltm_virtual_address"
-    );
-    if is_addr_kind
-        && reference.matches(':').count() == 1
-        && let Some((left, right)) = reference.rsplit_once(':')
-        && !right.is_empty()
-        && right.bytes().all(|b| b.is_ascii_digit())
-    {
-        reference = left.to_owned();
+    ) {
+        crate::object_names::reference_without_numeric_service(
+            reference,
+            crate::object_names::EmptyServiceSuffix::Retain,
+        )
+        .to_owned()
+    } else {
+        reference.to_owned()
     }
-    reference
 }
 
 /// Resolve a reference to a target node id: resolve the span, match a node by

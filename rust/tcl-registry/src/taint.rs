@@ -18,12 +18,8 @@
 
 //! Registry-side taint metadata queries.
 //!
-//! Owns the small subcommand-shaped facts (`chan gets`, `chan read`,
-//! `encoding convertfrom`) and the iRules namespace-prefix table that
-//! used to live as hardcoded lists inside the compiler's taint
-//! analyser. The compiler's `tcl_compiler::taint` module now asks
-//! the registry "is this call a source / sink / sanitiser?" rather
-//! than maintaining its own command-name set.
+//! Registry-owned source, sink and sanitiser descriptors serve compiler
+//! taint analysis through selected invocation facts.
 
 use crate::documentation::{DocumentationAnnotation, DocumentationExample};
 use crate::registry::CommandRegistry;

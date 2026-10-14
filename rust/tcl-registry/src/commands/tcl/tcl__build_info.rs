@@ -42,8 +42,8 @@
 // No dialect directory (irules/, expect/, eda_*/, iapps/, tk/, itcl/)
 // references `build-info`/`build_info`, and none of those dialects model a
 // base Tcl core version of 9.0 or later (`DialectProfile::expr_grammar_base`
-// tops out at 8.6 for every one of them; f5-tmsh in particular runs an 8.5
-// base per `tcl-dialect/src/profile.rs`), so a `TCL90_PLUS` gate below already
+// tops out at 8.6 for these surfaces; measured F5 embedded contexts retain
+// their independent 8.4.6 fork), so a `TCL90_PLUS` gate below already
 // excludes every one of them on the version axis alone — the same reasoning
 // `lremove.rs` documents for its own plain `TCL90_PLUS` gate. That version
 // gate is the whole mechanism for both spellings ("::tcl::build-info" and
@@ -52,11 +52,7 @@
 // 8.4.6 core (`return_.rs`'s/`pwd.rs`'s notes on `f5-irules`'s
 // signature_base/runtime_base/version_ceiling) could never reach a
 // Tcl-9.0-only command regardless. No separate per-dialect exclusion is
-// needed, and there is no disable list. Separately, a stray,
-// generator-artifact `CommandSpec` literally named "::tcl::build-info" that
-// used to sit inside `commands/tcl/mathop_generated.rs`'s hand-expanded
-// `tcl::mathop` operator table (between the `-` and `/` entries) is also gone
-// now that file is derived directly from `tcl_syntax::expr::operators`.
+// needed, and there is no disable list.
 
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;

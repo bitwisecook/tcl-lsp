@@ -167,8 +167,7 @@ fn embedded_sources() -> Vec<(PackFile, String)> {
 /// [`bundled_dir`](crate::discovery::bundled_dir) to find. Without this the
 /// server would load an empty bundled tier and report every EDA command
 /// unknown, while a `tcl-mcp` built from the same tree resolved them fine
-/// through [`packs`] — the compiled-in EDA modules that used to cover the
-/// difference are gone.
+/// through [`packs`]. Both paths use the same embedded bundled tier.
 ///
 /// Falling back on "discovery produced no bundled-tier file from a shipped
 /// directory" rather than on `bundled_dir().is_none()` keeps the two in

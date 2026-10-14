@@ -87,9 +87,7 @@ pub enum StringCharacterModel {
 }
 
 impl StringCharacterModel {
-    /// Every model, so a consumer reasoning across releases cannot silently
-    /// miss one — the two-valued unanimity rule this replaced was wrong for
-    /// any profile spanning 8.4 or 8.5.
+    /// Every admitted model for cross-release agreement checks.
     pub const ALL: &'static [Self] = &[
         Self::BmpCharsElseUtf8Bytes,
         Self::Utf16CodeUnits,
@@ -1293,12 +1291,7 @@ fn satisfies_range_with_policy(
 /// its `(from, until)` bounds — [`version_satisfies`] against `"from-until"`
 /// (or `"from-"` for an open window), without spelling that requirement out.
 ///
-/// The spec-surface gate asks this on every registry lookup, once per
-/// authored availability row, and it used to `format!` the requirement string
-/// and re-parse `version` for each one. Both are gone: the candidate is
-/// converted once for the whole list and each bound is read where it already
-/// sits (issue #2021, where the registry's version parsing showed up in the
-/// workspace-scan profile).
+/// Parse the candidate once and compare each retained bound directly.
 ///
 /// An empty `windows` is "no window", so `false` — the "admits everything"
 /// reading belongs to the caller that knows an empty list means unrestricted.

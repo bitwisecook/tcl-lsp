@@ -304,20 +304,15 @@ fn resolve_attached_profile(
     virtual_server: &BigipVirtualServer,
     profiles: &BTreeMap<String, &BigipProfile>,
 ) -> Option<String> {
-    if profiles.contains_key(reference) {
-        return Some(reference.to_owned());
-    }
-    if !reference.starts_with('/')
-        && let Some(partition) = virtual_server
-            .full_path
-            .strip_prefix('/')
-            .and_then(|path| path.split('/').next())
-        && let candidate = format!("/{partition}/{reference}")
-        && profiles.contains_key(&candidate)
-    {
-        return Some(candidate);
-    }
-    resolve_reference(reference, profiles)
+    crate::object_names::object_name_candidates(
+        reference,
+        profiles.keys().map(|path| (path.as_str(), path.as_str())),
+        crate::object_names::ObjectNamePolicy::ExactThenOwnerPartitionOrReferenceLeaf {
+            owner: &virtual_server.full_path,
+        },
+    )
+    .unique()
+    .map(ToOwned::to_owned)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -848,38 +843,39 @@ fn lookup_material(
     reference: &str,
     material: &BTreeMap<String, Vec<Certificate>>,
 ) -> Option<Vec<Certificate>> {
-    material.get(reference).cloned().or_else(|| {
-        let leaf = reference.rsplit('/').next().unwrap_or(reference);
+    crate::object_names::object_name_candidates(
+        reference,
         material
             .iter()
-            .find(|(path, _)| path.rsplit('/').next().unwrap_or(path) == leaf)
-            .map(|(_, certificates)| certificates.clone())
-    })
+            .map(|(path, certificates)| (path.as_str(), certificates)),
+        crate::object_names::ObjectNamePolicy::ExactThenReferenceLeaf,
+    )
+    .first_in_order()
+    .cloned()
 }
 
 fn lookup_key_material<'a>(
     reference: &str,
     material: &'a BTreeMap<String, String>,
 ) -> Option<&'a str> {
-    material.get(reference).map(String::as_str).or_else(|| {
-        let leaf = reference.rsplit('/').next().unwrap_or(reference);
+    crate::object_names::object_name_candidates(
+        reference,
         material
             .iter()
-            .find(|(path, _)| path.rsplit('/').next().unwrap_or(path.as_str()) == leaf)
-            .map(|(_, key)| key.as_str())
-    })
+            .map(|(path, key)| (path.as_str(), key.as_str())),
+        crate::object_names::ObjectNamePolicy::ExactThenReferenceLeaf,
+    )
+    .first_in_order()
 }
 
 fn resolve_reference<T>(reference: &str, objects: &BTreeMap<String, T>) -> Option<String> {
-    if objects.contains_key(reference) {
-        return Some(reference.to_owned());
-    }
-    let leaf = reference.rsplit('/').next().unwrap_or(reference);
-    let matches: Vec<&String> = objects
-        .keys()
-        .filter(|path| path.rsplit('/').next().unwrap_or(path) == leaf)
-        .collect();
-    (matches.len() == 1).then(|| matches[0].clone())
+    crate::object_names::object_name_candidates(
+        reference,
+        objects.keys().map(|path| (path.as_str(), path.as_str())),
+        crate::object_names::ObjectNamePolicy::ExactThenReferenceLeaf,
+    )
+    .unique()
+    .map(ToOwned::to_owned)
 }
 
 fn profile_side(profile_type: ProfileType) -> TlsProfileSide {

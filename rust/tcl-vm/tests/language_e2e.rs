@@ -128,10 +128,7 @@ fn while_command_subst_condition_with_substituted_body() {
     assert_eq!(out, "done\n");
 }
 
-/// Regression: an array element whose index embeds a substitution around
-/// literal text (`$a(x$item)`, `$a(-$opt)`, `$a(${item}suf)`) must expand the
-/// inner variable. Previously only a bare whole-index `$a($item)` worked; a
-/// composite index was pushed as a raw literal so the lookup failed.
+/// Compound array indices evaluate their original variable components.
 #[test]
 fn composite_array_index_substitutes() {
     let (ok, _r, out) = run(concat!(
@@ -154,10 +151,8 @@ fn composite_array_index_in_proc_and_store() {
     assert_eq!(out, "W\n");
 }
 
-/// Regression: `dict for`/`map` and a runtime-fallback `foreach` (qualified
-/// loop var) run the body via the runtime builtin, so the braced body must be
-/// pushed verbatim. Previously its command substitutions were evaluated once at
-/// the call site — before the loop variables existed — so the body errored.
+/// Runtime loop bodies retain original braced source and evaluate substitutions
+/// in each iteration after its variable bindings.
 #[test]
 fn dict_for_body_command_subst_per_iteration() {
     let (ok, _r, out) =

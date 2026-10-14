@@ -1,0 +1,519 @@
+--- a/rust/tcl-registry/src/intrinsic.rs
++++ b/rust/tcl-registry/src/intrinsic.rs
+@@ -648,7 +648,7 @@
+ 
+     /// Compatibility projection from a legacy value/catch-position `TclVM` hook.
+     ///
+-    /// See [`Self::from_legacy_codegen`] for the migration contract.
++    /// See [`Self::from_legacy_codegen`] for the conversion contract.
+     #[must_use]
+     pub const fn from_legacy_inline_codegen(hook: InlineCodegenHookId) -> Option<Self> {
+         match hook {
+--- a/rust/tcl-registry/src/taint.rs
++++ b/rust/tcl-registry/src/taint.rs
+@@ -18,12 +18,8 @@
+ 
+ //! Registry-side taint metadata queries.
+ //!
+-//! Owns the small subcommand-shaped facts (`chan gets`, `chan read`,
+-//! `encoding convertfrom`) and the iRules namespace-prefix table that
+-//! used to live as hardcoded lists inside the compiler's taint
+-//! analyser. The compiler's `tcl_compiler::taint` module now asks
+-//! the registry "is this call a source / sink / sanitiser?" rather
+-//! than maintaining its own command-name set.
++//! Registry-owned source, sink and sanitiser descriptors serve compiler
++//! taint analysis through selected invocation facts.
+ 
+ use crate::documentation::{DocumentationAnnotation, DocumentationExample};
+ use crate::registry::CommandRegistry;
+--- a/rust/tcl-lsp-server/src/rt.rs
++++ b/rust/tcl-lsp-server/src/rt.rs
+@@ -32,14 +32,8 @@
+ //! both wasm32-unknown-unknown and wasm32-wasip1 answer to it, and they need
+ //! opposite things. The gates below are keyed on `target_os` for that reason.
+ //!
+-//! **The native contract is "nothing changed".** On every non-wasm target the
+-//! items below are plain re-exports of the Tokio ones the call sites used
+-//! before this module existed — same types, same semantics, same scheduling.
+-//! `available_parallelism` is the one function with a body, and it is the
+-//! `std::thread::available_parallelism().map_or(4, …)` expression that used to
+-//! be written out at each of its three call sites. Adding a wrapper type or a
+-//! behavioural tweak on the native arm defeats the point of the seam: the
+-//! native server must not be able to regress because of a browser port.
++//! Native targets re-export Tokio scheduling and types. `available_parallelism`
++//! selects the host count with a fallback of four.
+ //!
+ //! **The browser contract is "same shapes, single thread".** A browser worker
+ //! has no threads *and* no OS beneath it: no clock to read, and nothing for a
+--- a/rust/tcl-registry/src/dialects.rs
++++ b/rust/tcl-registry/src/dialects.rs
+@@ -271,11 +271,7 @@
+             continue;
+         };
+         let rest = rest.trim_start();
+-        // `rest.get(..KEY.len())` (unlike `rest[..KEY.len()]`) returns `None`
+-        // rather than panicking when `KEY.len()` falls inside a multi-byte
+-        // char instead of on a boundary — a real case: a leading comment
+-        // with a non-ASCII byte (an em dash, a curly quote, …) before byte
+-        // offset 12 used to crash the server on `textDocument/didOpen`.
++        // The prefix length may cross a Unicode boundary in an unrelated comment.
+         let Some(prefix) = rest.get(..KEY.len()) else {
+             continue;
+         };
+@@ -1106,9 +1102,7 @@
+ 
+     #[test]
+     fn multibyte_comment_before_directive_key_does_not_panic() {
+-        // A leading comment with a non-ASCII byte (an em dash here) landing
+-        // inside the `tcl-dialect:` key's byte length used to panic on the
+-        // `rest[..KEY.len()]` slice instead of just not matching.
++        // An unrelated Unicode comment cannot supply a directive prefix.
+         assert_eq!(
+             detect_dialect_directive("# Issue #806 — report::defstyle\nputs hi\n"),
+             None
+--- a/rust/tcl-dialect/src/version.rs
++++ b/rust/tcl-dialect/src/version.rs
+@@ -1291,12 +1291,7 @@
+ /// its `(from, until)` bounds — [`version_satisfies`] against `"from-until"`
+ /// (or `"from-"` for an open window), without spelling that requirement out.
+ ///
+-/// The spec-surface gate asks this on every registry lookup, once per
+-/// authored availability row, and it used to `format!` the requirement string
+-/// and re-parse `version` for each one. Both are gone: the candidate is
+-/// converted once for the whole list and each bound is read where it already
+-/// sits (issue #2021, where the registry's version parsing showed up in the
+-/// workspace-scan profile).
++/// Parse the candidate once and compare each retained bound directly.
+ ///
+ /// An empty `windows` is "no window", so `false` — the "admits everything"
+ /// reading belongs to the caller that knows an empty list means unrestricted.
+--- a/rust/tcl-dialect/src/model/environment.rs
++++ b/rust/tcl-dialect/src/model/environment.rs
+@@ -1869,9 +1869,7 @@
+         }
+     }
+ 
+-    /// A workspace is trusted until the editor says otherwise — the fact the
+-    /// `EvalOptions::tier` doc comment used to deny — and a client that says
+-    /// nothing leaves it trusted.
++    /// Explicit editor trust determines workspace provenance; silence retains the default.
+     #[test]
+     fn a_workspace_is_trusted_until_the_editor_says_otherwise_issue_2139() {
+         assert!(!Provenance::WorkspaceTrusted.is_untrusted());
+--- a/rust/tcl-dialect/src/model/authored_surface.rs
++++ b/rust/tcl-dialect/src/model/authored_surface.rs
+@@ -175,9 +175,7 @@
+ /// Build a `&'static [SpecSurface]` from rows, for a spec whose surface is
+ /// not one of the [`SpecSurface`] shorthands.
+ ///
+-/// The replacement for the retired mask's `.union(…)`: rows compose by
+-/// listing, so `surface![SpecSurface::core(Family::Tcl), SpecSurface::package("iapps")]`
+-/// is what `ALL_TCL.union(IAPPS)` used to say.
++/// Rows compose explicitly, preserving each core or package version axis.
+ #[macro_export]
+ macro_rules! surface {
+     ($($row:expr),* $(,)?) => {{
+--- a/rust/tcl-lexer/src/expr_lexer.rs
++++ b/rust/tcl-lexer/src/expr_lexer.rs
+@@ -1503,8 +1503,7 @@
+     /// (`tclCompExpr.c:701`), so it may sit anywhere whitespace may.
+     #[test]
+     fn a_comment_may_appear_wherever_whitespace_may() {
+-        // Trailing: the case that used to set `unknown` and degrade the whole
+-        // expression to `ExprNode::Raw`.
++        // A trailing comment preserves the preceding expression tokens.
+         assert_eq!(comments("1 + 2 # note"), vec!["# note"]);
+         assert_eq!(
+             types("1 + 2 # note"),
+--- a/rust/tcl-compiler/tests/var_escape_residual2.rs
++++ b/rust/tcl-compiler/tests/var_escape_residual2.rs
+@@ -458,15 +458,7 @@
+ 
+ #[test]
+ fn cu_catch_literal_body_threads_its_upvar() {
+-    // `catch {upvar 1 cv v; set v $w}` — a brace-literal, straight-line body,
+-    // so the CFG now lowers it into real blocks (#2207) and the inner `upvar`
+-    // *is* seen: `v` is an alias for the caller's `cv`, which is what
+-    // `EscapeTag::Frame` says.
+-    //
+-    // This used to assert `Local`, because `handle_catch` early-returned on
+-    // the body text holding `$w` and never walked in. That answer was
+-    // conservative-but-safe rather than right — the test's own comment called
+-    // the precise upvar source "simply not threaded". It is threaded now.
++    // The literal catch body retains the original upvar caller-frame alias.
+     let s = escape_cu("proc ::p {} { catch {upvar 1 cv v\n set v $w} }");
+     let p = summary(&s, "::p");
+     assert_eq!(
+--- a/rust/tcl-compiler/tests/var_escape_cfg.rs
++++ b/rust/tcl-compiler/tests/var_escape_cfg.rs
+@@ -956,10 +956,7 @@
+ #[test]
+ fn the_cu_entry_point_answers_from_the_registry_it_is_given() {
+     let irules = static_context_for("f5-irules").commands();
+-    // A head inside a command substitution is the same command as a direct
+-    // one, so both spellings must answer from the selected profile. The
+-    // embedded form used to consult the plain-Tcl allow-list instead, which
+-    // left the registry-aware entry point supplying incomplete evidence.
++    // Direct and original embedded calls retain the same supplied Registry policy.
+     for src in [
+         "proc p {} { set x 1 ; puts $x ; return $x }\n",
+         "proc p {} { set x 1 ; set y [puts $x] ; return $y }\n",
+@@ -985,14 +982,8 @@
+     }
+ }
+ 
+-/// The IR-walk counterpart of the test above, and the one that reaches an
+-/// optimisation decision rather than proof evidence: `pure_leaf` is the
+-/// inliner's predicate, and the IR path exists to compute it.
+-///
+-/// A proc whose only frame-touching call sits inside a command substitution
+-/// used to report `pure_leaf` under `f5-irules` where the direct spelling of
+-/// the same call correctly reported false — the blind allow-list marks
+-/// `puts` frameless, `f5-irules` does not (#2179).
++/// The selected Registry governs frame-touching calls inside substitutions.
++/// Their escape facts retain the inliner's independent pure-leaf gate.
+ #[test]
+ fn the_ir_entry_point_answers_pure_leaf_from_the_registry_it_is_given() {
+     let irules = static_context_for("f5-irules").commands();
+--- a/rust/tcl-compiler/tests/phi_undef_memo.rs
++++ b/rust/tcl-compiler/tests/phi_undef_memo.rs
+@@ -19,19 +19,11 @@
+ //! Scaling and result pins for the W210 phi-from-undef trace
+ //! (`src/analyser/diagnostics/helpers.rs::phi_can_undef`).
+ //!
+-//! The trace answers "can this SSA version be undefined on some executable
+-//! path?" over the phi graph. It used to do that with a DFS per query whose
+-//! `seen` set was a *path* (grey) set — a version is removed again when its
+-//! frame closes, and no answer was kept — so it enumerated every simple path
+-//! through the graph: N sibling conditional writes to one variable followed by
+-//! a read cost ~2^N visits, and a well-written script was the slow case,
+-//! because only a genuinely undefined path short-circuits the search
+-//! (issue #2021). Real Quartus sources reach N ≈ 105. It is now one
+-//! reverse-reachability pass that answers every version at once.
++//! One reverse-reachability pass answers potential undefined contents for
++//! every SSA version in the phi graph, sharing results across queries.
+ //!
+-//! [`nested_if_stages_analyse_in_linear_time`] is the regression pin: 60
+-//! stages is ~2^60 visits for the old walk and must instead finish in well
+-//! under the wall-clock budget asserted here. The rest of the file pins that
++//! [`nested_if_stages_analyse_in_linear_time`] bounds a fixed 60-stage graph
++//! within its declared wall-clock budget. The rest of the file pins that
+ //! no answer moved — the classic W210 phi shapes (undef on one path, defined
+ //! on all paths, a loop-header cycle, an `unset` kill, an `info exists` guard)
+ //! keep the verdicts they had before.
+--- a/rust/tcl-vm/tests/run_script.rs
++++ b/rust/tcl-vm/tests/run_script.rs
+@@ -1091,8 +1091,7 @@
+     // count <= 0 yields empty; an out-of-range index yields empty.
+     assert_eq!(run("puts \"[string repeat ab 0]<\"").2, "<\n");
+     assert_eq!(run("puts \"[string index hello 99]<\"").2, "<\n");
+-    // `wordstart`/`wordend` — the VM gained these via the shared core (it errored
+-    // "not yet implemented" before). Pinned against tclsh 9.0.
++    // Original Tcl 9.0 word-boundary controls use the shared core.
+     assert_eq!(run("string wordstart {hello world} 7").1, "6");
+     assert_eq!(run("string wordend {hello world} 0").1, "5");
+     assert_eq!(run("string wordstart {a_b.c} 2").1, "0"); // underscore is a word char
+--- a/rust/tcl-vm/tests/language_e2e.rs
++++ b/rust/tcl-vm/tests/language_e2e.rs
+@@ -151,10 +151,8 @@
+     assert_eq!(out, "W\n");
+ }
+ 
+-/// Regression: `dict for`/`map` and a runtime-fallback `foreach` (qualified
+-/// loop var) run the body via the runtime builtin, so the braced body must be
+-/// pushed verbatim. Previously its command substitutions were evaluated once at
+-/// the call site — before the loop variables existed — so the body errored.
++/// Runtime loop bodies retain original braced source and evaluate substitutions
++/// in each iteration after its variable bindings.
+ #[test]
+ fn dict_for_body_command_subst_per_iteration() {
+     let (ok, _r, out) =
+--- a/editors/vscode/src/test/multiFolder/multiFolderConfig.test.ts
++++ b/editors/vscode/src/test/multiFolder/multiFolderConfig.test.ts
+@@ -245,10 +245,7 @@
+     const a = vscode.workspace.getConfiguration("tclLsp", folderA.uri).get<string>("dialect");
+     const b = vscode.workspace.getConfiguration("tclLsp", folderB.uri).get<string>("dialect");
+ 
+-    // proj-a is tcl8.4, proj-b is f5-irules.  Before the per-folder
+-    // dialect refactor, only one of these could be honoured at a time
+-    // and the LSP server emitted a "Per-folder dialects are not yet
+-    // supported" warning for the loser.
++    // Each folder retains its independently selected dialect.
+     assert.strictEqual(a, "tcl8.4", "folder A should report dialect=tcl8.4");
+     assert.strictEqual(b, "f5-irules", "folder B should report dialect=f5-irules");
+   });
+--- a/rust/tcl-vm/tests/cmd_string_e2e.rs
++++ b/rust/tcl-vm/tests/cmd_string_e2e.rs
+@@ -289,23 +289,15 @@
+     res_eq("string match {a\\*b} axb", "0");
+     // tclsh: abbreviated -nocase (-n)
+     res_eq("string match -n {F*O} foo", "1");
+-    // tclsh: arity error (the bad-option case is a VM bug — see
+-    // `bug_string_match_bad_option`).
++    // Original C arity applies separately from the leading-option error.
+     err_eq(
+         "string match a",
+         "wrong # args: should be \"string match ?-nocase? pattern string\"",
+     );
+ }
+ 
+-/// `string match <bad-option> pattern string` (three args where the first
+-/// is an unrecognised option) reports a generic "wrong # args" instead of the
+-/// bad-option error. Both tclsh 8.6 and 9.0 flag the option; the VM routes the
+-/// 3-argument form through the shared core's arity check before validating the
+-/// leading option word.
+-///
+-/// Script:        string match -bogus a b
+-/// tclsh 8.6/9.0: bad option "-bogus": must be -nocase
+-/// VM (wrong):    wrong # args: should be "string match ?-nocase? pattern string"
++/// The original option error precedes the generic three-argument arity route.
++/// Original C8.6/C9.0: `string match -bogus a b` reports bad option "-bogus".
+ #[test]
+ fn bug_string_match_bad_option() {
+     // tclsh 8.6 + 9.0
+@@ -728,14 +720,9 @@
+     );
+ }
+ 
+-/// `string is <class> <option> <str>` where `<option>` is an unrecognised
+-/// word and a trailing operand follows reports the *wrong* error. Real tclsh
+-/// flags the bad option; the VM mis-counts the operands and reports a generic
+-/// "wrong # args".
+-///
++/// A bad leading option retains its error independently of later operands.
+ /// Script:        string is alpha a b
+ /// tclsh 8.6/9.0: bad option "a": must be -strict or -failindex
+-/// VM (wrong):    wrong # args: should be "string is class ?-strict? ?-failindex var? str"
+ #[test]
+ fn bug_string_is_bad_option_with_trailing_arg() {
+     // tclsh 8.6 + 9.0
+@@ -746,8 +733,7 @@
+ }
+ 
+ /// A lone `-` (or the empty word) in option position prefixes *both* options,
+-/// so C's `Tcl_GetIndexFromObj` reports it as ambiguous, not bad. (Previously
+-/// the VM's hand-rolled `len >= 2` prefix test reported `bad option`.)
++/// so C's `Tcl_GetIndexFromObj` reports it as ambiguous, not bad.
+ #[test]
+ fn string_is_dash_and_empty_option_words_are_ambiguous() {
+     // tclsh 8.6.16: ambiguous option "-": must be -strict or -failindex
+@@ -762,15 +748,10 @@
+     );
+ }
+ 
+-/// `string is integer -failindex` reports the wrong failure index when the
+-/// integer has internal whitespace followed by a non-digit. For `"12 x"` real
++/// Integer failure indexing skips internal whitespace before the invalid character.
+ /// tclsh records the failure at the `x` (char index 3); the VM stops at the
+-/// interior space (index 2). (`"12 "` with only trailing space is a valid
+-/// integer in both, so the divergence is specifically the digit-after-space.)
+-///
+ /// Script:        string is integer -failindex fi {12 x}; set fi
+ /// tclsh 8.6/9.0: 3
+-/// VM (wrong):    2
+ #[test]
+ fn bug_string_is_integer_failindex_internal_space() {
+     // tclsh 8.6 + 9.0
+@@ -1259,54 +1240,38 @@
+     err_eq("format {%5 } 1", "bad field specifier \" \"");
+ }
+ 
+-/// `format %#b` omits the `0b` alternate-form prefix. Both tclsh 8.6 and
++/// Binary alternate form retains its selected 0b prefix.
+ /// tclsh 9.0 prepend `0b`; the VM's `tcl_cmd_core::format::based_digits` returns
+-/// no prefix for the binary verb.
+-///
+ /// Script:        format %#b 5
+ /// tclsh 8.6/9.0: 0b101
+-/// VM (wrong):    101
+ #[test]
+ fn bug_format_hash_binary_prefix() {
+     // tclsh 8.6 + 9.0
+     res_eq("format %#b 5", "0b101");
+ }
+ 
+-/// `format %#o` uses the legacy `0` octal prefix instead of Tcl 9's `0o`.
+-/// The VM matches tclsh 8.6, but it otherwise targets Tcl 9.0 (lowercase `0x`
+-/// for `%#X`, `entier`/`dict` classes, arbitrary-precision `string is integer`),
+-/// where the octal alternate form is `0o`.
+-///
++/// Tcl 9 octal alternate form selects 0o independently of the C8.6 form.
+ /// Script:     format %#o 8
+ /// tclsh 9.0:  0o10
+-/// VM (wrong): 010   (tclsh 8.6 behaviour)
+ #[test]
+ fn bug_format_hash_octal_prefix_tcl9() {
+     // tclsh9.0
+     res_eq("format %#o 8", "0o10");
+ }
+ 
+-/// `format %#d` drops the Tcl 9 `0d` alternate-form prefix. As with `%#o`,
+-/// the VM matches tclsh 8.6 (no prefix) but targets Tcl 9.0, where `%#d` renders
+-/// a leading `0d`.
+-///
++/// Tcl 9 decimal alternate form selects 0d.
+ /// Script:     format %#d 42
+ /// tclsh 9.0:  0d42
+-/// VM (wrong): 42   (tclsh 8.6 behaviour)
+ #[test]
+ fn bug_format_hash_decimal_prefix_tcl9() {
+     // tclsh9.0
+     res_eq("format %#d 42", "0d42");
+ }
+ 
+-/// The `0` (zero-pad) flag is ignored for floating-point conversions. Both
++/// Floating-point zero padding reaches the declared field width.
+ /// tclsh 8.6 and 9.0 zero-pad floats to the field width; the VM pads with spaces
+-/// (the `0` flag works for integers — `%08d` is fine — so this is float-specific
+-/// in `tcl_cmd_core::format`).
+-///
+ /// Script:        format %08.2f 3.14
+ /// tclsh 8.6/9.0: 00003.14
+-/// VM (wrong):    "    3.14"  (space padded)
+ #[test]
+ fn bug_format_zero_flag_on_float() {
+     // tclsh 8.6 + 9.0
+@@ -1314,13 +1279,9 @@
+     res_eq("format %+08.2f 3.14", "+0003.14");
+ }
+ 
+-/// `%e`/`%E` render the exponent without the C/Tcl minimum-two-digit,
+-/// always-signed form. Both tclsh 8.6 and 9.0 print `e+04`; the VM (Rust's
+-/// `{:e}` formatter) prints `e4` — no sign, no zero-padding.
+-///
++/// Exponential formatting retains a signed exponent with at least two digits.
+ /// Script:        format %e 12345.678
+ /// tclsh 8.6/9.0: 1.234568e+04
+-/// VM (wrong):    1.234568e4
+ #[test]
+ fn bug_format_exponent_format() {
+     // tclsh 8.6 + 9.0
+@@ -1330,14 +1291,9 @@
+     res_eq("format %e 1.5", "1.500000e+00");
+ }
+ 
+-/// `%g` does not switch to exponential notation for out-of-range
+-/// magnitudes. C/Tcl `%g` uses `%e` when the exponent is < -4 or >= the
+-/// precision (default 6); the VM always renders fixed-point and merely trims
+-/// trailing zeros, so large/small values print in full / with leading zeros.
+-///
++/// General formatting selects exponential notation outside its precision range.
+ /// Script:        format %g 1234567.0   |   format %g 0.00001
+ /// tclsh 8.6/9.0: 1.23457e+06           |   1e-05
+-/// VM (wrong):    1234567               |   0.00001
+ #[test]
+ fn bug_format_g_exponential_range() {
+     // tclsh 8.6 + 9.0
+@@ -1345,13 +1301,9 @@
+     res_eq("format %g 0.00001", "1e-05");
+ }
+ 
+-/// Positional conversion specifiers (`%n$`) are unsupported. C/Tcl's
+-/// `format` accepts `%1$s` to index a specific argument and reuse it; the VM's
+-/// `tcl_cmd_core::format` parser rejects the `$` as a bad field specifier.
+-///
++/// Positional conversion indices retain argument selection and reuse.
+ /// Script:        format {%1$s %2$s %1$s} a b
+ /// tclsh 8.6/9.0: a b a
+-/// VM (wrong):    bad field specifier "$"
+ #[test]
+ fn bug_format_positional_specifiers() {
+     // tclsh 8.6 + 9.0
+@@ -1387,14 +1339,9 @@
+     err_eq("format {%0$s} a b", "\"%n$\" argument index out of range");
+ }
+ 
+-/// A format string that ends with an incomplete specifier (a width but no
+-/// conversion verb) is silently echoed instead of erroring. tclsh reports
+-/// "not enough arguments for all format specifiers"; the VM returns the literal
+-/// text.
+-///
++/// An incomplete format specifier retains the original argument error.
+ /// Script:        format %5
+ /// tclsh 8.6/9.0: (error) not enough arguments for all format specifiers
+-/// VM (wrong):    %5
+ #[test]
+ fn bug_format_trailing_incomplete_specifier() {
+     // tclsh 8.6 + 9.0
+--- a/rust/tcl-vm/tests/cmd_collections_e2e.rs
++++ b/rust/tcl-vm/tests/cmd_collections_e2e.rs
+@@ -128,13 +128,9 @@
+     assert_eq!(run("set a(x) 1\narray unset a\narray exists a").1, "0");
+ }
+ 
+-/// `array set` onto an existing scalar reports the wrong variable name in
+-/// its error. C raises the failure at the *element* write, so the message names
+-/// the element (`s(a)`); the VM pre-checks with `ensure_array`, which raises
+-/// before any element is written and so names only the bare scalar (`s`).
++/// Array publication onto a scalar fails at the selected element write.
+ ///   script:        set s 5; array set s {a 1}
+ ///   tclsh (8.6+9.0): can't set "s(a)": variable isn't array
+-///   VM (wrong):      can't set "s": variable isn't array
+ #[test]
+ fn array_set_onto_scalar_errors_bug() {
+     let (ok, msg, _) = run("set s 5\narray set s {a 1}");
+@@ -346,13 +342,9 @@
+     );
+ }
+ 
+-/// `dict get` with NO keys does not validate that its argument is a
+-/// well-formed dict. tclsh always parses the dict first, so `dict get` of an
+-/// odd-length value errors; the VM's shared `get` core returns the value
+-/// unchanged when the key path is empty, so the malformed value slips through.
++/// An empty dictionary key path still validates the original dictionary value.
+ ///   script:        dict get {a 1 b}
+ ///   tclsh (8.6+9.0): missing value to go with key   (error)
+-///   VM (wrong):      a 1 b                           (ok, returns it verbatim)
+ #[test]
+ fn dict_get_no_keys_validates_dict_bug() {
+     let (ok, msg, _) = run("dict get {a 1 b}");
+@@ -480,16 +472,9 @@
+     assert_eq!(msg, "must have exactly two variable names");
+ }
+ 
+-/// The *compiled* form of `dict map` fails. The codegen rewrites
+-/// `dict map` to the qualified ensemble member `::tcl::dict::map` (its registry
+-/// spec carries `cfg_rewrite_name`), but `cmd_dict::register` only installs
+-/// `::tcl::dict::for` among the rewritten members — `::tcl::dict::map` is never
+-/// registered — so the compiled call hits an unresolved command. (The indirect
+-/// form via a dynamic command word, which is not rewritten, works fine — see
+-/// `dict_map_indirect_path_works`.)
++/// Compiled dictionary-map dispatch retains the selected registered worker.
+ ///   script:        set d {a 1 b 2}; dict map {k v} $d {expr {$v*2}}
+ ///   tclsh (8.6+9.0): a 2 b 4
+-///   VM (wrong):      invalid command name `::tcl::dict::map`
+ #[test]
+ fn dict_map_compiled_path_bug() {
+     let (ok, result, _) = run("set d {a 1 b 2}\ndict map {k v} $d {expr {$v*2}}");
+@@ -525,14 +510,9 @@
+     );
+ }
+ 
+-/// `dict map` with `break` in the body must discard *all* accumulated pairs
+-/// and return the empty dict (C `DictMapNRCmd` drops the result on `TCL_BREAK`).
+-/// The VM's `cmd_dict_map` instead returns the pairs collected before the break.
+-/// (Exercised through the indirect dispatch path so it is not masked by the
+-/// separate compiled-`dict map` bug.)
++/// A dictionary-map break discards all accumulated result pairs.
+ ///   script:        set d {a 1 b 2 c 3}; dict map {k v} $d {if {$v==2} break; set v}
+ ///   tclsh (8.6+9.0): "" (empty)
+-///   VM (wrong):      a 1   (the pre-break accumulation)
+ #[test]
+ fn dict_map_break_returns_empty_bug() {
+     let (ok, result, _) =
+@@ -1091,14 +1071,9 @@
+     assert_eq!(run("lsort -unique {a b a c b}").1, "a b c");
+ }
+ 
+-/// `lsort -unique` retains the WRONG member of an equal run. Tcl keeps the
+-/// *last* element of each duplicate group (in input order); the VM keeps the
+-/// *first*. Distinct elements under the mode are unaffected, so this only shows
+-/// when two inputs compare equal but render differently.
++/// Unique sorting retains the last original member of an equal run.
+ ///   script:        lsort -nocase -unique {A a B b}
+ ///   tclsh (8.6+9.0): a b      (keeps the later `a`/`b`)
+-///   VM (wrong):      A B      (keeps the earlier `A`/`B`)
+-/// Also: `lsort -integer -unique {01 1}` → tclsh `1`, VM `01`.
+ #[test]
+ fn lsort_unique_retains_last_duplicate_bug() {
+     // tclsh8.6/9.0: a b

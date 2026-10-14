@@ -872,34 +872,11 @@ fn property_reference_values(property: &str, raw: &str) -> Vec<String> {
 }
 
 fn reference_candidates(reference: &str, owner: &str, default_partition: &str) -> Vec<String> {
-    let mut reference = clean_name(reference).trim().to_owned();
-    // Node and virtual-address references often include `:port`, while their
-    // declaration keys do not. Keeping this here makes the generic registry
-    // path agree with the graph resolver.
-    let path_length = if reference.matches(':').count() == 1 {
-        reference
-            .rsplit_once(':')
-            .filter(|(_, port)| port.bytes().all(|byte| byte.is_ascii_digit()))
-            .map(|(path, _)| path.len())
-    } else {
-        None
-    };
-    if let Some(path_length) = path_length {
-        reference.truncate(path_length);
-    }
-    if reference.starts_with('/') {
-        return vec![reference];
-    }
-    let partition = owner
-        .strip_prefix('/')
-        .and_then(|path| path.split('/').next())
-        .filter(|partition| !partition.is_empty())
-        .unwrap_or(default_partition.trim_matches('/'));
-    let mut candidates = vec![format!("/{partition}/{reference}")];
-    if partition != "Common" {
-        candidates.push(format!("/Common/{reference}"));
-    }
-    candidates
+    let reference = crate::object_names::reference_without_numeric_service(
+        clean_name(reference).trim(),
+        crate::object_names::EmptyServiceSuffix::Strip,
+    );
+    crate::object_names::owner_partition_reference_paths(reference, owner, default_partition)
 }
 
 /// BIGIP6013: validate every static registry-declared outbound edge that is

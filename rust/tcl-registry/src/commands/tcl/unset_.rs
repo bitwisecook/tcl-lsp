@@ -22,8 +22,7 @@
 // 9.0, and 9.1 (fetched and diffed all five unset.html/unset.htm pages
 // directly): `unset ?-nocomplain? ?--? ?name name name ...?` in every one,
 // including 8.4 — `-nocomplain` and `--` have never been version-gated for
-// this command (this file previously claimed `-nocomplain` was added in
-// 8.5; that was wrong). DESCRIPTION is identical in substance across all
+// this command. DESCRIPTION is identical in substance across all
 // five, with two purely cosmetic wording differences that are not
 // behaviour changes: 8.4/8.5 say "If an error occurs, any variables …"
 // where 8.6/9.0/9.1 say "If an error occurs during variable deletion, any

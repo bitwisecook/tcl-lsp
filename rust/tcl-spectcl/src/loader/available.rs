@@ -49,10 +49,7 @@
 //! `{package Tk 8.5-8.6}` carries the name and reports that the window is
 //! not representable yet.
 //!
-//! Jim used to be the other one: the retired availability mask had no Jim
-//! member, so `available {jim 0.78-}` contributed nothing and gated the
-//! command off. A row names its family directly now (Q13), so a Jim window
-//! projects exactly as a Tcl one does.
+//! Jim availability windows retain their explicit family and release axis.
 
 use std::sync::LazyLock;
 use tcl_dialect::model::SpecWindow;

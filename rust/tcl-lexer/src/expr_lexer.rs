@@ -1503,8 +1503,7 @@ mod tests {
     /// (`tclCompExpr.c:701`), so it may sit anywhere whitespace may.
     #[test]
     fn a_comment_may_appear_wherever_whitespace_may() {
-        // Trailing: the case that used to set `unknown` and degrade the whole
-        // expression to `ExprNode::Raw`.
+        // A trailing comment preserves the preceding expression tokens.
         assert_eq!(comments("1 + 2 # note"), vec!["# note"]);
         assert_eq!(
             types("1 + 2 # note"),

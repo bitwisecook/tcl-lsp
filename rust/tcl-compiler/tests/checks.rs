@@ -2643,18 +2643,8 @@ mod catch_body_defs_no_false_w210 {
     }
 }
 
-// W210 — a brace-quoted script word of a command the registry does not
-// describe (#2117).
-//
-// Tcl substitutes nothing inside `{…}`, so such a word is only a read of this
-// frame if the script runs here *and* the name is not its own. The second half
-// used to be read as "contains a top-level `set NAME`", which is one binding
-// spelling out of many: a `set` one block deeper, a `foreach` loop variable,
-// and a `catch` output operand all read as "never binds it", and every name a
-// test body bound drew a warning anchored at the command word.
-//
-// tclsh 8.6.18 / 9.0.4: `proc mycmd {args} {}` then the bodies below run
-// without error — nothing reads an unset variable.
+// Braced script data needs its own execution and binding context.
+// Original C8.6.18/C9.0.4: these unknown-command operands read no unset variable.
 mod undescribed_script_word_bindings_no_false_w210 {
     use super::*;
 

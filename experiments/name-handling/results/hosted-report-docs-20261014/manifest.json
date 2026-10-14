@@ -1,0 +1,25 @@
+{
+  "base_head": "73766b2d56064bef4cac5571cc421635adc1d416",
+  "files": [
+    {
+      "path": "docs/design/README.md",
+      "before_sha256": "cf13a62f84be0e7d4f809726d6109c2ce954c293e5365603cd476bbd1b0496fc",
+      "after_sha256": "69167e73031dbec1e205fe611e812ef885e29d2ac85c4334e3a7fee0c7659204"
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "39eac7f2181cf18dd599d2d46ce109a8bdfa64b668a11d76dba992a1ba72d2bf",
+      "after_sha256": "62a72b66c211066154aca462b47f215e28f7f46aa556b0f4fec206d80d6db5f0"
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "before_sha256": "ea8c698f52dae95a1ca6caa45383a87db14407c946dcca795cb37fbd7346fd50",
+      "after_sha256": "872e25f121ca541e5b9f6d1bb4045c60ff95d460c9cd4622bb13abbaf2351917"
+    },
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "before_sha256": "6ff2cea338174b034c5519fa9537cce2bd2c4fe3582f7a2645a93f76aa2a7fa5",
+      "after_sha256": "874b09e1d5caf9a50802193cdc3ad1366d60f29e459571447a9fec4e6aff8d36"
+    }
+  ]
+}

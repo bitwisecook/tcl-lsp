@@ -1,0 +1,216 @@
+{
+  "lexer": "Pygments RustLexer; Comment.Preproc (Rust attributes) retained; ordinary comment/whitespace removed; string tokens unchanged",
+  "attribute_and_string_controls": true,
+  "files": [
+    {
+      "path": "rust/tcl-cli/tests/cli.rs",
+      "token_count": 16825,
+      "original_meaningful_tokens_sha256": "85bfeb74057d02efe15607aca8036dc8e0c685be1bdf417c9e95a435a354d7cf",
+      "corrected_meaningful_tokens_sha256": "85bfeb74057d02efe15607aca8036dc8e0c685be1bdf417c9e95a435a354d7cf",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/format.rs",
+      "token_count": 4422,
+      "original_meaningful_tokens_sha256": "e97d8ec34876ea8b1bad67d970671245970bb0ed1840e7716dab1c07f1a3cbc0",
+      "corrected_meaningful_tokens_sha256": "e97d8ec34876ea8b1bad67d970671245970bb0ed1840e7716dab1c07f1a3cbc0",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/string.rs",
+      "token_count": 12551,
+      "original_meaningful_tokens_sha256": "a19a7933d7ac3d667f508f3692a11cb0c96b9b0922d6366d317821bb904dc192",
+      "corrected_meaningful_tokens_sha256": "a19a7933d7ac3d667f508f3692a11cb0c96b9b0922d6366d317821bb904dc192",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs",
+      "token_count": 8533,
+      "original_meaningful_tokens_sha256": "fca1913881c501b55aa7419f2dc8266c2ee3fd295333d3c07450db26d3f13e8f",
+      "corrected_meaningful_tokens_sha256": "fca1913881c501b55aa7419f2dc8266c2ee3fd295333d3c07450db26d3f13e8f",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/helpers.rs",
+      "token_count": 18715,
+      "original_meaningful_tokens_sha256": "852ffab709885d0034fc21680323b20f6b8c0510804c30c8c3aed036908eacf9",
+      "corrected_meaningful_tokens_sha256": "852ffab709885d0034fc21680323b20f6b8c0510804c30c8c3aed036908eacf9",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "token_count": 99309,
+      "original_meaningful_tokens_sha256": "5538e3f48d8290e52ac568cf0b5df3909314c7480d5cb631d748fcf8a170803f",
+      "corrected_meaningful_tokens_sha256": "5538e3f48d8290e52ac568cf0b5df3909314c7480d5cb631d748fcf8a170803f",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/var_observability.rs",
+      "token_count": 7367,
+      "original_meaningful_tokens_sha256": "91c52555706965d815534610ffe49bef93d3b2c44d34bd304b2097d04dfac0b8",
+      "corrected_meaningful_tokens_sha256": "91c52555706965d815534610ffe49bef93d3b2c44d34bd304b2097d04dfac0b8",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/checks.rs",
+      "token_count": 19113,
+      "original_meaningful_tokens_sha256": "bdc0eeea65d87ce5bd22fd7e297f63389d0f5d2d570810d92dc5ae512dabd4b8",
+      "corrected_meaningful_tokens_sha256": "bdc0eeea65d87ce5bd22fd7e297f63389d0f5d2d570810d92dc5ae512dabd4b8",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "token_count": 306383,
+      "original_meaningful_tokens_sha256": "ce2d46d8281b885146415274c69dbae367225f1f6739ceb7a955dc076c41635b",
+      "corrected_meaningful_tokens_sha256": "ce2d46d8281b885146415274c69dbae367225f1f6739ceb7a955dc076c41635b",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/uri_norm.rs",
+      "token_count": 2952,
+      "original_meaningful_tokens_sha256": "9e93ef6d086c8b7cd0ea463e76d8afa5cbedf9e9b1a78d30d8a37d8b9367c8b1",
+      "corrected_meaningful_tokens_sha256": "9e93ef6d086c8b7cd0ea463e76d8afa5cbedf9e9b1a78d30d8a37d8b9367c8b1",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/issue1019_proc_args.rs",
+      "token_count": 2166,
+      "original_meaningful_tokens_sha256": "da2b2b988d54b6cc7df8a04ce4b59926fc644f0c9646f6d39a216af981fb096c",
+      "corrected_meaningful_tokens_sha256": "da2b2b988d54b6cc7df8a04ce4b59926fc644f0c9646f6d39a216af981fb096c",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/issue1214_uri_canonicalisation.rs",
+      "token_count": 947,
+      "original_meaningful_tokens_sha256": "dfd46473a8e622bf4358d99435909f36c68e467dea28f87594fc14b2448dab8d",
+      "corrected_meaningful_tokens_sha256": "dfd46473a8e622bf4358d99435909f36c68e467dea28f87594fc14b2448dab8d",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/tk_dialect.rs",
+      "token_count": 1707,
+      "original_meaningful_tokens_sha256": "f3f5d2a7b05a58a3715c1cbd4a142b58a0e4e04e00011c39e520f06c7023e078",
+      "corrected_meaningful_tokens_sha256": "f3f5d2a7b05a58a3715c1cbd4a142b58a0e4e04e00011c39e520f06c7023e078",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-mcp/src/spectcl.rs",
+      "token_count": 10342,
+      "original_meaningful_tokens_sha256": "06632683c2de0fea12be6fee5c0b9b2099132df4da64f9c1e91b615db99eb32c",
+      "corrected_meaningful_tokens_sha256": "06632683c2de0fea12be6fee5c0b9b2099132df4da64f9c1e91b615db99eb32c",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/string_.rs",
+      "token_count": 19005,
+      "original_meaningful_tokens_sha256": "94869728d4ef024e974944b68c6aa5bc7cc5a38b7d7b4e9d535db274f2838b20",
+      "corrected_meaningful_tokens_sha256": "94869728d4ef024e974944b68c6aa5bc7cc5a38b7d7b4e9d535db274f2838b20",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/unset_.rs",
+      "token_count": 1143,
+      "original_meaningful_tokens_sha256": "b5edb5be3018f58c46fe9f2d709944aa8f72b3c45c9fac213fc41105b41bbe72",
+      "corrected_meaningful_tokens_sha256": "b5edb5be3018f58c46fe9f2d709944aa8f72b3c45c9fac213fc41105b41bbe72",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/tcl__build_info.rs",
+      "token_count": 732,
+      "original_meaningful_tokens_sha256": "7e38218048090fb6956e836a836d50a2932ed27eaf72669bbd943c0fb496ef34",
+      "corrected_meaningful_tokens_sha256": "7e38218048090fb6956e836a836d50a2932ed27eaf72669bbd943c0fb496ef34",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-spec-studio/src/lib.rs",
+      "token_count": 4576,
+      "original_meaningful_tokens_sha256": "5e7cd1285e6c6f86cf2665bb6c238d4ec54412af3bc9cc27e30b68c1a34fd1c6",
+      "corrected_meaningful_tokens_sha256": "5e7cd1285e6c6f86cf2665bb6c238d4ec54412af3bc9cc27e30b68c1a34fd1c6",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-spec-studio/tests/pack_store.rs",
+      "token_count": 2437,
+      "original_meaningful_tokens_sha256": "190547f2a9be5573162261e8e17275b12db0ae2edad744627afb2ea150ff7ee6",
+      "corrected_meaningful_tokens_sha256": "190547f2a9be5573162261e8e17275b12db0ae2edad744627afb2ea150ff7ee6",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-spectcl/src/bundled.rs",
+      "token_count": 3199,
+      "original_meaningful_tokens_sha256": "147acaac3a6ebb508916d554c7817a1c82640ec4f62ebd6da3c0e7c8323abb41",
+      "corrected_meaningful_tokens_sha256": "147acaac3a6ebb508916d554c7817a1c82640ec4f62ebd6da3c0e7c8323abb41",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-spectcl/src/install.rs",
+      "token_count": 2413,
+      "original_meaningful_tokens_sha256": "4d0baf37ba3313c122d7bb5532c3fc7b29d3d7acc6fd3bffe5a07c56f9db9541",
+      "corrected_meaningful_tokens_sha256": "4d0baf37ba3313c122d7bb5532c3fc7b29d3d7acc6fd3bffe5a07c56f9db9541",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader.rs",
+      "token_count": 72241,
+      "original_meaningful_tokens_sha256": "a0daa5ce07a5bf707f06d1845d777b51fa0267d3e3f2e4ae1e57bc04122dee79",
+      "corrected_meaningful_tokens_sha256": "a0daa5ce07a5bf707f06d1845d777b51fa0267d3e3f2e4ae1e57bc04122dee79",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/available.rs",
+      "token_count": 1961,
+      "original_meaningful_tokens_sha256": "08fdb132cc5200eb6a8bde7e43b6182b96b914f3ae2ef8d80543abd30a55dbc2",
+      "corrected_meaningful_tokens_sha256": "08fdb132cc5200eb6a8bde7e43b6182b96b914f3ae2ef8d80543abd30a55dbc2",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/surface_roster_trust.rs",
+      "token_count": 391,
+      "original_meaningful_tokens_sha256": "91d63a3c56b8fe8bbc3d0f477c156e14b859b3d348283239eca89c957c3ca960",
+      "corrected_meaningful_tokens_sha256": "91d63a3c56b8fe8bbc3d0f477c156e14b859b3d348283239eca89c957c3ca960",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-sslictcl/src/chain.rs",
+      "token_count": 3699,
+      "original_meaningful_tokens_sha256": "cc576162f0b79a938629126944ec73b2da5f6c9cbf2ae1d7d42c5ab768ccbe81",
+      "corrected_meaningful_tokens_sha256": "cc576162f0b79a938629126944ec73b2da5f6c9cbf2ae1d7d42c5ab768ccbe81",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-syntax/src/expr/errors.rs",
+      "token_count": 1769,
+      "original_meaningful_tokens_sha256": "110d824a4790080c065c1d0bf0fffb69eb2f48662b043e6895ffdbfe975a4d38",
+      "corrected_meaningful_tokens_sha256": "110d824a4790080c065c1d0bf0fffb69eb2f48662b043e6895ffdbfe975a4d38",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-syntax/tests/expr_parser_coverage.rs",
+      "token_count": 6757,
+      "original_meaningful_tokens_sha256": "f7920d1882ee1c06c49c0f54762f7287e6f73a9390d5b33427db2180ef0f4a1d",
+      "corrected_meaningful_tokens_sha256": "f7920d1882ee1c06c49c0f54762f7287e6f73a9390d5b33427db2180ef0f4a1d",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-vm/tests/builtins_e2e.rs",
+      "token_count": 12768,
+      "original_meaningful_tokens_sha256": "23964f4acc6c15b620970a77c7f3f83e0b25b39ddbe0832fbeb6514b8b899f8c",
+      "corrected_meaningful_tokens_sha256": "23964f4acc6c15b620970a77c7f3f83e0b25b39ddbe0832fbeb6514b8b899f8c",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-vm/tests/cmd_control_e2e.rs",
+      "token_count": 7890,
+      "original_meaningful_tokens_sha256": "997c2d38c322fa39dd373c27bcd860998b5ebe6151ad3aae42b313669e9d2638",
+      "corrected_meaningful_tokens_sha256": "997c2d38c322fa39dd373c27bcd860998b5ebe6151ad3aae42b313669e9d2638",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-vm/tests/language_e2e.rs",
+      "token_count": 3679,
+      "original_meaningful_tokens_sha256": "ef0ba5128bdc4e08457f4d6a3811356bc7c8848ce9db863fa30eda3f96cd8671",
+      "corrected_meaningful_tokens_sha256": "ef0ba5128bdc4e08457f4d6a3811356bc7c8848ce9db863fa30eda3f96cd8671",
+      "equal": true
+    }
+  ]
+}

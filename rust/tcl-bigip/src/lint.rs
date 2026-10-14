@@ -139,10 +139,6 @@ impl<'a, T> KindMap<'a, T> {
         self.entries.is_empty()
     }
 
-    pub(crate) fn contains_key(&self, key: &str) -> bool {
-        self.index.contains_key(key)
-    }
-
     /// Look up the value for `key`.
     pub(crate) fn get(&self, key: &str) -> Option<&'a T> {
         self.index.get(key).map(|&i| self.entries[i].1)
@@ -220,30 +216,13 @@ pub(crate) fn resolve_name<T>(
     table: &KindMap<'_, T>,
     default_partition: &str,
 ) -> Option<String> {
-    if table.contains_key(name) {
-        return Some(name.to_owned());
-    }
-    if !name.starts_with('/') {
-        let partition = {
-            let p = default_partition.trim_matches('/');
-            if p.is_empty() { "Common" } else { p }
-        };
-        let candidate = format!("/{partition}/{name}");
-        if table.contains_key(&candidate) {
-            return Some(candidate);
-        }
-        if partition != "Common" {
-            let candidate = format!("/Common/{name}");
-            if table.contains_key(&candidate) {
-                return Some(candidate);
-            }
-        }
-    }
-    let suffix = format!("/{name}");
-    table
-        .iter()
-        .find(|(k, _)| k.ends_with(&suffix))
-        .map(|(k, _)| k.to_owned())
+    crate::object_names::object_name_candidates(
+        name,
+        table.iter().map(|(key, _)| (key, key)),
+        crate::object_names::ObjectNamePolicy::Configuration { default_partition },
+    )
+    .first_in_order()
+    .map(ToOwned::to_owned)
 }
 
 // Config merge
