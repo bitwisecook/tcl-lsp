@@ -294,3 +294,40 @@ fn backref_repeat_past_old_cap_still_matches() {
         "(a)\\1*$ must match a 300-character run of the same character"
     );
 }
+
+/// A regular pattern that matches nowhere is a completed no-match, found in
+/// one pass rather than a reachable-set simulation from every start: `(a+)+b`
+/// over 300 `a`s spent the whole budget (seconds) before the leftmost-start
+/// scan, and a long subject now costs work proportional to its length. Where
+/// it does match, the answer is the one the simulation gives from every start.
+#[test]
+fn a_regular_pattern_that_matches_nowhere_is_a_cheap_no_match() {
+    within(5, "unanchored (a+)+b", || {
+        let re = Regex::compile(&cps("(a+)+b"), REG_ADVANCED).expect("compiles");
+        for len in [300, 10_000] {
+            let subject = cps(&"a".repeat(len));
+            let (outcome, spent) =
+                re.exec_metered(&subject, 0, 0, &tcl_regex::ExecLimits::default());
+            assert_eq!(outcome, tcl_regex::ExecOutcome::NoMatch, "{len}");
+            assert!(spent < 20 * len as u64, "{len}: spent {spent}");
+        }
+        let subject = cps(&format!("{}b", "a".repeat(300)));
+        let got = re.exec(&subject, 0, 0);
+        let groups = got.matched().expect("matches");
+        assert_eq!(groups[0], Some(Span { start: 0, end: 301 }));
+        // tclsh 9.0.4: `{0 300} {299 299}`.
+        assert_eq!(
+            groups[1],
+            Some(Span {
+                start: 299,
+                end: 300
+            })
+        );
+        let subject = cps("xxabyyaab");
+        let got = re.exec(&subject, 3, 0);
+        assert_eq!(
+            got.matched().expect("matches")[0],
+            Some(Span { start: 6, end: 9 })
+        );
+    });
+}

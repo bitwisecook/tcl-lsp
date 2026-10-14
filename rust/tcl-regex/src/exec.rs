@@ -506,6 +506,21 @@ impl<'a> Matcher<'a> {
     /// no-match, or the stop that left the search incomplete — a partial
     /// reachable set proves neither the extent nor its absence.
     pub(crate) fn search(&mut self, root: &Node, nsub: usize, from: usize) -> ExecOutcome {
+        // A regular pattern is first scanned for where its leftmost match
+        // starts: no start before it can match, so none is simulated, and a
+        // pattern that matches nowhere is answered by the scan alone.
+        let from = match crate::nfa::Program::compile(root) {
+            Some(program) => match self.leftmost_start(&program, from) {
+                Some(start) => start,
+                None => {
+                    return match self.stop {
+                        Some(stop) => ExecOutcome::Stopped(stop),
+                        None => ExecOutcome::NoMatch,
+                    };
+                }
+            },
+            None => from,
+        };
         for start in from..=self.len() {
             // Re-anchoring `reach` at every start makes the outer scan itself a
             // source of super-linear work; once the budget is spent, stop.
@@ -536,6 +551,81 @@ impl<'a> Matcher<'a> {
         match self.stop {
             Some(stop) => ExecOutcome::Stopped(stop),
             None => ExecOutcome::NoMatch,
+        }
+    }
+
+    /// Where the leftmost match of `program` at or after `from` starts, or
+    /// `None` when there is none — or when the budget ran out first, which
+    /// the recorded stop says. One pass over the subject: the live threads,
+    /// each an instruction and the start it came from, advance a character at
+    /// a time, ordered by start so the earliest start claims an instruction,
+    /// and a new thread starts at each position until a match is seen.
+    fn leftmost_start(&mut self, program: &crate::nfa::Program<'_>, from: usize) -> Option<usize> {
+        use crate::nfa::Inst;
+        let mut claimed = vec![usize::MAX; program.insts.len()];
+        let mut live: Vec<(usize, usize)> = Vec::new();
+        let mut best: Option<usize> = None;
+        for pos in from..=self.len() {
+            if best.is_none() {
+                self.close(program, &mut claimed, &mut live, 0, pos, pos);
+            }
+            if !self.spend_fuel_n(live.len() + 1) {
+                return None;
+            }
+            for &(pc, start) in &live {
+                if matches!(program.insts[pc], Inst::Match) {
+                    best = Some(best.map_or(start, |best| best.min(start)));
+                }
+            }
+            live.retain(|&(_, start)| best.is_none_or(|best| start < best));
+            if pos == self.len() || (live.is_empty() && best.is_some()) {
+                break;
+            }
+            let mut next = Vec::with_capacity(live.len());
+            for &(pc, start) in &live {
+                if let Inst::Set(set) = program.insts[pc]
+                    && set.matches(self.subj[pos])
+                {
+                    self.close(program, &mut claimed, &mut next, pc + 1, start, pos + 1);
+                }
+            }
+            live = next;
+        }
+        best
+    }
+
+    /// Add the thread at `pc` from `start`, and every thread it reaches
+    /// without consuming a character at `pos`, to `threads`: an instruction
+    /// already claimed at `pos` keeps its earlier start.
+    fn close(
+        &self,
+        program: &crate::nfa::Program<'_>,
+        claimed: &mut [usize],
+        threads: &mut Vec<(usize, usize)>,
+        pc: usize,
+        start: usize,
+        pos: usize,
+    ) {
+        use crate::nfa::Inst;
+        let mut pending = vec![pc];
+        while let Some(pc) = pending.pop() {
+            if claimed[pc] == pos {
+                continue;
+            }
+            claimed[pc] = pos;
+            match program.insts[pc] {
+                Inst::Set(_) | Inst::Match => threads.push((pc, start)),
+                Inst::Assert(anchor) => {
+                    if self.anchor_ok(anchor, pos) {
+                        pending.push(pc + 1);
+                    }
+                }
+                Inst::Split(first, second) => {
+                    pending.push(second);
+                    pending.push(first);
+                }
+                Inst::Jump(target) => pending.push(target),
+            }
         }
     }
 
