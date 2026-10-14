@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T13:13:18Z on `work`.
+Current bounded snapshot: 2026-10-14T13:27:48Z on `work`.
 
 Shared command, variable, body and source owners are integrated across compiler/CFG,
 summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
@@ -44,9 +44,14 @@ positioned test-fixture minifier symbols, actual inline codegen admission, Jim c
 original-key/error-frame selection, and the declaration source syntax memo with
 explicit original expansion refusal. Neutral syntax restores current receipts;
 all original DB cold/edit/equivalence and Runtime controls remain required.
-Compiler92 starts13:12 UTC on fresh current source and is RUNNING. Its plan retains
-original controls and budgets, including the unchanged nine Tcltest cases; the
-harness timeout is600 seconds. No semantic result is available.
+Compiler92 remains RUNNING on current frozen source. The first28 controls record
+20 PASS/8 FAIL: four source-cache controls pass (cold3/edit1/shift0/current cached
+versus fresh equality and expansion refusal), SCCP/instance typed-write controls
+and the Native child positive pass, and the original forty-case alias setup passes.
+Namespace import fails; SSA/word/receiver/scalar/dictionary failures remain visible.
+The unchanged original #2286 control is still running with the600-second harness.
+Original source/assertions/budgets remain unchanged. No seal, source-closure or
+complete consumer/cache acceptance follows from these partial results.
 
 Compiler88 builds and seals113 controls:96 PASS/17 nonpassing (13 assertion failures,
 three depth SIGABRTs and one analyser-cap timeout), zero source drift and no missing
