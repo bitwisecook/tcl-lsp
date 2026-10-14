@@ -1,0 +1,15 @@
+{
+  "scope": "Inactive xtask executable caches for sealed141 controls/143 CLI; source/raw results remain retained. Current31owner controls needfreshsourcebuild; activeCompiler160 libraries/executable build untouched.",
+  "files": [
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/xtask-943d0c5a54718e28",
+      "bytes": 243555088,
+      "sha256": "1fdcb7a2d91b54eecc2f1a254d4c888c5452ddc3681e9d6486cdbe2b92f955aa"
+    },
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+      "bytes": 232952520,
+      "sha256": "e6c24b91b57227a7bc62cc088dedb9f42643cea0af061fe946a7292a2c93d236"
+    }
+  ]
+}

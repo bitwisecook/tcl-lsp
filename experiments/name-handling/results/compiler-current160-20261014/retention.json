@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "d1d182e3d2397989efa85bbf655187f5154f5d22124dcda64f55f8b24fdef30f",
+    "source-after.json.gz": "174f2b443e53baced956083c57bf0c6b0b921eb61c3f84dca2b9086611818436",
+    "build.log": "5bda117831b547e127aacc054dd65fa51d96029a98604af60cbcb3a828679fe3",
+    "start.json": "0ad9345abbe60136fe668fc965bdf05ebc77ac64fe89855446e7f22724a08877",
+    "source-before.json.gz": "52f5a325b70ee322b49c436185f3c0243eadf5af2f030f110a1ca5fbcf4276d7"
+  },
+  "scope": "Build-only fixture private helper API failure2; zero selectors run; source subset drift zero. Existing public purpose-specific operand API repair retains originalassertions."
+}

@@ -76,10 +76,10 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 #[cfg(test)]
 use tcl_dialect::BracedVarStyle;
 use tcl_dialect::NumberSyntax;
-use tcl_lexer::{LexerConfig, Token, TokenType};
+use tcl_lexer::LexerConfig;
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use super::{RefactorEdit, Refactoring, command_span_offsets, token_end_offset};
+use super::{RefactorEdit, Refactoring, command_span_offsets};
 use crate::code_actions::ActionKind;
 
 /// Inline the proc called at byte offset `cursor`.
@@ -204,7 +204,7 @@ fn plan_inline(
             source, call, proc_def, analysis, &walk, &body, &nested, numbers,
         );
     }
-    let bindings = bind_arguments(source, call, proc_def)?;
+    let bindings = bind_arguments(source, call, proc_def, &walk)?;
     reject_frame_sensitive_body(source, &body, &nested, &walk)?;
     reject_body_variable_writes(source, &body, &nested, &walk)?;
     let references = body_variable_references(source, &body, &nested, &walk)?;
@@ -559,7 +559,14 @@ fn bind_arguments(
     source: &str,
     call: &tcl_compiler::segmenter::SegmentedCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
+    walk: &super::FrameWalk<'_>,
 ) -> Result<Vec<Binding>, String> {
+    let words = walk
+        .native_words(source, call)
+        .ok_or_else(|| "the call's current original argument words are unavailable".to_owned())?;
+    if words.iter().any(|word| word.group().expand) {
+        return Err("expanded arguments have no fixed original binding topology".to_owned());
+    }
     let params = &proc_def.params;
     let has_args_tail = params.last().is_some_and(|param| param.name == "args");
     let fixed = if has_args_tail {
@@ -572,7 +579,7 @@ fn bind_arguments(
         .take(fixed)
         .filter(|param| !param.has_default)
         .count();
-    let supplied = call.argv.len().saturating_sub(1);
+    let supplied = words.len().saturating_sub(1);
     if supplied < required {
         return Err(format!(
             "the call passes {supplied} argument(s) but '{}' requires {required} — \
@@ -592,8 +599,8 @@ fn bind_arguments(
         // No written argument means the declared default binds.  Only a
         // parameter that *has* one can reach here — the required count was
         // checked above — so an absent default is an unreachable empty value.
-        let (value, evaluation_is_observable) = match call.argv.get(index + 1) {
-            Some(&token) => argument_value(source, token)?,
+        let (value, evaluation_is_observable) = match words.get(index + 1) {
+            Some(word) => argument_value(word)?,
             None => (param.default_value.clone().unwrap_or_default(), false),
         };
         bindings.push(Binding {
@@ -605,56 +612,13 @@ fn bind_arguments(
     Ok(bindings)
 }
 
-/// The **value** a call argument denotes, plus whether producing it is
-/// observable (runs a command or reads a variable).
-///
-/// This is the step a textual splice skips.  A braced word `{a b}` denotes
-/// the value `a b`; a quoted word `"a b"` denotes `a b`; a bare word denotes
-/// itself.  A word carrying a live substitution has no statically-known
-/// value at all, and is reported as such so the caller can refuse.
-fn argument_value(source: &str, token: Token) -> Result<(String, bool), String> {
-    let start = token.span.start() as usize;
-    let end = token_end_offset(source, token) as usize;
-    let raw = source
-        .get(start..end)
-        .ok_or_else(|| "the call argument's source range is unreadable".to_string())?;
-    match token.kind {
-        // A braced word is a literal: its contents reach the command
-        // byte-for-byte, with no substitution applied.
-        TokenType::Str => Ok((
-            raw.strip_prefix('{')
-                .and_then(|rest| rest.strip_suffix('}'))
-                .unwrap_or(raw)
-                .to_string(),
-            false,
-        )),
-        TokenType::Var | TokenType::Cmd => Err(format!(
-            "the argument `{raw}` is substituted at run time, so its value is \
-             not known here"
-        )),
-        _ => {
-            if raw.starts_with('"') {
-                let inner = raw
-                    .strip_prefix('"')
-                    .and_then(|rest| rest.strip_suffix('"'))
-                    .unwrap_or(raw);
-                if inner.contains('$') || inner.contains('[') || inner.contains('\\') {
-                    return Err(format!(
-                        "the argument `{raw}` is substituted at run time, so its \
-                         value is not known here"
-                    ));
-                }
-                return Ok((inner.to_string(), false));
-            }
-            if raw.contains('$') || raw.contains('[') || raw.contains('\\') {
-                return Err(format!(
-                    "the argument `{raw}` is substituted at run time, so its value \
-                     is not known here"
-                ));
-            }
-            Ok((raw.to_string(), false))
-        }
-    }
+/// Static argument value from its current complete original word.
+/// Live substitutions remain unavailable to this source-only inline plan.
+fn argument_value(word: &tcl_lexer::NativeWord) -> Result<(String, bool), String> {
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)
+        .and_then(|value| String::from_utf8(value).ok())
+        .ok_or_else(|| "the argument's original static value is unavailable".to_owned())?;
+    Ok((value, false))
 }
 
 /// Refuse a body whose command is frame-sensitive.
@@ -983,6 +947,40 @@ fn is_expr_literal(value: &str, numbers: NumberSyntax) -> bool {
 mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn inline_arguments_use_complete_original_words_and_shared_literal_values() {
+        for source in [
+            "proc show {value} {puts $value}\nshow a\\ b\n",
+            "proc show {value} {puts $value}\nshow \"a\\x20b\"\n",
+            "proc show {value} {puts $value}\nshow {a b}\n",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+            let commands = walk.segment_document(source);
+            let call = commands
+                .iter()
+                .find(|command| command.name() == "show")
+                .unwrap();
+            let procedure = &analysis.all_procs["::show"];
+            let bindings = bind_arguments(source, call, procedure, &walk).unwrap();
+            assert_eq!(bindings.len(), 1);
+            assert_eq!(bindings[0].value, "a b");
+            assert!(!bindings[0].evaluation_is_observable);
+            assert!(
+                outcome_for(source, "show ", tcl_dialect::DialectProfile::plain_tcl()).is_err()
+            );
+        }
+        let source = "proc show {value} {puts $value}\nshow prefix$computed\n";
+        assert!(
+            outcome_for(
+                source,
+                "show prefix",
+                tcl_dialect::DialectProfile::plain_tcl()
+            )
+            .is_err()
+        );
+    }
 
     /// Run the transform at the first occurrence of `needle` in `src`, with the
     /// document analysed under `dialect`.

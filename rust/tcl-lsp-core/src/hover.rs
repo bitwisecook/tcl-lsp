@@ -105,11 +105,9 @@ const WORD_DELIMS: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$
 /// * the cursor isn't on any recognisable identifier or `$var`,
 /// * no proc / class / var matches the resolved word.
 ///
-/// The character index is interpreted as UTF-16 code units per
-/// the LSP spec, but this provider treats it as a char-count
-/// index.  Multi-byte BMP code points round-trip correctly;
-/// supplementary-plane characters can drift by one position
-/// (rare in Tcl source).
+/// Positions use LSP UTF-16 code units. Shared position conversion selects
+/// the corresponding character or byte offset before source lookup, including
+/// supplementary-plane characters.
 #[must_use]
 pub fn hover(
     source: &str,
@@ -2693,14 +2691,10 @@ pub(crate) fn word_char_bounds_kinded(chars: &[char], col: usize) -> Option<(usi
 /// `line` / `character` is out of bounds or the cursor sits on a
 /// delimiter run.
 ///
-/// A word that is the residual tail of a computed name — the literal
-/// fragment after a `${var}` / `[cmd]` substitution in the same word, as in
-/// `${ns}::setdef` — is reported as the *name* it spells (`setdef`), with the
-/// span narrowed past the `::` accordingly.  Keeping the
-/// leading `::` made it indistinguishable from an absolute name, so
-/// resolution looked for a global proc literally called `::setdef` and every
-/// consumer reported nothing; narrowing the span as well is what keeps rename
-/// from eating the namespace separator it must preserve.
+/// A residual literal tail after a `${var}` / `[cmd]` substitution, such as
+/// `setdef` in `${ns}::setdef`, excludes the preceding `::` from its reported
+/// name and span. Rename can then preserve the computed namespace prefix.
+/// This lexical tail alone supplies no command identity.
 #[must_use]
 pub fn find_word_span_at_position(
     source: &str,

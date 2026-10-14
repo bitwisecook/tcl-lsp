@@ -1,0 +1,5 @@
+bare {a b}
+quoted {a b}
+braced {a b}
+literal {$literal [missing]}
+empty {}

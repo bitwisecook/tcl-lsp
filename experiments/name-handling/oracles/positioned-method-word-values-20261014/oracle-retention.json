@@ -1,0 +1,145 @@
+{
+  "purpose": "Original method source-word values and independent rename-empty deletion control; no tcltest/object identity/edit authority",
+  "files": [
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/8.4.20.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/8.4.20.stdout",
+      "sha256": "e457546a8e0160b8bd68fa40af56cf6ac4cc1dfc77c1445978f828ca1c872854",
+      "bytes": 49
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/8.5.19.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/8.5.19.stdout",
+      "sha256": "e457546a8e0160b8bd68fa40af56cf6ac4cc1dfc77c1445978f828ca1c872854",
+      "bytes": 49
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/8.6.18.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/8.6.18.stdout",
+      "sha256": "e457546a8e0160b8bd68fa40af56cf6ac4cc1dfc77c1445978f828ca1c872854",
+      "bytes": 49
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/9.0.4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/9.0.4.stdout",
+      "sha256": "e457546a8e0160b8bd68fa40af56cf6ac4cc1dfc77c1445978f828ca1c872854",
+      "bytes": 49
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/9.1.0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/9.1.0.stdout",
+      "sha256": "e457546a8e0160b8bd68fa40af56cf6ac4cc1dfc77c1445978f828ca1c872854",
+      "bytes": 49
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/Jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/Jim.stdout",
+      "sha256": "e457546a8e0160b8bd68fa40af56cf6ac4cc1dfc77c1445978f828ca1c872854",
+      "bytes": 49
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/control.tcl",
+      "sha256": "a22c6e2979d5d003446a8f4dcfef8b974b97c6b6131fe16e84049ced3cd414ef",
+      "bytes": 117
+    },
+    {
+      "path": "experiment-controls/rename-empty-deletes-command/results.json",
+      "sha256": "13b140b76504329c4e7327b85176c1f9d3b03a0c038d677e74eeab9064091417",
+      "bytes": 2724
+    },
+    {
+      "path": "oracles/8.4.20.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/8.4.20.stdout",
+      "sha256": "54850814013b7a3a909ff0880346b6d48acd6492ca0878aaffa12513fef746cb",
+      "bytes": 137
+    },
+    {
+      "path": "oracles/8.5.19.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/8.5.19.stdout",
+      "sha256": "54850814013b7a3a909ff0880346b6d48acd6492ca0878aaffa12513fef746cb",
+      "bytes": 137
+    },
+    {
+      "path": "oracles/8.6.18.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/8.6.18.stdout",
+      "sha256": "54850814013b7a3a909ff0880346b6d48acd6492ca0878aaffa12513fef746cb",
+      "bytes": 137
+    },
+    {
+      "path": "oracles/9.0.4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/9.0.4.stdout",
+      "sha256": "54850814013b7a3a909ff0880346b6d48acd6492ca0878aaffa12513fef746cb",
+      "bytes": 137
+    },
+    {
+      "path": "oracles/9.1.0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/9.1.0.stdout",
+      "sha256": "54850814013b7a3a909ff0880346b6d48acd6492ca0878aaffa12513fef746cb",
+      "bytes": 137
+    },
+    {
+      "path": "oracles/Jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "oracles/Jim.stdout",
+      "sha256": "54850814013b7a3a909ff0880346b6d48acd6492ca0878aaffa12513fef746cb",
+      "bytes": 137
+    },
+    {
+      "path": "oracles/method-source-word-values.tcl",
+      "sha256": "1487b92389c3de2ca01fba8f249badd23451d7dc7329ba713b129117b30d787a",
+      "bytes": 550
+    },
+    {
+      "path": "oracles/results.json",
+      "sha256": "94c89b5dad482cdf242688446e8be5b1fe0531ab4f822fa2056e6565e9d9b604",
+      "bytes": 2695
+    }
+  ]
+}

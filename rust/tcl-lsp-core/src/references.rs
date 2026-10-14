@@ -2341,10 +2341,8 @@ pub fn method_reference_spans_in_document(
 /// name is argv[1], not the command head.  A bare head equal to the method
 /// name is *not* a call (a `TclOO` method is not a command in the body's
 /// namespace; `<method> …` without `my`/an object errors "invalid command
-/// name"), so only `my`-headed sites match.  `pub(crate)` so
-/// `call_hierarchy`'s method incoming/outgoing-call edges resolve through
-/// the same matcher find-references / rename / the code lens use, instead
-/// of a bare-head comparison that never matches real (`my`-dispatched) Tcl.
+/// name"), so only `my`-headed sites match. Call hierarchy, references,
+/// rename and code lenses share this positioned selector matcher.
 pub(crate) fn scan_my_method_sites(
     source: &str,
     analysis: &AnalysisResult,

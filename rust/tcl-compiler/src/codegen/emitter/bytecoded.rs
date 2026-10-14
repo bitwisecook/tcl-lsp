@@ -2753,7 +2753,7 @@ mod tests {
             let mut ctx = CodegenCtx::new(true, &[], &registry);
             ctx.set_source_image(module.source.clone());
             ctx.invocation_tokens = Some(Box::new(tokens.clone()));
-            assert!(ctx.original_compiler_words().is_none());
+            assert!(ctx.original_variable_operand(&tokens.words()[1]).is_none());
             assert!(!if source.starts_with("global") {
                 global_cmd(&mut ctx, &args)
             } else {
@@ -2787,7 +2787,7 @@ mod tests {
         ctx.native_hook_layout = Some(("upvar".to_owned(), 2));
         assert_eq!(ctx.original_hook_argument(2), Some(0));
         assert_eq!(ctx.original_hook_argument(1), None);
-        assert!(ctx.original_compiler_words().is_none());
+        assert!(ctx.original_variable_operand(&tokens.words()[1]).is_none());
         assert!(!upvar_cmd(
             &mut ctx,
             &["0".to_owned(), "$remote".to_owned(), "local".to_owned()]

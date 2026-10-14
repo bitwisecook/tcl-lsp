@@ -25,6 +25,7 @@ use std::sync::OnceLock;
 
 use tcl_registry::CommandRegistry;
 use tcl_registry::InvocationFacts;
+#[cfg(test)]
 use tcl_registry::prelude::Traits;
 
 use crate::ir::{CommandTokens, Statement};

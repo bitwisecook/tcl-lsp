@@ -1,0 +1,8 @@
+variable method
+literal {{with space}}
+indexed method
+command method
+grouped {{with space}}
+quoted method
+empty {{}}
+empty_variable {{}}
