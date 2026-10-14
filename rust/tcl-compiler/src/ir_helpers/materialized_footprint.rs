@@ -33,7 +33,8 @@ impl VariableWriteEffects {
             (&other.read_names, &mut self.read_names),
         ] {
             for name in found {
-                let root = tcl_syntax::naming::split_array_name_braced(name, true).0;
+                let root = tcl_syntax::naming::split_element_ref(name)
+                    .map_or(name.as_str(), |(root, _)| root);
                 if !names.iter().any(|name| name == root) {
                     names.push(root.to_owned());
                 }

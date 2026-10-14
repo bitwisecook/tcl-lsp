@@ -364,7 +364,9 @@ pub(super) fn transfer_instance_statement(
             match statement {
                 Statement::Call { defs, .. } => {
                     for name in defs {
-                        state.remove(crate::naming::split_array_name_braced(name, true).0);
+                        let root = crate::naming::split_element_ref(name)
+                            .map_or(name.as_str(), |(root, _)| root);
+                        state.remove(root);
                     }
                 }
                 Statement::AssignValue { .. } => {

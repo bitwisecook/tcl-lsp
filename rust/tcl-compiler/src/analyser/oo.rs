@@ -953,6 +953,11 @@ impl Analyser {
         // dynamic in the sense that matters here (`constructor {x} { set a
         // $x }` is entirely readable); the `{*}` test above is what catches
         // the genuinely reflected signature.
+        let original =
+            self.original_logical_member_words(grammar, cmd)
+                .filter(|(statement, _, _)| {
+                    cmd.texts.as_slice() == texts && std::ptr::eq(statement.member, member)
+                });
         member
             .indices_for_call_in(
                 &texts[1..],
@@ -960,6 +965,17 @@ impl Analyser {
                 ArgRole::Name,
             )
             .any(|idx| {
+                if let Some((statement, _, words)) = original.as_ref() {
+                    return words
+                        .get(statement.row.keyword_index + 1 + idx)
+                        .is_none_or(|word| {
+                            tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                                .is_none_or(|value| value.contains(&0))
+                        });
+                }
+                if self.selected_logical_declaration_advice() {
+                    return true;
+                }
                 texts
                     .get(idx + 1)
                     .is_some_and(|w| crate::naming::is_dynamic_word(w))
@@ -4854,6 +4870,46 @@ mod tests {
     }
 
     #[test]
+    fn logical_member_opacity_uses_selected_name_words_instead_of_literal_sigils() {
+        let source = "oo::class create C {method {$literal} {} {}; method {${literal}} {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let class = &analysis.all_classes["::C"];
+        assert!(class.methods.contains_key("$literal"));
+        assert!(class.methods.contains_key("${literal}"));
+        assert!(!class.member_set_incomplete);
+        let unsupported =
+            Analyser::new().analyse("oo::class create C {method {nul\0name} {} {}}", "tcl");
+        let class = &unsupported.all_classes["::C"];
+        assert!(class.methods.contains_key("nul\0name"));
+        assert!(class.member_set_incomplete);
+        for body in [
+            "method $computed {} {}",
+            "method {*}$parts",
+            "method {*}{expanded} {} {}",
+        ] {
+            let source = format!("oo::class create C {{{body}}}");
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            let class = &analysis.all_classes["::C"];
+            assert!(class.member_set_incomplete);
+            assert!(class.methods.values().all(|method| {
+                class
+                    .original_members
+                    .logical_name_operand(
+                        MemberSide::Instance,
+                        method,
+                        analysis.resolved_input.as_ref().unwrap(),
+                        analysis
+                            .retained_command_realm()
+                            .unwrap()
+                            .original_source_image()
+                            .unwrap(),
+                    )
+                    .is_none()
+            }));
+        }
+    }
+
+    #[test]
     fn logical_member_name_ingress_refuses_reconstructed_wrapper_vectors() {
         let source = "oo::class create C {self {method m {} {}}}";
         let analysis = Analyser::new().analyse(source, "tcl");
@@ -4946,6 +5002,11 @@ mod tests {
         );
         class.original_members = Default::default();
         command.argv[2] = command.argv[1];
+        assert!(analyser.member_declaration_is_opaque(
+            &tcl_registry::definer::TCLOO_GRAMMAR,
+            &command,
+            &command.texts,
+        ));
         analyser.retain_logical_member_name_operand(
             &tcl_registry::definer::TCLOO_GRAMMAR,
             &command,

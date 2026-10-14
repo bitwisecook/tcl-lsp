@@ -1,0 +1,44 @@
+{
+  "started_utc": "2026-10-14T17:21:56.581299+00:00",
+  "label": "compiler116-bounded-original-owner-diagnostics",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "source_paths": 34714,
+  "plan": {
+    "exact": [
+      "analyser::per_item::tests::isolated_global_reads_retain_selected_literal_name_and_element_data",
+      "analyser::per_item::tests::multi_method_class_byte_identical",
+      "analyser::per_item::tests::oo_class_with_method",
+      "ssa::original_analysis_definition_selector_tests::named_source_body_tokens_require_the_actual_header_body_and_attachment",
+      "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+      "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+      "word_subst::native_source_lifted_inventory_owner_tests::native_source_braced_expression_inventory_preserves_child_geometry_and_refuses_expansion"
+    ],
+    "temporary_diagnostics": true,
+    "test_timeouts": {
+      "analyser::per_item::tests::isolated_global_reads_retain_selected_literal_name_and_element_data": 60,
+      "analyser::per_item::tests::multi_method_class_byte_identical": 60,
+      "analyser::per_item::tests::oo_class_with_method": 60,
+      "ssa::original_analysis_definition_selector_tests::named_source_body_tokens_require_the_actual_header_body_and_attachment": 60,
+      "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner": 60,
+      "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions": 60,
+      "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits": 60,
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes": 60,
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit": 60,
+      "word_subst::native_source_lifted_inventory_owner_tests::native_source_braced_expression_inventory_preserves_child_geometry_and_refuses_expansion": 60
+    },
+    "priority_filters": [
+      "original_analysis_definition",
+      "native_source_lattice",
+      "native_source_braced",
+      "per_item"
+    ]
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "temporary cfg(test) stage diagnostics"
+}

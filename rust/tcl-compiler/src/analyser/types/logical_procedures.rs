@@ -53,14 +53,9 @@ impl LogicalSourceProcedureDeclaration {
         let cards = realm.original_logical_procedure_body_cards(&input)?;
         let mut cards = cards.into_iter().filter(|card| {
             card.matches_source(image, &input)
-                && card
-                    .scope()
-                    .scope_name_input()
-                    .original_word()
-                    .content_span()
-                    .ok()
-                    == Some(procedure.name_span)
-                && card.scope().scope_body().content_span() == procedure.body_span
+                && card.scope().scope_name_input().original_word().group().span
+                    == procedure.name_span
+                && card.scope().scope_body().extent_span() == procedure.body_span
                 && card
                     .parameters()
                     .iter()
@@ -205,5 +200,34 @@ mod tests {
                 .logical_source_procedure_declaration(&native.all_procs["::N::helper"])
                 .is_none()
         );
+    }
+    #[test]
+    fn logical_procedure_insertions_match_original_fold_extents() {
+        for source in [
+            "namespace eval N {proc {helper} {arg} {return $arg}}",
+            "namespace eval N {proc \"helper\" {arg} {return $arg}}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let procedure = &analysis.all_procs["::N::helper"];
+            let declaration = analysis
+                .logical_source_procedure_declaration(procedure)
+                .expect("original grouped header and body fold geometry");
+            assert_eq!(declaration.name(), Some("helper"));
+            assert_eq!(
+                declaration
+                    .source_word(analysis.body_lexer_config.unwrap())
+                    .as_deref(),
+                Some("::N::helper")
+            );
+            let mut changed = analysis.clone();
+            let procedure = changed.all_procs.get_mut("::N::helper").unwrap();
+            procedure.body_span =
+                tcl_lexer::Span::new(procedure.body_span.start() + 1, procedure.body_span.end());
+            assert!(
+                changed
+                    .logical_source_procedure_declaration(&changed.all_procs["::N::helper"])
+                    .is_none()
+            );
+        }
     }
 }

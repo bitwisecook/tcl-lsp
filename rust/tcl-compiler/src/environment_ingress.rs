@@ -177,7 +177,14 @@ pub(crate) fn captured_native_namespace_entry_with_owner(
     let (owner, entry) = captured_native_entry_with_request(
         profile,
         |vm| {
-            let _ = vm.invoke_command("namespace", &["eval".into(), namespace.into(), "".into()]);
+            let _ = vm.invoke_command(
+                "namespace",
+                &[
+                    tcl_vm::Value::string("eval"),
+                    tcl_vm::Value::string(namespace),
+                    tcl_vm::Value::string(""),
+                ],
+            );
             vm.try_define_procedure(&procedure, &[], "set entry_probe 1")
                 .expect("authentic namespace procedure definition");
         },
