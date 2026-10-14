@@ -8,7 +8,7 @@
 # The `.pyz` bundles the native `_engine` extension (Rust query engine via PyO3)
 # together with its Python deps (minijinja), built by `shiv`. Because the compiled
 # engine is baked in, each artefact is OS/arch-specific (but runs on any CPython
-# >= 3.9 for that platform — the extension is abi3). `GIT_HASH` is injected at
+# >= 3.10 for that platform — the extension is abi3). `GIT_HASH` is injected at
 # build time so the report footer shows the commit the `.pyz` was built from
 # even when it is later run outside any git checkout — the whole reason this
 # lives in CI rather than only in `make build-report-pyz`.
@@ -86,7 +86,7 @@ jobs:
         with:
           toolchain: stable
 
-      # abi3 wheels run on any CPython >= 3.9; build on a current one.
+      # abi3 wheels run on any CPython >= 3.10; build on a current one.
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"

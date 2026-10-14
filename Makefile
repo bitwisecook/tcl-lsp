@@ -91,7 +91,7 @@ VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-universal.vsix
 VSCE_TARGET ?=
 # Self-contained BIG-IP report .pyz (native `_engine` + MiniJinja bundled by shiv).
 # Native + abi3, so the artefact is OS/arch-specific but runs on any CPython
-# >= 3.9 for that platform; the tag keeps CI matrix outputs from clobbering.
+# >= 3.10 for that platform; the tag keeps CI matrix outputs from clobbering.
 REPORT_PY_DIR  := $(ROOT)rust/bigip-report-gen/python
 REPORT_WHEELS  := $(BUILD_DIR)/report-wheels
 REPORT_PYZ_OS   := $(shell uname -s | tr '[:upper:]' '[:lower:]')

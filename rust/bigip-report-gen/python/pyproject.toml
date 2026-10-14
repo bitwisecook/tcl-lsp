@@ -25,28 +25,19 @@ name = "f5report"
 version = "0.1.0"
 description = "Interactive HTML reports for F5 BIG-IP configs, powered by the f5-query engine via PyO3"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "tcl-lsp contributors" }]
 keywords = ["f5", "big-ip", "bigip", "report", "irules", "pyo3"]
 dependencies = [
     # MiniJinja (Jinja2-compatible) is the single templating engine shared with
     # the Rust generator, so the two backends render the identical template.
-    "minijinja>=2.24,<3",
+    "minijinja>=3.0,<4",
 ]
 
 [project.scripts]
 f5-report = "f5report.__main__:main"
 f5-report-web = "f5report.web:main"
-
-# This package is the one shipped Python artefact and supports 3.9 (see
-# `requires-python` above), which is older than the repo-wide floor in
-# //ruff.toml (py310, forced by `match` in the .claude/skills drivers).  Ruff
-# resolves config per-file by walking up from the file, so this section pins the
-# stricter target for everything under this directory and nothing else: 3.10-only
-# syntax is an error here, tolerated in the ancillary scripts.
-[tool.ruff]
-target-version = "py39"
 
 [tool.maturin]
 # Mixed Rust/Python layout: the native extension (`_engine`) is compiled into

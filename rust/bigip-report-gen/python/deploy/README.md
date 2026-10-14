@@ -52,8 +52,8 @@ The report is then served at `https://<owner>.github.io/<repo>/`.
   Environments → github-pages.
 - **No wasm toolchain needed.** The Mermaid library and the wasm query engine
   are vendored in the repo, so CI only builds the PyO3 extension (Rust + Python
-  + maturin). The extension targets the CPython stable ABI (`abi3`, 3.9 floor),
-  so any CPython ≥ 3.9 on the runner can build a wheel that runs on 3.9+; this
+  + maturin). The extension targets the CPython stable ABI (`abi3`, 3.10 floor),
+  so any CPython ≥ 3.10 on the runner can build a wheel that runs on 3.10+; this
   workflow happens to use 3.14. GitHub Pages imposes no strict CSP, so the
   hosted page is the *full* report — the in-browser query console works there too.
 - Change the input configs by editing the `python -m f5report …` line in the
@@ -67,7 +67,7 @@ native `_engine` extension plus its Python deps (minijinja) bundled by
 attaches the artefacts to the GitHub Release.
 
 Because the compiled engine is baked in, each `.pyz` is **OS/arch-specific** but
-runs on **any CPython ≥ 3.9** for that platform (the extension is `abi3`). On
+runs on **any CPython ≥ 3.10** for that platform (the extension is `abi3`). On
 first run it unpacks to a per-user cache (CPython cannot import a native
 extension straight from a zip). Run it like any script:
 
