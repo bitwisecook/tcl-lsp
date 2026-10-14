@@ -471,11 +471,14 @@ impl CodegenCtx<'_> {
             ExprNode::Unary { op, .. } => unaryop_folds(*op),
             _ => false,
         };
+        // A computed `INT64_MIN` has no literal under 8.4 and 8.5, whose own
+        // string rep of it is `-8`, so the operation stays.
         if foldable
             && let Some(TclValue::Int(i)) =
                 eval_tcl_expr_with_policy(node, &Env::new(), self.fold_policy())
+            && let Some(text) = tcl_syntax::number::spell_wide(i, self.fold_policy().spelling())
         {
-            self.push_lit(&i.to_string());
+            self.push_lit(&text);
             return true;
         }
         match node {

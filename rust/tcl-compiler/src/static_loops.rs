@@ -200,11 +200,19 @@ pub fn summarise_for_statement(
 }
 
 /// A summary's constant from an exact value: the classification when it has
-/// one, else the exact text.
+/// one, else the exact text. A double keeps its text unless that is the
+/// canonical spelling [`exact_of_static`] gives back.
 fn static_of_exact(value: &ExactValue) -> StaticValue {
     match value.numeric {
         Some(NumericValue::Int(i)) => StaticValue::Int(i),
-        Some(NumericValue::Float(f)) => StaticValue::Float(f),
+        Some(NumericValue::Float(f))
+            if value.bytes == tcl_syntax::number::format_double(f).as_bytes() =>
+        {
+            StaticValue::Float(f)
+        }
+        Some(NumericValue::Float(_)) => {
+            StaticValue::Str(String::from_utf8_lossy(&value.bytes).into_owned())
+        }
         Some(NumericValue::Bool(b)) => StaticValue::Bool(b),
         None => StaticValue::Str(String::from_utf8_lossy(&value.bytes).into_owned()),
     }
@@ -216,7 +224,7 @@ fn exact_of_static(value: &StaticValue) -> ExactValue {
     match value {
         StaticValue::Int(i) => ExactValue::int(*i),
         StaticValue::Float(f) => ExactValue {
-            bytes: f.to_string().into_bytes(),
+            bytes: tcl_syntax::number::format_double(*f).into_bytes(),
             numeric: Some(NumericValue::Float(*f)),
             representation: RepresentationEvidence::Unknown,
         },

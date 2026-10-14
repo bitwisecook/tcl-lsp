@@ -239,6 +239,12 @@ pub enum DeclineReason {
     Budget(BudgetLimit),
     /// A regexp search cut short, or an approximate capture.
     Approximate,
+    /// A computed number whose string rep under the target cannot stand in
+    /// for it: a double whose spelling reads back as another value, an
+    /// `INT64_MIN` the release prints as `-8`, or a double whose spelling the
+    /// program may change through `tcl_precision`
+    /// (`tcl_syntax::number::spell_double`, `spell_wide`).
+    Unspellable,
     /// A nested query would demand the query being computed.
     Cycle,
     /// The host is unavailable or quarantined; never cached as
@@ -276,6 +282,7 @@ impl DeclineReason {
             Self::ReleaseAmbiguous(_) => "release-ambiguous",
             Self::Budget(_) => "budget",
             Self::Approximate => "approximate",
+            Self::Unspellable => "unspellable",
             Self::Cycle => "cycle",
             Self::Transient => "transient",
             Self::MalformedAnswer => "malformed-answer",
@@ -312,6 +319,7 @@ mod tests {
             DeclineReason::ReleaseAmbiguous(Axis::IntTower),
             DeclineReason::Budget(BudgetLimit::Fuel),
             DeclineReason::Approximate,
+            DeclineReason::Unspellable,
             DeclineReason::Cycle,
             DeclineReason::Transient,
             DeclineReason::MalformedAnswer,

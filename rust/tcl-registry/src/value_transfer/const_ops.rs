@@ -48,9 +48,12 @@ use std::rc::Rc;
 
 use tcl_cmd_core::error::CmdError;
 use tcl_dialect::{
-    ByteStringEncoding, DialectProfile, NumberSyntax, StringCharacterModel, TclVersion,
+    ByteStringEncoding, DialectProfile, NumberSpelling, NumberSyntax, StringCharacterModel,
+    TclVersion,
 };
-use tcl_syntax::number::{Number, ParseFlags, format_double, parse_whole_with};
+use tcl_syntax::number::{
+    Number, ParseFlags, format_double, parse_whole_with, spell_double, spell_wide,
+};
 use tcl_syntax::value::{DictPairs, ValueError, ValueOps, canonical_dict_slots};
 
 use crate::types::TclType;
@@ -321,6 +324,14 @@ pub struct TargetSemantics {
     /// (`[list # a]` is `{#} a`, so the list is never a comment when it is
     /// evaluated as a script), not in 8.4 (`# a`).
     pub quotes_leading_hash: Option<bool>,
+    /// How a computed number is spelled and read back, when the declared
+    /// release decides it; with none, a double is spelled only where every
+    /// release spells it alike. [`ConstOps::admit`] widens it for a module
+    /// that may set the precision ([`AnalysisContext::precision_written`]).
+    pub spelling: Option<NumberSpelling>,
+    /// Whether the module may set the precision variable — the
+    /// [`AnalysisContext::precision_written`] the run was admitted under.
+    pub precision_written: bool,
     /// The profile, when the request names one.
     pub profile: Option<&'static DialectProfile>,
 }
@@ -353,7 +364,39 @@ impl TargetSemantics {
             byte_strings: release.map(TclVersion::byte_string_encoding),
             source_utf8: release.is_some_and(|v| v >= TclVersion::V9_0),
             quotes_leading_hash: release.map(|v| v >= TclVersion::V8_5),
+            spelling: release.map(|_| NumberSpelling::of_profile(profile)),
+            precision_written: false,
             profile,
+        }
+    }
+
+    /// The text a computed double is written as under this target
+    /// ([`spell_double`]), or `None` where it has none that reads back as
+    /// `f`. With no release named, the text every grammar's spelling agrees
+    /// on.
+    #[must_use]
+    pub fn spell_double(&self, f: f64) -> Option<String> {
+        let under = |spelling: NumberSpelling| {
+            spell_double(f, spelling.with_precision_written(self.precision_written))
+        };
+        match self.spelling {
+            Some(spelling) => under(spelling),
+            None => NumberSyntax::unanimous(|numbers| under(NumberSpelling::of(numbers, None)))
+                .flatten(),
+        }
+    }
+
+    /// The text a computed wide integer is written as under this target
+    /// ([`spell_wide`]): `None` for an `INT64_MIN` the target may print as
+    /// `-8`.
+    #[must_use]
+    pub fn spell_wide(&self, i: i64) -> Option<String> {
+        match self.spelling {
+            Some(spelling) => spell_wide(i, spelling),
+            None => {
+                NumberSyntax::unanimous(|numbers| spell_wide(i, NumberSpelling::of(numbers, None)))
+                    .flatten()
+            }
         }
     }
 
@@ -526,7 +569,10 @@ impl<'ctx> ConstOps<'ctx> {
         }
         budget.charge_work(ADMISSION_CHARGE)?;
         Ok(Self {
-            target: TargetSemantics::of(ctx.profile),
+            target: TargetSemantics {
+                precision_written: ctx.precision_written,
+                ..TargetSemantics::of(ctx.profile)
+            },
             admitted: needs,
             budget,
             fault: None,
@@ -862,14 +908,26 @@ impl ValueOps for ConstOps<'_> {
         ConstValue::text(s)
     }
 
+    /// A computed integer, spelled as the target spells it; an `INT64_MIN`
+    /// the target may print as `-8` poisons the run (`Unspellable`).
     fn new_int(&mut self, n: i64) -> ConstValue {
         let _ = self.charge(1);
+        if self.target.spell_wide(n).is_none() {
+            self.poison(DeclineReason::Unspellable);
+        }
         ConstValue::int(n)
     }
 
+    /// A computed double, spelled as the target spells it; a spelling that
+    /// would not read back as `f`, or one the module's precision may change,
+    /// poisons the run (`Unspellable`).
     fn new_double(&mut self, f: f64) -> ConstValue {
         let _ = self.charge(1);
-        ConstValue::bytes(format_double(f).as_bytes(), Representation::Double)
+        let text = self.target.spell_double(f).unwrap_or_else(|| {
+            self.poison(DeclineReason::Unspellable);
+            format_double(f)
+        });
+        ConstValue::bytes(text.as_bytes(), Representation::Double)
     }
 
     fn new_bool(&mut self, b: bool) -> ConstValue {

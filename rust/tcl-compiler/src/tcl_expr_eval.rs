@@ -51,7 +51,7 @@
 
 use std::collections::HashMap;
 
-use tcl_dialect::{NumberSyntax, StringCharacterModel};
+use tcl_dialect::{NumberSpelling, NumberSyntax, StringCharacterModel};
 use tcl_registry::value_transfer::{
     AnalysisInputs, Axis, Budget, BudgetLimit, CompletionOutcome, DeclineReason, DomainFact,
     EvalAnswer, EvaluationState, ExactValue, ExactValueOrUnavailable, Existence, FactDomain,
@@ -148,15 +148,7 @@ pub type Env = HashMap<String, EnvValue>;
 pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
     // No dialect context: decline the iRules word-operator fold rather than
     // assume plain Tcl (safe — see `FoldOps::is_irules`).
-    eval_with_config(
-        node,
-        env,
-        None,
-        None,
-        false,
-        tcl_syntax::word_rules::WordValueRules::default(),
-        true,
-    )
+    eval_with_config(node, env, FoldPolicy::from_octal(None), None, true)
 }
 
 /// Like [`eval_tcl_expr`] but resolves the *dialect* so a leading-zero decimal
@@ -177,10 +169,8 @@ pub fn eval_tcl_expr_in_dialect(
     eval_with_config(
         node,
         env,
-        leading_zero_is_octal(dialect),
+        FoldPolicy::for_profile(leading_zero_is_octal(dialect), Some(dialect)),
         Some(fold_math_ceiling(dialect)),
-        dialect.is_irules(),
-        tcl_syntax::word_rules::WordValueRules::of_profile(Some(dialect)),
         widens_past_a_wide(Some(dialect)),
     )
 }
@@ -203,15 +193,7 @@ pub fn eval_tcl_expr_with_octal(
     // The caller has resolved the octal policy but not a dialect string, so
     // (as with `eval_tcl_expr`) decline the iRules word-operator fold rather
     // than assume plain Tcl.
-    eval_with_config(
-        node,
-        env,
-        octal,
-        None,
-        false,
-        tcl_syntax::word_rules::WordValueRules::default(),
-        true,
-    )
+    eval_with_config(node, env, FoldPolicy::from_octal(octal), None, true)
 }
 
 /// Like [`eval_tcl_expr_with_octal`] but for the (more common) optimiser call
@@ -278,6 +260,29 @@ pub struct FoldPolicy {
 }
 
 impl FoldPolicy {
+    /// The numeral grammar this policy reads operands under: the dialect's,
+    /// or for a caller that names none, the one its leading-zero rule
+    /// implies (the 8.x octal rule, 8.5's grammar; anything else, 9.0's).
+    #[must_use]
+    pub fn numbers_or_inferred(self) -> NumberSyntax {
+        self.numbers.unwrap_or(if self.octal == Some(true) {
+            NumberSyntax::Tcl85
+        } else {
+            NumberSyntax::default()
+        })
+    }
+
+    /// How the target spells a number it computes: under
+    /// [`Self::numbers_or_inferred`], for the release the dialect runs.
+    #[must_use]
+    pub fn spelling(self) -> NumberSpelling {
+        NumberSpelling::of(
+            self.numbers_or_inferred(),
+            self.dialect
+                .and_then(tcl_dialect::DialectProfile::runtime_version),
+        )
+    }
+
     /// The policy for an explicit octal rule with no known dialect — the
     /// iRules word operators are declined.
     #[must_use]
@@ -339,10 +344,8 @@ pub fn eval_tcl_expr_with_policy(
     eval_with_config(
         node,
         env,
-        policy.octal,
+        policy,
         policy.dialect.map(fold_math_ceiling),
-        policy.is_irules,
-        policy.word_rules,
         widens_past_a_wide(policy.dialect),
     )
 }
@@ -529,34 +532,32 @@ pub fn mathfunc_command_wrappers_available_in_dialect(
 fn eval_with_config(
     node: &ExprNode,
     env: &Env,
-    octal: Option<bool>,
+    policy: FoldPolicy,
     math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
-    is_irules: bool,
-    word_rules: tcl_syntax::word_rules::WordValueRules,
     widens: bool,
 ) -> Option<TclValue> {
     let mut ops = FoldOps {
         env,
-        ambiguous: false,
-        platform: false,
+        declined: None,
         tower: if widens { Tower::Widens } else { Tower::Wide },
-        octal,
+        octal: policy.octal,
         // Without an explicit grammar, infer from the leading-zero policy the
         // caller did resolve: the 8.x octal rule implies the 8.x numeric
         // grammar, and anything else is read as 9.0.
-        numbers: if octal == Some(true) {
+        numbers: if policy.octal == Some(true) {
             NumberSyntax::Tcl85
         } else {
             NumberSyntax::default()
         },
+        spelling: policy.spelling(),
         math_since,
-        is_irules,
-        word_rules,
+        is_irules: policy.is_irules,
+        word_rules: policy.word_rules,
     };
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
     let result = tcl_syntax::expr::eval(node, &mut ops).ok()?;
-    if ops.ambiguous || ops.platform || ops.tower == Tower::Breached || ops.beyond_tower(&result) {
+    if ops.declined.is_some() || ops.tower == Tower::Breached || ops.beyond_tower(&result) {
         // A comparison hit a leading-zero operand whose octal-vs-decimal
         // reading is dialect-dependent and the dialect is unknown, or a
         // comparison the platform decides, or an operand or result past a
@@ -591,15 +592,6 @@ impl FoldValue {
             FoldValue::Str(s) => parse_literal_in(s, numbers),
         }
     }
-    /// Render as a string: raw for `Str`, canonical for numbers.
-    fn to_string_val(&self) -> String {
-        match self {
-            FoldValue::Str(s) => s.clone(),
-            FoldValue::Int(i) => format_tcl_value(&TclValue::Int(*i)),
-            FoldValue::Big(b) => b.to_string(),
-            FoldValue::Float(f) => format_tcl_value(&TclValue::Float(*f)),
-        }
-    }
     fn from_tcl(v: TclValue) -> FoldValue {
         match v {
             TclValue::Int(i) => FoldValue::Int(i),
@@ -628,19 +620,18 @@ enum Tower {
 /// `env`, `[cmd]`/`Raw` are opaque.
 struct FoldOps<'a> {
     env: &'a Env,
-    /// Set when a comparison's folded result would be unreliable, so
-    /// [`eval_tcl_expr`] declines to fold rather than risk a false
-    /// I230 unreachable-branch. Two triggers: a leading-zero integer operand
+    /// Why the walk's value is unreliable though every hook answered, so
+    /// [`eval_tcl_expr`] declines to fold rather than risk a false I230
+    /// unreachable-branch; the first reason stands
+    /// ([`Self::decline`]). Three triggers: a leading-zero integer operand
     /// whose octal-vs-decimal reading is dialect-dependent while
-    /// [`Self::octal`] is unknown (`None`), and the wide-vs-2⁶³-double
-    /// comparison whose answer is platform-dependent in C Tcl (see
-    /// [`numeric_cmp`]).
-    ambiguous: bool,
-    /// Set when a comparison's answer is the platform's rather than a
-    /// release's: the wide-vs-2⁶³-double sliver whose result is undefined
-    /// behaviour in C Tcl (see [`numeric_cmp`]). Declines like
-    /// [`Self::ambiguous`].
-    platform: bool,
+    /// [`Self::octal`] is unknown (`ReleaseAmbiguous(NumeralGrammar)`); the
+    /// wide-vs-2⁶³-double comparison whose answer is undefined behaviour in
+    /// C Tcl, the platform's rather than a release's (see [`numeric_cmp`],
+    /// `ReleaseAmbiguous(Platform)`); and a string operation over a number
+    /// whose string rep the target's spelling cannot give
+    /// ([`Self::text_of`], `Unspellable`).
+    declined: Option<DeclineReason>,
     /// The tower the fold keeps to ([`widens_past_a_wide`]): past it, a
     /// beyond-wide or infinite operand or result folds nothing
     /// ([`Self::beyond_tower`]). The analysis services gate the tower
@@ -649,12 +640,15 @@ struct FoldOps<'a> {
     /// How a bare leading-zero integer (`08`, `010`) is read in `==`/`!=`/`<`/…
     /// numeric eligibility: `Some(true)` = octal (Tcl 8.x — `08`/`09` invalid →
     /// string, `010` → 8), `Some(false)` = decimal (Tcl 9.0 — `08` → 8,
-    /// `010` → 10), `None` = dialect unknown → decline (see [`Self::ambiguous`]).
+    /// `010` → 10), `None` = dialect unknown → decline (see [`Self::declined`]).
     octal: Option<bool>,
     /// The release's numeric-literal grammar for reading operands — which radix
     /// prefixes exist and whether `_` separates digits. Broader than
     /// [`Self::octal`], which is only the leading-zero rule.
     numbers: NumberSyntax,
+    /// How the target spells a computed number — the string rep a string
+    /// operation reads ([`Self::text_of`]).
+    spelling: NumberSpelling,
     /// The newest math-function release the active dialect provides.  A call
     /// to a function introduced *after* this tier folds nothing — the
     /// `::tcl::mathfunc::*` command it would dispatch to does not exist in that
@@ -733,6 +727,32 @@ fn parse_octal_literal(s: &str) -> Option<TclValue> {
 }
 
 impl FoldOps<'_> {
+    /// `value` as a string operation reads it: a string's own text, a
+    /// number's string rep under the target's spelling. A number the
+    /// spelling cannot give — a double under a precision the program may
+    /// set, an `INT64_MIN` the release prints as `-8` — declines the fold
+    /// (`Unspellable`).
+    fn text_of(&mut self, value: &FoldValue) -> String {
+        let spelled = match value {
+            FoldValue::Str(s) => return s.clone(),
+            FoldValue::Big(b) => return b.to_string(),
+            FoldValue::Int(i) => tcl_syntax::number::spell_wide(*i, self.spelling),
+            FoldValue::Float(f) => self
+                .spelling
+                .doubles()
+                .map(|spelling| tcl_syntax::number::format_double_as(*f, spelling)),
+        };
+        spelled.unwrap_or_else(|| {
+            self.decline(DeclineReason::Unspellable);
+            String::new()
+        })
+    }
+
+    /// Record why the fold declines; the first reason stands.
+    fn decline(&mut self, reason: DeclineReason) {
+        self.declined.get_or_insert(reason);
+    }
+
     /// Whether `value` is past a tower the target does not widen to
     /// ([`Self::tower`]).
     fn beyond_tower(&self, value: &FoldValue) -> bool {
@@ -950,7 +970,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             classify_operand(right, self.octal, self.numbers),
         );
         if matches!(lo, Operand::Ambiguous) || matches!(ro, Operand::Ambiguous) {
-            self.ambiguous = true;
+            self.decline(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
             return None;
         }
         match (lo, ro) {
@@ -962,7 +982,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                     // fold. Returning bare `None` would instead fall back to
                     // a string comparison of two numbers, computing a wrong
                     // value.
-                    self.platform = true;
+                    self.decline(DeclineReason::ReleaseAmbiguous(Axis::Platform));
                 }
                 outcome
             }
@@ -970,11 +990,13 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         }
     }
     fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
-        left.to_string_val().cmp(&right.to_string_val())
+        let left = self.text_of(left);
+        left.cmp(&self.text_of(right))
     }
     fn in_list(&mut self, needle: &FoldValue, list: &FoldValue) -> Result<bool, ()> {
-        let n = needle.to_string_val();
-        Ok(split_tcl_list(&list.to_string_val(), self.word_rules).contains(&n))
+        let n = self.text_of(needle);
+        let list = self.text_of(list);
+        Ok(split_tcl_list(&list, self.word_rules).contains(&n))
     }
 
     fn to_bool(&mut self, value: &FoldValue) -> Result<bool, ()> {
@@ -1008,7 +1030,8 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         if !self.is_irules {
             return Err(());
         }
-        apply_irules_string_op(op, &left.to_string_val(), &right.to_string_val())
+        let (left, right) = (self.text_of(&left), self.text_of(&right));
+        apply_irules_string_op(op, &left, &right)
             .map(FoldValue::from_tcl)
             .ok_or(())
     }
@@ -1710,6 +1733,10 @@ impl<'a> ExprServices<'a> {
     /// Take the value semantics `policy` states.
     fn configure(&mut self, policy: FoldPolicy) {
         self.fold = FoldOps::for_services(policy);
+        self.fold.spelling = self
+            .fold
+            .spelling
+            .with_precision_written(self.inputs.context().precision_written);
         self.widens = policy.dialect.map_or(Some(true), |profile| {
             profile
                 .runtime_base
@@ -1825,7 +1852,11 @@ impl<'a> ExprServices<'a> {
             FoldValue::Float(f) => TclValue::Float(*f),
         };
         match number {
-            TclValue::Int(i) => Ok(ExactValue::int(i)),
+            // The release's own string rep, or none where it would not be
+            // the value's: a computed `INT64_MIN` is `-8` on 8.4 and 8.5.
+            TclValue::Int(i) => tcl_syntax::number::spell_wide(i, self.fold.spelling)
+                .map(|_| ExactValue::int(i))
+                .ok_or(DeclineReason::Unspellable),
             TclValue::Big(_) if self.widens != Some(true) => Err(self.tower_reason()),
             // A beyond-wide integer is its canonical decimal spelling, which
             // a later fold re-reads exactly.
@@ -1835,11 +1866,16 @@ impl<'a> ExprServices<'a> {
             TclValue::Float(f) if f.is_infinite() && self.widens != Some(true) => {
                 Err(self.tower_reason())
             }
-            TclValue::Float(f) => Ok(ExactValue {
-                bytes: tcl_syntax::number::format_double(f).into_bytes(),
-                numeric: Some(NumericValue::Float(f)),
-                representation: RepresentationEvidence::Unknown,
-            }),
+            // The release's spelling, when it reads back as the value: 2^64
+            // is `1.844674407370955e+19` from 8.5, which reads back as
+            // 2^64 - 2048, and `1.0/3` is `0.333333333333` under 8.4 and Jim.
+            TclValue::Float(f) => tcl_syntax::number::spell_double(f, self.fold.spelling)
+                .map(|text| ExactValue {
+                    bytes: text.into_bytes(),
+                    numeric: Some(NumericValue::Float(f)),
+                    representation: RepresentationEvidence::Unknown,
+                })
+                .ok_or(DeclineReason::Unspellable),
         }
     }
 }
@@ -1851,15 +1887,11 @@ impl FoldOps<'static> {
     fn for_services(policy: FoldPolicy) -> Self {
         Self {
             env: &NO_ENV,
-            ambiguous: false,
-            platform: false,
+            declined: None,
             tower: Tower::Widens,
             octal: policy.octal,
-            numbers: policy.numbers.unwrap_or(if policy.octal == Some(true) {
-                NumberSyntax::Tcl85
-            } else {
-                NumberSyntax::default()
-            }),
+            numbers: policy.numbers_or_inferred(),
+            spelling: policy.spelling(),
             math_since: None,
             is_irules: policy.is_irules,
             word_rules: policy.word_rules,
@@ -1905,13 +1937,13 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
                     let name = crate::value_transfer::variable_name(&reference)
                         .map_err(ExprStop::Declined)?;
                     let value = tcl_syntax::expr::ExprOps::var(self, &name)?;
-                    bytes.extend_from_slice(value.to_string_val().as_bytes());
+                    bytes.extend_from_slice(self.fold.text_of(&value).as_bytes());
                 }
                 Part::Command(script) => {
                     let script = std::str::from_utf8(script)
                         .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
                     let value = tcl_syntax::expr::ExprOps::command(self, script)?;
-                    bytes.extend_from_slice(value.to_string_val().as_bytes());
+                    bytes.extend_from_slice(self.fold.text_of(&value).as_bytes());
                 }
                 Part::ParseError(_) => {
                     return Err(ExprStop::Declined(DeclineReason::WrongRepresentation));
@@ -2101,11 +2133,8 @@ pub(crate) fn evaluate_expression(
     if let Some(reason) = services.stopped {
         return ExprAnswer::Declined(reason);
     }
-    if services.fold.ambiguous {
-        return ExprAnswer::Declined(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
-    }
-    if services.fold.platform {
-        return ExprAnswer::Declined(DeclineReason::ReleaseAmbiguous(Axis::Platform));
+    if let Some(reason) = services.fold.declined {
+        return ExprAnswer::Declined(reason);
     }
     match services.full_value(&value) {
         Ok(value) => ExprAnswer::Value(value),

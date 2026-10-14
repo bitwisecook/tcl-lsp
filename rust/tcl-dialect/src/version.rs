@@ -636,6 +636,24 @@ impl TclVersion {
         answers.all(|answer| answer == first).then_some(first)
     }
 
+    /// Whether the string rep this release generates for a computed
+    /// `INT64_MIN` is `-8` rather than `-9223372036854775808`.
+    ///
+    /// `TclFormatInt` (`tclUtil.c`, 8.4.20 and 8.5.19) guards the most
+    /// negative `long` with `n == -n || intVal == n`, both signed overflow, so
+    /// the compiler may drop the test, and the digit loop over the negated
+    /// (still negative) value emits one digit and stops at `intVal > 0`.
+    /// `UpdateStringOfInt` spells every 64-bit integer through it on LP64.
+    /// 8.6 negates through `unsigned long` instead. Measured: `expr {-9223372036854775807 - 1}`,
+    /// `expr {~9223372036854775807}` and `expr {int(-9223372036854775808.0)}`
+    /// print `-8` (`string length` 2) on tclsh 8.4.20 and 8.5.19, and the
+    /// digits on 8.6.18, 9.0.4, 9.1.0 and jimsh 0.84; a literal
+    /// `-9223372036854775808` keeps its own spelling everywhere.
+    #[must_use]
+    pub const fn garbles_wide_min(self) -> bool {
+        matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
     /// Whether the core implements `namespace path` (introduced in Tcl 8.5).
     #[must_use]
     pub const fn has_namespace_path(self) -> bool {

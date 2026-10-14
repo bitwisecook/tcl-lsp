@@ -1228,6 +1228,7 @@ and every specialisation inherits them:
 | the fact is not computed at this tier, or the function is over the complexity ceiling | the tier | unavailable (`Unavailable`): not a negative, and every consumer that would need it stays silent |
 | a resource cap is hit: output bytes, allocation before it happens, fuel, depth, request budget, cancellation | the route and the budget | decline (`Budget`), distinct from an unsupported case (`Unsupported`) and from a transient host failure (`Transient`), and never an exact negative |
 | a regexp search was cut short or a capture is approximate | the regexp owner | decline (`Approximate`), never "no match" |
+| a computed number has no text that stands for it under the target: its release spelling reads back as another value (`2^64` from 8.5, `1.0/3` under 8.4 and Jim), it is an `INT64_MIN` 8.4 or 8.5 prints as `-8`, or it is a double and the module may set `tcl_precision` (8.4 to 8.6) | the evaluator (`tcl_syntax::number::spell_double` / `spell_wide`, asked by `ConstOps::new_double` / `new_int` and the expression route's full value) | decline (`Unspellable`) |
 | the answer fails validation | the driver | decline (`MalformedAnswer`) with a load or evaluation notice; the generic conservative result is kept |
 | the statement is a `Barrier` or `UpFrame`, or follows an opaque `switch`, `catch` or `try` whose script runs a command that may write any name | the solver | every tracked value widens |
 

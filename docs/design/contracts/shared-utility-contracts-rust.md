@@ -39,7 +39,7 @@ entry point, or gate moves without this contract being updated.
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_match_bytes`; `string_case_match` | invariant | none |
 | switch body grammar | `rust/tcl-syntax/src/switch_body.rs` | `tokenise_switch_body`; `parse_braced_pairs` | invariant | none |
 | word values (brace / list axes, braced-word recognition) | `rust/tcl-syntax/src/word_rules.rs` | `WordValueRules`; `collapse_braced_word`; `split_list`; `split_list_tolerant`; `split_word_names`; `whole_braced_word` | `LexerGrammar::brace_backslash_newline` and `list_parse` per dialect, carried together because a word-shaped list asks both; brace *balance* is release-invariant, so `whole_braced_word` takes no rules | none |
-| numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-dialect/src/expr_number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `is_expr_number`; `scan_expr_number`; `scan_nan_payload`; `NumberSyntax` | `NumberSyntax` and expression-word grammar per release | `xtask-number-drift` |
+| numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-syntax/src/number/print_double.rs`; `rust/tcl-dialect/src/expr_number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `is_expr_number`; `scan_expr_number`; `scan_nan_payload`; `NumberSyntax`; `format_double`; `format_double_as`; `spell_double`; `spell_wide`; `NumberSpelling` | `NumberSyntax` and expression-word grammar per release; `NumberSpelling` (double spelling, `tcl_precision`, the 8.4/8.5 `INT64_MIN` string rep) per release | `xtask-number-drift` |
 | backslash escapes | `rust/tcl-lexer/src/substitution.rs`; `rust/tcl-syntax/src/backslash.rs`; `rust/tcl-dialect/src/grammar.rs` | `backslash_subst`; `backslash_subst_in`; `decode_bytes_in`; `EscapeSyntax` | `LexerGrammar::escapes` per release | none |
 | C Tcl UTF-8 character reads | `rust/tcl-syntax/src/utf.rs` | `decode`; `decode_with`; `count_chars`; `compare_chars`; `compare_chars_with`; `NUM_UTF_CHARS_VECTORS`; `UTF_NCMP_VECTORS` | Tcl 9.0 `Tcl_UtfToUniChar` (naked trail bytes `0x80..=0x9F` read as cp1252; cut-short and overlong sequences one character per byte); Tcl 8.6 reads differently and is not emulated | none |
 | boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
@@ -239,7 +239,12 @@ the alias whose expression words a later sibling evaluates.
   `_` digit separators, bare leading `0` is decimal), with
   `parse`/`parse_whole`/`parse_whole_with` (`ParseFlags` mirrors
   `TCL_PARSE_INTEGER_ONLY` etc.), `is_expr_number` (which delegates its
-  boundary question below), and `format_double` (`Tcl_PrintDouble`).
+  boundary question below), `format_double` (`Tcl_PrintDouble` from 8.5,
+  C Tcl's power-of-two misprint included) and `format_double_as` (8.4's and
+  Jim's `%.12g` too), and `spell_double` / `spell_wide`, the predicates a
+  folder asks before writing a computed number as source text: the release's
+  spelling only when it reads back as the value, under a
+  `tcl_dialect::NumberSpelling`.
 - `glob` — `string match` globbing (`string_match`,
   `string_case_match`).
 - `switch_body` — the one `switch` pattern/body-pair tokeniser (brace

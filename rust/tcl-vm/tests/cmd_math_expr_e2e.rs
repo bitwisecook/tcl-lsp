@@ -864,16 +864,14 @@ fn expr_runtime_bignum_operands_past_i128() {
 fn expr_runtime_bignum_float_contagion() {
     // A bignum operand mixed with a float converts to its nearest double
     // (C's `TclBignumToDouble`, round-to-nearest-even) and computes in f64 —
-    // never an error.  tclsh 8.6/9.0 agree on the *values*; the printed forms
-    // here are this toolchain's shortest round-trip rendering (tclsh 8.6's
-    // printer emits "1.844674407370955e+19" for exactly 2^64, a string that
-    // re-parses as 2^64 - 2048; `entier(1.5 + 18446744073709551616)` in 8.6
-    // confirms the value is 18446744073709551616).
+    // never an error.  tclsh 8.5.19 to 9.1.0 print exactly 2^64 as
+    // "1.844674407370955e+19", a string that re-parses as 2^64 - 2048
+    // (`entier(1.5 + 18446744073709551616)` is 18446744073709551616 there).
     expr_ab(
         "1.5",
         "18446744073709551616",
         "$a + $b",
-        "1.8446744073709552e+19",
+        "1.844674407370955e+19",
     );
     expr_ab(
         "1.5",
