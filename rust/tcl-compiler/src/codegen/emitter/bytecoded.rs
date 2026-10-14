@@ -35,7 +35,7 @@ use super::super::Op;
 use super::super::Operand;
 use super::super::values::{is_qualified, split_array_ref};
 use super::super::{CodegenCtx, SiteBinding};
-use super::super::{INDEX_END, bytecode_imm, parse_tcl_index};
+use super::super::{INDEX_END, bytecode_imm};
 
 /// Try to emit specialised bytecode for `cmd args...` via a typed registry
 /// hook. Returns `true` if the hook handled the command;
@@ -148,6 +148,9 @@ pub(crate) fn applicable_codegen_binding(
     probe.braced_var = ctx.braced_var;
     probe.dialect = ctx.dialect;
     probe.cmd_arg_braced.clone_from(&ctx.cmd_arg_braced);
+    probe.current_span = ctx.current_span;
+    probe.current_span_is_command = ctx.current_span_is_command;
+    probe.direct_commands.clone_from(&ctx.direct_commands);
     let mut used_generic_invoke = false;
     dispatch_codegen_hook(hook, &mut probe, args, &mut used_generic_invoke).then_some(site)
 }
@@ -229,10 +232,10 @@ fn lrange(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if args.len() != 3 {
         return false;
     }
-    let Some(start_idx) = parse_tcl_index(&args[1]) else {
+    let Some(start_idx) = ctx.literal_index_imm(&args[1]) else {
         return false;
     };
-    let Some(end_idx) = parse_tcl_index(&args[2]) else {
+    let Some(end_idx) = ctx.literal_index_imm(&args[2]) else {
         return false;
     };
     ctx.emit_word_arg(0, &args[0]);

@@ -220,6 +220,7 @@ impl Vm {
             let plain_target = || ScriptCompileTarget {
                 source: &handle.source,
                 namespace: &namespace,
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             };
             let (asm, manifest) = match if self.step_trace_active() {
                 self.compile_plain_function_cached(plain_target())

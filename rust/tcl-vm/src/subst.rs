@@ -35,7 +35,7 @@
 //! convention — a bare `$` is data, `${…}` and `[…]` substitute — is the
 //! owner's `SubstFlags::compiled_word()` rather than a private scanner.
 
-use tcl_runtime_api::Code;
+use tcl_runtime_api::{Code, CommandEvaluation};
 // A braced literal suppresses *all* substitution, so the codegen marks such
 // words by keeping their outer `{...}` braces (see `emit_one_proc_def` /
 // `emit_cmd_subst_arg`); `subst_word` strips them and returns the content
@@ -100,8 +100,8 @@ fn read_var(vm: &mut Vm, name: &str) -> Result<Value, TclError> {
 
 /// Compile + run a command-substitution body, surfacing a non-`OK` completion
 /// as an error rather than silently using the error message as the value.
-fn eval_subst(vm: &mut Vm, inner: &str) -> Result<Value, TclError> {
-    let c = vm.eval_source(inner)?;
+fn eval_subst(vm: &mut Vm, inner: &str, evaluation: CommandEvaluation) -> Result<Value, TclError> {
+    let c = vm.eval_source_as(inner, evaluation)?;
     match c.code {
         tcl_runtime_api::Code::Ok => Ok(c.result),
         tcl_runtime_api::Code::Error => Err(TclError::new(c.result.to_str().to_string())),
@@ -472,8 +472,13 @@ fn parse_var_ref_parts(
 
 /// Substitute a literal word, returning its value. Pure single `${…}` / `[…]`
 /// words return the underlying value (type-preserving); mixed words build a
-/// string.
-pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
+/// string. `evaluation` is how the emulated release evaluates the command the
+/// word belongs to, and so its command substitutions.
+pub fn subst_word(
+    word: &str,
+    vm: &mut Vm,
+    evaluation: CommandEvaluation,
+) -> Result<Value, TclError> {
     let b = word.as_bytes();
     let n = b.len();
 
@@ -488,7 +493,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
         && let Ok(end) = command_end(b, 0, vm.lexer_config())
         && end == n - 1
     {
-        return eval_subst(vm, &word[1..end]);
+        return eval_subst(vm, &word[1..end], evaluation);
     }
     // Fast path: the whole word is one `${name}`.
     //
@@ -572,7 +577,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
             }
             tcl_lexer::word_parts::WordPart::Command(script) => {
                 let inner = String::from_utf8_lossy(script).into_owned();
-                out.push_str(&eval_subst(vm, &inner)?.to_str());
+                out.push_str(&eval_subst(vm, &inner, evaluation)?.to_str());
             }
             // C reports a parse error before the command runs at all: it
             // parses every word of a command before evaluating any of them, so

@@ -3224,6 +3224,7 @@ pub fn function_optimisations<'db>(
         // This synthetic optimisation unit models the ordinary compiler path;
         // it is never a trace/mutation recovery artefact.
         plain_command_dispatch: false,
+        top_level_evaluation: tcl_compiler::ir::CommandEvaluation::Compiled,
         top_level: tcl_compiler::ir::Script::new(),
         procedures: ir_procs,
         methods: HashMap::new(),
@@ -3464,6 +3465,7 @@ fn top_level_only_unit(
             top_level_namespace: cu.ir_module.top_level_namespace.clone(),
             dialect: cu.ir_module.dialect.clone(),
             plain_command_dispatch: cu.ir_module.plain_command_dispatch,
+            top_level_evaluation: cu.ir_module.top_level_evaluation,
             top_level: cu.ir_module.top_level.clone(),
             procedures: HashMap::new(),
             methods: HashMap::new(),

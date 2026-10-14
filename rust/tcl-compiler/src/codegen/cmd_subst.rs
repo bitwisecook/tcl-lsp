@@ -31,19 +31,71 @@ use crate::registry_invocation::compiled_local_name_value;
 use super::emitter::bytecoded::applicable_codegen_binding;
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
 use super::values::{is_qualified, parse_simple_var_ref, split_array_ref};
-use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, str_class_id};
+use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, end_relative_imm, str_class_id};
+
+impl CodegenCtx<'_> {
+    /// The `*_IMM` operand for the literal index word `word`, as the target
+    /// release reads it whatever the length: compiled with its command, or,
+    /// in a command the release evaluates without compiling it, read as the
+    /// command runs. `None` leaves the word to the opcode that reads it at
+    /// run time: a word whose reading turns on the length, an `end+N` the
+    /// release does not settle after the end, and an `end-N` past
+    /// [`tcl_bytecode::INDEX_END_BAND`].
+    pub(crate) fn literal_index_imm(&self, word: &str) -> Option<i32> {
+        use tcl_cmd_core::index::Encoded;
+        match tcl_cmd_core::index::encode(word, self.vm_release(), !self.in_direct_command())? {
+            Encoded::Index(index) => i32::try_from(index).ok(),
+            Encoded::FromEnd(offset) if offset <= 0 => end_relative_imm(offset),
+            Encoded::FromEnd(_) => None,
+            Encoded::Before => Some(-1),
+            Encoded::After => Some(i32::MAX),
+        }
+    }
+
+    /// Whether the release compiles the literal index word `word` apart from
+    /// the reading its command makes as it runs (8.6's `TclIndexEncode`).
+    fn literal_index_reads_apart(&self, word: &str) -> bool {
+        let release = self.vm_release();
+        !self.in_direct_command()
+            && tcl_cmd_core::index::encode(word, release, true)
+                != tcl_cmd_core::index::encode(word, release, false)
+    }
+
+    /// The release the VM runs this compile under.
+    fn vm_release(&self) -> tcl_dialect::TclVersion {
+        self.dialect
+            .map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+                profile.vm_runtime_version
+            })
+    }
+
+    /// Emit `string range` or `lrange` through its immediate opcode where one
+    /// of its literal indices reads apart compiled and as the command runs, so
+    /// a command the release compiles reads it compiled where this compiler
+    /// would otherwise keep the generic invoke.
+    pub(super) fn try_emit_literal_range(&mut self, cmd: &str, args: &[(String, bool)]) -> bool {
+        let apart = |ctx: &Self, words: &[(String, bool)]| {
+            words
+                .iter()
+                .any(|(word, _)| ctx.literal_index_reads_apart(word))
+        };
+        let emitted = match (self.inline_cmd_subst_hook_candidate(cmd, args), args) {
+            (Some(InlineCodegenHookId::String), [_, _, indices @ ..]) if apart(self, indices) => {
+                self.try_emit_string_range_imm(args)
+            }
+            (Some(InlineCodegenHookId::Lrange), [_, indices @ ..]) if apart(self, indices) => {
+                self.try_emit_lrange_imm(args)
+            }
+            _ => false,
+        };
+        if emitted {
+            self.inline_cmd_subst_resolution(cmd, args);
+        }
+        emitted
+    }
+}
 
 // Free functions — pure parsing, no emission state needed
-
-/// Whether a [`parse_tcl_index`] result is encodable as a `*_IMM` index
-/// operand: a non-negative index, or an `end` / `end-N` index
-/// (`<= INDEX_END`). An `end+N` index encodes as `INDEX_END + N`
-/// (> `INDEX_END`) — neither — so it must fall back to the non-immediate
-/// opcode rather than be emitted as a garbage immediate. This is
-/// the same guard `lindex` already applies.
-const fn imm_index_ok(idx: i32) -> bool {
-    idx >= 0 || idx <= INDEX_END
-}
 
 /// Unroll `[set y [set z 42]]` into `["y", "z", "42"]`.
 ///
@@ -1295,7 +1347,8 @@ impl CodegenCtx<'_> {
                     &site.binding,
                     &inline_args,
                     false,
-                ) {
+                ) && !self.try_emit_literal_range(cmd, &inline_args)
+                {
                     return false;
                 }
             }
@@ -1606,6 +1659,30 @@ impl CodegenCtx<'_> {
         self.seen_generic_invoke = true;
     }
 
+    /// Emit `string range` whose indices are both literal words as
+    /// `STR_RANGE_IMM`, as C compiles it in value and statement position
+    /// alike, so a literal index reads as the release compiles it.
+    pub(super) fn try_emit_string_range_imm(&mut self, args: &[(String, bool)]) -> bool {
+        let [(subcmd, _), string, first, last] = args else {
+            return false;
+        };
+        if subcmd != "range" {
+            return false;
+        }
+        let (Some(first), Some(last)) = (
+            self.literal_index_imm(&first.0),
+            self.literal_index_imm(&last.0),
+        ) else {
+            return false;
+        };
+        self.emit_cmd_subst_arg(&string.0, string.1);
+        self.emit(
+            Op::STR_RANGE_IMM,
+            vec![Operand::Imm(first), Operand::Imm(last)],
+        );
+        true
+    }
+
     /// Emit one of String's option-bearing `INVOKE_REPLACE` shapes.
     ///
     /// Both value and statement position call this one guard. The registry
@@ -1743,15 +1820,8 @@ impl CodegenCtx<'_> {
                 self.emit(Op::STR_INDEX, vec![]);
             }
             "range" if sargs.len() == 3 => {
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                let start_idx = parse_tcl_index(&sargs[1].0);
-                let end_idx = parse_tcl_index(&sargs[2].0);
-                if let (Some(s), Some(e)) = (start_idx, end_idx)
-                    && imm_index_ok(s)
-                    && imm_index_ok(e)
-                {
-                    self.emit(Op::STR_RANGE_IMM, vec![Operand::Imm(s), Operand::Imm(e)]);
-                } else {
+                if !self.try_emit_string_range_imm(args) {
+                    self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
                     self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
                     self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
                     self.emit(Op::STR_RANGE, vec![]);
@@ -1951,14 +2021,8 @@ impl CodegenCtx<'_> {
         self.used_inline_cmd_subst = true;
         self.emit_cmd_subst_arg(&args[0].0, args[0].1); // list
         if args.len() == 2 {
-            let idx = parse_tcl_index(&args[1].0);
-            if let Some(idx) = idx {
-                if idx >= 0 || idx <= INDEX_END {
-                    self.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(idx)]);
-                } else {
-                    self.emit_cmd_subst_arg(&args[1].0, args[1].1);
-                    self.emit(Op::LIST_INDEX, vec![]);
-                }
+            if let Some(idx) = self.literal_index_imm(&args[1].0) {
+                self.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(idx)]);
             } else {
                 self.emit_cmd_subst_arg(&args[1].0, args[1].1);
                 self.emit(Op::LIST_INDEX, vec![]);
@@ -1975,23 +2039,33 @@ impl CodegenCtx<'_> {
     }
 
     fn emit_inline_lrange(&mut self, args: &[(String, bool)]) {
-        // Decide between LIST_RANGE_IMM and the generic fallback
-        // *before* emitting any arguments — otherwise the fallback
-        // would push the list a second time, leaving an extra value
-        // on the stack.
-        let start_idx = parse_tcl_index(&args[1].0);
-        let end_idx = parse_tcl_index(&args[2].0);
-        if let (Some(s), Some(e)) = (start_idx, end_idx)
-            && imm_index_ok(s)
-            && imm_index_ok(e)
-        {
+        if self.try_emit_lrange_imm(args) {
             self.used_inline_cmd_subst = true;
-            self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-            self.emit(Op::LIST_RANGE_IMM, vec![Operand::Imm(s), Operand::Imm(e)]);
         } else {
             self.used_inline_cmd_subst = false;
             self.emit_generic_cmd_subst("lrange", args);
         }
+    }
+
+    /// Emit `lrange list first last` whose indices are both literal words as
+    /// `LIST_RANGE_IMM`, deciding before any argument is pushed so a caller
+    /// that falls back pushes the list once.
+    pub(super) fn try_emit_lrange_imm(&mut self, args: &[(String, bool)]) -> bool {
+        let [value, first, last] = args else {
+            return false;
+        };
+        let (Some(first), Some(last)) = (
+            self.literal_index_imm(&first.0),
+            self.literal_index_imm(&last.0),
+        ) else {
+            return false;
+        };
+        self.emit_cmd_subst_arg(&value.0, value.1);
+        self.emit(
+            Op::LIST_RANGE_IMM,
+            vec![Operand::Imm(first), Operand::Imm(last)],
+        );
+        true
     }
 
     fn emit_inline_lreplace(&mut self, args: &[(String, bool)]) {
@@ -2715,9 +2789,9 @@ mod tests {
 
     #[test]
     fn inline_lrange_end_plus_n_falls_back_to_non_imm() {
-        // `end+1` encodes as INDEX_END+1, a garbage immediate, so the
-        // emitter must not use LIST_RANGE_IMM — it falls back to the generic
-        // path.
+        // An `end+N` index is left to the opcode that reads it at run time:
+        // 8.4 to 8.6 sum it with `end` in an `int`, which a long enough value
+        // wraps, so the emitter does not fix it as LIST_RANGE_IMM.
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["lst"], &registry);
         ctx.emit_inline_cmd_subst("[lrange ${lst} 0 end+1]");
@@ -2739,6 +2813,39 @@ mod tests {
             ops.contains(&Op::LIST_RANGE_IMM),
             "end should use LIST_RANGE_IMM, got {ops:?}",
         );
+    }
+
+    /// 8.6 compiles a literal `end` offset past `INT_MAX` after the end, which
+    /// tclsh 8.6.18 shows as `lrange {a b c} 0 end+2147483647` in a proc
+    /// ranging the whole list; 8.5.19 wraps it before the first element
+    /// either way, so its command reads it. Only a command the release
+    /// compiles is fixed: one of the script file `tclsh` runs is read as run.
+    #[test]
+    fn a_literal_end_offset_past_int_is_fixed_where_the_release_compiles_it() {
+        let registry = CommandRegistry::build_default();
+        for (dialect, direct, last) in [
+            ("tcl8.6", false, Some(i32::MAX)),
+            ("tcl8.6", true, None),
+            ("tcl8.5", false, None),
+        ] {
+            let mut ctx = CodegenCtx::new(true, &["lst"], &registry);
+            ctx.dialect = tcl_dialect::DialectProfile::find(dialect);
+            if direct {
+                let span = tcl_lexer::Span::new(0, 1);
+                ctx.direct_commands.push(span);
+                ctx.set_command_source_span(span);
+            }
+            ctx.emit_inline_cmd_subst("[lrange ${lst} 0 end+2147483647]");
+            let range = ctx
+                .instructions
+                .iter()
+                .find(|instruction| instruction.op == Op::LIST_RANGE_IMM);
+            assert_eq!(
+                range.map(|instruction| instruction.operands[1].clone()),
+                last.map(Operand::Imm),
+                "{dialect}, direct: {direct}"
+            );
+        }
     }
 
     // Registry drift: inline codegen hook stamping.

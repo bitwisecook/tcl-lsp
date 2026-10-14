@@ -105,6 +105,9 @@ struct ModuleEmit<'a> {
     /// The pack commands' definitions the module's calls were inlined from:
     /// each procedure binding of a function that names one is claimed.
     references: &'a [crate::ir::ReferenceImport],
+    /// The spans of the top level's own commands where the release evaluates
+    /// them without compiling them ([`IrModule::top_level_evaluation`]).
+    direct_commands: Vec<tcl_lexer::Span>,
 }
 
 /// Like [`codegen_function_with_procs`] but threading the module source text so
@@ -131,6 +134,9 @@ fn codegen_function_src(
     ctx.dialect = module.dialect;
     ctx.command_bindings = Some(module.command_bindings);
     ctx.plain_command_dispatch = module.plain_command_dispatch;
+    if !is_proc {
+        ctx.direct_commands.clone_from(&module.direct_commands);
+    }
     ctx.set_indexed_source(
         std::rc::Rc::clone(&module.source),
         module.line_index.clone(),
@@ -365,6 +371,16 @@ fn codegen_module_with_top_context(
         command_bindings: command_mutations,
         plain_command_dispatch: ir_module.plain_command_dispatch,
         references: &ir_module.reference_bodies.imports,
+        direct_commands: if ir_module.top_level_evaluation == crate::ir::CommandEvaluation::Direct {
+            ir_module
+                .top_level
+                .statements
+                .iter()
+                .map(crate::ir::Statement::span)
+                .collect()
+        } else {
+            Vec::new()
+        },
     };
     let top = codegen_function_src(
         &cfg_module.top_level,

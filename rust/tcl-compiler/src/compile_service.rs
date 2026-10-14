@@ -41,8 +41,8 @@ use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::{KeyedVersions, OverlayMiss};
 use tcl_runtime_api::{
-    CompileError, CompileService, FatalTail, ProcedureCompileTarget, ProcedureDispatch,
-    ScriptCommandPlan, ScriptCompileTarget,
+    CommandEvaluation, CompileError, CompileService, FatalTail, ProcedureCompileTarget,
+    ProcedureDispatch, ScriptCommandPlan, ScriptCompileTarget,
 };
 
 enum RegistryTarget {
@@ -216,8 +216,11 @@ impl BytecodeCompileService {
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let registry = self.registry.registry()?;
         Self::compile_target_with(
-            source,
-            "",
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+                evaluation: CommandEvaluation::Compiled,
+            },
             plain_command_dispatch,
             registry.as_ref(),
             self.config,
@@ -233,8 +236,11 @@ impl BytecodeCompileService {
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
-            source,
-            "",
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+                evaluation: CommandEvaluation::Compiled,
+            },
             plain_command_dispatch,
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
@@ -243,25 +249,25 @@ impl BytecodeCompileService {
     }
 
     fn compile_target_with(
-        source: &str,
-        namespace: &str,
+        target: ScriptCompileTarget<'_>,
         plain_command_dispatch: bool,
         registry: &CommandRegistry,
         config: LexerConfig,
         profile: Option<&'static DialectProfile>,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(message) = first_fatal_parse_error_with_config(source, config) {
+        if let Some(message) = first_fatal_parse_error_with_config(target.source, config) {
             return Err(CompileError(message));
         }
         let ir = lower_script_module_for_bytecode(
-            source,
-            namespace,
+            target.source,
+            target.namespace,
             registry,
             config,
             profile,
             plain_command_dispatch,
         );
-        let ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
+        let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
+        ir.top_level_evaluation = target.evaluation;
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
             build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
@@ -344,8 +350,7 @@ impl CompileService for BytecodeCompileService {
     ) -> Result<Self::Module, CompileError> {
         let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
-            target.source,
-            target.namespace,
+            target,
             false,
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
@@ -372,8 +377,7 @@ impl CompileService for BytecodeCompileService {
     ) -> Result<Self::Module, CompileError> {
         let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
-            target.source,
-            target.namespace,
+            target,
             true,
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
@@ -1095,6 +1099,7 @@ mod tests {
         let script = ScriptCompileTarget {
             source,
             namespace: "",
+            evaluation: CommandEvaluation::Compiled,
         };
         let parameters = Vec::new();
         let procedure = ProcedureCompileTarget {
@@ -1164,6 +1169,7 @@ mod tests {
             let script = ScriptCompileTarget {
                 source: "set x 1",
                 namespace: "",
+                evaluation: CommandEvaluation::Compiled,
             };
             let procedure = ProcedureCompileTarget {
                 source: "set x 1",

@@ -30,9 +30,10 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use tcl_bytecode::{
-    ErrorRegion, ErrorStackContext, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand,
+    ErrorRegion, ErrorStackContext, FunctionAsm, INDEX_END, INDEX_END_BAND, Instruction, ModuleAsm,
+    Op, Operand,
 };
-use tcl_runtime_api::{Code, Completion, FatalTail, ScriptCompileTarget};
+use tcl_runtime_api::{Code, CommandEvaluation, Completion, FatalTail, ScriptCompileTarget};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 use tcl_syntax::value::string_char_len;
 
@@ -954,16 +955,16 @@ fn ilen(n: usize) -> i64 {
 /// to `INDEX_END`) against a length.
 ///
 /// `end-N` encodes as `INDEX_END - N` and `end+N` as `INDEX_END + N`
-/// (`parse_tcl_index`), so an end-relative index occupies a band *around*
+/// (`end_relative_imm`), so an end-relative index occupies a band *around*
 /// `INDEX_END`, not just `<= INDEX_END`. Detecting only `<= INDEX_END` would
 /// misread `end+N` as a huge negative plain index, so e.g. `lrange $l
 /// end+1 0` and `lrange $l 0 end+1` would disagree with the uncompiled command
-/// (lrange-5 battery). The band's half-width `1 << 29` sits midway between
-/// `INDEX_END` (`-2^30`) and 0: any plausible `end±N` lands inside it, while no
-/// realistic literal plain index is that far negative.
+/// (lrange-5 battery). The band's half-width `INDEX_END_BAND` sits midway
+/// between `INDEX_END` (`-2^30`) and 0: any plausible `end±N` lands inside it,
+/// while no realistic literal plain index is that far negative.
 fn imm_index(imm: i32, len: usize) -> isize {
     let n = isize::try_from(len).unwrap_or(isize::MAX);
-    if imm <= INDEX_END + (1 << 29) {
+    if imm <= INDEX_END + INDEX_END_BAND {
         (n - 1) + (imm as isize - INDEX_END as isize)
     } else {
         imm as isize
@@ -1224,7 +1225,11 @@ impl Vm {
             if module.source.is_empty() {
                 return err("stale bytecode module has no source for plain dispatch");
             }
-            match self.compile_plain_module(&module.source, &namespace) {
+            match self.compile_plain_module(ScriptCompileTarget {
+                source: &module.source,
+                namespace: &namespace,
+                evaluation: CommandEvaluation::Compiled,
+            }) {
                 Ok(module) => Some(module),
                 Err(error) => return crate::command::completion_from_tcl_error(error),
             }
@@ -2448,6 +2453,7 @@ impl Vm {
                 let child = match self.compile_plain_function_cached(ScriptCompileTarget {
                     source: &instr.source_cmd_text,
                     namespace: &instr.source_command_namespace,
+                    evaluation: instr.evaluation,
                 }) {
                     Ok(asm) => asm,
                     Err(error) => {
@@ -2578,7 +2584,7 @@ impl Vm {
                 if instr.push_verbatim {
                     f.stack.push(Value::string(raw));
                 } else {
-                    match crate::subst::subst_word(&raw, self) {
+                    match crate::subst::subst_word(&raw, self, instr.evaluation) {
                         Ok(v) => f.stack.push(v),
                         // A `break`/`continue`/`return` carried out of a `[…]`
                         // substitution propagates with its own code (an enclosing
@@ -2643,6 +2649,7 @@ impl Vm {
                         let child = match self.compile_plain_function_cached(ScriptCompileTarget {
                             source: &instr.source_cmd_text,
                             namespace: &instr.source_command_namespace,
+                            evaluation: instr.evaluation,
                         }) {
                             Ok(asm) => asm,
                             Err(error) => {

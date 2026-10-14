@@ -311,6 +311,7 @@ impl CompileService for InliningCompilerSvc {
             ScriptCompileTarget {
                 source: src,
                 namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )
@@ -1789,6 +1790,7 @@ fn native_reentry_recompiles_module_in_the_running_namespace() {
             ScriptCompileTarget {
                 source: "expr {1+2}",
                 namespace: "a",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )
@@ -1817,6 +1819,7 @@ fn native_reentry_rejects_a_bare_function_from_another_namespace() {
             ScriptCompileTarget {
                 source: "expr {1+2}",
                 namespace: "a",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )

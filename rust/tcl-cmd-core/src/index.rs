@@ -168,6 +168,69 @@ pub fn compiles_apart(spec: &str, len: usize, release: TclVersion) -> bool {
             })
 }
 
+/// A literal index word fixed ahead of the length it indexes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Encoded {
+    /// This index, zero or more.
+    Index(i64),
+    /// `end` plus this offset.
+    FromEnd(i64),
+    /// Before the first element, whatever the length.
+    Before,
+    /// After the last element, whatever the length.
+    After,
+}
+
+/// The literal index word `spec` as `release` reads it whatever the length,
+/// `None` for a word it reads apart by length or by host, or not at all.
+///
+/// `compiled` says whether the release compiles the word with its command, as
+/// it does a literal in any body it compiles, rather than reading it as the
+/// command runs: 8.6 compiles an index of `string range`, `lindex` and `lrange`
+/// through `TclIndexEncode`, which places an `end` offset that is positive
+/// after the 32-bit wrap after the end, and one below `INT_MIN + 2` before the
+/// first element, whatever the length. Read as the command runs, 8.4 to 8.6
+/// sum `end` and its offset in an `int`, so a positive offset passes
+/// `INT_MAX` and wraps for a long enough value, and that word has no fixed
+/// reading. Measured on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: see
+/// `a_literal_index_is_fixed_as_each_release_compiles_or_reads_it`.
+#[must_use]
+pub fn encode(spec: &str, release: TclVersion, compiled: bool) -> Option<Encoded> {
+    let at = |len| match read_under(spec, len, release) {
+        IndexReading::At(index) => Some(index),
+        IndexReading::Bad | IndexReading::HostLong(_) | IndexReading::Unsure => None,
+    };
+    let (one, two) = (at(1)?, at(2)?);
+    if one == two {
+        return Some(if one < 0 {
+            Encoded::Before
+        } else {
+            Encoded::Index(one)
+        });
+    }
+    // An `end` word: against one element `end` is 0, so the reading is the
+    // offset, as the release reads it.
+    let offset = one;
+    let int_min = i64::from(i32::MIN);
+    if compiled && release == TclVersion::V8_6 {
+        return Some(if offset > 0 {
+            Encoded::After
+        } else if offset < int_min + 2 {
+            Encoded::Before
+        } else {
+            Encoded::FromEnd(offset)
+        });
+    }
+    let sums_in_int = matches!(
+        release,
+        TclVersion::V8_4 | TclVersion::V8_5 | TclVersion::V8_6
+    );
+    // An `int` sum holds for every length only from `INT_MIN + 1` to zero: a
+    // positive offset wraps for a long enough value, and `INT_MIN` for an
+    // empty one.
+    (!sums_in_int || (int_min < offset && offset <= 0)).then_some(Encoded::FromEnd(offset))
+}
+
 /// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
 /// -index`): each spec steps one level. An out-of-range step is an error
 /// (`element <spec> missing from sublist "<list>"`); a non-list step stops,
@@ -1019,6 +1082,106 @@ mod tests {
                     assert!(!compiles_apart(spec, 12, release), "{spec} on {release:?}");
                 }
             }
+        }
+    }
+
+    /// A literal index word fixed as each release reads it whatever the length,
+    /// compiled in a body and read by its command at run time. Measured on
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 with `string index`,
+    /// `string range` from each side, `lindex` and `lrange` over a 12-element
+    /// string and list, each word a literal inside a proc against the same
+    /// word in a variable (`end+2147483647` in a proc ranges the whole string
+    /// on 8.6 and nothing through a variable; 8.5 ranges nothing either way,
+    /// 9.0 and 9.1 the whole string either way). `None` is a reading that turns
+    /// on the length or the host, or `bad index`.
+    #[test]
+    fn a_literal_index_is_fixed_as_each_release_compiles_or_reads_it() {
+        use Encoded::{After, Before, FromEnd, Index};
+        use TclVersion::{V8_4, V8_5, V8_6, V9_0, V9_1};
+        // (spec, release, compiled, read at run time)
+        type Row = (&'static str, TclVersion, Option<Encoded>, Option<Encoded>);
+        let table: &[Row] = &[
+            ("end+2147483647", V8_6, Some(After), None),
+            ("end+2147483646", V8_6, Some(After), None),
+            ("end+2147483637", V8_6, Some(After), None),
+            ("end+2147483636", V8_6, Some(After), None),
+            ("end-2147483649", V8_6, Some(After), None),
+            ("end--2147483647", V8_6, Some(After), None),
+            ("end+1", V8_6, Some(After), None),
+            (
+                "end-2147483647",
+                V8_6,
+                Some(Before),
+                Some(FromEnd(-2_147_483_647)),
+            ),
+            ("end-2147483648", V8_6, Some(Before), None),
+            ("end+2147483648", V8_6, Some(Before), None),
+            ("end-1", V8_6, Some(FromEnd(-1)), Some(FromEnd(-1))),
+            ("end", V8_6, Some(FromEnd(0)), Some(FromEnd(0))),
+            ("e", V8_6, Some(FromEnd(0)), Some(FromEnd(0))),
+            ("end+4294967295", V8_6, Some(FromEnd(-1)), Some(FromEnd(-1))),
+            ("end+4294967296", V8_6, None, None),
+            (
+                "2147483647",
+                V8_6,
+                Some(Index(2_147_483_647)),
+                Some(Index(2_147_483_647)),
+            ),
+            ("2147483648", V8_6, Some(Before), Some(Before)),
+            (
+                "-2147483649",
+                V8_6,
+                Some(Index(2_147_483_647)),
+                Some(Index(2_147_483_647)),
+            ),
+            ("1+2147483647", V8_6, Some(Before), Some(Before)),
+            ("010", V8_6, Some(Index(8)), Some(Index(8))),
+            ("-1", V8_6, Some(Before), Some(Before)),
+            ("end+2147483647", V8_5, None, None),
+            ("end-2147483649", V8_5, None, None),
+            (
+                "end-2147483647",
+                V8_5,
+                Some(FromEnd(-2_147_483_647)),
+                Some(FromEnd(-2_147_483_647)),
+            ),
+            ("end-1", V8_5, Some(FromEnd(-1)), Some(FromEnd(-1))),
+            ("2147483648", V8_5, Some(Before), Some(Before)),
+            ("end-2147483649", V8_4, None, None),
+            ("end+1", V8_4, None, None),
+            ("end-1", V8_4, Some(FromEnd(-1)), Some(FromEnd(-1))),
+            (
+                "end+2147483647",
+                V9_0,
+                Some(FromEnd(2_147_483_647)),
+                Some(FromEnd(2_147_483_647)),
+            ),
+            (
+                "end-2147483649",
+                V9_0,
+                Some(FromEnd(-2_147_483_649)),
+                Some(FromEnd(-2_147_483_649)),
+            ),
+            (
+                "2147483648",
+                V9_0,
+                Some(Index(2_147_483_648)),
+                Some(Index(2_147_483_648)),
+            ),
+            ("end+1", V9_1, Some(FromEnd(1)), Some(FromEnd(1))),
+            ("010", V9_1, Some(Index(10)), Some(Index(10))),
+        ];
+        for &(spec, release, compiled, run_time) in table {
+            assert_eq!(
+                encode(spec, release, true),
+                compiled,
+                "{spec:?} compiled on {release:?}"
+            );
+            assert_eq!(
+                encode(spec, release, false),
+                run_time,
+                "{spec:?} read on {release:?}"
+            );
         }
     }
 
