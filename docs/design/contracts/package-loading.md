@@ -58,6 +58,17 @@ package from elsewhere is still circular, and the marker is retired only when
 the loader completes or the coroutine is deleted. Deleting the coroutine also
 withdraws any version the parked loader had already provided, as C does.
 
+Which `errorCode` a package diagnostic sets is release policy, owned by
+`tcl_dialect::TclVersion::package_error_code` over `PackageDiagnostic` and
+consumed by both `tcl-vm` and `runtime/rust`. Measured on tclsh 8.4.20–9.1.0:
+the `TCL PACKAGE …` (`BADRESULT`, `WRONGPROVIDE`, `UNPROVIDED`,
+`CIRCULARITY`, `VERSIONCONFLICT`, `UNFOUND`) and `TCL VALUE VERSION` /
+`VERSIONRANGE` codes arrive at 8.6, `package present`'s
+`TCL LOOKUP PACKAGE NAME` at 8.5; earlier releases leave `NONE`. A loader's
+own `ERROR` keeps its code on every release. 8.4 predates TIP 268: a
+requirement is one bare version (`1-2` is a bad version) and `-exact` is not
+spelled `exactly` in messages (`TclVersion::has_package_requirement_ranges`).
+
 ## Decision rules / contracts
 
 ### Analyser extraction
@@ -439,6 +450,11 @@ withdraws any version the parked loader had already provided, as C does.
   `pull_path_applies_w120_package_refinement`).
 - `tcl-registry/tests/registry_sweep.rs` — registry-wide command / package
   coverage.
+- `tcl-vm/tests/package_diagnostics_e2e.rs` — per-release diagnostic messages
+  and `errorCode`; `runtime/rust/src/cmd_package.rs`
+  `package_error_codes_follow_the_pinned_release`.
+- `tcl-vm/tests/package_coro_e2e.rs` — coroutine suspension through package
+  loading; `tcl-vm/tests/tcltest_load.rs` runs upstream package-3.54.
 
 ## Cross-reference: tclpkg
 
