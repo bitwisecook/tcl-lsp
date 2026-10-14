@@ -95,7 +95,9 @@ pub fn count_chars(bytes: &[u8]) -> usize {
 /// does: the difference of the first pair that differs, else zero. `left_at`
 /// and `right_at` give the byte at an offset into each string, and each is
 /// read as far as `chars` characters take it, a NUL inside a value being a
-/// character like any other.
+/// character like any other. Where both strings reach a terminator at the
+/// same character the rest compares equal: C would read on past both, which
+/// its contract forbids and a raw pointer cannot survive.
 pub fn compare_chars_with(
     chars: usize,
     mut left_at: impl FnMut(usize) -> u8,
@@ -103,6 +105,9 @@ pub fn compare_chars_with(
 ) -> i32 {
     let (mut left, mut right) = (0, 0);
     for _ in 0..chars {
+        if left_at(left) == 0 && right_at(right) == 0 {
+            return 0;
+        }
         let (one, one_width) = decode_with(|step| left_at(left + step));
         let (two, two_width) = decode_with(|step| right_at(right + step));
         if one != two {
@@ -167,7 +172,8 @@ pub const UTF_NCMP_VECTORS: &[(&[u8], &[u8], usize, i32)] = &[
 #[cfg(test)]
 mod tests {
     use super::{
-        NUM_UTF_CHARS_VECTORS, UTF_NCMP_VECTORS, compare_chars, count_chars, decode, decode_with,
+        NUM_UTF_CHARS_VECTORS, UTF_NCMP_VECTORS, compare_chars, compare_chars_with, count_chars,
+        decode, decode_with,
     };
 
     fn counted(bytes: &[u8], length: isize) -> usize {
@@ -213,5 +219,19 @@ mod tests {
         assert_eq!(decode(&[0xE2, 0x82, 0xAC, 0x80]), Some((0x20AC, 3)));
         assert_eq!(decode(&[0xC0, 0x80]), Some((0, 2)));
         assert_eq!(decode(&[0x80]), Some((0x20AC, 1)));
+    }
+
+    #[test]
+    fn equal_strings_stop_at_their_shared_terminator() {
+        let mut furthest = 0;
+        let answer = compare_chars_with(
+            8,
+            |at| {
+                furthest = furthest.max(at);
+                b"ab\0"[at]
+            },
+            |at| b"ab\0"[at],
+        );
+        assert_eq!((answer, furthest), (0, 2));
     }
 }
