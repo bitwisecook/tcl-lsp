@@ -1,0 +1,61 @@
+--- a/rust/tcl-compiler/src/command_binding/original_name_value.rs
++++ b/rust/tcl-compiler/src/command_binding/original_name_value.rs
+@@ -1766,6 +1766,58 @@
+     }
+ 
+     #[test]
++    fn logical_receiver_word_geometry_and_write_card_keep_exact_source_currency() {
++        let source = "namespace eval N {variable x FIRST; set x AGAIN; puts $x}\n";
++        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
++        let realm = analysis.retained_command_realm().unwrap();
++        let image = tcl_lexer::SourceImage::document(source);
++        let config = analysis.body_lexer_config.unwrap();
++        let head = u32::try_from(source.find("set x AGAIN").unwrap()).unwrap();
++        let span = tcl_lexer::Span::new(head + 4, head + 5);
++        let original = realm
++            .original_written_word_at_span_in_source(&image, span, config)
++            .unwrap();
++        assert_eq!(original.1, head);
++        assert_eq!(&image.bytes()[original.0.span().as_range()], b"x");
++        let card = analysis
++            .original_variable_write_advice
++            .iter()
++            .find(|card| card.span() == span)
++            .unwrap();
++        assert!(analysis.logical_original_word_input_matches_source(
++            &image,
++            config,
++            span,
++            card.original_name_input()
++        ));
++        let stale = tcl_lexer::SourceImage::document(&source.replace("AGAIN", "OTHER"));
++        assert!(
++            realm
++                .original_written_word_at_span_in_source(&stale, span, config)
++                .is_none()
++        );
++        assert!(!analysis.logical_original_word_input_matches_source(
++            &stale,
++            config,
++            span,
++            card.original_name_input()
++        ));
++        let mut changed = config;
++        changed.strict_quoting = !changed.strict_quoting;
++        assert!(
++            realm
++                .original_written_word_at_span_in_source(&image, span, changed)
++                .is_none()
++        );
++        assert!(!analysis.logical_original_word_input_matches_source(
++            &image,
++            changed,
++            span,
++            card.original_name_input()
++        ));
++    }
++
++    #[test]
+     fn logical_recorded_name_operands_use_the_checked_source_purpose() {
+         let source = "proc f {value} {return $value}\n";
+         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");

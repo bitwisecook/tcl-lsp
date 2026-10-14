@@ -1,0 +1,7 @@
+{
+  "recorded_utc": "2026-10-14T02:37:29.450787+00:00",
+  "runner_sha256": "a77ed315b97b93783cdb082ae8d96093aa4ab480c07d2de1774cdd5ead3ed1cb",
+  "collector_sha256": "adaba36fa8c72f6df8df50c9a3240b83faedd41648582f8e5af6c0c1f24ddeee",
+  "source_drift": {},
+  "scope": "Build failed before artifact/selector admission. No tests executed."
+}

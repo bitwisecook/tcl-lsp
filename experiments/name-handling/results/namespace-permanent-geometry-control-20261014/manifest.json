@@ -1,0 +1,6 @@
+{
+  "patch_sha256": "8ce309ba1e9fcb4d9b5d8b84ce924a296538a45bba6c8e68a99b62f57b57ae1a",
+  "selector": "command_binding::original_name_value::graph_tests::logical_receiver_word_geometry_and_write_card_keep_exact_source_currency",
+  "validation": "rustfmt and apply-check only; Rust unexecuted",
+  "scope": "Permanent Namespace complete-word/card/shared Logical correspondence positive plus source/config stale refusals. No temporary tracing, old assertions unchanged."
+}

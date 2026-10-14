@@ -1,0 +1,1 @@
+The original Runtime06 build compiles Runtime but stops in the Registry compiler dependency: call tokens are Option<CommandTokens>. Borrow them with as_ref. Full source/provider inventories have zero drift; no semantic controls execute in this capture. The subsequent repair needs fresh execution.

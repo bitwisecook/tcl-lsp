@@ -4911,7 +4911,7 @@ impl<'r> Lowerer<'r> {
         let Statement::Call { args, tokens, .. } = statement else {
             return Vec::new();
         };
-        let possible = tokens.as_deref().and_then(|tokens| {
+        let possible = tokens.as_ref().and_then(|tokens| {
             let context = self.invocation_metadata_context()?;
             let advice = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
                 self.registry, Some(context), tokens,
