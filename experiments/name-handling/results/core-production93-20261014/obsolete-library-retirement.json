@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-14T13:48:45.426678+00:00",
+  "reason": "Superseded sealed-capture Core library variants; actual current Core93 uses distinct active fingerprint. Executed Core84 binary and original source/raw snapshots retained. No current Cargo dependency filenames selected.",
+  "files": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_lsp_core-4639fce1975efd08.rlib",
+      "bytes": 109557128,
+      "sha256": "22acf0b45be8e9a3a541b6c876e23ac1d9fa6844f85efcb8b5454fbcce6a73b7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_lsp_core-62d5b20b9e383aac.rlib",
+      "bytes": 109506774,
+      "sha256": "3508a6556f3b8e92f861509fc1f6db78b28f635a2e6effaf7c01e41761343019"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_lsp_core-4639fce1975efd08.rmeta",
+      "bytes": 8531038,
+      "sha256": "0250fabde3d57369635e0f605a20db92966f6d51620127ebdb0c1dcf346b689e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_lsp_core-62d5b20b9e383aac.rmeta",
+      "bytes": 8531553,
+      "sha256": "011193f057adf7b29e60ff2be3e1f3cae8b8c893f717752c72a16a4fff19b5c7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_lsp_core-44c64824e9a9ce4d.rlib",
+      "bytes": 109504160,
+      "sha256": "f938fa74ff7e5e0f4d143d028b791c5d1b76412775cfa7aeba2a408d70dc6d4c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/libtcl_lsp_core-44c64824e9a9ce4d.rmeta",
+      "bytes": 8531631,
+      "sha256": "7b6bee5c92bc6760f10133606743b895c4e393b6a812bd2fcdb21b3efbac0e47"
+    }
+  ]
+}

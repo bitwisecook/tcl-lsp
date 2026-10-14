@@ -134,6 +134,8 @@ pub struct WorkspaceClass {
         Option<tcl_compiler::signature_scan::original_name::SourceOriginalNameOccurrence>,
     /// Exact original own-table member declarations and effects from that owner.
     pub original_members: Option<tcl_compiler::analyser::types::OriginalSourceMemberLedger>,
+    /// Completed Logical source membership, independent of original Native ledgers.
+    pub logical_declaration: Option<tcl_compiler::analyser::types::LogicalSourceClassDeclaration>,
     /// Original relation operands and receiver-specific effects from that owner.
     pub original_relations:
         Option<tcl_compiler::analyser::types::OriginalSourceClassRelationLedger>,
@@ -2109,6 +2111,9 @@ impl DocumentRecords {
                     )
                     .collect();
             self.classes.push(WorkspaceClass {
+                logical_declaration: analysis
+                    .logical_source_class_declaration(class_def)
+                    .cloned(),
                 original_declaration: original
                     .map(|original| original.original_occurrence().clone()),
                 original_members: original

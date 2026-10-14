@@ -1,0 +1,17 @@
+
+running 1 test
+test hover::tests::hover_inference_keeps_same_named_variables_in_the_selected_source_body ... 
+thread 'hover::tests::hover_inference_keeps_same_named_variables_in_the_selected_source_body' (369103) panicked at rust/tcl-lsp-core/src/hover.rs:3962:13:
+**Variable** `same`
+
+1 declaration(s) and 1 reference(s) in this document
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    hover::tests::hover_inference_keeps_same_named_variables_in_the_selected_source_body
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 0.72s
+

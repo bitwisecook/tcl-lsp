@@ -29,7 +29,7 @@ use crate::ssa::{SsaFunction, SsaStatement, Version};
 use crate::var_escape::helpers::is_dynamic_name;
 use crate::var_escape::types::{EscapeFlags, EscapeTag};
 
-/// Tracked literal binding for the alias-inference path.
+/// Optional assignment hint; dynamic-name alternatives remain open.
 #[derive(Debug, Clone)]
 enum LiteralBinding {
     Set(String),
@@ -300,7 +300,7 @@ impl CfgState {
         self.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
     }
 
-    /// Track *name* = literal *value* under the single-writer rule.
+    /// Track a literal assignment hint; another writer invalidates it.
     pub fn note_literal_assign(&mut self, name: &str, value: &str) {
         if name.is_empty() || is_dynamic_name(name) {
             return;
@@ -347,35 +347,19 @@ impl CfgState {
         }
     }
 
-    /// Resolve a `$n` / `${n}` token to the bound literal under
-    /// the single-writer rule.
+    /// Possible alias spelling from standalone syntax and local assignment hints.
+    /// Dynamic-name uncertainty remains independent of this hint.
     #[must_use]
     pub fn resolve_literal(&self, token: &str) -> Option<String> {
-        if token.is_empty() || !token.starts_with('$') {
-            return None;
-        }
-        let inner = if let Some(rest) = token.strip_prefix("${") {
-            rest.strip_suffix('}')?
-        } else {
-            &token[1..]
-        };
-        if inner.is_empty() || inner.contains('[') || inner.contains(']') || inner.contains('$') {
-            return None;
-        }
-        let binding = self.literal_assigns.get(inner)?;
-        let LiteralBinding::Set(literal) = binding else {
-            return None;
-        };
-        if literal.is_empty() {
-            return None;
-        }
-        if !literal
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':')
-        {
-            return None;
-        }
-        Some(literal.clone())
+        tcl_syntax::naming::unattributed_variable_alias_hint(
+            token,
+            tcl_lexer::LexerConfig::default(),
+            |reference| match self.literal_assigns.get(reference)? {
+                LiteralBinding::Set(value) => Some(value.as_str()),
+                LiteralBinding::Invalidated => None,
+            },
+        )
+        .map(str::to_owned)
     }
 
     /// Convert the accumulated state into a [`CfgEscapeResult`].

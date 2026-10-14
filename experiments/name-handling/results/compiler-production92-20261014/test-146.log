@@ -1,0 +1,15 @@
+
+running 1 test
+test word_subst::readonly_logical_substitution_tests::readonly_logical_input_inventory_keeps_real_expr_and_lexical_children ... 
+thread 'word_subst::readonly_logical_substitution_tests::readonly_logical_input_inventory_keeps_real_expr_and_lexical_children' (366889) panicked at rust/tcl-compiler/src/word_subst.rs:3071:14:
+actual readonly Logical inventory
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    word_subst::readonly_logical_substitution_tests::readonly_logical_input_inventory_keeps_real_expr_and_lexical_children
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9809 filtered out; finished in 0.18s
+

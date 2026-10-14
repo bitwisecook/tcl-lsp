@@ -5757,33 +5757,41 @@ mod tests {
 
     #[test]
     fn for_initialisation_does_not_publish_array_elements_as_scalar_constants() {
-        let registry = CommandRegistry::build_default();
-        let builder = CfgBuilder::new(true, &registry);
-        let statement = |name: &str, condition: &str| Statement::For {
-            span: Span::new(0, 0),
-            init: Script::from_statements(vec![Statement::AssignConst {
-                span: Span::new(0, 0),
-                name: name.into(),
-                name_braced: true,
-                value: "1".into(),
-                value_span: None,
-            }]),
-            init_span: Span::new(0, 0),
-            condition: crate::parse_expr_for_profile(condition, registry.profile()),
-            condition_span: Span::new(0, 0),
-            condition_base: None,
-            next: Script::new(),
-            next_span: Span::new(0, 0),
-            body: Script::new(),
-            body_span: Span::new(0, 0),
-            raw_args: Vec::new(),
-            raw_tokens: None,
-        };
-        assert!(builder.for_runs_at_least_once(&statement("a", "$a == 1")));
-        assert!(builder.for_runs_at_least_once(&statement("$a", "${$a} == 1")));
-        assert!(builder.for_runs_at_least_once(&statement("", "${} == 1")));
-        assert!(!builder.for_runs_at_least_once(&statement("a(key)", "$a == 1")));
-        assert!(!builder.for_runs_at_least_once(&statement("$a(key)", "${$a} == 1")));
+        let registry = native_registry();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let builder = CfgBuilder::new(true, &registry).with_lexer_config(config);
+        for (name, condition, expected) in [
+            ("a", "$a == 1", true),
+            ("$a", "${$a} == 1", true),
+            ("", "${} == 1", true),
+            ("a(key)", "$a == 1", false),
+            ("$a(key)", "${$a} == 1", false),
+        ] {
+            let source = format!("for {{set {{{name}}} 1}} {{{condition}}} {{}} {{}}");
+            let module = crate::lowering::lower_procedure_target_module_for_bytecode_with_options(
+                tcl_runtime_api::ProcedureCompileTarget {
+                    source: &source,
+                    namespace: "",
+                    parameters: &[],
+                },
+                &registry,
+                config,
+                Some(profile),
+                false,
+                None,
+            );
+            let statement = &module.top_level.statements[0];
+            let Statement::For { raw_tokens, .. } = statement else {
+                panic!("original bytecode for grammar: {statement:?}");
+            };
+            assert!(raw_tokens.as_deref().is_some());
+            assert_eq!(
+                builder.for_runs_at_least_once(statement),
+                expected,
+                "{source}"
+            );
+        }
     }
 
     #[test]

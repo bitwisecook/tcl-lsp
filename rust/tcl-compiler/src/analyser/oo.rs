@@ -657,6 +657,24 @@ impl Analyser {
         original: Option<&crate::signature_scan::original_name::SourceOriginalNameOccurrence>,
         class: &ClassDef,
     ) {
+        if self.selected_logical_declaration_advice()
+            && let Some(image) = self
+                .result
+                .retained_command_realm()
+                .filter(|realm| {
+                    realm.matches_resolved_analysis_input(&self.resolved_analysis_input())
+                })
+                .and_then(|realm| realm.original_source_image())
+                .filter(|image| image.bytes() == self.source.as_bytes())
+                .cloned()
+            && let Some(declaration) = super::types::LogicalSourceClassDeclaration::capture(
+                image,
+                self.resolved_analysis_input(),
+                class,
+            )
+        {
+            self.result.logical_class_declarations.push(declaration);
+        }
         if let Some(original) = original
             && let Some(name) = class.source_name.clone()
             && let Some(metadata) =

@@ -1094,23 +1094,12 @@ fn is_static_command_name(name: &str) -> bool {
         && !name.contains(char::is_whitespace)
 }
 
-/// The catalogue package whose name is exactly `head`'s leading namespace
-/// component, ignoring case and any leading `::`.
-///
-/// A bare (unqualified) name has no namespace and therefore yields nothing:
-/// `frobnicate` carries no evidence about which package might define it, and
-/// guessing from a textual resemblance is the behaviour this replaced.  The
-/// leading `::` is stripped first — the fully-qualified spelling is what
-/// library code writes to be unambiguous, and splitting it on `::` without
-/// stripping yields an empty component.
+/// Match the first written qualifier to a catalogue package. This fixture
+/// projection supplies no package availability or command identity.
 #[cfg(test)]
 fn package_named_by_namespace(head: &str, catalogue: &[String]) -> Option<String> {
-    let written = tcl_syntax::naming::canonical_written_command(head);
-    let qualified = tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written);
-    let (namespace, _rest) = qualified.split_once("::")?;
-    if namespace.is_empty() {
-        return None;
-    }
+    let parts = tcl_syntax::naming::written_command_parts(head.as_bytes());
+    let namespace = std::str::from_utf8(parts.qualifiers.first()?).ok()?;
     catalogue
         .iter()
         .find(|package| package.eq_ignore_ascii_case(namespace))

@@ -1,0 +1,15 @@
+
+running 1 test
+test code_lens::tests::lens_qname_exists_agrees_with_code_lenses_output ... 
+thread 'code_lens::tests::lens_qname_exists_agrees_with_code_lenses_output' (368891) panicked at rust/tcl-lsp-core/src/code_lens.rs:1751:13:
+code_lenses emitted a qname the targeted check rejects: helper
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    code_lens::tests::lens_qname_exists_agrees_with_code_lenses_output
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 0.99s
+

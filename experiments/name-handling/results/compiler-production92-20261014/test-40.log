@@ -1,0 +1,15 @@
+
+running 1 test
+test codegen::cmd_subst::tests::current_namespace_emission_requires_its_actual_native_compiler_hook ... 
+thread 'codegen::cmd_subst::tests::current_namespace_emission_requires_its_actual_native_compiler_hook' (365137) panicked at rust/tcl-compiler/src/codegen/mod.rs:639:13:
+native specialisation requires an exact namespace context
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    codegen::cmd_subst::tests::current_namespace_emission_requires_its_actual_native_compiler_hook
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9809 filtered out; finished in 0.40s
+

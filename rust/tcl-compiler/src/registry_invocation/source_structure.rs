@@ -1976,6 +1976,8 @@ fn original_folded_case_subject(
     if trace_enabled {
         trace("case_fold.substitution", None, substitution.is_some());
     }
+    substitution?;
+    #[cfg(test)]
     let (_, source) = substitution?;
     let input = metadata.source_analysis_input()?;
     let config = parent

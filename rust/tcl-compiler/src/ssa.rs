@@ -818,6 +818,9 @@ pub fn original_source_read_at_unit<'a>(
             let Some(binding) = original.source_binding.as_ref() else {
                 continue;
             };
+            if !retained.owns_original_analysis_attachment(&original) {
+                continue;
+            }
             let owner = if binding.has_original_native_source_command() {
                 function.body_id.is_some_and(|body| {
                     binding.original_native_source_owner_for_body(&original, module, body, registry)
@@ -957,6 +960,9 @@ pub fn original_analysis_words_for_statement(
     let mut original = tokens.clone();
     crate::lattice_rebase::rebase_command_tokens(&mut original, function.base_offset);
     let binding = original.source_binding.as_ref()?;
+    retained
+        .owns_original_analysis_attachment(&original)
+        .then_some(())?;
     let config = if binding.has_original_native_source_command() {
         let body = function.body_id?;
         if !binding.original_native_source_owner_for_body(&original, module, body, registry) {
@@ -1029,6 +1035,192 @@ fn current_analysis_function(
     }
 }
 
+fn current_authored_analysis_function(
+    unit: &crate::compilation_unit::CompilationUnit,
+    function: &crate::compilation_unit::FunctionUnit,
+    registry: &CommandRegistry,
+) -> bool {
+    let module = &unit.ir_module;
+    let Some(retained) = module.retained_source_bindings.as_deref() else {
+        return false;
+    };
+    if module.source_metadata_input.is_some()
+        || !module.source_entry.metadata_context.is_standalone()
+        || module.source_entry.native_entry.is_some()
+        || module.source_entry.logical_source_input.is_some()
+        || module.source_entry.vendor_source_input.is_some()
+        || module.source_entry.hosted_execution_context.is_some()
+        || module.source_entry.unknown_entry
+        || function.source_metadata_input().is_some()
+        || function.source_lexer_config().nested().normalized()
+            != module.native_lexer_config().nested().normalized()
+        || module.source.try_text().ok() != Some(unit.source.as_str())
+        || retained.positioned_for_module(module, registry).is_none()
+        || unit
+            .function_for_body(function.body_id)
+            .is_none_or(|current| !std::ptr::eq(current, function))
+    {
+        return false;
+    }
+    match function.body_id {
+        Some(body) => unit
+            .original_procedure_for_body(body)
+            .is_some_and(|procedure| {
+                module
+                    .original_authored_declaration_body_units
+                    .get(&body)
+                    .is_some_and(|card| card.matches_procedure(module, procedure))
+                    && retained.matches_original_procedure_summary(body, procedure)
+                    && unit.original_procedure_cfg_for_body(body) == Some(&function.cfg)
+            }),
+        None => function.cfg == unit.cfg_module.top_level,
+    }
+}
+
+fn original_authored_definition_operands(
+    unit: &crate::compilation_unit::CompilationUnit,
+    function: &crate::compilation_unit::FunctionUnit,
+    original: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<Vec<(tcl_lexer::Span, String)>> {
+    let module = &unit.ir_module;
+    let binding = original.source_binding.as_ref()?;
+    if binding.has_original_native_source_command()
+        || binding.has_original_logical_source_advice()
+        || original.synthetic.is_some()
+        || !original.original_words_match_argv_text()
+    {
+        return None;
+    }
+    let roles = if binding.has_original_authored_source_body_name_role_owner() {
+        let scope =
+            binding.original_authored_source_body_scope_for_name_roles(original, registry)?;
+        scope.matches_module(module).then_some(())?;
+        let body = function.body_id?;
+        module
+            .original_authored_declaration_body_units
+            .get(&body)?
+            .owns_original_source_scope(scope)
+            .then_some(())?;
+        let words = scope.original_words(original, registry)?;
+        if words.iter().any(|word| word.group().expand) {
+            return None;
+        }
+        scope.with_source_schema(original, registry, |schema| {
+            let (roles, complete) = schema.authored_source_argument_roles();
+            (complete && schema.semantics.frame_effect.is_none()).then(|| {
+                roles
+                    .into_iter()
+                    .map(|(argument, role)| {
+                        (schema.facts().argument_offset + usize::from(argument), role)
+                    })
+                    .collect::<Vec<_>>()
+            })
+        })?
+    } else {
+        function.body_id.is_none().then_some(())?;
+        let retained = module.retained_source_bindings.as_deref()?;
+        retained.owns_original_tokens(original).then_some(())?;
+        let grammar =
+            crate::registry_invocation::original_authored_source_structure(original, registry)?
+                .into_closed_source_grammar()?;
+        if grammar.has_original_word_expansion()
+            || grammar.config().nested().normalized()
+                != function.source_lexer_config().nested().normalized()
+        {
+            return None;
+        }
+        grammar.with_source_schema(registry, |schema| {
+            schema.semantics.frame_effect.is_none().then_some(())
+        })?;
+        grammar.written_roles()
+    };
+    let offset = original.words().first()?.source().span.start();
+    let written = crate::registry_invocation::original_native_compiler_words(
+        &module.source,
+        original.words(),
+        offset,
+        module.native_lexer_config(),
+    )?;
+    roles
+        .into_iter()
+        .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
+        .map(|(argument, _)| {
+            let word = written.get(argument.checked_add(1)?)?;
+            if word.group().expand {
+                return None;
+            }
+            let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+            let name = std::str::from_utf8(&value).ok()?.to_owned();
+            Some((word.span(), name))
+        })
+        .collect()
+}
+
+fn original_authored_analysis_definition_at_unit<'a>(
+    unit: &'a crate::compilation_unit::CompilationUnit,
+    span: tcl_lexer::Span,
+    registry: &CommandRegistry,
+) -> Option<OriginalAnalysisSsaDefinition<'a>> {
+    let mut selected: Option<OriginalAnalysisSsaDefinition<'a>> = None;
+    for function in unit.all_body_function_units() {
+        if !current_authored_analysis_function(unit, function, registry) {
+            continue;
+        }
+        for (&block, body) in &function.ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                let view = SsaSourceView::at_statement(&function.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                let mut original = tokens.clone();
+                crate::lattice_rebase::rebase_command_tokens(&mut original, function.base_offset);
+                if unit
+                    .ir_module
+                    .retained_source_bindings
+                    .as_deref()
+                    .is_none_or(|retained| !retained.owns_original_analysis_attachment(&original))
+                {
+                    continue;
+                }
+                let Some(operands) =
+                    original_authored_definition_operands(unit, function, &original, registry)
+                else {
+                    continue;
+                };
+                for (operand_span, name) in operands {
+                    if operand_span != span {
+                        continue;
+                    }
+                    let Some(symbol) = view.symbol(&name) else {
+                        continue;
+                    };
+                    let Some(&version) = statement.defs.get(&symbol) else {
+                        continue;
+                    };
+                    if statement.may_defs.contains(&symbol) {
+                        continue;
+                    }
+                    if selected.as_ref().is_some_and(|old| {
+                        !std::ptr::eq(old.function, function)
+                            || old.symbol != symbol
+                            || old.version != version
+                    }) {
+                        return None;
+                    }
+                    selected = Some(OriginalAnalysisSsaDefinition {
+                        function,
+                        span,
+                        symbol,
+                        version,
+                    });
+                }
+            }
+        }
+    }
+    selected
+}
+
 /// Select a represented source definition by its exact current written occurrence.
 /// Source body purposes remain separate from physical Native definition receipts.
 #[must_use]
@@ -1038,6 +1230,9 @@ pub fn original_analysis_definition_at_unit<'a>(
     registry: &CommandRegistry,
 ) -> Option<OriginalAnalysisSsaDefinition<'a>> {
     let module = &unit.ir_module;
+    if module.source_metadata_input.is_none() {
+        return original_authored_analysis_definition_at_unit(unit, span, registry);
+    }
     let input = module.source_metadata_input.as_ref()?;
     let retained = module.retained_source_bindings.as_deref()?;
     let positioned = retained.positioned_for_module(module, registry)?;
@@ -1058,6 +1253,9 @@ pub fn original_analysis_definition_at_unit<'a>(
                 let Some(binding) = original.source_binding.as_ref() else {
                     continue;
                 };
+                if !retained.owns_original_analysis_attachment(&original) {
+                    continue;
+                }
                 let mut definitions = Vec::new();
                 if binding.has_original_native_source_command() {
                     let Some(body) = function.body_id else {
@@ -13694,5 +13892,185 @@ mod original_analysis_definition_selector_tests {
                 .values()
                 .any(|reference| reference.symbol == read.symbol())
         );
+    }
+}
+
+#[cfg(test)]
+mod original_authored_analysis_definition_selector_tests {
+    use super::*;
+
+    fn unit(source: &str, registry: &CommandRegistry) -> crate::compilation_unit::CompilationUnit {
+        crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source,
+            registry,
+            false,
+            tcl_lexer::LexerConfig::default(),
+        )
+    }
+
+    #[test]
+    fn authored_source_definition_owner_requires_current_module_body_and_standalone_purpose() {
+        let registry = CommandRegistry::build_default();
+        let source = "set value TOP\nproc p {} {set value BODY}\n";
+        let original = unit(source, &registry);
+        assert!(original.ir_module.source_metadata_input.is_none());
+        assert!(
+            original
+                .ir_module
+                .source_entry
+                .metadata_context
+                .is_standalone()
+        );
+        assert!(current_authored_analysis_function(
+            &original,
+            &original.top_level,
+            &registry
+        ));
+        assert_eq!(
+            original
+                .ir_module
+                .original_authored_declaration_body_units
+                .len(),
+            1
+        );
+        let id = *original
+            .ir_module
+            .original_authored_declaration_body_units
+            .keys()
+            .next()
+            .unwrap();
+        let function = original.function_for_body(Some(id)).unwrap();
+        assert!(current_authored_analysis_function(
+            &original, function, &registry
+        ));
+        let mut missing = original.clone();
+        missing.ir_module.source_entry.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(None);
+        assert!(!current_authored_analysis_function(
+            &missing,
+            &missing.top_level,
+            &registry
+        ));
+        let mut stale = original.clone();
+        stale.source.push(' ');
+        assert!(!current_authored_analysis_function(
+            &stale,
+            &stale.top_level,
+            &registry
+        ));
+        let mut changed = original.clone();
+        changed
+            .ir_module
+            .body_units
+            .get_mut(&id)
+            .unwrap()
+            .params
+            .push("foreign".into());
+        assert!(!current_authored_analysis_function(
+            &changed,
+            changed.function_for_body(Some(id)).unwrap(),
+            &registry,
+        ));
+        let other = unit(source, &registry);
+        assert!(!current_authored_analysis_function(
+            &original,
+            &other.top_level,
+            &registry
+        ));
+    }
+
+    #[test]
+    fn authored_body_tokens_keep_the_actual_original_header_attachment() {
+        let registry = CommandRegistry::build_default();
+        let source = "proc p {} {puts BODY}\n";
+        let original = unit(source, &registry);
+        let module = &original.ir_module;
+        assert!(module.source_metadata_input.is_none());
+        let retained = module.retained_source_bindings.as_deref().unwrap();
+        let (id, card) = module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let body = &module.body_units.get(id).unwrap().body;
+        assert!(card.matches_procedure(module, module.body_units.get(id).unwrap()));
+        let tokens = body
+            .retained_source_tokens_for_statement(body.statements.first().unwrap())
+            .unwrap();
+        let scope = tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_authored_source_body_scope_for_name_roles(tokens, &registry)
+            .unwrap();
+        assert!(scope.matches_module(module));
+        assert!(card.owns_original_source_scope(scope));
+        assert!(retained.owns_original_analysis_attachment(tokens));
+        let mut missing = tokens.clone();
+        missing.source_binding = Some(crate::command_binding::SourceInvocationBinding::default());
+        assert!(!retained.owns_original_analysis_attachment(&missing));
+        let foreign = unit(source, &registry);
+        let (_, foreign_card) = foreign
+            .ir_module
+            .original_authored_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let foreign_id = *foreign
+            .ir_module
+            .original_authored_declaration_body_units
+            .keys()
+            .next()
+            .unwrap();
+        let foreign_body = &foreign.ir_module.body_units.get(&foreign_id).unwrap().body;
+        let foreign_tokens = foreign_body
+            .retained_source_tokens_for_statement(foreign_body.statements.first().unwrap())
+            .unwrap();
+        let foreign_scope = foreign_tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_authored_source_body_scope_for_name_roles(foreign_tokens, &registry)
+            .unwrap();
+        assert!(foreign_card.owns_original_source_scope(foreign_scope));
+        assert!(!card.owns_original_source_scope(foreign_scope));
+        assert!(!retained.owns_original_analysis_attachment(foreign_tokens));
+    }
+
+    #[test]
+    fn authored_source_definitions_select_exact_represented_versions() {
+        let registry = CommandRegistry::build_default();
+        let source = "set value 123\nset value TEXT\n";
+        let original = unit(source, &registry);
+        assert!(original.ir_module.source_metadata_input.is_none());
+        let definitions = source
+            .match_indices("set value")
+            .map(|(offset, _)| {
+                let span = tcl_lexer::Span::new(offset as u32 + 4, offset as u32 + 9);
+                original_analysis_definition_at_unit(&original, span, &registry)
+                    .expect("authentic represented Authored source definition")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(definitions.len(), 2);
+        assert!(
+            definitions
+                .iter()
+                .all(|definition| std::ptr::eq(definition.function(), &original.top_level))
+        );
+        assert_eq!(definitions[0].symbol(), definitions[1].symbol());
+        assert_ne!(definitions[0].version(), definitions[1].version());
+        let span = definitions[1].span();
+        assert!(
+            original_analysis_definition_at_unit(
+                &original,
+                tcl_lexer::Span::new(span.start() + 1, span.end()),
+                &registry,
+            )
+            .is_none()
+        );
+        let mut malformed = original.clone();
+        malformed.top_level.source_config.strict_quoting =
+            !malformed.top_level.source_config.strict_quoting;
+        assert!(original_analysis_definition_at_unit(&malformed, span, &registry).is_none());
     }
 }

@@ -1,0 +1,5 @@
+
+running 1 test
+test depth_guard::tests::proved_structured_bodies_fit_the_shared_stack_budget ... 
+thread '<unknown>' (365366) has overflowed its stack
+fatal runtime error: stack overflow, aborting

@@ -1,0 +1,6 @@
+
+running 1 test
+test graphs::tests::graph_calls_use_terminal_alias_identity_without_borrowing_a_displaced_proc ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 1.75s
+

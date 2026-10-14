@@ -31,9 +31,10 @@ Rust receipts retain separate authority.
 - The current original Tcltest scope retains the forty-case alias setup and
   passing missing/undefined sharing controls. The C8.4 #2286 program still
   reports one versus two expected reads, with W210 at bytes160–167; namespace
-  import remains zero versus one. Diagnostic79 times out the unchanged #2286
-  control after180 seconds and supplies no new semantic acceptance. #2286 remains
-  open. Matching original init/Tcltest observations and exact compiler receipts
+  import remains zero versus one. Sealed Compiler92 preserves all original
+  controls: the forty-case setup passes, namespace import fails, and the unchanged
+  #2286 program times out at the600-second harness limit. No assertion or code
+  budget changes; #2286 remains open. Matching original init/Tcltest observations and exact compiler receipts
   are linked from [current-state.md](current-state.md).
 - Both complete packaged highlighting regressions now pass, including the
   import moved inside `::nativeTest`, option pairs and nested commands.

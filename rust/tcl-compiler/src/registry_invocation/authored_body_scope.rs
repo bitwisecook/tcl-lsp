@@ -247,6 +247,28 @@ impl OriginalAuthoredSourceBodyScope {
         }))
     }
 
+    pub(crate) fn original_analysis_attachment(
+        &self,
+    ) -> Option<&Arc<crate::command_binding::OriginalSourceAnalysisOwner>> {
+        self.header
+            .source_binding
+            .as_ref()?
+            .original_analysis_attachment()
+    }
+
+    pub(crate) fn belongs_to_original_scope(&self, original: &Self) -> bool {
+        let mut scope = self;
+        loop {
+            if std::ptr::eq(scope, original) {
+                return true;
+            }
+            let Some(parent) = scope.parent.as_deref() else {
+                return false;
+            };
+            scope = parent;
+        }
+    }
+
     pub(crate) fn matches_module(&self, module: &Module) -> bool {
         self.entry == module.source_entry
             && self.profile == module.dialect_profile

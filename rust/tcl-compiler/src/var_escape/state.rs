@@ -27,12 +27,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use crate::var_escape::helpers::is_dynamic_name;
 use crate::var_escape::types::{Barrier, EscapeFlags, EscapeReason, EscapeTag};
 
-/// Tracked literal binding for the alias-inference path.
-///
-/// `Set(value)` records the literal a variable's first writer
-/// assigned. `Invalidated` marks the binding as untrustworthy
-/// once a second writer or a non-literal value appears — only the
-/// single-writer case is trusted.
+/// Optional assignment hint, invalidated by another writer.
+/// The hint does not close dynamic-name alternatives.
 #[derive(Debug, Clone)]
 enum LiteralBinding {
     Set(String),
@@ -222,10 +218,7 @@ impl EscapeState {
         self.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
     }
 
-    /// Record that *name* was assigned *value* via
-    /// `Statement::AssignConst`. Invalidates the tracked literal
-    /// once a second writer appears: only the single-writer case
-    /// is trusted for alias inference.
+    /// Track a literal assignment hint; another writer invalidates it.
     pub fn note_literal_assign(&mut self, name: &str, value: &str) {
         if name.is_empty() || is_dynamic_name(name) {
             return;
@@ -273,41 +266,19 @@ impl EscapeState {
         }
     }
 
-    /// Resolve a dynamic var-name token (`$n` / `${n}`) to the
-    /// literal it was assigned, if the single-writer rule holds.
-    ///
-    /// Returns `None` when *token* isn't a simple `$name`
-    /// reference, when the tracked literal has been invalidated,
-    /// or when the tracked value isn't a valid Tcl identifier.
+    /// Possible alias spelling from standalone syntax and local assignment hints.
+    /// Dynamic-name uncertainty remains independent of this hint.
     #[must_use]
     pub fn resolve_literal(&self, token: &str) -> Option<String> {
-        if token.is_empty() || !token.starts_with('$') {
-            return None;
-        }
-        let inner = if let Some(rest) = token.strip_prefix("${") {
-            rest.strip_suffix('}')?
-        } else {
-            &token[1..]
-        };
-        if inner.is_empty() || inner.contains('[') || inner.contains(']') || inner.contains('$') {
-            return None;
-        }
-        let binding = self.literal_assigns.get(inner)?;
-        let LiteralBinding::Set(literal) = binding else {
-            return None;
-        };
-        if literal.is_empty() {
-            return None;
-        }
-        // Guard: only plain identifiers (alphanumeric, underscore,
-        // colons).
-        if !literal
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':')
-        {
-            return None;
-        }
-        Some(literal.clone())
+        tcl_syntax::naming::unattributed_variable_alias_hint(
+            token,
+            tcl_lexer::LexerConfig::default(),
+            |reference| match self.literal_assigns.get(reference)? {
+                LiteralBinding::Set(value) => Some(value.as_str()),
+                LiteralBinding::Invalidated => None,
+            },
+        )
+        .map(str::to_owned)
     }
 }
 

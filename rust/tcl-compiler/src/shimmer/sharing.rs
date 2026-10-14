@@ -103,7 +103,6 @@ use tcl_registry::CommandRegistry;
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::def_use::{DefUseResult, UseKind, UseSite};
 use crate::ir::Statement;
-use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, Version};
 
@@ -243,15 +242,11 @@ pub(crate) fn find_sharing_warnings_with_context<S: std::hash::BuildHasher>(
         for (idx, ss) in ssa_block.statements.iter().enumerate() {
             match &ss.statement {
                 Statement::Barrier { .. } | Statement::UpFrame { .. } => pairs.clear(),
-                Statement::AssignValue {
-                    name, value, span, ..
-                } => {
+                Statement::AssignValue { span, .. } => {
                     if let Some(pair) = copy_pair(
                         &ctx,
                         crate::ssa::SsaSourceView::at_statement(ssa, block_id, idx),
                         ss,
-                        name,
-                        value,
                         *span,
                     ) {
                         pairs.push(pair);
@@ -269,6 +264,21 @@ pub(crate) fn find_sharing_warnings_with_context<S: std::hash::BuildHasher>(
     out
 }
 
+/// Scalar destination data from the shared structural name projection.
+/// Array members remain excluded because their root symbol can conflate cells.
+fn copy_destination_name(statement: &Statement) -> Option<String> {
+    let projection = crate::ir_helpers::structural_variable_write_projection(statement);
+    if projection.opaque_variable_frame {
+        return None;
+    }
+    let [name] = projection.literal_names.as_slice() else {
+        return None;
+    };
+    tcl_syntax::naming::split_element_ref(name)
+        .is_none()
+        .then(|| name.clone())
+}
+
 /// Recognise a pure-copy assignment `set dst $src` and build its
 /// [`CopyPair`]. `None` for anything else — a computed value, an excluded
 /// name, a self-copy, or an assignment whose SSA versions are unavailable.
@@ -276,13 +286,16 @@ fn copy_pair(
     ctx: &SharingCtx<'_>,
     source: crate::ssa::SsaSourceView<'_>,
     ss: &crate::ssa::SsaStatement,
-    name: &str,
-    _value: &str,
     span: Span,
 ) -> Option<CopyPair> {
-    let dst_name = normalise_var_name(name);
-    let dst_sym = source.symbol(dst_name)?;
+    let dst_name = copy_destination_name(&ss.statement)?;
+    let dst_sym = source.symbol(&dst_name)?;
     let invocation = ctx.context.statement(&ss.statement)?;
+    (invocation
+        .argument_literal(invocation.argument_offset())?
+        .as_str()
+        == dst_name)
+        .then_some(())?;
     let word = invocation.effective_words().words.get(2)?;
     let place = source.read_word_place(word, ctx.registry)?;
     if matches!(
@@ -300,7 +313,7 @@ fn copy_pair(
     )
     .ok()??;
     let src_name = core::str::from_utf8(root).ok()?;
-    if dst_sym == src_sym || ctx.excluded(dst_name, dst_sym) || ctx.excluded(src_name, src_sym) {
+    if dst_sym == src_sym || ctx.excluded(&dst_name, dst_sym) || ctx.excluded(src_name, src_sym) {
         return None;
     }
     let src_ver = read.version?;
@@ -327,7 +340,10 @@ fn mutation_warning(
     pairs: &[CopyPair],
 ) -> Option<SharingWarning> {
     let target = mutation_target(stmt, ctx.context)?;
-    let target_name = normalise_var_name(&target);
+    if tcl_syntax::naming::split_element_ref(&target).is_some() {
+        return None;
+    }
+    let target_name = target.as_str();
     let target_sym = ctx
         .ssa
         .var_symbol_at(ctx.cfg.block_id(block_name)?, stmt_idx, target_name)?;
@@ -521,6 +537,50 @@ mod tests {
 
     fn warnings_for(src: &str) -> Vec<SharingWarning> {
         warnings_for_fn(src, "::top")
+    }
+
+    #[test]
+    fn sharing_destinations_use_original_scalar_name_data() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = registry.profile().unwrap();
+        for (operand, expected) in [
+            ("plain", Some("plain")),
+            ("{$literal}", Some("$literal")),
+            ("{${literal}}", Some("${literal}")),
+            ("{}", Some("")),
+            ("array(key)", None),
+        ] {
+            let source = format!("proc p {{source}} {{set {operand} $source}}");
+            let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+                &source,
+                registry,
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                Some(profile),
+            );
+            let body = &module.procedures.values().next().unwrap().body;
+            let statement = &body.statements[0];
+            assert!(matches!(statement, Statement::AssignValue { .. }));
+            let tokens = body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .retained_registry_for_tokens(tokens)
+                    .is_some()
+            );
+            assert_eq!(copy_destination_name(statement).as_deref(), expected);
+        }
+        let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+            "proc p {selector source} {set $selector $source}",
+            registry,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            Some(profile),
+        );
+        let statement = &module.procedures.values().next().unwrap().body.statements[0];
+        assert!(copy_destination_name(statement).is_none());
     }
 
     /// TP: the tight pattern — `set b $a`, `lappend b`, `a` read afterwards.

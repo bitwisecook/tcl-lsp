@@ -22,7 +22,9 @@
 //! mutates the supplied `EscapeState`.
 
 use crate::ir::CommandTokens;
-use crate::var_escape::helpers::{is_dynamic_token, is_dynamic_upvar_level, is_name_first_command};
+#[cfg(test)]
+use crate::var_escape::helpers::is_name_first_command;
+use crate::var_escape::helpers::{is_dynamic_token, is_dynamic_upvar_level};
 use crate::var_escape::state::EscapeState;
 use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
 use crate::var_scoping::{
@@ -358,11 +360,36 @@ fn handle_info(args: &[String], state: &mut EscapeState) {
     ));
 }
 
+/// Escape unresolved first-name operands using the actual source-role owner.
+pub(crate) fn handle_source_name_first(
+    command: &str,
+    source: Option<&crate::registry_invocation::SourceNameRoleInventory>,
+    state: &mut EscapeState,
+) {
+    if let Some(source) = source {
+        if source
+            .original_variable_name_operand(source.facts().argument_offset)
+            .is_some()
+        {
+            if source.has_unknown_residual() {
+                state.mark_pessimistic();
+            }
+            return;
+        }
+    }
+    state.record_barrier(Barrier::with_detail(
+        BarrierKind::DynName,
+        format!("{command} name value unavailable"),
+    ));
+    state.escape_all_known();
+}
+
 /// Handle `set` / `incr` / `append` / `lappend` / `unset` whose
 /// first arg is a variable name. If the name is a `$n` reference
 /// and `n` was assigned exactly one literal identifier earlier,
 /// treat the call as targeting that literal (escape just that
 /// name). Otherwise fall back to spilling every known proc-local.
+#[cfg(test)]
 pub fn handle_dynamic_name_first(cmd: &str, args: &[String], state: &mut EscapeState) {
     debug_assert!(is_name_first_command(cmd));
     let Some(name) = args.first() else {
@@ -580,6 +607,57 @@ mod tests {
         let mut s = EscapeState::default();
         handle_info(&args_of(&["totally_made_up"]), &mut s);
         assert!(s.dynamic_barrier());
+    }
+
+    #[test]
+    fn source_first_names_keep_actual_values_and_terminal_unknown_targets() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        for source in [
+            "append {$literal} value",
+            "append {} value",
+            "append $selector value",
+        ] {
+            let module = crate::lowering::lower_to_ir(source, &registry);
+            let statement = &module.top_level.statements[0];
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let roles = crate::registry_invocation::original_source_name_roles(&registry, tokens)
+                .expect("actual original FIRST_ARG source owner");
+            assert!(
+                roles
+                    .facts()
+                    .traits
+                    .contains(tcl_registry::Traits::FIRST_ARG_VARNAME)
+            );
+            let known = roles
+                .original_variable_name_operand(roles.facts().argument_offset)
+                .is_some();
+            let mut state = EscapeState::new(["protected".to_owned()]);
+            state.note_literal_assign("selector", "guessed_target");
+            handle_source_name_first(&roles.facts().canonical_command, Some(&roles), &mut state);
+            assert_eq!(
+                state.dynamic_barrier(),
+                !known || roles.has_unknown_residual()
+            );
+            if !known {
+                assert!(state.tags.contains_key("protected"));
+                assert!(!state.tags.contains_key("guessed_target"));
+            }
+            let mut changed = tokens.clone();
+            changed.argv_texts[1].push_str(" changed");
+            assert!(
+                crate::registry_invocation::original_source_name_roles(&registry, &changed)
+                    .is_none()
+            );
+            let mut refused = EscapeState::new(["protected".to_owned()]);
+            refused.note_literal_assign("selector", "guessed_target");
+            handle_source_name_first(&roles.facts().canonical_command, None, &mut refused);
+            assert!(refused.dynamic_barrier());
+            assert!(refused.tags.contains_key("protected"));
+            assert!(!refused.tags.contains_key("guessed_target"));
+        }
     }
 
     #[test]

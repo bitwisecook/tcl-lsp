@@ -1,0 +1,6 @@
+
+running 1 test
+test minify::tests::static_fold_keeps_a_commented_command_substitution_well_formed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 0.47s
+

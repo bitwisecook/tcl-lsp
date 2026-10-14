@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::source_name_roles::tests::original_scalar_name_projection_preserves_data_and_refuses_relabelled_fields ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9809 filtered out; finished in 0.28s
+

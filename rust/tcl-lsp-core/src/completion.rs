@@ -699,60 +699,47 @@ fn variable_completions(
     let has_open_brace =
         trigger == '{' || dollar.is_some_and(|d| d + 1 < line_len && chars[d + 1] == '{');
 
-    // Scan forward to the end of the existing reference so the edit replaces
-    // the whole token (brace form tracks `{}` depth and
-    // `\X` pairs; bare form takes alnum / `_` / `::`).
-    let mut end = cursor_col;
-    if has_open_brace {
-        let mut depth: i32 = 0;
-        while end < line_len {
-            match chars[end] {
-                '}' if depth == 0 => {
-                    end += 1;
-                    break;
-                }
-                '{' => {
-                    depth += 1;
-                    end += 1;
-                }
-                '}' => {
-                    depth -= 1;
-                    end += 1;
-                }
-                '\\' => {
-                    end += 1;
-                    if end < line_len {
-                        end += 1;
-                    }
-                }
-                _ => end += 1,
-            }
-        }
-    } else {
-        while end < line_len {
-            let ch = chars[end];
-            if ch.is_alphanumeric() || ch == '_' {
-                end += 1;
-            } else if ch == ':' && end + 1 < line_len && chars[end + 1] == ':' {
-                end += 2;
-            } else {
-                break;
-            }
-        }
-    }
-    let edit_start = dollar.map(|d| char_col_to_utf16(line_text, d));
-    let edit_end = char_col_to_utf16(line_text, end);
-
     let line_index = tcl_lexer::LineIndex::new(source);
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     let Some(config) = analysis.body_lexer_config else {
         return Vec::new();
     };
-    let Some(advice) = analysis.logical_variable_scope_advice(
-        &tcl_lexer::SourceImage::document(source),
-        config,
-        byte_offset,
-    ) else {
+    let Some(image) = analysis
+        .retained_command_realm()
+        .and_then(|realm| realm.original_source_image())
+    else {
+        return Vec::new();
+    };
+    if image.bytes() != source.as_bytes() || !analysis.matches_original_source_image(image, config)
+    {
+        return Vec::new();
+    }
+    let Some(dollar) = dollar else {
+        return Vec::new();
+    };
+    let byte_column = line_text
+        .chars()
+        .take(dollar)
+        .map(char::len_utf8)
+        .sum::<usize>();
+    let Some(start) = u32::try_from(byte_column)
+        .ok()
+        .and_then(|column| line_index.line_start(line).checked_add(column))
+    else {
+        return Vec::new();
+    };
+    let end =
+        crate::source_structure::source_variable_reference_end(image, config, start, byte_offset)
+            .unwrap_or(byte_offset);
+    let finish = line_index.position_at_utf16(end, source);
+    if finish.line != line {
+        return Vec::new();
+    }
+    let edit_start = Some(char_col_to_utf16(line_text, dollar));
+    let edit_end = finish.character.get();
+    let end = utf16_col_to_char_col(line_text, edit_end);
+
+    let Some(advice) = analysis.logical_variable_scope_advice(image, config, byte_offset) else {
         return Vec::new();
     };
 
@@ -955,18 +942,7 @@ fn array_element_completions(
     if arr_def.array_indices.is_empty() || !is_bare_var_name(arr_name) {
         return Vec::new();
     }
-    // Extend the replace range to swallow an existing `)` that closes this
-    // array reference. An unclosed reference leaves the range at the cursor
-    // so accepting a completion preserves trailing text.
-    let line_chars: Vec<char> = line_text.chars().collect();
-    let arr_end = match line_chars[end.min(line_chars.len())..]
-        .iter()
-        .position(|&c| c == ')')
-    {
-        Some(rel) => end + rel + 1,
-        None => end,
-    };
-    let arr_edit_end = char_col_to_utf16(line_text, arr_end);
+    let arr_edit_end = char_col_to_utf16(line_text, end);
     let valid: Vec<&String> = arr_def
         .array_indices
         .iter()
@@ -6431,6 +6407,41 @@ mod configured_receiver_completion_tests {
                     "{head}: {items:?}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn logical_variable_completion_keeps_actual_release_reference_closers() {
+        let source = "set alpha 1\nputs ${a{b}c}\n";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for (environment, expected_end) in [
+            ("tcl8.4", 11),
+            ("tcl8.5", 11),
+            ("tcl8.6", 11),
+            ("tcl9.0", 13),
+            ("tcl9.1", 13),
+            ("jim", 11),
+        ] {
+            let selected = tcl_registry::model::ingress::resolve_environment(environment);
+            let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(source, "display only");
+            assert!(analysis.allows_retained_logical_declaration_advice());
+            let items = variable_completions(source, 1, 8, &analysis, "a", '{');
+            let item = items
+                .iter()
+                .find(|item| item.label == "${alpha}")
+                .expect("actual Logical declared candidate");
+            let edit = item.text_edit.as_ref().unwrap();
+            assert_eq!(edit.start_char, 5, "{environment}");
+            assert_eq!(edit.end_char, expected_end, "{environment}");
+            assert_eq!(edit.new_text, "${alpha}");
         }
     }
 

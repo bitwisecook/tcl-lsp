@@ -444,9 +444,7 @@ fn bare_name(raw: &str) -> &str {
     } else {
         s
     };
-    // Declaration arguments may carry an absolute root marker; preserve the
-    // remainder verbatim, including interior colon-runs such as `a:::b`.
-    s.strip_prefix("::").unwrap_or(s)
+    tcl_syntax::naming::unroot_rooted_key(s).unwrap_or(s)
 }
 
 #[cfg(test)]

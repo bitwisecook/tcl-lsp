@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::authored_controls::tests::authored_control_bodies_keep_source_scope_without_execution_owners ... 
+thread 'registry_invocation::authored_controls::tests::authored_control_bodies_keep_source_scope_without_execution_owners' (363216) panicked at rust/tcl-compiler/src/registry_invocation/authored_controls.rs:237:9:
+assertion failed: matches!(clauses[0].body.statements[0], crate::ir::Statement::Catch { .. })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::authored_controls::tests::authored_control_bodies_keep_source_scope_without_execution_owners
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9809 filtered out; finished in 0.19s
+

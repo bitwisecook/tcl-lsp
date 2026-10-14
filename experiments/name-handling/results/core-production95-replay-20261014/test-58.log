@@ -1,0 +1,6 @@
+
+running 1 test
+test minify::tests::original_static_folds_do_not_borrow_erasure_from_logical_source_values ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 0.97s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test graphs::tests::deeply_nested_namespaces_survive_symbol_graph ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 18.02s
+

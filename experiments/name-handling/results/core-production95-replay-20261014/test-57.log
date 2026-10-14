@@ -1,0 +1,15 @@
+
+running 1 test
+test minify::tests::live_name_inventory_uses_the_actual_complete_reference_grammar ... 
+thread 'minify::tests::live_name_inventory_uses_the_actual_complete_reference_grammar' (369240) panicked at rust/tcl-lsp-core/src/minify.rs:4281:13:
+Ω: {"a::value", "a", "a{b}c"}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    minify::tests::live_name_inventory_uses_the_actual_complete_reference_grammar
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 0.49s
+

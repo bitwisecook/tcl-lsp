@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::tests::for_initialisation_does_not_publish_array_elements_as_scalar_constants ... 
+thread 'cfg_builder::tests::for_initialisation_does_not_publish_array_elements_as_scalar_constants' (363232) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5782:9:
+assertion failed: builder.for_runs_at_least_once(&statement("a", "$a == 1"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::tests::for_initialisation_does_not_publish_array_elements_as_scalar_constants
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9809 filtered out; finished in 0.03s
+

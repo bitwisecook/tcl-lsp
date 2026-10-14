@@ -1519,6 +1519,8 @@ impl<'r> Lowerer<'r> {
         #[cfg(any(test, debug_assertions))]
         trace_source_lowering(trace_start, "entry", source.len(), &self.module);
         self.start_module();
+        self.module.source =
+            tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         #[cfg(any(test, debug_assertions))]
         trace_source_lowering(trace_start, "configured", source.len(), &self.module);
         self.module.top_level_namespace_context = self.native_entry.as_deref().and_then(|entry| {

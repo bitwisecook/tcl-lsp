@@ -6,11 +6,11 @@
 
 use std::sync::Arc;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_lexer::{LexerConfig, SourceImage};
+use tcl_lexer::{LexerConfig, SourceChannel};
 use tcl_registry::{CommandRegistry, model::ContextRegistry};
 
-/// Currency of an analysis-backed source query. The input's advice purpose is
-/// checked separately; this receipt grants no execution, identity or editing.
+/// Currency of an editor query over the actual Document source channel.
+/// Advice purpose is separate; this grants no execution, identity or editing.
 pub(crate) struct CurrentSourceContext<'a> {
     config: LexerConfig,
     profile: &'static tcl_dialect::DialectProfile,
@@ -35,11 +35,13 @@ impl<'a> CurrentSourceContext<'a> {
     pub(crate) fn capture(source: &str, analysis: &'a AnalysisResult) -> Option<Self> {
         let input = analysis.resolved_input.as_ref()?;
         let config = analysis.body_lexer_config?;
-        if input.lexer_config() != config
-            || !analysis.matches_original_source_image(&SourceImage::document(source), config)
-            || !analysis
-                .retained_command_realm()?
-                .matches_resolved_analysis_input(input)
+        let realm = analysis.retained_command_realm()?;
+        let image = realm.original_source_image()?;
+        if image.channel() != SourceChannel::Document
+            || image.bytes() != source.as_bytes()
+            || input.lexer_config() != config
+            || !analysis.matches_original_source_image(image, config)
+            || !realm.matches_resolved_analysis_input(input)
         {
             return None;
         }

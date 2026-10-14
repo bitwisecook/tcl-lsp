@@ -4262,7 +4262,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let analysis = original::analysis_for_profile(source, profile, &registry);
         let input = analysis.resolved_input.as_ref().unwrap();
-        assert!(input.has_logical_source_name_context());
+        assert!(analysis.allows_retained_logical_declaration_advice());
         let (out, count, map) = fold_original_static_substrings(source, input);
         assert_eq!(out, source);
         assert_eq!(count, 0);

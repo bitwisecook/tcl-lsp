@@ -1,0 +1,15 @@
+
+running 1 test
+test namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards ... 
+thread 'namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards' (369303) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1502:9:
+assertion failed: namespace_rename_edits(hazardous, profile, &unknown, "::茶", "box").is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 0.79s
+

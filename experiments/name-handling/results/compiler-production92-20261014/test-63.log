@@ -1,0 +1,17 @@
+
+running 1 test
+test codegen::cmd_subst::tests::namespace_origin_opcode_is_shared_by_every_result_context ... 
+thread 'codegen::cmd_subst::tests::namespace_origin_opcode_is_shared_by_every_result_context' (365183) panicked at rust/tcl-compiler/src/codegen/cmd_subst.rs:3502:17:
+assertion `left == right` failed: tcl8.6: namespace origin target
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    codegen::cmd_subst::tests::namespace_origin_opcode_is_shared_by_every_result_context
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9809 filtered out; finished in 0.46s
+

@@ -195,6 +195,18 @@ impl RetainedSourceModuleBindings {
         current == *original
     }
 
+    pub(crate) fn owns_original_analysis_attachment(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> bool {
+        tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_analysis_owner.as_ref())
+            .zip(self.positioned.original_analysis_owner.as_ref())
+            .is_some_and(|(actual, original)| Arc::ptr_eq(actual, original))
+    }
+
     /// Authenticate the complete written source carrier under this Module's
     /// original interpretation. This supplies source ownership independently of
     /// compiler visitation, Native handler admission and read/store receipts.
@@ -204,7 +216,10 @@ impl RetainedSourceModuleBindings {
         let Some(binding) = tokens.source_binding.as_ref() else {
             return false;
         };
-        if binding.original_written_words.is_none() || !tokens.original_words_match_argv_text() {
+        if !self.owns_original_analysis_attachment(tokens)
+            || binding.original_written_words.is_none()
+            || !tokens.original_words_match_argv_text()
+        {
             return false;
         }
         let Some(config) = binding.original_lexer_config_for_tokens(tokens) else {
@@ -391,6 +406,50 @@ mod tests {
             );
             assert!(retained.owns_original_tokens(expression), "{engine}");
         }
+    }
+
+    #[test]
+    fn original_source_token_attachment_is_current_even_for_equal_source_inputs() {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let source = "set x 0";
+        let original =
+            crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+        let other = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+        let original_owner = original
+            .ir_module
+            .retained_source_bindings
+            .as_deref()
+            .unwrap();
+        let other_owner = other.ir_module.retained_source_bindings.as_deref().unwrap();
+        let original_tokens = original
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(
+                original.ir_module.top_level.statements.last().unwrap(),
+            )
+            .unwrap();
+        let other_tokens = other
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(
+                other.ir_module.top_level.statements.last().unwrap(),
+            )
+            .unwrap();
+        assert!(original_owner.owns_original_analysis_attachment(original_tokens));
+        assert!(other_owner.owns_original_analysis_attachment(other_tokens));
+        assert!(original_owner.owns_original_tokens(original_tokens));
+        assert!(other_owner.owns_original_tokens(other_tokens));
+        assert!(!original_owner.owns_original_analysis_attachment(other_tokens));
+        assert!(!other_owner.owns_original_analysis_attachment(original_tokens));
+        assert!(!original_owner.owns_original_tokens(other_tokens));
+        let mut missing = original_tokens.clone();
+        missing
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .original_analysis_owner = None;
+        assert!(!original_owner.owns_original_tokens(&missing));
     }
 
     #[test]

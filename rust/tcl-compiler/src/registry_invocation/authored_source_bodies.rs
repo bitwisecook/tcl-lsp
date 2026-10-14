@@ -127,6 +127,15 @@ impl OriginalAuthoredProcedureBody {
         self.module_profile = module.dialect_profile;
         self
     }
+    pub(crate) fn owns_original_source_scope(
+        &self,
+        scope: &super::OriginalAuthoredSourceBodyScope,
+    ) -> bool {
+        self.source_scope
+            .as_ref()
+            .is_some_and(|original| scope.belongs_to_original_scope(original))
+    }
+
     pub(crate) fn matches_procedure(&self, module: &Module, procedure: &Procedure) -> bool {
         if module.source_metadata_input.is_some()
             || module.source_entry.native_entry.is_some()

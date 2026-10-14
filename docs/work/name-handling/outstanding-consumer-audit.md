@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T13:38:26Z on `work`.
+Current bounded snapshot: 2026-10-14T13:57:30Z on `work`.
 
 Shared command, variable, body and source owners are integrated across compiler/CFG,
 summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
@@ -44,16 +44,30 @@ positioned test-fixture minifier symbols, actual inline codegen admission, Jim c
 original-key/error-frame selection, and the declaration source syntax memo with
 explicit original expansion refusal. Neutral syntax restores current receipts;
 all original DB cold/edit/equivalence and Runtime controls remain required.
-Compiler92 remains RUNNING on current frozen source. The first128 completed
-controls record110 PASS/18 nonpassing; original depth control129 is still running.
-Four source-cache controls pass (cold3/edit1/shift0/current cached versus fresh
-equality and expansion refusal), SCCP/instance typed-write controls and the Native
-child positive pass, the original forty-case alias setup passes, and the Logical
-substitution control that failed88 now passes. Namespace import and the recorded
-SSA/word/receiver/scalar/dictionary failures remain visible. The unchanged original
-#2286 control times out at the600-second harness limit. Original source/assertions
-and code budgets remain unchanged. No seal, source-closure or complete consumer/
-cache acceptance follows from these partial results.
+Compiler92 seals at13:43:45 with147 controls:123 PASS/24 nonpassing (19 assertion
+failures, three depth SIGABRTs and two600-second timeouts), zero source drift and
+no missing or empty selectors. Four source-cache controls pass (cold3/edit1/shift0/
+current cached versus fresh equality and expansion refusal); SCCP/instance typed
+writes, Native child ownership and the original forty-case alias setup also pass.
+Namespace import, SSA/word/receiver/scalar/dictionary, Native certificates, selected
+codegen hooks, two substitution helpers, global-body escape and Logical substitution
+remain red. The unchanged original #2286 and analyser-cap controls time out at600
+seconds. Original source/assertions and code budgets remain unchanged. These
+results establish no complete consumer/cache or #2286 acceptance.
+
+Current source additionally integrates Logical class/member receipts, shared current
+Document/outline guards, dynamic alias/scanner and Shimmer name-data consumers,
+exact token attachment joins, SCCP phased Call/destroy inventories and shared
+completion reference extents. Genuine root source-image issuance and the new
+CFG/dictionary fixture producers preserve existing assertions. Core93 stops at a
+private test API access before semantic execution; the public purpose premise is
+corrected. Core95 builds successfully, then the initial selector mismatch executes
+zero controls. The corrected same-binary, expected-source replay seals at13:56:53:
+92 controls,66 PASS/26 FAIL, zero source drift and no missing or empty selectors.
+The original workspace member and deep graph controls and new current-source
+outline control pass. Code-lens, completion, hover/inlay and remaining Core failures
+remain visible. The distinct inputless Authored definition owner and actual header
+attachment transport are now integrated; their new controls remain unexecuted.
 
 Compiler88 builds and seals113 controls:96 PASS/17 nonpassing (13 assertion failures,
 three depth SIGABRTs and one analyser-cap timeout), zero source drift and no missing

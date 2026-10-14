@@ -48,7 +48,8 @@ pub(super) fn items(
     if source.get(start as usize..start as usize + prefix) != Some(expected) {
         return Some(Vec::new());
     }
-    let end = reference_end(&image, config, start, cursor).unwrap_or(cursor);
+    let end = crate::source_structure::source_variable_reference_end(&image, config, start, cursor)
+        .unwrap_or(cursor);
     let begin = index.position_at_utf16(start, source);
     let finish = index.position_at_utf16(end, source);
     if begin.line != line || finish.line != line {
@@ -423,23 +424,6 @@ fn element_name(occurrence: &SignatureSourceVariableOccurrence) -> Option<Vec<u8
         }
         _ => None,
     }
-}
-
-fn reference_end(image: &SourceImage, config: LexerConfig, start: u32, cursor: u32) -> Option<u32> {
-    let arena = tcl_lexer::ExecutablePartArena::decompose(
-        image.clone(),
-        Span::new(0, u32::try_from(image.len()).ok()?),
-        tcl_lexer::SubstFlags::default(),
-        config,
-    )
-    .ok()?;
-    let mut parts = arena.all_parts().filter(|part| {
-        part.span.start() == start
-            && part.span.end() >= cursor
-            && matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. })
-    });
-    let end = parts.next()?.span.end();
-    parts.next().is_none().then_some(end)
 }
 
 fn reference_spelling(

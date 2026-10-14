@@ -1,0 +1,15 @@
+
+running 1 test
+test inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source ... 
+thread 'inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source' (369226) panicked at rust/tcl-lsp-core/src/inlay_hints.rs:3017:9:
+[InlayHint { position_line: 1, position_character: 10, label: "int", kind: Type, padding_left: true }, InlayHint { position_line: 0, position_character: 4, label: "varName:", kind: Parameter, padding_left: false }, InlayHint { position_line: 0, position_character: 10, label: "value:", kind: Parameter, padding_left: false }, InlayHint { position_line: 1, position_character: 7, label: "formatString:", kind: Parameter, padding_left: false }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 0.56s
+

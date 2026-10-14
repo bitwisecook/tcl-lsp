@@ -196,7 +196,9 @@ pub fn document_symbols_from_analysis(
     source: &str,
     analysis: &AnalysisResult,
 ) -> Vec<DocumentSymbol> {
-    if source.is_empty() {
+    if source.is_empty()
+        || crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
+    {
         return Vec::new();
     }
     if let Some(symbols) = original::source_outline(source, analysis) {
@@ -822,6 +824,40 @@ mod tests {
             outer.end_character,
         );
         starts_after && ends_after
+    }
+
+    #[test]
+    fn logical_outline_requires_current_complete_source_and_input() {
+        let source = "proc current {arg} {puts $arg}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        assert_eq!(
+            document_symbols_from_analysis(source, &analysis)[0].name,
+            "current"
+        );
+        assert!(
+            document_symbols_from_analysis(
+                "# shifted\nproc current {arg} {puts $arg}\n",
+                &analysis
+            )
+            .is_empty()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(document_symbols_from_analysis(source, &missing).is_empty());
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting =
+            !analysis.body_lexer_config.unwrap().strict_quoting;
+        assert!(document_symbols_from_analysis(source, &stale).is_empty());
+        let mut foreign = analysis.clone();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(document_symbols_from_analysis(source, &foreign).is_empty());
     }
 
     #[test]

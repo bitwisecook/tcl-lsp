@@ -28,6 +28,8 @@ Existing command/variable/namespace vectors live in
 | [results/shared-name-owner-current-20261013/README.md](results/shared-name-owner-current-20261013/README.md) | Scoped central command/variable/namespace and current Jim name controls |
 | [run_jim_suites.py](run_jim_suites.py) | Original upstream Jim naming suites using Jim's actual test wrapper |
 | [results/README.md](results/README.md) | Provenance and record format; records distinguish measured, pending and unsupported |
+| [oracles/variable-completion-extent-20261014/README.md](oracles/variable-completion-extent-20261014/README.md) | Original C8.4–9.1/Jim variable reference closers; exact source, raw output and retained manifest path mapping |
+| [oracles/jim-original-key-reference-observer-20261014/result.json](oracles/jim-original-key-reference-observer-20261014/result.json) | Actual Jim command-key/object reference observation with original observer source, build and raw output; no Native runtime acceptance |
 | [f5/REQUEST.md](f5/REQUEST.md) | Appliance-chat questions, execution contexts and return protocol |
 | [f5/ANSWER-TEMPLATE.md](f5/ANSWER-TEMPLATE.md) | Answer document template |
 | [f5/answers/README.md](f5/answers/README.md) | Destination for returned documents and raw transcripts on `work` |

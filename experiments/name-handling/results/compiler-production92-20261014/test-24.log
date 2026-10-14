@@ -1,0 +1,17 @@
+
+running 1 test
+test lowering::structured::original_dict_name_tests::dynamic_dictionary_targets_keep_original_dispatch_without_static_defs ... 
+thread 'lowering::structured::original_dict_name_tests::dynamic_dictionary_targets_keep_original_dispatch_without_static_defs' (363240) panicked at rust/tcl-compiler/src/lowering/structured.rs:2832:9:
+assertion `left == right` failed
+  left: "${receiver}"
+ right: "$receiver"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    lowering::structured::original_dict_name_tests::dynamic_dictionary_targets_keep_original_dispatch_without_static_defs
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9809 filtered out; finished in 0.24s
+

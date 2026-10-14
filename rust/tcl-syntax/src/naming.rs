@@ -227,6 +227,28 @@ pub fn unattributed_dynamic_written_variable_target(name: &str, braced_literal: 
     base.is_empty() || base.contains('$') || base.contains('[')
 }
 
+/// A bounded alias hint from unattributed reference and value presentations.
+/// This does not prove a read value, selected frame, cell or absence of other
+/// targets. Consumers must retain unresolved dynamic-name alternatives.
+#[must_use]
+pub fn unattributed_variable_alias_hint<'a>(
+    token: &str,
+    config: tcl_lexer::LexerConfig,
+    lookup: impl FnOnce(&str) -> Option<&'a str>,
+) -> Option<&'a str> {
+    let reference = tcl_lexer::word_parts::whole_var_ref(token.as_bytes(), config).ok()??;
+    if reference.index.is_some() || split_element_ref_bytes(reference.name).is_some() {
+        return None;
+    }
+    let reference = core::str::from_utf8(reference.name).ok()?;
+    let value = lookup(reference)?;
+    (!value.is_empty()
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':'))
+    .then_some(value)
+}
+
 /// Does `name` contain a `::` namespace separator (i.e. is it qualified)?
 #[must_use]
 pub fn is_qualified(name: &[u8]) -> bool {
@@ -2082,6 +2104,51 @@ pub fn unattributed_rooted_name_candidates(text: &str) -> impl Iterator<Item = &
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unattributed_alias_hints_preserve_unavailable_value_boundaries() {
+        let config = tcl_lexer::LexerConfig::default();
+        for reference in ["$selector", "${selector}"] {
+            assert_eq!(
+                unattributed_variable_alias_hint(reference, config, |name| (name == "selector")
+                    .then_some("target")),
+                Some("target")
+            );
+            for value in ["", "$literal", "[literal]", "has space"] {
+                assert_eq!(
+                    unattributed_variable_alias_hint(reference, config, |_| Some(value)),
+                    None
+                );
+            }
+        }
+        for reference in [
+            "plain",
+            "$",
+            "$array(key)",
+            "${array(key)}",
+            "${selector}suffix",
+        ] {
+            assert_eq!(
+                unattributed_variable_alias_hint(reference, config, |_| Some("target")),
+                None
+            );
+        }
+        for (reference, name) in [
+            ("${}", ""),
+            ("${$literal}", "$literal"),
+            ("${[literal]}", "[literal]"),
+        ] {
+            assert_eq!(
+                unattributed_variable_alias_hint(reference, config, |read| (read == name)
+                    .then_some("target")),
+                Some("target")
+            );
+            assert_eq!(
+                unattributed_variable_alias_hint(reference, config, |_| None),
+                None
+            );
+        }
+    }
+
     #[test]
     fn unattributed_rooted_candidates_preserve_data_and_refuse_lookup_authority() {
         let text = "literal {::old::member} [::other] $::array(index)\u{2003}\":::lone\" ; :relative ::empty::";

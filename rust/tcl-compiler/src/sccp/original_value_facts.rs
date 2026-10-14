@@ -1293,15 +1293,64 @@ fn collect_constant_branches(
     constant_branches
 }
 
-/// Every variable name the function assigns, and every name it `unset`s by
-/// literal — the two whole-body facts [`existence_constant_branches`] folds
-/// against.  A `Call`'s `defs` cover the commands that define a name without
-/// an assignment statement (`global` / `variable` / `upvar`, `regexp -inline`
-/// match vars, …).
-fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&str>, bool) {
-    let mut defined: FxHashSet<String> = FxHashSet::default();
-    let mut unset: FxHashSet<&str> = FxHashSet::default();
-    let mut unknown_writes = false;
+fn retain_source_call_name_coverage(
+    registry: &CommandRegistry,
+    tokens: &crate::ir::CommandTokens,
+    defined: &mut FxHashSet<String>,
+    unset: &mut FxHashSet<String>,
+) {
+    let Some(names) = crate::registry_invocation::original_source_name_roles(registry, tokens)
+    else {
+        return;
+    };
+    let destination = if names
+        .facts()
+        .traits
+        .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+    {
+        unset
+    } else {
+        defined
+    };
+    for &(argument, role) in names.roles() {
+        if role == tcl_registry::ArgRole::VarWrite {
+            if let Some(name) = names.original_variable_name_operand(argument) {
+                destination.insert(name.as_str().to_owned());
+                if let Some((root, _)) = tcl_syntax::naming::split_element_ref(name.as_str()) {
+                    destination.insert(root.to_owned());
+                }
+            }
+        }
+    }
+}
+
+/// Possible writes and destroys protect whole-body existence folds.
+/// Original source-only roles retain unknown completion and frame effects.
+fn scan_defined_and_unset(
+    cfg: &CfgFunction,
+    metadata: ExistenceMetadataInputs<'_>,
+) -> (
+    FxHashSet<String>,
+    FxHashSet<String>,
+    crate::dynamic_names::DynamicNameBarrier,
+) {
+    use crate::dynamic_names::DynamicNameBarrier;
+    use crate::registry_invocation::EffectiveInvocationWord;
+    use tcl_registry::{ArgRole, Traits};
+    let mut defined = FxHashSet::default();
+    let mut unset = FxHashSet::default();
+    let mut unknown = DynamicNameBarrier::default();
+    let Some(context) = metadata
+        .context
+        .filter(|context| context.matches_registry(metadata.registry))
+    else {
+        return (defined, unset, DynamicNameBarrier::OPAQUE_SCRIPT);
+    };
+    if cfg.metadata_context.source_analysis_input() != context.source_analysis_input()
+        && (!cfg.metadata_context.is_standalone() || context.source_analysis_input().is_some())
+    {
+        return (defined, unset, DynamicNameBarrier::OPAQUE_SCRIPT);
+    }
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             match stmt {
@@ -1310,12 +1359,15 @@ fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&s
                 | Statement::AssignValue { .. }
                 | Statement::Incr { .. } => {
                     let projection = crate::ir_helpers::structural_variable_write_projection(stmt);
-                    unknown_writes |= projection.opaque_variable_frame;
-                    defined.extend(projection.literal_names.into_iter().map(|name| {
-                        tcl_syntax::naming::split_element_ref(&name)
-                            .map_or(name.as_str(), |(root, _)| root)
-                            .to_owned()
-                    }));
+                    unknown.writes |= projection.opaque_variable_frame;
+                    for name in projection.literal_names {
+                        unknown.writes |= name.contains('\0');
+                        defined.insert(
+                            tcl_syntax::naming::split_element_ref(&name)
+                                .map_or(name.as_str(), |(root, _)| root)
+                                .to_owned(),
+                        );
+                    }
                 }
                 Statement::Call {
                     command,
@@ -1323,18 +1375,118 @@ fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&s
                     defs,
                     ..
                 } => {
-                    for d in defs {
-                        defined.insert(d.clone());
-                    }
-                    if command == "unset" {
-                        unset.extend(args.iter().map(String::as_str));
+                    defined.extend(defs.iter().cloned());
+                    if let Some(tokens) = stmt.tokens() {
+                        let Some(names) = crate::registry_invocation::possible_variable_name_operands_with_metadata_context(metadata.registry, Some(context), tokens) else {
+                            unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                            retain_source_call_name_coverage(metadata.registry, tokens, &mut defined, &mut unset);
+                            continue;
+                        };
+                        if names.unknown_residual() {
+                            unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                            retain_source_call_name_coverage(
+                                metadata.registry,
+                                tokens,
+                                &mut defined,
+                                &mut unset,
+                            );
+                        }
+                        for (role, word, _, destroys) in names.phased_operands() {
+                            if role != ArgRole::VarWrite {
+                                continue;
+                            }
+                            let destination = if destroys { &mut unset } else { &mut defined };
+                            match word {
+                                EffectiveInvocationWord::Literal(name) => {
+                                    destination.insert(name.clone());
+                                    if let Some((root, _)) =
+                                        tcl_syntax::naming::split_element_ref(name)
+                                    {
+                                        destination.insert(root.to_owned());
+                                    }
+                                    if name.contains('\0') {
+                                        if destroys {
+                                            unknown.destroys = true;
+                                        } else {
+                                            unknown.writes = true;
+                                        }
+                                    }
+                                }
+                                EffectiveInvocationWord::ArrayElementName { root } => {
+                                    destination.insert(root.clone());
+                                }
+                                _ => {
+                                    if destroys {
+                                        unknown.destroys = true;
+                                    } else {
+                                        unknown.writes = true;
+                                    }
+                                }
+                            }
+                        }
+                        for (role, destroys) in names.phased_unresolved_roles() {
+                            if role == ArgRole::VarWrite {
+                                if destroys {
+                                    unknown.destroys = true;
+                                } else {
+                                    unknown.writes = true;
+                                }
+                            }
+                        }
+                    } else if cfg.metadata_context.is_standalone()
+                        && context.source_analysis_input().is_none()
+                    {
+                        // Explicit nominal argv has no original invocation or Native permission.
+                        let arguments: Vec<_> = args.iter().map(String::as_str).collect();
+                        let Some(schema) = metadata.registry.resolve_invocation(
+                            command,
+                            &arguments,
+                            Some(context.context().authoring_query()),
+                        ) else {
+                            unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                            continue;
+                        };
+                        let facts = schema.facts();
+                        if !facts.arg_roles_complete {
+                            unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                        }
+                        let destroys = facts.traits.contains(Traits::DESTROYS_VARIABLE);
+                        let argument_offset = facts.argument_offset;
+                        for (ordinal, role) in facts.arg_roles {
+                            if role != ArgRole::VarWrite {
+                                continue;
+                            }
+                            let Some(name) = args.get(argument_offset + usize::from(ordinal))
+                            else {
+                                unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                                continue;
+                            };
+                            if crate::dynamic_names::names_a_dynamic_variable(name)
+                                || name.contains('\0')
+                            {
+                                if destroys {
+                                    unknown.destroys = true;
+                                } else {
+                                    unknown.writes = true;
+                                }
+                            } else {
+                                let destination = if destroys { &mut unset } else { &mut defined };
+                                destination.insert(name.clone());
+                                if let Some((root, _)) = tcl_syntax::naming::split_element_ref(name)
+                                {
+                                    destination.insert(root.to_owned());
+                                }
+                            }
+                        }
+                    } else {
+                        unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
                     }
                 }
                 _ => {}
             }
         }
     }
-    (defined, unset, unknown_writes)
+    (defined, unset, unknown)
 }
 
 /// The entry facts one function frame contributes to the existence fold
@@ -1635,8 +1787,9 @@ pub fn existence_constant_branches_with_metadata_context(
     }) {
         return out;
     }
-    let (defined, unset, unknown_writes) = scan_defined_and_unset(cfg);
-    let unknown_writes = dynamic_names.writes || unknown_writes;
+    let (defined, unset, call_names) = scan_defined_and_unset(cfg, metadata);
+    let dynamic_names = dynamic_names.union(call_names);
+    let unknown_writes = dynamic_names.writes;
     // Locals bound to out-of-frame storage (`global` / `variable` / `upvar` /
     // `namespace upvar`): whether such a name exists depends on the *linked*
     // variable, which this function cannot see, so its existence query must
@@ -3594,7 +3747,16 @@ mod tests {
                     value_span: None,
                 });
         }
-        let (defined, _, unknown) = scan_defined_and_unset(&cfg);
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl9.1").unwrap());
+        let metadata = ExistenceMetadataInputs {
+            registry: &registry,
+            context: registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(Into::into),
+        };
+        let (defined, _, unknown) = scan_defined_and_unset(&cfg, metadata);
         assert_eq!(
             defined,
             FxHashSet::from_iter(
@@ -3603,7 +3765,7 @@ mod tests {
                     .map(str::to_owned)
             )
         );
-        assert!(!unknown);
+        assert!(!unknown.writes);
         assert!(
             !defined.contains("literal")
                 && !defined.contains("braced")
@@ -3620,9 +3782,81 @@ mod tests {
                 value: "1".into(),
                 value_span: None,
             });
-        let (defined, _, unknown) = scan_defined_and_unset(&cfg);
-        assert!(unknown);
+        let (defined, _, unknown) = scan_defined_and_unset(&cfg, metadata);
+        assert!(unknown.writes);
         assert!(!defined.contains("target"));
+    }
+
+    #[test]
+    fn source_destroy_inventory_keeps_original_empty_sigil_and_array_name_data() {
+        let (context, unit) = logical_callback_unit("unset {} {$literal} {arr(key)}");
+        let registry = context.commands();
+        let metadata = ExistenceMetadataInputs {
+            registry,
+            context: crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry,
+                unit.ir_module.source_metadata_input.as_ref().unwrap(),
+            ),
+        };
+        let (_, unset, unknown) = scan_defined_and_unset(&unit.top_level.cfg, metadata);
+        for name in ["", "$literal", "arr(key)", "arr"] {
+            assert!(unset.contains(name), "missing original {name:?}: {unset:?}");
+        }
+        assert!(!unset.contains("literal"));
+        assert!(unknown.destroys);
+        let (_, _, refused) = scan_defined_and_unset(
+            &unit.top_level.cfg,
+            ExistenceMetadataInputs {
+                registry,
+                context: None,
+            },
+        );
+        assert!(refused.writes && refused.destroys);
+    }
+
+    #[test]
+    fn nominal_destroy_inventory_uses_selected_roles_and_keeps_unknown_argv() {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl9.1").unwrap());
+        let metadata = ExistenceMetadataInputs {
+            registry: &registry,
+            context: registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(Into::into),
+        };
+        let mut cfg = CfgFunction::new("explicit standalone", "entry");
+        cfg.blocks
+            .get_mut(&cfg.entry)
+            .unwrap()
+            .statements
+            .push(Statement::Call {
+                span: tcl_lexer::Span::new(0, 0),
+                command: "::unset".into(),
+                canonical_command: None,
+                args: vec![
+                    "".into(),
+                    "array(key)".into(),
+                    "$computed".into(),
+                    "nul\0tail".into(),
+                ],
+                defs: Vec::new(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            });
+        let (_, unset, unknown) = scan_defined_and_unset(&cfg, metadata);
+        assert!(unset.contains("") && unset.contains("array") && unset.contains("array(key)"));
+        assert!(
+            !unset.contains("computed") && !unset.contains("nul") && !unset.contains("nul\0tail")
+        );
+        assert!(unknown.destroys);
+        cfg.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        let (_, unset, unknown) = scan_defined_and_unset(&cfg, metadata);
+        assert!(unset.is_empty() && unknown.writes && unknown.destroys);
     }
 
     fn logical_callback_unit(

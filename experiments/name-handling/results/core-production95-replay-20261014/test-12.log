@@ -1,0 +1,15 @@
+
+running 1 test
+test completion::configured_receiver_completion_tests::logical_variable_completion_keeps_actual_release_reference_closers ... 
+thread 'completion::configured_receiver_completion_tests::logical_variable_completion_keeps_actual_release_reference_closers' (368915) panicked at rust/tcl-lsp-core/src/completion.rs:6440:18:
+actual Logical declared candidate
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    completion::configured_receiver_completion_tests::logical_variable_completion_keeps_actual_release_reference_closers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 0.51s
+

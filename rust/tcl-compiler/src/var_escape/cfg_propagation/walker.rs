@@ -38,7 +38,7 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::ssa::{SsaBlock, SsaFunction, SsaStatement, Version};
 use crate::var_escape::cfg_propagation::handlers::{
-    handle_dynamic_name_first, handle_normal_variable_aliases, handle_source_introspection,
+    handle_normal_variable_aliases, handle_source_introspection, handle_source_name_first,
 };
 use crate::var_escape::cfg_propagation::known_names::collect_known_names_from_cfg;
 use crate::var_escape::cfg_propagation::state::{CfgEscapeResult, CfgState};
@@ -140,15 +140,7 @@ fn handle_call(
             .traits
             .contains(tcl_registry::prelude::Traits::FIRST_ARG_VARNAME)
         {
-            if source_names
-                .as_ref()
-                .and_then(|source| {
-                    source.original_variable_name_operand(source.facts().argument_offset)
-                })
-                .is_none()
-            {
-                handle_dynamic_name_first(&facts.canonical_command, args, state, defs);
-            }
+            handle_source_name_first(&facts.canonical_command, source_names.as_ref(), state, defs);
         }
         if facts.operation
             == tcl_registry::SemanticOperationId::StructuredLowering(
@@ -541,15 +533,13 @@ pub(crate) fn escape_every_name_touched_tree(
     }
 }
 
-/// Resolve a (possibly-dynamic) variable name and call `escape` on
-/// the resolved literal — or spill all known names when the dynamic
-/// name can't be resolved.  Used by the assign / incr arms.
+/// Unattributed hints preserve possible names without closing dynamic targets.
 fn dynamic_name_escape(state: &mut CfgState, defs: &HashMap<String, Version>, name: &str) {
     if let Some(literal) = state.resolve_literal(name) {
         state.escape(&literal, defs);
-    } else {
-        state.escape_all_known(defs);
     }
+    state.mark_pessimistic();
+    state.escape_all_known(defs);
 }
 
 /// Handle the call / barrier / block / upframe / return / exprEval
@@ -634,6 +624,19 @@ fn handle_stmt_assign_or_incr(
             }
             _ => state.invalidate_original_literal(&name),
         }
+        return true;
+    }
+    if tokens.is_some()
+        && matches!(
+            stmt,
+            Statement::AssignConst { .. }
+                | Statement::AssignValue { .. }
+                | Statement::AssignExpr { .. }
+                | Statement::Incr { .. }
+        )
+    {
+        state.mark_pessimistic();
+        state.escape_all_known(defs);
         return true;
     }
     match stmt {
@@ -907,6 +910,58 @@ mod tests {
         );
         let ssa = build_ssa(&cfg, &registry);
         analyse_cfg_function(&cfg, &ssa, std::iter::empty::<String>())
+    }
+
+    #[test]
+    fn original_scalar_owner_refusal_cannot_use_standalone_alias_hints() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = registry.profile().unwrap();
+        let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+            "proc p {} {set original 1}",
+            registry,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            Some(profile),
+        );
+        let body = &module.procedures.values().next().unwrap().body;
+        let statement = &body.statements[0];
+        let tokens = body
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let mut relabelled = statement.clone();
+        let Statement::AssignConst { name, .. } = &mut relabelled else {
+            panic!("actual original scalar producer");
+        };
+        *name = "$selector".to_owned();
+        let mut state = CfgState::new(["protected".to_owned()]);
+        state.note_literal_assign("selector", "guessed_target");
+        assert!(handle_stmt_assign_or_incr(
+            &relabelled,
+            Some(tokens),
+            &mut state,
+            &HashMap::new(),
+            &registry
+        ));
+        assert!(state.dynamic_barrier());
+        assert!(state.ssa_tags.contains_key(&("protected".to_owned(), 0)));
+        assert!(
+            !state
+                .ssa_tags
+                .contains_key(&("guessed_target".to_owned(), 0))
+        );
+    }
+
+    #[test]
+    fn standalone_alias_hints_keep_other_dynamic_targets_unknown() {
+        let mut state = CfgState::new(["protected".to_owned()]);
+        state.note_literal_assign("selector", "guessed_target");
+        dynamic_name_escape(&mut state, &HashMap::new(), "$selector");
+        assert!(state.dynamic_barrier());
+        assert!(state.ssa_tags.contains_key(&("protected".to_owned(), 0)));
+        assert!(
+            state
+                .ssa_tags
+                .contains_key(&("guessed_target".to_owned(), 0))
+        );
     }
 
     #[test]

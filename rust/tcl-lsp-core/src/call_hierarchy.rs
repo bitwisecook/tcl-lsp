@@ -217,6 +217,7 @@ pub struct LogicalCallTarget<'a> {
     class_occurrence:
         Option<tcl_compiler::signature_scan::original_name::SourceOriginalNameOccurrence>,
     member: Option<&'a tcl_compiler::analyser::types::OriginalSourceMethodMetadata>,
+    logical_member: Option<tcl_compiler::analyser::types::LogicalSourceMemberDeclaration>,
 }
 
 /// Readonly metadata issued by [`LogicalCallTarget`]. This is source advice,
@@ -335,8 +336,21 @@ impl<'a> LogicalCallTarget<'a> {
         } else {
             (None, None)
         };
+        let logical_member = if let LogicalCallDeclaration::Member {
+            class,
+            definition,
+            side,
+        } = declaration
+        {
+            analysis
+                .logical_source_class_declaration(class)
+                .and_then(|class| class.member(side, definition))
+        } else {
+            None
+        };
         Some(Self {
             current,
+            logical_member,
             source_context: crate::workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(
                 analysis,
             )?,
@@ -357,9 +371,6 @@ impl<'a> LogicalCallTarget<'a> {
         let LogicalCallDeclaration::Member { class, side, .. } = self.declaration else {
             return false;
         };
-        let Some(member) = self.member else {
-            return false;
-        };
         if provider.uri != declaring_uri
             || context != &self.source_context
             || input != self.input
@@ -370,6 +381,20 @@ impl<'a> LogicalCallTarget<'a> {
         {
             return false;
         }
+        if let Some(logical_member) = &self.logical_member {
+            let LogicalCallDeclaration::Member { definition, .. } = self.declaration else {
+                return false;
+            };
+            return provider
+                .logical_declaration
+                .as_ref()
+                .and_then(|class| class.member(side, definition))
+                .as_ref()
+                == Some(logical_member);
+        }
+        let Some(member) = self.member else {
+            return false;
+        };
         let Some(members) = provider.original_members.as_ref() else {
             return false;
         };

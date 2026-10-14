@@ -19,6 +19,7 @@
 //! Variable-name predicates and original invocation inventories for escape transfer.
 
 use std::collections::HashSet;
+#[cfg(test)]
 use std::sync::OnceLock;
 
 use tcl_registry::CommandRegistry;
@@ -34,6 +35,7 @@ use crate::registry_invocation::ResolvedStatementInvocation;
 /// `unset`). Used to detect dynamic-name forms like `set $n value`. Sourced
 /// from the registry; cached once because the set
 /// is dialect-agnostic (all entries are core Tcl commands).
+#[cfg(test)]
 fn name_first_set() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -54,6 +56,7 @@ fn name_first_set() -> &'static HashSet<String> {
 /// Sourced from the registry (the single source of truth) rather than
 /// a hardcoded copy; cached once because the set is dialect-agnostic
 /// (all entries are core Tcl commands present in `build_default`).
+#[cfg(test)]
 fn frameless_runtime_set() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -389,6 +392,7 @@ pub fn is_dynamic_name(name: &str) -> bool {
 /// carried by `lassign`, `lrepeat`, `lreverse`, `namespace`, `puts` and
 /// `throw` under `tcl8.6` and by none of them under `f5-irules`.
 #[must_use]
+#[cfg(test)]
 pub fn is_frameless_runtime_command(cmd: &str) -> bool {
     frameless_runtime_set().contains(cmd)
 }
@@ -412,6 +416,7 @@ pub fn is_frameless_runtime_command_in(cmd: &str, registry: &CommandRegistry) ->
 /// `lappend` / `unset` commands whose first arg is a variable
 /// name.
 #[must_use]
+#[cfg(test)]
 pub fn is_name_first_command(cmd: &str) -> bool {
     name_first_set().contains(cmd)
 }

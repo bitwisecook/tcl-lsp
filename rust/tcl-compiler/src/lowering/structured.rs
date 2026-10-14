@@ -2764,10 +2764,13 @@ mod original_dict_name_tests {
 
     #[test]
     fn dictionary_prefix_and_expansion_keep_original_slot_ownership() {
-        for source in [
-            "interp alias {} write {} dict set; write {$literal} key VALUE",
-            "dict set {*}{d key} VALUE",
-            "dict set {*}$words",
+        for (source, written_operand) in [
+            (
+                "interp alias {} write {} dict set; write {$literal} key VALUE",
+                "{$literal}",
+            ),
+            ("dict set {*}{d key} VALUE", "{*}{d key}"),
+            ("dict set {*}$words", "{*}$words"),
         ] {
             let module = module(source);
             let statement = module.top_level.statements.last().unwrap();
@@ -2794,12 +2797,14 @@ mod original_dict_name_tests {
                 Statement::Call { .. } | Statement::Barrier { .. }
             ));
             assert!(
-                tokens
-                    .argv_texts
-                    .iter()
-                    .any(|word| word == "$literal" || word == "d key" || word == "$words"),
-                "original shifted source operands must be retained: {:?}",
-                tokens.argv_texts
+                tokens.words().iter().any(|word| {
+                    word.original_written_span(module.source.bytes())
+                        .is_some_and(|span| {
+                            module.source.bytes().get(span.as_range())
+                                == Some(written_operand.as_bytes())
+                        })
+                }),
+                "original shifted source operand must be retained: {written_operand}"
             );
         }
         let module = module("dict get {key VALUE} key");
@@ -2829,6 +2834,12 @@ mod original_dict_name_tests {
             .top_level
             .retained_source_tokens_for_statement(statement)
             .unwrap();
-        assert_eq!(tokens.argv_texts[2], "$receiver");
+        let span = tokens.words()[2]
+            .original_written_span(module.source.bytes())
+            .unwrap();
+        assert_eq!(
+            module.source.bytes().get(span.as_range()),
+            Some(b"$receiver".as_slice())
+        );
     }
 }

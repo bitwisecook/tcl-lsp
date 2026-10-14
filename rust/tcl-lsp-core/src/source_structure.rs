@@ -183,7 +183,6 @@ impl SourceSyntaxStructure {
 /// describe selected syntax only; they grant no cell, runtime read or edit.
 pub(crate) struct SourceVariableReference<'a> {
     pub(crate) root: &'a str,
-    pub(crate) element_label: &'a str,
     pub(crate) whole_span: Span,
     pub(crate) token_span: Span,
 }
@@ -200,7 +199,6 @@ fn reference_from_arena<'a>(
         tcl_syntax::naming::variable_reference_root_bytes(original.as_bytes(), config).ok()??;
     Some(SourceVariableReference {
         root: std::str::from_utf8(root).ok()?,
-        element_label: tcl_syntax::naming::element_var_name_for_style(original, config.braced_var),
         whole_span: part.span,
         token_span: arena.source_span(part)?,
     })
@@ -257,6 +255,30 @@ fn variable_in_structure<'a>(
     )
     .ok()?;
     reference_from_arena(source, &arena, cursor)
+}
+
+/// Exact selected variable component end, including its original array or
+/// brace closer. Syntax geometry grants no name lookup, frame or edit owner.
+pub(crate) fn source_variable_reference_end(
+    image: &SourceImage,
+    config: LexerConfig,
+    start: u32,
+    cursor: u32,
+) -> Option<u32> {
+    let arena = tcl_lexer::ExecutablePartArena::decompose(
+        image.clone(),
+        Span::new(0, u32::try_from(image.len()).ok()?),
+        tcl_lexer::SubstFlags::default(),
+        config,
+    )
+    .ok()?;
+    let mut parts = arena.all_parts().filter(|part| {
+        part.span.start() == start
+            && part.span.end() >= cursor
+            && matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. })
+    });
+    let end = parts.next()?.span.end();
+    parts.next().is_none().then_some(end)
 }
 
 /// Selected original substitution syntax in one complete retained analysis.
@@ -894,8 +916,12 @@ mod tests {
                 let reference = original_variable_reference_at(source, &analysis, cursor)
                     .unwrap_or_else(|| panic!("missing {needle:?} under {style:?}"));
                 assert_eq!(reference.root, root, "{needle}");
-                assert_eq!(reference.element_label, element, "{needle}");
                 let original = &source[reference.whole_span.as_range()];
+                assert_eq!(
+                    tcl_syntax::naming::element_var_name_for_style(original, style),
+                    element,
+                    "{needle}"
+                );
                 assert!(
                     tcl_lexer::word_parts::whole_var_ref(
                         original.as_bytes(),

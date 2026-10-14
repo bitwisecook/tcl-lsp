@@ -32,7 +32,7 @@
 
 use crate::ir::{Script, Statement};
 use crate::var_escape::handlers::{
-    handle_dynamic_name_first, handle_normal_variable_aliases, handle_source_introspection,
+    handle_normal_variable_aliases, handle_source_introspection, handle_source_name_first,
     has_expand_word,
 };
 use crate::var_escape::helpers::{
@@ -143,15 +143,7 @@ pub(crate) fn handle_call(
             .traits
             .contains(tcl_registry::prelude::Traits::FIRST_ARG_VARNAME)
         {
-            if source_names
-                .as_ref()
-                .and_then(|source| {
-                    source.original_variable_name_operand(source.facts().argument_offset)
-                })
-                .is_none()
-            {
-                handle_dynamic_name_first(&facts.canonical_command, args, state);
-            }
+            handle_source_name_first(&facts.canonical_command, source_names.as_ref(), state);
         }
     }
     // Record statically resolvable callees for interprocedural
@@ -552,14 +544,13 @@ fn escape_structural(
     }
 }
 
-/// Resolve a (possibly-dynamic) name and call `escape` — used by
-/// the `walk` arms.
+/// Unattributed hints preserve possible names without closing dynamic targets.
 fn walk_dynamic_name_escape(state: &mut EscapeState, name: &str) {
     if let Some(literal) = state.resolve_literal(name) {
         state.escape(&literal);
-    } else {
-        state.escape_all_known();
     }
+    state.mark_pessimistic();
+    state.escape_all_known();
 }
 
 fn walk_assign_or_incr(
@@ -593,6 +584,19 @@ fn walk_assign_or_incr(
             }
             _ => state.invalidate_original_literal(&name),
         }
+        return true;
+    }
+    if tokens.is_some()
+        && matches!(
+            stmt,
+            Statement::AssignConst { .. }
+                | Statement::AssignValue { .. }
+                | Statement::AssignExpr { .. }
+                | Statement::Incr { .. }
+        )
+    {
+        state.mark_pessimistic();
+        state.escape_all_known();
         return true;
     }
     match stmt {
@@ -878,6 +882,49 @@ mod tests {
     /// the full un-truncated source nesting before that cap trims it —
     /// same rationale as
     /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+    #[test]
+    fn original_scalar_owner_refusal_cannot_use_standalone_alias_hints() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = registry.profile().unwrap();
+        let module = crate::lowering::lower_to_ir_for_bytecode_with_dialect(
+            "proc p {} {set original 1}",
+            registry,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            Some(profile),
+        );
+        let body = &module.procedures.values().next().unwrap().body;
+        let statement = &body.statements[0];
+        let tokens = body
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let mut relabelled = statement.clone();
+        let Statement::AssignConst { name, .. } = &mut relabelled else {
+            panic!("actual original scalar producer");
+        };
+        *name = "$selector".to_owned();
+        let mut state = EscapeState::new(["protected".to_owned()]);
+        state.note_literal_assign("selector", "guessed_target");
+        assert!(walk_assign_or_incr(
+            &relabelled,
+            Some(tokens),
+            &mut state,
+            &registry
+        ));
+        assert!(state.dynamic_barrier());
+        assert!(state.tags.contains_key("protected"));
+        assert!(!state.tags.contains_key("guessed_target"));
+    }
+
+    #[test]
+    fn standalone_alias_hints_keep_other_dynamic_targets_unknown() {
+        let mut state = EscapeState::new(["protected".to_owned()]);
+        state.note_literal_assign("selector", "guessed_target");
+        walk_dynamic_name_escape(&mut state, "$selector");
+        assert!(state.dynamic_barrier());
+        assert!(state.tags.contains_key("protected"));
+        assert!(state.tags.contains_key("guessed_target"));
+    }
+
     #[test]
     fn scalar_transfers_reborrow_actual_statement_name_words() {
         let context = tcl_registry::model::ingress::static_context_for("tcl8.6");

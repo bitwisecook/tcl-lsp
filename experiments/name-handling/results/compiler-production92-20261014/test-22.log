@@ -1,0 +1,6 @@
+
+running 1 test
+test lowering::structured::control_receiver_data_tests::computed_control_receiver_names_keep_runtime_dispatch ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9809 filtered out; finished in 0.19s
+

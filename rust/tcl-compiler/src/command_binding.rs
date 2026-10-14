@@ -1240,6 +1240,7 @@ pub struct SourceInvocationBinding {
     pub(crate) lookup_state: Option<Arc<SourceLookupSnapshot>>,
     pub(crate) compiler_lookup_state: Option<Arc<SourceLookupSnapshot>>,
     original_logical_source_advice: Option<Arc<OriginalSourceCommandTransitionAdvice>>,
+    original_analysis_owner: Option<Arc<OriginalSourceAnalysisOwner>>,
     original_authored_source_body_scope:
         Option<Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>>,
     original_native_source_command:
@@ -1324,6 +1325,10 @@ impl SourceInvocationBinding {
         }
     }
 
+    pub(crate) fn original_analysis_attachment(&self) -> Option<&Arc<OriginalSourceAnalysisOwner>> {
+        self.original_analysis_owner.as_ref()
+    }
+
     pub(crate) fn retain_original_authored_source_body_scope(
         &mut self,
         scope: Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>,
@@ -1336,6 +1341,7 @@ impl SourceInvocationBinding {
             return None;
         }
         scope.original_words(tokens, scope.registry())?;
+        self.original_analysis_owner = scope.original_analysis_attachment().cloned();
         self.original_authored_source_body_scope = Some(scope);
         Some(())
     }
@@ -1454,6 +1460,7 @@ impl Default for SourceInvocationBinding {
             lookup_state: None,
             compiler_lookup_state: None,
             original_logical_source_advice: None,
+            original_analysis_owner: None,
             original_authored_source_body_scope: None,
             original_native_source_command: None,
             declaration_layout_observations: None,
@@ -1517,6 +1524,7 @@ impl Hash for SourceInvocationBinding {
         self.original_variable_operands.hash(state);
         self.rhs_read_store_observations.hash(state);
         self.object_callback_effects.hash(state);
+        self.original_analysis_owner.hash(state);
         self.lookup_state.hash(state);
         self.compiler_lookup_state.hash(state);
         self.declaration_layout_observations.hash(state);
@@ -2106,6 +2114,9 @@ impl SourceInvocationBinding {
     }
 
     fn join_original_operand_receipts(&mut self, other: &Self) {
+        if self.original_analysis_owner != other.original_analysis_owner {
+            self.original_analysis_owner = None;
+        }
         if self.original_authored_source_body_scope != other.original_authored_source_body_scope {
             self.original_authored_source_body_scope = None;
         }
@@ -3363,6 +3374,17 @@ pub(crate) struct OriginalSourceAnalysisOwner {
     source: Arc<SourceOriginId>,
     metadata: crate::registry_invocation::OwnedInvocationMetadataContext,
     config: tcl_lexer::LexerConfig,
+}
+impl PartialEq for OriginalSourceAnalysisOwner {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+impl Eq for OriginalSourceAnalysisOwner {}
+impl Hash for OriginalSourceAnalysisOwner {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::ptr::from_ref(self).hash(state);
+    }
 }
 impl OriginalSourceAnalysisOwner {
     pub(crate) fn matches(
@@ -7785,6 +7807,14 @@ impl SourceCommandBindings {
         }
         tokens.source_binding = Some(binding_at(offset));
         self.stamp_original_logical_declaration_targets(tokens);
+        for binding in tokens.source_binding.iter_mut().chain(
+            tokens
+                .nested_bindings
+                .iter_mut()
+                .map(|(_, binding)| binding),
+        ) {
+            binding.original_analysis_owner = self.original_analysis_owner.clone();
+        }
     }
 
     /// Loader provenance live at an exact invocation site, independently of
@@ -12509,6 +12539,7 @@ fn source_binding_projection_in(
         compiler_lookup_state: None,
         original_logical_source_advice: None,
         original_authored_source_body_scope: None,
+        original_analysis_owner: None,
         original_native_source_command: None,
         declaration_layout_observations: None,
         declaration_flow_inventory: None,

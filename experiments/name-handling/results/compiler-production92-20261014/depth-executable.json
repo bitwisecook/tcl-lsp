@@ -1,0 +1,7 @@
+{
+  "path": "/workspace/tcl-lsp/tmp/name-depth-budget92-compiler-ELF",
+  "sha256": "75e068f01cd663855aa1cae49cf6fc2e0a2fb0a0b896a4401d884035e6b8a48f",
+  "bytes": 385958248,
+  "source": "/tmp/name-compiler-production92-20261014/source-before.json.gz",
+  "scope": "Compiler92 fresh clean actual fixed depth controls; original88 executable retained separately"
+}

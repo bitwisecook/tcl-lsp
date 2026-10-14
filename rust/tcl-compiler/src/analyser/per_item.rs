@@ -1666,6 +1666,7 @@ fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
         || !result.all_classes.is_empty()
         || !result.original_procedure_metadata.is_empty()
         || !result.original_class_metadata.is_empty()
+        || !result.logical_class_declarations.is_empty()
         || !result.original_vendor_source_names.is_empty()
         || !result.original_vendor_procedure_metadata.is_empty()
         || !result.original_vendor_class_metadata.is_empty()

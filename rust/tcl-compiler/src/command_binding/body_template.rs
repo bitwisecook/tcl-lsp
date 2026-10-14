@@ -740,6 +740,7 @@ pub(super) fn normalize_native_tokens(
     {
         // Callers capture original dependencies before removing lookup worlds.
         // Analysis consumers must restore the current source owners.
+        proof.original_analysis_owner = None;
         proof.lookup_state = None;
         proof.compiler_lookup_state = None;
         proof.compiler_policy = None;

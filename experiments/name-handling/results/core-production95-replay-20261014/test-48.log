@@ -1,0 +1,17 @@
+
+running 1 test
+test inlay_hints::retained_hint_context_tests::logical_type_hints_refuse_a_same_named_definition_from_another_body ... 
+thread 'inlay_hints::retained_hint_context_tests::logical_type_hints_refuse_a_same_named_definition_from_another_body' (369206) panicked at rust/tcl-lsp-core/src/inlay_hints.rs:3130:9:
+assertion `left == right` failed: []
+  left: []
+ right: [": str"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlay_hints::retained_hint_context_tests::logical_type_hints_refuse_a_same_named_definition_from_another_body
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 3.71s
+

@@ -1,0 +1,17 @@
+
+running 1 test
+test minify::tests::static_fold_folds_sccp_constant_interpolation ... 
+thread 'minify::tests::static_fold_folds_sccp_constant_interpolation' (369244) panicked at rust/tcl-lsp-core/src/minify.rs:4294:9:
+assertion `left == right` failed
+  left: "set x 5\nputs \"n=$x\"\n"
+ right: "set x 5\nputs n=5\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    minify::tests::static_fold_folds_sccp_constant_interpolation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3039 filtered out; finished in 0.42s
+
