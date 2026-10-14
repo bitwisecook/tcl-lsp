@@ -242,7 +242,7 @@ impl Module {
                 && schema
                     .authored_source_script_arguments()?
                     .contains(&source.body.checked_sub(1)?))
-            .then_some(source)
+            .then_some(source.as_ref())
         })?
     }
 }
