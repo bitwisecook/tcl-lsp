@@ -14466,7 +14466,7 @@ mod retained_host_grammar_tests {
         assert_eq!(cfg.metadata_context.source_analysis_input(), Some(&input));
         assert!(cfg.blocks.values().any(|block| matches!(
             &block.terminator,
-            Some(Terminator::Return { value: Some(value), .. }) if value == "$($::value)"
+            Some(crate::cfg::Terminator::Return { value: Some(value), .. }) if value == "$($::value)"
         )));
         let explicit = build_ssa_with_config(cfg, registry, config);
         assert!(

@@ -116,18 +116,16 @@ fn fresh_vm() -> (Vm, Rc<RefCell<Vec<u8>>>) {
 }
 
 /// Run `src` directly on `tcl-vm`; return `(errored, stdout)`.
-fn run_direct(src: &str) -> (bool, String) {
+fn run_direct(src: &str) -> Result<(bool, String), String> {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen_with_registry(&ir, false, &registry);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, &registry)
+        .map_err(|error| format!("direct bytecode artifact unavailable: {error}"))?;
     let (mut vm, buf) = fresh_vm();
-    let comp = match asm {
-        Ok(asm) => vm.run_module(&asm),
-        Err(_) => vm.eval(src),
-    };
+    let comp = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&buf.borrow()).into_owned();
-    (comp.code == Code::Error, out)
+    Ok((comp.code == Code::Error, out))
 }
 
 /// Outcome of a WASM-driven run.
@@ -299,7 +297,10 @@ pub fn check(engine: &Engine, src: &str) -> DiffVerdict {
         return DiffVerdict::WasmHang;
     }
     let (wasm_err, wasm_out) = (wasm.errored, wasm.out);
-    let (direct_err, direct_out) = run_direct(src);
+    let (direct_err, direct_out) = match run_direct(src) {
+        Ok(result) => result,
+        Err(reason) => return DiffVerdict::Unrunnable(reason),
+    };
     // Compare stdout only when neither errored (a partial errored stdout isn't
     // meaningfully comparable); always compare error status.
     if wasm_err != direct_err || (!wasm_err && wasm_out != direct_out) {

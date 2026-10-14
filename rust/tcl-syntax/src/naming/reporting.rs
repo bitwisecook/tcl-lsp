@@ -2,7 +2,7 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Namespace prefixes of Unicode analytical reporting QNames.
+//! Literal namespace geometry for Unicode analytical reporting keys.
 
 /// Selected geometry of a reporting QName's namespace presentation.
 /// Each purpose supplies metadata only, independently of retained source or
@@ -46,9 +46,51 @@ pub fn reported_qname_namespace(qname: &str, purpose: ReportedQNameNamespacePurp
     }
 }
 
+/// Compare analytical namespace report keys for a strict literal prefix.
+/// One leading root marker is removed from either key. The root contains every
+/// non-root report key; other prefixes require a following `::` boundary.
+/// Literal colons, trailing separators and all other bytes remain intact.
+/// This supplies no namespace component identity, lookup or editable source.
+#[must_use]
+pub fn reported_namespace_strictly_contains(parent: &str, child: &str) -> bool {
+    let parent = super::unroot_rooted_key(parent).unwrap_or(parent);
+    let child = super::unroot_rooted_key(child).unwrap_or(child);
+    if child.is_empty() {
+        return false;
+    }
+    parent.is_empty()
+        || child
+            .strip_prefix(parent)
+            .is_some_and(|rest| rest.starts_with("::"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reported_namespace_containment_preserves_literal_key_boundaries() {
+        for (parent, child, contains) in [
+            ("::p", "::p::q", true),
+            ("p", "::p::q::r", true),
+            ("::p", "::pq::r", false),
+            ("::p", "::p", false),
+            ("", "::p", true),
+            ("::", ":::", true),
+            (":::", "::", false),
+            ("::", "", false),
+            ("::p::", "::p::q", false),
+            ("::p::", "::p::::q", true),
+            ("::p:", "::p:::q", true),
+            ("::é", "::é::λ", true),
+            ("::p\0", "::p\0::q", true),
+        ] {
+            assert_eq!(
+                reported_namespace_strictly_contains(parent, child),
+                contains
+            );
+        }
+    }
 
     #[test]
     fn reported_qname_namespaces_keep_purpose_and_literal_text() {

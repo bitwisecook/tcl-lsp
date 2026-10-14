@@ -1,0 +1,11 @@
+{
+  "scope": "Affected four-package test-build API preflight only, exit101 at two fixture compilation errors, zero tests executed and authored source subset drift0. No Native/provider conformance acceptance.",
+  "files": {
+    "source-after.json.gz": "c3fbb3e0af9150ae0058fcfe12ea6be8f9e583ad56609fa442761720524c6741",
+    "result.json": "d2d82eb1e85048ba805dfc72e86130cb24efd35538ee466847b4608eb9c623d3",
+    "capture.py": "4aed67c064fe9259a2c90c37215126843d1c82ff33a3ff303bf8a9f11cf1ce1d",
+    "build.jsonl": "b63e25333f8e2c47435208dcd9d3e69c295774010b1ff941f69f35eafa04936b",
+    "source-before.json.gz": "164087a888b04e9b0f6365c79696f0f4a74962353a845f64cc4960fdc11091c8",
+    "start.json": "e9b80e9abe84ec1f46cb01a95c4e088cb779e6f42c54bab7b63c98f9097cf074"
+  }
+}

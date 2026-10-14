@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-14T20:55:41.855752+00:00",
+  "scope": "Retire two sealed historical Compiler88/92 copied executable caches. No active capture uses them; current diagnostics require the new exact built binary. Original inputs, logs, results, source/provider snapshots and their existing artifact hashes remain retained. Current Cargo libraries and executable outputs are untouched.",
+  "executables": [
+    {
+      "path": "tmp/name-depth-budget92-compiler-ELF",
+      "bytes": 385958248,
+      "sha256": "75e068f01cd663855aa1cae49cf6fc2e0a2fb0a0b896a4401d884035e6b8a48f"
+    },
+    {
+      "path": "tmp/name-depth-budget88-compiler-ELF",
+      "bytes": 384999568,
+      "sha256": "2a41ead4d0fc94792ac0cba316311d69e020067a3a762f297f60e7d7591d7350"
+    }
+  ]
+}

@@ -25,7 +25,7 @@
 mod body_identity;
 use body_identity::fixture_id;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use tcl_compiler::cfg::{Block, BlockId, CfgModule, Function as CfgFunction, Terminator};
 use tcl_compiler::codegen::{Op, codegen_function, codegen_module};
@@ -981,45 +981,8 @@ fn codegen_module_with_no_procs() {
         top_level: toplevel_with(vec![]),
         procedures: HashMap::new(),
     };
-    let ir_mod = IrModule {
-        irules_event_bodies: HashMap::new(),
-        retained_source_bindings: None,
-        lexer_config: tcl_lexer::LexerConfig::default(),
-        source_entry: tcl_compiler::command_binding::SourceAnalysisEntry::default(),
-        future_call_sites: Vec::new(),
-        installed_procedure_body_units: std::collections::BTreeMap::new(),
-        original_declaration_body_units: std::collections::BTreeMap::new(),
-        procedure_implementation_bodies: std::sync::Arc::default(),
-        top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
-        plain_command_dispatch: false,
-        source: tcl_lexer::SourceImage::default(),
-        native_namespace: None,
-        top_level_namespace: "::".to_owned(),
-        top_level_namespace_context: None,
-        dialect: None,
-        dialect_profile: None,
-        registry_snapshot: None,
-        top_level: Script::new(),
-        procedures: HashMap::new(),
-        methods: HashMap::new(),
-        body_units: HashMap::new(),
-        lambda_body_units: std::collections::BTreeSet::new(),
-        redefined_procedures: HashSet::new(),
-        redefined_methods: HashMap::new(),
-        oo_unanalysed_classes: HashSet::new(),
-        oo_evidence: tcl_compiler::ir::OoDefinitionEvidence::default(),
-        class_relations: Vec::new(),
-        namespace_imports: Vec::new(),
-        namespace_exports: Vec::new(),
-        traced_commands: std::collections::BTreeSet::new(),
-        has_dynamic_trace: false,
-        traced_variables: std::collections::BTreeSet::new(),
-        has_dynamic_variable_trace: false,
-        deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
-        reference_bodies: tcl_compiler::ir::ReferenceBodies::default(),
-        declared_frame_effects: std::collections::BTreeMap::new(),
-    };
     let registry = CommandRegistry::build_default();
+    let ir_mod = tcl_compiler::lowering::lower_to_ir_for_bytecode("", &registry);
     let asm = codegen_module(&cfg_mod, &ir_mod, &registry).expect("original source namespace");
     assert_eq!(asm.top_level.name, "::top");
     assert!(asm.procedures.is_empty());

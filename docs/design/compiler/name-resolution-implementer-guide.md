@@ -10782,6 +10782,27 @@ under both C and Jim policies; it does not choose a runtime policy or frame.
 Typed source lowering does not mint a cell, SSA version or Normal result. Native children instead use
 `original_native_source_syntax_offset` for held tape/input/attachment/vector
 geometry; unknown handler schema remains unknown after a syntax offset is known.
+`original_local_store_alpha_rename` has a separate zero-formal literal scalar
+store followed by whole-object ReturnResult contract. It retains the actual
+current declaration/publication/frame/Registry and complete alias, global and
+observer inventories, including trace receivers. Minification additionally
+requires complete original symbol and edit coverage. The singleton and fixed
+formal owners retain their own restrictions; this source equivalence receipt
+supplies no executed store, Normal result or native opcode.
+
+Class and procedure source structure consume the original body word from their
+actual current declaration owner. The class path joins the issued definition
+script and selected descriptor/grammar to the completed Logical class snapshot;
+`original_body_word` rechecks its exact image and input. These are syntax
+coordinates, independent of class allocation, member dispatch and editing.
+
+Package scaffolds use `scaffold_namespace_from_package_name`, whose generated
+policy and UTF-16-unit cases also drive the editor's `packageScaffoldNamespace`.
+This constructs a proposed ASCII source spelling and reports lossy changes;
+distinct package labels can collide. Callers retain creation/collision checks,
+and the result cannot select an existing Tcl namespace or command. Regenerate
+and check the projection with `cargo xtask gen-editor-catalogs`.
+
 
 Configured taint references use `substitution_variable_candidates` with the actual
 source lexer configuration. The shared executable arena keeps array-root and

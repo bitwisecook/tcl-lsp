@@ -604,31 +604,11 @@ pub fn namespace_implicit_parent_spans(
         .collect()
 }
 
-/// Whether `child` is a **strict** descendant namespace of `parent` — the
-/// name arithmetic that decides whether a `namespace eval` on `child`
-/// implicitly creates `parent`.
-///
-/// Both spellings are normalised first, so the root answers under every
-/// spelling it has (`::`, `` ``) and a trailing-separator name stays the
-/// distinct namespace it is (see [`normalise_namespace`]).
+/// Strict containment of analytical namespace report keys. Source namespace
+/// identity and editable occurrences require their independent retained owners.
 #[must_use]
 pub fn namespace_strictly_contains(parent: &str, child: &str) -> bool {
-    let parent = normalise_namespace(parent);
-    let child = normalise_namespace(child);
-    if child.is_empty() {
-        return false;
-    }
-    if parent.is_empty() {
-        // Every named namespace is a strict descendant of the global one —
-        // but the global namespace is created by the interpreter, so nothing
-        // *implicitly* creates it.  Its own site question is answered by
-        // [`namespace_implicit_parent_spans`] returning nothing; this
-        // predicate stays honest about the containment relation itself.
-        return true;
-    }
-    child
-        .strip_prefix(parent)
-        .is_some_and(|rest| rest.starts_with("::"))
+    tcl_syntax::naming::reported_namespace_strictly_contains(parent, child)
 }
 
 /// The covering-prefix span of **one** declaring name word: the leading

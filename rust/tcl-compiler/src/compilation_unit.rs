@@ -3132,6 +3132,7 @@ impl CompilationUnit {
                 top_level_kind: crate::ir::TopLevelKind::Script,
                 source: tcl_lexer::SourceImage::default(),
                 native_namespace: None,
+                original_byte_source_namespace: None,
                 top_level_namespace: "::".to_owned(),
                 top_level_namespace_context: None,
                 dialect: None,

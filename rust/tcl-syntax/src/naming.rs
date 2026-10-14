@@ -89,7 +89,9 @@ pub use script_command_presence::{
     ScriptRootCommandPresencePlan, original_command_presence_support,
 };
 mod script_namespace_snapshot;
-pub use reporting::{ReportedQNameNamespacePurpose, reported_qname_namespace};
+pub use reporting::{
+    ReportedQNameNamespacePurpose, reported_namespace_strictly_contains, reported_qname_namespace,
+};
 pub use script_namespace_snapshot::original_namespace_variable_snapshot_support;
 mod compiled_variables;
 mod variable_geometry;

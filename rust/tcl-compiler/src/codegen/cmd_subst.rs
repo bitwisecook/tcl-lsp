@@ -880,11 +880,8 @@ impl CodegenCtx<'_> {
             }
             return;
         }
-        // Default: the word's own text is its value — unsubstituted unless a
-        // `${…}` / `[…]` the runtime still owns survived the arms above. The
-        // twin of `emit_value_interpolated`'s default, and missed when that one
-        // was fixed: this is the emitter a proc's `return` value goes through,
-        // so `proc p {} { return "{abc}" }` answered `abc`.
+        // Preserve the word's value, including literal braces. Any remaining
+        // substitution stays with the runtime rather than becoming literal text.
         self.push_word_value(value);
     }
 

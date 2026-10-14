@@ -1,0 +1,138 @@
+{
+  "started": {
+    "utc": "2026-10-14T20:51:36.749222+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "xtask",
+      "--lib",
+      "--bin",
+      "xtask"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "Authored Rust/runtime/data/Cargo source subset and affected test-build API preflight only. No test selectors execute and no provider/Native conformance acceptance."
+  },
+  "finished_utc": "2026-10-14T20:56:53.014660+00:00",
+  "exit_code": 101,
+  "seconds": 316.2652850070008,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [
+    {
+      "rendered": "error[E0433]: cannot find type `Terminator` in this scope\n     --> rust/tcl-compiler/src/ssa.rs:14469:18\n      |\n14469 |             Some(Terminator::Return { value: Some(value), .. }) if value == \"$($::value)\"\n      |                  ^^^^^^^^^^ use of undeclared type `Terminator`\n      |\nhelp: consider importing this enum\n      |\n14437 +     use crate::cfg::Terminator;\n      |\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "consider importing this enum",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 578590,
+              "byte_start": 578590,
+              "column_end": 5,
+              "column_start": 5,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/ssa.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 14437,
+              "line_start": 14437,
+              "suggested_replacement": "use crate::cfg::Terminator;\n",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 5,
+                  "highlight_start": 5,
+                  "text": "    use super::*;"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "cannot find type `Terminator` in this scope",
+      "spans": [
+        {
+          "byte_end": 579931,
+          "byte_start": 579921,
+          "column_end": 28,
+          "column_start": 18,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/ssa.rs",
+          "is_primary": true,
+          "label": "use of undeclared type `Terminator`",
+          "line_end": 14469,
+          "line_start": 14469,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 28,
+              "highlight_start": 18,
+              "text": "            Some(Terminator::Return { value: Some(value), .. }) if value == \"$($::value)\""
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0433",
+        "explanation": "An undeclared crate, module, or type was used.\n\nErroneous code example:\n\n```compile_fail,E0433\nlet map = HashMap::new();\n// error: failed to resolve: use of undeclared type `HashMap`\n```\n\nPlease verify you didn't misspell the type/module's name or that you didn't\nforget to import it:\n\n```\nuse std::collections::HashMap; // HashMap has been imported.\nlet map: HashMap<u32, u32> = HashMap::new(); // So it can be used!\n```\n\nIf you've expected to use a crate name:\n\n```compile_fail\nuse ferris_wheel::BigO;\n// error: failed to resolve: use of undeclared module or unlinked crate\n```\n\nMake sure the crate has been added as a dependency in `Cargo.toml`.\n\nTo use a module from your current crate, add the `crate::` prefix to the path.\n"
+      }
+    },
+    {
+      "rendered": "error[E0063]: missing field `original_byte_source_namespace` in initializer of `ir::Module`\n    --> rust/tcl-compiler/src/compilation_unit.rs:3118:24\n     |\n3118 |             ir_module: crate::ir::Module {\n     |                        ^^^^^^^^^^^^^^^^^ missing `original_byte_source_namespace`\n\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "error",
+      "message": "missing field `original_byte_source_namespace` in initializer of `ir::Module`",
+      "spans": [
+        {
+          "byte_end": 134986,
+          "byte_start": 134969,
+          "column_end": 41,
+          "column_start": 24,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/compilation_unit.rs",
+          "is_primary": true,
+          "label": "missing `original_byte_source_namespace`",
+          "line_end": 3118,
+          "line_start": 3118,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 41,
+              "highlight_start": 24,
+              "text": "            ir_module: crate::ir::Module {"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0063",
+        "explanation": "A struct's or struct-like enum variant's field was not provided.\n\nErroneous code example:\n\n```compile_fail,E0063\nstruct Foo {\n    x: i32,\n    y: i32,\n}\n\nfn main() {\n    let x = Foo { x: 0 }; // error: missing field: `y`\n}\n```\n\nEach field should be specified exactly once. Example:\n\n```\nstruct Foo {\n    x: i32,\n    y: i32,\n}\n\nfn main() {\n    let x = Foo { x: 0, y: 0 }; // ok!\n}\n```\n"
+      }
+    }
+  ],
+  "test_artifacts": [
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-21137d634222e84e",
+      "sha256": "94c3a9f5b287f35c5fc522dfbff1f2cc4bf2957cd05c16ae348c3b0f8f66c221"
+    }
+  ]
+}

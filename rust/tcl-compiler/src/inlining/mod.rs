@@ -607,9 +607,7 @@ fn v3_script_eligible(
     true
 }
 
-// catalogue → inlinable map
-
-/// Build the qname → [`InlineSpec`] map of inlinable procedures. Only
+/// Build the Module-issued body-ID map of inlinable procedures. Only
 /// [`InlineDecision::Always`] procs qualify; `IfSingleCall` is not
 /// eligible, because its profitability depends on post-inline pruning
 /// this pass does not perform. Redefined procs are never inlined.
