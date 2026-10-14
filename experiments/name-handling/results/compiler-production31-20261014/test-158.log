@@ -1,0 +1,15 @@
+
+running 1 test
+test deferred_writes::tests::a_callback_the_scan_cannot_read_may_write_any_variable ... 
+thread 'deferred_writes::tests::a_callback_the_scan_cannot_read_may_write_any_variable' (223892) panicked at rust/tcl-compiler/src/deferred_writes.rs:1282:13:
+after 100 finish
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_callback_the_scan_cannot_read_may_write_any_variable
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 1.20s
+

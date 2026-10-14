@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::upvar_info::tests::relative_upframe_does_not_borrow_the_callee_namespace_alias ... 
+thread 'cfg_builder::upvar_info::tests::relative_upframe_does_not_borrow_the_callee_namespace_alias' (223783) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+authored fixture body "::callee::setter" absent
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::upvar_info::tests::relative_upframe_does_not_borrow_the_callee_namespace_alias
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.17s
+

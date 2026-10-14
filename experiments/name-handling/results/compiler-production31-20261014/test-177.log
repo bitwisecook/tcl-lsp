@@ -1,0 +1,15 @@
+
+running 1 test
+test inlining::frame::tests::original_frame_context_keeps_selected_aliases_and_shadow_refusal ... 
+thread 'inlining::frame::tests::original_frame_context_keeps_selected_aliases_and_shadow_refusal' (223946) panicked at rust/tcl-compiler/src/inlining/frame.rs:732:13:
+proc p {x} {return [string length $x]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlining::frame::tests::original_frame_context_keeps_selected_aliases_and_shadow_refusal
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.56s
+

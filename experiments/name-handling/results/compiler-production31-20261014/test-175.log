@@ -1,0 +1,16 @@
+
+running 1 test
+test inlining::frame::tests::original_frame_context_declines_missing_foreign_and_stale_carriers ... 
+thread 'inlining::frame::tests::original_frame_context_declines_missing_foreign_and_stale_carriers' (223933) panicked at rust/tcl-compiler/src/inlining/frame.rs:772:9:
+assertion failed: reads_only_bound_names(original.procedures.get(&fixture_id(&original.procedures,
+                    "::p")).expect("authored fixture body"), selected)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlining::frame::tests::original_frame_context_declines_missing_foreign_and_stale_carriers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.53s
+

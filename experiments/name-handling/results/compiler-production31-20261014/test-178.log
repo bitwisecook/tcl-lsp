@@ -1,0 +1,17 @@
+
+running 1 test
+test inlining::frame::tests::original_frame_empty_and_dollar_names_require_actual_local_bindings ... 
+thread 'inlining::frame::tests::original_frame_empty_and_dollar_names_require_actual_local_bindings' (223948) panicked at rust/tcl-compiler/src/inlining/frame.rs:709:13:
+assertion `left == right` failed: proc p {} {set {} VALUE; return ${}}
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlining::frame::tests::original_frame_empty_and_dollar_names_require_actual_local_bindings
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.82s
+

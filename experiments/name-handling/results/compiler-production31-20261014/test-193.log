@@ -1,0 +1,15 @@
+
+running 1 test
+test lowering::tests::proc_dynamic_name_resolved_via_const_map ... 
+thread 'lowering::tests::proc_dynamic_name_resolved_via_const_map' (223978) panicked at rust/tcl-compiler/src/lowering/mod.rs:9258:9:
+expected ::Verbose in [ProcedureId { scope: 1, ordinal: 0 }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    lowering::tests::proc_dynamic_name_resolved_via_const_map
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.23s
+

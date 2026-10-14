@@ -1,0 +1,498 @@
+[
+  {
+    "test": "ssa::tests::lowered_literal_read_names_keep_empty_and_dollar_data",
+    "log": "test-04.log"
+  },
+  {
+    "test": "analyser::diagnostics::dataflow::original_formal_diagnostic_source_tests::w214_uses_original_tight_name_spans_and_quoted_markers",
+    "log": "test-05.log"
+  },
+  {
+    "test": "body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+    "log": "test-07.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_baked_custom_varwrite_target_uses_its_registry_descriptor",
+    "log": "test-08.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_baked_global_literal_body_resolves_late_inner_alias",
+    "log": "test-09.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_baked_global_uplevel_frame_is_resolved_from_invocation_facts",
+    "log": "test-10.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_baked_level_is_part_of_exact_transition_resolution",
+    "log": "test-11.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_baked_namespace_upvar_prefix_is_part_of_exact_transition_resolution",
+    "log": "test-12.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_baked_set_target_is_a_global_value_write",
+    "log": "test-13.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_baked_variable_name_still_records_value_write",
+    "log": "test-14.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_chain_composes_every_baked_argument_in_order",
+    "log": "test-15.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_created_in_namespaced_proc_is_global_in_source_interpreter",
+    "log": "test-16.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_defined_after_the_procedure_is_live_when_the_body_runs",
+    "log": "test-17.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_established_by_another_callable_procedure_is_in_the_may_state",
+    "log": "test-18.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_established_in_evaluated_substitution_applies_to_later_calls",
+    "log": "test-19.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_established_inside_the_procedure_applies_to_later_calls",
+    "log": "test-20.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_global_target_survives_same_tail_namespace_collision",
+    "log": "test-21.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::alias_target_prefix_resolves_in_the_target_interpreters_global_namespace",
+    "log": "test-22.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::branch_alternative_outer_aliases_are_unioned",
+    "log": "test-23.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::caller_frame_upvar_is_not_a_global_write",
+    "log": "test-24.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::canonical_alias_target_participates_in_transitive_write_closure",
+    "log": "test-25.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::conditional_alias_override_joins_both_live_bindings",
+    "log": "test-26.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::conditional_namespace_alias_keeps_global_fallback_live",
+    "log": "test-27.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::constructed_global_uplevel_resolves_command_in_global_namespace",
+    "log": "test-29.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::custom_replacement_under_builtin_spelling_uses_its_own_descriptor",
+    "log": "test-30.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::declaration_after_write_still_counted",
+    "log": "test-31.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::direct_global_write_recorded",
+    "log": "test-32.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::embedded_alias_prefix_preserves_global_alias_arguments",
+    "log": "test-37.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::embedded_global_alias_transition_maps_later_local_write",
+    "log": "test-38.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::embedded_incr_in_command_substitution_recorded",
+    "log": "test-39.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::embedded_namespace_alias_transition_maps_later_local_write",
+    "log": "test-40.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::embedded_proc_call_in_assign_value_propagates_global_write",
+    "log": "test-41.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::embedded_proc_call_in_return_propagates_global_write",
+    "log": "test-42.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::embedded_proc_calls_in_assign_expr_and_expr_eval_propagate_global_write",
+    "log": "test-43.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::embedded_proc_calls_in_if_and_while_conditions_propagate_global_write",
+    "log": "test-44.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::late_alias_summary_is_published_under_its_source_spelling",
+    "log": "test-47.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::late_alias_to_eval_inside_global_frame_stays_global",
+    "log": "test-48.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::late_alias_to_relative_zero_inside_global_frame_stays_global",
+    "log": "test-49.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::late_namespaced_alias_resolves_inside_namespace_eval_block",
+    "log": "test-50.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::mutually_recursive_procs_share_the_write",
+    "log": "test-51.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::namespace_upvar_rename_resolves_to_outer_name",
+    "log": "test-52.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::nested_relative_zero_inside_global_upframe_stays_global",
+    "log": "test-53.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::non_mutating_alias_alternative_preserves_the_incoming_binding",
+    "log": "test-54.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::proc_with_no_global_write_is_empty",
+    "log": "test-55.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::read_only_global_is_not_a_write",
+    "log": "test-56.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::recovered_procedure_without_a_published_summary_is_opaque",
+    "log": "test-58.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::recursive_proc_terminates_and_includes_write",
+    "log": "test-59.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::redefined_procedure_generation_is_an_opaque_global_effect",
+    "log": "test-60.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::rename_preserves_every_module_live_alias_state_with_its_baked_arguments",
+    "log": "test-61.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::renamed_global_descriptor_establishes_alias_without_counting_declaration_as_write",
+    "log": "test-62.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::renamed_trace_descriptor_is_not_mistaken_for_a_value_write",
+    "log": "test-63.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::same_tailed_bodies_retain_independent_write_summaries",
+    "log": "test-64.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::supplied_global_write_call_closure_includes_source_expression_targets",
+    "log": "test-66.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names",
+    "log": "test-67.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar",
+    "log": "test-68.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::transitive_closure_through_direct_call",
+    "log": "test-70.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::transparent_eval_inside_global_upframe_resolves_a_late_global_alias",
+    "log": "test-71.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::transparent_eval_inside_global_upframe_uses_global_command_resolution",
+    "log": "test-72.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::unrelated_global_write_is_not_confused_with_other_procs",
+    "log": "test-73.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::uplevel_caller_frame_is_not_a_global_write",
+    "log": "test-74.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::uplevel_hash_zero_constructed_list_records_global_writes",
+    "log": "test-75.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_records_global_writes",
+    "log": "test-78.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_resolves_late_alias_prefix_write",
+    "log": "test-79.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::uplevel_hash_zero_non_writing_script_stays_empty",
+    "log": "test-80.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::upvar_hash_zero_counts_as_global",
+    "log": "test-82.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::variable_declaration_without_value_is_not_a_write",
+    "log": "test-83.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::variable_mixed_pairs_only_record_value_bearing_cells",
+    "log": "test-84.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::variable_namespace_write_recorded",
+    "log": "test-85.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::variable_value_form_records_the_namespace_value_write",
+    "log": "test-86.log"
+  },
+  {
+    "test": "cfg_builder::global_write_info::tests::write_on_conditional_branch_still_counted",
+    "log": "test-87.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::absolute_constructed_set_is_exact_while_relative_set_is_opaque",
+    "log": "test-88.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::alias_prefixed_alias_pairs_keep_their_effective_operands",
+    "log": "test-89.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::caller_alias_inside_the_selected_caller_frame_reaches_past_it",
+    "log": "test-91.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards",
+    "log": "test-92.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::current_frame_alias_pairs_compose_inside_the_selected_caller_frame",
+    "log": "test-101.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::current_frame_body_retains_nested_caller_frame_effects",
+    "log": "test-102.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::late_alias_to_eval_preserves_an_enclosing_caller_frame",
+    "log": "test-111.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::late_alias_to_relative_one_uplevel_reaches_past_an_enclosing_caller_frame",
+    "log": "test-112.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::late_alias_to_relative_zero_uplevel_preserves_an_enclosing_caller_frame",
+    "log": "test-113.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::logical_frame_aliases_keep_real_formals_and_literal_dollar_names",
+    "log": "test-120.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::nested_relative_one_reaches_past_the_caller",
+    "log": "test-122.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::nested_relative_zero_preserves_the_caller_frame",
+    "log": "test-123.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::relative_constructed_bodies_do_not_borrow_callee_namespace",
+    "log": "test-126.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::relative_upframe_does_not_borrow_the_callee_namespace_alias",
+    "log": "test-127.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::uplevel_literal_body_records_caller_frame_writes",
+    "log": "test-135.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::uplevel_literal_body_resolves_late_alias_prefix_write",
+    "log": "test-136.log"
+  },
+  {
+    "test": "cfg_builder::upvar_info::tests::uplevel_of_a_side_effect_free_command_has_no_caller_effect",
+    "log": "test-137.log"
+  },
+  {
+    "test": "command_binding::logical_definition::tests::escaped_logical_formal_parent_keeps_names_without_fabricating_spans",
+    "log": "test-141.log"
+  },
+  {
+    "test": "command_binding::logical_definition::tests::logical_formal_source_geometry_survives_same_labels_and_missing_reports",
+    "log": "test-142.log"
+  },
+  {
+    "test": "command_binding::source_transition_advice::logical_body::tests::logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate",
+    "log": "test-147.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_callback_it_can_read_leaves_every_other_variable_alone",
+    "log": "test-153.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_callback_script_names_what_it_writes",
+    "log": "test-154.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_callback_spelled_as_several_words_is_read_as_one_script",
+    "log": "test-155.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_callback_that_names_a_procedure_writes_what_the_procedure_writes_globally",
+    "log": "test-156.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_callback_that_reaches_its_frame_by_unstated_names_writes_any_global",
+    "log": "test-157.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_callback_the_scan_cannot_read_may_write_any_variable",
+    "log": "test-158.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_callback_writes_through_every_shape_of_command",
+    "log": "test-159.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_definition_a_read_and_a_script_run_now_are_no_callback_write",
+    "log": "test-161.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_lambda_a_callback_applies_writes_what_its_body_writes_globally",
+    "log": "test-162.log"
+  },
+  {
+    "test": "deferred_writes::tests::a_quoted_callback_and_a_built_command_prefix_are_read",
+    "log": "test-163.log"
+  },
+  {
+    "test": "deferred_writes::tests::an_alias_target_and_the_words_after_it_are_one_command",
+    "log": "test-164.log"
+  },
+  {
+    "test": "inlining::frame::tests::a_command_that_takes_a_name_runs_a_script_or_is_unknown_is_beyond_them",
+    "log": "test-170.log"
+  },
+  {
+    "test": "inlining::frame::tests::actual_jim_module_purpose_cannot_open_a_logical_inline_frame",
+    "log": "test-173.log"
+  },
+  {
+    "test": "inlining::frame::tests::original_frame_context_declines_missing_foreign_and_stale_carriers",
+    "log": "test-175.log"
+  },
+  {
+    "test": "inlining::frame::tests::original_frame_context_declines_modified_procedure_headers_and_bodies",
+    "log": "test-176.log"
+  },
+  {
+    "test": "inlining::frame::tests::original_frame_context_keeps_selected_aliases_and_shadow_refusal",
+    "log": "test-177.log"
+  },
+  {
+    "test": "inlining::frame::tests::original_frame_empty_and_dollar_names_require_actual_local_bindings",
+    "log": "test-178.log"
+  },
+  {
+    "test": "lowering::tests::local_body_literal_quiet_logical_source_retains_factory_names_and_bodies",
+    "log": "test-188.log"
+  },
+  {
+    "test": "lowering::tests::method_variable_advice_preserves_literal_names_and_captured_prefix_values",
+    "log": "test-191.log"
+  },
+  {
+    "test": "lowering::tests::proc_dynamic_name_resolved_via_const_map",
+    "log": "test-193.log"
+  },
+  {
+    "test": "lowering::tests::proc_var_body_const_map_materialised",
+    "log": "test-194.log"
+  },
+  {
+    "test": "lowering::tests::unavailable_lowering_metadata_keeps_generic_dispatch_and_conservative_method_names",
+    "log": "test-195.log"
+  },
+  {
+    "test": "lowering::tests::unresolved_method_name_protection_keeps_original_source_text_without_reparsing",
+    "log": "test-196.log"
+  },
+  {
+    "test": "slot_allocation::tests::foreign_and_unavailable_terminator_owners_keep_known_cells_live",
+    "log": "test-201.log"
+  },
+  {
+    "test": "slot_allocation::tests::retained_array_root_read_keeps_its_known_members_live",
+    "log": "test-202.log"
+  },
+  {
+    "test": "slot_allocation::tests::retained_terminator_read_selects_the_original_ssa_cell",
+    "log": "test-203.log"
+  },
+  {
+    "test": "slot_allocation::tests::standalone_nested_command_keeps_protective_reads",
+    "log": "test-204.log"
+  },
+  {
+    "test": "slot_allocation::tests::the_backward_fixpoint_sweeps_exit_first",
+    "log": "test-205.log"
+  },
+  {
+    "test": "ssa::tests::original_literal_empty_reads_and_mutations_keep_name_data",
+    "log": "test-206.log"
+  },
+  {
+    "test": "ssa::tests::original_loop_name_lists_keep_empty_and_dollar_elements",
+    "log": "test-207.log"
+  },
+  {
+    "test": "taint::tests::namespace_shadowed_builtin_taint::fully_qualified_call_bypasses_the_shadow",
+    "log": "test-208.log"
+  },
+  {
+    "test": "taint::tests::namespace_shadowed_builtin_taint::shadow_in_unrelated_namespace_does_not_suppress_sink",
+    "log": "test-211.log"
+  },
+  {
+    "test": "taint::tests::namespace_shadowed_builtin_taint::unshadowed_namespace_call_is_still_a_sink",
+    "log": "test-213.log"
+  },
+  {
+    "test": "unit_scope::tests::retained_upframe_namespaces_do_not_parse_the_procedure_display_label",
+    "log": "test-219.log"
+  }
+]

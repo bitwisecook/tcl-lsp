@@ -1,0 +1,26 @@
+{
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-78463101920c36d4",
+    "sha256": "4d52df22f26d36e2845691468be878e34a791ba1762d9cc906b5afd3984c3b5a",
+    "bytes": 374987096
+  },
+  "source_scope": "Compiler31 retained binary; diagnostic replay only, no Main/Cargo edits; current Main acceptance not renewed",
+  "records": [
+    {
+      "test": "ssa::tests::original_literal_empty_reads_and_mutations_keep_name_data",
+      "exit_code": 101
+    },
+    {
+      "test": "command_binding::logical_definition::tests::logical_formal_source_geometry_survives_same_labels_and_missing_reports",
+      "exit_code": 101
+    },
+    {
+      "test": "slot_allocation::tests::retained_terminator_read_selects_the_original_ssa_cell",
+      "exit_code": 101
+    },
+    {
+      "test": "inlining::frame::tests::original_frame_empty_and_dollar_names_require_actual_local_bindings",
+      "exit_code": 101
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+
+running 1 test
+test inlining::frame::tests::original_frame_context_declines_modified_procedure_headers_and_bodies ... 
+thread 'inlining::frame::tests::original_frame_context_declines_modified_procedure_headers_and_bodies' (223944) panicked at rust/tcl-compiler/src/inlining/frame.rs:817:9:
+assertion failed: reads_only_bound_names(original, source)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlining::frame::tests::original_frame_context_declines_modified_procedure_headers_and_bodies
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.52s
+

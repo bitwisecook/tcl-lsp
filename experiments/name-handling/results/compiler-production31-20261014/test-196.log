@@ -1,0 +1,17 @@
+
+running 1 test
+test lowering::tests::unresolved_method_name_protection_keeps_original_source_text_without_reparsing ... 
+thread 'lowering::tests::unresolved_method_name_protection_keeps_original_source_text_without_reparsing' (223984) panicked at rust/tcl-compiler/src/lowering/mod.rs:10192:9:
+assertion `left == right` failed
+  left: ["", "$counter", "brace{name}", "a(b)", "-dash", "${dynamic}"]
+ right: ["", "$counter", "brace{name}", "a(b)", "-dash", "$dynamic"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    lowering::tests::unresolved_method_name_protection_keeps_original_source_text_without_reparsing
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.02s
+

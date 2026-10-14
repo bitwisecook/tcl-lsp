@@ -4110,12 +4110,16 @@
         {
           "path": "editors/vscode/src/chat/contextPack.ts",
           "sha256": "a5cf67a56c1ccb4d5288f2d32b28dc7a3498bdb3a895f628ab2184493320f39a"
+        },
+        {
+          "path": "editors/vscode/src/test/chatUtilities.test.ts",
+          "sha256": "994c3802364261923d001409d37c09a92702ded9df0fbe31ce32c1c060d97007"
         }
       ],
       "input_purpose": "AI source symbol reporting for exact requested source/language",
-      "shared_owner_api": "extractSourceSymbolDefinitions; vscode.executeDocumentSymbolProvider; isTclLanguage/LANGUAGE_ID_DIALECTS",
+      "shared_owner_api": "extractSourceSymbolDefinitions; detectIruleEvents; buildPromptContext; vscode.executeDocumentSymbolProvider; isTclLanguage/LANGUAGE_ID_DIALECTS",
       "status": "main-integrated; current-typescript-typecheck-pass; LSP-Electron-controls-unexecuted",
-      "action": "Actual source, language ID, URI/version/current text and document-open checks guard symbol projection. Provider unavailable means unknown, not empty definitions; real provider integration controls remain.",
+      "action": "One complete shared provider result serves symbol/event views with independent limits; exact source/language/URI/version/current text and document-open guards preserve currentness. No regex fallback or label/line dedup. Unknown provider explicitly reports unavailable, not empty definitions. Source controls cover actual event cards, namespace/procedure owners, same-line repeats/inert text, Markdown same-text refusal and Tcl86-to-iRule language override. TypeScript --noEmit passes; actual LSP/Electron selectors unexecuted.",
       "current_review": {
         "head": "be8a07ac57935f0c267eff37959bdf05d386e392",
         "basis": "Actual Main plus Root/owner report; no whole-family acceptance"

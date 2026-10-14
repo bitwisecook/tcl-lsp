@@ -1,0 +1,15 @@
+
+running 1 test
+test command_binding::source_transition_advice::logical_body::tests::logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate ... 
+thread 'command_binding::source_transition_advice::logical_body::tests::logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate' (223860) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs:758:13:
+namespace eval N {proc p {} {set x LOCAL; unknown; uplevel #0 {puts $x}}}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::logical_body::tests::logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 1.89s
+

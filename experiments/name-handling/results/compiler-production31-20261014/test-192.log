@@ -1,0 +1,6 @@
+
+running 1 test
+test lowering::tests::original_name_operand_publishes_a_body_without_borrowing_the_head_lookup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.24s
+

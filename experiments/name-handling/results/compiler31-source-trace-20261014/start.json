@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-10-14T03:33:16.476418+00:00",
+  "label": "Measured source producer trace replay",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34685,
+  "plan": {
+    "exact": [
+      "cfg_builder::global_write_info::tests::alias_baked_set_target_is_a_global_value_write",
+      "cfg_builder::global_write_info::tests::alias_chain_composes_every_baked_argument_in_order",
+      "cfg_builder::upvar_info::tests::logical_frame_aliases_keep_real_formals_and_literal_dollar_names"
+    ],
+    "temporary_diagnostics": true,
+    "scope": "Same binary/current source diagnostic replay of three measured failures using existing cfg(test) TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1. No production/Native acceptance.",
+    "environment": {
+      "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1"
+    }
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "4c5410f7a221df31b95d78e96699b3bb21e5c3de6c3d634287bb67fbc6278030",
+  "source_channel": "temporary cfg(test) stage diagnostics"
+}

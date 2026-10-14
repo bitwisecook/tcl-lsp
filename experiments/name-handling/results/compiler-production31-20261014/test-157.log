@@ -1,0 +1,15 @@
+
+running 1 test
+test deferred_writes::tests::a_callback_that_reaches_its_frame_by_unstated_names_writes_any_global ... 
+thread 'deferred_writes::tests::a_callback_that_reaches_its_frame_by_unstated_names_writes_any_global' (223890) panicked at rust/tcl-compiler/src/deferred_writes.rs:1206:9:
+assertion failed: declared_writes("db_bind {spec} -frame own").is_clear()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_callback_that_reaches_its_frame_by_unstated_names_writes_any_global
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.17s
+

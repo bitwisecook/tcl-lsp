@@ -1,0 +1,15 @@
+
+running 1 test
+test inlining::frame::tests::actual_jim_module_purpose_cannot_open_a_logical_inline_frame ... 
+thread 'inlining::frame::tests::actual_jim_module_purpose_cannot_open_a_logical_inline_frame' (223929) panicked at rust/tcl-compiler/src/inlining/frame.rs:900:67:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlining::frame::tests::actual_jim_module_purpose_cannot_open_a_logical_inline_frame
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.00s
+

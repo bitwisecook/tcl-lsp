@@ -1,0 +1,6 @@
+
+running 1 test
+test var_refs::tests::a_source_replacement_does_not_inherit_builtin_variable_read_roles ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.56s
+

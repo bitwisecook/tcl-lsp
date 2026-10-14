@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names ... 
+thread 'cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names' (223637) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1374:13:
+interp alias {} put {} set {$scalar(open}; proc p {} {global {$scalar(open}; put VALUE}: {ProcedureId { scope: 1, ordinal: 0 }: GlobalWriteInfo { names: {}, opaque_global_frame: true }}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.35s
+

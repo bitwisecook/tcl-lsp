@@ -1,0 +1,17 @@
+
+running 1 test
+test deferred_writes::tests::a_callback_that_names_a_procedure_writes_what_the_procedure_writes_globally ... 
+thread 'deferred_writes::tests::a_callback_that_names_a_procedure_writes_what_the_procedure_writes_globally' (223888) panicked at rust/tcl-compiler/src/deferred_writes.rs:1127:9:
+assertion `left == right` failed
+  left: []
+ right: ["done"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_callback_that_names_a_procedure_writes_what_the_procedure_writes_globally
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9668 filtered out; finished in 0.24s
+
