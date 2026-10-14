@@ -424,12 +424,13 @@ fn past_the_wide_tower(value: &FoldValue, octal: Option<bool>, numbers: NumberSy
 /// [`TclValue::Big`] so native-width proofs can decline without truncation.
 #[must_use]
 pub fn parse_integer_operand_with_policy(text: &str, policy: FoldPolicy) -> Option<TclValue> {
-    let text = text.trim();
+    // `ParseBoolean` matches a word untrimmed (`"yes "` is no boolean); only
+    // the numeric reading skips surrounding whitespace.
     if let Some(value) = tcl_syntax::boolean::parse_boolean_word(text) {
         return Some(TclValue::Int(i64::from(value)));
     }
     match strict_number_for_dialect(
-        &FoldValue::Str(text.to_owned()),
+        &FoldValue::Str(text.trim().to_owned()),
         policy.octal,
         policy.numbers.unwrap_or_default(),
     )? {
@@ -2583,6 +2584,18 @@ mod tests {
 
     use super::*;
     use crate::expr_parser::parse_expr;
+
+    /// tclsh 8.4.20–9.1.0: `ParseBoolean` matches a word untrimmed
+    /// (`if {"yes "} {}` is `expected boolean value but got "yes "`); a
+    /// number still skips its surrounding whitespace.
+    #[test]
+    fn an_integer_operand_reads_a_boolean_word_untrimmed() {
+        let read = |text| parse_integer_operand_with_policy(text, FoldPolicy::default());
+        assert_eq!(read("yes"), Some(TclValue::Int(1)));
+        assert_eq!(read("yes "), None);
+        assert_eq!(read(" true"), None);
+        assert_eq!(read(" 7 "), Some(TclValue::Int(7)));
+    }
 
     // evaluate_expr_with_constants
 

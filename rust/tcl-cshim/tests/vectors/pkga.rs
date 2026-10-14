@@ -83,6 +83,20 @@ const CASES: &[(&str, i64, &str, &str)] = &[
     ("pkga_calc add \" 12 \" 1", 0, "13", ""),
     ("pkga_calc add 1_000 1", 0, "1001", ""),
     ("pkga_calc add 2147483648 0", 0, "-2147483648", ""),
+    ("pkga_calc add 4294967295 0", 0, "-1", ""),
+    ("pkga_calc add -2147483648 0", 0, "-2147483648", ""),
+    (
+        "pkga_calc add -2147483649 0",
+        1,
+        "integer value too large to represent",
+        "ARITH IOVERFLOW {integer value too large to represent}",
+    ),
+    (
+        "pkga_calc add -4294967295 0",
+        1,
+        "integer value too large to represent",
+        "ARITH IOVERFLOW {integer value too large to represent}",
+    ),
     (
         "pkga_calc add 2",
         1,

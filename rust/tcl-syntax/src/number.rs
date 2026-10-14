@@ -363,10 +363,8 @@ pub fn format_double(f: f64) -> String {
         };
     }
 
-    // `{:e}` gives the shortest round-tripping mantissa + a base-10 exponent,
-    // e.g. `1.5e2`, `1e17`, `6.022e23`. Split them to drive Tcl's layout.
     let neg = f < 0.0;
-    let sci = format!("{:e}", f.abs());
+    let sci = shortest_nearest_scientific(f.abs());
     let (mantissa, exp_str) = sci
         .split_once('e')
         .expect("Rust's {:e} always emits an 'e' separator");
@@ -406,6 +404,28 @@ pub fn format_double(f: f64) -> String {
         }
     };
     if neg { format!("-{out}") } else { out }
+}
+
+/// The shortest round-tripping digits of a finite positive `f`, and among
+/// those the digits nearest its exact value, ties to an even last digit — what
+/// `TclDoubleDigits`' shortest mode (David Gay's `dtoa` mode 0) picks.
+///
+/// Rust's `{:e}` picks the digit count but not that digit: when two candidates
+/// of that length both round-trip it can take the one further from the value
+/// (1e15 + 0.3 is exactly `…0.25` and `{:e}` spells it `…0.3`; Tcl `…0.2`).
+/// `{:.Ne}` rounds the exact binary value correctly, half to even, so it
+/// supplies the nearest candidate; it is kept only when it still round-trips.
+fn shortest_nearest_scientific(f: f64) -> String {
+    let shortest = format!("{f:e}");
+    let significant = shortest.split_once('e').map_or(0, |(mantissa, _)| {
+        mantissa.bytes().filter(u8::is_ascii_digit).count()
+    });
+    let nearest = format!("{f:.*e}", significant.saturating_sub(1));
+    if nearest != shortest && nearest.parse::<f64>().is_ok_and(|n| n == f) {
+        nearest
+    } else {
+        shortest
+    }
 }
 
 /// Exactly compare an integer against a double, the way C Tcl's
@@ -1077,6 +1097,26 @@ mod tests {
         assert_eq!(format_double(-1e17), "-1e+17");
         assert_eq!(format_double(1e-5), "1e-5");
         assert_eq!(format_double(6.022e23), "6.022e+23");
+    }
+
+    /// Two shortest candidates both round-trip and sit equally far from the
+    /// double's exact value; `TclDoubleDigits` takes the even last digit.
+    /// tclsh 8.5.19–9.1.0 (and Python's `repr`) print the left column;
+    /// Rust's bare `{:e}` printed the odd neighbour (#2432).
+    #[test]
+    fn format_double_breaks_a_shortest_tie_to_even() {
+        assert_eq!(format_double(1e15 + 0.3), "1000000000000000.2");
+        assert_eq!(format_double(-1e15 - 0.3), "-1000000000000000.2");
+        for (bits, tcl) in [
+            (0x430c_6bf5_2634_016a_u64, "1000000000000045.2"),
+            (0x430c_6bf5_2634_0732, "1000000000000230.2"),
+            (0x42d6_bcc4_1e90_0508, "100000000000020.12"),
+        ] {
+            assert_eq!(format_double(f64::from_bits(bits)), tcl);
+        }
+        assert_eq!(format_double(0.1 + 0.2), "0.30000000000000004");
+        assert_eq!(format_double(1e23), "1e+23");
+        assert_eq!(format_double(5e-324), "5e-324");
     }
 
     #[test]
