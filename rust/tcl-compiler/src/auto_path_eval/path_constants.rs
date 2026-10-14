@@ -645,11 +645,15 @@ fn collect(
             out.barriers.push(0);
             continue;
         };
-        let head = head.strip_prefix("::").unwrap_or(head);
         if head.contains('$') || head.contains('[') || command.is_partial {
             out.barriers.push(at);
             continue;
         }
+        let Some(spec) = registry.get(head) else {
+            out.barriers.push(at);
+            continue;
+        };
+        let head = spec.descriptor_key().label();
         let args: Vec<&str> = command.texts[1..].iter().map(String::as_str).collect();
         let context = PathCollectionContext {
             profile,
@@ -1195,5 +1199,34 @@ mod tests {
             None,
         );
         assert_eq!(wrong.naming_policy(), None);
+    }
+}
+
+#[cfg(test)]
+mod descriptor_metadata_tests {
+    use super::*;
+
+    #[test]
+    fn authored_path_metadata_keeps_rooted_selection_and_declines_extra_root_projection() {
+        let profile = DialectProfile::plain_tcl();
+        let plain = constant_path_assignments("set paths {/opt/lib}", profile);
+        let rooted = constant_path_assignments("::set paths {/opt/lib}", profile);
+        assert_eq!(
+            plain
+                .iter()
+                .map(|write| (&write.name, &write.value))
+                .collect::<Vec<_>>(),
+            rooted
+                .iter()
+                .map(|write| (&write.name, &write.value))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(plain.len(), 1);
+        for head in ["::::set", "set::", "set:::member", ":set", "missing"] {
+            let inventory =
+                constant_path_assignments(&format!("{head} paths {{/opt/lib}}"), profile);
+            assert!(inventory.is_empty());
+            assert_eq!(inventory.barriers, vec![0]);
+        }
     }
 }

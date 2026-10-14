@@ -19352,14 +19352,17 @@ impl ModuleCommandMutations {
         self.dynamic
     }
 
-    /// Whether `name` sits in a namespace whose resolution this scan could
-    /// not enumerate — see [`Self::opaque_namespaces`].
+    /// The constructed command-key label contributes only MAY trust invalidation;
+    /// its written empty tail remains part of the namespace geometry.
     fn import_shadowed(&self, name: &str) -> bool {
         if self.opaque_namespaces.is_empty() {
             return false;
         }
-        let qualified = nqn(name);
-        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&qualified);
+        let parts = tcl_syntax::naming::written_command_parts(name.as_bytes());
+        let path = tcl_core_types::ByteNamespacePath::from_segments(parts.qualifiers);
+        let Some(namespace) = tcl_syntax::naming::checked_namespace_path_key(&path) else {
+            return true;
+        };
         self.opaque_namespaces.contains(&namespace)
     }
 
@@ -20710,6 +20713,19 @@ mod tests {
     /// key: a memo taken under one binding state must never answer for
     /// another. The literal names every field, so a field added to the
     /// summary fails to compile here until it is carried.
+    #[test]
+    fn opaque_namespace_imports_preserve_empty_command_tails() {
+        let mutations = ModuleCommandMutations {
+            opaque_namespaces: ["::ns".to_owned()].into_iter().collect(),
+            ..ModuleCommandMutations::default()
+        };
+        for name in ["ns::", "::ns::", "::ns::::", "::ns::ordinary"] {
+            assert!(!mutations.trusts_proc_binding(name), "{name}");
+        }
+        assert!(mutations.trusts_proc_binding("::ns"));
+        assert!(mutations.trusts_proc_binding("::other::"));
+    }
+
     #[test]
     fn the_trust_snapshot_round_trips_every_mutation_field() {
         let every = ModuleCommandMutations {
@@ -22525,9 +22541,9 @@ Animal new",
     fn rebound_candidates_include_relative_qualified_names() {
         let namespace = crate::ir::ExecutionNamespace::exact("::ns");
         for (written, expected) in [
-            ("inner::p", vec!["inner::p", "ns::inner::p"]),
-            ("p", vec!["ns::p", "p"]),
-            ("::inner::p", vec!["inner::p"]),
+            ("inner::p", vec!["::inner::p", "::ns::inner::p"]),
+            ("p", vec!["::ns::p", "::p"]),
+            ("::inner::p", vec!["::inner::p"]),
         ] {
             let mut bindings = ModuleCommandBindings::default();
             bindings.record_proc_rebound_candidates(written, &namespace);

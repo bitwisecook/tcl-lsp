@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "provider-identity",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-06/jim/provider-identity/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:47:08.242247+00:00",
+  "exit_code": 0,
+  "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -142,7 +142,8 @@ pub(crate) fn original_textual_reads(
             }
             for word in tokens.words() {
                 if let Some(text) = source.get(word.source().span.as_range()) {
-                    out.names.extend(scanner.scan_script(text, registry));
+                    out.names
+                        .extend(scanner.scan_lexical_script(text, registry));
                 } else {
                     out.opaque = true;
                 }

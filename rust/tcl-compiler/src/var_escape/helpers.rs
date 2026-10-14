@@ -195,15 +195,6 @@ pub fn is_dynamic_name(name: &str) -> bool {
     is_dynamic_token(name)
 }
 
-/// Strip a leading `::` from a substitution head for allow-list
-/// lookup. The frameless allow-list keys commands by their bare
-/// identifier (`set`, `list`, …); a substitution writing
-/// `[::set foo 1]` is the same command, just qualified.
-#[must_use]
-pub fn normalise_cmd_subst_head(head: &str) -> &str {
-    head.strip_prefix("::").unwrap_or(head)
-}
-
 /// True if *cmd* is in the audited frameless-runtime allow-list
 /// (the registry's [`Traits::FRAMELESS_RUNTIME`] commands).
 ///
@@ -224,10 +215,12 @@ pub fn is_frameless_runtime_command(cmd: &str) -> bool {
 /// unrecognised head still records a fallback rather than being waved past.
 #[must_use]
 pub fn is_frameless_runtime_command_in(cmd: &str, registry: &CommandRegistry) -> bool {
-    registry
-        .effective_semantics()
-        .command(cmd)
-        .is_some_and(|c| c.has_traits(Traits::FRAMELESS_RUNTIME))
+    registry.get(cmd).is_some_and(|spec| {
+        registry
+            .effective_semantics()
+            .command(spec.descriptor_key().label())
+            .is_some_and(|command| command.has_traits(Traits::FRAMELESS_RUNTIME))
+    })
 }
 
 /// True if *cmd* is one of the five `set` / `incr` / `append` /
@@ -384,10 +377,26 @@ mod tests {
     }
 
     #[test]
-    fn normalise_cmd_subst_head_strips_leading_colons() {
-        assert_eq!(normalise_cmd_subst_head("::set"), "set");
-        assert_eq!(normalise_cmd_subst_head("set"), "set");
-        assert_eq!(normalise_cmd_subst_head("::ns::cmd"), "ns::cmd");
+    fn frameless_metadata_uses_the_selected_descriptor_before_optional_root_fallback() {
+        let mut registry = CommandRegistry::build_default();
+        assert!(is_frameless_runtime_command_in("list", &registry));
+        assert!(is_frameless_runtime_command_in("::list", &registry));
+        for label in [
+            "::::list",
+            ":list",
+            "list::",
+            "list:::member",
+            "missing",
+            "",
+        ] {
+            assert!(!is_frameless_runtime_command_in(label, &registry));
+        }
+        let mut rooted = registry.get_exact("list").unwrap().clone();
+        rooted.name = "::list";
+        rooted.traits = Traits::empty();
+        registry.insert(rooted);
+        assert!(is_frameless_runtime_command_in("list", &registry));
+        assert!(!is_frameless_runtime_command_in("::list", &registry));
     }
 
     #[test]

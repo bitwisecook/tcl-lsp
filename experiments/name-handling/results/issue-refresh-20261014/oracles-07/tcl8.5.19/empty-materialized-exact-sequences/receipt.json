@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.5.19",
+  "case": "empty-materialized-exact-sequences",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-07/tcl8.5.19/empty-materialized-exact-sequences/source.tcl"
+  ],
+  "started_at": "2026-10-14T02:16:18.402527+00:00",
+  "exit_code": 0,
+  "source_sha256": "66c75318ec4c25d0ac7c6e5c1fa37daa08bb821e577d2408bbcf9b6be64f1e4b",
+  "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "stdout_sha256": "52f96c26a39ed25108a6db43d6e11c6051eba8a498a5baab1891adfa7ac7c262",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

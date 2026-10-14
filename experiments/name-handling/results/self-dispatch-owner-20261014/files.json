@@ -1,0 +1,6 @@
+[
+  "rust/tcl-compiler/src/lib.rs",
+  "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+  "docs/design/contracts/shared-utility-contracts-rust.md",
+  "rust/tcl-compiler/src/source_command_observation.rs"
+]

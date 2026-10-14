@@ -597,6 +597,34 @@ impl super::CommandBindingRealm {
         self.original_catalogue_advice(input, tokens, false)
     }
 
+    pub(super) fn original_logical_catalogue_word_at_span(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(tcl_lexer::NativeWord, u32)> {
+        let input = self.source_input.as_ref()?;
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || config != input.lexer_config()
+            || !self.matches_original_source_image(image, config)
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        prepared.as_ref().as_ref()?.logical_original_word_at_span(
+            self.bindings.source_origin()?,
+            input,
+            span,
+        )
+    }
+
     /// Exact original command extent from the shared source issuer. The caller
     /// still checks current point/target metadata before using its schema.
     pub(crate) fn original_source_catalogue_segment_at(

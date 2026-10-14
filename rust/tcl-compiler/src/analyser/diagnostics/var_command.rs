@@ -1246,15 +1246,33 @@ impl Analyser {
     /// Both spellings are checked, since each table keys bare or
     /// `::`-qualified depending on how the disturbing command was written.
     fn self_dispatch_keyword_disturbed(&self, head: &str) -> bool {
-        let bare = head.trim_start_matches("::");
-        let qualified = format!("::{bare}");
-        [bare, qualified.as_str()].iter().any(|name| {
-            self.command_aliases.contains_key(*name)
-                || self.renamed_commands.contains_key(*name)
-                || self.renamed_commands.values().any(|old| old == *name)
-                || self.deleted_commands.contains_key(*name)
-                || self.result.all_procs.contains_key(*name)
-                || self.result.all_classes.contains_key(*name)
+        let Ok(generation) = self.try_analysis_context() else {
+            return true;
+        };
+        let Some(spec) = generation
+            .context()
+            .resolve_spec(generation.commands(), head)
+        else {
+            return true;
+        };
+        if !spec
+            .traits
+            .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+        {
+            return true;
+        }
+        let Some(probe) = crate::source_command_observation::SelfDispatchSourceTableProbe::for_selected_descriptor(
+            spec.descriptor_key(),
+        ) else {
+            return true;
+        };
+        probe.any_reported_key(|name| {
+            self.command_aliases.contains_key(name)
+                || self.renamed_commands.contains_key(name)
+                || self.renamed_commands.values().any(|old| old == name)
+                || self.deleted_commands.contains_key(name)
+                || self.result.all_procs.contains_key(name)
+                || self.result.all_classes.contains_key(name)
         })
     }
 
@@ -3069,6 +3087,39 @@ mod original_abstract_factory_context_tests {
             let source = format!("oo::abstract create Base {{}}; {mutation}; Base new");
             let (mut analyser, unit) = fixture(&source, &input, &native);
             assert!(emitted(&mut analyser, &unit).is_empty(), "{mutation}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod self_dispatch_observation_tests {
+    use super::*;
+
+    #[test]
+    fn source_table_disturbance_retains_alias_and_rename_withdrawal_without_tail_matching() {
+        let mut analyser = Analyser::new();
+        assert!(!analyser.self_dispatch_keyword_disturbed("my"));
+        assert!(analyser.self_dispatch_keyword_disturbed("::my"));
+        analyser.command_aliases.insert(
+            "::Other::my".to_owned(),
+            ("::target".to_owned(), Vec::new()),
+        );
+        assert!(!analyser.self_dispatch_keyword_disturbed("my"));
+        analyser
+            .command_aliases
+            .insert("::my".to_owned(), ("::target".to_owned(), Vec::new()));
+        assert!(analyser.self_dispatch_keyword_disturbed("my"));
+        assert!(analyser.self_dispatch_keyword_disturbed("::my"));
+        analyser.command_aliases.clear();
+        analyser
+            .renamed_commands
+            .insert("::moved".to_owned(), "::my".to_owned());
+        assert!(analyser.self_dispatch_keyword_disturbed("my"));
+        analyser.renamed_commands.clear();
+        analyser.deleted_commands.insert("my".to_owned(), 0);
+        assert!(analyser.self_dispatch_keyword_disturbed("::my"));
+        for head in ["missing", "", ":::::my", "my::", "Other:::my"] {
+            assert!(analyser.self_dispatch_keyword_disturbed(head));
         }
     }
 }

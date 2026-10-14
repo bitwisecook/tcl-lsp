@@ -1,0 +1,35 @@
+error[E0609]: no field `source` on type `&SourceSite`
+    --> rust/tcl-compiler/src/interprocedural.rs:3186:46
+     |
+3186 |         .invocation_at_source(&head.source().source, head.source().span.start());
+     |                                              ^^^^^^
+     |                                              |
+     |                                              this is an associated function, not a method
+     |                                              unknown field
+     |
+     = note: found the following associated function; to be used as method, it must have a `self` parameter
+note: the candidate is defined in an impl for the type `SourceSite`
+    --> rust/tcl-compiler/src/ir.rs:124:5
+     |
+ 124 |     pub const fn source(span: Span) -> Self {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: use associated function syntax instead
+     |
+3186 -         .invocation_at_source(&head.source().source, head.source().span.start());
+3186 +         .invocation_at_source(&SourceSite::source, head.source().span.start());
+     |
+
+
+error[E0599]: no method named `image` found for reference `&WordExpr` in the current scope
+    --> rust/tcl-compiler/src/interprocedural.rs:3200:30
+     |
+3200 |             .all(|word| word.image() == image && word.config() == input.lexer_config())
+     |                              ^^^^^ method not found in `&WordExpr`
+
+
+error[E0599]: no method named `config` found for reference `&WordExpr` in the current scope
+    --> rust/tcl-compiler/src/interprocedural.rs:3200:55
+     |
+3200 |             .all(|word| word.image() == image && word.config() == input.lexer_config())
+     |                                                       ^^^^^^ method not found in `&WordExpr`
+

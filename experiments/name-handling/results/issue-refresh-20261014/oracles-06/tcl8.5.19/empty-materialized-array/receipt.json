@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.5.19",
+  "case": "empty-materialized-array",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.5.19/empty-materialized-array/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:47:06.645422+00:00",
+  "exit_code": 0,
+  "source_sha256": "7e5822b849617c7b673c5659b41a5254bfe1b27b361b981d6463d91090ff1311",
+  "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "stdout_sha256": "0ef4d985290092a89a1cbdb41cfeeecf67445ef64bf55a68c998980fcc986b92",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -3950,9 +3950,8 @@ fn has_subst(text: &str) -> bool {
     text.contains('$') || text.contains('[')
 }
 
-/// Resolve the variables read inside a dynamic index / name *text*.
-///
-/// Returns the bound read-places sorted by `(ns, name)` (deterministic).
+/// Protective lexical dependencies of a dynamic index or name.
+/// Detached command text retains an unknown read rather than by-name cells.
 fn inner_read_places(text: &str, ctx: &ResolveContext, registry: &CommandRegistry) -> Vec<Place> {
     let config = ctx.invocation_dialect.map_or_else(
         || tcl_lexer::LexerConfig::for_profile(registry.profile()),

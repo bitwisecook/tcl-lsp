@@ -1,0 +1,67 @@
+{
+  "files": [
+    {
+      "path": "experiments/name-handling/f5/questions/frame-local-name-geometry.md",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "4672b683b7d58567f7c1ea2a9b2a79cfe44d28d24e3024189649e0e40ed97a4f"
+    },
+    {
+      "path": "experiments/name-handling/results/frame-local-name-geometry/README.md",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "55655c69682fd1c981efe6150087b74968e9503c76a40c6fdaf2692fbc77bb52"
+    },
+    {
+      "path": "experiments/name-handling/results/frame-local-name-geometry/producer-error.txt",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "9947b5e92b5ac263651dc277d12bb4444c0be8c03277512aab92c17c24980096"
+    },
+    {
+      "path": "experiments/name-handling/results/frame-local-name-geometry/eight-case-results.json",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "9bef64057cfae9669eb822ab8f766366c229cd52178f730df329c9cd75b198dd"
+    },
+    {
+      "path": "experiments/name-handling/results/frame-local-name-geometry/eight-case-probe.tcl",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b"
+    },
+    {
+      "path": "experiments/name-handling/results/frame-local-name-geometry/first-six-case-results.json",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "87e095918ed9949ca0e2000d46ac82d44528739e66be4b16b8ba0dd04fe5aad6"
+    },
+    {
+      "path": "experiments/name-handling/results/frame-local-name-geometry/first-six-case-probe.tcl",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "461da3d5c06c287c5f3f510a52b9d8fabe5ee107cbb6759fe0cd85498baf1ad1"
+    },
+    {
+      "path": "experiments/name-handling/results/frame-local-name-geometry/results.json",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "dc925196209ef951f3d91eb4ecb059e1ff7b046342c30ee4984b9aa2bc68bbf7"
+    },
+    {
+      "path": "experiments/name-handling/results/frame-local-name-geometry/probe.tcl",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "0a426f69022baf69ca582bed64b60a16b0af013edd6ae87675f42a6d59475a2f"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "4c5c6f4fde34f145b5bb5c65beddb412815685665c09f6f6e2d21fde14bfa3bb",
+      "after_sha256": "f4b536a97fd3f8d5461436510515d4f4d15b3ab1f5a7fad7583b472caeb61219"
+    },
+    {
+      "path": "rust/tcl-compiler/src/inlining/frame.rs",
+      "before_sha256": "b34d156bba4bf9da273fd358ab858aeb7fb341a06ddd26dc38df730b4a12675b",
+      "after_sha256": "2a6c23b2866298b1f25b06d1aa22ed1c1ab304ed85d037db046704854eeb2c46"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "before_sha256": "fd98991941feb61027b2f8b352158b4e49d752bb46551a8b211b2481b6113745",
+      "after_sha256": "b4b043c9f4f2795e6bff519f6b1654983e08eda6c3eabe7881d43366b1b0c428"
+    }
+  ],
+  "patch_sha256": "ddc5e36e02ff892b57a2ab3b0811fdf195003b2d6f065f929b5665551150e844",
+  "validation": "Scratch Rustfmt parse/format PASS; six real native interpreter source records retained with original bytes; no tcltest; Source implementation acceptance unexecuted. No Main/Cargo.",
+  "oracles": "C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 + Jim source5bac7c99ad65864c87da513e22e2f01703fa4e03; F5 unanswered packet only."
+}

@@ -1,0 +1,4 @@
+[
+  "rust/tcl-compiler/src/var_escape/slot_resolution.rs",
+  "docs/design/contracts/shared-utility-contracts-rust.md"
+]

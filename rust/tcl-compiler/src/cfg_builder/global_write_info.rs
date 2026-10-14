@@ -46,6 +46,25 @@ struct GlobalWriteSemantics<'a> {
 }
 
 impl<'a> GlobalWriteSemantics<'a> {
+    fn logical_source(&self) -> bool {
+        self.input
+            .is_some_and(|input| input.has_logical_source_name_context())
+    }
+
+    fn logical_footprint(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<(
+        tcl_registry::VariableWriteProjection,
+        Vec<tcl_registry::VariableCellAliasTransition>,
+    )> {
+        crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
+            self.registry,
+            self.metadata?,
+            tokens,
+        )
+    }
+
     fn standalone(&self) -> bool {
         matches!(self.selection, InvocationMetadataInput::Standalone)
     }
@@ -89,8 +108,18 @@ impl<'a> GlobalWriteSemantics<'a> {
     fn statement_writes(
         &self,
         statement: &Statement,
+        tokens: Option<&crate::ir::CommandTokens>,
         namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
     ) -> tcl_registry::VariableWriteProjection {
+        if self.logical_source() {
+            return tokens
+                .and_then(|tokens| self.logical_footprint(tokens))
+                .map(|(writes, _)| writes)
+                .unwrap_or(tcl_registry::VariableWriteProjection {
+                    opaque_variable_frame: true,
+                    ..Default::default()
+                });
+        }
         if !self.standalone() {
             return self
                 .aliases
@@ -426,7 +455,7 @@ fn own_body_global_writes(
     // procedure that writes the global frame. Unrelated module-wide opacity
     // is runtime-provenance state, not a per-call variable effect.
     if aliases.script_has_opaque_binding_effect(body, registry, namespace)
-        || script_invokes_unknown_binding(body, aliases, namespace)
+        || (!semantics.logical_source() && script_invokes_unknown_binding(body, aliases, namespace))
     {
         info.opaque_global_frame = true;
     }
@@ -726,6 +755,7 @@ fn accumulate_state(
             stmt_gen_with_metadata_context(stmt, state, registry, semantics.metadata);
             collect_renamed_outer_alias(
                 stmt,
+                script.retained_source_tokens_for_statement(stmt),
                 renamed_aliases,
                 semantics,
                 command_namespace.as_ref(),
@@ -815,10 +845,19 @@ enum OuterAliasTarget {
 
 fn collect_renamed_outer_alias(
     stmt: &Statement,
+    tokens: Option<&crate::ir::CommandTokens>,
     renamed_aliases: &mut OuterAliasProjection,
     semantics: &GlobalWriteSemantics<'_>,
     namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
 ) {
+    if semantics.logical_source() {
+        if let Some((_, aliases)) = tokens.and_then(|tokens| semantics.logical_footprint(tokens)) {
+            for alias in &aliases {
+                collect_renamed_outer_alias_transition(alias, renamed_aliases, semantics);
+            }
+        }
+        return;
+    }
     for invocation in semantics.resolve_statement(stmt, namespace) {
         collect_renamed_outer_alias_facts(&invocation.facts, renamed_aliases, semantics);
     }
@@ -893,33 +932,41 @@ fn collect_renamed_outer_alias_facts(
         let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
             continue;
         };
-        let Some(outer) = selected_outer_alias_target(&alias.target, semantics) else {
-            continue;
-        };
-        match (alias.local.literal(), outer) {
-            (Some(local), OuterAliasTarget::Exact(outer)) => {
-                let local = literal_root(local);
-                if !local.is_empty() && !outer.is_empty() {
-                    renamed_aliases
-                        .targets
-                        .entry(local.to_owned())
-                        .or_default()
-                        .insert(outer);
-                }
+        collect_renamed_outer_alias_transition(alias, renamed_aliases, semantics);
+    }
+}
+
+fn collect_renamed_outer_alias_transition(
+    alias: &tcl_registry::VariableCellAliasTransition,
+    renamed_aliases: &mut OuterAliasProjection,
+    semantics: &GlobalWriteSemantics<'_>,
+) {
+    let Some(outer) = selected_outer_alias_target(&alias.target, semantics) else {
+        return;
+    };
+    match (alias.local.literal(), outer) {
+        (Some(local), OuterAliasTarget::Exact(outer)) => {
+            let local = literal_root(local);
+            if !local.is_empty() && !outer.is_empty() {
+                renamed_aliases
+                    .targets
+                    .entry(local.to_owned())
+                    .or_default()
+                    .insert(outer);
             }
-            (Some(local), OuterAliasTarget::Opaque) => {
-                let local = literal_root(local);
-                if !local.is_empty() {
-                    renamed_aliases.opaque_locals.insert(local.to_owned());
-                }
-            }
-            (None, OuterAliasTarget::Exact(outer)) => {
-                if !outer.is_empty() {
-                    renamed_aliases.dynamic_local_targets.insert(outer);
-                }
-            }
-            (None, OuterAliasTarget::Opaque) => renamed_aliases.dynamic_local_opaque = true,
         }
+        (Some(local), OuterAliasTarget::Opaque) => {
+            let local = literal_root(local);
+            if !local.is_empty() {
+                renamed_aliases.opaque_locals.insert(local.to_owned());
+            }
+        }
+        (None, OuterAliasTarget::Exact(outer)) => {
+            if !outer.is_empty() {
+                renamed_aliases.dynamic_local_targets.insert(outer);
+            }
+        }
+        (None, OuterAliasTarget::Opaque) => renamed_aliases.dynamic_local_opaque = true,
     }
 }
 
@@ -933,7 +980,7 @@ fn collect_write_targets(
 ) {
     for stmt in &script.statements {
         if statement_command_namespace(stmt, namespace).is_some() {
-            let (targets, opaque) = own_write_targets(stmt, semantics, namespace);
+            let (targets, opaque) = own_write_targets(script, stmt, semantics, namespace);
             info.opaque_global_frame |= opaque;
             for target in targets {
                 let target = literal_root(&target);
@@ -999,6 +1046,7 @@ fn insert_outer_name(names: &mut BTreeSet<String>, name: &str) {
 /// alias prefix, rather than stale lower-time Call definitions. The Registry
 /// distinguishes cell aliasing and trace installation from value writes.
 fn own_write_targets(
+    script: &Script,
     stmt: &Statement,
     semantics: &GlobalWriteSemantics<'_>,
     namespace: &ExecutionNamespace,
@@ -1009,7 +1057,11 @@ fn own_write_targets(
         return (out, true);
     };
     let embedded = source_substitutions(stmt, semantics, namespace);
-    let direct = semantics.statement_writes(stmt, command_namespace.as_ref());
+    let direct = semantics.statement_writes(
+        stmt,
+        script.retained_source_tokens_for_statement(stmt),
+        command_namespace.as_ref(),
+    );
     // Variable writes count from an in-frame expression word too: `set y
     // [expr {[incr ::hits]}]` writes the global exactly as `[incr ::hits]` in
     // a bare word does.
@@ -1084,8 +1136,12 @@ fn project_script_writes(
             return;
         }
         for stmt in &script.statements {
-            let (targets, stmt_opaque) =
-                own_write_targets(stmt, semantics, &ExecutionNamespace::exact(namespace));
+            let (targets, stmt_opaque) = own_write_targets(
+                script,
+                stmt,
+                semantics,
+                &ExecutionNamespace::exact(namespace),
+            );
             names.extend(targets);
             *opaque |= stmt_opaque;
             // A nested UpFrame explicitly selects a different variable
@@ -1448,7 +1504,8 @@ mod tests {
     #[test]
     fn same_tailed_bodies_retain_independent_write_summaries() {
         let m = module(
-            "proc ::b::run {} { global bbb; set bbb 1 }\n\
+            "namespace eval ::b {}; namespace eval ::a {}\n\
+             proc ::b::run {} { global bbb; set bbb 1 }\n\
              proc ::a::run {} { global aaa; set aaa 1 }\n",
         );
         let info = detect_global_write_procs(&m);

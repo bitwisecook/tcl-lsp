@@ -1,0 +1,13 @@
+[
+  "rust/tcl-registry/src/model/declaration.rs",
+  "rust/tcl-compiler/src/lib.rs",
+  "rust/tcl-compiler/src/lowering/mod.rs",
+  "rust/tcl-compiler/src/dynamic_names.rs",
+  "rust/tcl-compiler/src/deferred_writes.rs",
+  "rust/tcl-compiler/src/cfg_builder/mod.rs",
+  "rust/tcl-compiler/src/unit_scope.rs",
+  "rust/tcl-compiler/src/value_transfer.rs",
+  "rust/tcl-compiler/src/ir.rs",
+  "docs/design/contracts/shared-utility-contracts-rust.md",
+  "rust/tcl-compiler/src/declared_frame_effects.rs"
+]

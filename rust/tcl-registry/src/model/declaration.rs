@@ -607,6 +607,24 @@ impl<'a> DocumentCommandSurface<'a> {
             .filter_map(|(name, command)| Some((name, command.plain_call_frame_effect()?)))
     }
 
+    /// Selected declaration descriptor keys with their stated plain-call effect.
+    /// These metadata keys establish no runtime binding or entered frame.
+    pub fn plain_call_frame_effect_descriptor_keys(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            crate::CanonicalCommandDescriptorKey<'a>,
+            Option<FrameEffectSpec>,
+        ),
+    > {
+        self.plain_call_frame_effects().map(|(name, effect)| {
+            (
+                crate::CanonicalCommandDescriptorKey::from_registry_label(name),
+                effect,
+            )
+        })
+    }
+
     /// The document's own declaration of `name`, when it has one — the row
     /// every nearest-wins answer below reads first.
     fn declaration(&self, name: &str) -> Option<&'a DeclaredCommand> {
@@ -1219,6 +1237,13 @@ mod tests {
                 ("db_bind", Some(DeclaredFrameEffect::CALLER)),
                 ("db_query", None),
             ]
+        );
+        assert_eq!(
+            document
+                .plain_call_frame_effect_descriptor_keys()
+                .map(|(key, effect)| (key.label(), effect))
+                .collect::<Vec<_>>(),
+            document.plain_call_frame_effects().collect::<Vec<_>>()
         );
         assert_eq!(
             DocumentCommandSurface::new(registry, None)

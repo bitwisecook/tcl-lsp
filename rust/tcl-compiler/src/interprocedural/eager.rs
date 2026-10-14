@@ -91,36 +91,35 @@ impl EagerInvocations {
         };
 
         let mut load = Self::default();
-        let mut at = |stmt: &Statement, caller: &str| {
+        let mut at = |stmt: &Statement| {
             let mut reach = Reach::default();
-            walk.statement(stmt, caller, &mut reach);
+            walk.statement(stmt, &mut reach);
             load.note(stmt.span().start(), reach);
         };
-        crate::ir::for_each_statement(&ir_module.top_level, &mut |stmt| at(stmt, "::top"));
-        for (qname, unit) in ir_module.body_units.display_entries() {
+        crate::ir::for_each_statement(&ir_module.top_level, &mut |stmt| at(stmt));
+        for unit in ir_module.body_units.values() {
             if owner(unit.span).is_empty() {
-                crate::ir::for_each_statement(&unit.body, &mut |stmt| at(stmt, qname));
+                crate::ir::for_each_statement(&unit.body, &mut |stmt| at(stmt));
             }
         }
         for method in ir_module.methods.values() {
-            crate::ir::for_each_statement(&method.body, &mut |stmt| at(stmt, "::top"));
+            crate::ir::for_each_statement(&method.body, &mut |stmt| at(stmt));
         }
 
         // What each procedure's own runs reach: its body and the bodies
         // lowering registered inside it.
         let mut bodies: HashMap<ProcedureId, Reach> = HashMap::new();
         for (id, procedure) in ir_module.procedures.iter() {
-            let qname = procedure.qualified_name.as_str();
             let reach = bodies.entry(*id).or_default();
             crate::ir::for_each_statement(&procedure.body, &mut |stmt| {
-                walk.statement(stmt, qname, reach);
+                walk.statement(stmt, reach);
             });
         }
-        for (qname, unit) in ir_module.body_units.display_entries() {
+        for unit in ir_module.body_units.values() {
             for owner in owner(unit.span) {
                 let reach = bodies.entry(owner).or_default();
                 crate::ir::for_each_statement(&unit.body, &mut |stmt| {
-                    walk.statement(stmt, qname, reach);
+                    walk.statement(stmt, reach);
                 });
             }
         }
@@ -338,14 +337,12 @@ struct Invocation<'w> {
 }
 
 impl Walk<'_> {
-    /// What `stmt`, run in `caller`, may run: its own command and the
-    /// commands its words substitute. The statements nested in it are
-    /// visited apart.
-    fn statement(&self, stmt: &Statement, caller: &str, reach: &mut Reach) {
+    /// Original call receipts select reachability; nested statements are visited separately.
+    fn statement(&self, stmt: &Statement, reach: &mut Reach) {
         let substitutions = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
         reach.unnamed |= substitutions.opaque;
         for words in substitutions.all_commands() {
-            self.recovered(words, caller, reach);
+            self.recovered(words, reach);
         }
         let (Statement::Call {
             command,
@@ -394,14 +391,13 @@ impl Walk<'_> {
                 }),
                 held,
             },
-            caller,
             0,
             reach,
         );
     }
 
     /// A command a substitution runs.
-    fn recovered(&self, words: &[CommandWord], caller: &str, reach: &mut Reach) {
+    fn recovered(&self, words: &[CommandWord], reach: &mut Reach) {
         let Some((head, args)) = words.split_first() else {
             return;
         };
@@ -421,7 +417,6 @@ impl Walk<'_> {
                 expands: args.iter().any(|word| word.expanded),
                 held: false,
             },
-            caller,
             0,
             reach,
         );
@@ -461,7 +456,7 @@ impl Walk<'_> {
     /// What one command runs before it returns: the procedure it names, the
     /// procedure an invoker names, a sourced file, and each script or command
     /// prefix it runs at once.
-    fn invocation(&self, call: &Invocation<'_>, caller: &str, depth: u32, reach: &mut Reach) {
+    fn invocation(&self, call: &Invocation<'_>, depth: u32, reach: &mut Reach) {
         self.note_original_word(call.tokens, call.head, reach);
         let args: Vec<&str> = call.args.iter().map(String::as_str).collect();
         let traits = self.registry.invocation_traits(call.command, &args, None);
@@ -505,7 +500,7 @@ impl Walk<'_> {
                         if role != ArgRole::LambdaLiteral
                             && call.literal.get(index).copied().unwrap_or(false) =>
                     {
-                        self.script(text, caller, depth + 1, reach);
+                        self.script(text, depth + 1, reach);
                     }
                     _ => reach.unnamed = true,
                 }
@@ -514,7 +509,7 @@ impl Walk<'_> {
     }
 
     /// What a script run at once runs, command by command.
-    fn script(&self, text: &str, caller: &str, depth: u32, reach: &mut Reach) {
+    fn script(&self, text: &str, depth: u32, reach: &mut Reach) {
         if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
             reach.unnamed = true;
             return;
@@ -528,15 +523,15 @@ impl Walk<'_> {
                 continue;
             }
             let tokens = CommandTokens::from_segmented(&map, self.config, command);
-            self.words(&tokens.word_exprs, caller, depth, reach);
+            self.words(&tokens.word_exprs, depth, reach);
         }
     }
 
     /// One command of a script: the commands its words substitute, then the
     /// command itself.
-    fn words(&self, words: &[WordExpr], caller: &str, depth: u32, reach: &mut Reach) {
+    fn words(&self, words: &[WordExpr], depth: u32, reach: &mut Reach) {
         for word in words {
-            self.substitutions(word, caller, depth, reach);
+            self.substitutions(word, depth, reach);
         }
         let Some((head, args)) = words.split_first() else {
             return;
@@ -559,30 +554,29 @@ impl Walk<'_> {
                     .any(|word| matches!(word, WordExpr::Expand { .. })),
                 held: false,
             },
-            caller,
             depth,
             reach,
         );
     }
 
     /// The commands `word` substitutes.
-    fn substitutions(&self, word: &WordExpr, caller: &str, depth: u32, reach: &mut Reach) {
+    fn substitutions(&self, word: &WordExpr, depth: u32, reach: &mut Reach) {
         match word {
             WordExpr::CommandSubstitution { spelling, .. } => {
-                self.bracket(spelling, caller, depth, reach);
+                self.bracket(spelling, depth, reach);
             }
             WordExpr::Template { parts, .. } => {
                 for part in parts {
                     match part {
                         WordPart::CommandSubstitution { spelling, .. } => {
-                            self.bracket(spelling, caller, depth, reach);
+                            self.bracket(spelling, depth, reach);
                         }
                         WordPart::Opaque { .. } => reach.unnamed = true,
                         WordPart::Text { .. } | WordPart::Variable { .. } => {}
                     }
                 }
             }
-            WordExpr::Expand { word, .. } => self.substitutions(word, caller, depth, reach),
+            WordExpr::Expand { word, .. } => self.substitutions(word, depth, reach),
             WordExpr::Opaque { .. } => reach.unnamed = true,
             WordExpr::Literal { .. }
             | WordExpr::BracedLiteral { .. }
@@ -591,12 +585,12 @@ impl Walk<'_> {
     }
 
     /// The script a `[…]` substitution runs.
-    fn bracket(&self, spelling: &str, caller: &str, depth: u32, reach: &mut Reach) {
+    fn bracket(&self, spelling: &str, depth: u32, reach: &mut Reach) {
         match spelling
             .strip_prefix('[')
             .and_then(|inner| inner.strip_suffix(']'))
         {
-            Some(inner) => self.script(inner, caller, depth + 1, reach),
+            Some(inner) => self.script(inner, depth + 1, reach),
             None => reach.unnamed = true,
         }
     }

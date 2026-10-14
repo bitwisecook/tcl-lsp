@@ -1,0 +1,443 @@
+{
+  "recorded_at": "2026-10-14T01:47:10.553841+00:00",
+  "runner_sha256": "ee0a11e37577f161fccb60c936414d00988bff2ee24370056ad2d12457e3e26d",
+  "jim_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "changed_provider_inputs": [],
+  "records": [
+    {
+      "provider": "tcl8.4.20",
+      "case": "provider-identity",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.4.20/provider-identity/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.274017+00:00",
+      "exit_code": 0,
+      "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "stdout_sha256": "c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.4.20",
+      "case": "empty-materialized-set-read-unset",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.4.20/empty-materialized-set-read-unset/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.276258+00:00",
+      "exit_code": 0,
+      "source_sha256": "a01fd3192ed66530aeac582ccb6f8a54972a70da0ff13cd1b4409c513c044dd0",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "stdout_sha256": "fc87e465ba356e65735b9fe608388f27f38e885122b4f4745334d945415e8f2e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.4.20",
+      "case": "empty-materialized-alias",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.4.20/empty-materialized-alias/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.278064+00:00",
+      "exit_code": 0,
+      "source_sha256": "05a514cb97f1eca921852a7affce8350d47738c462adf8427027fdf186413c23",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "stdout_sha256": "e13b29b5256a4298f997b26a65cfd7a8a73b4c6d550831f5cd986cd627c6743a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.4.20",
+      "case": "empty-materialized-array",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.4.20/empty-materialized-array/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.279724+00:00",
+      "exit_code": 0,
+      "source_sha256": "7e5822b849617c7b673c5659b41a5254bfe1b27b361b981d6463d91090ff1311",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "stdout_sha256": "0ef4d985290092a89a1cbdb41cfeeecf67445ef64bf55a68c998980fcc986b92",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.4.20",
+      "case": "empty-materialized-replacement",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.4.20/empty-materialized-replacement/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.281424+00:00",
+      "exit_code": 0,
+      "source_sha256": "fb2c25c436bcf96d88297eafc710337734151eddb4f6da1d1378147a95ec5afe",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "stdout_sha256": "c1930ea71e95b74f00a85686558846ee702e11ec3c8bb1360677b39399c834fb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.5.19",
+      "case": "provider-identity",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.5.19/provider-identity/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.638891+00:00",
+      "exit_code": 0,
+      "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "stdout_sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.5.19",
+      "case": "empty-materialized-set-read-unset",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.5.19/empty-materialized-set-read-unset/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.641377+00:00",
+      "exit_code": 0,
+      "source_sha256": "a01fd3192ed66530aeac582ccb6f8a54972a70da0ff13cd1b4409c513c044dd0",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "stdout_sha256": "fc87e465ba356e65735b9fe608388f27f38e885122b4f4745334d945415e8f2e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.5.19",
+      "case": "empty-materialized-alias",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.5.19/empty-materialized-alias/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.643373+00:00",
+      "exit_code": 0,
+      "source_sha256": "05a514cb97f1eca921852a7affce8350d47738c462adf8427027fdf186413c23",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "stdout_sha256": "e13b29b5256a4298f997b26a65cfd7a8a73b4c6d550831f5cd986cd627c6743a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.5.19",
+      "case": "empty-materialized-array",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.5.19/empty-materialized-array/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.645422+00:00",
+      "exit_code": 0,
+      "source_sha256": "7e5822b849617c7b673c5659b41a5254bfe1b27b361b981d6463d91090ff1311",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "stdout_sha256": "0ef4d985290092a89a1cbdb41cfeeecf67445ef64bf55a68c998980fcc986b92",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.5.19",
+      "case": "empty-materialized-replacement",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.5.19/empty-materialized-replacement/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:06.647845+00:00",
+      "exit_code": 0,
+      "source_sha256": "fb2c25c436bcf96d88297eafc710337734151eddb4f6da1d1378147a95ec5afe",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "stdout_sha256": "c1930ea71e95b74f00a85686558846ee702e11ec3c8bb1360677b39399c834fb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.6.18",
+      "case": "provider-identity",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.6.18/provider-identity/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.010191+00:00",
+      "exit_code": 0,
+      "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "stdout_sha256": "7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.6.18",
+      "case": "empty-materialized-set-read-unset",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.6.18/empty-materialized-set-read-unset/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.013664+00:00",
+      "exit_code": 0,
+      "source_sha256": "a01fd3192ed66530aeac582ccb6f8a54972a70da0ff13cd1b4409c513c044dd0",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "stdout_sha256": "fc87e465ba356e65735b9fe608388f27f38e885122b4f4745334d945415e8f2e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.6.18",
+      "case": "empty-materialized-alias",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.6.18/empty-materialized-alias/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.016819+00:00",
+      "exit_code": 0,
+      "source_sha256": "05a514cb97f1eca921852a7affce8350d47738c462adf8427027fdf186413c23",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "stdout_sha256": "e13b29b5256a4298f997b26a65cfd7a8a73b4c6d550831f5cd986cd627c6743a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.6.18",
+      "case": "empty-materialized-array",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.6.18/empty-materialized-array/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.021836+00:00",
+      "exit_code": 0,
+      "source_sha256": "7e5822b849617c7b673c5659b41a5254bfe1b27b361b981d6463d91090ff1311",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "stdout_sha256": "0ef4d985290092a89a1cbdb41cfeeecf67445ef64bf55a68c998980fcc986b92",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.6.18",
+      "case": "empty-materialized-replacement",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.6.18/empty-materialized-replacement/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.028541+00:00",
+      "exit_code": 0,
+      "source_sha256": "fb2c25c436bcf96d88297eafc710337734151eddb4f6da1d1378147a95ec5afe",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "stdout_sha256": "c1930ea71e95b74f00a85686558846ee702e11ec3c8bb1360677b39399c834fb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.0.4",
+      "case": "provider-identity",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.0.4/provider-identity/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.432512+00:00",
+      "exit_code": 0,
+      "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "stdout_sha256": "b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.0.4",
+      "case": "empty-materialized-set-read-unset",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.0.4/empty-materialized-set-read-unset/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.443097+00:00",
+      "exit_code": 0,
+      "source_sha256": "a01fd3192ed66530aeac582ccb6f8a54972a70da0ff13cd1b4409c513c044dd0",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "stdout_sha256": "fc87e465ba356e65735b9fe608388f27f38e885122b4f4745334d945415e8f2e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.0.4",
+      "case": "empty-materialized-alias",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.0.4/empty-materialized-alias/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.449695+00:00",
+      "exit_code": 0,
+      "source_sha256": "05a514cb97f1eca921852a7affce8350d47738c462adf8427027fdf186413c23",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "stdout_sha256": "e13b29b5256a4298f997b26a65cfd7a8a73b4c6d550831f5cd986cd627c6743a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.0.4",
+      "case": "empty-materialized-array",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.0.4/empty-materialized-array/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.456726+00:00",
+      "exit_code": 0,
+      "source_sha256": "7e5822b849617c7b673c5659b41a5254bfe1b27b361b981d6463d91090ff1311",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "stdout_sha256": "0ef4d985290092a89a1cbdb41cfeeecf67445ef64bf55a68c998980fcc986b92",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.0.4",
+      "case": "empty-materialized-replacement",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.0.4/empty-materialized-replacement/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.462405+00:00",
+      "exit_code": 0,
+      "source_sha256": "fb2c25c436bcf96d88297eafc710337734151eddb4f6da1d1378147a95ec5afe",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "stdout_sha256": "c1930ea71e95b74f00a85686558846ee702e11ec3c8bb1360677b39399c834fb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.1.0",
+      "case": "provider-identity",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.1.0/provider-identity/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.816743+00:00",
+      "exit_code": 0,
+      "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "stdout_sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.1.0",
+      "case": "empty-materialized-set-read-unset",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.1.0/empty-materialized-set-read-unset/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.823595+00:00",
+      "exit_code": 0,
+      "source_sha256": "a01fd3192ed66530aeac582ccb6f8a54972a70da0ff13cd1b4409c513c044dd0",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "stdout_sha256": "fc87e465ba356e65735b9fe608388f27f38e885122b4f4745334d945415e8f2e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.1.0",
+      "case": "empty-materialized-alias",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.1.0/empty-materialized-alias/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.829031+00:00",
+      "exit_code": 0,
+      "source_sha256": "05a514cb97f1eca921852a7affce8350d47738c462adf8427027fdf186413c23",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "stdout_sha256": "e13b29b5256a4298f997b26a65cfd7a8a73b4c6d550831f5cd986cd627c6743a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.1.0",
+      "case": "empty-materialized-array",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.1.0/empty-materialized-array/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.834206+00:00",
+      "exit_code": 0,
+      "source_sha256": "7e5822b849617c7b673c5659b41a5254bfe1b27b361b981d6463d91090ff1311",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "stdout_sha256": "0ef4d985290092a89a1cbdb41cfeeecf67445ef64bf55a68c998980fcc986b92",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.1.0",
+      "case": "empty-materialized-replacement",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.1.0/empty-materialized-replacement/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:07.841399+00:00",
+      "exit_code": 0,
+      "source_sha256": "fb2c25c436bcf96d88297eafc710337734151eddb4f6da1d1378147a95ec5afe",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "stdout_sha256": "c1930ea71e95b74f00a85686558846ee702e11ec3c8bb1360677b39399c834fb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "case": "provider-identity",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/jim/provider-identity/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:08.242247+00:00",
+      "exit_code": 0,
+      "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "stdout_sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "case": "empty-materialized-set-read-unset",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/jim/empty-materialized-set-read-unset/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:08.247077+00:00",
+      "exit_code": 0,
+      "source_sha256": "a01fd3192ed66530aeac582ccb6f8a54972a70da0ff13cd1b4409c513c044dd0",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "stdout_sha256": "fc87e465ba356e65735b9fe608388f27f38e885122b4f4745334d945415e8f2e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "case": "empty-materialized-alias",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/jim/empty-materialized-alias/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:08.250065+00:00",
+      "exit_code": 1,
+      "source_sha256": "05a514cb97f1eca921852a7affce8350d47738c462adf8427027fdf186413c23",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "aa7320b780f4c75676bb8656c81cebd3fccf1131de58543d4263ad6e98bee046"
+    },
+    {
+      "provider": "jim",
+      "case": "empty-materialized-array",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/jim/empty-materialized-array/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:08.252988+00:00",
+      "exit_code": 0,
+      "source_sha256": "7e5822b849617c7b673c5659b41a5254bfe1b27b361b981d6463d91090ff1311",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "stdout_sha256": "0ef4d985290092a89a1cbdb41cfeeecf67445ef64bf55a68c998980fcc986b92",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "case": "empty-materialized-replacement",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-issues-refresh-20261014/oracles-06/jim/empty-materialized-replacement/source.tcl"
+      ],
+      "started_at": "2026-10-14T01:47:08.256949+00:00",
+      "exit_code": 0,
+      "source_sha256": "fb2c25c436bcf96d88297eafc710337734151eddb4f6da1d1378147a95ec5afe",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "stdout_sha256": "c1930ea71e95b74f00a85686558846ee702e11ec3c8bb1360677b39399c834fb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "authority": "Exact direct original interpreter executions only. No tcltest, Rust acceptance, native receipt admission, F5 or successful unavailable package execution is claimed.",
+  "tcllib_tag": "tcllib-2-0",
+  "tcllib_revision": "2a63bf212cc6423efb7a39958596ae2a2333c266",
+  "tcllib_archive_sha256": "c239f54cedc2fc11eb9fd5a7bbf2df1e12965937cd7fd1110e17383ec8f5e632",
+  "provider_environment": {
+    "C Tcl": {
+      "TCL_LIBRARY": "matching provider library",
+      "LD_LIBRARY_PATH": "matching provider unix directory",
+      "TCLLIBPATH": [
+        "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/struct",
+        "/tmp/name-issues-refresh-20261014/tcllib-tcllib-2-0/modules/cmdline"
+      ]
+    },
+    "Jim": "inherited environment, no C Tcl library or package donation"
+  }
+}

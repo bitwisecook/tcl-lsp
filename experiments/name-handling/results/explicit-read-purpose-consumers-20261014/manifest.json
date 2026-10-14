@@ -1,0 +1,37 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/var_refs.rs",
+      "before_sha256": "3688fc4ab67e564dba026377f3cc20f0be2820b409a3e39b01f017d4643d538b",
+      "after_sha256": "134fc333e35581b10de46e64d8cb654a0a073cd8e520b688ce95afa26aa9ef5a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/inlining/frame.rs",
+      "before_sha256": "c6be68970113107569f064e56085da0a1711a0bf1607e66baf45b256c27053ee",
+      "after_sha256": "b34d156bba4bf9da273fd358ab858aeb7fb341a06ddd26dc38df730b4a12675b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/elimination/source_reads.rs",
+      "before_sha256": "c12544bf58a1db8794763844ca3f1d18ae37597e2448cb2bfbc44d190a87755e",
+      "after_sha256": "1ad6d868313ccddfc4dba3981d94d3d7178d93884f1154c9e7db5193e13cdff7"
+    },
+    {
+      "path": "rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs",
+      "before_sha256": "337949f9609d1796191eb0acf24bcf4c03b4e60fb2fe20ad6a5e2de145c856c4",
+      "after_sha256": "b4209b4bb72c2d70ff7d734648e0e36e80a2a97ed9492c036aa4d9ad0553b960"
+    },
+    {
+      "path": "rust/tcl-compiler/src/ssa.rs",
+      "before_sha256": "534df5cfd73f1fc4dd410246a78b6ddbe6e6f9c91dc8afda7ab9c98896fb6a0b",
+      "after_sha256": "8fd9e6c5478d903e1e484c56793e6efa894dfb6fe28022c3a713780941159c78"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "0890a561e9b4b311fdd89b01bc4c3d0c41b7f57b7d01bdf15747b68c69bba6b2",
+      "after_sha256": "4c5c6f4fde34f145b5bb5c65beddb412815685665c09f6f6e2d21fde14bfa3bb"
+    }
+  ],
+  "patch_sha256": "8d5b793891c2a3d052d45d4cfcaaa26591384f5e9ca72f097095e07595576304",
+  "checks": "Scratch Rustfmt parse/format PASS. All original assertions preserved; added source/standalone/source cache switching control. Compiled acceptance pending; no Main/Cargo.",
+  "semantics": "Inlining and hidden-read/materialized consumers already default lexical, now explicit. SSA standalone MAY preserves caller request; supplied source never takes catalogue role names from scanner flags; original by-name/point owners and opacity stay independent. Issues include_possible hunk excluded."
+}

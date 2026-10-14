@@ -604,8 +604,7 @@ fn plan_words<'a>(
     registry: BoundsMetadataContext<'_>,
 ) -> Option<PlanWords<'a>> {
     use tcl_registry::value_transfer::IterableKind;
-    let head = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
-    registry.spec(head)?;
+    let head = registry.spec(cmd_name)?.descriptor_key().label();
     let plan = crate::value_transfer::resolved_iteration_plan(registry.commands(), head, args)?;
     let word = |id: tcl_registry::value_transfer::OperandId| args.get(id.0).map(String::as_str);
     let body = word(plan.body?.body)?;
@@ -687,8 +686,7 @@ pub(super) fn command_increment(
     registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> Option<i64> {
-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
-    registry.spec(head)?;
+    let head = registry.spec(cmd.name())?.descriptor_key().label();
     let (operation, target) =
         crate::value_transfer::resolved_cell_update(registry.commands(), head, cmd.args())?;
     if operation != tcl_registry::native_lowering::CellUpdate::Increment
@@ -714,8 +712,7 @@ fn literal_store(
     use tcl_registry::value_transfer::{
         Budget, CompletionOutcome, EvalAnswer, ExactValue, LiteralInputs, OperandId, StoreOutcome,
     };
-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
-    registry.spec(head)?;
+    let head = registry.spec(cmd.name())?.descriptor_key().label();
     let cooked: Vec<std::borrow::Cow<'_, str>> = cmd
         .args()
         .iter()
@@ -1050,8 +1047,7 @@ fn script_words<'c>(
 ) -> Vec<&'c str> {
     let args = cmd.args();
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
-    let bodies = registry.argument_indices(head, &words, tcl_registry::ArgRole::Body);
+    let bodies = registry.argument_indices(cmd.name(), &words, tcl_registry::ArgRole::Body);
     cmd.arg_tokens()
         .iter()
         .enumerate()
@@ -1272,7 +1268,8 @@ fn cell_update_assignment(
     current: Option<&str>,
 ) -> Option<CellUpdateWrite> {
     use tcl_registry::value_transfer::{EvalAnswer, ExactValue, LiteralInputs, StoreOutcome};
-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+    let spec = registry.spec(cmd.name())?;
+    let head = spec.descriptor_key().label();
     let args = cmd.args();
     let (_, target) = crate::value_transfer::resolved_cell_update(registry.commands(), head, args)?;
     if args.get(target.0).map(String::as_str) != Some(var_name) {
@@ -1295,7 +1292,6 @@ fn cell_update_assignment(
         return Some(CellUpdateWrite::Unknown);
     };
     let texts: Vec<&str> = cooked.iter().map(AsRef::as_ref).collect();
-    let spec = registry.spec(head)?;
     let semantics = tcl_registry::value_transfer::resolve_semantics(spec, None, None);
     let semantics = semantics.semantics()?;
     let inputs = LiteralInputs::new(head, None, &texts, registry.commands().profile())
@@ -1331,10 +1327,9 @@ fn writes_the_name(
     cmd: &SegmentedCommand,
     var_name: &str,
 ) -> bool {
-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
     let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
     registry
-        .argument_indices(head, &args, tcl_registry::ArgRole::VarWrite)
+        .argument_indices(cmd.name(), &args, tcl_registry::ArgRole::VarWrite)
         .into_iter()
         .any(|index| args.get(index) == Some(&var_name))
 }
@@ -1363,8 +1358,8 @@ fn literal_list_assignment(
     var_name: &str,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
-    let spec = registry.spec(head)?;
+    let spec = registry.spec(cmd.name())?;
+    let head = spec.descriptor_key().label();
     if spec.traits.intersects(
         tcl_registry::Traits::READS_BEFORE_WRITE.union(tcl_registry::Traits::WHOLE_ARRAY_ARG),
     ) {
@@ -3039,5 +3034,35 @@ mod original_list_descent_purpose_tests {
             infer_list_length_from_recent_set(source, "xs", before, context, config),
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod selected_descriptor_metadata_tests {
+    use super::*;
+
+    #[test]
+    fn catalogue_bounds_selection_keeps_exact_rooted_descriptor_and_missing_geometry() {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let mut rooted = registry.get_exact("incr").unwrap().clone();
+        rooted.name = "::incr";
+        rooted.traits = tcl_registry::Traits::empty();
+        registry.insert(rooted);
+        let owner = BoundsMetadataContext::Standalone(Some(&registry));
+        assert_eq!(owner.spec("incr").unwrap().descriptor_key().label(), "incr");
+        assert_eq!(
+            owner.spec("::incr").unwrap().descriptor_key().label(),
+            "::incr"
+        );
+        for label in [
+            ":::::incr",
+            "incr::",
+            "incr:::member",
+            ":incr",
+            "missing",
+            "",
+        ] {
+            assert!(owner.spec(label).is_none());
+        }
     }
 }

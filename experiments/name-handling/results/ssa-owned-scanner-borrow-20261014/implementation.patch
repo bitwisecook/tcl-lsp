@@ -1,0 +1,11 @@
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -3523,7 +3523,7 @@
+             }
+             Some(cfg::Terminator::Return { value, expr, .. }) => {
+                 if let Some(v) = value {
+-                    term_uses.extend(selection.word_reads(scanner, v));
++                    term_uses.extend(selection.word_reads(&mut scanner, v));
+                 }
+                 if let Some(e) = expr {
+                     term_uses.extend(e.vars_element_qualified_with_config(scanner.lexer_config()));

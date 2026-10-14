@@ -1,0 +1,14 @@
+{
+  "provider": "tcl9.1.0",
+  "case": "empty-command-qualified-root",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-07/tcl9.1.0/empty-command-qualified-root/source.tcl"
+  ],
+  "started_at": "2026-10-14T02:16:19.567673+00:00",
+  "exit_code": 0,
+  "source_sha256": "5bedd1c5932e964b35a55d6e16513152041da4ac467fd4933555df268d04f5dd",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "stdout_sha256": "e1022d52b643d9c8d53aa1055b3dbb87318e538d11489ecf3f0f91eb23a9d99d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

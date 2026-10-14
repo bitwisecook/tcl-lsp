@@ -1,0 +1,148 @@
+diff --git a/rust/tcl-compiler/src/var_escape/slot_resolution.rs b/rust/tcl-compiler/src/var_escape/slot_resolution.rs
+index ded275d..3a6bae2 100644
+--- a/rust/tcl-compiler/src/var_escape/slot_resolution.rs
++++ b/rust/tcl-compiler/src/var_escape/slot_resolution.rs
+@@ -48,10 +48,9 @@
+ //! * No dynamic name access (``set $varname value``).
+ 
+ use std::collections::{BTreeMap, HashSet};
+-use std::sync::OnceLock;
+ 
+ use tcl_registry::value_transfer::resolve_semantics;
+-use tcl_registry::{ArgRole, CommandRegistry, Traits};
++use tcl_registry::{ArgRole, Traits};
+ 
+ use crate::ir::{Module, Script, Statement};
+ use crate::var_escape::types::ProcEscapeSummary;
+@@ -61,49 +60,6 @@ use crate::var_escape::types::ProcEscapeSummary;
+ /// constant too.
+ pub const LOCALS_ARRAY_CAP: usize = 16;
+ 
+-/// Commands whose call shape forces the entire proc out of slot
+-/// resolution.  ``upvar`` / ``global`` / ``variable`` install
+-/// aliases on the frame's hash bucket; ``info exists`` /
+-/// ``info vars`` / ``info locals`` walk the bucket;
+-/// ``trace add variable`` registers against the bucket.
+-/// Memoised set of commands that alias / read / write variables through
+-/// the frame's hash bucket by name (`upvar` / `global` / `variable` /
+-/// `lassign` / `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait`
+-/// / `tkwait`), sourced from the registry's [`Traits::FRAME_HASH_BUILTIN`]
+-/// trait.
+-fn frame_hash_builtins() -> &'static HashSet<String> {
+-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+-    SET.get_or_init(|| {
+-        CommandRegistry::build_default()
+-            .commands_with_trait(Traits::FRAME_HASH_BUILTIN)
+-            .into_iter()
+-            .map(str::to_owned)
+-            .collect()
+-    })
+-}
+-
+-/// Memoised set of commands carrying [`Traits::DYNAMIC_EVAL_BODY`] —
+-/// those whose body is executed by the interpreter, opening a
+-/// name-resolution channel back into the local frame (`eval` / `uplevel`
+-/// / `apply` / `source` / `namespace` / `interp`). Sourced from the
+-/// registry (the single source of truth); cached once because the set is
+-/// dialect-agnostic core Tcl.
+-fn dynamic_eval_set() -> &'static HashSet<String> {
+-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+-    SET.get_or_init(|| {
+-        CommandRegistry::build_default()
+-            .commands_with_trait(Traits::DYNAMIC_EVAL_BODY)
+-            .into_iter()
+-            .map(str::to_owned)
+-            .collect()
+-    })
+-}
+-
+-/// Strip a leading `::` from a command name for canonical lookup.
+-fn normalise_cmd(cmd: &str) -> &str {
+-    cmd.strip_prefix("::").unwrap_or(cmd)
+-}
+-
+ /// True when *value* is a Tcl value with substitutions.
+ fn is_dynamic_value(value: &str) -> bool {
+     if value.is_empty() {
+@@ -231,8 +187,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
+             true
+         }
+         Statement::Call { command, args, .. } => {
+-            is_dynamic_value(command)
+-                || call_disables_slots(normalise_cmd(command), args, ineligible_names)
++            is_dynamic_value(command) || call_disables_slots(command, args, ineligible_names)
+         }
+         _ => false,
+     }
+@@ -242,14 +197,19 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
+ /// invocation: `true` takes the whole proc out of slot resolution; otherwise
+ /// the literal locals its by-name words target join *`ineligible_names`*.
+ fn call_disables_slots(cmd: &str, args: &[String], ineligible_names: &mut HashSet<String>) -> bool {
+-    if dynamic_eval_set().contains(cmd) || frame_hash_builtins().contains(cmd) {
+-        return true;
+-    }
+     let registry = tcl_registry::default_registry();
+     let words: Vec<&str> = args.iter().map(String::as_str).collect();
+     let Some(call) = registry.resolve_call(cmd, &words, None) else {
+-        return false;
++        return true;
+     };
++    if call
++        .spec
++        .traits
++        .intersects(Traits::DYNAMIC_EVAL_BODY | Traits::FRAME_HASH_BUILTIN)
++    {
++        return true;
++    }
++    let cmd = call.spec.descriptor_key().label();
+     let named = |role| registry.arg_indices_for_role(cmd, &words, role);
+     let dynamic = |index: &usize| args.get(*index).is_some_and(|word| is_dynamic_value(word));
+     // A cell write whose name word substitutes reaches any local.
+@@ -597,6 +557,35 @@ mod tests {
+         assert!(slots.is_empty());
+     }
+ 
++    #[test]
++    fn slot_metadata_uses_registry_rooted_selection_and_refuses_unknown_heads() {
++        for head in [
++            "upvar",
++            "::upvar",
++            "eval",
++            "::eval",
++            "::::upvar",
++            ":upvar",
++            "upvar::",
++            "upvar:::member",
++            "missing",
++            "",
++        ] {
++            let body = script_with(vec![
++                assign_const("x", "1"),
++                call(head, &["1", "source", "target"]),
++            ]);
++            assert!(assign_local_slots(&body, &ProcEscapeSummary::default(), &[]).is_empty());
++        }
++        for head in ["list", "::list"] {
++            let body = script_with(vec![assign_const("x", "1"), call(head, &["value"])]);
++            assert_eq!(
++                assign_local_slots(&body, &ProcEscapeSummary::default(), &[]).get("x"),
++                Some(&0)
++            );
++        }
++    }
++
+     #[test]
+     fn dynamic_set_disables_whole_proc() {
+         let s = ProcEscapeSummary::default();
+diff --git a/docs/design/contracts/shared-utility-contracts-rust.md b/docs/design/contracts/shared-utility-contracts-rust.md
+index 4bdc232..d3f3131 100644
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -44,6 +44,7 @@ audits and inventory-writing modes do not satisfy that route.
+ | Original source value components | `rust/tcl-syntax/src/word_rules.rs`; `rust/tcl-compiler/src/const_subst.rs` | `original_word_unicode_value_with_variables`; `ConstSubstCtx::fold_original_source_substitution` | original document word, full lexer configuration, grouping and executable-part arena remain together; callbacks receive genuine variable components, unsupported command/index/value cases decline, and conditional readonly values supply no Native cell, observer absence, executable erasure or editable reference | `xtask-owner-resolution` |
+ | Source-owned analysis cache correspondence | `rust/tcl-compiler/src/body_analysis_capsule.rs` | `BodyAnalysisCapsule`; `BodyAnalysisCapsule::retain`; `BodyAnalysisCapsule::body_id`; `BodyLatticeInputs`; `BodyLatticeInputs::retain`; `BodyLatticeInputs::rebind_cached`; `BodyLatticeCommandBindings`; `BodyLatticeCommandBindings::bindings`; `BodySummaryInputs`; `BodySummaryInputs::retain` | genuine compilation, Module issuer, body ID, FunctionUnit and original source/input/configuration own every analysis; exact source and variable relocation or a closed registry-only Logical dependency certificate permit analytical reuse; cached results rebind onto the current owner and retain current proofs; missing/changed dependencies recompute, and analytical equality supplies no Native compiler, callable, frame, object or execution authority | `xtask-owner-resolution` |
+ | Typed event-body connection scope | `rust/tcl-compiler/src/connection_scope.rs` | `EventCell`; `ConnectionScope`; `ConnectionScope::handler_source_names`; `ConnectionScope::observes_cross_event_place`; `build_connection_scope`; `build_connection_scope_with_registry` | actual CompilationUnit/Module-issued handler IDs and independently retained event metadata preserve repeated event labels; resolved cells and supplied worker/interpreter/storage domains remain separate from report unions; written protection labels project only from the matching handler keys and establish no arbitrary event order or current value | `xtask-owner-resolution` |
++| Conservative local-slot metadata narrowing | `rust/tcl-compiler/src/var_escape/slot_resolution.rs`; `rust/tcl-registry/src/registry.rs` | `assign_local_slots`; `populate_local_slots`; `CommandRegistry::resolve_call` | an already accepted escape summary independently gates slot eligibility; the existing default catalogue resolves the original supplied head before selected descriptor traits and role metadata are read; unknown commands disable slots, and actual Module-issued BodyFrameId joins remain separate from report labels; no Native handler, entered frame, variable cell or observer absence is inferred | `xtask-owner-resolution` |
+ | Conditional variable observation names | `rust/tcl-compiler/src/variable_observation_names.rs` | `VariableObservationNameSet`; `VariableProtectionPurpose`; `VariableWriteObservationPurpose`; `module_observation_key`; `variable_name_may_be_observed`; `record_variable_write_name` | explicit textual MAY inventories select module report-key, mixed exact/report or one-root native-lowering protection separately; deferred/global and outer-scope write projections retain their own aliases and array-root policies; decoded literal sigils, braces and empty variable names remain data, unknown inventories protect every name; exact VariableCellKey checks and genuine entered-Native observer guards remain independent, with no interpreted lookup, cell identity, callback-free state, absence or erasure permission | `xtask-owner-resolution` |
+ | APL variable convention | `rust/tcl-bigip/src/apl/variable_names.rs` | `tcl_var_to_apl_name`; `apl_name_to_tcl_var` | pure field convention delegates written root/qualifier geometry to Syntax; rooted and simple roots preserve lone colons while namespace-qualified roots decline; conventional export text is reporting only and supplies no appliance publication, native variable lookup or source-edit authority | `xtask-owner-resolution` |
+ | External script command inventory | `rust/tcl-syntax/src/naming/script_name_query.rs`; `rust/tcl-syntax/src/naming/script_command_inventory.rs`; `rust/tcl-cli/src/commands/spec_probe.rs` | `original_script_name_query_support`; `original_script_command_inventory_support`; `render_script` | real shell observations select query grammar without Native authority; C original simple words retain namespace context and checked root addressing; Jim uses its independent flat table; opaque or ambiguous inventory refuses as a whole; scanned registration literals remain unresolved authoring inputs | `xtask-owner-resolution` |

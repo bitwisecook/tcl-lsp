@@ -1,0 +1,39 @@
+--- a/rust/tcl-compiler/src/command_binding/logical_definition.rs
++++ b/rust/tcl-compiler/src/command_binding/logical_definition.rs
+@@ -308,8 +308,10 @@
+         return None;
+     };
+     let key = SourceCommandKey::authored(tcl_syntax::naming::qualify(current, name));
+-    let (_, tail) = tcl_syntax::naming::key_holder_and_tail(key.authored_spelling()?);
+-    (!tail.is_empty() && state.namespaces.contains(key.holder().as_ref())).then_some(key)
++    state
++        .namespaces
++        .contains(key.holder().as_ref())
++        .then_some(key)
+ }
+ 
+ fn matching_list_elements(text: &str, syntax: tcl_dialect::ListParse) -> Option<()> {
+@@ -401,6 +403,23 @@
+             "proc defined {left {right default} args} {return $left}; defined",
+             "proc first {value} {return $value}; proc second {a b} {return \"$a$b\"}; second",
+             "proc ::defined {value} {not a valid body yet [}; ::defined",
++        ] {
++            assert_eq!(
++                final_presence(source, &input),
++                SourceCommandSlotPresence::Present,
++                "{source}"
++            );
++        }
++    }
++
++    #[test]
++    fn logical_definition_preserves_empty_names_in_existing_namespaces() {
++        let input = input();
++        for source in [
++            "proc {} {} {return ROOT}; {}",
++            "proc :: {} {return ROOT}; ::",
++            "namespace eval n {proc {} {} {return INNER}}; n::",
++            "proc {} {} {return ROOT}; rename {} moved; moved",
+         ] {
+             assert_eq!(
+                 final_presence(source, &input),

@@ -1,0 +1,14 @@
+{
+  "provider": "tcl9.0.4",
+  "case": "empty-materialized-replacement",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-06/tcl9.0.4/empty-materialized-replacement/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:47:07.462405+00:00",
+  "exit_code": 0,
+  "source_sha256": "fb2c25c436bcf96d88297eafc710337734151eddb4f6da1d1378147a95ec5afe",
+  "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+  "stdout_sha256": "c1930ea71e95b74f00a85686558846ee702e11ec3c8bb1360677b39399c834fb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -2045,6 +2045,14 @@ mod tests {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         for (source, text, expected) in [
+            ("eval set {} VALUE", "set {} VALUE", Some("")),
+            ("eval set {(key)} VALUE", "set {(key)} VALUE", Some("")),
+            (
+                "interp alias {} put {} set {}; eval put VALUE",
+                "put VALUE",
+                Some(""),
+            ),
+            ("proc set args {}; eval set {} VALUE", "set {} VALUE", None),
             (
                 "eval set {café(open} VALUE",
                 "set {café(open} VALUE",
@@ -2096,6 +2104,38 @@ mod tests {
                     writes.names
                 );
             }
+        }
+    }
+
+    #[test]
+    fn original_materialized_footprint_keeps_empty_reads_and_unset_targets() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        for text in [
+            "set {} VALUE; set {}; unset {}",
+            "set {(key)} VALUE; set {(key)}; unset {(key)}",
+        ] {
+            let source = format!("eval {{{text}}}");
+            let unit = unit(&source, &context);
+            let script = &unit.ir_module.top_level;
+            let tokens = script
+                .retained_source_tokens_for_statement(script.statements.last().unwrap())
+                .unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let metadata =
+                InvocationMetadataContext::for_module(context.commands(), &unit.ir_module);
+            let footprint = binding
+                .original_materialized_footprint(tokens, &source, context.commands(), metadata)
+                .expect("original materialized source owner");
+            let effects = footprint.script_writes(text);
+            assert!(
+                effects.names.iter().any(String::is_empty),
+                "{text}: {effects:?}"
+            );
+            assert!(
+                effects.read_names.iter().any(String::is_empty),
+                "{text}: {effects:?}"
+            );
         }
     }
 

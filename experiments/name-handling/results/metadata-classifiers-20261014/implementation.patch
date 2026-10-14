@@ -1,0 +1,305 @@
+diff --git a/rust/tcl-compiler/src/var_escape/helpers.rs b/rust/tcl-compiler/src/var_escape/helpers.rs
+index ee8793f..4fc3cd0 100644
+--- a/rust/tcl-compiler/src/var_escape/helpers.rs
++++ b/rust/tcl-compiler/src/var_escape/helpers.rs
+@@ -195,15 +195,6 @@ pub fn is_dynamic_name(name: &str) -> bool {
+     is_dynamic_token(name)
+ }
+ 
+-/// Strip a leading `::` from a substitution head for allow-list
+-/// lookup. The frameless allow-list keys commands by their bare
+-/// identifier (`set`, `list`, …); a substitution writing
+-/// `[::set foo 1]` is the same command, just qualified.
+-#[must_use]
+-pub fn normalise_cmd_subst_head(head: &str) -> &str {
+-    head.strip_prefix("::").unwrap_or(head)
+-}
+-
+ /// True if *cmd* is in the audited frameless-runtime allow-list
+ /// (the registry's [`Traits::FRAMELESS_RUNTIME`] commands).
+ ///
+@@ -224,10 +215,12 @@ pub fn is_frameless_runtime_command(cmd: &str) -> bool {
+ /// unrecognised head still records a fallback rather than being waved past.
+ #[must_use]
+ pub fn is_frameless_runtime_command_in(cmd: &str, registry: &CommandRegistry) -> bool {
+-    registry
+-        .effective_semantics()
+-        .command(cmd)
+-        .is_some_and(|c| c.has_traits(Traits::FRAMELESS_RUNTIME))
++    registry.get(cmd).is_some_and(|spec| {
++        registry
++            .effective_semantics()
++            .command(spec.descriptor_key().label())
++            .is_some_and(|command| command.has_traits(Traits::FRAMELESS_RUNTIME))
++    })
+ }
+ 
+ /// True if *cmd* is one of the five `set` / `incr` / `append` /
+@@ -384,10 +377,26 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn normalise_cmd_subst_head_strips_leading_colons() {
+-        assert_eq!(normalise_cmd_subst_head("::set"), "set");
+-        assert_eq!(normalise_cmd_subst_head("set"), "set");
+-        assert_eq!(normalise_cmd_subst_head("::ns::cmd"), "ns::cmd");
++    fn frameless_metadata_uses_the_selected_descriptor_before_optional_root_fallback() {
++        let mut registry = CommandRegistry::build_default();
++        assert!(is_frameless_runtime_command_in("list", &registry));
++        assert!(is_frameless_runtime_command_in("::list", &registry));
++        for label in [
++            "::::list",
++            ":list",
++            "list::",
++            "list:::member",
++            "missing",
++            "",
++        ] {
++            assert!(!is_frameless_runtime_command_in(label, &registry));
++        }
++        let mut rooted = registry.get_exact("list").unwrap().clone();
++        rooted.name = "::list";
++        rooted.traits = Traits::empty();
++        registry.insert(rooted);
++        assert!(is_frameless_runtime_command_in("list", &registry));
++        assert!(!is_frameless_runtime_command_in("::list", &registry));
+     }
+ 
+     #[test]
+diff --git a/rust/tcl-compiler/src/var_escape/walker.rs b/rust/tcl-compiler/src/var_escape/walker.rs
+index 83e3181..545c152 100644
+--- a/rust/tcl-compiler/src/var_escape/walker.rs
++++ b/rust/tcl-compiler/src/var_escape/walker.rs
+@@ -39,7 +39,7 @@ use crate::var_escape::handlers::{
+ use crate::var_escape::helpers::{
+     default_registry, invocation_facts, invocation_facts_from_tokens, is_dynamic_name,
+     is_dynamic_token, is_frameless_runtime_command_in, normal_handler_is_frameless,
+-    normalise_cmd_subst_head, scan_value_for_info_hazards,
++    scan_value_for_info_hazards,
+ };
+ use crate::var_escape::known_names::collect_known_names;
+ use crate::var_escape::state::EscapeState;
+@@ -58,11 +58,7 @@ pub(crate) fn apply_value_scan(
+     }
+     if value.contains('[') {
+         for head in extract_cmd_subst_heads(value) {
+-            let canonical = normalise_cmd_subst_head(&head);
+-            // The selected registry, not the plain-Tcl allow-list: a head
+-            // inside a substitution is the same command as a direct one, and
+-            // must answer from the same profile (#2179).
+-            if !is_frameless_runtime_command_in(canonical, registry) {
++            if !is_frameless_runtime_command_in(&head, registry) {
+                 state.record_fallback();
+                 break;
+             }
+diff --git a/rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs b/rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs
+index 3fc0d93..5814ec9 100644
+--- a/rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs
++++ b/rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs
+@@ -46,7 +46,7 @@ use crate::var_escape::handlers::has_expand_word;
+ use crate::var_escape::helpers::{
+     default_registry, invocation_facts, invocation_facts_from_tokens, is_dynamic_name,
+     is_dynamic_token, is_frameless_runtime_command_in, normal_handler_is_frameless,
+-    normalise_cmd_subst_head, scan_value_for_info_hazards,
++    scan_value_for_info_hazards,
+ };
+ 
+ /// Walk *value* for embedded `[cmd ...]` substitution heads;
+@@ -64,11 +64,7 @@ fn apply_value_scan(
+     }
+     if value.contains('[') {
+         for head in extract_cmd_subst_heads(value) {
+-            let canonical = normalise_cmd_subst_head(&head);
+-            // The selected registry, not the plain-Tcl allow-list: a head
+-            // inside a substitution is the same command as a direct one, and
+-            // must answer from the same profile (#2167).
+-            if !is_frameless_runtime_command_in(canonical, registry) {
++            if !is_frameless_runtime_command_in(&head, registry) {
+                 state.record_fallback();
+                 break;
+             }
+diff --git a/rust/tcl-compiler/src/auto_path_eval/path_constants.rs b/rust/tcl-compiler/src/auto_path_eval/path_constants.rs
+index 48e2b67..f2ff73e 100644
+--- a/rust/tcl-compiler/src/auto_path_eval/path_constants.rs
++++ b/rust/tcl-compiler/src/auto_path_eval/path_constants.rs
+@@ -645,11 +645,15 @@ fn collect(
+             out.barriers.push(0);
+             continue;
+         };
+-        let head = head.strip_prefix("::").unwrap_or(head);
+         if head.contains('$') || head.contains('[') || command.is_partial {
+             out.barriers.push(at);
+             continue;
+         }
++        let Some(spec) = registry.get(head) else {
++            out.barriers.push(at);
++            continue;
++        };
++        let head = spec.descriptor_key().label();
+         let args: Vec<&str> = command.texts[1..].iter().map(String::as_str).collect();
+         let context = PathCollectionContext {
+             profile,
+@@ -1197,3 +1201,32 @@ mod tests {
+         assert_eq!(wrong.naming_policy(), None);
+     }
+ }
++
++#[cfg(test)]
++mod descriptor_metadata_tests {
++    use super::*;
++
++    #[test]
++    fn authored_path_metadata_keeps_rooted_selection_and_declines_extra_root_projection() {
++        let profile = DialectProfile::plain_tcl();
++        let plain = constant_path_assignments("set paths {/opt/lib}", profile);
++        let rooted = constant_path_assignments("::set paths {/opt/lib}", profile);
++        assert_eq!(
++            plain
++                .iter()
++                .map(|write| (&write.name, &write.value))
++                .collect::<Vec<_>>(),
++            rooted
++                .iter()
++                .map(|write| (&write.name, &write.value))
++                .collect::<Vec<_>>()
++        );
++        assert_eq!(plain.len(), 1);
++        for head in ["::::set", "set::", "set:::member", ":set", "missing"] {
++            let inventory =
++                constant_path_assignments(&format!("{head} paths {{/opt/lib}}"), profile);
++            assert!(inventory.is_empty());
++            assert_eq!(inventory.barriers, vec![0]);
++        }
++    }
++}
+diff --git a/rust/tcl-compiler/src/analyser/bounds_checks.rs b/rust/tcl-compiler/src/analyser/bounds_checks.rs
+index 9f4c24f..657066a 100644
+--- a/rust/tcl-compiler/src/analyser/bounds_checks.rs
++++ b/rust/tcl-compiler/src/analyser/bounds_checks.rs
+@@ -604,8 +604,7 @@ fn plan_words<'a>(
+     registry: BoundsMetadataContext<'_>,
+ ) -> Option<PlanWords<'a>> {
+     use tcl_registry::value_transfer::IterableKind;
+-    let head = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
+-    registry.spec(head)?;
++    let head = registry.spec(cmd_name)?.descriptor_key().label();
+     let plan = crate::value_transfer::resolved_iteration_plan(registry.commands(), head, args)?;
+     let word = |id: tcl_registry::value_transfer::OperandId| args.get(id.0).map(String::as_str);
+     let body = word(plan.body?.body)?;
+@@ -687,8 +686,7 @@ pub(super) fn command_increment(
+     registry: BoundsMetadataContext<'_>,
+     lexer_config: tcl_lexer::LexerConfig,
+ ) -> Option<i64> {
+-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+-    registry.spec(head)?;
++    let head = registry.spec(cmd.name())?.descriptor_key().label();
+     let (operation, target) =
+         crate::value_transfer::resolved_cell_update(registry.commands(), head, cmd.args())?;
+     if operation != tcl_registry::native_lowering::CellUpdate::Increment
+@@ -714,8 +712,7 @@ fn literal_store(
+     use tcl_registry::value_transfer::{
+         Budget, CompletionOutcome, EvalAnswer, ExactValue, LiteralInputs, OperandId, StoreOutcome,
+     };
+-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+-    registry.spec(head)?;
++    let head = registry.spec(cmd.name())?.descriptor_key().label();
+     let cooked: Vec<std::borrow::Cow<'_, str>> = cmd
+         .args()
+         .iter()
+@@ -1050,8 +1047,7 @@ fn script_words<'c>(
+ ) -> Vec<&'c str> {
+     let args = cmd.args();
+     let words: Vec<&str> = args.iter().map(String::as_str).collect();
+-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+-    let bodies = registry.argument_indices(head, &words, tcl_registry::ArgRole::Body);
++    let bodies = registry.argument_indices(cmd.name(), &words, tcl_registry::ArgRole::Body);
+     cmd.arg_tokens()
+         .iter()
+         .enumerate()
+@@ -1272,7 +1268,8 @@ fn cell_update_assignment(
+     current: Option<&str>,
+ ) -> Option<CellUpdateWrite> {
+     use tcl_registry::value_transfer::{EvalAnswer, ExactValue, LiteralInputs, StoreOutcome};
+-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
++    let spec = registry.spec(cmd.name())?;
++    let head = spec.descriptor_key().label();
+     let args = cmd.args();
+     let (_, target) = crate::value_transfer::resolved_cell_update(registry.commands(), head, args)?;
+     if args.get(target.0).map(String::as_str) != Some(var_name) {
+@@ -1295,7 +1292,6 @@ fn cell_update_assignment(
+         return Some(CellUpdateWrite::Unknown);
+     };
+     let texts: Vec<&str> = cooked.iter().map(AsRef::as_ref).collect();
+-    let spec = registry.spec(head)?;
+     let semantics = tcl_registry::value_transfer::resolve_semantics(spec, None, None);
+     let semantics = semantics.semantics()?;
+     let inputs = LiteralInputs::new(head, None, &texts, registry.commands().profile())
+@@ -1331,10 +1327,9 @@ fn writes_the_name(
+     cmd: &SegmentedCommand,
+     var_name: &str,
+ ) -> bool {
+-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+     let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+     registry
+-        .argument_indices(head, &args, tcl_registry::ArgRole::VarWrite)
++        .argument_indices(cmd.name(), &args, tcl_registry::ArgRole::VarWrite)
+         .into_iter()
+         .any(|index| args.get(index) == Some(&var_name))
+ }
+@@ -1363,8 +1358,8 @@ fn literal_list_assignment(
+     var_name: &str,
+     lexer_config: tcl_lexer::LexerConfig,
+ ) -> Option<String> {
+-    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+-    let spec = registry.spec(head)?;
++    let spec = registry.spec(cmd.name())?;
++    let head = spec.descriptor_key().label();
+     if spec.traits.intersects(
+         tcl_registry::Traits::READS_BEFORE_WRITE.union(tcl_registry::Traits::WHOLE_ARRAY_ARG),
+     ) {
+@@ -3041,3 +3036,33 @@ mod original_list_descent_purpose_tests {
+         );
+     }
+ }
++
++#[cfg(test)]
++mod selected_descriptor_metadata_tests {
++    use super::*;
++
++    #[test]
++    fn catalogue_bounds_selection_keeps_exact_rooted_descriptor_and_missing_geometry() {
++        let mut registry = tcl_registry::CommandRegistry::build_default();
++        let mut rooted = registry.get_exact("incr").unwrap().clone();
++        rooted.name = "::incr";
++        rooted.traits = tcl_registry::Traits::empty();
++        registry.insert(rooted);
++        let owner = BoundsMetadataContext::Standalone(Some(&registry));
++        assert_eq!(owner.spec("incr").unwrap().descriptor_key().label(), "incr");
++        assert_eq!(
++            owner.spec("::incr").unwrap().descriptor_key().label(),
++            "::incr"
++        );
++        for label in [
++            ":::::incr",
++            "incr::",
++            "incr:::member",
++            ":incr",
++            "missing",
++            "",
++        ] {
++            assert!(owner.spec(label).is_none());
++        }
++    }
++}
+diff --git a/docs/design/contracts/shared-utility-contracts-rust.md b/docs/design/contracts/shared-utility-contracts-rust.md
+index 4bdc232..8111223 100644
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -44,6 +44,7 @@ audits and inventory-writing modes do not satisfy that route.
+ | Original source value components | `rust/tcl-syntax/src/word_rules.rs`; `rust/tcl-compiler/src/const_subst.rs` | `original_word_unicode_value_with_variables`; `ConstSubstCtx::fold_original_source_substitution` | original document word, full lexer configuration, grouping and executable-part arena remain together; callbacks receive genuine variable components, unsupported command/index/value cases decline, and conditional readonly values supply no Native cell, observer absence, executable erasure or editable reference | `xtask-owner-resolution` |
+ | Source-owned analysis cache correspondence | `rust/tcl-compiler/src/body_analysis_capsule.rs` | `BodyAnalysisCapsule`; `BodyAnalysisCapsule::retain`; `BodyAnalysisCapsule::body_id`; `BodyLatticeInputs`; `BodyLatticeInputs::retain`; `BodyLatticeInputs::rebind_cached`; `BodyLatticeCommandBindings`; `BodyLatticeCommandBindings::bindings`; `BodySummaryInputs`; `BodySummaryInputs::retain` | genuine compilation, Module issuer, body ID, FunctionUnit and original source/input/configuration own every analysis; exact source and variable relocation or a closed registry-only Logical dependency certificate permit analytical reuse; cached results rebind onto the current owner and retain current proofs; missing/changed dependencies recompute, and analytical equality supplies no Native compiler, callable, frame, object or execution authority | `xtask-owner-resolution` |
+ | Typed event-body connection scope | `rust/tcl-compiler/src/connection_scope.rs` | `EventCell`; `ConnectionScope`; `ConnectionScope::handler_source_names`; `ConnectionScope::observes_cross_event_place`; `build_connection_scope`; `build_connection_scope_with_registry` | actual CompilationUnit/Module-issued handler IDs and independently retained event metadata preserve repeated event labels; resolved cells and supplied worker/interpreter/storage domains remain separate from report unions; written protection labels project only from the matching handler keys and establish no arbitrary event order or current value | `xtask-owner-resolution` |
++| Contextual metadata classifier selection | `rust/tcl-registry/src/registry.rs`; `rust/tcl-registry/src/command_descriptor_key.rs`; `rust/tcl-compiler/src/var_escape/helpers.rs`; `rust/tcl-compiler/src/auto_path_eval/path_constants.rs`; `rust/tcl-compiler/src/analyser/bounds_checks.rs` | `CommandRegistry::get`; `CommandSpec::descriptor_key`; `is_frameless_runtime_command_in` | exact-first Registry metadata selection owns optional-root fallback before exact effective-semantics lookup; BoundsMetadataContext retains actual context availability and supplied labels for role routing; authored path inventory retains its separate policy and lexical scope, while original path collection remains independently source-owned; missing metadata keeps refusal or barriers and supplies no current Native binding, frame or compiler entry | `xtask-owner-resolution` |
+ | Conditional variable observation names | `rust/tcl-compiler/src/variable_observation_names.rs` | `VariableObservationNameSet`; `VariableProtectionPurpose`; `VariableWriteObservationPurpose`; `module_observation_key`; `variable_name_may_be_observed`; `record_variable_write_name` | explicit textual MAY inventories select module report-key, mixed exact/report or one-root native-lowering protection separately; deferred/global and outer-scope write projections retain their own aliases and array-root policies; decoded literal sigils, braces and empty variable names remain data, unknown inventories protect every name; exact VariableCellKey checks and genuine entered-Native observer guards remain independent, with no interpreted lookup, cell identity, callback-free state, absence or erasure permission | `xtask-owner-resolution` |
+ | APL variable convention | `rust/tcl-bigip/src/apl/variable_names.rs` | `tcl_var_to_apl_name`; `apl_name_to_tcl_var` | pure field convention delegates written root/qualifier geometry to Syntax; rooted and simple roots preserve lone colons while namespace-qualified roots decline; conventional export text is reporting only and supplies no appliance publication, native variable lookup or source-edit authority | `xtask-owner-resolution` |
+ | External script command inventory | `rust/tcl-syntax/src/naming/script_name_query.rs`; `rust/tcl-syntax/src/naming/script_command_inventory.rs`; `rust/tcl-cli/src/commands/spec_probe.rs` | `original_script_name_query_support`; `original_script_command_inventory_support`; `render_script` | real shell observations select query grammar without Native authority; C original simple words retain namespace context and checked root addressing; Jim uses its independent flat table; opaque or ambiguous inventory refuses as a whole; scanned registration literals remain unresolved authoring inputs | `xtask-owner-resolution` |

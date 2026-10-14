@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.6.18",
+  "case": "provider-identity",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-05/tcl8.6.18/provider-identity/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:39:40.703284+00:00",
+  "exit_code": 0,
+  "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "stdout_sha256": "7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

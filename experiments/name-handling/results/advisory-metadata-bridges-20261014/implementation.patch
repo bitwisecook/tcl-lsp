@@ -1,0 +1,37 @@
+diff --git a/rust/tcl-compiler/src/uri_split.rs b/rust/tcl-compiler/src/uri_split.rs
+index ba306b4..9706d1a 100644
+--- a/rust/tcl-compiler/src/uri_split.rs
++++ b/rust/tcl-compiler/src/uri_split.rs
+@@ -339,7 +339,7 @@ fn diagnostic_words(
+         })
+         .collect::<Option<Vec<_>>>()?;
+     Some((
+-        shape.command().trim_start_matches("::").to_owned(),
++        shape.command().to_owned(),
+         arguments,
+         effective.words.get(1..)?.to_vec(),
+         decomposition(tokens, shape.command(), effective, ctx),
+diff --git a/rust/tcl-compiler/src/analyser/irules_event_checks.rs b/rust/tcl-compiler/src/analyser/irules_event_checks.rs
+index 7b96ee8..85b6f7e 100644
+--- a/rust/tcl-compiler/src/analyser/irules_event_checks.rs
++++ b/rust/tcl-compiler/src/analyser/irules_event_checks.rs
+@@ -351,11 +351,14 @@ impl Analyser {
+         args: &[String],
+         arg_tokens: &[Token],
+     ) {
+-        let registry = self
+-            .registry
+-            .as_deref()
+-            .unwrap_or_else(super::bounds_checks::default_registry);
+-        let head = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
++        let Ok(generation) = self.try_analysis_context() else {
++            return;
++        };
++        let registry = generation.commands();
++        let Some(spec) = generation.context().resolve_spec(registry, cmd_name) else {
++            return;
++        };
++        let head = spec.descriptor_key().label();
+         let Some(plan) = crate::value_transfer::resolved_iteration_plan(registry, head, args)
+         else {
+             return;

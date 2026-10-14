@@ -1,0 +1,9 @@
+{
+  "review.md": "6f3ff57d6c6e33e62a9bdbdf6f940810b9df632ccb5eee93312c1e661d427c94",
+  "implementation.patch": "c846cd12872a49875a26b4c522a6d9801fbc05fa22be5c97840ff031e93dc42c",
+  "files.json": "25c5139cd61e6aba7948f4fc7e51b0aa66ceceff838f9fc4f2a51f45c6e51bce",
+  "proposal/rust/tcl-compiler/src/uri_split.rs": "9a59a97610917c47aae3c30ac9b382559a987067950ee0e7a9f109da3318efd0",
+  "proposal/rust/tcl-compiler/src/analyser/irules_event_checks.rs": "f0756fd7c26c1e01102022f95d26f9caed4439f8408a529f59934048510e142d",
+  "base/rust/tcl-compiler/src/uri_split.rs": "428223341aec93f0e72471fa7c5122226fff19a86b7dbafd3f309dafb5674abf",
+  "base/rust/tcl-compiler/src/analyser/irules_event_checks.rs": "c4af6f70c7c0e37b9cd409d34ace2b683ce9469a475441526e1d8ffedd371382"
+}

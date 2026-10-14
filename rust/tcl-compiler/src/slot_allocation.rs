@@ -606,11 +606,13 @@ mod tests {
     /// `proc` uniquely labels the authored body fixture.
     fn function(src: &str, proc: &str) -> (cfg::Function, SsaFunction, &'static CommandRegistry) {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let module = crate::lowering::lower_to_ir(src, registry);
-        let procedure = module
+        let (context, unit) = supplied_function(src);
+        assert!(std::sync::Arc::ptr_eq(registry, context.commands()));
+        let procedure = unit
+            .ir_module
             .procedures
             .get(&crate::interprocedural::test_body_identity::fixture_id(
-                &module.procedures,
+                &unit.ir_module.procedures,
                 proc,
             ))
             .unwrap_or_else(|| panic!("proc {proc} not lowered"));
@@ -630,7 +632,7 @@ mod tests {
     ) {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
-        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,

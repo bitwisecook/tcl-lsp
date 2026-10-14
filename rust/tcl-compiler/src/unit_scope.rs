@@ -1609,11 +1609,7 @@ fn record_unresolved_word_dispatch(
     let Some(handler) = ctx.unresolved_handler else {
         return;
     };
-    if ctx
-        .registry
-        .get(word.strip_prefix("::").unwrap_or(word))
-        .is_some()
-    {
+    if ctx.registry.get(word).is_some() {
         return;
     }
     match args {

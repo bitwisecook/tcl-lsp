@@ -1,0 +1,503 @@
+{
+  "sampled_at_utc": "2026-10-14T02:02:52.780083+00:00",
+  "sampled_head": "e029d749486029d98ee0b125a8e018d756f62f14",
+  "scope": "Every actual source reader returned by the specified remaining math/private/bootstrap API scan is listed with its disposition, plus all ten traced remaining lowering/advisory naming operations. This source-only report does not certify unscanned calls, execution, all source closures or unanswered F5 providers.",
+  "shared_owner_readers": [
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 19613,
+      "nearest_function": "builtin_shadowed_by_qualified_definition",
+      "matched_code": "if tcl_registry::mathfunc::is_in_mathfunc_namespace(name) {",
+      "test_region": false,
+      "source_sha256": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-compiler/src/math_function_binding.rs",
+      "line": 534,
+      "nearest_function": "proves_intrinsic",
+      "matched_code": ".and_then(tcl_registry::mathfunc::global_command_bare_name) == Some(function)",
+      "test_region": false,
+      "source_sha256": "4ad75cfe771ae90566be318da14a2770a725627b799bd622bc55b27ab6a6a675",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-compiler/src/math_function_binding.rs",
+      "line": 557,
+      "nearest_function": "resolved_call",
+      "matched_code": "let function = tcl_registry::mathfunc::global_command_bare_name(&target.command)?;",
+      "test_region": false,
+      "source_sha256": "4ad75cfe771ae90566be318da14a2770a725627b799bd622bc55b27ab6a6a675",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-compiler/src/codegen/native_control.rs",
+      "line": 969,
+      "nearest_function": "schedule_native_fixed_math_call84",
+      "matched_code": ".and_then(tcl_registry::mathfunc::global_command_bare_name)",
+      "test_region": false,
+      "source_sha256": "0e1e1f38cba1bfc656fd053ec2438e12f0af2a317404efa10b7c01d5b2887862",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "private",
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/validity.rs",
+      "line": 2452,
+      "nearest_function": "emit_w143_private_tcl_namespace",
+      "matched_code": "let Some(call) = tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(",
+      "test_region": false,
+      "source_sha256": "61976a0b7075399ce89478dc770d1b3586e25bb984b5736160fa1e09ab87473e",
+      "disposition": "shared-written-source-geometry-advisory-owner-no-live-target-selection"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "line": 4156,
+      "nearest_function": "fallback_proc_by_simple_name",
+      "matched_code": ".filter(|(qname, _)| !tcl_registry::mathfunc::is_in_mathfunc_namespace(qname))",
+      "test_region": false,
+      "source_sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "bootstrap",
+      "path": "rust/tcl-registry/src/dialects.rs",
+      "line": 170,
+      "nearest_function": "match_version_command",
+      "matched_code": "let descend_braced = cmd.first().is_some_and(|w| is_script_body_command(&w.text));",
+      "test_region": false,
+      "source_sha256": "91e64d85884c8d3ede0b7ecddd3e86b56a79659daeb28f75da932d6212b9ad8f",
+      "disposition": "pre-dialect-bootstrap-source-grammar-owner-no-runtime-name-lookup"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/expr_surface.rs",
+      "line": 274,
+      "nearest_function": "builtin_math_function_command_visible",
+      "matched_code": "let bare = crate::mathfunc::global_command_bare_name(qualified_name)?;",
+      "test_region": false,
+      "source_sha256": "500e5aea0794289eb24447ec5942b1a3f979e4475c39e7d65ae1bc74c4d37ee8",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 218,
+      "nearest_function": "restricted_expression_command_identity",
+      "matched_code": "global_command_bare_name(identity).is_some_and(|bare| {",
+      "test_region": false,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 550,
+      "nearest_function": "selected_math_function_spec",
+      "matched_code": "let bare = global_command_bare_name(identity).or_else(|| {",
+      "test_region": false,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 566,
+      "nearest_function": "math_function_names",
+      "matched_code": ".filter_map(global_command_bare_name)",
+      "test_region": false,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 870,
+      "nearest_function": "global_command_bare_name_accepts_only_direct_global_members",
+      "matched_code": "global_command_bare_name(\"::tcl::mathfunc::sin\"),",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 873,
+      "nearest_function": "global_command_bare_name_accepts_only_direct_global_members",
+      "matched_code": "assert_eq!(global_command_bare_name(\"tcl::mathfunc::sin\"), Some(\"sin\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 877,
+      "nearest_function": "global_command_bare_name_accepts_only_direct_global_members",
+      "matched_code": "global_command_bare_name(\"::tcl::mathfunc::nested::sin\"),",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 880,
+      "nearest_function": "global_command_bare_name_accepts_only_direct_global_members",
+      "matched_code": "assert_eq!(global_command_bare_name(\"::tcl::mathop::sin\"), None);",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 885,
+      "nearest_function": "constructed_math_function_labels_preserve_literal_colons",
+      "matched_code": "assert_eq!(global_command_bare_name(\"::tcl::mathfunc:::f\"), None);",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 886,
+      "nearest_function": "constructed_math_function_labels_preserve_literal_colons",
+      "matched_code": "assert_eq!(global_command_bare_name(\"::::tcl::mathfunc::sin\"), None);",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 887,
+      "nearest_function": "constructed_math_function_labels_preserve_literal_colons",
+      "matched_code": "assert_eq!(global_command_bare_name(\"::tcl::mathfunc::\"), None);",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 888,
+      "nearest_function": "constructed_math_function_labels_preserve_literal_colons",
+      "matched_code": "assert!(!is_in_mathfunc_namespace(\"::tcl::mathfunc:::f\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 889,
+      "nearest_function": "constructed_math_function_labels_preserve_literal_colons",
+      "matched_code": "assert!(!is_in_mathfunc_namespace(\"::tcl::mathfunc:::nested::f\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 919,
+      "nearest_function": "mathfunc_namespace_membership_covers_global_and_namespace_local",
+      "matched_code": "assert!(is_in_mathfunc_namespace(\"::tcl::mathfunc::sin\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 920,
+      "nearest_function": "mathfunc_namespace_membership_covers_global_and_namespace_local",
+      "matched_code": "assert!(is_in_mathfunc_namespace(\"::foo::tcl::mathfunc::f\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 921,
+      "nearest_function": "mathfunc_namespace_membership_covers_global_and_namespace_local",
+      "matched_code": "assert!(is_in_mathfunc_namespace(\"tcl::mathfunc::f\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 923,
+      "nearest_function": "mathfunc_namespace_membership_covers_global_and_namespace_local",
+      "matched_code": "assert!(!is_in_mathfunc_namespace(\"::sin\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 924,
+      "nearest_function": "mathfunc_namespace_membership_covers_global_and_namespace_local",
+      "matched_code": "assert!(!is_in_mathfunc_namespace(\"::tcl::mathop::+\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 925,
+      "nearest_function": "mathfunc_namespace_membership_covers_global_and_namespace_local",
+      "matched_code": "assert!(!is_in_mathfunc_namespace(\"::mathfunc::sin\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-registry/src/mathfunc.rs",
+      "line": 926,
+      "nearest_function": "mathfunc_namespace_membership_covers_global_and_namespace_local",
+      "matched_code": "assert!(!is_in_mathfunc_namespace(\"sin\"));",
+      "test_region": true,
+      "source_sha256": "3b5ee48f3ebbfd89ec536ee68dc57f61a6a6aaf0139ff865e4dc7fe4b3277d40",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "private",
+      "path": "rust/tcl-registry/src/private_tcl_namespaces.rs",
+      "line": 236,
+      "nearest_function": "classify",
+      "matched_code": "classify_private_tcl_namespace_call(",
+      "test_region": true,
+      "source_sha256": "5c52f19a45a840940ff87f58f0348080a1cf05ae91908b7f2989a1c31808824c",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "private",
+      "path": "rust/tcl-registry/src/private_tcl_namespaces.rs",
+      "line": 317,
+      "nearest_function": "written_separator_runs_use_the_selected_source_namespace_geometry",
+      "matched_code": "classify_private_tcl_namespace_call(",
+      "test_region": true,
+      "source_sha256": "5c52f19a45a840940ff87f58f0348080a1cf05ae91908b7f2989a1c31808824c",
+      "disposition": "retained-fixed-test-control"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-vm/src/cmd_math.rs",
+      "line": 274,
+      "nearest_function": "m_mathfunc",
+      "matched_code": "let Some(name) = tcl_registry::mathfunc::global_command_bare_name(identity).map(str::to_owned)",
+      "test_region": false,
+      "source_sha256": "dbd2e4334c3d3b3f49c6a28e0721cf3c523d51286e3a669792c5e64de01a4636",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-vm/src/interp.rs",
+      "line": 4518,
+      "nearest_function": "register_stock_builtin",
+      "matched_code": "if tcl_registry::mathfunc::is_in_mathfunc_namespace(canonical) {",
+      "test_region": false,
+      "source_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-vm/src/interp.rs",
+      "line": 5118,
+      "nearest_function": "retain_native_fixed_math_calls",
+      "matched_code": ".and_then(tcl_registry::mathfunc::global_command_bare_name)",
+      "test_region": false,
+      "source_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-vm/src/interp.rs",
+      "line": 7224,
+      "nearest_function": "math_function_names",
+      "matched_code": "tcl_registry::mathfunc::global_command_bare_name(display.try_utf8().ok()?)",
+      "test_region": false,
+      "source_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "rust/tcl-vm/src/interp.rs",
+      "line": 23671,
+      "nearest_function": "native_math_function_table",
+      "matched_code": "let name = tcl_registry::mathfunc::global_command_bare_name(key)?;",
+      "test_region": false,
+      "source_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    },
+    {
+      "family": "mathfunc",
+      "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
+      "line": 580,
+      "nearest_function": "prepare_body_expression",
+      "matched_code": ".and_then(tcl_registry::mathfunc::global_command_bare_name)",
+      "test_region": false,
+      "source_sha256": "c6f85cb5d9505bbc2a5693453355e658f818501ed4f381658cce7521844a03ae",
+      "disposition": "shared-constructed-report-key-owner-with-independent-selected-native-or-declaration-guards"
+    }
+  ],
+  "remaining_actual_consumers": [
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "function": "canonical_matches",
+      "declaration_lines": [
+        508
+      ],
+      "purpose": "method instance-variable MAY inventory",
+      "status": "audited-production-migration-required",
+      "current_disposition": "One reader lower_method over top-level variable declarations; raw/canonical head one-root comparison identifies a possible instance-variable declaration. Must use actual retained declaration roles or an explicit conservative naming purpose, not a new Native binding proof.",
+      "source_sha256": "b5b48a6adb3b78b33461037f112a83dab9fa7861dc41e8e0f9025cc237cfdd7d",
+      "execution_claim": "none"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "function": "body_has_dynamic_barrier",
+      "declaration_lines": [
+        821
+      ],
+      "purpose": "source-text shape widening",
+      "status": "audited-production-migration-required",
+      "current_disposition": "Caller namespace/eval/lambda body structural fallback guards; one-root strip before Registry invocation_traits. Missing/opaque source should conservatively retain barrier, exact selected descriptor metadata must be reused.",
+      "source_sha256": "b5b48a6adb3b78b33461037f112a83dab9fa7861dc41e8e0f9025cc237cfdd7d",
+      "execution_claim": "none"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "function": "record_namespace_directives",
+      "declaration_lines": [
+        2673
+      ],
+      "purpose": "explicit authored import-pattern syntax",
+      "status": "reviewed-distinct-nonlookup-purpose",
+      "current_disposition": "Only rooted qualified import patterns are retained; pattern strip is a pattern grammar check, not command target/body lookup. Reuse shared pattern/source qualification primitives if changing this grammar.",
+      "source_sha256": "b5b48a6adb3b78b33461037f112a83dab9fa7861dc41e8e0f9025cc237cfdd7d",
+      "execution_claim": "none"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "function": "record_consumed_command_binding",
+      "declaration_lines": [
+        3154
+      ],
+      "purpose": "original selected command-binding requirement",
+      "status": "audited-production-migration-required",
+      "current_disposition": "Retained source tokens, actual invocation namespace/context/guard, known namespace/cell facts remain; identity third argument currently one-root adapted. Must move through genuine selected descriptor/requirement owner; do not reinterpret source word/name as an original Native token.",
+      "source_sha256": "b5b48a6adb3b78b33461037f112a83dab9fa7861dc41e8e0f9025cc237cfdd7d",
+      "execution_claim": "none"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "function": "lower_command",
+      "declaration_lines": [
+        3539
+      ],
+      "purpose": "proved native or actual Logical selected descriptor",
+      "status": "audited-production-migration-required",
+      "current_disposition": "Native uses admitted-inline/proved execution target, registry_backed and empty prefix; Logical uses actual structured invocation. Local one-root adaptation before selected metadata should reuse descriptor producer, preserving source admission.",
+      "source_sha256": "b5b48a6adb3b78b33461037f112a83dab9fa7861dc41e8e0f9025cc237cfdd7d",
+      "execution_claim": "none"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "function": "try_registered_lowering_hook",
+      "declaration_lines": [
+        3656
+      ],
+      "purpose": "original/Logical hook and binding-requirement bridge",
+      "status": "audited-production-migration-required",
+      "current_disposition": "Existing actual hook admission and retained token/context guards stay mandatory. The local identity adaptation must be centralized at the descriptor-to-requirement boundary, independently of original head bytes.",
+      "source_sha256": "b5b48a6adb3b78b33461037f112a83dab9fa7861dc41e8e0f9025cc237cfdd7d",
+      "execution_claim": "none"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "function": "register_body_unit",
+      "declaration_lines": [
+        4534
+      ],
+      "purpose": "presentation-only decoration",
+      "status": "reviewed-distinct-nonlookup-purpose",
+      "current_disposition": "Opaque Module-issued body ID owns the body. label stripping before display suffix does not select or deduplicate a body. Keep exact presentation behavior or simplify separately without inventing source identity.",
+      "source_sha256": "b5b48a6adb3b78b33461037f112a83dab9fa7861dc41e8e0f9025cc237cfdd7d",
+      "execution_claim": "none"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "function": "lower_default",
+      "declaration_lines": [
+        4994
+      ],
+      "purpose": "actual selected target metadata/roles",
+      "status": "audited-production-migration-required",
+      "current_disposition": "Target and argument-prefix guards remain; local one-root role_cmd adaptation should select exact descriptor rather than root stripping before metadata role queries. Current facts/realm govern roles, not reconstructed source names.",
+      "source_sha256": "b5b48a6adb3b78b33461037f112a83dab9fa7861dc41e8e0f9025cc237cfdd7d",
+      "execution_claim": "none"
+    },
+    {
+      "path": "rust/tcl-compiler/src/uri_split.rs",
+      "function": "diagnostic_words",
+      "declaration_lines": [
+        296
+      ],
+      "purpose": "unanimous actual advisory command metadata",
+      "status": "scratch-reviewed-ready-to-integrate",
+      "current_disposition": "Prepared patch preserves shape.command exactly. RegistryInvocationShape::from_facts already captures canonical command from actual selected InvocationFacts; repeated root trimming could change a literal selected descriptor. No Native permission is introduced.",
+      "source_sha256": "428223341aec93f0e72471fa7c5122226fff19a86b7dbafd3f309dafb5674abf",
+      "execution_claim": "none"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/irules_event_checks.rs",
+      "function": "emit_irule5003_loop_bound_inequality",
+      "declaration_lines": [
+        348
+      ],
+      "purpose": "current contextual loop metadata",
+      "status": "scratch-reviewed-ready-to-integrate",
+      "current_disposition": "Prepared patch requires available actual ContextRegistry/spec on original label, then genuine selected descriptor label for numeric iteration plan; missing context/metadata refuses instead of default fallback. No F5 runtime observation.",
+      "source_sha256": "c4af6f70c7c0e37b9cd409d34ace2b683ce9469a475441526e1d8ffedd371382",
+      "execution_claim": "none"
+    }
+  ],
+  "native_descriptor_owner_audit": {
+    "paths": [
+      "rust/tcl-registry/src/native_compilation.rs",
+      "rust/tcl-registry/src/native_string_compilation.rs",
+      "rust/tcl-registry/src/native_tcloo_registration.rs",
+      "rust/tcl-registry/src/value_transfer/reference_body.rs"
+    ],
+    "current_disposition": "No independent trim_start_matches/strip_prefix/rsplit naming parser remains in these audited owners. Selected Native grammar/identity and authored reference-body comparisons use shared Syntax single-root projection; genuine original registration/evaluated-source/compiler preconditions remain independent. This is current source disposition, not proof renewal."
+  },
+  "ai_editor_boundary_audit": {
+    "paths": [
+      "editors/vscode/src",
+      "scripts",
+      "ai",
+      "rust/xtask/src/gen_ai.rs",
+      "rust/tcl-mcp/src"
+    ],
+    "result": "No strip_prefix(::), trim_start_matches(::), rsplit_once(::) helper matched these active Rust/TS/Python/shell paths. Existing scaffold generation, JSON argument transport and DOM labels are distinct domains; generated prose/comment currency and full editor gates remain final obligations. Zero matches is not whole-codebase completion."
+  },
+  "unclosed_work": [
+    "Six actual semantic lowering bridges/classifiers listed above require source-owner migration; two pure presentation/pattern sites remain explicitly distinct.",
+    "Run all current fixed controls on Root certified closures; new scratch patches remain unexecuted.",
+    "Refresh consumer tracking after application without rewriting semantic evidence/provenance hashes; preserve actual oracle artifacts."
+  ]
+}

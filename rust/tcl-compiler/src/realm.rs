@@ -332,8 +332,22 @@ impl CommandBindingRealm {
         span: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
     ) -> Option<(tcl_lexer::NativeWord, u32)> {
-        self.bindings
-            .original_written_word_at_span_in_source(image, span, config)
+        let written = self
+            .bindings
+            .original_written_word_at_span_in_source(image, span, config);
+        if !self
+            .source_input
+            .as_ref()
+            .is_some_and(|input| input.has_logical_source_name_context())
+        {
+            return written;
+        }
+        let catalogue = self.original_logical_catalogue_word_at_span(image, span, config);
+        match (written, catalogue) {
+            (Some(written), Some(catalogue)) if written != catalogue => None,
+            (Some(written), _) => Some(written),
+            (None, catalogue) => catalogue,
+        }
     }
 
     /// Purpose-specific readonly C array operand root. Genuine whole-vector

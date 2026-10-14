@@ -1,0 +1,58 @@
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -3172,7 +3172,16 @@
+         }
+         return;
+     };
+-    let Some(head) = tokens.words().first() else {
++    let Some((binding, site, config)) = tokens.source_binding.as_ref().and_then(|binding| {
++        Some((
++            binding,
++            binding.invocation_site()?,
++            binding.original_lexer_config_for_tokens(tokens)?,
++        ))
++    }) else {
++        if !tokens.variable_accesses.is_empty() {
++            unknown_read(facts);
++        }
+         return;
+     };
+     let Some(image) = ctx.identities.original_source_image() else {
+@@ -3181,9 +3190,7 @@
+         }
+         return;
+     };
+-    let original = ctx
+-        .identities
+-        .invocation_at_source(&head.source().source, head.source().span.start());
++    let original = ctx.identities.invocation_at_source("", site.offset);
+     let corresponding = ctx.identities.matches_resolved_analysis_input(input)
+         && input
+             .context_registry()
+@@ -3194,10 +3201,13 @@
+         && ctx
+             .identities
+             .matches_original_source_image(image, input.lexer_config())
+-        && tokens
+-            .words()
+-            .iter()
+-            .all(|word| word.image() == image && word.config() == input.lexer_config())
++        && site.source.source_image() == image
++        && config == input.lexer_config()
++        && binding
++            .original_invocation_metadata_for_input(tokens, input, ctx.registry)
++            .is_some()
++        && original.invocation_site() == Some(site)
++        && original.original_lexer_config_for_tokens(tokens) == Some(config)
+         && original
+             .original_recorded_command()
+             .is_some_and(|(_, original)| original.words() == tokens.words());
+@@ -3210,7 +3220,7 @@
+     for access in ctx
+         .identities
+         .source_bindings_ref()
+-        .variable_accesses_during_expression_invocation(head.source().span.start())
++        .variable_accesses_during_expression_invocation(site.offset)
+     {
+         if access.context_alternatives().is_empty()
+             || access.context_residual()

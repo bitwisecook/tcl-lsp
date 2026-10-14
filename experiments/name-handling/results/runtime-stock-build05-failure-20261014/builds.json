@@ -1,0 +1,38 @@
+[
+  {
+    "label": "runtime",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--manifest-path",
+      "/workspace/tcl-lsp/runtime/rust/Cargo.toml",
+      "--features",
+      "engine",
+      "--lib",
+      "--test",
+      "native_namespace_command_query",
+      "--no-run",
+      "--message-format=json",
+      "-j1"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.09453327499795705
+  },
+  {
+    "label": "registry",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "--no-run",
+      "--message-format=json",
+      "-j1"
+    ],
+    "exit_code": 101,
+    "elapsed_seconds": 29.00890914000047
+  }
+]

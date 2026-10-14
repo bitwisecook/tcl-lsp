@@ -1,0 +1,15 @@
+{
+  "provider": "tcl8.4.20",
+  "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "binary_unchanged": true,
+  "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+  "source_sha256": "898ccb3eabc2a50ea2a93e2ddf578d830d1f534fe73897ab6bffcd3cb100da17",
+  "started_utc": "2026-10-14T01:37:58.134340+00:00",
+  "exit_code": 1,
+  "uses_tcltest": false,
+  "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/tcl8.4.20/provider-identity/receipt.json",
+  "prior_complete_provider_inventory_sha256": "61e75bc10b3acbd7c462f7625b9b639ae0cf424b7c35e99bf0f69b820c3381a5",
+  "stdout": "",
+  "stderr": "wrong # args: should be \"proc name args body\"\n    while executing\n\"proc {} {} \"\n    (in namespace eval \"::ns\" script line 1)\n    invoked from within\n\"namespace eval ::ns {proc {} {} }\"\n    (file \"/tmp/name-import-shadow-geometry-20261014/oracles/tcl8.4.20/source.tcl\" line 1)\n"
+}

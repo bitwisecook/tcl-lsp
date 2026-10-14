@@ -1,0 +1,8 @@
+[
+  "rust/tcl-compiler/src/var_escape/helpers.rs",
+  "rust/tcl-compiler/src/var_escape/walker.rs",
+  "rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs",
+  "rust/tcl-compiler/src/auto_path_eval/path_constants.rs",
+  "rust/tcl-compiler/src/analyser/bounds_checks.rs",
+  "docs/design/contracts/shared-utility-contracts-rust.md"
+]

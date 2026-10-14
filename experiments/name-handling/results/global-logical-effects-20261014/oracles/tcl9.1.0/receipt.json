@@ -1,0 +1,15 @@
+{
+  "provider": "tcl9.1.0",
+  "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "binary_unchanged": true,
+  "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+  "source_sha256": "e54e88c1b69df4f1a172d44a51c7cc0ec9399350580dabd07588b238045a490d",
+  "started_utc": "2026-10-14T02:12:01.498393+00:00",
+  "exit_code": 0,
+  "uses_tcltest": false,
+  "prior_complete_provider_inventory": "/tmp/name-issues-refresh-20261014/oracles-02/tcl9.1.0/provider-identity/receipt.json",
+  "prior_complete_provider_inventory_sha256": "6de4ea0b85e37356e6dd9c1d98c5afd3e4c3cf4ac5e1299eb43b7f5909c995ec",
+  "stdout": "1\n1 1\n",
+  "stderr": ""
+}

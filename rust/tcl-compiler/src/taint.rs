@@ -12017,10 +12017,32 @@ mod tests {
         use crate::compilation_unit::CompilationUnit;
 
         fn taint_warnings_for(source: &str) -> Vec<TaintWarning> {
-            let registry = CommandRegistry::build_default();
-            let cu = CompilationUnit::build_for(source, &registry, false)
-                .with_interprocedural(&registry, None);
-            find_taint_warnings_for_cu(&cu, &registry, None)
+            let context = tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                .default_context_registry();
+            let profile = tcl_dialect::DialectProfile::plain_tcl();
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            let registry = context.commands();
+            let cu = CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            )
+            .with_interprocedural(registry, Some(profile));
+            find_taint_warnings_for_cu(&cu, registry, Some(profile))
         }
 
         /// FP fixed: a namespace-scoped proc of the same name as a builtin

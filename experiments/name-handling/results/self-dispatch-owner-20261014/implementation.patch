@@ -1,0 +1,202 @@
+diff --git a/rust/tcl-compiler/src/lib.rs b/rust/tcl-compiler/src/lib.rs
+index 9d8fe08..4ac3e14 100644
+--- a/rust/tcl-compiler/src/lib.rs
++++ b/rust/tcl-compiler/src/lib.rs
+@@ -180,6 +180,7 @@ pub mod side_effects;
+ pub mod signature_scan;
+ pub mod site_claims;
+ pub mod slot_allocation;
++pub mod source_command_observation;
+ pub mod source_graph;
+ pub mod specialise_factories;
+ pub mod ssa;
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/var_command.rs b/rust/tcl-compiler/src/analyser/diagnostics/var_command.rs
+index 61897e4..0ad0068 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/var_command.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/var_command.rs
+@@ -1246,15 +1246,33 @@ impl Analyser {
+     /// Both spellings are checked, since each table keys bare or
+     /// `::`-qualified depending on how the disturbing command was written.
+     fn self_dispatch_keyword_disturbed(&self, head: &str) -> bool {
+-        let bare = head.trim_start_matches("::");
+-        let qualified = format!("::{bare}");
+-        [bare, qualified.as_str()].iter().any(|name| {
+-            self.command_aliases.contains_key(*name)
+-                || self.renamed_commands.contains_key(*name)
+-                || self.renamed_commands.values().any(|old| old == *name)
+-                || self.deleted_commands.contains_key(*name)
+-                || self.result.all_procs.contains_key(*name)
+-                || self.result.all_classes.contains_key(*name)
++        let Ok(generation) = self.try_analysis_context() else {
++            return true;
++        };
++        let Some(spec) = generation
++            .context()
++            .resolve_spec(generation.commands(), head)
++        else {
++            return true;
++        };
++        if !spec
++            .traits
++            .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
++        {
++            return true;
++        }
++        let Some(probe) = crate::source_command_observation::SelfDispatchSourceTableProbe::for_selected_descriptor(
++            spec.descriptor_key(),
++        ) else {
++            return true;
++        };
++        probe.any_reported_key(|name| {
++            self.command_aliases.contains_key(name)
++                || self.renamed_commands.contains_key(name)
++                || self.renamed_commands.values().any(|old| old == name)
++                || self.deleted_commands.contains_key(name)
++                || self.result.all_procs.contains_key(name)
++                || self.result.all_classes.contains_key(name)
+         })
+     }
+ 
+@@ -3072,3 +3090,36 @@ mod original_abstract_factory_context_tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod self_dispatch_observation_tests {
++    use super::*;
++
++    #[test]
++    fn source_table_disturbance_retains_alias_and_rename_withdrawal_without_tail_matching() {
++        let mut analyser = Analyser::new();
++        assert!(!analyser.self_dispatch_keyword_disturbed("my"));
++        assert!(analyser.self_dispatch_keyword_disturbed("::my"));
++        analyser.command_aliases.insert(
++            "::Other::my".to_owned(),
++            ("::target".to_owned(), Vec::new()),
++        );
++        assert!(!analyser.self_dispatch_keyword_disturbed("my"));
++        analyser
++            .command_aliases
++            .insert("::my".to_owned(), ("::target".to_owned(), Vec::new()));
++        assert!(analyser.self_dispatch_keyword_disturbed("my"));
++        assert!(analyser.self_dispatch_keyword_disturbed("::my"));
++        analyser.command_aliases.clear();
++        analyser
++            .renamed_commands
++            .insert("::moved".to_owned(), "::my".to_owned());
++        assert!(analyser.self_dispatch_keyword_disturbed("my"));
++        analyser.renamed_commands.clear();
++        analyser.deleted_commands.insert("my".to_owned(), 0);
++        assert!(analyser.self_dispatch_keyword_disturbed("::my"));
++        for head in ["missing", "", ":::::my", "my::", "Other:::my"] {
++            assert!(analyser.self_dispatch_keyword_disturbed(head));
++        }
++    }
++}
+diff --git a/docs/design/contracts/shared-utility-contracts-rust.md b/docs/design/contracts/shared-utility-contracts-rust.md
+index 4bdc232..c006556 100644
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -44,6 +44,7 @@ audits and inventory-writing modes do not satisfy that route.
+ | Original source value components | `rust/tcl-syntax/src/word_rules.rs`; `rust/tcl-compiler/src/const_subst.rs` | `original_word_unicode_value_with_variables`; `ConstSubstCtx::fold_original_source_substitution` | original document word, full lexer configuration, grouping and executable-part arena remain together; callbacks receive genuine variable components, unsupported command/index/value cases decline, and conditional readonly values supply no Native cell, observer absence, executable erasure or editable reference | `xtask-owner-resolution` |
+ | Source-owned analysis cache correspondence | `rust/tcl-compiler/src/body_analysis_capsule.rs` | `BodyAnalysisCapsule`; `BodyAnalysisCapsule::retain`; `BodyAnalysisCapsule::body_id`; `BodyLatticeInputs`; `BodyLatticeInputs::retain`; `BodyLatticeInputs::rebind_cached`; `BodyLatticeCommandBindings`; `BodyLatticeCommandBindings::bindings`; `BodySummaryInputs`; `BodySummaryInputs::retain` | genuine compilation, Module issuer, body ID, FunctionUnit and original source/input/configuration own every analysis; exact source and variable relocation or a closed registry-only Logical dependency certificate permit analytical reuse; cached results rebind onto the current owner and retain current proofs; missing/changed dependencies recompute, and analytical equality supplies no Native compiler, callable, frame, object or execution authority | `xtask-owner-resolution` |
+ | Typed event-body connection scope | `rust/tcl-compiler/src/connection_scope.rs` | `EventCell`; `ConnectionScope`; `ConnectionScope::handler_source_names`; `ConnectionScope::observes_cross_event_place`; `build_connection_scope`; `build_connection_scope_with_registry` | actual CompilationUnit/Module-issued handler IDs and independently retained event metadata preserve repeated event labels; resolved cells and supplied worker/interpreter/storage domains remain separate from report unions; written protection labels project only from the matching handler keys and establish no arbitrary event order or current value | `xtask-owner-resolution` |
++| Self-dispatch source-table disturbance | `rust/tcl-compiler/src/source_command_observation.rs`; `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | `SelfDispatchSourceTableProbe`; `SelfDispatchSourceTableProbe::for_selected_descriptor`; `SelfDispatchSourceTableProbe::any_reported_key` | actual contextual self-dispatch metadata independently selects the descriptor; authored alias/rename/deletion and declaration report tables retain their interpreter domains; exact bare/root report aliases are available only when the shared authored projection retains descriptor geometry, otherwise diagnostics withdraw; a negative table query grants no current binding absence, receiver, Native policy, entered frame or method-table authority | `xtask-owner-resolution` |
+ | Conditional variable observation names | `rust/tcl-compiler/src/variable_observation_names.rs` | `VariableObservationNameSet`; `VariableProtectionPurpose`; `VariableWriteObservationPurpose`; `module_observation_key`; `variable_name_may_be_observed`; `record_variable_write_name` | explicit textual MAY inventories select module report-key, mixed exact/report or one-root native-lowering protection separately; deferred/global and outer-scope write projections retain their own aliases and array-root policies; decoded literal sigils, braces and empty variable names remain data, unknown inventories protect every name; exact VariableCellKey checks and genuine entered-Native observer guards remain independent, with no interpreted lookup, cell identity, callback-free state, absence or erasure permission | `xtask-owner-resolution` |
+ | APL variable convention | `rust/tcl-bigip/src/apl/variable_names.rs` | `tcl_var_to_apl_name`; `apl_name_to_tcl_var` | pure field convention delegates written root/qualifier geometry to Syntax; rooted and simple roots preserve lone colons while namespace-qualified roots decline; conventional export text is reporting only and supplies no appliance publication, native variable lookup or source-edit authority | `xtask-owner-resolution` |
+ | External script command inventory | `rust/tcl-syntax/src/naming/script_name_query.rs`; `rust/tcl-syntax/src/naming/script_command_inventory.rs`; `rust/tcl-cli/src/commands/spec_probe.rs` | `original_script_name_query_support`; `original_script_command_inventory_support`; `render_script` | real shell observations select query grammar without Native authority; C original simple words retain namespace context and checked root addressing; Jim uses its independent flat table; opaque or ambiguous inventory refuses as a whole; scanned registration literals remain unresolved authoring inputs | `xtask-owner-resolution` |
+diff --git a/rust/tcl-compiler/src/source_command_observation.rs b/rust/tcl-compiler/src/source_command_observation.rs
+new file mode 100644
+index 0000000..7df02bd
+--- /dev/null
++++ b/rust/tcl-compiler/src/source_command_observation.rs
+@@ -0,0 +1,88 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Conservative self-dispatch observation over authored source report tables.
++
++/// Two report-table aliases of independently selected self-dispatch metadata.
++/// A negative table query supplies no live command, entered frame, receiver,
++/// method-table, binding absence or Native name-policy authority.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct SelfDispatchSourceTableProbe {
++    bare: String,
++    rooted: String,
++}
++
++impl SelfDispatchSourceTableProbe {
++    /// Select only descriptors that the source tables can represent without
++    /// changing geometry. Ambiguous descriptor/source projections decline.
++    #[must_use]
++    pub fn for_selected_descriptor(
++        key: tcl_registry::CanonicalCommandDescriptorKey<'_>,
++    ) -> Option<Self> {
++        let rooted = key.rooted_binding_label();
++        if rooted.is_empty() || tcl_syntax::naming::normalise_qualified_name(key.label()) != rooted
++        {
++            return None;
++        }
++        let bare = tcl_syntax::naming::unroot_rooted_key(&rooted)?.to_owned();
++        if bare.is_empty() {
++            return None;
++        }
++        Some(Self { bare, rooted })
++    }
++
++    /// Whether either authored source report key has an observed disturbance.
++    /// The caller owns each table's interpreter domain and declaration purpose.
++    #[must_use]
++    pub fn any_reported_key(&self, mut contains: impl FnMut(&str) -> bool) -> bool {
++        contains(&self.bare) || contains(&self.rooted)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn selected_report_aliases_preserve_literal_colons_and_refuse_colliding_geometry() {
++        let mut registry = tcl_registry::CommandRegistry::build_default();
++        let prototype = registry.get_exact("my").unwrap().clone();
++        for label in [
++            "::my",
++            ":my",
++            "Other::my",
++            "Other:::my",
++            "::::my",
++            "my:::member",
++            "",
++            "::",
++        ] {
++            let mut spec = prototype.clone();
++            spec.name = label;
++            registry.insert(spec);
++        }
++        for (label, bare, rooted) in [
++            ("my", "my", "::my"),
++            ("::my", "my", "::my"),
++            (":my", ":my", ":::my"),
++            ("Other::my", "Other::my", "::Other::my"),
++        ] {
++            let selected = registry.get_exact(label).unwrap().descriptor_key();
++            let probe = SelfDispatchSourceTableProbe::for_selected_descriptor(selected).unwrap();
++            assert!(probe.any_reported_key(|name| name == bare));
++            assert!(probe.any_reported_key(|name| name == rooted));
++            assert!(!probe.any_reported_key(|name| name == "::Unrelated::my"));
++            if label != "my" && label != "::my" {
++                assert!(!probe.any_reported_key(|name| name == "::my"));
++            }
++        }
++        for label in ["Other:::my", "::::my", "my:::member", "", "::"] {
++            assert!(
++                SelfDispatchSourceTableProbe::for_selected_descriptor(
++                    registry.get_exact(label).unwrap().descriptor_key()
++                )
++                .is_none()
++            );
++        }
++    }
++}

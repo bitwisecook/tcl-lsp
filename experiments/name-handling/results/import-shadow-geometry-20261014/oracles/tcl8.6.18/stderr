@@ -1,0 +1,7 @@
+wrong # args: should be "proc name args body"
+    while executing
+"proc {} {} "
+    (in namespace eval "::ns" script line 1)
+    invoked from within
+"namespace eval ::ns {proc {} {} }"
+    (file "/tmp/name-import-shadow-geometry-20261014/oracles/tcl8.6.18/source.tcl" line 1)

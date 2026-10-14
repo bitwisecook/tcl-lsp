@@ -99,6 +99,7 @@ pub(super) struct SourceContext<'a> {
     pub(super) registry: &'a CommandRegistry,
     pub(super) metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
     pub(super) config: LexerConfig,
+    variable_lookup: tcl_dialect::VariableLookupPolicy,
     image: &'a tcl_lexer::SourceImage,
     retained: &'a crate::command_binding::RetainedSourceModuleBindings,
 }
@@ -114,12 +115,17 @@ impl<'a> SourceContext<'a> {
         }
         let metadata =
             crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+        let variable_lookup = module
+            .source_entry
+            .invocation_dialect?
+            .variable_lookup_policy?;
         (module.original_invocation_source_purpose(registry, metadata)?
             == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
             .then_some(Self {
                 registry,
                 metadata,
                 config: module.lexer_config,
+                variable_lookup,
                 image: &module.source,
                 retained: module.retained_source_bindings.as_deref()?,
             })
@@ -165,14 +171,8 @@ fn base(name: &str) -> &str {
     tcl_syntax::naming::split_element_ref(name).map_or(name, |(array, _)| array)
 }
 
-/// A name that is not a local of the frame — one a namespace qualifies — is not
-/// the frame's to bind or to read.
-fn is_local(name: &str) -> bool {
-    !name.is_empty() && !name.contains("::")
-}
-
-fn bind(bound: &mut HashSet<String>, name: &str) {
-    if is_local(base(name)) {
+fn bind(bound: &mut HashSet<String>, name: &str, policy: tcl_dialect::VariableLookupPolicy) {
+    if tcl_syntax::naming::source_variable_name_is_frame_local(base(name).as_bytes(), policy) {
         bound.insert(base(name).to_owned());
     }
 }
@@ -312,10 +312,10 @@ impl Frame<'_> {
     /// falls through.
     fn command(&self, statement: &Statement, bound: &mut HashSet<String>) -> Option<()> {
         match statement {
-            Statement::AssignConst { name, .. } => bind(bound, name),
+            Statement::AssignConst { name, .. } => bind(bound, name, self.source.variable_lookup),
             Statement::AssignValue { name, value, .. } => {
                 self.word(value, bound)?;
-                bind(bound, name);
+                bind(bound, name, self.source.variable_lookup);
             }
             Statement::AssignExpr {
                 name,
@@ -325,7 +325,7 @@ impl Frame<'_> {
             } => {
                 self.expression(expr, bound)?;
                 self.word(fallback_value, bound)?;
-                bind(bound, name);
+                bind(bound, name, self.source.variable_lookup);
             }
             Statement::Incr {
                 name,
@@ -333,7 +333,7 @@ impl Frame<'_> {
                 amount_braced,
                 ..
             } => {
-                read(name, bound)?;
+                read(name, bound, self.source.variable_lookup)?;
                 if let Some(amount) = amount.as_ref().filter(|_| !amount_braced) {
                     self.word(amount, bound)?;
                 }
@@ -357,15 +357,15 @@ impl Frame<'_> {
                     }
                 }
                 for name in reads {
-                    read(name, bound)?;
+                    read(name, bound, self.source.variable_lookup)?;
                 }
                 if *reads_own_defs && !*safe_on_uninit {
                     for name in defs {
-                        read(name, bound)?;
+                        read(name, bound, self.source.variable_lookup)?;
                     }
                 }
                 for name in defs {
-                    bind(bound, name);
+                    bind(bound, name, self.source.variable_lookup);
                 }
             }
             _ => unreachable!("`statement` sends `command` only the statements it reads"),
@@ -414,7 +414,7 @@ impl Frame<'_> {
                         self.word(&iterator.list_arg, bound)?;
                     }
                     for name in &iterator.vars {
-                        bind(&mut inner, name);
+                        bind(&mut inner, name, self.source.variable_lookup);
                     }
                 }
                 self.script(body, &mut inner, depth + 1)?;
@@ -441,7 +441,7 @@ impl Frame<'_> {
             } => {
                 self.detached(body, bound, depth)?;
                 for name in result_var.iter().chain(options_var) {
-                    bind(bound, name);
+                    bind(bound, name, self.source.variable_lookup);
                 }
             }
             Statement::Try {
@@ -454,7 +454,7 @@ impl Frame<'_> {
                 for handler in handlers {
                     let mut inner = bound.clone();
                     for name in handler.var_name.iter().chain(&handler.options_var) {
-                        bind(&mut inner, name);
+                        bind(&mut inner, name, self.source.variable_lookup);
                     }
                     self.script(&handler.body, &mut inner, depth + 1)?;
                 }
@@ -562,9 +562,9 @@ impl Frame<'_> {
             return None;
         }
         VarReferenceScanner::with_config(VarScanOptions::default(), self.source.config)
-            .scan_word(text, self.source.registry)
+            .scan_lexical_word(text, self.source.registry)
             .iter()
-            .try_for_each(|name| read(name, bound))
+            .try_for_each(|name| read(name, bound, self.source.variable_lookup))
     }
 
     fn expression(&self, expr: &ExprNode, bound: &HashSet<String>) -> Option<()> {
@@ -577,9 +577,15 @@ impl Frame<'_> {
 
 /// `name` read where `bound` is bound: a name the frame does not own is not the
 /// frame's to refuse.
-fn read(name: &str, bound: &HashSet<String>) -> Option<()> {
+fn read(
+    name: &str,
+    bound: &HashSet<String>,
+    policy: tcl_dialect::VariableLookupPolicy,
+) -> Option<()> {
     let name = base(name);
-    (!is_local(name) || bound.contains(name)).then_some(())
+    (!tcl_syntax::naming::source_variable_name_is_frame_local(name.as_bytes(), policy)
+        || bound.contains(name))
+    .then_some(())
 }
 
 /// Whether `expr` contains opaque syntax or a substituting text operand the
@@ -682,6 +688,30 @@ mod tests {
 
     fn beyond_values(text: &str) -> bool {
         substitutes_a_command_beyond_values(text, &CommandRegistry::build_default(), 0)
+    }
+
+    #[test]
+    fn original_frame_empty_and_dollar_names_require_actual_local_bindings() {
+        // Public C8.4–9.1/Jim source controls: experiments/name-handling/results/frame-local-name-geometry.
+        for (source, expected) in [
+            ("proc p {} {return ${}}", false),
+            ("proc p {} {set {} VALUE; return ${}}", true),
+            ("proc p {{$name}} {return ${$name}}", true),
+            ("proc p {name} {return ${$name}}", false),
+            ("proc p {{$name}} {return $name}", false),
+        ] {
+            let (context, module) = crate::inlining::tests::logical_module_for(source);
+            let selected = SourceContext::for_module(&module, context.commands()).unwrap();
+            let procedure = module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .unwrap();
+            assert_eq!(
+                reads_only_bound_names(procedure, selected),
+                expected,
+                "{source}"
+            );
+        }
     }
 
     #[test]

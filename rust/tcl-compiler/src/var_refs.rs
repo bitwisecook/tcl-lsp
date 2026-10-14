@@ -64,22 +64,8 @@ impl NameRoleWord {
     }
 }
 
-/// Every argument of `cmd` whose registry role names a variable, in argument
-/// order.
-///
-/// **The** answer to "which words of this command are variable names?", so
-/// the analyser's reference recorder, the dead-store suppressor's
-/// substitution scan, and the LSP's cursor resolver cannot disagree about a
-/// command they were never taught by name. Roles come from
-/// [`CommandRegistry::arg_indices_for_role`], so any spec that declares a
-/// `VarRead` / `VarWrite` position contributes — `set` (one-argument read
-/// form), `info exists`, `array get`, `unset`, `incr`, a dialect command, or
-/// one added tomorrow.
-///
-/// A **computed** name (`set $n`, `incr [pick]`) is skipped: its cell is not
-/// statically known, and the `$n` inside it is already an ordinary read the
-/// token scan sees. A brace-quoted word is *not* computed — braces suppress
-/// substitution, so `{$n}` is the literal name `$n`.
+/// Test-only catalogue convenience for detached command layouts.
+/// Production roles require [`original_variable_name_role_words`] ownership.
 #[must_use]
 #[cfg(test)]
 pub fn variable_name_role_words(
@@ -286,6 +272,12 @@ impl VarReferenceScanner {
         }
     }
 
+    /// Whether this caller requested detached catalogue read roles.
+    /// The flag supplies no original source or receiver authority.
+    pub(crate) const fn standalone_roles_requested(&self) -> bool {
+        self.options.include_var_read_roles
+    }
+
     /// Whether this scanner reports element-qualified names
     /// ([`VarScanOptions::element_qualified`]).
     #[must_use]
@@ -355,6 +347,24 @@ impl VarReferenceScanner {
     /// substitution. Use [`Self::scan_word`] for a value word.
     pub fn scan_script(&mut self, source: &str, registry: &CommandRegistry) -> BTreeSet<String> {
         self.scan_cached(source, registry, false)
+    }
+
+    /// Script syntax alone; command heads grant no receiver read roles.
+    pub fn scan_lexical_script(
+        &mut self,
+        source: &str,
+        registry: &CommandRegistry,
+    ) -> BTreeSet<String> {
+        self.scan_cached_roles(source, registry, false, false)
+    }
+
+    /// Detached script catalogue advice may protect stores but proves no binding.
+    pub fn scan_standalone_script(
+        &mut self,
+        source: &str,
+        registry: &CommandRegistry,
+    ) -> BTreeSet<String> {
+        self.scan_cached_roles(source, registry, false, true)
     }
 
     /// Shared cache lookup/insert for both scan modes.

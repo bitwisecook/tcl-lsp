@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Namespace and qualified-name helpers for the optimiser.
+//! Constructed-key geometry fixtures for the shared Syntax naming owner.
 
 /// Split a namespace string into its `::`-delimited parts,
 /// skipping empty segments. `"::"` yields `[]`, `"::foo::bar"`
@@ -24,7 +24,7 @@
 /// [`crate::naming::qualifier_segments_owned`] split (colon runs are a
 /// single separator).
 #[must_use]
-pub fn namespace_parts(namespace: &str) -> Vec<String> {
+fn namespace_parts(namespace: &str) -> Vec<String> {
     crate::naming::qualifier_segments_owned(namespace)
 }
 
@@ -35,16 +35,10 @@ pub fn namespace_parts(namespace: &str) -> Vec<String> {
 /// - `"::foo"` → `"::"`.
 /// - `"::a::b::c"` → `"::a::b"`.
 #[must_use]
-pub fn namespace_from_qualified(qname: &str) -> String {
-    let parts = namespace_parts(qname);
-    if parts.len() <= 1 {
-        return "::".into();
-    }
-    let prefix: Vec<&str> = parts[..parts.len() - 1]
-        .iter()
-        .map(String::as_str)
-        .collect();
-    format!("::{}", prefix.join("::"))
+fn namespace_from_qualified(qname: &str) -> String {
+    let parts = tcl_syntax::naming::written_command_parts(qname.as_bytes());
+    let path = tcl_core_types::ByteNamespacePath::from_segments(parts.qualifiers);
+    tcl_syntax::naming::checked_namespace_path_key(&path).expect("UTF-8 constructed key")
 }
 
 #[cfg(test)]
@@ -73,5 +67,7 @@ mod tests {
         assert_eq!(namespace_from_qualified("::foo"), "::");
         assert_eq!(namespace_from_qualified("::a::b"), "::a");
         assert_eq!(namespace_from_qualified("::a::b::c"), "::a::b");
+        assert_eq!(namespace_from_qualified("::a::b::"), "::a::b");
+        assert_eq!(namespace_from_qualified("a::b::::"), "::a::b");
     }
 }

@@ -9996,11 +9996,32 @@ operands retain their original values and origins. Materialized text supplies
 possible names and an opaque residual; it supplies no authored child word or
 span, Native entry, physical read, represented SSA use or normal completion.
 Lexical interpolation uses `VarReferenceScanner::with_config` with the retained
-source configuration, preserving protected braces and literal variable-name
-syntax independently of selected command roles. Missing or foreign metadata is
-opaque. Elimination uses opaque coverage to retain possible stores; expanding
+source configuration and `scan_lexical_word`, preserving protected braces and
+literal variable-name syntax independently of selected command roles.
+`scan_standalone_word` supplies explicitly detached catalogue advice for MAY
+protection; it cannot issue original source roles or Native bindings. Actual
+source role consumers use `original_variable_name_role_words` with the genuine
+analysis and whole source owner. Missing or foreign metadata is opaque.
+Elimination uses opaque coverage to retain possible stores; expanding
 that coverage to existing symbolic SSA names does not create read occurrences
 or SSA versions.
+
+CFG protection around substitution writes combines lexical reads with the
+original parent vector's retained children and their complete metadata.
+`possible_variable_name_operands_with_metadata_context` supplies frozen MAY
+read-role operands; missing owners, unknown candidates or unresolved layouts
+retain every written name's incoming value. Module observation keys remain a
+reporting policy and do not establish physical aliases. Detached index/name
+text has no such source owner: `var_resolve` keeps lexical dependencies and an
+unknown read for nested commands rather than inventing by-name cells.
+
+Slot and scalar liveness consume `place_bridge::terminator_read_places_at`
+under the actual SSA point/source owner. Existing cell symbols and array-root
+membership carry read dependencies; unknown reads retain all known cells.
+A supplied CFG without points cannot borrow standalone name selection. Explicit
+standalone shells keep lexical forms separate and conservatively retain nested
+command reads. These facts grant neither a Native lookup nor executable slot
+reuse.
 
 Body-local diagnostic suppression uses
 `OriginalSourceMaterializedFootprint::body_name_ownership` with the genuine

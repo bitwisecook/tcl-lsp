@@ -339,7 +339,7 @@ fn diagnostic_words(
         })
         .collect::<Option<Vec<_>>>()?;
     Some((
-        shape.command().trim_start_matches("::").to_owned(),
+        shape.command().to_owned(),
         arguments,
         effective.words.get(1..)?.to_vec(),
         decomposition(tokens, shape.command(), effective, ctx),

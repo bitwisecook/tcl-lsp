@@ -1,0 +1,5 @@
+{
+  "scope": "Observed owned scanner borrow correction only; current source-purpose selection and all assertions retained.",
+  "before": "8fd9e6c5478d903e1e484c56793e6efa894dfb6fe28022c3a713780941159c78",
+  "after": "25e7786138bf3fd07a3d9c081a309de8837309be6da0e4b99244a907eef816ed"
+}

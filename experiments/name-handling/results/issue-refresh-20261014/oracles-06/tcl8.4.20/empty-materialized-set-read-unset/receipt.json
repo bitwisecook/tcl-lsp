@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.4.20",
+  "case": "empty-materialized-set-read-unset",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-06/tcl8.4.20/empty-materialized-set-read-unset/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:47:06.276258+00:00",
+  "exit_code": 0,
+  "source_sha256": "a01fd3192ed66530aeac582ccb6f8a54972a70da0ff13cd1b4409c513c044dd0",
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "stdout_sha256": "fc87e465ba356e65735b9fe608388f27f38e885122b4f4745334d945415e8f2e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

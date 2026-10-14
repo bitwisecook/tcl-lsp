@@ -1,0 +1,1 @@
+The source-retention command before the global-empty controls failed before modifying probe.tcl: NotADirectoryError: [Errno 20] Not a directory: /tmp/name-frame-empty-oracle-20261014/probe.tcl/first-six-case-probe.tcl. The subsequent run therefore reran the unchanged eight-case source. Its exact records are retained as eight-case-results.json.

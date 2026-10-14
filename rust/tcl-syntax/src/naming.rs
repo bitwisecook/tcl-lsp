@@ -177,6 +177,21 @@ pub fn is_qualified(name: &[u8]) -> bool {
     name.windows(2).any(|w| w == b"::")
 }
 
+/// Whether a source variable name belongs to an ordinary activation's table.
+/// C qualifiers select namespace cells; Jim only roots a name with initial `::`.
+/// The empty name remains local. The caller owns the policy and input extent;
+/// this supplies no Native frame, cell, lookup or variable-presence receipt.
+#[must_use]
+pub fn source_variable_name_is_frame_local(
+    name: &[u8],
+    policy: tcl_dialect::VariableLookupPolicy,
+) -> bool {
+    match policy {
+        tcl_dialect::VariableLookupPolicy::Tcl => !is_qualified(name),
+        tcl_dialect::VariableLookupPolicy::Jim => !name.starts_with(b"::"),
+    }
+}
+
 /// The TextMate-compatible variable-name body used by the generated editor
 /// grammars. A namespace separator is a run of *two or more* colons, matching
 /// [`qualifier_segments`] exactly; keeping the rendered fragment beside the

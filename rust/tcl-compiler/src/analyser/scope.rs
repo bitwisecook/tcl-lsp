@@ -3129,7 +3129,6 @@ impl Analyser {
             let image = tcl_lexer::SourceImage::document(&self.source);
             return self
                 .head_identities
-                .source_bindings_ref()
                 .original_written_word_at_span_in_source(&image, span, config)
                 .and_then(|(word, _)| {
                     crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(

@@ -2927,7 +2927,7 @@ pub struct Module {
 /// The commands a document declares whose declarations state their frame
 /// effect and nothing a reader of the catalogue alone would miss
 /// ([`tcl_registry::model::DeclaredCommand::plain_call_frame_effect`]), by
-/// normalised qualified name, with the effect each states: `None` for one
+/// unambiguous descriptor metadata coordinate, with the effect each states: `None` for one
 /// that crosses no frame (`-frame own`, `-frame none`), `argparse`'s
 /// caller-frame effect for `-frame caller`.
 ///

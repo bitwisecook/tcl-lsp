@@ -1250,11 +1250,16 @@ impl<'a> CfgBuilder<'a> {
         {
             return true;
         }
-        let own = tcl_syntax::naming::normalise_qualified_name(head);
+        let selected = self.registry.get(head);
         bindings.targets(head, namespace).iter().any(|target| {
             if !target.registry_backed
                 || (target.prepended.is_empty()
-                    && tcl_syntax::naming::normalise_qualified_name(&target.command) == own)
+                    && selected.is_some_and(|spec| {
+                        tcl_registry::command_descriptor_labels_match(
+                            &target.command,
+                            spec.descriptor_key().label(),
+                        )
+                    }))
             {
                 return false;
             }
@@ -1693,18 +1698,9 @@ impl<'a> CfgBuilder<'a> {
         .names
     }
 
-    /// The places among `written`, which a statement's `[…]` substitutions
-    /// write, that `host_reads` — every variable the statement reads by
-    /// substitution — also holds.
-    ///
-    /// The words of one statement run before, between and after such a write,
-    /// and the SSA gives a statement one version of a name. The effect call
-    /// that carries the write is placed first and reads the version before
-    /// it, so the store feeding a word that runs ahead of the write stays
-    /// live. Which word runs where is not modelled: a read after the write is
-    /// counted too, and a place no word reads is not, so a store the
-    /// statement overwrites unread (`puts [set x 2]`, `[gets $fd line]`)
-    /// stays dead.
+    /// Protect incoming values read around a substitution write.
+    /// Original roles and lexical reads contribute MAY protection; missing
+    /// ownership keeps every written name's incoming version live.
     fn read_beside_writes(
         &self,
         written: &[String],

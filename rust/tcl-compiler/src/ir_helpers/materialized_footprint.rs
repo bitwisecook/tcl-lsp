@@ -34,7 +34,7 @@ impl VariableWriteEffects {
         ] {
             for name in found {
                 let root = tcl_syntax::naming::split_array_name_braced(name, true).0;
-                if !root.is_empty() && !names.iter().any(|name| name == root) {
+                if !names.iter().any(|name| name == root) {
                     names.push(root.to_owned());
                 }
             }
@@ -289,7 +289,7 @@ fn script_writes(
             context.config,
         );
         out.read_names
-            .extend(scanner.scan_script(text, context.registry));
+            .extend(scanner.scan_lexical_script(text, context.registry));
     }
     for (partial, words) in value_commands(text, context.config) {
         out.opaque |= partial;
@@ -467,7 +467,7 @@ fn reevaluated_reads(
     for expression in expressions {
         if context.reads == ReadPurpose::InterpolationAndNames {
             out.read_names
-                .extend(scanner.scan_word(&expression, context.registry));
+                .extend(scanner.scan_lexical_word(&expression, context.registry));
         }
         let map = SourceMap::new(&expression);
         for token in tcl_lexer::Lexer::with_config(

@@ -1450,11 +1450,7 @@ impl<'a> LatticeDriver<'a> {
         };
         self.context.tier == AnalysisTier::Deep
             && !folds.mutations.rebinds_builtins()
-            && (!self.trusted(head)
-                || self
-                    .registry
-                    .get(head.strip_prefix("::").unwrap_or(head))
-                    .is_none())
+            && (!self.trusted(head) || self.registry.get(head).is_none())
     }
 
     /// The stance a re-run this run asks for is solved under: its own.

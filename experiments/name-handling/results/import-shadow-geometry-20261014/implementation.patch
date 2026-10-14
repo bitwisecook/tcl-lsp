@@ -1,0 +1,118 @@
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -19352,14 +19352,17 @@
+         self.dynamic
+     }
+ 
+-    /// Whether `name` sits in a namespace whose resolution this scan could
+-    /// not enumerate — see [`Self::opaque_namespaces`].
++    /// The constructed command-key label contributes only MAY trust invalidation;
++    /// its written empty tail remains part of the namespace geometry.
+     fn import_shadowed(&self, name: &str) -> bool {
+         if self.opaque_namespaces.is_empty() {
+             return false;
+         }
+-        let qualified = nqn(name);
+-        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&qualified);
++        let parts = tcl_syntax::naming::written_command_parts(name.as_bytes());
++        let path = tcl_core_types::ByteNamespacePath::from_segments(parts.qualifiers);
++        let Some(namespace) = tcl_syntax::naming::checked_namespace_path_key(&path) else {
++            return true;
++        };
+         self.opaque_namespaces.contains(&namespace)
+     }
+ 
+@@ -20711,6 +20714,19 @@
+     /// another. The literal names every field, so a field added to the
+     /// summary fails to compile here until it is carried.
+     #[test]
++    fn opaque_namespace_imports_preserve_empty_command_tails() {
++        let mutations = ModuleCommandMutations {
++            opaque_namespaces: ["::ns".to_owned()].into_iter().collect(),
++            ..ModuleCommandMutations::default()
++        };
++        for name in ["ns::", "::ns::", "::ns::::", "::ns::ordinary"] {
++            assert!(!mutations.trusts_proc_binding(name), "{name}");
++        }
++        assert!(mutations.trusts_proc_binding("::ns"));
++        assert!(mutations.trusts_proc_binding("::other::"));
++    }
++
++    #[test]
+     fn the_trust_snapshot_round_trips_every_mutation_field() {
+         let every = ModuleCommandMutations {
+             names: std::iter::once("llength".to_owned()).collect(),
+@@ -22525,9 +22541,9 @@
+     fn rebound_candidates_include_relative_qualified_names() {
+         let namespace = crate::ir::ExecutionNamespace::exact("::ns");
+         for (written, expected) in [
+-            ("inner::p", vec!["inner::p", "ns::inner::p"]),
+-            ("p", vec!["ns::p", "p"]),
+-            ("::inner::p", vec!["inner::p"]),
++            ("inner::p", vec!["::inner::p", "::ns::inner::p"]),
++            ("p", vec!["::ns::p", "::p"]),
++            ("::inner::p", vec!["::inner::p"]),
+         ] {
+             let mut bindings = ModuleCommandBindings::default();
+             bindings.record_proc_rebound_candidates(written, &namespace);
+--- a/rust/tcl-compiler/src/optimiser/helpers/naming.rs
++++ b/rust/tcl-compiler/src/optimiser/helpers/naming.rs
+@@ -16,7 +16,7 @@
+ //
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ 
+-//! Namespace and qualified-name helpers for the optimiser.
++//! Constructed-key geometry fixtures for the shared Syntax naming owner.
+ 
+ /// Split a namespace string into its `::`-delimited parts,
+ /// skipping empty segments. `"::"` yields `[]`, `"::foo::bar"`
+@@ -24,7 +24,7 @@
+ /// [`crate::naming::qualifier_segments_owned`] split (colon runs are a
+ /// single separator).
+ #[must_use]
+-pub fn namespace_parts(namespace: &str) -> Vec<String> {
++fn namespace_parts(namespace: &str) -> Vec<String> {
+     crate::naming::qualifier_segments_owned(namespace)
+ }
+ 
+@@ -35,16 +35,10 @@
+ /// - `"::foo"` → `"::"`.
+ /// - `"::a::b::c"` → `"::a::b"`.
+ #[must_use]
+-pub fn namespace_from_qualified(qname: &str) -> String {
+-    let parts = namespace_parts(qname);
+-    if parts.len() <= 1 {
+-        return "::".into();
+-    }
+-    let prefix: Vec<&str> = parts[..parts.len() - 1]
+-        .iter()
+-        .map(String::as_str)
+-        .collect();
+-    format!("::{}", prefix.join("::"))
++fn namespace_from_qualified(qname: &str) -> String {
++    let parts = tcl_syntax::naming::written_command_parts(qname.as_bytes());
++    let path = tcl_core_types::ByteNamespacePath::from_segments(parts.qualifiers);
++    tcl_syntax::naming::checked_namespace_path_key(&path).expect("UTF-8 constructed key")
+ }
+ 
+ #[cfg(test)]
+@@ -73,5 +67,7 @@
+         assert_eq!(namespace_from_qualified("::foo"), "::");
+         assert_eq!(namespace_from_qualified("::a::b"), "::a");
+         assert_eq!(namespace_from_qualified("::a::b::c"), "::a::b");
++        assert_eq!(namespace_from_qualified("::a::b::"), "::a::b");
++        assert_eq!(namespace_from_qualified("a::b::::"), "::a::b");
+     }
+ }
+--- a/rust/tcl-compiler/src/optimiser/helpers/mod.rs
++++ b/rust/tcl-compiler/src/optimiser/helpers/mod.rs
+@@ -32,7 +32,8 @@
+ 
+ pub mod expr_simplify;
+ pub mod literals;
+-pub mod naming;
++#[cfg(test)]
++mod naming;
+ pub mod select;
+ pub mod spans;
+ pub mod tokens;

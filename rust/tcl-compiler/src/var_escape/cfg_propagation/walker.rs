@@ -46,7 +46,7 @@ use crate::var_escape::handlers::has_expand_word;
 use crate::var_escape::helpers::{
     default_registry, invocation_facts, invocation_facts_from_tokens, is_dynamic_name,
     is_dynamic_token, is_frameless_runtime_command_in, normal_handler_is_frameless,
-    normalise_cmd_subst_head, scan_value_for_info_hazards,
+    scan_value_for_info_hazards,
 };
 
 /// Walk *value* for embedded `[cmd ...]` substitution heads;
@@ -64,11 +64,7 @@ fn apply_value_scan(
     }
     if value.contains('[') {
         for head in extract_cmd_subst_heads(value) {
-            let canonical = normalise_cmd_subst_head(&head);
-            // The selected registry, not the plain-Tcl allow-list: a head
-            // inside a substitution is the same command as a direct one, and
-            // must answer from the same profile (#2167).
-            if !is_frameless_runtime_command_in(canonical, registry) {
+            if !is_frameless_runtime_command_in(&head, registry) {
                 state.record_fallback();
                 break;
             }

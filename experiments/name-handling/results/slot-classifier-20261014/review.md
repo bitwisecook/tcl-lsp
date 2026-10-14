@@ -1,0 +1,7 @@
+# Local-slot classifier review
+
+assign_local_slots narrows an independently produced escape summary and cannot make a pessimistic/fallback/upvar summary eligible. Its raw Statement::Call head previously received independent one-root parsing and two duplicate default Registry trait rosters. The shared default Registry::resolve_call now receives the original label, after which actual selected descriptor traits and variable roles decide additional refusals. Missing resolution disables slots instead of allowing a narrowing based on absent metadata. The default catalogue compatibility API remains explicit; this patch does not add a selected original Registry/context or Native handler receipt where none exists. BodyFrameId-to-Module-issued-body joins remain unchanged.
+
+The two private memoized rosters and private normalise_cmd are removed; each had a single production reader in this file. Call roles are queried using the actual selected descriptor label. Existing escape-summary, dynamic operand, introspection and variable-name handling remain.
+
+Validation: rustfmt and git apply --check pass. No Cargo, Rust tests, Native grant or oracle claim. New control: var_escape::slot_resolution::tests::slot_metadata_uses_registry_rooted_selection_and_refuses_unknown_heads; retain all current slot-resolution tests, especially actual rooted upvar, trace-variable/trace-command distinction and introspection cases.

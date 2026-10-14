@@ -1,0 +1,4 @@
+/tmp/name-issues-refresh-20261014/oracles-06/jim/empty-materialized-alias/source.tcl:1: Error: wrong # args: should be "interp"
+Traceback (most recent call last):
+  File "/tmp/name-issues-refresh-20261014/oracles-06/jim/empty-materialized-alias/source.tcl", line 1
+    interp alias {} put {} set {}

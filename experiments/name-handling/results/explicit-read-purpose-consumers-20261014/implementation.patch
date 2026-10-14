@@ -1,0 +1,389 @@
+--- a/rust/tcl-compiler/src/var_refs.rs
++++ b/rust/tcl-compiler/src/var_refs.rs
+@@ -64,22 +64,8 @@
+     }
+ }
+ 
+-/// Every argument of `cmd` whose registry role names a variable, in argument
+-/// order.
+-///
+-/// **The** answer to "which words of this command are variable names?", so
+-/// the analyser's reference recorder, the dead-store suppressor's
+-/// substitution scan, and the LSP's cursor resolver cannot disagree about a
+-/// command they were never taught by name. Roles come from
+-/// [`CommandRegistry::arg_indices_for_role`], so any spec that declares a
+-/// `VarRead` / `VarWrite` position contributes — `set` (one-argument read
+-/// form), `info exists`, `array get`, `unset`, `incr`, a dialect command, or
+-/// one added tomorrow.
+-///
+-/// A **computed** name (`set $n`, `incr [pick]`) is skipped: its cell is not
+-/// statically known, and the `$n` inside it is already an ordinary read the
+-/// token scan sees. A brace-quoted word is *not* computed — braces suppress
+-/// substitution, so `{$n}` is the literal name `$n`.
++/// Test-only catalogue convenience for detached command layouts.
++/// Production roles require [`original_variable_name_role_words`] ownership.
+ #[must_use]
+ #[cfg(test)]
+ pub fn variable_name_role_words(
+@@ -286,6 +272,12 @@
+         }
+     }
+ 
++    /// Whether this caller requested detached catalogue read roles.
++    /// The flag supplies no original source or receiver authority.
++    pub(crate) const fn standalone_roles_requested(&self) -> bool {
++        self.options.include_var_read_roles
++    }
++
+     /// Whether this scanner reports element-qualified names
+     /// ([`VarScanOptions::element_qualified`]).
+     #[must_use]
+@@ -355,6 +347,24 @@
+     /// substitution. Use [`Self::scan_word`] for a value word.
+     pub fn scan_script(&mut self, source: &str, registry: &CommandRegistry) -> BTreeSet<String> {
+         self.scan_cached(source, registry, false)
++    }
++
++    /// Script syntax alone; command heads grant no receiver read roles.
++    pub fn scan_lexical_script(
++        &mut self,
++        source: &str,
++        registry: &CommandRegistry,
++    ) -> BTreeSet<String> {
++        self.scan_cached_roles(source, registry, false, false)
++    }
++
++    /// Detached script catalogue advice may protect stores but proves no binding.
++    pub fn scan_standalone_script(
++        &mut self,
++        source: &str,
++        registry: &CommandRegistry,
++    ) -> BTreeSet<String> {
++        self.scan_cached_roles(source, registry, false, true)
+     }
+ 
+     /// Shared cache lookup/insert for both scan modes.
+--- a/rust/tcl-compiler/src/inlining/frame.rs
++++ b/rust/tcl-compiler/src/inlining/frame.rs
+@@ -562,7 +562,7 @@
+             return None;
+         }
+         VarReferenceScanner::with_config(VarScanOptions::default(), self.source.config)
+-            .scan_word(text, self.source.registry)
++            .scan_lexical_word(text, self.source.registry)
+             .iter()
+             .try_for_each(|name| read(name, bound))
+     }
+--- a/rust/tcl-compiler/src/optimiser/elimination/source_reads.rs
++++ b/rust/tcl-compiler/src/optimiser/elimination/source_reads.rs
+@@ -142,7 +142,8 @@
+             }
+             for word in tokens.words() {
+                 if let Some(text) = source.get(word.source().span.as_range()) {
+-                    out.names.extend(scanner.scan_script(text, registry));
++                    out.names
++                        .extend(scanner.scan_lexical_script(text, registry));
+                 } else {
+                     out.opaque = true;
+                 }
+--- a/rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs
++++ b/rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs
+@@ -289,7 +289,7 @@
+             context.config,
+         );
+         out.read_names
+-            .extend(scanner.scan_script(text, context.registry));
++            .extend(scanner.scan_lexical_script(text, context.registry));
+     }
+     for (partial, words) in value_commands(text, context.config) {
+         out.opaque |= partial;
+@@ -467,7 +467,7 @@
+     for expression in expressions {
+         if context.reads == ReadPurpose::InterpolationAndNames {
+             out.read_names
+-                .extend(scanner.scan_word(&expression, context.registry));
++                .extend(scanner.scan_lexical_word(&expression, context.registry));
+         }
+         let map = SourceMap::new(&expression);
+         for token in tcl_lexer::Lexer::with_config(
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -103,6 +103,16 @@
+             binding.original_lexer_config_for_tokens(tokens)?,
+             self.metadata,
+         )
++    }
++
++    /// Supplied source retains its own role owner; detached requested roles
++    /// are confined to the independently selected standalone utility route.
++    fn word_reads(self, scanner: &mut VarReferenceScanner, text: &str) -> BTreeSet<String> {
++        if self.standalone && scanner.standalone_roles_requested() {
++            scanner.scan_standalone_word(text, self.registry)
++        } else {
++            scanner.scan_lexical_word(text, self.registry)
++        }
+     }
+ 
+     fn normal(
+@@ -3513,7 +3523,7 @@
+             }
+             Some(cfg::Terminator::Return { value, expr, .. }) => {
+                 if let Some(v) = value {
+-                    term_uses.extend(scanner.scan_word(v, registry));
++                    term_uses.extend(selection.word_reads(scanner, v));
+                 }
+                 if let Some(e) = expr {
+                     term_uses.extend(e.vars_element_qualified_with_config(scanner.lexer_config()));
+@@ -3743,7 +3753,6 @@
+     scanner: &mut VarReferenceScanner,
+     selection: SsaInvocationContext<'_>,
+ ) -> Vec<(String, UseClass)> {
+-    let registry = selection.registry;
+     if !stmt.is_executable_invocation() {
+         return Vec::new();
+     }
+@@ -3763,7 +3772,7 @@
+             let mut names = Vec::new();
+             for (index, text) in tokens.argv_texts.iter().enumerate() {
+                 if index == 0 || !tokens.arg_is_braced_literal(index - 1) {
+-                    for name in scanner.scan_word(text, registry) {
++                    for name in selection.word_reads(scanner, text) {
+                         let read = (name, UseClass::Substituted);
+                         if !names.contains(&read) {
+                             names.push(read);
+@@ -3819,7 +3828,7 @@
+                 } else {
+                     &mut found.substituted
+                 };
+-                sink.extend(scanner.scan_word(v, registry));
++                sink.extend(selection.word_reads(scanner, v));
+             }
+             if let Some(e) = expr {
+                 found.substituted.extend(expr_vars_for(scanner, e));
+@@ -3853,7 +3862,7 @@
+             // read even when an arm also defines it (`defs_of` may now report
+             // the subject var as switch-defined). Without this the read-before-
+             // def of the subject would be filtered out below.
+-            for v in scanner.scan_word(subject, registry) {
++            for v in selection.word_reads(scanner, subject) {
+                 reads_own_def.insert(v);
+             }
+         }
+@@ -4063,15 +4072,16 @@
+     value: &str,
+     tokens: Option<&CommandTokens>,
+     scanner: &mut VarReferenceScanner,
+-    registry: &CommandRegistry,
++    selection: SsaInvocationContext<'_>,
+ ) -> BTreeSet<String> {
++    let registry = selection.registry;
+     // naming.variable.selected-setter-expression-reads
+     // docs/design/analysis/name-resolution-proofs/variable-selected-setter-expression-reads.md
+     // Queried commands already use original entered/conditional child owners
+     // in scan_nested_substitution_words. A written head cannot add another
+     // evaluator after that lookup has selected a different or unknown handler.
+     if tokens.is_some_and(|tokens| tokens.source_binding.is_some()) {
+-        return scanner.scan_word(value, registry);
++        return scanner.scan_lexical_word(value, registry);
+     }
+     let trimmed = value.trim();
+     // The registry carries the expression-language profile; the scanner owns
+@@ -4099,7 +4109,7 @@
+                 .collect()
+         };
+     }
+-    scanner.scan_word(value, registry)
++    selection.word_reads(scanner, value)
+ }
+ 
+ /// Variable reads of a [`Statement::Call`]: its head + non-body argument
+@@ -4174,7 +4184,7 @@
+         selection,
+         tokens.as_ref(),
+     ) {
+-        for v in set_value_reads(value, tokens.as_ref(), scanner, registry) {
++        for v in set_value_reads(value, tokens.as_ref(), scanner, selection) {
+             if defs.iter().any(|d| d.as_str() == v) {
+                 reads_own_def.insert(v.clone());
+             }
+@@ -4272,7 +4282,6 @@
+     by_name: &mut BTreeSet<String>,
+     reads_own_def: &mut BTreeSet<String>,
+ ) {
+-    let registry = selection.registry;
+     // A brace-quoted target's `$` is part of a literal name, not a
+     // substitution: it is neither a dynamic target nor a read of the
+     // `$`-less lookalike.
+@@ -4291,7 +4300,7 @@
+             name, name_braced, ..
+         } => {
+             if is_dynamic_write_target(name, *name_braced) {
+-                vars_found.extend(scanner.scan_word(name, registry));
++                vars_found.extend(selection.word_reads(scanner, name));
+             }
+         }
+         Statement::AssignExpr {
+@@ -4302,7 +4311,7 @@
+         } => {
+             vars_found.extend(expr_vars_for(scanner, expr));
+             if is_dynamic_write_target(name, *name_braced) {
+-                vars_found.extend(scanner.scan_word(name, registry));
++                vars_found.extend(selection.word_reads(scanner, name));
+             } else {
+                 note_reads_own(name, *name_braced, scanner, vars_found, reads_own_def);
+             }
+@@ -4314,7 +4323,7 @@
+             tokens,
+             ..
+         } => {
+-            vars_found.extend(scanner.scan_word(value, registry));
++            vars_found.extend(selection.word_reads(scanner, value));
+             // `scan_word` declines to substitute inside braces, exactly as the
+             // *word* parser does — but a nested `[expr {$x + 1}]` substitutes
+             // its own braced body, and that read is real. The call path has
+@@ -4330,7 +4339,7 @@
+                 by_name,
+             );
+             if is_dynamic_write_target(name, *name_braced) {
+-                vars_found.extend(scanner.scan_word(name, registry));
++                vars_found.extend(selection.word_reads(scanner, name));
+             } else {
+                 note_reads_own(name, *name_braced, scanner, vars_found, reads_own_def);
+             }
+@@ -4343,7 +4352,7 @@
+             ..
+         } => {
+             if is_dynamic_write_target(name, *name_braced) {
+-                vars_found.extend(scanner.scan_word(name, registry));
++                vars_found.extend(selection.word_reads(scanner, name));
+             } else {
+                 // `incr a` names the cell it mutates; there is no `$a` word.
+                 let norm = scanner.canonical_name_braced(name, *name_braced);
+@@ -4355,7 +4364,7 @@
+             // A braced amount substitutes nothing: `incr x {$n}` reads no
+             // `n` (it raises `expected integer but got "$n"`).
+             if let Some(amt) = amount.as_ref().filter(|_| !*amount_braced) {
+-                vars_found.extend(scanner.scan_word(amt, registry));
++                vars_found.extend(selection.word_reads(scanner, amt));
+             }
+         }
+         _ => {}
+@@ -4392,7 +4401,8 @@
+     out: &mut ClassifiedUses,
+ ) {
+     let registry = selection.registry;
+-    out.substituted.extend(scanner.scan_word(command, registry));
++    out.substituted
++        .extend(selection.word_reads(scanner, command));
+     let lookup = canonical_command.unwrap_or(command);
+     let resolution = tokens.and_then(|tokens| selection.resolve(tokens));
+     let facts = match resolution.as_ref() {
+@@ -4445,7 +4455,7 @@
+             continue;
+         }
+         let braced = tokens.is_some_and(|t| t.arg_is_braced_literal(idx));
+-        for name in scanner.scan_word(arg, registry) {
++        for name in selection.word_reads(scanner, arg) {
+             let class = braced_word_class(&BracedWordSite {
+                 braced,
+                 evaluated_in_frame: in_frame_braced.contains(&idx),
+@@ -4600,7 +4610,7 @@
+                 // nothing to recover from it either.
+                 _ => continue,
+             };
+-            substituted.extend(scanner.scan_word(braced, registry));
++            substituted.extend(selection.word_reads(scanner, braced));
+         }
+     }
+ }
+@@ -4797,9 +4807,8 @@
+     scanner: &mut VarReferenceScanner,
+     selection: SsaInvocationContext<'_>,
+ ) -> ClassifiedUses {
+-    let registry = selection.registry;
+     let mut reads = ClassifiedUses {
+-        substituted: scanner.scan_word(subject, registry),
++        substituted: selection.word_reads(scanner, subject),
+         quoted: BTreeSet::new(),
+         by_name: BTreeSet::new(),
+     };
+@@ -4815,7 +4824,7 @@
+         } else {
+             &mut reads.substituted
+         };
+-        pattern_sink.extend(scanner.scan_word(&arm.pattern, registry));
++        pattern_sink.extend(selection.word_reads(scanner, &arm.pattern));
+         if let Some(body) = &arm.body {
+             reads.merge(free_reads_in_script(body, scanner, selection));
+         }
+@@ -4874,7 +4883,6 @@
+     scanner: &mut VarReferenceScanner,
+     selection: SsaInvocationContext<'_>,
+ ) -> ClassifiedUses {
+-    let registry = selection.registry;
+     let mut reads = ClassifiedUses::default();
+     reads.merge_classified(uses_of_classified_in_context(stmt, scanner, selection));
+     match stmt {
+@@ -4924,7 +4932,7 @@
+                 } else {
+                     &mut reads.substituted
+                 };
+-                sink.extend(scanner.scan_word(&it.list_arg, registry));
++                sink.extend(selection.word_reads(scanner, &it.list_arg));
+             }
+             reads.merge(reads_in_script(body, scanner, selection));
+         }
+@@ -7129,6 +7137,26 @@
+             scanner.scan_word("$lexical [info exists nominal]", registry),
+             BTreeSet::from(["lexical".to_owned()])
+         );
++        let mut requested = VarReferenceScanner::with_config(
++            VarScanOptions {
++                include_var_read_roles: true,
++                ..Default::default()
++            },
++            function.source_lexer_config(),
++        );
++        assert_eq!(
++            unavailable.word_reads(&mut requested, "$lexical [info exists nominal]"),
++            BTreeSet::from(["lexical".to_owned()])
++        );
++        assert!(
++            SsaInvocationContext::standalone(registry)
++                .word_reads(&mut requested, "$lexical [info exists nominal]")
++                .contains("nominal")
++        );
++        assert_eq!(
++            unavailable.word_reads(&mut requested, "$lexical [info exists nominal]"),
++            BTreeSet::from(["lexical".to_owned()])
++        );
+     }
+ 
+     fn original_operand_metadata_fixture() -> (
+@@ -9383,8 +9411,13 @@
+             ..VarScanOptions::default()
+         });
+         assert!(
+-            set_value_reads("[::expr {$array(key) + 1}]", None, &mut scanner, &reg)
+-                .contains("array(key)")
++            set_value_reads(
++                "[::expr {$array(key) + 1}]",
++                None,
++                &mut scanner,
++                SsaInvocationContext::standalone(&reg)
++            )
++            .contains("array(key)")
+         );
+     }
+ 
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -383,7 +383,7 @@
+ | supplied original SSA definition mapping | `rust/tcl-compiler/src/ssa.rs`; `rust/tcl-compiler/src/registry_invocation.rs` | `SsaSourceView::original_definition_name_with_metadata_context`; `normal_transfer_invocation_with_metadata_context` | complete actual availability/source grammar and independent original SSA definition cell/phase/effective receiver; actual AnalysisResult/Module/FunctionUnit consumers withdraw missing, foreign or incompatible metadata; explicitly standalone sibling is separate; no read completion, contents, native cache or edit grant | none |
+ | diagnostic policy | `rust/tcl-lsp-core/src/diagnostic_policy.rs`; `rust/tcl-lsp-core/src/diagnostic_report.rs`; `rust/tcl-lsp-core/src/config_ini.rs` | `apply`; `Policy`; `PolicyBuilder`; `Report`; `Finding`; `Directives`; `dialect_overlaps`; `document_report`; `standalone_findings`; `optimise_under_policy`; `settings_from_ini`; `merge_settings`; `global_layer`; `project_layer_for` | the dialect's overlap table; the document's configuration layers, resolved per code; the step order is release-invariant | none |
+ | checked original numeric stages | `rust/tcl-platform/src/numeric_environment.rs`; `runtime/rust/src/interp/native_operation_currency.rs`; `rust/tcl-vm/src/value.rs`; `rust/tcl-vm/src/interp/native_numeric_ops.rs` | `CheckedNumericEnvironment`; `native_scalar_probe_checked_with_string`; `native_number_probe_checked_with_string`; `native_scalar_getter_checked_with_string`; `OriginalNumericOps`; `authored_numeric_context`; `numeric_policy_context` | independently supplied actual numeric environment, callback-neutral before/after checker and ABI observation cell; conversion kernels retain selected recipe; original Runtime/VM operation owner preserves the full typed first cause, while neutral availability grants no interpreter, object, frame or handler authority; primary retirement is checked outside its representation borrow | `xtask-owner-resolution` |
+-| Original variable read roles and lexical references | `rust/tcl-compiler/src/var_refs.rs`; `rust/tcl-compiler/src/analyser/scope.rs` | `original_variable_name_role_words`; `VarReferenceScanner::scan_lexical_word`; `VarReferenceScanner::scan_standalone_word` | original complete image/channel, full resolved analysis input, exact lexer configuration and retained receiver/word provenance; roles follow effective-to-written ordinals, literal name values and original content spans; empty names and literal sigils remain distinct from missing/dynamic input; lexical components grant no receiver roles, standalone catalogue assumptions only protect liveness, and neither grants Native execution, completed reads or editing authority | `xtask-owner-resolution` |
++| Original variable read roles and lexical references | `rust/tcl-compiler/src/var_refs.rs`; `rust/tcl-compiler/src/analyser/scope.rs` | `original_variable_name_role_words`; `VarReferenceScanner::scan_lexical_word`; `VarReferenceScanner::scan_standalone_word`; `VarReferenceScanner::scan_lexical_script`; `VarReferenceScanner::scan_standalone_script` | original complete image/channel, full resolved analysis input, exact lexer configuration and retained receiver/word provenance; roles follow effective-to-written ordinals, literal name values and original content spans; empty names and literal sigils remain distinct from missing/dynamic input; lexical components grant no receiver roles, standalone catalogue assumptions only protect liveness, and neither grants Native execution, completed reads or editing authority | `xtask-owner-resolution` |
+ <!-- end-owner-resolution-manifest -->
+ 
+ ### Internal owner entries

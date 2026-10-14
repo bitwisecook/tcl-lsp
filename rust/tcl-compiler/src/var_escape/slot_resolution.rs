@@ -48,10 +48,9 @@
 //! * No dynamic name access (``set $varname value``).
 
 use std::collections::{BTreeMap, HashSet};
-use std::sync::OnceLock;
 
 use tcl_registry::value_transfer::resolve_semantics;
-use tcl_registry::{ArgRole, CommandRegistry, Traits};
+use tcl_registry::{ArgRole, Traits};
 
 use crate::ir::{Module, Script, Statement};
 use crate::var_escape::types::ProcEscapeSummary;
@@ -60,49 +59,6 @@ use crate::var_escape::types::ProcEscapeSummary;
 /// locals-array capacity; bumping the runtime side should bump this
 /// constant too.
 pub const LOCALS_ARRAY_CAP: usize = 16;
-
-/// Commands whose call shape forces the entire proc out of slot
-/// resolution.  ``upvar`` / ``global`` / ``variable`` install
-/// aliases on the frame's hash bucket; ``info exists`` /
-/// ``info vars`` / ``info locals`` walk the bucket;
-/// ``trace add variable`` registers against the bucket.
-/// Memoised set of commands that alias / read / write variables through
-/// the frame's hash bucket by name (`upvar` / `global` / `variable` /
-/// `lassign` / `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait`
-/// / `tkwait`), sourced from the registry's [`Traits::FRAME_HASH_BUILTIN`]
-/// trait.
-fn frame_hash_builtins() -> &'static HashSet<String> {
-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
-    SET.get_or_init(|| {
-        CommandRegistry::build_default()
-            .commands_with_trait(Traits::FRAME_HASH_BUILTIN)
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
-    })
-}
-
-/// Memoised set of commands carrying [`Traits::DYNAMIC_EVAL_BODY`] —
-/// those whose body is executed by the interpreter, opening a
-/// name-resolution channel back into the local frame (`eval` / `uplevel`
-/// / `apply` / `source` / `namespace` / `interp`). Sourced from the
-/// registry (the single source of truth); cached once because the set is
-/// dialect-agnostic core Tcl.
-fn dynamic_eval_set() -> &'static HashSet<String> {
-    static SET: OnceLock<HashSet<String>> = OnceLock::new();
-    SET.get_or_init(|| {
-        CommandRegistry::build_default()
-            .commands_with_trait(Traits::DYNAMIC_EVAL_BODY)
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
-    })
-}
-
-/// Strip a leading `::` from a command name for canonical lookup.
-fn normalise_cmd(cmd: &str) -> &str {
-    cmd.strip_prefix("::").unwrap_or(cmd)
-}
 
 /// True when *value* is a Tcl value with substitutions.
 fn is_dynamic_value(value: &str) -> bool {
@@ -231,8 +187,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
             true
         }
         Statement::Call { command, args, .. } => {
-            is_dynamic_value(command)
-                || call_disables_slots(normalise_cmd(command), args, ineligible_names)
+            is_dynamic_value(command) || call_disables_slots(command, args, ineligible_names)
         }
         _ => false,
     }
@@ -242,14 +197,19 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
 /// invocation: `true` takes the whole proc out of slot resolution; otherwise
 /// the literal locals its by-name words target join *`ineligible_names`*.
 fn call_disables_slots(cmd: &str, args: &[String], ineligible_names: &mut HashSet<String>) -> bool {
-    if dynamic_eval_set().contains(cmd) || frame_hash_builtins().contains(cmd) {
-        return true;
-    }
     let registry = tcl_registry::default_registry();
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
     let Some(call) = registry.resolve_call(cmd, &words, None) else {
-        return false;
+        return true;
     };
+    if call
+        .spec
+        .traits
+        .intersects(Traits::DYNAMIC_EVAL_BODY | Traits::FRAME_HASH_BUILTIN)
+    {
+        return true;
+    }
+    let cmd = call.spec.descriptor_key().label();
     let named = |role| registry.arg_indices_for_role(cmd, &words, role);
     let dynamic = |index: &usize| args.get(*index).is_some_and(|word| is_dynamic_value(word));
     // A cell write whose name word substitutes reaches any local.
@@ -595,6 +555,35 @@ mod tests {
         let body = script_with(vec![assign_const("x", "1"), call("eval", &["body"])]);
         let slots = assign_local_slots(&body, &s, &[]);
         assert!(slots.is_empty());
+    }
+
+    #[test]
+    fn slot_metadata_uses_registry_rooted_selection_and_refuses_unknown_heads() {
+        for head in [
+            "upvar",
+            "::upvar",
+            "eval",
+            "::eval",
+            "::::upvar",
+            ":upvar",
+            "upvar::",
+            "upvar:::member",
+            "missing",
+            "",
+        ] {
+            let body = script_with(vec![
+                assign_const("x", "1"),
+                call(head, &["1", "source", "target"]),
+            ]);
+            assert!(assign_local_slots(&body, &ProcEscapeSummary::default(), &[]).is_empty());
+        }
+        for head in ["list", "::list"] {
+            let body = script_with(vec![assign_const("x", "1"), call(head, &["value"])]);
+            assert_eq!(
+                assign_local_slots(&body, &ProcEscapeSummary::default(), &[]).get("x"),
+                Some(&0)
+            );
+        }
     }
 
     #[test]

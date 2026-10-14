@@ -716,6 +716,49 @@ pub(crate) fn original_logical_operation_invocation_with_metadata_context(
         .or_else(|| original_declared_structured_invocation(registry, context, tokens))
 }
 
+/// Conditional variable destinations and aliases of the exact Logical source.
+/// This is a readonly MAY footprint, without Native entry or completed stores.
+pub(crate) fn original_logical_variable_footprint_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<(
+    tcl_registry::VariableWriteProjection,
+    Vec<tcl_registry::VariableCellAliasTransition>,
+)> {
+    let binding = tokens.source_binding.as_ref()?;
+    let context = binding.original_invocation_metadata_for_input(
+        tokens,
+        context.source_analysis_input()?,
+        registry,
+    )?;
+    let selected =
+        original_logical_operation_invocation_with_metadata_context(registry, context, tokens)?;
+    let realm = binding.original_source_realm_for_input(
+        tokens,
+        context.source_analysis_input()?,
+        registry,
+    )?;
+    selected.with_metadata_schema(registry, context, realm, |schema| {
+        let aliases = schema
+            .state_transitions()
+            .facts()
+            .iter()
+            .filter_map(|fact| {
+                let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition
+                else {
+                    return None;
+                };
+                Some(alias.clone())
+            })
+            .collect();
+        Some((
+            CommandRegistry::variable_write_projection_for_selected_source(schema),
+            aliases,
+        ))
+    })
+}
+
 /// Purity of the selected original substitution implementation. Native
 /// dispatch requires a normal handler and closed execution alternatives;
 /// the separate Logical branch retains its exact source operation recipe.

@@ -1,0 +1,17 @@
+{
+  "review.md": "225e0bea211424d1debc6c9f8aa5cf4e2c29da4d6c2b76c16f93edb0ef621eff",
+  "implementation.patch": "fd2392986fa71c413faaca046993b312702154670ed3dfffe369665913eba4f4",
+  "files.json": "c8fd520b6568248e1be78cf4b4929050f070699f7c20220bd94e96884fa3f826",
+  "proposal/docs/design/contracts/shared-utility-contracts-rust.md": "f04dd37d78b59b0a175abd3d90fee0d2be8658122f09b1324f0648fabf18b7db",
+  "proposal/rust/tcl-compiler/src/analyser/bounds_checks.rs": "fc3d5f0383b1ec35f86e70354cae5d241552241b07226b02e11991a4d74b1f95",
+  "proposal/rust/tcl-compiler/src/auto_path_eval/path_constants.rs": "1d4303b55f6b7fc63432ea4c3465fdddcfc5b9568b076387f0aa4f1110111825",
+  "proposal/rust/tcl-compiler/src/var_escape/walker.rs": "b2b0b7711ff4c92516903634ba4006b9a5c703f65c465058f8d90a9f115e2fa0",
+  "proposal/rust/tcl-compiler/src/var_escape/helpers.rs": "ba38f72799d2970ffb709d4ec5dcdbb4a1dda72769b5e95201388c2206db89ba",
+  "proposal/rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs": "46f260680c6cccf074424638058c6928440fd60d4298b32d8450603b61dc5c9b",
+  "base/docs/design/contracts/shared-utility-contracts-rust.md": "363aaffa33a744667dedf5fe945d5c1970241e48f1918bbfe9e70bdb4c28cfaa",
+  "base/rust/tcl-compiler/src/analyser/bounds_checks.rs": "18065eea38c732fac5d153bb7ab7c202ecdd1a1577ba6db074fa2950f3eeb36f",
+  "base/rust/tcl-compiler/src/auto_path_eval/path_constants.rs": "b28f99861b1b0cd7851aafcf153473be62a303876f3eaefc140ece6dfa750aea",
+  "base/rust/tcl-compiler/src/var_escape/walker.rs": "7f95f2b5a787eaca3fe33c320111c806cf5d81e90a90712436f711377c30d7eb",
+  "base/rust/tcl-compiler/src/var_escape/helpers.rs": "000f8d766dda8b47bb2b66b83a057c8f34d53009ea49188caff0836f9a77c72d",
+  "base/rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs": "f0b4b53fa35e8b8413a59ccfe32e2013d99eb3967470bcdeebb28265399645bd"
+}

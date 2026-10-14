@@ -6915,16 +6915,12 @@ impl Lowerer<'_> {
         let registry = self.registry;
         let standalone_metadata = self.metadata_origin == LoweringMetadataOrigin::Standalone
             && self.source_entry_origin == SourceEntryOrigin::Authoring;
-        let declared_frame_effects = tcl_registry::model::DocumentCommandSurface::new(
+        let declared_frame_effects = crate::declared_frame_effects::collect_declared_frame_effects(
             registry,
             self.source_declared_commands
                 .as_ref()
                 .or(self.declared_commands),
-        )
-        .plain_call_frame_effects()
-        .filter(|(name, _)| registry.get(name).is_none())
-        .map(|(name, effect)| (tcl_syntax::naming::normalise_qualified_name(name), effect))
-        .collect();
+        );
         let mut module = self.module;
         module.declared_frame_effects = declared_frame_effects;
         module.source = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);

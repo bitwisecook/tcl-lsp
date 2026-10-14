@@ -1,0 +1,4 @@
+/tmp/name-import-shadow-geometry-20261014/oracles/jim/source.tcl:1: Error: wrong # args: should be "proc name arglist ?statics? body"
+Traceback (most recent call last):
+  File "/tmp/name-import-shadow-geometry-20261014/oracles/jim/source.tcl", line 1
+    proc {} {}

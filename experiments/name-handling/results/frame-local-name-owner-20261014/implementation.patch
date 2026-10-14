@@ -1,0 +1,571 @@
+--- a/experiments/name-handling/f5/questions/frame-local-name-geometry.md
++++ b/experiments/name-handling/f5/questions/frame-local-name-geometry.md
+@@ -0,0 +1,25 @@
++# F5 procedure-local name geometry
++
++Status: unanswered. No BIG-IP/TMM behavior is inferred from C Tcl or Jim.
++
++Run the fixed cases in
++`experiments/name-handling/results/frame-local-name-geometry/probe.tcl` only
++in an isolated test iRule/harness, with unique harness procedure names. Record
++the exact adapted source and any setup refusal. A tmsh shell or Linux tclsh
++answer is a separate context and cannot answer TMM procedure behavior.
++
++Record BIG-IP release/build, interpreter context, event and rule/namespace
++scope, deployment/harness channel, exact source/argv, exit/completion codes and
++full output/error text. Answer these questions separately:
++
++- Does an empty procedure-local name shadow an empty global without changing it?
++- Does an unbound procedure read of `${}` ignore an existing empty global?
++- Are an empty formal, `$name` formal and `name` formal accepted, and which exact
++  local does each body reference read?
++- Is a relative `inner::value` name activation-local or namespace-owned?
++- Do interpreter and compiled iRule channels return the same observed results?
++
++Write answers and untouched transcripts under
++`experiments/name-handling/f5/answers/frame-local-name-geometry/` on this branch.
++Do not substitute results from another context or treat an unavailable case as
++success.
+--- a/experiments/name-handling/results/frame-local-name-geometry/README.md
++++ b/experiments/name-handling/results/frame-local-name-geometry/README.md
+@@ -0,0 +1,28 @@
++# Frame-local variable-name geometry
++
++These fixed public source cases use C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4,
++9.1.0 and the Jim executable built from source revision
++`5bac7c99ad65864c87da513e22e2f01703fa4e03`. `results.json` retains exact
++argv, executable/source SHA256, exit codes and complete stdout/stderr. The
++source bytes are in `probe.tcl`; no tcltest or substitute support library is
++used.
++
++Every process rejects an empty formal, errors on an unbound empty variable,
++and returns VALUE after writing the empty local. A procedure's empty local
++can shadow an existing empty global without modifying it; an unbound procedure
++read does not inherit that global. Literal `$name` formals bind `$name`, while
++`name` and `$name` remain distinct. C rejects a relative `inner::value` write
++when its namespace is absent; Jim stores that exact relative name locally.
++The C8.4 empty-formal error includes the procedure name, unlike the other
++captured processes.
++
++The shared `source_variable_name_is_frame_local` consumes the independently
++selected source variable-lookup policy. Original Logical inlining controls
++check empty and dollar-name binding before eligibility. These observations
++establish no Native allocation identity, compiler opcode, activation, rewrite
++or inlining equivalence. F5/TMM behavior is unobserved.
++
++The six-case and eight-case source/raw captures remain separate. The
++source-retention producer error and unchanged eight-case rerun are recorded in
++`producer-error.txt`; the final capture adds the independent global/local
++empty-name controls.
+--- a/experiments/name-handling/results/frame-local-name-geometry/producer-error.txt
++++ b/experiments/name-handling/results/frame-local-name-geometry/producer-error.txt
+@@ -0,0 +1 @@
++The source-retention command before the global-empty controls failed before modifying probe.tcl: NotADirectoryError: [Errno 20] Not a directory: /tmp/name-frame-empty-oracle-20261014/probe.tcl/first-six-case-probe.tcl. The subsequent run therefore reran the unchanged eight-case source. Its exact records are retained as eight-case-results.json.
+--- a/experiments/name-handling/results/frame-local-name-geometry/eight-case-results.json
++++ b/experiments/name-handling/results/frame-local-name-geometry/eight-case-results.json
+@@ -0,0 +1,74 @@
++[
++  {
++    "provider": "c8.4",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
++    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {procedure \"observed\" has argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c8.5",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
++    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c8.6",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
++    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c9.0",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
++    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c9.1",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
++    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "jim",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
++    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 0 VALUE\n",
++    "stderr": ""
++  }
++]
+--- a/experiments/name-handling/results/frame-local-name-geometry/eight-case-probe.tcl
++++ b/experiments/name-handling/results/frame-local-name-geometry/eight-case-probe.tcl
+@@ -0,0 +1,17 @@
++proc run_case {label formals body argv} {
++    set createCode [catch [list proc observed $formals $body] result]
++    set invokeCode unavailable
++    if {$createCode == 0} {
++        set invokeCode [catch [linsert $argv 0 observed] result]
++    }
++    puts [list $label $createCode $invokeCode $result]
++    catch {rename observed {}}
++}
++run_case empty_bound [list {}] {return ${}} [list VALUE]
++run_case empty_unbound {} {return ${}} {}
++run_case empty_written {} {set {} VALUE; return ${}} {}
++run_case dollar_bound [list {$name}] {return ${$name}} [list VALUE]
++run_case dollar_not_bound [list name] {return ${$name}} [list VALUE]
++run_case unbraced_name_not_bound [list {$name}] {return $name} [list VALUE]
++run_case qualified_unbound {} {return ${inner::value}} {}
++run_case qualified_written {} {set {inner::value} VALUE; return ${inner::value}} {}
+--- a/experiments/name-handling/results/frame-local-name-geometry/first-six-case-results.json
++++ b/experiments/name-handling/results/frame-local-name-geometry/first-six-case-results.json
+@@ -0,0 +1,74 @@
++[
++  {
++    "provider": "c8.4",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
++    "source_sha256": "461da3d5c06c287c5f3f510a52b9d8fabe5ee107cbb6759fe0cd85498baf1ad1",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {procedure \"observed\" has argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c8.5",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
++    "source_sha256": "461da3d5c06c287c5f3f510a52b9d8fabe5ee107cbb6759fe0cd85498baf1ad1",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c8.6",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
++    "source_sha256": "461da3d5c06c287c5f3f510a52b9d8fabe5ee107cbb6759fe0cd85498baf1ad1",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c9.0",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
++    "source_sha256": "461da3d5c06c287c5f3f510a52b9d8fabe5ee107cbb6759fe0cd85498baf1ad1",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c9.1",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
++    "source_sha256": "461da3d5c06c287c5f3f510a52b9d8fabe5ee107cbb6759fe0cd85498baf1ad1",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "jim",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
++    "source_sha256": "461da3d5c06c287c5f3f510a52b9d8fabe5ee107cbb6759fe0cd85498baf1ad1",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\n",
++    "stderr": ""
++  }
++]
+--- a/experiments/name-handling/results/frame-local-name-geometry/first-six-case-probe.tcl
++++ b/experiments/name-handling/results/frame-local-name-geometry/first-six-case-probe.tcl
+@@ -0,0 +1,15 @@
++proc run_case {label formals body argv} {
++    set createCode [catch [list proc observed $formals $body] result]
++    set invokeCode unavailable
++    if {$createCode == 0} {
++        set invokeCode [catch [linsert $argv 0 observed] result]
++    }
++    puts [list $label $createCode $invokeCode $result]
++    catch {rename observed {}}
++}
++run_case empty_bound [list {}] {return ${}} [list VALUE]
++run_case empty_unbound {} {return ${}} {}
++run_case empty_written {} {set {} VALUE; return ${}} {}
++run_case dollar_bound [list {$name}] {return ${$name}} [list VALUE]
++run_case dollar_not_bound [list name] {return ${$name}} [list VALUE]
++run_case unbraced_name_not_bound [list {$name}] {return $name} [list VALUE]
+--- a/experiments/name-handling/results/frame-local-name-geometry/results.json
++++ b/experiments/name-handling/results/frame-local-name-geometry/results.json
+@@ -0,0 +1,74 @@
++[
++  {
++    "provider": "c8.4",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
++    "source_sha256": "0a426f69022baf69ca582bed64b60a16b0af013edd6ae87675f42a6d59475a2f",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {procedure \"observed\" has argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\nempty_local_shadow 0 0 LOCAL\nglobal_empty_after GLOBAL\nempty_does_not_inherit_global 0 1 {can't read \"\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c8.5",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
++    "source_sha256": "0a426f69022baf69ca582bed64b60a16b0af013edd6ae87675f42a6d59475a2f",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\nempty_local_shadow 0 0 LOCAL\nglobal_empty_after GLOBAL\nempty_does_not_inherit_global 0 1 {can't read \"\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c8.6",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
++    "source_sha256": "0a426f69022baf69ca582bed64b60a16b0af013edd6ae87675f42a6d59475a2f",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\nempty_local_shadow 0 0 LOCAL\nglobal_empty_after GLOBAL\nempty_does_not_inherit_global 0 1 {can't read \"\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c9.0",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
++    "source_sha256": "0a426f69022baf69ca582bed64b60a16b0af013edd6ae87675f42a6d59475a2f",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\nempty_local_shadow 0 0 LOCAL\nglobal_empty_after GLOBAL\nempty_does_not_inherit_global 0 1 {can't read \"\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "c9.1",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
++    "source_sha256": "0a426f69022baf69ca582bed64b60a16b0af013edd6ae87675f42a6d59475a2f",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\nempty_local_shadow 0 0 LOCAL\nglobal_empty_after GLOBAL\nempty_does_not_inherit_global 0 1 {can't read \"\": no such variable}\n",
++    "stderr": ""
++  },
++  {
++    "provider": "jim",
++    "argv": [
++      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
++      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
++    ],
++    "exe_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
++    "source_sha256": "0a426f69022baf69ca582bed64b60a16b0af013edd6ae87675f42a6d59475a2f",
++    "exit_code": 0,
++    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 0 VALUE\nempty_local_shadow 0 0 LOCAL\nglobal_empty_after GLOBAL\nempty_does_not_inherit_global 0 1 {can't read \"\": no such variable}\n",
++    "stderr": ""
++  }
++]
+--- a/experiments/name-handling/results/frame-local-name-geometry/probe.tcl
++++ b/experiments/name-handling/results/frame-local-name-geometry/probe.tcl
+@@ -0,0 +1,22 @@
++proc run_case {label formals body argv} {
++    set createCode [catch [list proc observed $formals $body] result]
++    set invokeCode unavailable
++    if {$createCode == 0} {
++        set invokeCode [catch [linsert $argv 0 observed] result]
++    }
++    puts [list $label $createCode $invokeCode $result]
++    catch {rename observed {}}
++}
++run_case empty_bound [list {}] {return ${}} [list VALUE]
++run_case empty_unbound {} {return ${}} {}
++run_case empty_written {} {set {} VALUE; return ${}} {}
++run_case dollar_bound [list {$name}] {return ${$name}} [list VALUE]
++run_case dollar_not_bound [list name] {return ${$name}} [list VALUE]
++run_case unbraced_name_not_bound [list {$name}] {return $name} [list VALUE]
++run_case qualified_unbound {} {return ${inner::value}} {}
++run_case qualified_written {} {set {inner::value} VALUE; return ${inner::value}} {}
++set {} GLOBAL
++run_case empty_local_shadow {} {set {} LOCAL; return ${}} {}
++puts [list global_empty_after ${}]
++run_case empty_does_not_inherit_global {} {return ${}} {}
++unset {}
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -37,6 +37,7 @@
+ | Authored F5 configuration object paths | `rust/tcl-bigip/src/object_names.rs` | `ObjectNamePolicy`; `ObjectNameCandidates`; `object_name_candidates`; `ObjectNameCandidates::first_in_order`; `ObjectNameCandidates::first_exact_in_order_or_unique`; `ObjectNameCandidates::unique`; `owner_partition_reference_paths`; `reference_without_numeric_service`; `EmptyServiceSuffix` | literal authored slash-domain paths; caller-filtered actual configuration/module/type and input order; explicit exact, partition/Common, suffix and leaf policies; ordered selections retain duplicate exact rows without unique identity, unique fallback declines ambiguity; service suffix grammar remains purpose-specific; independent of Tcl namespace paths, C/Jim lookup and unmeasured BIG-IP execution | `xtask-owner-resolution` |
+ | incomplete variable completion source geometry | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-lsp-core/src/completion.rs` | `array_variable_completion_prefix` | editor fragment already excludes the substitution opener; preserves name/index source prefixes without stripping arbitrary braces; supplies no evaluated variable name, complete reference, cell or read proof | `xtask-owner-resolution` |
+ | Logical variable source-scope eligibility | `rust/tcl-compiler/src/analyser/scope.rs`; `rust/tcl-compiler/src/analyser/types.rs`; `rust/tcl-compiler/src/analyser/handlers.rs`; `rust/tcl-lsp-core/src/definition.rs`; `rust/tcl-lsp-core/src/completion.rs`; `rust/tcl-lsp-core/src/rename.rs` | `LogicalVariableScopeAdvice`; `AnalysisResult::logical_variable_scope_advice`; `LogicalVariableScopeAdvice::eligible_scopes`; `LogicalVariableScopeAdvice::root_names_require_qualification` | independently retained Logical input, exact whole image/channel/configuration and checked cursor; shared smallest-body descent and Registry frame-level grammar; distinct namespace/local/root/current/unknown-caller source tables; missing namespace coordinates retain only their own body tables without guessed qualification or bare root fallback; interpreter source bodies and foreign domain owners decline document-root borrowing; consumers retain table/cell selection and independent edit checks; Native/hosted bodies and original readonly aliases cannot issue this source-only selector | `xtask-owner-resolution` |
++| Source activation-local variable geometry | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-compiler/src/inlining/frame.rs` | `source_variable_name_is_frame_local` | actual retained VariableLookupPolicy and independently owned source-name extent; the empty name is local, C qualifiers select namespace storage, Jim relative qualified names stay local, and initial Jim root markers select global storage; inlining retains the unchanged original Module/metadata/driver policy and declines missing ownership; no Native frame, lookup, input extent, presence or edit permission is issued | `xtask-owner-resolution` |
+ | Original procedure summary ownership | `rust/tcl-compiler/src/cfg_builder/summary_candidates.rs`; `rust/tcl-compiler/src/cfg_builder/mod.rs`; `rust/tcl-compiler/src/compilation_unit.rs` | `OriginalProcedureSummaryOwners`; `OriginalProcedureSummaryOwners::for_module`; `CfgContext`; `PreparedCfgContext`; `PreparedCfgContext::from_source_input`; `LatticeRequest` | the fifth CFG context field retains the matching original Module and Registry; upvar, parameter and outer-write maps use issued ProcedureId coordinates; exact original call targets and effective operands select summaries, including retained child calls; missing, changed or foreign owners widen effects rather than joining display names; raw memo identity retains the Arc owner independently of certified registry-only templates; no Native entry, entered frame, committed write or completion grant | `xtask-owner-resolution` |
+ | Retained source body identity | `rust/tcl-core-types/src/body_identity.rs`; `rust/tcl-compiler/src/ir/procedure_identity.rs`; `rust/tcl-compiler/src/ir.rs`; `rust/tcl-compiler/src/source_graph.rs` | `ProcedureId`; `ProcedureIdIssuer`; `ProcedureInventory`; `Module::retain_procedure`; `Module::retain_body_unit`; `procedure_body_for_declaration` | private source_procedure_for_target and source_procedure_for_allocation select original allocating owners; module-scoped opaque body IDs retain repeated displays; clones share issuance, separate modules cannot join equal ordinals; exact allocating instruction/source/image/configuration and independently retained implementation body select originals; ordinal is presentation only, never Native lookup or entry authority | `xtask-owner-resolution` |
+ | Original source-read catalogue | `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/command_binding/source_read_scope.rs`; `rust/tcl-compiler/src/command_binding/source_transition_advice.rs`; `rust/tcl-compiler/src/realm/source_transition_advice.rs`; `rust/tcl-compiler/src/registry_invocation/declaration_flow.rs` | `SourceCommandBindings`; `OriginalSourceCommandTransitionAdvice`; `OriginalSourceCommandTransitionAdvice::matches_source`; `OriginalSourceCommandTransitionAdvice::matches_context` | private SourceReadScope, OriginalSourceCataloguePurpose and DeclarationSchemaOrigin retain completed-prefix source schemas with genuine body issuers, original argv and current Registry/context/image/configuration; they cannot override actually selected targets or issue reached runtime applicability, current stores or entered frames | `xtask-owner-resolution` |
+--- a/rust/tcl-compiler/src/inlining/frame.rs
++++ b/rust/tcl-compiler/src/inlining/frame.rs
+@@ -99,6 +99,7 @@
+     pub(super) registry: &'a CommandRegistry,
+     pub(super) metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
+     pub(super) config: LexerConfig,
++    variable_lookup: tcl_dialect::VariableLookupPolicy,
+     image: &'a tcl_lexer::SourceImage,
+     retained: &'a crate::command_binding::RetainedSourceModuleBindings,
+ }
+@@ -114,12 +115,17 @@
+         }
+         let metadata =
+             crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
++        let variable_lookup = module
++            .source_entry
++            .invocation_dialect?
++            .variable_lookup_policy?;
+         (module.original_invocation_source_purpose(registry, metadata)?
+             == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+             .then_some(Self {
+                 registry,
+                 metadata,
+                 config: module.lexer_config,
++                variable_lookup,
+                 image: &module.source,
+                 retained: module.retained_source_bindings.as_deref()?,
+             })
+@@ -165,14 +171,8 @@
+     tcl_syntax::naming::split_element_ref(name).map_or(name, |(array, _)| array)
+ }
+ 
+-/// A name that is not a local of the frame — one a namespace qualifies — is not
+-/// the frame's to bind or to read.
+-fn is_local(name: &str) -> bool {
+-    !name.is_empty() && !name.contains("::")
+-}
+-
+-fn bind(bound: &mut HashSet<String>, name: &str) {
+-    if is_local(base(name)) {
++fn bind(bound: &mut HashSet<String>, name: &str, policy: tcl_dialect::VariableLookupPolicy) {
++    if tcl_syntax::naming::source_variable_name_is_frame_local(base(name).as_bytes(), policy) {
+         bound.insert(base(name).to_owned());
+     }
+ }
+@@ -312,10 +312,10 @@
+     /// falls through.
+     fn command(&self, statement: &Statement, bound: &mut HashSet<String>) -> Option<()> {
+         match statement {
+-            Statement::AssignConst { name, .. } => bind(bound, name),
++            Statement::AssignConst { name, .. } => bind(bound, name, self.source.variable_lookup),
+             Statement::AssignValue { name, value, .. } => {
+                 self.word(value, bound)?;
+-                bind(bound, name);
++                bind(bound, name, self.source.variable_lookup);
+             }
+             Statement::AssignExpr {
+                 name,
+@@ -325,7 +325,7 @@
+             } => {
+                 self.expression(expr, bound)?;
+                 self.word(fallback_value, bound)?;
+-                bind(bound, name);
++                bind(bound, name, self.source.variable_lookup);
+             }
+             Statement::Incr {
+                 name,
+@@ -333,7 +333,7 @@
+                 amount_braced,
+                 ..
+             } => {
+-                read(name, bound)?;
++                read(name, bound, self.source.variable_lookup)?;
+                 if let Some(amount) = amount.as_ref().filter(|_| !amount_braced) {
+                     self.word(amount, bound)?;
+                 }
+@@ -357,15 +357,15 @@
+                     }
+                 }
+                 for name in reads {
+-                    read(name, bound)?;
++                    read(name, bound, self.source.variable_lookup)?;
+                 }
+                 if *reads_own_defs && !*safe_on_uninit {
+                     for name in defs {
+-                        read(name, bound)?;
++                        read(name, bound, self.source.variable_lookup)?;
+                     }
+                 }
+                 for name in defs {
+-                    bind(bound, name);
++                    bind(bound, name, self.source.variable_lookup);
+                 }
+             }
+             _ => unreachable!("`statement` sends `command` only the statements it reads"),
+@@ -414,7 +414,7 @@
+                         self.word(&iterator.list_arg, bound)?;
+                     }
+                     for name in &iterator.vars {
+-                        bind(&mut inner, name);
++                        bind(&mut inner, name, self.source.variable_lookup);
+                     }
+                 }
+                 self.script(body, &mut inner, depth + 1)?;
+@@ -441,7 +441,7 @@
+             } => {
+                 self.detached(body, bound, depth)?;
+                 for name in result_var.iter().chain(options_var) {
+-                    bind(bound, name);
++                    bind(bound, name, self.source.variable_lookup);
+                 }
+             }
+             Statement::Try {
+@@ -454,7 +454,7 @@
+                 for handler in handlers {
+                     let mut inner = bound.clone();
+                     for name in handler.var_name.iter().chain(&handler.options_var) {
+-                        bind(&mut inner, name);
++                        bind(&mut inner, name, self.source.variable_lookup);
+                     }
+                     self.script(&handler.body, &mut inner, depth + 1)?;
+                 }
+@@ -564,7 +564,7 @@
+         VarReferenceScanner::with_config(VarScanOptions::default(), self.source.config)
+             .scan_lexical_word(text, self.source.registry)
+             .iter()
+-            .try_for_each(|name| read(name, bound))
++            .try_for_each(|name| read(name, bound, self.source.variable_lookup))
+     }
+ 
+     fn expression(&self, expr: &ExprNode, bound: &HashSet<String>) -> Option<()> {
+@@ -577,9 +577,15 @@
+ 
+ /// `name` read where `bound` is bound: a name the frame does not own is not the
+ /// frame's to refuse.
+-fn read(name: &str, bound: &HashSet<String>) -> Option<()> {
++fn read(
++    name: &str,
++    bound: &HashSet<String>,
++    policy: tcl_dialect::VariableLookupPolicy,
++) -> Option<()> {
+     let name = base(name);
+-    (!is_local(name) || bound.contains(name)).then_some(())
++    (!tcl_syntax::naming::source_variable_name_is_frame_local(name.as_bytes(), policy)
++        || bound.contains(name))
++    .then_some(())
+ }
+ 
+ /// Whether `expr` contains opaque syntax or a substituting text operand the
+@@ -682,6 +688,30 @@
+ 
+     fn beyond_values(text: &str) -> bool {
+         substitutes_a_command_beyond_values(text, &CommandRegistry::build_default(), 0)
++    }
++
++    #[test]
++    fn original_frame_empty_and_dollar_names_require_actual_local_bindings() {
++        // Public C8.4–9.1/Jim source controls: experiments/name-handling/results/frame-local-name-geometry.
++        for (source, expected) in [
++            ("proc p {} {return ${}}", false),
++            ("proc p {} {set {} VALUE; return ${}}", true),
++            ("proc p {{$name}} {return ${$name}}", true),
++            ("proc p {name} {return ${$name}}", false),
++            ("proc p {{$name}} {return $name}", false),
++        ] {
++            let (context, module) = crate::inlining::tests::logical_module_for(source);
++            let selected = SourceContext::for_module(&module, context.commands()).unwrap();
++            let procedure = module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .unwrap();
++            assert_eq!(
++                reads_only_bound_names(procedure, selected),
++                expected,
++                "{source}"
++            );
++        }
+     }
+ 
+     #[test]
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -177,6 +177,21 @@
+     name.windows(2).any(|w| w == b"::")
+ }
+ 
++/// Whether a source variable name belongs to an ordinary activation's table.
++/// C qualifiers select namespace cells; Jim only roots a name with initial `::`.
++/// The empty name remains local. The caller owns the policy and input extent;
++/// this supplies no Native frame, cell, lookup or variable-presence receipt.
++#[must_use]
++pub fn source_variable_name_is_frame_local(
++    name: &[u8],
++    policy: tcl_dialect::VariableLookupPolicy,
++) -> bool {
++    match policy {
++        tcl_dialect::VariableLookupPolicy::Tcl => !is_qualified(name),
++        tcl_dialect::VariableLookupPolicy::Jim => !name.starts_with(b"::"),
++    }
++}
++
+ /// The TextMate-compatible variable-name body used by the generated editor
+ /// grammars. A namespace separator is a run of *two or more* colons, matching
+ /// [`qualifier_segments`] exactly; keeping the rendered fragment beside the

@@ -3156,6 +3156,98 @@ fn scan_retained_substitutions<'a>(
     }
 }
 
+fn scan_original_variable_read_effects(
+    tokens: &crate::ir::CommandTokens,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    use crate::place::CellOwner;
+    let unknown_read = |facts: &mut LocalFacts| {
+        facts.mark_impure();
+        facts.effect_reads |= EffectRegion::GLOBAL_STATE | EffectRegion::UNKNOWN_STATE;
+    };
+    let Some(input) = ctx.source_input else {
+        if !tokens.variable_accesses.is_empty() {
+            unknown_read(facts);
+        }
+        return;
+    };
+    let Some((binding, site, config)) = tokens.source_binding.as_ref().and_then(|binding| {
+        Some((
+            binding,
+            binding.invocation_site()?,
+            binding.original_lexer_config_for_tokens(tokens)?,
+        ))
+    }) else {
+        if !tokens.variable_accesses.is_empty() {
+            unknown_read(facts);
+        }
+        return;
+    };
+    let Some(image) = ctx.identities.original_source_image() else {
+        if !tokens.variable_accesses.is_empty() {
+            unknown_read(facts);
+        }
+        return;
+    };
+    let original = ctx.identities.invocation_at_source("", site.offset);
+    let corresponding = ctx.identities.matches_resolved_analysis_input(input)
+        && input
+            .context_registry()
+            .commands()
+            .snapshot()
+            .semantic_key()
+            == ctx.registry.snapshot().semantic_key()
+        && ctx
+            .identities
+            .matches_original_source_image(image, input.lexer_config())
+        && site.source.source_image() == image
+        && config == input.lexer_config()
+        && binding
+            .original_invocation_metadata_for_input(tokens, input, ctx.registry)
+            .is_some()
+        && original.invocation_site() == Some(site)
+        && original.original_lexer_config_for_tokens(tokens) == Some(config)
+        && original
+            .original_recorded_command()
+            .is_some_and(|(_, original)| original.words() == tokens.words());
+    if !corresponding {
+        if !tokens.variable_accesses.is_empty() {
+            unknown_read(facts);
+        }
+        return;
+    }
+    for access in ctx
+        .identities
+        .source_bindings_ref()
+        .variable_accesses_during_expression_invocation(site.offset)
+    {
+        if access.context_alternatives().is_empty()
+            || access.context_residual()
+                != crate::command_binding::SourceVariableReadResidual::Closed
+        {
+            unknown_read(facts);
+        }
+        for context in access.context_alternatives() {
+            let place = access.place_in_context(context, ctx.registry);
+            if place.dynamic || place.observed {
+                unknown_read(facts);
+                continue;
+            }
+            match place.cell.as_ref().map(|cell| &cell.owner) {
+                Some(CellOwner::CurrentFrame) => {}
+                Some(CellOwner::Activation(owner))
+                    if context.activation.as_ref() == Some(owner) => {}
+                Some(CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_)) => {
+                    facts.mark_impure();
+                    facts.effect_reads |= EffectRegion::GLOBAL_STATE;
+                }
+                _ => unknown_read(facts),
+            }
+        }
+    }
+}
+
 /// `depth` is `stmt`'s own nesting level — see
 /// [`MAX_INTERPROCEDURAL_WALK_DEPTH`]. Dispatch-only (no nested `Script`
 /// entered here) keeps the same `depth`; recursing into a nested body
@@ -3175,6 +3267,7 @@ fn scan_statement(
     let ScanCtx { params, .. } = ctx;
     let ctx = scan_retained_substitutions(retained_tokens, ctx, facts);
     if let Some(tokens) = retained_tokens {
+        scan_original_variable_read_effects(tokens, ctx, facts);
         scan_normal_visible_writes(tokens, ctx, facts);
     }
     if scan_positioned_invocation(stmt, ctx, facts) {

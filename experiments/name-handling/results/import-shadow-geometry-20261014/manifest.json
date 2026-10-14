@@ -1,0 +1,15 @@
+{
+  "validation": "rustfmt parsed; Main apply-check only; no Cargo",
+  "apply_check": 0,
+  "patch_sha256": "21385770e4b1462d154e72223d3e18d9bb0d8d69043b3a0a94da21790ece3455",
+  "before": {
+    "rust/tcl-compiler/src/command_binding.rs": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f",
+    "rust/tcl-compiler/src/optimiser/helpers/naming.rs": "1dc6f6da146c4087355ce382c3b0472a3fe22f057783f3a512abc8e396e76428",
+    "rust/tcl-compiler/src/optimiser/helpers/mod.rs": "61d499a090c809c624079efba99584594fc246bcdee0b260c04140d99b2f2d71"
+  },
+  "after": {
+    "rust/tcl-compiler/src/command_binding.rs": "219b83415e289d28ddbb7fde8b22433a23af2bc37f42422db4b9dbe96b1843d0",
+    "rust/tcl-compiler/src/optimiser/helpers/naming.rs": "6aeeef2f90c1fca0d66759b92783732d048280d76ab295fa5c1788570518e949",
+    "rust/tcl-compiler/src/optimiser/helpers/mod.rs": "a0ea2229f57aeda86f48071de65a0ae8a04381d76c031c9aece4d26847dd7802"
+  }
+}

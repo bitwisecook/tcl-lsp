@@ -1,0 +1,7 @@
+# Opaque import and rebound name projections
+
+`import_shadowed` consumes a constructed command-key label from the public MAY trust query. It does not receive a namespace import pattern or Native word. `written_command_parts` retains the empty simple tail of `ns::`; ByteNamespacePath and the shared checked formatter produce its advisory parent key. Actual command/publication slots, Native lookup input extents and original Module/body owners remain separate. The old normaliser discarded that empty tail before selecting the namespace; it is absent from this projection.
+
+Authored rebound candidate names are independently supplied mutator operands. The shared bareword candidate owner keeps the current-namespace and global possibilities for relative qualified names. Typed Native/source namespace contexts use the existing checked source-key selector. Both paths only invalidate trust; they create no positive binding rows or actual implementation identity.
+
+The original C Tcl 8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 and retained latest Jim binaries each observe `namespace which -command ::ns::` as distinct from `::ns`, and `namespace qualifiers ::ns::` as `::ns` versus the root command's empty qualifiers. Exact source/output and unchanged-binary receipts are sealed under oracles-02. The first oracle script omitted a proc argument; that failed arity probe remains under oracles and supplies no naming answer. No tcltest was used. Consumer Rust assertions are linked and unexecuted; only rustfmt and Main apply-check passed in this lane.

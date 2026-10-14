@@ -1,0 +1,74 @@
+[
+  {
+    "provider": "c8.4",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
+    ],
+    "exe_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
+    "exit_code": 0,
+    "stdout": "empty_bound 1 unavailable {procedure \"observed\" has argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "c8.5",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
+    ],
+    "exe_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
+    "exit_code": 0,
+    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "c8.6",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
+    ],
+    "exe_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
+    "exit_code": 0,
+    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "c9.0",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
+    ],
+    "exe_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
+    "exit_code": 0,
+    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "c9.1",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
+    ],
+    "exe_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
+    "exit_code": 0,
+    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 1 {can't set \"inner::value\": parent namespace doesn't exist}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "jim",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/tmp/name-frame-empty-oracle-20261014/probe.tcl"
+    ],
+    "exe_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+    "source_sha256": "04367183fccbb2e87ffba310c1464c6d07cd5bad6406a985f835ca44bc25841b",
+    "exit_code": 0,
+    "stdout": "empty_bound 1 unavailable {argument with no name}\nempty_unbound 0 1 {can't read \"\": no such variable}\nempty_written 0 0 VALUE\ndollar_bound 0 0 VALUE\ndollar_not_bound 0 1 {can't read \"$name\": no such variable}\nunbraced_name_not_bound 0 1 {can't read \"name\": no such variable}\nqualified_unbound 0 1 {can't read \"inner::value\": no such variable}\nqualified_written 0 0 VALUE\n",
+    "stderr": ""
+  }
+]

@@ -43,3 +43,20 @@ fn global_substitution_and_command_reads_have_the_same_external_effect() {
         }
     }
 }
+
+#[test]
+fn private_parameter_reads_and_literal_sigils_are_not_external_cell_effects() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        for (params, body) in [("seen", "return $seen"), ("", "return {$::seen}")] {
+            let inferred = infer_from_body(params, body, dialect);
+            assert!(inferred.pure, "{dialect}: {body}: {inferred:?}");
+            assert!(
+                !inferred
+                    .side_effects
+                    .iter()
+                    .any(|effect| effect.target == SideEffectTarget::Variable && effect.reads),
+                "{dialect}: {body}: {inferred:?}"
+            );
+        }
+    }
+}

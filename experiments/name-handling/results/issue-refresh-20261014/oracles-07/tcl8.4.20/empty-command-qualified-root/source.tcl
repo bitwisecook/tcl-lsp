@@ -1,0 +1,2 @@
+proc :: {} {return ROOT}
+puts [::]

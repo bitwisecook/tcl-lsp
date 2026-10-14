@@ -1,0 +1,4 @@
+[
+  "rust/tcl-compiler/src/uri_split.rs",
+  "rust/tcl-compiler/src/analyser/irules_event_checks.rs"
+]

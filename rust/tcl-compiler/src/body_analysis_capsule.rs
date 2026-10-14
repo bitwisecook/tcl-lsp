@@ -774,7 +774,7 @@ mod tests {
     fn logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit() {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
-        let profile = context.commands().profile().unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,

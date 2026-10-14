@@ -1,0 +1,1662 @@
+{
+  "sampled_at_utc": "2026-10-14T01:44:59.022413+00:00",
+  "sampled_head": "030a52afe100e8e0a44d8e668761d476048181c5",
+  "scope": "Current source-only reconciliation of all 36 inherited actionable groups plus additional actual production families. File snapshots may span moving Main; no immutable execution acceptance. This is not a completed whole-codebase all-callers audit.",
+  "actionable_consumers": [
+    {
+      "id": "compiler-descriptor-baseline",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "function": "for_registry",
+          "sampled_sha256": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f",
+          "current_declaration_lines": [
+            842
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "function": "initial_with_options",
+          "sampled_sha256": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f",
+          "current_declaration_lines": [
+            13235
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "binding_rosters_preserve_exact_custom_descriptor_components",
+        "effective_semantics_cache_",
+        "new actual Compiler custom descriptor: empty final component/lone colon/interior run and context-store negatives"
+      ],
+      "related_issues": [
+        1778,
+        2423
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "compiler-descriptor-realm",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/realm.rs",
+          "function": "realm_from_source_bindings",
+          "sampled_sha256": "824117bc6d3d83c3b6aff853fb9c57cc9e5c54fc5ce666faa71e75e3a0cc9c9f",
+          "current_declaration_lines": [
+            831
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "new same-folded-label distinct SpecKey control",
+        "realm tests with source/context currency"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "compiler-descriptor-guard",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "function": "restore_script_bindings",
+          "sampled_sha256": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f",
+          "current_declaration_lines": [
+            7196
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "function": "default_construction_dependencies_hold",
+          "sampled_sha256": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f",
+          "current_declaration_lines": [
+            12580
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "function": "provider_surface_is_live",
+          "sampled_sha256": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f",
+          "current_declaration_lines": [
+            12925
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "function": "provider_lookup_dependencies_are_live",
+          "sampled_sha256": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f",
+          "current_declaration_lines": [
+            13095
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "function": "command_binding_site_is_exact",
+          "sampled_sha256": "dff970f8526f1031841b66f3938979a0fd40fb97b37017f6d8aa7573b88f882f",
+          "current_declaration_lines": [
+            16529
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "new literal-colon/empty-tail identity-collision negatives",
+        "existing provider/registration guard controls"
+      ],
+      "related_issues": [
+        1778,
+        2423
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "compiler-hook-roster",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/runtime_entry.rs",
+          "function": "installed_compiler_hook",
+          "sampled_sha256": "61d6379ba7c31db0f59d790d368c3f6fe0afabbdb49c6ce13e070dc330f059ad",
+          "current_declaration_lines": [
+            140
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "trusted package compiler-hook and foreign/replaced allocation negatives"
+      ],
+      "related_issues": [
+        1778,
+        2423
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "compiler-definition-member-descriptor",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/deferred_method.rs",
+          "function": "original_definition_member_target",
+          "sampled_sha256": "6afe597e43b31863a9e0e4efe8b64df952bdc308c4399c4aceb164dd6042d2fc",
+          "current_declaration_lines": [
+            2074
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "original member catalogue tests",
+        "literal-colon/foreign receiver/body currentness negatives"
+      ],
+      "related_issues": [
+        1778,
+        2286
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "compiler-ensemble-prefix-purpose",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/ensemble_compilation.rs",
+          "function": "original_ensemble_mapping_holds",
+          "sampled_sha256": "7ad1dbf9f4d0a8f46d6e3369ff3cb34b3adb26c1628cb6b63744588c89cc7705",
+          "current_declaration_lines": [
+            123
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "new leading/interior/lone-colon prefix, shadow/path/renamed/foreign-issuer map controls",
+        "actual selected-worker instruction controls"
+      ],
+      "related_issues": [
+        1778,
+        2423
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "compiler-math-descriptor",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/math_function_binding.rs",
+          "function": "native_fold_dependency",
+          "sampled_sha256": "4ad75cfe771ae90566be318da14a2770a725627b799bd622bc55b27ab6a6a675",
+          "current_declaration_lines": [
+            78
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_math_function.rs",
+          "function": "command_metadata",
+          "sampled_sha256": "ee7dffb56c050031e923e24dfa0bfbe83251c15e9bb13b44e1dd15774261a5df",
+          "current_declaration_lines": [
+            525
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "math_function_binding tests",
+        "actual mathfunc colon/empty-tail binding collision and C84/Jim fixed-table negatives"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "middleend-procedure-identity",
+      "status": "integrated-source-current-tests-pending",
+      "current_disposition": "ProcedureId issuer-owned inventories and actual original selection now carry bodies through CU/interprocedural summaries; name-only compatibility selectors are test-only. Current failure repairs and final tests remain Root owned.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/ir.rs",
+          "function": "executable_script_roots",
+          "sampled_sha256": "6cf6c5936f07317bb4296b5766ce0252fc5a3d3c5ccdf840fccb73e342c88df8",
+          "current_declaration_lines": [
+            3237
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "function": "build_procedure_units",
+          "sampled_sha256": "c808cce440192de9f0bdb1e39f1947005bc107dcd5ee5e5c32c7c8e1b3c9d446",
+          "current_declaration_lines": [
+            2785
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/interprocedural.rs",
+          "function": "resolve_internal_call_with",
+          "sampled_sha256": "e6adc1011d1c2f42b3fc80872ef1cebbef5530852360693fb8d0a9847f215010",
+          "current_declaration_lines": [
+            617
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+          "function": "procedure",
+          "sampled_sha256": "0bc3e5ca91a79a92652a356fce7c4e3bc8b252094d87eaedda8a5dcd8c65b206",
+          "current_declaration_lines": [
+            120
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/interprocedural/eager.rs",
+          "function": "of",
+          "sampled_sha256": "f197e79f6480953f656889db872d4d8058f1eb977b8c855ae987ee3654329c51",
+          "current_declaration_lines": [
+            60,
+            197
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+          "function": "select",
+          "sampled_sha256": "88d29c80e1371fba803f2b4e4cfb2d136f5efeb865ff4d0a50631c3887e8188d",
+          "current_declaration_lines": [
+            167
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "Existing original procedure/currentness/admission controls",
+        "new C display collision and same-slot-generation body retention controls"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "middleend-extra-string-joins",
+      "status": "mixed-integrated-and-scratch-ready",
+      "current_disposition": "Legacy GVN purity APIs have been retired; trace/deferred textual protection owner is integrated. DeclaredFrameEffects, CFG direct descriptor predicate and unresolved/summary Registry prefilters are in the reviewed scratch patch supplied with this report.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/gvn.rs",
+          "function": "is_pure_with_procs_core",
+          "sampled_sha256": "d946c39d74c5a65d1277316f28848401b34ef911c7f31856252a3e83c5fc5ae7",
+          "current_declaration_lines": [],
+          "old_function_present": false
+        },
+        {
+          "path": "rust/tcl-compiler/src/gvn.rs",
+          "function": "is_worth_reporting_with_procs",
+          "sampled_sha256": "d946c39d74c5a65d1277316f28848401b34ef911c7f31856252a3e83c5fc5ae7",
+          "current_declaration_lines": [],
+          "old_function_present": false
+        },
+        {
+          "path": "rust/tcl-compiler/src/dynamic_names.rs",
+          "function": "declared_frame_effect",
+          "sampled_sha256": "e019b65d8e9d3d866badd0aca7519e0b586791a606f67b02fe1a61213daa7564",
+          "current_declaration_lines": [
+            703
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/deferred_writes.rs",
+          "function": "frame_reach",
+          "sampled_sha256": "461036c6e12cdfa002613cb6c16b53c077c665d9ee2bb089796c3dfbf48d96f8",
+          "current_declaration_lines": [
+            731
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/value_transfer.rs",
+          "function": "may_name_a_summary",
+          "sampled_sha256": "dc01280614238cdda73994fe3abbb246cb96ff49f0de02e481fe9ff6c0195c9f",
+          "current_declaration_lines": [
+            1447
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/unit_scope.rs",
+          "function": "record_unresolved_word_dispatch",
+          "sampled_sha256": "42af58e8b524198f2794f9b434565c9fe583bcd5236553713ea4335a62aeff99",
+          "current_declaration_lines": [
+            1603
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "purity/deferred-write/variable-escape existing controls",
+        "new same-display-different-body effect leak negatives"
+      ],
+      "related_issues": [
+        1778,
+        1796,
+        2367
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "codegen-descriptor-and-entry",
+      "status": "integrated-source-current-tests-pending",
+      "current_disposition": "WASM entry, proc index/arity/direct sets and native slot maps use ProcedureId. Labels remain presentation. Verify current direct/indirect original entry and display-collision controls.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/codegen/mod.rs",
+          "function": "command_binding_identity",
+          "sampled_sha256": "3e249307a4dff4feaecc4f599cc73504b48aab861b4f6407ca2b4c3e6b43bc22",
+          "current_declaration_lines": [
+            617
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+          "function": "initial_procedure_bindings",
+          "sampled_sha256": "deafd78c875aac5b3f03d7031c41fc257bcd721af276ac393f6f9dc1c52a8f38",
+          "current_declaration_lines": [],
+          "old_function_present": false
+        },
+        {
+          "path": "rust/tcl-compiler/src/codegen/wasm/native_emit.rs",
+          "function": "slot",
+          "sampled_sha256": "40922d52e5c57e6617ed3f23c1d342e0c5801c625c4330cbe6a58cf82665dd5d",
+          "current_declaration_lines": [
+            221
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "wasm_real_link renamed-stock/materialised-name positives",
+        "original native-lowering unknown/replaced/invalid-argv negatives"
+      ],
+      "related_issues": [
+        1778,
+        2423
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "bpf-selected-descriptor",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/bpf-tcl-ir/src/source.rs",
+          "function": "source_declaration_kind",
+          "sampled_sha256": "cbe63f14d480059ba1c7a2ce8703681af9038e2341f27f9195ee2e301f64cef1",
+          "current_declaration_lines": [
+            71
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/bpf-tcl-ir/src/frontend.rs",
+          "function": "is_decl",
+          "sampled_sha256": "89405e375c6e89114f489e679fce1227e98af9435273d920b1a46dc7258ceae9",
+          "current_declaration_lines": [
+            377
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/bpf-tcl-ir/src/source.rs",
+          "function": "source_bpf_operation",
+          "sampled_sha256": "cbe63f14d480059ba1c7a2ce8703681af9038e2341f27f9195ee2e301f64cef1",
+          "current_declaration_lines": [
+            64
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/bpf-tcl-ir/src/lower.rs",
+          "function": "lower_call",
+          "sampled_sha256": "b5a45a6f6d40ad34133af4344ccd33460f9187c4cbf199e04ad92505593120fc",
+          "current_declaration_lines": [
+            750
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/bpf-tcl-ir/src/semantic_bridge.rs",
+          "function": "assess_invocation",
+          "sampled_sha256": "0deb3c6c5409077e2b5f8704b483aa1573672634213c08334171e8712b98ecf5",
+          "current_declaration_lines": [
+            207
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "bpf_conditional_does_not_admit_dynamic_words_or_tcl_replacement",
+        "every_registered_bpf_command_has_a_descriptor",
+        "coroutine_barrier_uses_registry_identity_for_specific_diagnostic",
+        "new braced literal/colon/root/shadow command descriptor negatives"
+      ],
+      "related_issues": [
+        1778,
+        2423
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "bpf-thread-hint",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/bpf-tcl-ir/src/lower.rs",
+          "function": "is_unregistered_thread_command",
+          "sampled_sha256": "b5a45a6f6d40ad34133af4344ccd33460f9187c4cbf199e04ad92505593120fc",
+          "current_declaration_lines": [
+            1148
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "new :thread::x versus :::thread::x/lone-colon source-hint controls"
+      ],
+      "related_issues": [],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "runtime-publication",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "runtime/rust/src/namespace.rs",
+          "function": "register_at",
+          "sampled_sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b",
+          "current_declaration_lines": [
+            1923
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "runtime/rust/src/namespace.rs",
+          "function": "restore_with_original_key_checked",
+          "sampled_sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b",
+          "current_declaration_lines": [
+            2110
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "runtime/rust/src/namespace.rs",
+          "function": "command_home_ns",
+          "sampled_sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b",
+          "current_declaration_lines": [
+            2644
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "runtime/rust/src/namespace.rs",
+          "function": "ensure_command_owned_namespace",
+          "sampled_sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b",
+          "current_declaration_lines": [
+            2684
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "Original publication/alias-loop/visibility/coroutine/OO tests",
+        "new per-purpose empty/colon/retired-dying namespace controls"
+      ],
+      "related_issues": [
+        1778,
+        1755,
+        2193,
+        2269
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "runtime-rename",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "runtime/rust/src/namespace.rs",
+          "function": "destination_of",
+          "sampled_sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b",
+          "current_declaration_lines": [
+            2382
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "runtime/rust/src/namespace.rs",
+          "function": "rehome_command",
+          "sampled_sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b",
+          "current_declaration_lines": [
+            2319
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "Actual alias-loop/renamed/import-generation/cache/deletion controls",
+        "new equal-display distinct slot rename-window negative"
+      ],
+      "related_issues": [
+        1778,
+        1755,
+        2193,
+        2269
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "vm-import-forget",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "function": "import_commands",
+          "sampled_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+          "current_declaration_lines": [
+            12352
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "function": "forget_imports",
+          "sampled_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+          "current_declaration_lines": [
+            13017
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "original_vm_jim_import_uses_cached_prefix_without_reading_original_members",
+        "original_vm_jim_import_compares_whole_prefix_before_following_alias_chains",
+        "original_vm_jim_import_keeps_first_host_and_restored_context_terminal",
+        "C5 pattern/import/forget generation and collision controls"
+      ],
+      "related_issues": [
+        1778,
+        2300
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "vm-authored-ns-wrappers",
+      "status": "integrated-purpose-separation-current-tests-pending",
+      "current_disposition": "Authored wrappers use shared qualifier_segments/written_command_parts to actual NamespacePath; physical Native byte namespace operands have separate selected engine/address owners. Review callers/controls rather than repeating a Main untouched claim.",
+      "sites": [
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "function": "intern_ns",
+          "sampled_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+          "current_declaration_lines": [
+            10172
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "function": "namespace_path_from_written",
+          "sampled_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+          "current_declaration_lines": [
+            10178
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "function": "declare_namespace",
+          "sampled_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+          "current_declaration_lines": [
+            11928
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "Namespace retained/recreated/query public controls",
+        "new authored versus original opaque/colliding namespace ingress negatives"
+      ],
+      "related_issues": [
+        1778,
+        1755
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "registry-named-layout",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-registry/src/native_compilation.rs",
+          "function": "named_ensemble_grammar",
+          "sampled_sha256": "75023b6cf571affc1c5f33c108bdb3892a3165870a7b28683cbbb6eba7ad1a5d",
+          "current_declaration_lines": [
+            4681
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "registry-operand-layout real C5/Jim raw controls",
+        "new actual Compiler/Runtime direct/private/renamed/foreign/arity operand effects"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "lsp-source-frame",
+      "status": "integrated-source-test-failures-under-repair",
+      "current_disposition": "Core scope eligibility delegates AnalysisResult::logical_variable_scope_advice / LogicalVariableScopeAdvice; original inputs refuse lexical advice. Root reported current real Scope suite failures; source integration is not acceptance.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "function": "lookup_var_in_logical_scope",
+          "sampled_sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2",
+          "current_declaration_lines": [
+            1881
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "function": "global_vars_needing_qualification",
+          "sampled_sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2",
+          "current_declaration_lines": [
+            2373
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "function": "visible_variable_names",
+          "sampled_sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2",
+          "current_declaration_lines": [
+            2349
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "function": "qualified_variable_cell_at",
+          "sampled_sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2",
+          "current_declaration_lines": [
+            1998
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "rename_var_rejected_on_same_scope_collision",
+        "rename_var_preserves_namespace_qualifier_at_decl",
+        "definition namespace/uplevel existing controls",
+        "new stale/foreign/native/unknown caller negatives"
+      ],
+      "related_issues": [
+        1796,
+        2259,
+        2260,
+        2414
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "lsp-partial-array",
+      "status": "integrated-source-current-tests-pending",
+      "current_disposition": "Completion uses shared Syntax incomplete array-variable source grammar plus Logical scope advice. Partial text supplies no actual cell identity.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "function": "array_element_completions",
+          "sampled_sha256": "52fd26d1bd2662e4a712e689653d51ed6ee2475a91993244d8ad30c4f39ed517",
+          "current_declaration_lines": [
+            939
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "array_element_completion_does_not_eat_trailing_text_when_unclosed",
+        "array_element_completion_swallows_existing_close_paren",
+        "new literal $/colon/unclosed/foreign source controls"
+      ],
+      "related_issues": [
+        1078,
+        2260
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "tools-procedure-report-id",
+      "status": "integrated-source-owner-refinement-active",
+      "current_disposition": "Explorer retains issuer-owned ProcedureId maps and Core graphs retain actual compiled body IDs; Diagram stores IDs and Compiler agent is refining genuine token-to-issued-body source_graph selection. No display-key collision map should be treated as pending wholesale migration.",
+      "sites": [
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "function": "serialise_ir",
+          "sampled_sha256": "07c47791054bb254f855459f2bea778c927d942d0e36a0bc036fcf7646838b60",
+          "current_declaration_lines": [
+            794
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-explorer/src/serialise.rs",
+          "function": "serialise_interproc",
+          "sampled_sha256": "07c47791054bb254f855459f2bea778c927d942d0e36a0bc036fcf7646838b60",
+          "current_declaration_lines": [
+            2975
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-diagram/src/data.rs",
+          "function": "source_procedure_nodes",
+          "sampled_sha256": "90c28522387b7e48ee7015bc58da8910e4ff543ca7a159ee60dce5bb9028b5c2",
+          "current_declaration_lines": [
+            915
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "interproc_view_shows_the_param_constant_seed_and_its_withdrawal",
+        "interproc_summarises_procs_with_arity_and_return_shape",
+        "procedure_calls_resolve_qualified_names_in_the_callers_namespace",
+        "new two retained equal-display body report rows"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "mock-publication-domain",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/xtask/src/gen_irule_test_data.rs",
+          "function": "render_mock_names",
+          "sampled_sha256": "66c052eef5acfaf6f3fb95e0a532bb66b0770b365a0fe739e235a13e6dcad515",
+          "current_declaration_lines": [
+            179
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-irule-test/src/pure_functions.rs",
+          "function": "register",
+          "sampled_sha256": "a8e51108397044b571402a80ffab63f378ca6111dc045575988c163125ac5bc8",
+          "current_declaration_lines": [
+            129
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-registry/src/simulator_mock_name.rs",
+          "function": "for_label",
+          "sampled_sha256": "35c332f6796604f535e2bf7cdf911ea6c25e1b837dc02a074739271b9dc00b2a",
+          "current_declaration_lines": [
+            20
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "mock_name_follows_tcl_registration_convention",
+        "mock_stubs_only_project_commands_visible_to_f5_irules",
+        "new multi-segment/root/colon/collision mock mapping parity including Tcl _mock_proc_name"
+      ],
+      "related_issues": [],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "spectcl-native-hook-descriptor",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-spectcl/src/loader.rs",
+          "function": "native_count_role_resolver",
+          "sampled_sha256": "5cd021c1200289be603dde193a6745b59949ccfdddd1f7b37e8a9c6663337307",
+          "current_declaration_lines": [
+            7200
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-spectcl/src/loader.rs",
+          "function": "native_layout_role_resolver",
+          "sampled_sha256": "5cd021c1200289be603dde193a6745b59949ccfdddd1f7b37e8a9c6663337307",
+          "current_declaration_lines": [
+            7227
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "a_native_id_a_table_holds_installs_its_value",
+        "new exact qualified command versus member ID ambiguity/empty-tail controls"
+      ],
+      "related_issues": [],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "spectcl-written-binding-dependency",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-spectcl/src/loader/semantics.rs",
+          "function": "depends_row",
+          "sampled_sha256": "f96e5342e76f8913d026c43addd9a144501c3d4aaac8ac25faaf75a5bd77228b",
+          "current_declaration_lines": [
+            940
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "declared_binding_keeps_written_name_and_projects_expected_identity_separately"
+      ],
+      "related_issues": [],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "editor-scaffold-authoring",
+      "status": "reviewed-domain-authoring",
+      "current_disposition": "Package-to-namespace text is scaffold generation, not selection of a Tcl command/body/cell. Identifier grammar and generated copies require ordinary final validation.",
+      "sites": [
+        {
+          "path": "editors/vscode/src/scaffold.ts",
+          "function": "namespaceFromPackageName",
+          "sampled_sha256": "147a45a77bcce963822c4dc6e3292f379650bb3520f114c7aba83c4b236847d1",
+          "current_declaration_lines": [],
+          "old_function_present": false
+        }
+      ],
+      "required_controls": [
+        "scaffold.test.ts namespaceFromPackageName controls"
+      ],
+      "related_issues": [],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "lsp-named-logical-reporting",
+      "status": "integrated-source-current-tests-pending",
+      "current_disposition": "Named reports retain explicit Logical guards; class_declaration_at now refuses lexical fallback unless allows_lexical_declaration_advice. Original declaration targeting remains distinct. Current collision/currentness controls still need completion.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "function": "invocation_references_named",
+          "sampled_sha256": "107f003717d55ea11e8b257fd245f9a9b793db03dd3cabfa47dd85b56b7add79",
+          "current_declaration_lines": [
+            344
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "function": "invocation_calls_named",
+          "sampled_sha256": "107f003717d55ea11e8b257fd245f9a9b793db03dd3cabfa47dd85b56b7add79",
+          "current_declaration_lines": [
+            567
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/call_hierarchy.rs",
+          "function": "incoming_calls_for_target",
+          "sampled_sha256": "7e2ca355db9a76d6b10b27139691f06abaf6621c631c5a590469caf20f9cc6e6",
+          "current_declaration_lines": [
+            822
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "function": "class_declaration_at",
+          "sampled_sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2",
+          "current_declaration_lines": [
+            2735
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/extract_proc.rs",
+          "function": "unique_proc_name",
+          "sampled_sha256": "92541248aa8773b833f429625df50ac7143bcbced5dcbb739b6e655977780693",
+          "current_declaration_lines": [
+            1070
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "function": "child_scope_label",
+          "sampled_sha256": "1b3bda4dfacf1c3e63ecef4419bc74bb8115bb9a9ea4039eb971313f6b08e451",
+          "current_declaration_lines": [
+            936
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "function": "qualified_and_decl_text",
+          "sampled_sha256": "8c3215538e34096178e4df4c092e96a5c5d704d2d8de7f5b6890f8fe1a8fbb22",
+          "current_declaration_lines": [
+            1901
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "function": "proc_definitions",
+          "sampled_sha256": "4dd135c33f28672b383718b396340accbe6b3a87f20d3b5e856998c5291e9ec0",
+          "current_declaration_lines": [
+            5209
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "incoming_calls_for_target_finds_callers_in_other_doc",
+        "incoming_calls_for_target_no_self_skip_without_span",
+        "Original reference/foreign/stale-source controls",
+        "jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+        "indirect_alias_wrapper_does_not_borrow_a_displaced_class_definition",
+        "new actual Original unknown class-call fall-through refusal if needed"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "db-lattice-and-class-indices",
+      "status": "integrated-source-current-tests-pending",
+      "current_disposition": "FnLatticeKey/body maps and summary inputs retain ProcedureId, current Module issuer/body/capsule dependencies, including OriginalProcedureSummaryOwners as fifth CFG context member. Source integration and fresh memo-hit acceptance are distinct.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "function": "memo_key",
+          "sampled_sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028",
+          "current_declaration_lines": [
+            3010
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "function": "build_unit_with_keys_and_input",
+          "sampled_sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028",
+          "current_declaration_lines": [
+            3044
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "function": "proc_summary_cascade",
+          "sampled_sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028",
+          "current_declaration_lines": [
+            3353
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "function": "merge_project_classes",
+          "sampled_sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028",
+          "current_declaration_lines": [
+            4695
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "function": "merge_project_named_instances",
+          "sampled_sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028",
+          "current_declaration_lines": [
+            4783
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "DB original-header/collision/cache currentness controls",
+        "new equal-display different body/class/memo effect negatives"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "tcloo-varname-holder-projection",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "runtime/rust/src/interp/native_variable_names/native_tcloo.rs",
+          "function": "original_c_oo_varname",
+          "sampled_sha256": "92bd760d9642edca80422f05542a8cfbd6d9eef75867b2bc19910ddf28016b42",
+          "current_declaration_lines": [
+            46
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_variable_names/native_tcloo.rs",
+          "function": "original_c_oo_varname",
+          "sampled_sha256": "d0ee5499a71cce766934d85f0df2f07687c1a30d1ef1aab52bb348fce1bbbdb5",
+          "current_declaration_lines": [
+            51
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "explicit_variable_links_and_varname_match_original_counted_controls",
+        "new projection choice controls using existing measured absolute/relative operands"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "cli-spec-oracle-presence",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-cli/src/commands/spec_test.rs",
+          "function": "render_script",
+          "sampled_sha256": "9b13cb5e2c14704ce638fa88a637e6448ee78cb8ed34658bbae60d47d7522e89",
+          "current_declaration_lines": [
+            404
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-cli/src/commands/spec_probe.rs",
+          "function": "render_script",
+          "sampled_sha256": "2c371e84e7a674bcbc62117386b2785ff039243c7869ee359af484f4a4cbd401",
+          "current_declaration_lines": [
+            37
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "the_script_asks_each_command_only_what_the_pack_declares",
+        "what_the_pack_declares_reaches_the_probe",
+        "new actual package :name/wildcard/overroot presence and external same-prefix variable negatives",
+        "actual unrelated global __spec_testOther remains visible",
+        "literal-colon :errorInfo versus exact global errorInfo",
+        "measured C literal qualified namespace prefix and distinct full-pattern/Jim behavior",
+        "distinct exact report labels without root-trim collision"
+      ],
+      "related_issues": [],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "runtime-rename-window-slot",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "function": "relocate_rename_state",
+          "sampled_sha256": "e9de9114923d5bcc71b3b8b2bdedfb28d47307b8974f31bb342f85cbcc11003a",
+          "current_declaration_lines": [
+            10130
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "new equal-display distinct slot rename/trace/sidecar counterexample",
+        "original_rename_observers_keep_reached_effects_and_stop_later_result_publication"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "source-flow-local-eligibility",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+          "function": "evaluate",
+          "sampled_sha256": "f47f1107224120653f0e0d33b8d2bb5b67c2de50a3911a6dc315708aa1285382",
+          "current_declaration_lines": [
+            2145
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "original_declaration_flow_cache_retains_full_inventory_and_query_identity",
+        "original_declaration_graph_preserves_nested_missing_local_reads",
+        "original_diagnostic_frame_keeps_root_values_and_expanded_loop_bindings",
+        "original #2286 witness and genuine missing-read negatives"
+      ],
+      "related_issues": [
+        2286,
+        2259,
+        2260
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "interpreter-path-domain",
+      "status": "reviewed-distinct-interpreter-path-owner",
+      "current_disposition": "Subinterpreter path elements are list/path-domain operands owned independently of Tcl namespace names. No generic command normalizer substitution.",
+      "sites": [
+        {
+          "path": "runtime/rust/src/cmd_alias.rs",
+          "function": "interp_path",
+          "sampled_sha256": "5381f862a8d21fe8165de7f9c7a30b9fe2212c6078fd2d7f7dc387a495c18117",
+          "current_declaration_lines": [
+            669
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_interpreter_paths.rs",
+          "function": "native_interpreter_path_elements",
+          "sampled_sha256": "100b48517a90ec32da17a06e7551ce435092d9e1b6815a1be9c6e2f73bf1ed54",
+          "current_declaration_lines": [
+            78
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "original_interpreter_paths_preserve_child_keys_and_create_result_objects",
+        "original_interpreter_paths_keep_counted_objects_and_child_cstring_keys",
+        "original_child_handle_alias_reads_the_selected_operand_before_publication"
+      ],
+      "related_issues": [
+        2273,
+        2275,
+        2276
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "studio-catalogue-authoring",
+      "status": "reviewed-exact-metadata-source-tests-pending",
+      "current_disposition": "Studio catalogue rows preserve exact descriptor labels and metadata ingress. Exact supplied report fixture correction is separately supplied without changing payload or inventing Native evidence.",
+      "sites": [
+        {
+          "path": "rust/tcl-spec-studio/src/lib.rs",
+          "function": "command_names",
+          "sampled_sha256": "61d0d1f4bf29eecb1c194424dc397f6e4d4508f222871ae7cdfbc5b1fa02b865",
+          "current_declaration_lines": [
+            126
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-spec-studio/src/lib.rs",
+          "function": "command_index",
+          "sampled_sha256": "61d0d1f4bf29eecb1c194424dc397f6e4d4508f222871ae7cdfbc5b1fa02b865",
+          "current_declaration_lines": [
+            137
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-spec-studio/src/lib.rs",
+          "function": "load_command",
+          "sampled_sha256": "61d0d1f4bf29eecb1c194424dc397f6e4d4508f222871ae7cdfbc5b1fa02b865",
+          "current_declaration_lines": [
+            175
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "Studio command-index/load/draft tests",
+        "exact literal/collision metadata controls if name selection changes"
+      ],
+      "related_issues": [],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "compiler-layout-carrier-provenance",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+          "function": "registered_compiler_selection",
+          "sampled_sha256": "17366a9fd0cb0a2aac9ddfdf1126880cedd64d62bb7d3a83f7db9dd9e858d085",
+          "current_declaration_lines": [
+            1282
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+          "function": "original_registration_descriptor",
+          "sampled_sha256": "17366a9fd0cb0a2aac9ddfdf1126880cedd64d62bb7d3a83f7db9dd9e858d085",
+          "current_declaration_lines": [
+            1561
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "actual public binary encode hex metadata offset counterexample",
+        "separate original explicit2/1/0 retained-layout and nested/public/private compiler selections",
+        "unknown/missing source/protocol/refreshed compiler negatives"
+      ],
+      "related_issues": [
+        1778
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "engine-wasm-command-transport-replay",
+      "status": "current-source-contract-execution-not-renewed",
+      "current_disposition": "Existing shared-owner migration/source adapter is present or separately Root-owned; inherited scoped runs cannot certify a later changed source closure. Keep the required controls and verify current actual ownership before closing.",
+      "sites": [
+        {
+          "path": "rust/tcl-engine-wasm/src/lib.rs",
+          "function": "apply",
+          "sampled_sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd",
+          "current_declaration_lines": [
+            288
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-engine-wasm/src/lib.rs",
+          "function": "replay",
+          "sampled_sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd",
+          "current_declaration_lines": [
+            332
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-engine-wasm/src/host_call.rs",
+          "function": "define_command_bytes",
+          "sampled_sha256": "93aa4994c514d71de0578f720db5e46fe32f67e2d2283221fc71bd46e611f13e",
+          "current_declaration_lines": [
+            297
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-engine-wasm/src/command_receipts.rs",
+          "function": "current",
+          "sampled_sha256": "b534d79173ca7deee9f933621a6a6f894dc860285199696b53248f08634ae7bc",
+          "current_declaration_lines": [
+            383
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-engine-wasm/src/extension_host.rs",
+          "function": "command_inventory",
+          "sampled_sha256": "f641b3ef86926fe4ae6b52b33302419727dc76d6df5bf5168f493f17f65b88af",
+          "current_declaration_lines": [
+            153
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "what_was_set_up_survives_a_trap",
+        "installed_receipts_keep_renamed_hosts_and_remove_old_name_replacements",
+        "compiled_receipts_refuse_foreign_and_replaced_handles_before_effects",
+        "new actual trap-rebuild literal-colon/empty-component publication and deletion controls",
+        "the_extension_host_evaluates_on_a_fresh_instance_each_time",
+        "unicode_extension_inventory_refuses_an_opaque_counted_command_name",
+        "new literal-colon/root/empty namespace extension roster controls; C literal qualifier versus Jim/fullpattern purposes"
+      ],
+      "related_issues": [
+        1778,
+        1755
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "debugger-snapshot-label-selection",
+      "status": "integrated-source-current-tests-pending",
+      "current_disposition": "Evaluate selects exact captured labels or Lexer whole_var_ref with literal array-index guard; no independent dollar stripping or arbitrary evaluation. VM captured reads remain separate actual-frame owner.",
+      "sites": [
+        {
+          "path": "rust/tcl-debugger/src/backend.rs",
+          "function": "evaluate",
+          "sampled_sha256": "9835411089309957737a465b0ae4afd4e0b26a35c17e0b4c1cd0f65cc8300f09",
+          "current_declaration_lines": [
+            126,
+            325
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "function": "debug_snapshot",
+          "sampled_sha256": "62e2b682b2f4f43894a671a25df972685960281e43bf4ec26a3ebc71326834df",
+          "current_declaration_lines": [
+            4392
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "step_in_walks_lines_and_sees_variables",
+        "existing replay evaluate unsupported-expression controls"
+      ],
+      "related_issues": [],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "lsp-test-only-legacy-import-helper",
+      "status": "test-only-current-cleanup-obligation",
+      "current_disposition": "Declaration::bare_name and hover compatibility helpers are test-only. Their retained tests/comments may need cleanup but are not production lookup debt.",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "function": "resolve_imported_command",
+          "sampled_sha256": "5d82ab10ff65d039c0bc822dde9a1e0749a479cebe926f519cfeb6d6d224479c",
+          "current_declaration_lines": [
+            1007
+          ],
+          "old_function_present": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/declaration.rs",
+          "function": "bare_name",
+          "sampled_sha256": "cfc433a74bf3edd1fcfcda8a6bc8e9f28e7dd71cad4e8dd31707591449835fda",
+          "current_declaration_lines": [
+            439
+          ],
+          "old_function_present": true
+        }
+      ],
+      "required_controls": [
+        "existing hover imported-command fixture controls"
+      ],
+      "related_issues": [
+        2254
+      ],
+      "execution_claim": "none from this source-only audit"
+    }
+  ],
+  "additional_consumer_families": [
+    {
+      "id": "f5-configuration-object-consumers",
+      "status": "integrated-source-no-appliance-acceptance",
+      "actual_consumer_and_owner": "object_name_candidates / ObjectNamePolicy / owner_partition_reference_paths / reference_without_numeric_service",
+      "current_disposition": "Actual configuration/type/module filters and exact/ordered/unique policies are retained; missing BIG-IP observations remain handoff obligations, not local Tcl conformance claims.",
+      "source_snapshots": [
+        {
+          "path": "rust/tcl-bigip/src/object_names.rs",
+          "sha256": "5efd2fed04a7148fef54b0ce3996e8fa8dc91e0fa78cb60fe6cb98355e75631a"
+        },
+        {
+          "path": "rust/tcl-bigip/src/lint.rs",
+          "sha256": "381ea99dc1f07a143b366f29db5547a9889443fb75977d5088be1fb01cec93c2"
+        },
+        {
+          "path": "rust/tcl-bigip/src/graph.rs",
+          "sha256": "9f9742b6a755c9b58b45ceead3e715b98ad5ce89994bd7e555cec2124b194356"
+        },
+        {
+          "path": "rust/tcl-bigip/src/convert.rs",
+          "sha256": "9555b254a115119899366daad9ea07b095c0980ad4a0f745c0ffa43696141b31"
+        },
+        {
+          "path": "rust/tcl-bigip/src/pcap_enrich.rs",
+          "sha256": "df5f0850804ab7878ecd232ec152c3f2c34f7e55b96967bcbea1e99b8fa7b56b"
+        },
+        {
+          "path": "rust/tcl-bigip/src/wireshark_profile.rs",
+          "sha256": "fc6d92566c01892af4a1422c85db9e124679dba52e1656285cc8ec55b5b377c5"
+        },
+        {
+          "path": "rust/tcl-bigip/src/irule_context.rs",
+          "sha256": "4143b7689d845fcc23bb834fdd07b0c498a0306acad0276610f94efed325adf4"
+        },
+        {
+          "path": "rust/tcl-bigip/src/topology_view.rs",
+          "path_present": false,
+          "obligation": "confirm moved actual path before claiming coverage"
+        },
+        {
+          "path": "rust/tcl-bigip/src/tls.rs",
+          "sha256": "ea954bd755995ed04fef3d17065be85bbb373215fea4fffa599d78f44be530a6"
+        },
+        {
+          "path": "rust/tcl-bigip/src/validator.rs",
+          "sha256": "43206574dc0afc4cefae1c3db344d5c90cd08c0c6761461c4352bf5babc257c6"
+        },
+        {
+          "path": "rust/tcl-bigip/src/gtm",
+          "path_present": false,
+          "obligation": "confirm moved actual path before claiming coverage"
+        }
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "trace-and-deferred-variable-protection",
+      "status": "integrated-source-current-tests-pending",
+      "actual_consumer_and_owner": "VariableProtectionPurpose / VariableWriteObservationPurpose / variable_name_may_be_observed / record_variable_write_name",
+      "current_disposition": "Explicit textual MAY policies remain separate from actual VariableCellKey. Actual entered Native observer guards remain independent; empty/sigil/braced literal observations measured directly across C5/Jim, Jim trace missing retained as negative.",
+      "source_snapshots": [
+        {
+          "path": "rust/tcl-compiler/src/variable_observation_names.rs",
+          "sha256": "26cbce2b1ba9fb070e7e720c7d8da8bbd6114fd16e02ccf97db28fa0dff0ec07"
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "sha256": "4e7b39c463ead6f17ad27fcf4bf3d787e9a6312f0ffd9f9cca8820d9a226e14c"
+        },
+        {
+          "path": "rust/tcl-compiler/src/deferred_writes.rs",
+          "sha256": "461036c6e12cdfa002613cb6c16b53c077c665d9ee2bb089796c3dfbf48d96f8"
+        },
+        {
+          "path": "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+          "sha256": "7f35b101ecdc5c43d8a4ecc3ada109899e6bfc07e0c0f530daa11c71a153ea49"
+        },
+        {
+          "path": "rust/tcl-compiler/src/native_lowering/elide.rs",
+          "sha256": "aa299b423aaeff9db0c6c9ec556cabe423214b1dd12793328fb9ff90e2cee357"
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+          "sha256": "72e12804f681ddecc4d444fc7384338a0d291c95e35a6070dc7ce482e0f63c59"
+        }
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "declared-frame-metadata",
+      "status": "scratch-reviewed-ready-to-integrate",
+      "actual_consumer_and_owner": "collect_declared_frame_effects / declared_frame_effect_for_metadata / DocumentCommandSurface::plain_call_frame_effect_descriptor_keys",
+      "current_disposition": "Real declaration metadata producer uses typed selected descriptor keys and unique optional-root coordinates, with unstated collisions withdrawing assistance. Native/source-schema selectors remain separate. No tests run.",
+      "source_snapshots": [
+        {
+          "path": "rust/tcl-compiler/src/ir.rs",
+          "sha256": "6cf6c5936f07317bb4296b5766ce0252fc5a3d3c5ccdf840fccb73e342c88df8"
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "sha256": "4e7b39c463ead6f17ad27fcf4bf3d787e9a6312f0ffd9f9cca8820d9a226e14c"
+        },
+        {
+          "path": "rust/tcl-compiler/src/dynamic_names.rs",
+          "sha256": "e019b65d8e9d3d866badd0aca7519e0b586791a606f67b02fe1a61213daa7564"
+        },
+        {
+          "path": "rust/tcl-compiler/src/deferred_writes.rs",
+          "sha256": "461036c6e12cdfa002613cb6c16b53c077c665d9ee2bb089796c3dfbf48d96f8"
+        },
+        {
+          "path": "rust/tcl-registry/src/model/declaration.rs",
+          "sha256": "18c5fe937a5a0e83c86600b76fb57ad39b8567c6fffba85b1d1e5a99c2325d6c"
+        }
+      ],
+      "execution_claim": "none from this source-only audit"
+    },
+    {
+      "id": "remaining-frameless-substitution-prefilters",
+      "status": "scratch-reviewed-ready-to-integrate",
+      "actual_consumer_and_owner": "normalise_cmd_subst_head -> is_frameless_runtime_command_in",
+      "current_disposition": "Original extracted heads now feed exact-first Registry::get followed by actual selected descriptor effective metadata; patch pending Root review/integration/test.",
+      "source_snapshots": [
+        {
+          "path": "rust/tcl-compiler/src/var_escape/helpers.rs",
+          "sha256": "000f8d766dda8b47bb2b66b83a057c8f34d53009ea49188caff0836f9a77c72d"
+        },
+        {
+          "path": "rust/tcl-compiler/src/var_escape/walker.rs",
+          "sha256": "7f95f2b5a787eaca3fe33c320111c806cf5d81e90a90712436f711377c30d7eb"
+        },
+        {
+          "path": "rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs",
+          "sha256": "f0b4b53fa35e8b8413a59ccfe32e2013d99eb3967470bcdeebb28265399645bd"
+        }
+      ],
+      "execution_claim": "none from this source-only audit",
+      "reviewed_patch": "/tmp/name-metadata-classifiers-20261014/implementation.patch"
+    },
+    {
+      "id": "remaining-slot-eligibility-prefilter",
+      "status": "scratch-reviewed-ready-to-integrate",
+      "actual_consumer_and_owner": "normalise_cmd -> call_disables_slots",
+      "current_disposition": "Default Registry::resolve_call now owns original-label selection before selected traits/roles; duplicate rosters and local root parser removed; unknown disables slot narrowing; scratch only.",
+      "source_snapshots": [
+        {
+          "path": "rust/tcl-compiler/src/var_escape/slot_resolution.rs",
+          "sha256": "e4bd9e97ad365a719ba7a2a0514744ca832d396c9f26e2e8b9fe6d358261e8f7"
+        }
+      ],
+      "execution_claim": "none from this source-only audit",
+      "reviewed_patch": "/tmp/name-slot-classifier-20261014/implementation.patch"
+    },
+    {
+      "id": "remaining-path-constant-prefilter",
+      "status": "scratch-reviewed-ready-to-integrate",
+      "actual_consumer_and_owner": "collect",
+      "current_disposition": "Authored collector now obtains actual selected Registry descriptor once while retaining name policy/scope/refusal; original retained source collector unchanged; scratch only.",
+      "source_snapshots": [
+        {
+          "path": "rust/tcl-compiler/src/auto_path_eval/path_constants.rs",
+          "sha256": "b28f99861b1b0cd7851aafcf153473be62a303876f3eaefc140ece6dfa750aea"
+        }
+      ],
+      "execution_claim": "none from this source-only audit",
+      "reviewed_patch": "/tmp/name-metadata-classifiers-20261014/implementation.patch"
+    },
+    {
+      "id": "remaining-bounds-metadata-prefilters",
+      "status": "scratch-reviewed-ready-to-integrate",
+      "actual_consumer_and_owner": "plan_words / command_increment / literal_store and metadata lookups",
+      "current_disposition": "Actual contextual spec selection consumes original label before genuine descriptor-key metadata plans; role routing keeps original label; scratch only.",
+      "source_snapshots": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/bounds_checks.rs",
+          "sha256": "18065eea38c732fac5d153bb7ab7c202ecdd1a1577ba6db074fa2950f3eeb36f"
+        }
+      ],
+      "execution_claim": "none from this source-only audit",
+      "reviewed_patch": "/tmp/name-metadata-classifiers-20261014/implementation.patch"
+    },
+    {
+      "id": "remaining-self-dispatch-withdrawal-table",
+      "status": "scratch-reviewed-ready-to-integrate",
+      "actual_consumer_and_owner": "self_dispatch_keyword_disturbed",
+      "current_disposition": "Actual contextual self-dispatch vocabulary selects descriptor before purpose-specific authored source-table probe; exact geometry mismatch/missing context or metadata withdraws W308. Independent positioned member/receiver and child-interpreter guards remain unchanged. Scratch-only fixed controls unexecuted.",
+      "source_snapshots": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+          "sha256": "59825d5b62be8e5dc7ea244f232a9fbf50bef084770b34f241c4cb9ad50d61b3"
+        }
+      ],
+      "execution_claim": "none from this source-only audit",
+      "reviewed_patch": "/tmp/name-self-dispatch-owner-20261014/implementation.patch"
+    },
+    {
+      "id": "already-shared-dynamic-and-user-tail-classifiers",
+      "status": "integrated-source-current-tests-pending",
+      "actual_consumer_and_owner": "names_a_dynamic_variable / UserResolutionFacts::resolves_to_user",
+      "current_disposition": "Both actual implementations use shared written_command_tail now. User resolution still keeps explicit source-order/path/stub assistance policy; do not reopen old local rsplit debt.",
+      "source_snapshots": [
+        {
+          "path": "rust/tcl-compiler/src/dynamic_names.rs",
+          "sha256": "e019b65d8e9d3d866badd0aca7519e0b586791a606f67b02fe1a61213daa7564"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/validity.rs",
+          "sha256": "61976a0b7075399ce89478dc770d1b3586e25bb984b5736160fa1e09ab87473e"
+        }
+      ],
+      "execution_claim": "none from this source-only audit"
+    }
+  ],
+  "remaining_audit_obligations": [
+    "Trace all remaining metadata prefilter producers and all source/advice/Native callers, then migrate genuine keys; lexical match counts are not completion criteria.",
+    "Finish Compiler agent Diagram/taint retained source/body selection and independently verify each pending exact control.",
+    "Inspect remaining Registry math/private-namespace/native descriptor/value-transfer helpers and AI/editor transport/generation boundaries against current source, preserving distinct domain contracts.",
+    "Renew actual source-dependent tests only after stable build closures; do not reseal sanitized F5 transports or missing original observations.",
+    "Before PR delete temporary development coordination prose and obsolete comments while retaining experiment inputs, oracle observations and conformance tests.",
+    "Six audited semantic lowering bridges/classifiers in remaining-reader-audit.json require migration; two audited pattern/presentation sites have distinct nonlookup purposes. URI/IRULE5003 supplied metadata delegates are scratch-ready, unexecuted."
+  ],
+  "remaining_actual_reader_report": "/tmp/name-self-dispatch-owner-20261014/remaining-reader-audit.json"
+}

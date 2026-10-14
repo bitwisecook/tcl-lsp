@@ -1,0 +1,32 @@
+{
+  "patch_sha256": "4b24579731fe047e6d67645912d9dd672d38af6d32ac7159dea25803b624643b",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "dced9b91798c76ffcbd9b8f73bd72d2c09a01e9b6d052afd3bb0ae23a41d8f3e",
+      "after_sha256": "503f2d09b10a42ce1f222f5700ff69496015e29a04db7acda23922ff976b4a33"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "b532d5da31227731726b8ac36874cc3675650a302d9eb31a5e7a51902e95821c",
+      "after_sha256": "b2340ce3ea1f59ca3f45c01ec34e9d36c30966292f45ca40eeb0aa7fde468ca3"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm.rs",
+      "before_sha256": "824117bc6d3d83c3b6aff853fb9c57cc9e5c54fc5ce666faa71e75e3a0cc9c9f",
+      "after_sha256": "93d51defb0a623a48a35097a9af718084229f523613004210e40694106641684"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "6965aed8367720d88b3d6d524068beef2eb9143c84781c4d21abc2d6ad3a0443",
+      "after_sha256": "eadd0e56021103c9645713026d84e88d4916dafba10d7470054fc4be2a9d322b"
+    }
+  ],
+  "evidence": "/tmp/name-main-compiler-diagnostic28-20261014/test-01.log and test-02.log; Namespace source roles/card/scope present, source geometry absent; entered/compiler/declaration rows0",
+  "validation": "isolated rustfmt and apply-check only; no Cargo",
+  "tests": [
+    "command_binding::original_name_value::graph_tests::logical_receiver_word_geometry_and_write_card_keep_exact_source_currency",
+    "definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards"
+  ],
+  "scope": "Positive Logical complete tape-vector geometry joins shared realm API and genuine bare-write caller; exact input/origin/image/config/context/head-vector and unanimous word/head equality, barriers preserved; Native route unchanged."
+}

@@ -351,11 +351,14 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        let registry = self
-            .registry
-            .as_deref()
-            .unwrap_or_else(super::bounds_checks::default_registry);
-        let head = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
+        let Ok(generation) = self.try_analysis_context() else {
+            return;
+        };
+        let registry = generation.commands();
+        let Some(spec) = generation.context().resolve_spec(registry, cmd_name) else {
+            return;
+        };
+        let head = spec.descriptor_key().label();
         let Some(plan) = crate::value_transfer::resolved_iteration_plan(registry, head, args)
         else {
             return;

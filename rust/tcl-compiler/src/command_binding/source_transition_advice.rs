@@ -660,6 +660,76 @@ impl OriginalSourceTransitionAdviceTape {
         }
     }
 
+    /// Exact Logical catalogue words retain geometry without an entered invocation.
+    pub(crate) fn logical_original_word_at_span(
+        &self,
+        origin: &Arc<super::SourceOriginId>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        span: tcl_lexer::Span,
+    ) -> Option<(NativeWord, u32)> {
+        input.has_logical_source_name_context().then_some(())?;
+        let image = origin.source_image();
+        let config = input.lexer_config();
+        let context = input.borrowed_context_registry();
+        let offsets = self
+            .advice
+            .keys()
+            .chain(self.body_catalogue.keys())
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let mut selected = None;
+        for offset in offsets {
+            if self.blocks_registry_source(offset) {
+                continue;
+            }
+            let advice = if let Some(advice) = self.body_catalogue(offset) {
+                advice
+            } else {
+                match self.lookup(offset) {
+                    OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
+                    OriginalSourceTransitionAdviceLookup::Refused
+                    | OriginalSourceTransitionAdviceLookup::Unrepresented => continue,
+                }
+            };
+            if advice.site().offset != offset
+                || advice.original_words().first()?.span().start() != offset
+                || advice.site().source != *origin
+                || advice.logical_source_input() != Some(input)
+                || !advice.matches_source(image, config)
+                || !advice.matches_context(context)
+            {
+                continue;
+            }
+            let mut words = advice.original_words().iter().filter(|word| {
+                word.span() == span
+                    || word
+                        .tokens()
+                        .first()
+                        .is_some_and(|token| token.span == span)
+            });
+            let Some(word) = words.next() else {
+                continue;
+            };
+            if words.next().is_some() {
+                return None;
+            }
+            if let OriginalSourceTransitionAdviceLookup::Advice(original) = self.lookup(offset)
+                && original.original_words() != advice.original_words()
+            {
+                return None;
+            }
+            let current = (word.clone(), offset);
+            if selected
+                .as_ref()
+                .is_some_and(|previous| previous != &current)
+            {
+                return None;
+            }
+            selected = Some(current);
+        }
+        selected
+    }
+
     pub(crate) fn declared_selection(
         &self,
         offset: u32,

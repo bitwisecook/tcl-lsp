@@ -1,0 +1,11 @@
+--- a/rust/tcl-compiler/src/deferred_writes.rs
++++ b/rust/tcl-compiler/src/deferred_writes.rs
+@@ -911,7 +911,7 @@
+     fn writes(source: &str) -> DeferredWrites {
+         let context =
+             crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+-        let profile = crate::environment_ingress::resolve_environment("tcl8.6").unit_profile();
++        let profile = crate::environment_ingress::resolve_environment("tcl").unit_profile();
+         let input = crate::analyser::ResolvedAnalysisInput::new(
+             profile,
+             profile,

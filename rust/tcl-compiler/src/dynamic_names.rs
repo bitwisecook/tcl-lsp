@@ -701,10 +701,7 @@ impl<'a> Commands<'a> {
     }
 
     fn declared_frame_effect(self, command: &str) -> Option<FrameEffectSpec> {
-        self.declared
-            .get(&tcl_syntax::naming::normalise_qualified_name(command))
-            .copied()
-            .flatten()
+        crate::declared_frame_effects::declared_frame_effect_for_metadata(self.declared, command)
     }
 }
 

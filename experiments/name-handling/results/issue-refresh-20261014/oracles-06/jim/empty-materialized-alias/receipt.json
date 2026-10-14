@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "empty-materialized-alias",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-06/jim/empty-materialized-alias/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:47:08.250065+00:00",
+  "exit_code": 1,
+  "source_sha256": "05a514cb97f1eca921852a7affce8350d47738c462adf8427027fdf186413c23",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "aa7320b780f4c75676bb8656c81cebd3fccf1131de58543d4263ad6e98bee046"
+}

@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "2332-private-parameter-and-literal",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-05/jim/2332-private-parameter-and-literal/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:39:41.839008+00:00",
+  "exit_code": 0,
+  "source_sha256": "ba89f3f43ec174a31f07ee25290c7876201d588385482b5e48936ee22ff2a0ce",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "7841a1db6ce225536f4d7d209a3897f63080c4e0bf1f9da0444cb39fb76777c4",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

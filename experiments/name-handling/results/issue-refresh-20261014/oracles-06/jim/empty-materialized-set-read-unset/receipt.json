@@ -1,0 +1,14 @@
+{
+  "provider": "jim",
+  "case": "empty-materialized-set-read-unset",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/oracles-06/jim/empty-materialized-set-read-unset/source.tcl"
+  ],
+  "started_at": "2026-10-14T01:47:08.247077+00:00",
+  "exit_code": 0,
+  "source_sha256": "a01fd3192ed66530aeac582ccb6f8a54972a70da0ff13cd1b4409c513c044dd0",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "stdout_sha256": "fc87e465ba356e65735b9fe608388f27f38e885122b4f4745334d945415e8f2e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

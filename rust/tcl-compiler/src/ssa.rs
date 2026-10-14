@@ -105,6 +105,16 @@ impl<'a> SsaInvocationContext<'a> {
         )
     }
 
+    /// Supplied source retains its own role owner; detached requested roles
+    /// are confined to the independently selected standalone utility route.
+    fn word_reads(self, scanner: &mut VarReferenceScanner, text: &str) -> BTreeSet<String> {
+        if self.standalone && scanner.standalone_roles_requested() {
+            scanner.scan_standalone_word(text, self.registry)
+        } else {
+            scanner.scan_lexical_word(text, self.registry)
+        }
+    }
+
     fn normal(
         self,
         tokens: &CommandTokens,
@@ -3513,7 +3523,7 @@ fn nonlocal_names_and_defsites(
             }
             Some(cfg::Terminator::Return { value, expr, .. }) => {
                 if let Some(v) = value {
-                    term_uses.extend(scanner.scan_word(v, registry));
+                    term_uses.extend(selection.word_reads(&mut scanner, v));
                 }
                 if let Some(e) = expr {
                     term_uses.extend(e.vars_element_qualified_with_config(scanner.lexer_config()));
@@ -3743,7 +3753,6 @@ fn uses_of_classified_in_context(
     scanner: &mut VarReferenceScanner,
     selection: SsaInvocationContext<'_>,
 ) -> Vec<(String, UseClass)> {
-    let registry = selection.registry;
     if !stmt.is_executable_invocation() {
         return Vec::new();
     }
@@ -3763,7 +3772,7 @@ fn uses_of_classified_in_context(
             let mut names = Vec::new();
             for (index, text) in tokens.argv_texts.iter().enumerate() {
                 if index == 0 || !tokens.arg_is_braced_literal(index - 1) {
-                    for name in scanner.scan_word(text, registry) {
+                    for name in selection.word_reads(scanner, text) {
                         let read = (name, UseClass::Substituted);
                         if !names.contains(&read) {
                             names.push(read);
@@ -3819,7 +3828,7 @@ fn uses_of_classified_in_context(
                 } else {
                     &mut found.substituted
                 };
-                sink.extend(scanner.scan_word(v, registry));
+                sink.extend(selection.word_reads(scanner, v));
             }
             if let Some(e) = expr {
                 found.substituted.extend(expr_vars_for(scanner, e));
@@ -3853,7 +3862,7 @@ fn uses_of_classified_in_context(
             // read even when an arm also defines it (`defs_of` may now report
             // the subject var as switch-defined). Without this the read-before-
             // def of the subject would be filtered out below.
-            for v in scanner.scan_word(subject, registry) {
+            for v in selection.word_reads(scanner, subject) {
                 reads_own_def.insert(v);
             }
         }
@@ -4063,15 +4072,16 @@ fn set_value_reads(
     value: &str,
     tokens: Option<&CommandTokens>,
     scanner: &mut VarReferenceScanner,
-    registry: &CommandRegistry,
+    selection: SsaInvocationContext<'_>,
 ) -> BTreeSet<String> {
+    let registry = selection.registry;
     // naming.variable.selected-setter-expression-reads
     // docs/design/analysis/name-resolution-proofs/variable-selected-setter-expression-reads.md
     // Queried commands already use original entered/conditional child owners
     // in scan_nested_substitution_words. A written head cannot add another
     // evaluator after that lookup has selected a different or unknown handler.
     if tokens.is_some_and(|tokens| tokens.source_binding.is_some()) {
-        return scanner.scan_word(value, registry);
+        return scanner.scan_lexical_word(value, registry);
     }
     let trimmed = value.trim();
     // The registry carries the expression-language profile; the scanner owns
@@ -4099,7 +4109,7 @@ fn set_value_reads(
                 .collect()
         };
     }
-    scanner.scan_word(value, registry)
+    selection.word_reads(scanner, value)
 }
 
 /// Variable reads of a [`Statement::Call`]: its head + non-body argument
@@ -4174,7 +4184,7 @@ fn uses_in_call(
         selection,
         tokens.as_ref(),
     ) {
-        for v in set_value_reads(value, tokens.as_ref(), scanner, registry) {
+        for v in set_value_reads(value, tokens.as_ref(), scanner, selection) {
             if defs.iter().any(|d| d.as_str() == v) {
                 reads_own_def.insert(v.clone());
             }
@@ -4272,7 +4282,6 @@ fn uses_in_assignment(
     by_name: &mut BTreeSet<String>,
     reads_own_def: &mut BTreeSet<String>,
 ) {
-    let registry = selection.registry;
     // A brace-quoted target's `$` is part of a literal name, not a
     // substitution: it is neither a dynamic target nor a read of the
     // `$`-less lookalike.
@@ -4291,7 +4300,7 @@ fn uses_in_assignment(
             name, name_braced, ..
         } => {
             if is_dynamic_write_target(name, *name_braced) {
-                vars_found.extend(scanner.scan_word(name, registry));
+                vars_found.extend(selection.word_reads(scanner, name));
             }
         }
         Statement::AssignExpr {
@@ -4302,7 +4311,7 @@ fn uses_in_assignment(
         } => {
             vars_found.extend(expr_vars_for(scanner, expr));
             if is_dynamic_write_target(name, *name_braced) {
-                vars_found.extend(scanner.scan_word(name, registry));
+                vars_found.extend(selection.word_reads(scanner, name));
             } else {
                 note_reads_own(name, *name_braced, scanner, vars_found, reads_own_def);
             }
@@ -4314,7 +4323,7 @@ fn uses_in_assignment(
             tokens,
             ..
         } => {
-            vars_found.extend(scanner.scan_word(value, registry));
+            vars_found.extend(selection.word_reads(scanner, value));
             // `scan_word` declines to substitute inside braces, exactly as the
             // *word* parser does — but a nested `[expr {$x + 1}]` substitutes
             // its own braced body, and that read is real. The call path has
@@ -4330,7 +4339,7 @@ fn uses_in_assignment(
                 by_name,
             );
             if is_dynamic_write_target(name, *name_braced) {
-                vars_found.extend(scanner.scan_word(name, registry));
+                vars_found.extend(selection.word_reads(scanner, name));
             } else {
                 note_reads_own(name, *name_braced, scanner, vars_found, reads_own_def);
             }
@@ -4343,7 +4352,7 @@ fn uses_in_assignment(
             ..
         } => {
             if is_dynamic_write_target(name, *name_braced) {
-                vars_found.extend(scanner.scan_word(name, registry));
+                vars_found.extend(selection.word_reads(scanner, name));
             } else {
                 // `incr a` names the cell it mutates; there is no `$a` word.
                 let norm = scanner.canonical_name_braced(name, *name_braced);
@@ -4355,7 +4364,7 @@ fn uses_in_assignment(
             // A braced amount substitutes nothing: `incr x {$n}` reads no
             // `n` (it raises `expected integer but got "$n"`).
             if let Some(amt) = amount.as_ref().filter(|_| !*amount_braced) {
-                vars_found.extend(scanner.scan_word(amt, registry));
+                vars_found.extend(selection.word_reads(scanner, amt));
             }
         }
         _ => {}
@@ -4392,7 +4401,8 @@ fn scan_command_words(
     out: &mut ClassifiedUses,
 ) {
     let registry = selection.registry;
-    out.substituted.extend(scanner.scan_word(command, registry));
+    out.substituted
+        .extend(selection.word_reads(scanner, command));
     let lookup = canonical_command.unwrap_or(command);
     let resolution = tokens.and_then(|tokens| selection.resolve(tokens));
     let facts = match resolution.as_ref() {
@@ -4445,7 +4455,7 @@ fn scan_command_words(
             continue;
         }
         let braced = tokens.is_some_and(|t| t.arg_is_braced_literal(idx));
-        for name in scanner.scan_word(arg, registry) {
+        for name in selection.word_reads(scanner, arg) {
             let class = braced_word_class(&BracedWordSite {
                 braced,
                 evaluated_in_frame: in_frame_braced.contains(&idx),
@@ -4600,7 +4610,7 @@ fn scan_nested_substitution_words(
                 // nothing to recover from it either.
                 _ => continue,
             };
-            substituted.extend(scanner.scan_word(braced, registry));
+            substituted.extend(selection.word_reads(scanner, braced));
         }
     }
 }
@@ -4797,9 +4807,8 @@ fn switch_reads(
     scanner: &mut VarReferenceScanner,
     selection: SsaInvocationContext<'_>,
 ) -> ClassifiedUses {
-    let registry = selection.registry;
     let mut reads = ClassifiedUses {
-        substituted: scanner.scan_word(subject, registry),
+        substituted: selection.word_reads(scanner, subject),
         quoted: BTreeSet::new(),
         by_name: BTreeSet::new(),
     };
@@ -4815,7 +4824,7 @@ fn switch_reads(
         } else {
             &mut reads.substituted
         };
-        pattern_sink.extend(scanner.scan_word(&arm.pattern, registry));
+        pattern_sink.extend(selection.word_reads(scanner, &arm.pattern));
         if let Some(body) = &arm.body {
             reads.merge(free_reads_in_script(body, scanner, selection));
         }
@@ -4874,7 +4883,6 @@ fn reads_in_stmt(
     scanner: &mut VarReferenceScanner,
     selection: SsaInvocationContext<'_>,
 ) -> ClassifiedUses {
-    let registry = selection.registry;
     let mut reads = ClassifiedUses::default();
     reads.merge_classified(uses_of_classified_in_context(stmt, scanner, selection));
     match stmt {
@@ -4924,7 +4932,7 @@ fn reads_in_stmt(
                 } else {
                     &mut reads.substituted
                 };
-                sink.extend(scanner.scan_word(&it.list_arg, registry));
+                sink.extend(selection.word_reads(scanner, &it.list_arg));
             }
             reads.merge(reads_in_script(body, scanner, selection));
         }
@@ -7127,6 +7135,26 @@ mod tests {
         );
         assert_eq!(
             scanner.scan_word("$lexical [info exists nominal]", registry),
+            BTreeSet::from(["lexical".to_owned()])
+        );
+        let mut requested = VarReferenceScanner::with_config(
+            VarScanOptions {
+                include_var_read_roles: true,
+                ..Default::default()
+            },
+            function.source_lexer_config(),
+        );
+        assert_eq!(
+            unavailable.word_reads(&mut requested, "$lexical [info exists nominal]"),
+            BTreeSet::from(["lexical".to_owned()])
+        );
+        assert!(
+            SsaInvocationContext::standalone(registry)
+                .word_reads(&mut requested, "$lexical [info exists nominal]")
+                .contains("nominal")
+        );
+        assert_eq!(
+            unavailable.word_reads(&mut requested, "$lexical [info exists nominal]"),
             BTreeSet::from(["lexical".to_owned()])
         );
     }
@@ -9383,8 +9411,13 @@ mod tests {
             ..VarScanOptions::default()
         });
         assert!(
-            set_value_reads("[::expr {$array(key) + 1}]", None, &mut scanner, &reg)
-                .contains("array(key)")
+            set_value_reads(
+                "[::expr {$array(key) + 1}]",
+                None,
+                &mut scanner,
+                SsaInvocationContext::standalone(&reg)
+            )
+            .contains("array(key)")
         );
     }
 

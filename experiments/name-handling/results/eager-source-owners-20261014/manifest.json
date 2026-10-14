@@ -1,0 +1,7 @@
+{
+  "validation": "rustfmt parsed, Main apply-check; no Cargo or assertions",
+  "apply_check": 0,
+  "patch_sha256": "6fe13669a755017545f47342103b1760774536c8e9ea926889e0d0df8fd1c526",
+  "before_sha256": "f197e79f6480953f656889db872d4d8058f1eb977b8c855ae987ee3654329c51",
+  "after_sha256": "513b6fb0dbf7c5a573d4d0235080a20899c5c54ffbb412b57c913eb7b87cb3c2"
+}

@@ -1,0 +1,153 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -658,6 +658,76 @@
+         } else {
+             OriginalSourceTransitionAdviceLookup::Unrepresented
+         }
++    }
++
++    /// Exact Logical catalogue words retain geometry without an entered invocation.
++    pub(crate) fn logical_original_word_at_span(
++        &self,
++        origin: &Arc<super::SourceOriginId>,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        span: tcl_lexer::Span,
++    ) -> Option<(NativeWord, u32)> {
++        input.has_logical_source_name_context().then_some(())?;
++        let image = origin.source_image();
++        let config = input.lexer_config();
++        let context = input.borrowed_context_registry();
++        let offsets = self
++            .advice
++            .keys()
++            .chain(self.body_catalogue.keys())
++            .copied()
++            .collect::<BTreeSet<_>>();
++        let mut selected = None;
++        for offset in offsets {
++            if self.blocks_registry_source(offset) {
++                continue;
++            }
++            let advice = if let Some(advice) = self.body_catalogue(offset) {
++                advice
++            } else {
++                match self.lookup(offset) {
++                    OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
++                    OriginalSourceTransitionAdviceLookup::Refused
++                    | OriginalSourceTransitionAdviceLookup::Unrepresented => continue,
++                }
++            };
++            if advice.site().offset != offset
++                || advice.original_words().first()?.span().start() != offset
++                || advice.site().source != *origin
++                || advice.logical_source_input() != Some(input)
++                || !advice.matches_source(image, config)
++                || !advice.matches_context(context)
++            {
++                continue;
++            }
++            let mut words = advice.original_words().iter().filter(|word| {
++                word.span() == span
++                    || word
++                        .tokens()
++                        .first()
++                        .is_some_and(|token| token.span == span)
++            });
++            let Some(word) = words.next() else {
++                continue;
++            };
++            if words.next().is_some() {
++                return None;
++            }
++            if let OriginalSourceTransitionAdviceLookup::Advice(original) = self.lookup(offset)
++                && original.original_words() != advice.original_words()
++            {
++                return None;
++            }
++            let current = (word.clone(), offset);
++            if selected
++                .as_ref()
++                .is_some_and(|previous| previous != &current)
++            {
++                return None;
++            }
++            selected = Some(current);
++        }
++        selected
+     }
+ 
+     pub(crate) fn declared_selection(
+--- a/rust/tcl-compiler/src/realm/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/realm/source_transition_advice.rs
+@@ -595,6 +595,34 @@
+         tokens: &crate::ir::CommandTokens,
+     ) -> Option<OriginalSourceCommandTransitionAdvice> {
+         self.original_catalogue_advice(input, tokens, false)
++    }
++
++    pub(super) fn original_logical_catalogue_word_at_span(
++        &self,
++        image: &tcl_lexer::SourceImage,
++        span: tcl_lexer::Span,
++        config: tcl_lexer::LexerConfig,
++    ) -> Option<(tcl_lexer::NativeWord, u32)> {
++        let input = self.source_input.as_ref()?;
++        if !input.has_logical_source_name_context()
++            || self.bindings.original_logical_source_name_advice_input() != Some(input)
++            || !self.matches_resolved_analysis_input(input)
++            || config != input.lexer_config()
++            || !self.matches_original_source_image(image, config)
++        {
++            return None;
++        }
++        let context = input.borrowed_context_registry();
++        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
++        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
++            self.bindings
++                .original_source_transition_advice_tape_for(context, purpose)
++        });
++        prepared.as_ref().as_ref()?.logical_original_word_at_span(
++            self.bindings.source_origin()?,
++            input,
++            span,
++        )
+     }
+ 
+     /// Exact original command extent from the shared source issuer. The caller
+--- a/rust/tcl-compiler/src/realm.rs
++++ b/rust/tcl-compiler/src/realm.rs
+@@ -332,8 +332,22 @@
+         span: tcl_lexer::Span,
+         config: tcl_lexer::LexerConfig,
+     ) -> Option<(tcl_lexer::NativeWord, u32)> {
+-        self.bindings
+-            .original_written_word_at_span_in_source(image, span, config)
++        let written = self
++            .bindings
++            .original_written_word_at_span_in_source(image, span, config);
++        if !self
++            .source_input
++            .as_ref()
++            .is_some_and(|input| input.has_logical_source_name_context())
++        {
++            return written;
++        }
++        let catalogue = self.original_logical_catalogue_word_at_span(image, span, config);
++        match (written, catalogue) {
++            (Some(written), Some(catalogue)) if written != catalogue => None,
++            (Some(written), _) => Some(written),
++            (None, catalogue) => catalogue,
++        }
+     }
+ 
+     /// Purpose-specific readonly C array operand root. Genuine whole-vector
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -3129,7 +3129,6 @@
+             let image = tcl_lexer::SourceImage::document(&self.source);
+             return self
+                 .head_identities
+-                .source_bindings_ref()
+                 .original_written_word_at_span_in_source(&image, span, config)
+                 .and_then(|(word, _)| {
+                     crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(

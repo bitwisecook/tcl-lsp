@@ -1,0 +1,9 @@
+{
+  "review.md": "aadb84fd7a669561ed27ed0548669b026135414cfb676a3b79080c0b3e32faec",
+  "implementation.patch": "508ef1aa110fad936e093882c925bd3a81155c465b38e4d89608b5c7294d1d7f",
+  "files.json": "edbc70dd865e01bba43bdf6fa44ec37d68c40a105c544019a5d064dc12e04e65",
+  "proposal/docs/design/contracts/shared-utility-contracts-rust.md": "03c612084933fa332ad3117a5c34802c44e0d3603d59bd4c65c8a2f2d5d91555",
+  "proposal/rust/tcl-compiler/src/var_escape/slot_resolution.rs": "57554bd5235109daf42d7f1f8acca3a48b458ea29def76c1e3900345b4d867f1",
+  "base/docs/design/contracts/shared-utility-contracts-rust.md": "363aaffa33a744667dedf5fe945d5c1970241e48f1918bbfe9e70bdb4c28cfaa",
+  "base/rust/tcl-compiler/src/var_escape/slot_resolution.rs": "e4bd9e97ad365a719ba7a2a0514744ca832d396c9f26e2e8b9fe6d358261e8f7"
+}

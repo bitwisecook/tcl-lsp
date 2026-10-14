@@ -730,11 +730,10 @@ impl Scan<'_> {
     /// ([`Module::declared_frame_effects`]).
     fn frame_reach(&mut self, head: &str) {
         let effect = self.registry.frame_effect(head).or_else(|| {
-            self.module
-                .declared_frame_effects
-                .get(&tcl_syntax::naming::normalise_qualified_name(head))
-                .copied()
-                .flatten()
+            crate::declared_frame_effects::declared_frame_effect_for_metadata(
+                &self.module.declared_frame_effects,
+                head,
+            )
         });
         if effect.is_some_and(|effect| effect.layout == FrameArgLayout::OpaqueCallerVars) {
             self.out.any = true;
@@ -767,7 +766,12 @@ impl Scan<'_> {
         };
         target.registry_backed
             && target.prepended.is_empty()
-            && target.command.trim_start_matches("::") == head.trim_start_matches("::")
+            && self.registry.get(head).is_some_and(|spec| {
+                tcl_registry::command_descriptor_labels_match(
+                    &target.command,
+                    spec.descriptor_key().label(),
+                )
+            })
     }
 
     /// The variables the registry says a command writes, destroys, binds or
@@ -907,7 +911,7 @@ mod tests {
     fn writes(source: &str) -> DeferredWrites {
         let context =
             crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
-        let profile = crate::environment_ingress::resolve_environment("tcl8.6").unit_profile();
+        let profile = crate::environment_ingress::resolve_environment("tcl").unit_profile();
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,

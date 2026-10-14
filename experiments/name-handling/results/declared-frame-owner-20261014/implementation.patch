@@ -1,0 +1,339 @@
+diff --git a/rust/tcl-registry/src/model/declaration.rs b/rust/tcl-registry/src/model/declaration.rs
+index 2c7b62a..a44eafd 100644
+--- a/rust/tcl-registry/src/model/declaration.rs
++++ b/rust/tcl-registry/src/model/declaration.rs
+@@ -607,6 +607,24 @@ impl<'a> DocumentCommandSurface<'a> {
+             .filter_map(|(name, command)| Some((name, command.plain_call_frame_effect()?)))
+     }
+ 
++    /// Selected declaration descriptor keys with their stated plain-call effect.
++    /// These metadata keys establish no runtime binding or entered frame.
++    pub fn plain_call_frame_effect_descriptor_keys(
++        &self,
++    ) -> impl Iterator<
++        Item = (
++            crate::CanonicalCommandDescriptorKey<'a>,
++            Option<FrameEffectSpec>,
++        ),
++    > {
++        self.plain_call_frame_effects().map(|(name, effect)| {
++            (
++                crate::CanonicalCommandDescriptorKey::from_registry_label(name),
++                effect,
++            )
++        })
++    }
++
+     /// The document's own declaration of `name`, when it has one — the row
+     /// every nearest-wins answer below reads first.
+     fn declaration(&self, name: &str) -> Option<&'a DeclaredCommand> {
+@@ -1220,6 +1238,13 @@ mod tests {
+                 ("db_query", None),
+             ]
+         );
++        assert_eq!(
++            document
++                .plain_call_frame_effect_descriptor_keys()
++                .map(|(key, effect)| (key.label(), effect))
++                .collect::<Vec<_>>(),
++            document.plain_call_frame_effects().collect::<Vec<_>>()
++        );
+         assert_eq!(
+             DocumentCommandSurface::new(registry, None)
+                 .plain_call_frame_effects()
+diff --git a/rust/tcl-compiler/src/lib.rs b/rust/tcl-compiler/src/lib.rs
+index 9d8fe08..28735a2 100644
+--- a/rust/tcl-compiler/src/lib.rs
++++ b/rust/tcl-compiler/src/lib.rs
+@@ -102,6 +102,7 @@ pub mod connection_scope;
+ pub mod const_subst;
+ pub mod dataflow_graph;
+ pub mod dead_stores;
++pub mod declared_frame_effects;
+ pub mod def_use;
+ mod deferred_writes;
+ mod depth_guard;
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+index 8aa3b60..1005527 100644
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -6915,16 +6915,12 @@ impl Lowerer<'_> {
+         let registry = self.registry;
+         let standalone_metadata = self.metadata_origin == LoweringMetadataOrigin::Standalone
+             && self.source_entry_origin == SourceEntryOrigin::Authoring;
+-        let declared_frame_effects = tcl_registry::model::DocumentCommandSurface::new(
++        let declared_frame_effects = crate::declared_frame_effects::collect_declared_frame_effects(
+             registry,
+             self.source_declared_commands
+                 .as_ref()
+                 .or(self.declared_commands),
+-        )
+-        .plain_call_frame_effects()
+-        .filter(|(name, _)| registry.get(name).is_none())
+-        .map(|(name, effect)| (tcl_syntax::naming::normalise_qualified_name(name), effect))
+-        .collect();
++        );
+         let mut module = self.module;
+         module.declared_frame_effects = declared_frame_effects;
+         module.source = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
+diff --git a/rust/tcl-compiler/src/dynamic_names.rs b/rust/tcl-compiler/src/dynamic_names.rs
+index bd81971..eb59ed8 100644
+--- a/rust/tcl-compiler/src/dynamic_names.rs
++++ b/rust/tcl-compiler/src/dynamic_names.rs
+@@ -701,10 +701,7 @@ impl<'a> Commands<'a> {
+     }
+ 
+     fn declared_frame_effect(self, command: &str) -> Option<FrameEffectSpec> {
+-        self.declared
+-            .get(&tcl_syntax::naming::normalise_qualified_name(command))
+-            .copied()
+-            .flatten()
++        crate::declared_frame_effects::declared_frame_effect_for_metadata(self.declared, command)
+     }
+ }
+ 
+diff --git a/rust/tcl-compiler/src/deferred_writes.rs b/rust/tcl-compiler/src/deferred_writes.rs
+index 9411d77..9ccdb8e 100644
+--- a/rust/tcl-compiler/src/deferred_writes.rs
++++ b/rust/tcl-compiler/src/deferred_writes.rs
+@@ -730,11 +730,10 @@ impl Scan<'_> {
+     /// ([`Module::declared_frame_effects`]).
+     fn frame_reach(&mut self, head: &str) {
+         let effect = self.registry.frame_effect(head).or_else(|| {
+-            self.module
+-                .declared_frame_effects
+-                .get(&tcl_syntax::naming::normalise_qualified_name(head))
+-                .copied()
+-                .flatten()
++            crate::declared_frame_effects::declared_frame_effect_for_metadata(
++                &self.module.declared_frame_effects,
++                head,
++            )
+         });
+         if effect.is_some_and(|effect| effect.layout == FrameArgLayout::OpaqueCallerVars) {
+             self.out.any = true;
+@@ -767,7 +766,12 @@ impl Scan<'_> {
+         };
+         target.registry_backed
+             && target.prepended.is_empty()
+-            && target.command.trim_start_matches("::") == head.trim_start_matches("::")
++            && self.registry.get(head).is_some_and(|spec| {
++                tcl_registry::command_descriptor_labels_match(
++                    &target.command,
++                    spec.descriptor_key().label(),
++                )
++            })
+     }
+ 
+     /// The variables the registry says a command writes, destroys, binds or
+diff --git a/rust/tcl-compiler/src/cfg_builder/mod.rs b/rust/tcl-compiler/src/cfg_builder/mod.rs
+index 9d9db4a..5200af2 100644
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -1250,11 +1250,16 @@ impl<'a> CfgBuilder<'a> {
+         {
+             return true;
+         }
+-        let own = tcl_syntax::naming::normalise_qualified_name(head);
++        let selected = self.registry.get(head);
+         bindings.targets(head, namespace).iter().any(|target| {
+             if !target.registry_backed
+                 || (target.prepended.is_empty()
+-                    && tcl_syntax::naming::normalise_qualified_name(&target.command) == own)
++                    && selected.is_some_and(|spec| {
++                        tcl_registry::command_descriptor_labels_match(
++                            &target.command,
++                            spec.descriptor_key().label(),
++                        )
++                    }))
+             {
+                 return false;
+             }
+diff --git a/rust/tcl-compiler/src/unit_scope.rs b/rust/tcl-compiler/src/unit_scope.rs
+index 3a49b52..4426ba6 100644
+--- a/rust/tcl-compiler/src/unit_scope.rs
++++ b/rust/tcl-compiler/src/unit_scope.rs
+@@ -1609,11 +1609,7 @@ fn record_unresolved_word_dispatch(
+     let Some(handler) = ctx.unresolved_handler else {
+         return;
+     };
+-    if ctx
+-        .registry
+-        .get(word.strip_prefix("::").unwrap_or(word))
+-        .is_some()
+-    {
++    if ctx.registry.get(word).is_some() {
+         return;
+     }
+     match args {
+diff --git a/rust/tcl-compiler/src/value_transfer.rs b/rust/tcl-compiler/src/value_transfer.rs
+index e386266..cb24d37 100644
+--- a/rust/tcl-compiler/src/value_transfer.rs
++++ b/rust/tcl-compiler/src/value_transfer.rs
+@@ -1450,11 +1450,7 @@ impl<'a> LatticeDriver<'a> {
+         };
+         self.context.tier == AnalysisTier::Deep
+             && !folds.mutations.rebinds_builtins()
+-            && (!self.trusted(head)
+-                || self
+-                    .registry
+-                    .get(head.strip_prefix("::").unwrap_or(head))
+-                    .is_none())
++            && (!self.trusted(head) || self.registry.get(head).is_none())
+     }
+ 
+     /// The stance a re-run this run asks for is solved under: its own.
+diff --git a/rust/tcl-compiler/src/ir.rs b/rust/tcl-compiler/src/ir.rs
+index 20ee4d0..949eea3 100644
+--- a/rust/tcl-compiler/src/ir.rs
++++ b/rust/tcl-compiler/src/ir.rs
+@@ -2927,7 +2927,7 @@ pub struct Module {
+ /// The commands a document declares whose declarations state their frame
+ /// effect and nothing a reader of the catalogue alone would miss
+ /// ([`tcl_registry::model::DeclaredCommand::plain_call_frame_effect`]), by
+-/// normalised qualified name, with the effect each states: `None` for one
++/// unambiguous descriptor metadata coordinate, with the effect each states: `None` for one
+ /// that crosses no frame (`-frame own`, `-frame none`), `argparse`'s
+ /// caller-frame effect for `-frame caller`.
+ ///
+diff --git a/docs/design/contracts/shared-utility-contracts-rust.md b/docs/design/contracts/shared-utility-contracts-rust.md
+index 4bdc232..e9cba49 100644
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -44,6 +44,7 @@ audits and inventory-writing modes do not satisfy that route.
+ | Original source value components | `rust/tcl-syntax/src/word_rules.rs`; `rust/tcl-compiler/src/const_subst.rs` | `original_word_unicode_value_with_variables`; `ConstSubstCtx::fold_original_source_substitution` | original document word, full lexer configuration, grouping and executable-part arena remain together; callbacks receive genuine variable components, unsupported command/index/value cases decline, and conditional readonly values supply no Native cell, observer absence, executable erasure or editable reference | `xtask-owner-resolution` |
+ | Source-owned analysis cache correspondence | `rust/tcl-compiler/src/body_analysis_capsule.rs` | `BodyAnalysisCapsule`; `BodyAnalysisCapsule::retain`; `BodyAnalysisCapsule::body_id`; `BodyLatticeInputs`; `BodyLatticeInputs::retain`; `BodyLatticeInputs::rebind_cached`; `BodyLatticeCommandBindings`; `BodyLatticeCommandBindings::bindings`; `BodySummaryInputs`; `BodySummaryInputs::retain` | genuine compilation, Module issuer, body ID, FunctionUnit and original source/input/configuration own every analysis; exact source and variable relocation or a closed registry-only Logical dependency certificate permit analytical reuse; cached results rebind onto the current owner and retain current proofs; missing/changed dependencies recompute, and analytical equality supplies no Native compiler, callable, frame, object or execution authority | `xtask-owner-resolution` |
+ | Typed event-body connection scope | `rust/tcl-compiler/src/connection_scope.rs` | `EventCell`; `ConnectionScope`; `ConnectionScope::handler_source_names`; `ConnectionScope::observes_cross_event_place`; `build_connection_scope`; `build_connection_scope_with_registry` | actual CompilationUnit/Module-issued handler IDs and independently retained event metadata preserve repeated event labels; resolved cells and supplied worker/interpreter/storage domains remain separate from report unions; written protection labels project only from the matching handler keys and establish no arbitrary event order or current value | `xtask-owner-resolution` |
++| Declared frame-effect metadata coordinates | `rust/tcl-registry/src/model/declaration.rs`; `rust/tcl-compiler/src/declared_frame_effects.rs`; `rust/tcl-compiler/src/dynamic_names.rs`; `rust/tcl-compiler/src/deferred_writes.rs` | `DocumentCommandSurface::plain_call_frame_effect_descriptor_keys`; `collect_declared_frame_effects`; `declared_frame_effect_for_metadata` | genuine selected document descriptor labels retain exact optional-root metadata coordinates; distinct colliding declarations withdraw assistance and selected registry commands retain precedence; standalone catalogue readers use this owner while original-source and entered Native frame evidence remain independent | `xtask-owner-resolution` |
+ | Conditional variable observation names | `rust/tcl-compiler/src/variable_observation_names.rs` | `VariableObservationNameSet`; `VariableProtectionPurpose`; `VariableWriteObservationPurpose`; `module_observation_key`; `variable_name_may_be_observed`; `record_variable_write_name` | explicit textual MAY inventories select module report-key, mixed exact/report or one-root native-lowering protection separately; deferred/global and outer-scope write projections retain their own aliases and array-root policies; decoded literal sigils, braces and empty variable names remain data, unknown inventories protect every name; exact VariableCellKey checks and genuine entered-Native observer guards remain independent, with no interpreted lookup, cell identity, callback-free state, absence or erasure permission | `xtask-owner-resolution` |
+ | APL variable convention | `rust/tcl-bigip/src/apl/variable_names.rs` | `tcl_var_to_apl_name`; `apl_name_to_tcl_var` | pure field convention delegates written root/qualifier geometry to Syntax; rooted and simple roots preserve lone colons while namespace-qualified roots decline; conventional export text is reporting only and supplies no appliance publication, native variable lookup or source-edit authority | `xtask-owner-resolution` |
+ | External script command inventory | `rust/tcl-syntax/src/naming/script_name_query.rs`; `rust/tcl-syntax/src/naming/script_command_inventory.rs`; `rust/tcl-cli/src/commands/spec_probe.rs` | `original_script_name_query_support`; `original_script_command_inventory_support`; `render_script` | real shell observations select query grammar without Native authority; C original simple words retain namespace context and checked root addressing; Jim uses its independent flat table; opaque or ambiguous inventory refuses as a whole; scanned registration literals remain unresolved authoring inputs | `xtask-owner-resolution` |
+diff --git a/rust/tcl-compiler/src/declared_frame_effects.rs b/rust/tcl-compiler/src/declared_frame_effects.rs
+new file mode 100644
+index 0000000..895a003
+--- /dev/null
++++ b/rust/tcl-compiler/src/declared_frame_effects.rs
+@@ -0,0 +1,123 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Document-declared frame metadata, separate from original source or runtime lookup.
++
++use crate::ir::DeclaredFrameEffects;
++use tcl_registry::model::{DeclaredSurface, DocumentCommandSurface};
++use tcl_registry::{CommandRegistry, FrameEffectSpec};
++
++/// Retain stated effects from unambiguous selected declaration descriptor keys.
++/// The registry's selected command takes precedence; conflicting descriptor
++/// coordinates withdraw metadata instead of choosing a binding by display text.
++#[must_use]
++pub fn collect_declared_frame_effects(
++    registry: &CommandRegistry,
++    declared: Option<&DeclaredSurface>,
++) -> DeclaredFrameEffects {
++    let surface = DocumentCommandSurface::new(registry, declared);
++    let effects: std::collections::BTreeMap<_, _> = surface
++        .plain_call_frame_effect_descriptor_keys()
++        .map(|(key, effect)| (key.label(), effect))
++        .collect();
++    tcl_registry::unique_command_descriptor_coordinates(surface.declared_descriptor_keys())
++        .filter(|(_, key)| registry.get(key.label()).is_none())
++        .filter_map(|(coordinate, key)| Some((coordinate, *effects.get(key.label())?)))
++        .collect()
++}
++
++/// Read catalogue-only frame metadata with the registry's descriptor coordinate.
++/// The caller must independently select a standalone metadata path; this cannot
++/// replace original source-schema selection or establish an entered Native frame.
++#[must_use]
++pub fn declared_frame_effect_for_metadata(
++    effects: &DeclaredFrameEffects,
++    label: &str,
++) -> Option<FrameEffectSpec> {
++    effects
++        .get(&tcl_registry::rooted_command_descriptor_label(label))
++        .copied()
++        .flatten()
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use tcl_dialect::model::Provenance;
++    use tcl_registry::model::{DeclaredCommand, DeclaredFrameEffect};
++
++    fn stated(name: &str) -> DeclaredCommand {
++        DeclaredCommand::new(name.to_owned(), Vec::new(), Provenance::Document).with_frame_effect(
++            DeclaredFrameEffect::Stated(Some(DeclaredFrameEffect::CALLER)),
++        )
++    }
++
++    #[test]
++    fn selected_declaration_coordinates_preserve_literal_geometry_and_withdraw_collisions() {
++        let registry =
++            tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::plain_tcl());
++        let mut declared = DeclaredSurface::new();
++        for label in [
++            "",
++            "NAME::",
++            "NAME:::member",
++            "::::NAME",
++            ":NAME",
++            "collision",
++            "::collision",
++        ] {
++            declared.declare(stated(label));
++        }
++        let effects = collect_declared_frame_effects(registry, Some(&declared));
++        for label in ["", "NAME::", "NAME:::member", "::::NAME", ":NAME"] {
++            assert_eq!(
++                declared_frame_effect_for_metadata(&effects, label),
++                Some(DeclaredFrameEffect::CALLER)
++            );
++        }
++        for label in [
++            "NAME",
++            "NAME::member",
++            "::NAME",
++            "collision",
++            "::collision",
++            "missing",
++        ] {
++            assert_eq!(declared_frame_effect_for_metadata(&effects, label), None);
++        }
++        assert_eq!(effects.len(), 5);
++    }
++
++    #[test]
++    fn unstated_colliding_declaration_and_selected_registry_command_withdraw_assistance() {
++        let registry =
++            tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::plain_tcl());
++        let mut declared = DeclaredSurface::new();
++        declared.declare(stated("expr"));
++        declared.declare(stated("::expr"));
++        declared.declare(stated("candidate"));
++        declared.declare(DeclaredCommand::new(
++            "::candidate".to_owned(),
++            Vec::new(),
++            Provenance::Document,
++        ));
++        declared.declare(DeclaredCommand::new(
++            "unstated".to_owned(),
++            Vec::new(),
++            Provenance::Document,
++        ));
++        declared.declare(
++            DeclaredCommand::new("own".to_owned(), Vec::new(), Provenance::Document)
++                .with_frame_effect(DeclaredFrameEffect::Stated(None)),
++        );
++        let effects = collect_declared_frame_effects(registry, Some(&declared));
++        assert_eq!(effects.len(), 1);
++        assert_eq!(effects.get("::own"), Some(&None));
++        assert_eq!(declared_frame_effect_for_metadata(&effects, "expr"), None);
++        assert_eq!(
++            declared_frame_effect_for_metadata(&effects, "candidate"),
++            None
++        );
++        assert!(collect_declared_frame_effects(registry, None).is_empty());
++    }
++}
