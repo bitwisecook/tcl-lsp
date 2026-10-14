@@ -60,14 +60,12 @@ impl OriginalSourceLinkedMember {
     #[must_use]
     pub fn editable_target_span(&self, source: &str) -> Option<Span> {
         let span = self.target_span?;
-        (self.invocation.matches_source(
-            &SourceImage::document(source),
-            self.target_input
-                .original_static_list_container()?
-                .parent_word()
-                .config(),
-        ) && source.as_bytes().get(span.as_range()) == Some(self.target_input.bytes())
-            && self.target_input.original_static_list_container().is_some())
+        let container = self.target_input.original_static_list_container()?;
+        let parent = container.parent_word();
+        let image = SourceImage::document(source);
+        (parent.image() == &image
+            && self.invocation.matches_source(&image, parent.config())
+            && source.as_bytes().get(span.as_range()) == Some(self.target_input.bytes()))
         .then_some(span)
     }
     /// Original target field, retaining static list ancestry for edit validation.

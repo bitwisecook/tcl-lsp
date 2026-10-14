@@ -1,0 +1,150 @@
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -4406,17 +4406,24 @@
+                     .map_or_else(|_| format!("<namespace token {}>", fr.ns.0), str::to_owned),
+             })
+             .collect();
+-        let mut variables: Vec<DebugVar> = self
+-            .frame_var_names(false)
+-            .into_iter()
+-            .map(|name| {
+-                let value = self
+-                    .get_var(&name)
+-                    .map(|v| v.to_str().to_string())
+-                    .unwrap_or_default();
+-                DebugVar { name, value }
+-            })
+-            .collect();
++        let mut variables: Vec<DebugVar> = self.frames.last().map_or_else(Vec::new, |frame| {
++            frame
++                .local_bindings()
++                .filter_map(|(name, id)| {
++                    let value = match self.var_arena.get(*id)?.state() {
++                        Local::Scalar(value) => value.to_str().to_string(),
++                        Local::Array(_) => String::new(),
++                        Local::Undefined | Local::Link(_) | Local::NameLink(_) => return None,
++                    };
++                    let bytes = name.as_bytes();
++                    let name = std::str::from_utf8(bytes).map_or_else(
++                        |_| tcl_bytecode::format::esc_bytes(bytes, usize::MAX),
++                        str::to_owned,
++                    );
++                    Some(DebugVar { name, value })
++                })
++                .collect()
++        });
+         variables.sort_by(|a, b| a.name.cmp(&b.name));
+         DebugSnapshot {
+             line,
+@@ -31689,3 +31696,51 @@
+ #[cfg(test)]
+ #[path = "interp/native_variable_inventory_policy_tests.rs"]
+ mod native_variable_inventory_policy_tests;
++
++
++#[cfg(test)]
++mod debug_owned_cell_tests {
++    use super::*;
++
++    #[test]
++    fn snapshot_reads_owned_cells_before_rendering_native_name_bytes() {
++        let mut vm = Vm::new();
++        vm.push_call_frame(Some("inspection".into()), Vec::new());
++        let array = VarBinding {
++            owner: VarTableOwner::Frame(vm.current_level()),
++            name: NameBytes::from(b"a".as_slice()),
++        };
++        vm.bind_new_var(&array, Local::Array(VarTable::new()));
++        for (name, value) in [
++            (b"a(k)".as_slice(), 11),
++            (b"::local", 12),
++            (b"", 13),
++            (b"opaque\xff", 14),
++            (b"opaque\\u00ff", 15),
++        ] {
++            vm.set_local_bytes(name, Value::int(value));
++        }
++        let snapshot = vm.debug_snapshot(7, "next");
++        let mut variables: Vec<_> = snapshot
++            .variables
++            .iter()
++            .map(|variable| (variable.name.as_str(), variable.value.as_str()))
++            .collect();
++        variables.sort();
++        assert_eq!(
++            variables,
++            vec![
++                ("", "13"),
++                ("::local", "12"),
++                ("a", ""),
++                ("a(k)", "11"),
++                ("opaque\\u00ff", "14"),
++                ("opaque\\u00ff", "15"),
++            ]
++        );
++        assert_eq!(snapshot.level, 1);
++        assert_eq!(snapshot.stack[0].name, "inspection");
++        vm.pop_call_frame();
++        assert!(vm.debug_snapshot(8, "after").variables.is_empty());
++    }
++}
+--- a/rust/tcl-debugger/src/backend.rs
++++ b/rust/tcl-debugger/src/backend.rs
+@@ -346,11 +346,15 @@
+         } else {
+             expression
+         };
+-        snap.variables
++        let mut matches = snap
++            .variables
+             .iter()
+-            .find(|v| v.name == name)
+-            .map(|v| v.value.clone())
+-            .ok_or_else(unsupported)
++            .filter(|variable| variable.name == name);
++        let variable = matches.next().ok_or_else(unsupported)?;
++        if matches.next().is_some() {
++            return Err(unsupported());
++        }
++        Ok(variable.value.clone())
+     }
+ 
+     fn terminate(&mut self) {
+@@ -490,6 +494,37 @@
+     }
+ 
+     #[test]
++    fn evaluate_refuses_ambiguous_captured_labels() {
++        let mut backend = launched("set x SCALAR\nset after 1\n");
++        backend.step_in().expect("capture the assignment");
++        let snapshot = &mut backend.trace[backend.cursor.unwrap()];
++        snapshot.variables.extend([
++            tcl_vm::debug::DebugVar {
++                name: "opaque\\u00ff".into(),
++                value: "BYTE".into(),
++            },
++            tcl_vm::debug::DebugVar {
++                name: "opaque\\u00ff".into(),
++                value: "TEXT".into(),
++            },
++        ]);
++        assert_eq!(backend.evaluate("$x").unwrap(), "SCALAR");
++        assert!(matches!(
++            backend.evaluate("opaque\\u00ff"),
++            Err(DebugError::Unsupported(_))
++        ));
++        assert_eq!(
++            backend
++                .variables(0)
++                .unwrap()
++                .iter()
++                .filter(|variable| variable.name == "opaque\\u00ff")
++                .count(),
++            2
++        );
++    }
++
++    #[test]
+     fn continue_stops_at_breakpoint() {
+         let mut b = launched("set a 1\nset b 2\nset c 3\nset d 4\n");
+         b.set_breakpoints(&[3]).expect("bp");

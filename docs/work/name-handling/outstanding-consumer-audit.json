@@ -2735,7 +2735,7 @@
         2260,
         2414
       ],
-      "status": "main-integrated; current-controls-have-failures",
+      "status": "main-integrated; Core32 OriginalScope9 six-pass-three-fail; current-level-repair-active",
       "action": "Latest Root report Core21 8pass6fail and originalScope9 4pass5fail; re-execute current namespace repair and genuine upframe/alias-prefix producers. These totals do not certify this individual row.",
       "owner_report_reference": "consumer_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -2780,27 +2780,11 @@
       },
       "replaced_baseline_consumer": "definition::uplevel_hides_scope removed and replaced by shared eligible_scopes advice in lookup_var_in_logical_scope; current actual source adapter is recorded.",
       "current_review": {
-        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
-        "basis": "Current source inspection plus Root 02:36 tracking and bounded Proofs/DB owner reports; not execution evidence",
-        "site_hashes": [
-          {
-            "path": "rust/tcl-lsp-core/src/definition.rs",
-            "sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2"
-          },
-          {
-            "path": "rust/tcl-lsp-core/src/definition.rs",
-            "sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2"
-          },
-          {
-            "path": "rust/tcl-lsp-core/src/definition.rs",
-            "sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2"
-          },
-          {
-            "path": "rust/tcl-lsp-core/src/definition.rs",
-            "sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2"
-          }
-        ]
-      }
+        "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+        "checkpoint_utc": "2026-10-14T03:59:00Z",
+        "basis": "Actual Main and Root source integration report; sealed captures describe earlier source only, repairs unexecuted."
+      },
+      "current_obligation": "Namespace04/nestedMethod03/customPrefix28 pass; current0 scope05/06/08 still fail. No original provider/rename closure claim."
     },
     {
       "id": "lsp-partial-array",
@@ -3941,12 +3925,14 @@
       ],
       "input_purpose": "Original read ownership versus lexical components and explicit standalone MAY assumptions",
       "shared_owner_api": "VarReferenceScanner::scan_lexical_word/scan_lexical_script; scan_standalone_word/scan_standalone_script; SsaInvocationContext::word_reads",
-      "status": "main-integrated; current-controls-unexecuted",
+      "status": "main-integrated; Compiler31 failures; conditional-source-repair-unexecuted",
       "action": "Default options already lexical. Actual supplied-source SSA cannot inherit standalone catalogue roles from a donated scanner; original selected children own by-name roles independently. Preserve unknown and opaque protections.",
       "current_review": {
-        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
-        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
-      }
+        "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+        "checkpoint_utc": "2026-10-14T03:59:00Z",
+        "basis": "Actual Main and Root source integration report; sealed captures describe earlier source only, repairs unexecuted."
+      },
+      "current_obligation": "Explicit lexical/Standalone scanner and independent original source roles; no Native Normal fallback."
     },
     {
       "id": "retained-terminator-and-index-read-consumers",
@@ -3967,12 +3953,14 @@
       ],
       "input_purpose": "Original SSA terminator/cell reads and retained child-read protection",
       "shared_owner_api": "place_bridge::terminator_read_places_at; OriginalProcedureSummaryOwners::children; scan_lexical_word",
-      "status": "main-integrated; current-controls-unexecuted",
+      "status": "main-integrated; Compiler31 slot failures; original-source-and-authentic-CU-fixture-repairs-unexecuted",
       "action": "Execute exact/foreign/unavailable/array-root/standalone controls. Unknown original reads retain all known cells; detached command text never creates a Native receipt or an unobserved cell.",
       "current_review": {
-        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
-        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
-      }
+        "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+        "checkpoint_utc": "2026-10-14T03:59:00Z",
+        "basis": "Actual Main and Root source integration report; sealed captures describe earlier source only, repairs unexecuted."
+      },
+      "current_obligation": "Compiler31 slot201-205 fail before represented returns/branch topology. Preserve existing exact/foreign/unavailable/array/nested-command and sweep assertions."
     },
     {
       "id": "frame-local-variable-policy",
@@ -3989,12 +3977,14 @@
       ],
       "input_purpose": "Source-local geometry under actual retained VariableLookupPolicy",
       "shared_owner_api": "source_variable_name_is_frame_local",
-      "status": "main-integrated; native-finite-probes-observed; compiled-frame-controls-unexecuted",
+      "status": "main-integrated; finite-oracles-observed; Compiler31 frame178 failure; authentic-source-repairs-unexecuted",
       "action": "Empty and literal dollar names remain distinct; retained C versus Jim policy governs relative qualifiers. Native finite C5/Jim observations retained in frame-local-name-geometry; F5 packet unanswered. These observations do not establish whole inlining admission.",
       "current_review": {
-        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
-        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
-      }
+        "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+        "checkpoint_utc": "2026-10-14T03:59:00Z",
+        "basis": "Actual Main and Root source integration report; sealed captures describe earlier source only, repairs unexecuted."
+      },
+      "current_obligation": "Actual plain-Tcl full input replaces manually selected Jim079 without authored naming policy; readonly original declaration/source context separate from Native splice/frame admission."
     },
     {
       "id": "ssa-literal-name-projections",
@@ -4007,18 +3997,14 @@
       ],
       "input_purpose": "Evaluated literal variable-name payload and retained empty-name role",
       "shared_owner_api": "normalise_var_name_braced(name,true); retained source roles",
-      "status": "main-integrated; current-controls-unexecuted",
+      "status": "main-integrated; Compiler31 04-206-207 failures; conditional-original-source-role-repair-unexecuted",
       "action": "Primary and downstream legal-empty classified read/definition plus selected barrier literal-dollar normalization are integrated. Current original info-exists/incr/loop/barrier and donated-scanner controls await fresh execution; option-empty disable semantics remain separate.",
       "current_review": {
-        "head": "be8a07ac57935f0c267eff37959bdf05d386e392",
-        "basis": "Actual current Main plus Root integration report; no compiled acceptance",
-        "site_hashes": [
-          {
-            "path": "rust/tcl-compiler/src/ssa.rs",
-            "sha256": "56898ceec7b8e62294ba2983aae1732c46cb7fbfef4567d34a42fa473d390ec6"
-          }
-        ]
-      }
+        "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+        "checkpoint_utc": "2026-10-14T03:59:00Z",
+        "basis": "Actual Main and Root source integration report; sealed captures describe earlier source only, repairs unexecuted."
+      },
+      "current_obligation": "Preserves legal empty/dollar name data; typed original Logical role/literal projection and braced naming exclusion separate from Native Normal/definition/store proof."
     },
     {
       "id": "core-graph-and-inlay-declaration-joins",
@@ -4035,13 +4021,15 @@
       ],
       "input_purpose": "Lexical-advice type/effect joins to genuine original declarations and issued bodies",
       "shared_owner_api": "original declaration/source_graph owners and ProcedureId",
-      "status": "main-integrated; current-controls-unexecuted",
+      "status": "main-integrated; Core32 bounded-controls-have-failures; body-unit-repair-unexecuted",
       "action": "Root integrated Core13: actual current CU, body-span declaration grouping and source_graph::procedure_body_for_declaration replace lexical normalized-name and label+offset joins. Repeated-declaration int/str control added; compiled acceptance pending.",
       "current_review": {
-        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
-        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
+        "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+        "checkpoint_utc": "2026-10-14T03:59:00Z",
+        "basis": "Actual Main and Root source integration report; sealed captures describe earlier source only, repairs unexecuted."
       },
-      "owner_report_reference": "/tmp/name-db-body-id-isolated-20261014/core-body-consumers-13/consumer-audit.json"
+      "owner_report_reference": "/tmp/name-db-body-id-isolated-20261014/core-body-consumers-13/consumer-audit.json",
+      "current_obligation": "Original source/allocation/body joins replace label inverses. Current body-unit coverage repaired; strict Native SSA hint failure cannot borrow Logical source metadata or UI reporting maps."
     },
     {
       "id": "diagnostic-parameter-source-joins",
@@ -4054,18 +4042,14 @@
       ],
       "input_purpose": "Parameter-report source spans from actual original ProcDef/body",
       "shared_owner_api": "Retained original declaration/formal source owner",
-      "status": "main-integrated; current-controls-unexecuted",
+      "status": "main-integrated; Compiler31 05-141-142 failures; genuine-formal-fixture-repair-unexecuted",
       "action": "W214 actual retained Module/body/ProcedureId/declaration_site/current input join is integrated. Native topology and separate Logical full-config original-word geometry retain tight ranges/quoted markers; escaped parent extents refused. Original C5 info-args names and Jim formal specifier reports retained separately; current W214/source controls unexecuted.",
       "current_review": {
-        "head": "be8a07ac57935f0c267eff37959bdf05d386e392",
-        "basis": "Actual current Main plus Root integration report; no compiled acceptance",
-        "site_hashes": [
-          {
-            "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
-            "sha256": "5f73d93cb718776c22e0a06a72c9f1051d3671a4c18fe32325df2fe7de84d0d2"
-          }
-        ]
-      }
+        "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+        "checkpoint_utc": "2026-10-14T03:59:00Z",
+        "basis": "Actual Main and Root source integration report; sealed captures describe earlier source only, repairs unexecuted."
+      },
+      "current_obligation": "Formal fixture selects genuine plain-Tcl authored source name input; retains source and all tight-span/quoted/escaped-parent/refusal assertions."
     },
     {
       "id": "f5-configuration-object-path-consumers",
@@ -4148,12 +4132,14 @@
       ],
       "input_purpose": "Original Logical alias captured operands and same-source invocation metadata",
       "shared_owner_api": "SourceCommandTarget::original_logical_prepended_name_inputs; full ResolvedAnalysisInput/SourceImage/LexerConfig",
-      "status": "main-integrated; original-finite-oracle-observed; current-Rust-controls-unexecuted",
+      "status": "main-integrated; Compiler31 directprefix143-PASS; closure-separate",
       "action": "State Eq/Hash/stamp/snapshot/join and actual alias/effective argv consumers retain captured inputs; foreign/changed/missing ownership declines. No Native/Normal/body entry/edit grant. Fresh Compiler30 controls pending.",
       "current_review": {
-        "head": "be8a07ac57935f0c267eff37959bdf05d386e392",
-        "basis": "Actual Main plus Root/owner report; no whole-family acceptance"
-      }
+        "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+        "checkpoint_utc": "2026-10-14T03:59:00Z",
+        "basis": "Actual Main and Root source integration report; sealed captures describe earlier source only, repairs unexecuted."
+      },
+      "current_obligation": "Root146 and root/current child148 PASS; source prefix currentness and exact captured inputs retained. No Native/Normal/edit grant."
     },
     {
       "id": "logical-deferred-complete-role-effects",
@@ -4170,12 +4156,14 @@
       ],
       "input_purpose": "Original parent/schema deferred source effects under full retained invocation context",
       "shared_owner_api": "AdviceInvocationContext; shared original_operand_effects",
-      "status": "main-integrated; original-finite-oracle-observed; current-Rust-controls-unexecuted",
+      "status": "main-integrated; Compiler31 effect147 unknown-command-negative-FAIL; residual-repair-unexecuted",
       "action": "Deferred Logical commands use shared effects only with complete roles and no immediate body. Unknown/incomplete/immediate-body cases keep prior conservative effects. Genuine root/current caller-body routing remains separately pending.",
       "current_review": {
-        "head": "be8a07ac57935f0c267eff37959bdf05d386e392",
-        "basis": "Actual Main plus Root/owner report; no whole-family acceptance"
-      }
+        "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+        "checkpoint_utc": "2026-10-14T03:59:00Z",
+        "basis": "Actual Main and Root source integration report; sealed captures describe earlier source only, repairs unexecuted."
+      },
+      "current_obligation": "Existing positive/currency/shadow/delete controls pass before unknown negative. Preserve conservative unavailable/unknown/incomplete body effect residuals."
     }
   ],
   "lsp_330_reconciliation": [
@@ -12936,12 +12924,12 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
-    "tracking_basis": "Root current-state/ledger03:13, actual Main, current Proofs/DB/Values reports; Runtime07 scoped76pass1fail/77, Compiler30 build stopped on three getter missing-docs lints, Root repair active.",
-    "scope": "Only explicitly refreshed actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and prior issue records remain unchanged; no old proof digest is renewed.",
-    "validation": "Runtime07 76PASS1FAIL(Jim binary command unavailable)/77 drift0; TypeScript current typecheck passes. Compiler29 built production dependencies but stopped before semantic controls at private Registry test API calls; corrections integrated. Compiler30 stopped before semantic execution on three missing-docs getter errors (Root repairing), source drift0. Fresh Compiler/Core, DB original cold/edit, Engine8/VM21, and real LSP/Electron controls pending. No whole-codebase/Native/F5/PR-ready acceptance.",
-    "source_write_policy": "Root-authorised documentation-only Main refresh; no Rust, runtime, experiments, scripts, specs, Cargo, Git commit or push by this agent.",
-    "proofs_current_report": "/tmp/name-consumer-current-audit-20261014/current-consumer-status.md",
-    "additional_bounded_families": "Proofs reports all nine additional audited families integrated: F5 policies, trace/deferred MAY protection, declared frame, frameless metadata, slot eligibility, authored path constants, BoundsMetadataContext, self dispatch and shared dynamic/user-tail classifiers. Independent owner-specific execution obligations remain."
+    "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
+    "checkpoint_utc": "2026-10-14T03:59:00Z",
+    "tracking_basis": "Root integration report and actual Main plus sealed Compiler31/Core32 and current Values/DB/Proofs bounded reports. Integrated repairs after captures remain unexecuted.",
+    "scope": "Only explicit current actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and issue records unchanged; no old proof digest renewed.",
+    "validation": "Compiler31 295=171PASS124FAIL, zero authored-source drift. Core32 30=20PASS10FAIL drift0; OriginalScope9 6PASS3FAIL and original14 11PASS3FAIL. Runtime07 77=76PASS1FAIL(Jim binary command unavailable), source/compiled/artifact drift0; paired current Jim replay pending. AI TypeScript typecheck PASS; LSP/Electron unexecuted. No whole-codebase/Native/F5/PR-ready acceptance.",
+    "source_write_policy": "Root-authorised three tracking documents only; no Rust/runtime/experiments/scripts/specs/Cargo/Git writes by this agent.",
+    "additional_bounded_families": "Nine earlier additional owner families remain integrated with independent current-source execution obligations. Current Native definition hints, source effects, OO linked-member references/editing, DB original reuse and paired Runtime replay remain active."
   }
 }

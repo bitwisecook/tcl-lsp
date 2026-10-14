@@ -1,42 +1,65 @@
-# Outstanding name consumer audit
+# Outstanding name lookup consumer audit
 
-Temporary current consumer checklist on `work`. The [JSON companion](outstanding-consumer-audit.json) retains the original bounded source snapshots, 63 package boundaries, 330 inherited LSP candidates, semantic rows and issue records. Its explicitly refreshed states supersede older dispositions only for the listed consumers; source inspection, integration and execution are separate. Package membership, visible shared calls and lexical search absence do not certify whole-codebase coverage.
+This is the bounded 03:59 UTC checkpoint on `work`. The machine inventory keeps
+47 actionable rows, the inherited 330 lexical LSP candidates and original issue
+and source observations. Package membership or lexical search absence does not
+certify semantic completion. [Current consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
+record each integrated owner and its remaining execution obligation.
 
-This refresh reads current Main and the Root03:13 tracking snapshot plus bounded Proofs/DB reports. Only these tracking documents are edited; no source, experiment or Cargo work is performed during the active capture. Root owns integration, validation, Git and final acceptance.
+## Current execution
 
-## Current migrated consumers and remaining work
-
-| Consumer | Current shared architecture | Completion obligation |
+| Capture | Actual result | Scope and remaining work |
 | --- | --- | --- |
-| Compiler procedure/body maps | Module-issued ProcedureId owns body storage, summaries and calls; original source/allocation joins select bodies. Public string callee APIs are test compatibility. | Current original body/currentness/collision controls; genuine upframe/body producers remain active. |
-| CFG/global/deferred summaries | OriginalProcedureSummaryOwners and the five-field PreparedCfgContext retain actual Module/Registry/original word correspondence. | Execute current upvar/parameter/global/deferred and exact-source controls; unavailable owners must remain conservative. |
-| Lowering/metadata/frame classifiers | DeclaredFrame, selected metadata/slot classifiers, SelfDispatch, URI/iRule bridges and all six audited lowering bridges are integrated. | Execute current consumer controls. Method ivar literal-data repair is integrated. Proofs class-variable actual-token source union is integrated; fixed controls are pending. Quiet actual Logical scalar-store body literals are integrated; evaluated operations withdraw. Native original-argument/shared reference delta is submitted; DB linked-member source owner migration remains. |
-| SSA read-purpose consumers | Explicit lexical/standalone script and word methods; actual SsaInvocationContext keeps supplied-source reads separate from protective catalogue assumptions. Default scanner options were already lexical. | Execute source-to-standalone-to-source controls; preserve original selected children, opacity and unknown reads. Audit additional evaluated literal-name projections. |
-| SSA literal names | Normal/nested by-name read payloads preserve literal dollar sigils; retained read roles preserve empty names. | Primary and downstream legal-empty read/definition and literal-dollar barrier projections integrated. Execute original empty/dollar info-exists/incr/loop/barrier controls without weakening expected names. |
-| Slot allocation/CFG/index reads | Retained point read places select existing SSA symbols; original child owners protect host writes; detached index words are lexical and nested command reads remain unknown. | Exact/foreign/unavailable/array-member/standalone controls; unknown reads retain all known cells. No new native receipt or positive slot-reuse authority. |
-| Inlining frame locality | Shared Syntax source_variable_name_is_frame_local consumes the actual retained C/Jim variable policy. Empty names are local and literal dollar names stay distinct. | Compiled source controls pending. Finite original C5/Jim probes retained at frame-local-name-geometry; F5 question packet unanswered. Native name observations do not establish whole inlining admission. |
-| DB/memo/CommonAOT | ProcedureId, genuine CU dependency capsules, exact workspace declaration ingress and actual caller/callee/Module/SSA owners are integrated; display helpers retired to fixtures. | Original cold/edit reuse counts and uncached comparisons remain mandatory. Capsule04 failed before the certificate on fixture name mode; submitted source-fixtures12 has no execution acceptance. |
-| Explorer/Diagram | Scoped issued body report keys preserve duplicate labels; Diagram selects current original source and unanimous issued bodies. | Current reporting/source/diagram controls and downstream schema coverage. |
-| Core graph/inlay type joins | Core13 authentic source/declaration/body joins replace lexical normalized-name and label+offset selection; original targeting remains independent. | Root integrated Core13: current CU/source_graph::procedure_body_for_declaration plus original body-span declaration groups replace label+offset and normalized-name joins; repeated-declaration int/str control added. Execution pending. |
-| Diagnostic formal spans | Actual declaration/body and full-source formal owners replace display lookup/manual list slicing. | W214 actual Module/body/ProcedureId/declaration site/current input, Native topology and separate Logical full-config original-word geometry, quoted/tight spans and escaped-parent range refusal are integrated; execution pending. |
-| LSP variable/source advice | Shared Logical scope/readonly navigation and namespace whole-word geometry integrated. | Root latest Core21 is8pass6fail; originalScope9 is4pass5fail. Re-run current namespace repair, genuine upframe/alias-prefix carriers and original #2286 witness. |
-| Registry name geometry | Math-function constructed holder/tail, private-namespace written components and dialect bootstrap written geometry already use shared Syntax owners. | Preserve exact descriptor/original Native guards and execute current affected consumers; prior prose marking manual splitters pending is superseded. |
-| Runtime/VM/Engine | Shared aliases, counted live slots/generations, namespace/registration geometry and original C insertion prerequisites integrated. | Root Runtime07:76PASS1FAIL of77 (Jim binary command unavailable), zero source/compiled/artifact drift. Six lowering and two Registry literal Native controls are scoped passes. Engine8/VM21 and original provider comparisons remain. |
-| F5 configuration paths | ObjectNamePolicy/object_name_candidates own reference alternatives, caller ordering and first-versus-unique policy across validators, graph/report/conversion/topology consumers. | Bounded software comparisons pass; unanswered appliance packet does not establish TMM object lookup. |
-| iRules/APL/debugger/tooling/AI/editors | Shared source event/profile/report owners, APL convention, debugger reference parsing and backend transports integrated in bounded slices. | Fresh crate/integration selectors, generated artifacts and all remaining surface roster reconciliation. Domain authoring/reporting policies cannot confer live Tcl binding or edits. |
+| Compiler31 | 295 controls: 171 PASS, 124 FAIL; zero authored-source drift. | Prefix143, root146, root/current148 and namespace currency01 pass. Actual global/upvar/deferred, SSA, frame, W214, slot and cache controls retain failures. Repairs integrated after this capture are unexecuted. |
+| Core32 | 30 controls: 20 PASS, 10 FAIL; zero authored-source drift. | OriginalScope9 is 6 PASS, 3 FAIL; original14 is 11 PASS, 3 FAIL. Namespace04, nested method03 and custom prefix28 pass. Current-level scope05/06/08, repeated type/colon and strict original SSA hint failures remain. |
+| Runtime07 | 77 controls: 76 PASS, 1 FAIL; zero source/compiled/artifact drift. | Jim binary command unavailable; paired current C/Jim provider replay pending. Scoped six-lowering and two Registry literal controls do not accept all Engine/VM consumers. |
+| AI/editor | Current TypeScript typecheck PASS. | Real LSP/Electron provider, language/currentness and unavailable-owner controls remain unexecuted. |
 
-## Execution and coverage limits
+## Integrated repairs awaiting replay
 
-Latest Root Compiler28 executes256 controls:149pass107fail, with zero authored-source drift. Subsequent migrations require fresh execution. Runtime07 completes77 controls:76PASS1FAIL (Jim binary command unavailable), zero original source/compiled/artifact drift. This scoped result does not accept every Compiler/Engine/VM consumer. Current strict moving-source audit reports1918 errors; semantic review, narrowly executed reseals and required gates remain. No whole-surface, Native or PR-ready acceptance follows.
+Original source-realm selection now uses the genuine readonly source advice
+purpose when no reached owner exists. The reached branch remains terminal; full
+original input, registry, source vector and closed declaration checks remain.
+This source correspondence grants no Native handler, Normal transfer or frame.
 
-The 52 workspace members, 11 excluded packages and editor/AI/report facades remain a reconciliation obligation. The 330 inherited LSP candidate rows are lexical candidates, not an audited completion count. Earlier per-file hashes and source snapshots in JSON are historical audit observations; the current_review/current_refresh fields do not renew old proof digests. The [consumer inventory](consumer-inventory.md), [current state](current-state.md), [implementation ledger](implementation-ledger.md) and actual receipts determine current obligations.
+SSA uses separate positively retained Logical source roles for literal by-name
+reads and original loop-name metadata. Braced name payloads retain empty names
+and dollar sigils without lexical substitution. Native definitions, completed
+stores and value forwarding keep their independent owners. Slot tests retain
+the actual compilation unit CFG and SSA rather than rebuilding detached
+Standalone graphs. Exact/foreign/unavailable/array/nested-command assertions
+remain unchanged and require replay.
 
-Naming scope remains #2286 and other wholly naming-related issues. Structured procedure/body maps (#1778), cache/slot lifetime, aliases/publication, source frame/cell purposes, mutable registration trust and original operand evidence need their own positive/refusal controls. Adjacent control-flow, framework, error metadata or provisioning work enters this task only where the naming cause is established.
+W214 formal controls and Logical inlining fixtures now use actual plain-Tcl full
+source input and its authored naming contract. Their prior projected Jim079
+profile had no authored naming policy and could not establish positive source
+naming geometry. Existing source and assertions remain intact. Inlining readonly
+source context accepts original declaration correspondence without fabricating
+a reached lookup; Native splice/admission remains separate.
 
-BIG-IP observations must arrive as actual same-branch answers. Keep unreached, unsupported and unavailable rows explicit; C/Jim and Rust software results do not establish F5 behaviour. Preserve original experiment sources, raw results, failures, legal attribution and provenance. Remove this temporary directory and references before the merge-ready PR; durable documentation describes the current contracts.
+Current body-unit source joins, server case/provider and transport corrections
+are integrated or completing integration at this checkpoint. Every subsequent
+patch needs current execution; old source hashes or passing captures are not
+renewed by these tracking updates. Deferred source-effect unknown-command
+residual, global/upvar/deferred effects, linked-member reference/edit hazards,
+strict Native SSA definition hints and DB original cold/edit reuse remain active.
 
-Proofs current report records nine additional bounded families integrated: F5 policies, trace/deferred MAY protection, declared-frame metadata, frameless metadata, slot eligibility, authored path constants, bounds metadata, self-dispatch and shared dynamic/user-tail classifiers. Their owner-specific closure tests remain current-source obligations. Syntax event-head shared geometry is integrated; original finite C5/Jim probes retained, Rust controls unexecuted.
+## Coverage and evidence limits
 
-Logical captured-prefix provenance and complete-role deferred source effects are integrated. The prefix API retains actual input/image/configuration across state joins and source/effective argv consumers; no Native, Normal, body entry or edit grant follows. Shared effects apply only to complete roles without immediate bodies; unknown/incomplete cases remain conservative. Root/current caller-body source routing remains active.
+The 52 workspace members, 11 excluded packages and editor/AI/report facades
+remain a surface reconciliation obligation. The 330 inherited LSP rows are
+lexical candidates. Earlier heads, source hashes, source snapshots, issue records
+and isolated audit states stay immutable in JSON. Only explicit current_review
+and current_refresh updates supersede bounded statuses; no old proof digest is
+renewed. The strict moving-source audit and required formatting, generation,
+consumer, cache and provider gates remain mandatory. There is no whole-surface,
+Native, F5 or PR-ready acceptance.
 
-AI source symbol consumers are integrated through the shared document provider with exact requested source/language and document version/currentness. Current TypeScript typecheck passes; real LSP/Electron controls are unexecuted. Provider unavailability remains unknown rather than proving an empty definition set. Compiler29 built production dependencies but stopped before semantic controls at two private Registry test API calls; public-ingress corrections are integrated and Compiler30 stops before semantic execution on three missing API docs for OriginalSourceFormalName getters; Root is adding minimal current docs, zero source drift.
+Naming scope is #2286 and other wholly naming-related issues. Source frame/cell
+purposes, aliases/publication, procedure/body identity, mutable registrations and
+original operand ownership need their own positive/refusal controls. Keep
+unavailable and unsupported observations explicit. BIG-IP answers must arrive
+from actual appliance runs in the same branch; C/Jim and software tests do not
+establish F5 behaviour. Preserve original sources, raw results, failures, legal
+attribution and provenance. Remove this temporary directory and its references
+before the merge-ready PR; durable documentation describes current contracts.

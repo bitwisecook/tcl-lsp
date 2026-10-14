@@ -1,0 +1,39 @@
+{
+  "runs": [
+    {
+      "selector": "interp::tests::native_jim_core_keeps_only_constructor_empty_roles",
+      "argv": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_runtime-432b850b1cb786b7",
+        "interp::tests::native_jim_core_keeps_only_constructor_empty_roles",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.46550782000122126,
+      "log": "test-01.log",
+      "log_sha256": "06c81f11395637893a3eb84dc10a36aeff12497f34b9de5a9054a28b376f866d"
+    },
+    {
+      "selector": "alias_registration_guest_nul_original_jim",
+      "argv": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/native_namespace_command_query-8e4ec7da00af2f01",
+        "alias_registration_guest_nul_original_jim",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "elapsed_seconds": 0.5657108980012708,
+      "log": "test-02.log",
+      "log_sha256": "079e1c166fabc4561e35d613ecc2e2f6d85c9a6a3012a2370017fdc20a4bda85"
+    }
+  ],
+  "attempted": 2,
+  "passed": 1,
+  "failed": 1,
+  "source_drift": {},
+  "compiled_input_drift": {},
+  "artifact_drift": {},
+  "scope": "Paired original Jim binary-dependent alias fixture and independent constructor absence control. Actual original source/expected bytes/assertions retained; full source/provider/dependency inventory required. Previous77 control capture remains76pass1fail."
+}

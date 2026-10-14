@@ -346,11 +346,15 @@ impl DebugBackend for VmBackend {
         } else {
             expression
         };
-        snap.variables
+        let mut matches = snap
+            .variables
             .iter()
-            .find(|v| v.name == name)
-            .map(|v| v.value.clone())
-            .ok_or_else(unsupported)
+            .filter(|variable| variable.name == name);
+        let variable = matches.next().ok_or_else(unsupported)?;
+        if matches.next().is_some() {
+            return Err(unsupported());
+        }
+        Ok(variable.value.clone())
     }
 
     fn terminate(&mut self) {
@@ -487,6 +491,37 @@ mod tests {
             );
         }
         assert_eq!(b.evaluate("$x").unwrap(), "SCALAR");
+    }
+
+    #[test]
+    fn evaluate_refuses_ambiguous_captured_labels() {
+        let mut backend = launched("set x SCALAR\nset after 1\n");
+        backend.step_in().expect("capture the assignment");
+        let snapshot = &mut backend.trace[backend.cursor.unwrap()];
+        snapshot.variables.extend([
+            tcl_vm::debug::DebugVar {
+                name: "opaque\\u00ff".into(),
+                value: "BYTE".into(),
+            },
+            tcl_vm::debug::DebugVar {
+                name: "opaque\\u00ff".into(),
+                value: "TEXT".into(),
+            },
+        ]);
+        assert_eq!(backend.evaluate("$x").unwrap(), "SCALAR");
+        assert!(matches!(
+            backend.evaluate("opaque\\u00ff"),
+            Err(DebugError::Unsupported(_))
+        ));
+        assert_eq!(
+            backend
+                .variables(0)
+                .unwrap()
+                .iter()
+                .filter(|variable| variable.name == "opaque\\u00ff")
+                .count(),
+            2
+        );
     }
 
     #[test]

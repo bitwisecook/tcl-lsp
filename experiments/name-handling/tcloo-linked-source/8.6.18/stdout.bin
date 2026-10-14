@@ -1,0 +1,16 @@
+IDENTITY 8.6.18
+AVAILABILITY TclOO 1 stockLink 0
+LINK single target target 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "target"}}
+LINK pair {shortcut target} shortcut 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "shortcut"}}
+LINK lone-colon {:shortcut target} :shortcut 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name ":shortcut"}}
+LINK absolute {::link_probe_root target} ::link_probe_root 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "::link_probe_root"}}
+LINK odd-leading {:::link_probe_root target} ::link_probe_root 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "::link_probe_root"}}
+LINK interior {nested:::shortcut target} nested::shortcut 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "nested::shortcut"}}
+LINK literal-marker {$literal target} {$literal} 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "$literal"}}
+LINK empty-alias {{} target} {} 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name ""}}
+LINK literal-target {targetAlias :target} targetAlias 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "targetAlias"}}
+LINK absolute-target-data {absoluteTargetAlias ::target} absoluteTargetAlias 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "absoluteTargetAlias"}}
+LINK empty-target {emptyTargetAlias {}} emptyTargetAlias 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "emptyTargetAlias"}}
+LINK invalid-empty-list {} absent 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "absent"}}
+LINK invalid-three-items {one two three} absent 0 {1 {invalid command name "link"} 0 {} 1 {invalid command name "absent"}}
+OUTSIDE 1 {invalid command name "::oo::Helpers::link"}

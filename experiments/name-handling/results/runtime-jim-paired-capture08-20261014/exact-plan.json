@@ -1,0 +1,10 @@
+[
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_runtime-432b850b1cb786b7",
+    "selector": "interp::tests::native_jim_core_keeps_only_constructor_empty_roles"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/native_namespace_command_query-8e4ec7da00af2f01",
+    "selector": "alias_registration_guest_nul_original_jim"
+  }
+]

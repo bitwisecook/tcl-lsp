@@ -2529,7 +2529,6 @@ mod tests {
         let (context_owner, unit) =
             crate::interprocedural::logical_completion_unit(source, "tcl8.6");
         let registry = context_owner.commands();
-        let prepared = crate::cfg_builder::prepare_cfg_context_bundle(&unit.ir_module, registry);
         let context = crate::value_transfer::AnalysisContextKey::for_module(
             &unit.command_mutations,
             registry,

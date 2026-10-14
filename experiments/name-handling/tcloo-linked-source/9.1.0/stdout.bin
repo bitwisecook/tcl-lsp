@@ -1,0 +1,16 @@
+IDENTITY 9.1.0
+AVAILABILITY TclOO 1 stockLink 1
+LINK single target target 0 {0 ::oo::Obj22::target 0 ::oo::Obj22::target 0 TARGET}
+LINK pair {shortcut target} shortcut 0 {0 ::oo::Obj23::shortcut 0 ::oo::Obj23::shortcut 0 TARGET}
+LINK lone-colon {:shortcut target} :shortcut 0 {0 ::oo::Obj24:::shortcut 0 {} 1 {invalid command name ":shortcut"}}
+LINK absolute {::link_probe_root target} ::link_probe_root 0 {0 ::link_probe_root 0 ::link_probe_root 0 TARGET}
+LINK odd-leading {:::link_probe_root target} ::link_probe_root 0 {0 :::link_probe_root 0 ::link_probe_root 0 TARGET}
+LINK interior {nested:::shortcut target} nested::shortcut 0 {0 ::oo::Obj27::nested:::shortcut 0 ::oo::Obj27::nested::shortcut 0 TARGET}
+LINK literal-marker {$literal target} {$literal} 0 {0 {::oo::Obj28::$literal} 0 {::oo::Obj28::$literal} 0 TARGET}
+LINK empty-alias {{} target} {} 0 {0 ::oo::Obj29:: 0 ::oo::Obj29:: 0 TARGET}
+LINK literal-target {targetAlias :target} targetAlias 0 {0 ::oo::Obj30::targetAlias 0 ::oo::Obj30::targetAlias 0 LONE_TARGET}
+LINK absolute-target-data {absoluteTargetAlias ::target} absoluteTargetAlias 0 {0 ::oo::Obj31::absoluteTargetAlias 0 ::oo::Obj31::absoluteTargetAlias 0 ABSOLUTE_TARGET_DATA}
+LINK empty-target {emptyTargetAlias {}} emptyTargetAlias 0 {0 ::oo::Obj32::emptyTargetAlias 0 ::oo::Obj32::emptyTargetAlias 0 EMPTY_TARGET}
+LINK invalid-empty-list {} absent 0 {1 {bad link description; must only have one or two elements} 0 {} 1 {invalid command name "absent"}}
+LINK invalid-three-items {one two three} absent 0 {1 {bad link description; must only have one or two elements} 0 {} 1 {invalid command name "absent"}}
+OUTSIDE 1 {::oo::Helpers::link may only be called from inside a method}

@@ -1,0 +1,41 @@
+{
+  "runtime": [
+    "interp::tests::native_jim_core_keeps_only_constructor_empty_roles"
+  ],
+  "query": [
+    "alias_registration_guest_nul_original_jim"
+  ],
+  "engine_host_guest_if_budget_permits": [
+    "what_was_set_up_survives_a_trap",
+    "root_replay_retains_original_publication_and_removal_bytes_after_a_trap",
+    "callback_replay_keeps_actual_namespace_components_and_original_operation_bytes",
+    "installed_receipts_keep_renamed_hosts_and_remove_old_name_replacements",
+    "compiled_receipts_refuse_foreign_and_replaced_handles_before_effects",
+    "counted_publication_and_guest_completions_preserve_opaque_bytes",
+    "host_refusal_bypasses_guest_catch_and_keeps_prior_effects"
+  ],
+  "scope": "Paired original Jim binary-dependent alias fixture and independent constructor absence control. Actual original source/expected bytes/assertions retained; full source/provider/dependency inventory required. Previous77 control capture remains76pass1fail.",
+  "cache_budget_bytes": 1288490188,
+  "shared_registry": [],
+  "engine_wasm": [
+    "what_was_set_up_survives_a_trap",
+    "root_replay_retains_original_publication_and_removal_bytes_after_a_trap",
+    "callback_replay_keeps_actual_namespace_components_and_original_operation_bytes",
+    "installed_receipts_keep_renamed_hosts_and_remove_old_name_replacements",
+    "compiled_receipts_refuse_foreign_and_replaced_handles_before_effects",
+    "counted_publication_and_guest_completions_preserve_opaque_bytes",
+    "host_refusal_bypasses_guest_catch_and_keeps_prior_effects",
+    "a_host_command_s_completion_is_the_one_it_names"
+  ],
+  "validation_rules": [
+    "Rebuild Runtime --lib and --test native_namespace_command_query with --features engine using jobs=1",
+    "Extract executable paths from that build; verify every exact selector is present with --list",
+    "Capture source before/after and complete compiled .d-input closure, including all provider inputs and libraries",
+    "Every attempt runs original assertions; old Jim binary-format and Logical retained-import failures remain explicit if unrepaired",
+    "Engine run requires fresh host/guest artifacts and independent closure; settle every WASM budget and owned original result",
+    "Only start Cargo with Root heavy-build lease"
+  ],
+  "runtime_count": 1,
+  "query_count": 1,
+  "native_total": 2
+}

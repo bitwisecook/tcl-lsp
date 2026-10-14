@@ -4028,7 +4028,8 @@ impl CompilationUnit {
         self
     }
 
-    /// Select the current top-level unit (`None`) or a Module-issued procedure body.
+    /// Select the current top-level unit (`None`) or a Module-issued procedure,
+    /// method or selected body unit through its matching actual store.
     /// Foreign IDs and function units with a mismatched body stamp are unavailable.
     #[must_use]
     pub fn function_for_body(&self, body: Option<crate::ir::ProcedureId>) -> Option<&FunctionUnit> {

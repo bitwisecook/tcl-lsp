@@ -37,6 +37,7 @@ use crate::var_observability::{State, stmt_gen_with_metadata_context};
 
 /// Exact borrowed input for conditional global/caller-frame source summaries.
 struct GlobalWriteSemantics<'a> {
+    module: Option<&'a Module>,
     registry: &'a tcl_registry::CommandRegistry,
     aliases: &'a ModuleCommandBindings,
     selection: InvocationMetadataInput<'a>,
@@ -193,6 +194,7 @@ impl<'a> GlobalWriteSemantics<'a> {
         let metadata = InvocationMetadataContext::for_module(registry, module)?;
         let input = metadata.source_analysis_input()?;
         Some(Self {
+            module: Some(module),
             registry,
             aliases,
             selection: InvocationMetadataInput::SuppliedSource(Some(input)),
@@ -344,7 +346,7 @@ pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
     aliases: &'a ModuleCommandBindings,
     namespace: &str,
     procedures: &HashMap<crate::ir::ProcedureId, GlobalWriteInfo>,
-    owners: &super::OriginalProcedureSummaryOwners,
+    owners: &'a super::OriginalProcedureSummaryOwners,
     metadata: Option<InvocationMetadataContext<'a>>,
     config: tcl_lexer::LexerConfig,
 ) -> GlobalWriteInfo {
@@ -361,6 +363,7 @@ pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
         };
     };
     let semantics = GlobalWriteSemantics {
+        module: owners.module(registry),
         registry,
         aliases,
         selection: if metadata.is_standalone() {
@@ -387,6 +390,7 @@ pub(crate) fn own_frame_global_writes_standalone(
     config: tcl_lexer::LexerConfig,
 ) -> GlobalWriteInfo {
     let semantics = GlobalWriteSemantics {
+        module: None,
         registry,
         aliases,
         selection: InvocationMetadataInput::Standalone,
@@ -578,9 +582,14 @@ fn collect_global_frame_effects_in_frame(
                 collect_global_frame_effects_in_frame(body, semantics, namespace, false, info);
                 continue;
             }
-            Statement::Call { .. } | Statement::Barrier { .. } => {
-                record_selected_global_body(stmt, semantics, namespace, in_global_frame, info)
-            }
+            Statement::Call { .. } | Statement::Barrier { .. } => record_selected_global_body(
+                stmt,
+                script.retained_source_tokens_for_statement(stmt),
+                semantics,
+                namespace,
+                in_global_frame,
+                info,
+            ),
             _ => {}
         }
         let execution_namespace = crate::ir_helpers::ExecutionNamespace::exact(namespace);
@@ -605,12 +614,17 @@ fn collect_global_frame_effects_in_frame(
 
 fn record_selected_global_body(
     stmt: &Statement,
+    tokens: Option<&crate::ir::CommandTokens>,
     semantics: &GlobalWriteSemantics<'_>,
     namespace: &str,
     in_global_frame: bool,
     info: &mut GlobalWriteInfo,
 ) {
     use tcl_registry::frame_effect::FrameLevel;
+    if semantics.logical_source() {
+        record_original_logical_global_body(tokens, semantics, in_global_frame, info);
+        return;
+    }
     let registry = semantics.registry;
     let aliases = semantics.aliases;
     let execution_namespace = ExecutionNamespace::exact(namespace);
@@ -649,6 +663,72 @@ fn record_selected_global_body(
             | ResolvedFrameBody::Opaque { .. } => {}
         }
     }
+}
+
+fn record_original_logical_global_body(
+    tokens: Option<&crate::ir::CommandTokens>,
+    semantics: &GlobalWriteSemantics<'_>,
+    in_global_frame: bool,
+    info: &mut GlobalWriteInfo,
+) {
+    use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution};
+    let Some((tokens, module, metadata)) = tokens
+        .zip(semantics.module)
+        .zip(semantics.metadata)
+        .map(|((tokens, module), metadata)| (tokens, module, metadata))
+    else {
+        info.opaque_global_frame = true;
+        return;
+    };
+    let Some(invocation) =
+        crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
+            semantics.registry,
+            metadata,
+            tokens,
+        )
+    else {
+        // Direct-call closure and variable footprints keep their independent
+        // unknown-target obligations; this pass adds selected script effects.
+        return;
+    };
+    let Some(layout) = invocation.layout().filter(|layout| {
+        matches!(
+            layout,
+            FrameArgLayout::ScriptInCurrentFrame | FrameArgLayout::ScriptInSelectedFrame
+        )
+    }) else {
+        return;
+    };
+    let (level, start) = match invocation.arguments() {
+        Some(FrameArgumentResolution::Valid {
+            level,
+            level_word_len,
+        }) => (level, invocation.offset() + level_word_len),
+        Some(FrameArgumentResolution::Invalid) => return,
+        Some(FrameArgumentResolution::Unknown) | None => {
+            info.opaque_global_frame |=
+                layout == FrameArgLayout::ScriptInSelectedFrame || in_global_frame;
+            return;
+        }
+    };
+    let selected_global = if layout == FrameArgLayout::ScriptInCurrentFrame {
+        in_global_frame
+    } else {
+        level.is_global_frame() || (level.is_current_frame() && in_global_frame)
+    };
+    if !selected_global {
+        return;
+    }
+    if invocation.count() != start + 1 {
+        info.opaque_global_frame = true;
+        return;
+    }
+    let Some(body) = invocation.source_body(module, semantics.registry, tokens, start) else {
+        info.opaque_global_frame = true;
+        return;
+    };
+    record_global_upframe_body(&body, semantics, info);
+    collect_global_frame_effects_in_frame(&body, semantics, "::", true, info);
 }
 
 fn record_global_upframe_body(
@@ -1157,6 +1237,7 @@ pub(super) fn script_value_write_projection_with_metadata_context(
     project_script_writes(
         script,
         &GlobalWriteSemantics {
+            module: None,
             registry,
             aliases,
             selection: if metadata.is_standalone() {

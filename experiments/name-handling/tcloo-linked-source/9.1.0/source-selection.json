@@ -1,0 +1,6 @@
+{
+  "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+  "original_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+  "selected_sha256": "3934a401f8b1abe657823942352968a2673e66c4fc244f72f9fa6da73d630739",
+  "selection": "TclOOLinkObjCmd implementation selected from the unchanged original native source; whole original source hash retained."
+}

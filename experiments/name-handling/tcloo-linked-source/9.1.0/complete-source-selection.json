@@ -1,0 +1,8 @@
+{
+  "original_file": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+  "original_sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+  "start_byte": 37811,
+  "end_byte": 39973,
+  "selection_sha256": "a040941b90d304d0f888b330ae9ae0b3052bdd65bdf9de3dbe3a65c24a1ecb72",
+  "selection": "Complete original TclOOLinkObjCmd function, ending at its original form-feed function boundary."
+}
