@@ -2299,7 +2299,8 @@ fn fold_original_static_substrings(
     input: &tcl_compiler::analyser::ResolvedAnalysisInput,
 ) -> (String, usize, BTreeMap<String, String>) {
     let analysis = original::analysis_with_input(source, input);
-    let registry = input.context_registry().commands();
+    let context = input.context_registry();
+    let registry = context.commands();
     let Some(unit) =
         crate::original_invocation::source_compilation_unit(source, &analysis, registry)
     else {

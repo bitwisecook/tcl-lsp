@@ -29,6 +29,11 @@ SSA lexical facade keeps private rebasing inside compiler and preserves the sepa
 physical read/erasure guards; fresh MCP execution remains required.
 No MCP semantic acceptance follows from provider metadata success.
 
+Compiler90 seals12:44:33 with build101, zero semantic controls and zero source
+drift. Minifier borrows a Registry through a temporary context Arc (E0716); the
+repair must retain that actual context or use its existing borrowed accessor.
+No current consumer assertion has run in this scope.
+
 Compiler88 builds and seals113 controls:96 PASS/17 nonpassing (13 assertion failures,
 three depth SIGABRTs and one analyser-cap timeout), zero source drift and no missing
 or empty selectors. Current source also integrates scalar-only CFG name-data projection and nonrecursive
