@@ -1,0 +1,16 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar ... 
+thread 'cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar' (266026) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1673:9:
+assertion failed: detect_global_write_procs_with_registry(&module,
+                &registry)[&summary_id(&module, "::p")].names.contains("g")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.29s
+

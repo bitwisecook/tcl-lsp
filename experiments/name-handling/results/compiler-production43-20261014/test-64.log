@@ -1,0 +1,17 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::non_mutating_alias_alternative_preserves_the_incoming_binding ... 
+thread 'cfg_builder::global_write_info::tests::non_mutating_alias_alternative_preserves_the_incoming_binding' (265975) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1434:9:
+assertion `left == right` failed: authored fixture summary "::p" must identify one body
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::non_mutating_alias_alternative_preserves_the_incoming_binding
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.30s
+

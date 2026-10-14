@@ -1,0 +1,15 @@
+
+running 1 test
+test inlining::frame::tests::a_command_that_takes_a_name_runs_a_script_or_is_unknown_is_beyond_them ... 
+thread 'inlining::frame::tests::a_command_that_takes_a_name_runs_a_script_or_is_unknown_is_beyond_them' (266394) panicked at rust/tcl-compiler/src/inlining/frame.rs:891:13:
+[string is integer -failindex bad $s]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlining::frame::tests::a_command_that_takes_a_name_runs_a_script_or_is_unknown_is_beyond_them
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.02s
+

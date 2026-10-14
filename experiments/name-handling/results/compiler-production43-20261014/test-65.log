@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::original_global_alias_writes_keep_empty_local_and_remote_names ... 
+thread 'cfg_builder::global_write_info::tests::original_global_alias_writes_keep_empty_local_and_remote_names' (265977) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1555:13:
+upvar #0 {} local; set local VALUE
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::original_global_alias_writes_keep_empty_local_and_remote_names
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.31s
+

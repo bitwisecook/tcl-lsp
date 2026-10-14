@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::variable_declaration_without_value_is_not_a_write ... 
+thread 'cfg_builder::global_write_info::tests::variable_declaration_without_value_is_not_a_write' (266081) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1982:9:
+assertion failed: info[&summary_id(&m, "::p")].is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::variable_declaration_without_value_is_not_a_write
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.31s
+

@@ -97,9 +97,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use tcl_registry::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel};
-use tcl_registry::{
-    ArgRole, CommandRegistry, InvocationArgument, InvocationArguments, InvocationWord,
-};
+use tcl_registry::{CommandRegistry, InvocationArgument, InvocationArguments, InvocationWord};
 
 use crate::command_binding::{
     ModuleCommandBindings, ResolvedBindingInvocation, ResolvedFrameBody, ResolvedFrameBodySelection,

@@ -1,0 +1,6 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::dynamic_namespace_alias_target_widens_the_global_frame ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.28s
+

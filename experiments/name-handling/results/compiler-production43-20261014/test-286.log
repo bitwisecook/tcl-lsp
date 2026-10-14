@@ -1,0 +1,6 @@
+
+running 1 test
+test var_resolve::tests::existence_proof_distinguishes_unknown_formal_contents_from_missing_cell ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.06s
+

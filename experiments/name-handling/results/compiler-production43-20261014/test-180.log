@@ -1,0 +1,17 @@
+
+running 1 test
+test deferred_writes::tests::a_lambda_a_callback_applies_writes_what_its_body_writes_globally ... 
+thread 'deferred_writes::tests::a_lambda_a_callback_applies_writes_what_its_body_writes_globally' (266378) panicked at rust/tcl-compiler/src/deferred_writes.rs:1168:13:
+assertion `left == right` failed: after 10 {apply {{} {global done; set done 1}}}
+  left: []
+ right: ["done"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_lambda_a_callback_applies_writes_what_its_body_writes_globally
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.30s
+

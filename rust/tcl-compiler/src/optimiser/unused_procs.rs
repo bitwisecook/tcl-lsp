@@ -62,7 +62,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         ir_module
             .source_metadata_input
             .as_ref()
-            .map(|input| input.borrowed_context_registry().commands())
+            .map(|input| input.borrowed_context_registry().commands().as_ref())
     }) else {
         return;
     };

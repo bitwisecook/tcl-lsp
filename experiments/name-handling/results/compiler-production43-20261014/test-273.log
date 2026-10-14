@@ -1,0 +1,6 @@
+
+running 1 test
+test var_refs::tests::source_name_roles_preserve_literal_sigils_and_empty_names ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.50s
+

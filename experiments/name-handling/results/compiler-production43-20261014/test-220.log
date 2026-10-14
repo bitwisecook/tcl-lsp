@@ -1,0 +1,15 @@
+
+running 1 test
+test optimiser::unused_procs::tests::event_reporting_name_cannot_turn_request_handler_into_rule_init_library ... 
+thread 'optimiser::unused_procs::tests::event_reporting_name_cannot_turn_request_handler_into_rule_init_library' (266469) panicked at rust/tcl-compiler/src/optimiser/unused_procs.rs:358:9:
+assertion failed: ctx.optimisations.iter().any(|candidate| candidate.code == DiagCode::O124)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    optimiser::unused_procs::tests::event_reporting_name_cannot_turn_request_handler_into_rule_init_library
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.13s
+

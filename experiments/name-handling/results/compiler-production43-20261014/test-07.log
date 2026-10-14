@@ -1,0 +1,15 @@
+
+running 1 test
+test analyser::diagnostics::tests::w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers ... 
+thread 'analyser::diagnostics::tests::w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers' (265782) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11564:5:
+independent dispatcher namespace must retain each unused peer parameter: [Diagnostic { subject: None, code: W307, span: Span { start: 168, end: 172 }, message: "Non-literal command name — cannot statically analyse", severity: Warning, fixes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.58s
+

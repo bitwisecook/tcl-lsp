@@ -1,0 +1,16 @@
+
+running 1 test
+test source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning ... 
+thread 'source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning' (266503) panicked at rust/tcl-compiler/src/source_graph.rs:384:9:
+assertion failed: result.diagnostics.iter().any(|diagnostic|
+        diagnostic.code == tcl_core_types::DiagCode::Irule4001)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.39s
+

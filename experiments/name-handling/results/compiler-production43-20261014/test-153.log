@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::upvar_info::tests::uplevel_of_a_side_effect_free_command_has_no_caller_effect ... 
+thread 'cfg_builder::upvar_info::tests::uplevel_of_a_side_effect_free_command_has_no_caller_effect' (266233) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2677:9:
+got UpvarInfo { literal_targets: {}, param_targets: {}, args_tail_upvar: [], has_unresolvable_caller_target: false, uplevel_literal_writes: {}, uplevel_param_writes: {}, uplevel_forwarded_calls: [], caller_frame_opaque_writes: true, caller_frame_opaque_reads: true, unnameable_local_aliases: {}, frame_reach: NoFurtherThanTheCaller, plain_calls: {}, param_defaults: {} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::upvar_info::tests::uplevel_of_a_side_effect_free_command_has_no_caller_effect
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.17s
+

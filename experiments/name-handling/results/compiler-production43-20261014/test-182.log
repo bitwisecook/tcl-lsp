@@ -1,0 +1,15 @@
+
+running 1 test
+test deferred_writes::tests::an_alias_target_and_the_words_after_it_are_one_command ... 
+thread 'deferred_writes::tests::an_alias_target_and_the_words_after_it_are_one_command' (266382) panicked at rust/tcl-compiler/src/deferred_writes.rs:1324:13:
+interp alias {} safe {} string length: DeferredWrites { names: {}, any: true }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::an_alias_target_and_the_words_after_it_are_one_command
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.24s
+

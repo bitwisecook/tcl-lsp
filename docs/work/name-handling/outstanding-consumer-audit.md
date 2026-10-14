@@ -144,6 +144,16 @@ zero. Narrow current-owner proof records are integrated without renewing origina
 provider/evidence/source/replay fields or resolving their changed-source digests.
 
 Event/provider, readonly source value, upvar protection and F5 selected parameter
-getter consumers are integrated; the dead lexical adapter is retired. Formatting
-is running before fresh Compiler41, which has no result yet. Retained original
+getter consumers are integrated; the dead lexical adapter is retired. Formatting is complete before fresh Compiler43; its bounded results remain partial. Retained original
 binaries and hashes remain unchanged after build target cleanup.
+
+Compiler43 seals 322 exact controls: 208 PASS/114 FAIL, build PASS and authored-source drift 0. No selectors are missing or empty. Across 311 common Compiler40 controls, one improves and one regresses: lowered literal empty/dollar reads improve; original nested-write projection fails. The new event owner controls fail and supply no event acceptance.
+
+Sixteen additional private compiler/Core/diagram mappings complete independent
+source review; integration and actual gate execution remain pending. Fifty-four
+lexical hits are actual public trait APIs covered by the existing declaration
+check; 149 candidates still need route/shape validation. Source gate15 controls
+and whole-manifest execution remain independent. Original evidence/provider
+hashes are unchanged; the last strict audit reports 1,959 structural errors,
+with integrated narrow owner updates awaiting a fresh audit. The event contract
+union preserves all existing rows and adds its actual ir.rs declaration owner.

@@ -1,0 +1,6 @@
+
+running 1 test
+test lowering::tests::local_body_literal_generic_call_with_empty_defs_withdraws_all_retained_values ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.07s
+

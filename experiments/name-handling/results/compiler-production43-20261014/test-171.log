@@ -1,0 +1,16 @@
+
+running 1 test
+test deferred_writes::tests::a_callback_it_can_read_leaves_every_other_variable_alone ... 
+thread 'deferred_writes::tests::a_callback_it_can_read_leaves_every_other_variable_alone' (266346) panicked at rust/tcl-compiler/src/deferred_writes.rs:1308:13:
+proc tick {} { puts hi }
+after 100 tick: DeferredWrites { names: {}, any: true }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_callback_it_can_read_leaves_every_other_variable_alone
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.51s
+

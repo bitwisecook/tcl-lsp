@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::upvar_hash_zero_counts_as_global ... 
+thread 'cfg_builder::global_write_info::tests::upvar_hash_zero_counts_as_global' (266079) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1836:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().names.contains("g")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::upvar_hash_zero_counts_as_global
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.29s
+

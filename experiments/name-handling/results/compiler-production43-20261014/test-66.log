@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::original_global_source_write_keeps_empty_scalar_and_array_root ... 
+thread 'cfg_builder::global_write_info::tests::original_global_source_write_keeps_empty_scalar_and_array_root' (265979) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1473:13:
+assertion failed: summaries[&summary_id(&module, "::p")].names.contains("")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::original_global_source_write_keeps_empty_scalar_and_array_root
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.28s
+

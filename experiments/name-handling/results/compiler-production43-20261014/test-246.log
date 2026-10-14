@@ -1,0 +1,17 @@
+
+running 1 test
+test unit_scope::tests::retained_upframe_namespaces_do_not_parse_the_procedure_display_label ... 
+thread 'unit_scope::tests::retained_upframe_namespaces_do_not_parse_the_procedure_display_label' (266552) panicked at rust/tcl-compiler/src/unit_scope.rs:4117:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    unit_scope::tests::retained_upframe_namespaces_do_not_parse_the_procedure_display_label
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.10s
+

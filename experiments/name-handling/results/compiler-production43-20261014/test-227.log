@@ -1,0 +1,15 @@
+
+running 1 test
+test slot_allocation::tests::the_backward_fixpoint_sweeps_exit_first ... 
+thread 'slot_allocation::tests::the_backward_fixpoint_sweeps_exit_first' (266497) panicked at rust/tcl-compiler/src/slot_allocation.rs:758:9:
+the chain of four branches must build a multi-block CFG, got 5
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    slot_allocation::tests::the_backward_fixpoint_sweeps_exit_first
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9703 filtered out; finished in 0.56s
+

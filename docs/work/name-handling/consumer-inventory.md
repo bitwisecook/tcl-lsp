@@ -94,7 +94,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 ## Current implementation and audit priorities
 
 The [outstanding audit](outstanding-consumer-audit.md) and JSON current refresh
-record the bounded 05:58 UTC snapshot. Compiler40 seals 311 controls: 205 PASS
+record the bounded 06:13 UTC snapshot. Compiler40 seals 311 controls: 205 PASS
 and 106 FAIL, with zero authored-source drift. Its 303 common Compiler33 controls
 gain seven without regressions. Full Runtime09 executes
 79 controls: 78 PASS and one new C8.5 error-code FAIL; all original 77 pass, with
@@ -172,5 +172,15 @@ provider/evidence/source/replay fields and do not renew changed evidence hashes.
 
 Shared event/provider consumers, readonly source value roles, upvar value
 protection and the F5 selected parameter getter are integrated. The dead lexical
-adapter is retired. Formatting is running; fresh Compiler41 under a clean target
-has no result yet. Original retained binaries and their hashes are preserved.
+adapter is retired. Formatting is running; Compiler43 executes under the clean target; its bounded results remain partial. Original retained binaries and their hashes are preserved.
+
+Compiler43 seals 322 exact controls: 208 PASS/114 FAIL, build PASS and authored-source drift 0. No selectors are missing or empty. Across 311 common Compiler40 controls, one improves and one regresses: lowered literal empty/dollar reads improve; original nested-write projection fails. The new event owner controls fail and supply no event acceptance.
+
+Sixteen additional private compiler/Core/diagram mappings complete independent
+source review; integration and actual gate execution remain pending. Fifty-four
+lexical hits are actual public trait APIs covered by the existing declaration
+check; 149 candidates still need route/shape validation. Source gate15 controls
+and whole-manifest execution remain independent. Original evidence/provider
+hashes are unchanged; the last strict audit reports 1,959 structural errors,
+with integrated narrow owner updates awaiting a fresh audit. The event contract
+union preserves all existing rows and adds its actual ir.rs declaration owner.
