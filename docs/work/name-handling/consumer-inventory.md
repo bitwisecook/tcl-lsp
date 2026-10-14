@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T10:26:23Z. The [outstanding audit](outstanding-consumer-audit.md)
+Current bounded snapshot: 2026-10-14T10:43:12Z. The [outstanding audit](outstanding-consumer-audit.md)
 and machine inventory retain original issue and source observations.
 
 The current shared consumers retain complete original source, analysis input,
@@ -310,10 +310,43 @@ owner; it does not establish frameless source-body representation. The whole-uni
 taint fixture now retains actual stdin ingress, with all original T103/current
 owner/refusal assertions and six-provider raw observations preserved.
 
-Source name-role/scanner migration is held for complete-role pessimism and
-terminal selection of a present source purpose. Strong Native/Normal metadata
+Source name-role/scanner migration integrates complete-role pessimism and
+terminal selection of a present source purpose; execution remains pending. Strong Native/Normal metadata
 cannot be supplied by source roles or expansion. Authored child grammar and
 scalar-slot consumer work remain unfinished. Fresh unchanged #2286 C5 oracle
 programs retain matching original init/tcltest files and their hashes; original
 nine compiler controls, including both '$absent' expectations, remain required.
 No issue closure or whole-codebase acceptance is inferred from source review.
+
+Compiler75 builds and seals 95 selected controls: 54 PASS/41 FAIL with zero source
+drift. All six focused taint-report controls, Shimmer and dynamic-escape control
+pass; two eval/up-frame controls remain red. Original Tcltest alias setup keeps
+all forty cases; missing/undefined sharing controls pass. Original namespace
+import remains 0 versus 1, and the original C8.4 #2286 fixture remains 1 versus 2
+with W210 at bytes160–167. Four depth-budget controls abort. These are actual
+retained failures; no complete #2286 or source-producer acceptance is claimed.
+
+NameRole07ac with both original review fixes, registry-aware KnownNamee523,
+strict Normal sloteed8 and typed source extents577 are integrated after source
+review. Original source role coverage remains pessimistic when incomplete,
+source-purpose presence is terminal, and physical slots cannot borrow Source MAY
+advice. Compiler76 is a build-only failure at a missing InvocationFacts import:
+zero semantic controls/source drift zero. Its temporary trace is precisely
+removed and actual import corrected, with all original assertions preserved.
+
+The source-read selector is integrated with keyed current body truth and
+terminal source-purpose refusal. Hover's new read-point consumer is held until
+it carries an available exact Version/ValueKey instead of inferring annotations
+from other versions of the same symbol. Revised hover source review is pending.
+The source-body cold memo gap is now concrete: readonly Native-card lowering
+bypasses the Native lower_proc_body callback. A separate authentic Source body
+syntax request must be issued before lowering; fresh outputs or Native donors
+cannot supply a cache key. Original DB cold counts0 versus3 remain required,
+and this is separate from lattice/capsule correspondence.
+
+Dictionary7a35 and real original dictionary oracle retention are integrated, with
+plan-owned Legacy VariableStore coverage and separately retained explicit
+additional effects. Possible source mapping names only withdraw contents;
+missing/invalid inputs do not become entered dictionary scopes. Name-role601
+actual incomplete-resolver/expansion controls are also integrated; all await
+fresh execution.
