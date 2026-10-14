@@ -1,0 +1,2 @@
+imported src::x qualifiers src
+self 1 {import pattern "::src::x" tries to import from namespace "src" into itself}

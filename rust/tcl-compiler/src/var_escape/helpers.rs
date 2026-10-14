@@ -18,6 +18,7 @@
 
 //! Variable-name predicates and original invocation inventories for escape transfer.
 
+#[cfg(test)]
 use std::collections::HashSet;
 #[cfg(test)]
 use std::sync::OnceLock;

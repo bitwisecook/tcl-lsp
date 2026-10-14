@@ -82,10 +82,7 @@ pub(crate) fn handle_call(
     registry: &tcl_registry::CommandRegistry,
 ) {
     let Statement::Call {
-        command,
-        args,
-        tokens,
-        ..
+        command, tokens, ..
     } = stmt
     else {
         return;

@@ -645,6 +645,43 @@ impl Namespaces {
         Ok(())
     }
 
+    /// The helper's info-commands List owns these exact current hash keys.
+    pub(crate) fn original_jim_command_enumeration_keys(
+        &self,
+        names: &[Vec<u8>],
+    ) -> Result<Vec<crate::obj::NativeObjectLifetime>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim command enumeration issuer",
+            ));
+        }
+        names
+            .iter()
+            .map(|name| {
+                let slot = self.arena[GLOBAL].commands.entries.get(name).ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim enumeration slot"),
+                )?;
+                let binding =
+                    slot.binding
+                        .as_ref()
+                        .ok_or(ValueError::CommandProtocolUnavailable(
+                            "original Jim enumeration binding",
+                        ))?;
+                if !self.original_publication_is_current(GLOBAL, name, binding.generation) {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original Jim enumeration generation",
+                    ));
+                }
+                let key = slot.original_jim_key.as_ref().ok_or(
+                    ValueError::CommandProtocolUnavailable("original Jim enumeration hash key"),
+                )?;
+                crate::obj::check_native_liveness(key.as_ptr())?;
+                Ok(crate::obj::NativeObjectLifetime::retain(key.as_ptr()))
+            })
+            .collect()
+    }
+
     /// Borrow the last cold lookup's key, including an allocation whose native
     /// owner has retired. A reached value reader must check native liveness.
     pub(crate) fn original_jim_command_name_observation(

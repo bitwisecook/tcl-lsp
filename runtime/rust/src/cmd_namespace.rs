@@ -34,9 +34,9 @@
 
 use crate::ensemble::EnsembleConfig;
 use crate::interp::native_arguments::OriginalArguments;
-use crate::interp::{error_code_list, Code, Command, Interp};
+use crate::interp::{Code, Command, Interp, error_code_list};
 use crate::list;
-use crate::namespace::{NsId, GLOBAL};
+use crate::namespace::{GLOBAL, NsId};
 use crate::obj::{self, TclObj};
 use tcl_syntax::value::ValueOps;
 
@@ -1032,7 +1032,35 @@ fn ns_import_source_names(
                 );
             }
         };
-        for source in names {
+        let keys = match interp
+            .namespaces()
+            .original_jim_command_enumeration_keys(&names)
+        {
+            Ok(keys) => keys,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        let mut members = Vec::with_capacity(keys.len());
+        for key in &keys {
+            if let Err(error) = obj::check_native_liveness(key.as_ptr()) {
+                return interp.report_cmd_error(error.into());
+            }
+            members.push(obj::Owned::retain(key.as_ptr()));
+        }
+        let pointers: Vec<_> = members.iter().map(obj::Owned::as_ptr).collect();
+        let command_list = obj::Owned::fresh(interp.new_list_object(&pointers));
+        drop(members);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        for key in keys {
+            let source_object = obj::Owned::retain(key.as_ptr());
+            let source = match interp.native_string_bytes(&source_object.as_ptr()) {
+                Ok(source) => source.to_vec(),
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
             if protocol.namespace_qualifier_bytes(&source) == current_name.as_ref() {
                 let mut error = b"import pattern \"".to_vec();
                 error.extend_from_slice(&original);
@@ -1044,7 +1072,7 @@ fn ns_import_source_names(
             let mut destination = current_name.to_vec();
             destination.extend_from_slice(b"::");
             destination.extend_from_slice(protocol.namespace_tail_bytes(&source));
-            let mut alias = obj::Owned::fresh(obj::new_string_bytes(&source));
+            let mut alias = obj::Owned::retain(source_object.as_ptr());
             let destination_object = obj::Owned::fresh(obj::new_string_bytes(&destination));
             let mut seen = std::collections::BTreeSet::new();
             loop {
@@ -1124,7 +1152,9 @@ fn ns_import_source_names(
                     return interp.set_error(&error);
                 }
             }
-            let installed = interp.install_alias(&destination, source, Vec::new());
+            let prefix = obj::Owned::fresh(interp.new_list_object(&[source_object.as_ptr()]));
+            let installed =
+                interp.install_alias_with_original(&destination, source, Vec::new(), Some(prefix));
             if let Err(error) = arguments.check() {
                 return interp.report_cmd_error(error);
             }
@@ -1136,6 +1166,10 @@ fn ns_import_source_names(
                 error.push(b'"');
                 return interp.set_error(&error);
             }
+        }
+        drop(command_list);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
         }
     }
     interp.set_result_bytes(b"");
@@ -2411,10 +2445,10 @@ mod tests {
                 assert!(
                     crate::ensemble::NativeEnsembleObjects::pointer(&query.originals.map).is_none()
                 );
-                assert!(crate::ensemble::NativeEnsembleObjects::pointer(
-                    &another_query.originals.map
-                )
-                .is_none());
+                assert!(
+                    crate::ensemble::NativeEnsembleObjects::pointer(&another_query.originals.map)
+                        .is_none()
+                );
                 assert_eq!(unsafe { (*original).ref_count }, references - 1);
             });
         }
@@ -2828,10 +2862,12 @@ namespace eval ::caller {
                 Code::Ok
             );
             assert_eq!(interp.result_obj(), script.as_ptr());
-            assert!(interp
-                .native_invocation_dialect()
-                .native_namespace_code_policy()
-                .is_none());
+            assert!(
+                interp
+                    .native_invocation_dialect()
+                    .native_namespace_code_policy()
+                    .is_none()
+            );
         });
     }
 
@@ -3273,7 +3309,9 @@ namespace eval ::caller {
 
     #[test]
     fn native_c86_forget_global_origin_matches_original_issue_witness() {
-        let fields = forget_native_fields(include_str!("../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"));
+        let fields = forget_native_fields(include_str!(
+            "../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"
+        ));
         leak_free_with(
             || native_namespace_interp(tcl_dialect::TclVersion::V8_6),
             |interp| {
@@ -3291,7 +3329,9 @@ namespace eval ::caller {
 
     #[test]
     fn native_c86_forget_global_origin_matches_original_adverse_controls() {
-        let fields = forget_native_fields(include_str!("../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"));
+        let fields = forget_native_fields(include_str!(
+            "../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"
+        ));
         let probe = include_str!(
             "../../../experiments/name-handling/results/namespace-forget-global-origin/probe.tcl"
         );
@@ -3374,7 +3414,9 @@ namespace eval ::caller {
 
     #[test]
     fn native_c86_forget_matches_original_import_chain_controls() {
-        let fields = forget_native_fields(include_str!("../../../experiments/name-handling/results/namespace-forget-import-chain/results/tcl8.6.18/stdout.txt"));
+        let fields = forget_native_fields(include_str!(
+            "../../../experiments/name-handling/results/namespace-forget-import-chain/results/tcl8.6.18/stdout.txt"
+        ));
         let probe = include_str!(
             "../../../experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
         );
@@ -6732,6 +6774,79 @@ mod original_import_alias_tests {
     }
 
     #[test]
+    fn original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion() {
+        let mut interp = native();
+        assert_eq!(
+            interp.eval_str(b"namespace eval src {proc x {} {return OLD}}"),
+            Code::Ok
+        );
+        let key = interp
+            .namespaces()
+            .original_jim_command_key(GLOBAL, b"src::x")
+            .unwrap();
+        let before = unsafe { (*key).ref_count };
+        assert_eq!(
+            interp.eval_str(b"namespace eval dest {namespace import ::src::x}"),
+            Code::Ok
+        );
+        let name = Owned::fresh(obj::new_string_bytes(b"dest::x"));
+        let query = tcl_runtime_api::Aliases::alias_prefix_original_value_at(
+            &mut interp,
+            tcl_runtime_api::NsId(GLOBAL as u32),
+            &name.as_ptr(),
+        )
+        .unwrap();
+        let tcl_runtime_api::AliasPrefixLookup::Prefix(prefix) = query else {
+            panic!("actual imported alias prefix");
+        };
+        assert_eq!(
+            ValueOps::list_elements(&mut interp, &prefix).unwrap(),
+            vec![key]
+        );
+        assert_eq!(unsafe { (*key).ref_count }, before + 1);
+        assert_eq!(interp.eval_str(b"rename src::x {}"), Code::Ok);
+        assert!(obj::check_native_liveness(key).is_ok());
+        assert_eq!(unsafe { (*key).ref_count }, 1);
+        assert!(
+            interp
+                .namespaces()
+                .original_jim_command_enumeration_keys(&[b"src::x".to_vec()])
+                .is_err()
+        );
+        assert_eq!(
+            interp.eval_str(b"namespace eval src {proc x {} {return NEW}}"),
+            Code::Ok
+        );
+        let replacement = interp
+            .namespaces()
+            .original_jim_command_key(GLOBAL, b"src::x")
+            .unwrap();
+        assert_ne!(replacement, key);
+        assert_eq!(
+            ValueOps::list_elements(&mut interp, &prefix).unwrap(),
+            vec![key]
+        );
+        assert!(!interp.host_refusal_pending());
+        OWNER.with(|owner| owner.borrow_mut().take());
+    }
+
+    #[test]
+    fn original_jim_import_uses_rooted_hash_key_spelling_in_helper_operations() {
+        let mut interp = native();
+        assert_eq!(
+            interp.eval_str(b"namespace eval src {proc ::src::x {} {return OLD}}; namespace eval dest {namespace import ::src::x}; info alias dest::x"),
+            Code::Ok
+        );
+        assert_eq!(interp.result_bytes(), b"::src::x");
+        assert_eq!(
+            interp.eval_str(b"namespace eval src {namespace import ::src::x}"),
+            Code::Ok
+        );
+        assert!(!interp.host_refusal_pending());
+        OWNER.with(|owner| owner.borrow_mut().take());
+    }
+
+    #[test]
     fn original_jim_import_uses_the_cached_alias_list_without_member_getters() {
         // naming.alias.jim-original-core-prefix-object-storage
         // docs/design/analysis/name-resolution-proofs/alias-jim-original-core-prefix-object-storage.md
@@ -6821,10 +6936,12 @@ mod original_import_alias_tests {
                 Code::Error
             );
             assert_eq!(READS.with(Cell::get), 1);
-            assert!(interp
-                .namespaces()
-                .command_in(GLOBAL, &destination_slot)
-                .is_none());
+            assert!(
+                interp
+                    .namespaces()
+                    .command_in(GLOBAL, &destination_slot)
+                    .is_none()
+            );
             assert_eq!(interp.result_obj(), prior.as_ptr());
             assert_eq!(obj::bytes_of(prior.as_ptr()), b"PRIOR\0\xff");
             assert_eq!(interp.runtime_context(), current);
@@ -6910,20 +7027,24 @@ mod original_import_alias_tests {
             &[loop_destination.as_ptr()],
         );
         assert_eq!(import(&mut interp, destination, b"::src::branch"), Code::Ok);
-        assert!(interp
-            .namespaces()
-            .command_in(GLOBAL, &destination_slot)
-            .is_some());
+        assert!(
+            interp
+                .namespaces()
+                .command_in(GLOBAL, &destination_slot)
+                .is_some()
+        );
         assert!(obj::has_string_rep(source.as_ptr()));
         assert!(!obj::has_string_rep(collision.as_ptr()));
         assert!(interp.native_execution_refusal().is_none());
         let name = Owned::fresh(obj::new_string_bytes(b"src::branch"));
-        assert!(tcl_runtime_api::Aliases::alias_prefix_original_value_at(
-            &mut interp,
-            tcl_runtime_api::NsId(u32::MAX),
-            &name.as_ptr()
-        )
-        .is_err());
+        assert!(
+            tcl_runtime_api::Aliases::alias_prefix_original_value_at(
+                &mut interp,
+                tcl_runtime_api::NsId(u32::MAX),
+                &name.as_ptr()
+            )
+            .is_err()
+        );
         assert_eq!(interp.current_ns(), destination);
         OWNER.with(|owner| owner.borrow_mut().take());
     }

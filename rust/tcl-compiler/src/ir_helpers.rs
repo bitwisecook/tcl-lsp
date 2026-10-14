@@ -40,6 +40,7 @@ use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::expr_ast::ExprNode;
 pub(crate) use crate::ir::ExecutionNamespace;
 use crate::ir::{CommandTokens, Script, Statement, WordExpr, WordPart};
+#[cfg(test)]
 use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 use crate::var_refs::VarReferenceScanner;
@@ -479,7 +480,7 @@ pub(crate) fn original_invocation_possible_name_writes(
     let realm = binding.invocation_realm()?;
     let (projection, additional_writes) =
         invocation.with_metadata_schema(registry, metadata, realm, |schema| {
-            (schema.semantics.descriptor_key() == invocation.facts.descriptor_key).then(|| {
+            (schema.descriptor_key() == invocation.facts.descriptor_key()).then(|| {
                 (
                     CommandRegistry::variable_write_projection_for_selected_source(schema),
                     schema

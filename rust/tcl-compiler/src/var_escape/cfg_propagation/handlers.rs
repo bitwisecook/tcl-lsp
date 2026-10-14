@@ -36,6 +36,7 @@ use crate::ssa::Version;
 use crate::var_escape::cfg_propagation::state::CfgState;
 #[cfg(test)]
 use crate::var_escape::helpers::is_dynamic_name;
+#[cfg(test)]
 use crate::var_escape::helpers::is_dynamic_token;
 #[cfg(test)]
 use crate::var_escape::helpers::is_dynamic_upvar_level;

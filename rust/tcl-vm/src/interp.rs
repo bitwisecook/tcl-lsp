@@ -6060,7 +6060,10 @@ impl Vm {
             let unused = {
                 let mut world = self.name_world.borrow_mut();
                 if let Some(original) = world.jim_command_original_keys.get(&slot) {
-                    let table = key.table.retain_for_replacement(Some(&original.table));
+                    let table = key
+                        .table
+                        .clone()
+                        .retain_for_replacement(Some(&original.table));
                     world.jim_command_table_keys.insert(name.to_owned(), table);
                     Some(key)
                 } else {
