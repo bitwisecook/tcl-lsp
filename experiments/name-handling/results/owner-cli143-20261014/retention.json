@@ -1,0 +1,9 @@
+{
+  "files": {
+    "result.json": "3cd762225768b3a7cba2a5decf9de5648afc83ac1e1d2ef960d4863e93a75c47",
+    "source-after.json.gz": "260fe1a08e2e582db522aaf7e2677605c246fe8e909a974fce5bcd505d3a89df",
+    "owner-resolution.log": "6b4e6f71831cdd021c7eba34276ac4195930882dac5a6ab7a33206e04eb799c9",
+    "source-before.json.gz": "64e5577b53f406025fefa924096f5835d9a5f85758f4c1a06d7e79ee410105ef"
+  },
+  "scope": "Actual complete owner-resolution CLI exit1; source/doc subset drift0; all structural failures retained, no waiver."
+}

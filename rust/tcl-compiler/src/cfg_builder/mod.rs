@@ -3289,7 +3289,9 @@ pub(crate) fn detect_upvar_bodies_with_registry(
                 .and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
             let mut info = if let Some(namespace) = namespace.filter(|_| {
                 module.procedure_ids.owns(*id)
-                    && owner.is_some_and(|owner| owner.matches_original_procedure(procedure))
+                    && owner.is_some_and(|owner| {
+                        owner.matches_original_procedure_summary(*id, procedure)
+                    })
             }) {
                 upvar_info::collect_upvar_targets_with_bindings(
                     &procedure.body,
@@ -3405,7 +3407,7 @@ pub(crate) fn prepare_cfg_context_bundle(
                     .as_ref()
                     .is_some_and(|owner| {
                         owner.matches_module(module, registry)
-                            && owner.matches_original_procedure(procedure)
+                            && owner.matches_original_procedure_summary(**id, procedure)
                     })
         })
         .map(|(id, procedure)| (*id, procedure.params.clone()))

@@ -1101,7 +1101,8 @@ impl ConsumerReferences<'_> {
                         return None;
                     };
                     if bound.lifetimes.is_some()
-                        || !matches!(bound.modifier, syn::TraitBoundModifier::None)
+                        || bound.maybe.is_some()
+                        || bound.modifiers.require_empty().is_err()
                     {
                         return None;
                     }
@@ -1761,6 +1762,7 @@ mod tests {
                 "#[cfg(any())] Declared(std::sync::Arc<Ledger>)",
             ),
             owner.replace("Iterator<Item = Row>", "Iterator<Item = ()>"),
+            owner.replace("Iterator<Item = Row>", "?Iterator<Item = Row>"),
             owner.replace("pub(super) entry:", "entry:"),
         ] {
             let caller = "fn consume() { let Some(rows) = super::owner::rows() else { return; }; for row in rows { match row.entry.as_ref() { super::owner::Entry::Declared(current) => current.inspect(), _ => {} } } }";
@@ -2066,7 +2068,7 @@ mod tests {
         let syn::Visibility::Restricted(scope) = &mut generic else {
             panic!();
         };
-        scope.path = syn::parse_str::<syn::Path>("crate::shared::<Other>").unwrap();
+        *scope.path = syn::parse_str::<syn::Path>("crate::shared::<Other>").unwrap();
         assert!(visibility_scope(&generic, "crate::shared::owner").is_none());
     }
 

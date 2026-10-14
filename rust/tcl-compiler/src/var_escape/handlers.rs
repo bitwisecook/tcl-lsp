@@ -28,7 +28,6 @@ use crate::var_escape::helpers::is_name_first_command;
 use crate::var_escape::helpers::{is_dynamic_token, is_dynamic_upvar_level};
 use crate::var_escape::state::EscapeState;
 use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
-#[cfg(test)]
 use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };

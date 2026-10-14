@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "e7f5625c794bafc98d52f1c7b4e842dabf224ec4153ef88d0f0e4c26278f04d7",
+    "source-after.json.gz": "faffd3fd3aee7bbbf82c6be0fa629b0f913847879d264e491f551edcd110c860",
+    "build.log": "15709d1e6aafe606f58aa38227601a87591a450ff1d59b0dd0b6a7fda26168e9",
+    "start.json": "25c2c456e15376e9923d9b087d98f30b2779616a27ffe500977d4c1bebff4652",
+    "source-before.json.gz": "14f770732b3e89cf6253a1906cc63def52520b77d910d41de50b02de8d72bd93"
+  },
+  "scope": "Compiler library test build failed on three missing legacy fixture imports; zero selectors run; source subset drift zero."
+}

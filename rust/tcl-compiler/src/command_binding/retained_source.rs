@@ -87,6 +87,7 @@ impl OriginalProcedureSource {
         }
     }
 
+    #[cfg(test)]
     fn matches(&self, procedure: &Procedure) -> bool {
         self.body_kind == procedure.body_kind
             && self.publication == procedure.publication
@@ -174,9 +175,8 @@ impl RetainedSourceModuleBindings {
         Some(&self.positioned)
     }
 
-    /// Retain an original procedure header, body coordinates and direct
-    /// statement order under this same Lowerer-produced Module. Child statements
-    /// still require their own original token and selected operation receipts.
+    /// Exact source-snapshot comparison for an authored test declaration.
+    #[cfg(test)]
     pub(crate) fn matches_original_procedure(&self, procedure: &Procedure) -> bool {
         self.procedures
             .values()

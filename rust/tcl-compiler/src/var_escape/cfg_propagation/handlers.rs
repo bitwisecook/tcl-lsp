@@ -112,6 +112,7 @@ fn apply_variable_aliases<'a>(
 }
 
 /// Apply registry-declared variable-name and current-frame introspection.
+#[cfg(test)]
 pub(crate) fn handle_introspection(
     invocation: &crate::registry_invocation::ResolvedStatementInvocation,
     state: &mut CfgState,

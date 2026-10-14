@@ -1,0 +1,96 @@
+{
+  "started_utc": "2026-10-14T18:56:01.582467+00:00",
+  "label": "actual Source controls23 with syn3 and live escape imports repaired",
+  "package": "xtask",
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "source_paths": 34721,
+  "plan": {
+    "scope": "Root-only Cargo lease. Source-only declaration/consumer validation; no Runtime receiver authority or Native/execution acceptance.",
+    "head": "70a785c467bbd7c1bd27d7395fbd2b6742b9ef43",
+    "source_sha256": "560961f12fd616e413930ef41f1483f1c2f5adda1df7bb22c90fa545c035b734",
+    "package": "xtask",
+    "selectors": [
+      "owner_resolution::source_internal::tests::source_routes_follow_current_nested_fields_and_standard_pointer_types",
+      "owner_resolution::source_internal::tests::source_routes_refuse_shadowed_pointers_and_foreign_nested_field_origins",
+      "owner_resolution::source_internal::tests::source_routes_bind_only_actual_optional_constructor_results",
+      "owner_resolution::source_internal::tests::source_enum_receivers_follow_actual_iterator_item_and_tuple_variant_fields",
+      "owner_resolution::source_internal::tests::source_enum_receivers_refuse_other_variants_shadows_and_unavailable_shapes",
+      "owner_resolution::source_internal::tests::source_enum_type_rows_require_actual_accessible_field_occurrences",
+      "owner_resolution::source_internal::tests::source_standard_wrappers_refuse_local_union_shadows",
+      "owner_resolution::source_internal::tests::source_dot_routes_require_the_actual_owner_receiver",
+      "owner_resolution::source_internal::tests::source_routes_accept_actual_nested_static_and_typed_parameter_calls",
+      "owner_resolution::source_internal::tests::source_routes_accept_only_actual_fields_and_constructor_results",
+      "owner_resolution::source_internal::tests::source_routes_verify_actual_parameter_and_producer_fields",
+      "owner_resolution::source_internal::tests::source_routes_reject_shadow_macro_alias_and_conditional_calls",
+      "owner_resolution::source_internal::tests::source_routes_clear_every_shadowing_pattern_and_refuse_binding_macros",
+      "owner_resolution::source_internal::tests::source_routes_refuse_enclosing_generic_receiver_name_shadows",
+      "owner_resolution::source_internal::tests::source_routes_require_direct_module_visibility_and_preserve_real_reexports",
+      "owner_resolution::source_internal::tests::source_visibility_requires_a_real_ancestor_scope",
+      "owner_resolution::source_internal::tests::source_file_module_loader_keeps_ancestor_and_parent_visibility",
+      "owner_resolution::source_internal::tests::source_routes_refuse_function_generic_wrappers_and_nested_item_scopes",
+      "owner_resolution::source_internal::tests::source_declaration_metadata_keeps_passive_lints_and_refuses_availability_changes",
+      "owner_resolution::source_internal::tests::source_routes_refuse_generic_field_and_nominal_type_argument_erasure",
+      "owner_resolution::source_internal::tests::source_routes_reject_duplicate_declarations_and_wrong_visibility",
+      "owner_resolution::source_internal::tests::source_routes_resolve_actual_reexports_and_reject_private_alias_routes",
+      "owner_resolution::source_internal::tests::source_manifest_requires_exact_markers_scope_and_repository_paths"
+    ],
+    "new_receiver_scope_controls": [
+      "owner_resolution::source_internal::tests::source_routes_follow_current_nested_fields_and_standard_pointer_types",
+      "owner_resolution::source_internal::tests::source_routes_refuse_shadowed_pointers_and_foreign_nested_field_origins",
+      "owner_resolution::source_internal::tests::source_routes_bind_only_actual_optional_constructor_results",
+      "owner_resolution::source_internal::tests::source_enum_receivers_follow_actual_iterator_item_and_tuple_variant_fields",
+      "owner_resolution::source_internal::tests::source_enum_receivers_refuse_other_variants_shadows_and_unavailable_shapes",
+      "owner_resolution::source_internal::tests::source_dot_routes_require_the_actual_owner_receiver",
+      "owner_resolution::source_internal::tests::source_standard_wrappers_refuse_local_union_shadows"
+    ],
+    "steps": [
+      {
+        "cmd": "cargo test -p xtask owner_resolution::source_internal::tests -- --nocapture",
+        "cwd": "/workspace/tcl-lsp",
+        "expect": "All23 actual Source controls selected and passing; preserve full stdout/stderr and source hashes."
+      },
+      {
+        "cmd": "cargo xtask owner-resolution",
+        "cwd": "/workspace/tcl-lsp",
+        "expect": "Actual complete current contract/table validation including genuine private routes; retain every unsupported route/failure, no visibility/row/digest waiver."
+      }
+    ],
+    "supported_actual_routes": {
+      "Named body": "parameter-field:unit:ir_module.retained_source_bindings",
+      "Declared procedure": "producer-field:crate::command_binding::declaration_layout::original_declaration_layouts:entry:variant:DeclaredProcedure:0",
+      "Logical scalar data": "producer:crate::registry_invocation::logical_structured_invocation_with_metadata_context",
+      "Authored header attachment": "field:self.header.source_binding"
+    },
+    "known_bounds": "Exact actual std pointer/Option paths, scoped plain Some binder, Iterator Item and one tuple variant, two fields, accessible plain attributes/lifetime-only declarations. Dot calls require actual receiver; union/std/trait/import shadows refuse. Runtime old resolver untouched.",
+    "exact": [
+      "owner_resolution::source_internal::tests::source_routes_follow_current_nested_fields_and_standard_pointer_types",
+      "owner_resolution::source_internal::tests::source_routes_refuse_shadowed_pointers_and_foreign_nested_field_origins",
+      "owner_resolution::source_internal::tests::source_routes_bind_only_actual_optional_constructor_results",
+      "owner_resolution::source_internal::tests::source_enum_receivers_follow_actual_iterator_item_and_tuple_variant_fields",
+      "owner_resolution::source_internal::tests::source_enum_receivers_refuse_other_variants_shadows_and_unavailable_shapes",
+      "owner_resolution::source_internal::tests::source_enum_type_rows_require_actual_accessible_field_occurrences",
+      "owner_resolution::source_internal::tests::source_standard_wrappers_refuse_local_union_shadows",
+      "owner_resolution::source_internal::tests::source_dot_routes_require_the_actual_owner_receiver",
+      "owner_resolution::source_internal::tests::source_routes_accept_actual_nested_static_and_typed_parameter_calls",
+      "owner_resolution::source_internal::tests::source_routes_accept_only_actual_fields_and_constructor_results",
+      "owner_resolution::source_internal::tests::source_routes_verify_actual_parameter_and_producer_fields",
+      "owner_resolution::source_internal::tests::source_routes_reject_shadow_macro_alias_and_conditional_calls",
+      "owner_resolution::source_internal::tests::source_routes_clear_every_shadowing_pattern_and_refuse_binding_macros",
+      "owner_resolution::source_internal::tests::source_routes_refuse_enclosing_generic_receiver_name_shadows",
+      "owner_resolution::source_internal::tests::source_routes_require_direct_module_visibility_and_preserve_real_reexports",
+      "owner_resolution::source_internal::tests::source_visibility_requires_a_real_ancestor_scope",
+      "owner_resolution::source_internal::tests::source_file_module_loader_keeps_ancestor_and_parent_visibility",
+      "owner_resolution::source_internal::tests::source_routes_refuse_function_generic_wrappers_and_nested_item_scopes",
+      "owner_resolution::source_internal::tests::source_declaration_metadata_keeps_passive_lints_and_refuses_availability_changes",
+      "owner_resolution::source_internal::tests::source_routes_refuse_generic_field_and_nominal_type_argument_erasure",
+      "owner_resolution::source_internal::tests::source_routes_reject_duplicate_declarations_and_wrong_visibility",
+      "owner_resolution::source_internal::tests::source_routes_resolve_actual_reexports_and_reject_private_alias_routes",
+      "owner_resolution::source_internal::tests::source_manifest_requires_exact_markers_scope_and_repository_paths"
+    ],
+    "filters": []
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "7f16f1f670ef3a220b619d51210f1b18eaa10585bdfd22f04a1c4346588de0e9",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

@@ -102,6 +102,7 @@ pub(super) struct SourceContext<'a> {
     variable_lookup: tcl_dialect::VariableLookupPolicy,
     image: &'a tcl_lexer::SourceImage,
     retained: &'a crate::command_binding::RetainedSourceModuleBindings,
+    module: &'a Module,
 }
 
 impl<'a> SourceContext<'a> {
@@ -132,11 +133,22 @@ impl<'a> SourceContext<'a> {
             variable_lookup,
             image: &module.source,
             retained: module.retained_source_bindings.as_deref()?,
+            module,
         })
     }
 
     pub(super) fn matches_procedure(self, procedure: &Procedure) -> bool {
-        self.retained.matches_original_procedure(procedure)
+        let mut owners = self
+            .module
+            .original_source_procedure_bodies()
+            .filter(|(_, current)| std::ptr::eq(*current, procedure));
+        let Some((id, _)) = owners.next() else {
+            return false;
+        };
+        owners.next().is_none()
+            && self
+                .retained
+                .matches_original_procedure_summary(*id, procedure)
     }
 
     pub(super) fn invocation(
@@ -825,6 +837,11 @@ mod tests {
             .get(&fixture_id(&module.procedures, "::p"))
             .expect("authored fixture body");
         assert!(reads_only_bound_names(original, source));
+        let (_, foreign) =
+            crate::inlining::tests::logical_module_for("proc p {café} {return ${café}}; p VALUE");
+        let foreign = foreign.procedures.values().next().unwrap();
+        assert!(!source.matches_procedure(foreign));
+        assert!(!reads_only_bound_names(foreign, source));
         let mutations: &[fn(&mut Procedure)] = &[
             |procedure| procedure.name = "other".into(),
             |procedure| procedure.qualified_name = "::other".into(),
@@ -840,6 +857,30 @@ mod tests {
             assert!(!source.matches_procedure(&changed));
             assert!(!reads_only_bound_names(&changed, source));
         }
+    }
+
+    #[test]
+    fn original_inline_definition_name_uses_publication_instead_of_reporting_label() {
+        let (_, mut module) =
+            crate::inlining::tests::logical_module_for("proc p {x} {return $x}; p VALUE");
+        let id = fixture_id(&module.procedures, "::p");
+        let procedure = module.procedures.get_mut(&id).unwrap();
+        let expected = procedure
+            .publication
+            .as_ref()
+            .unwrap()
+            .source_spelling()
+            .unwrap();
+        let original = crate::inlining::procedure_definition(procedure).unwrap();
+        assert_eq!(original.name, expected);
+        procedure.qualified_name = "::reporting_label".to_owned();
+        let current = crate::inlining::procedure_definition(procedure).unwrap();
+        assert_eq!(current.name, expected);
+        assert_eq!(current.namespace, original.namespace);
+        assert_eq!(current.parameters, original.parameters);
+        assert_eq!(current.body, original.body);
+        procedure.publication = None;
+        assert!(crate::inlining::procedure_definition(procedure).is_none());
     }
 
     #[test]

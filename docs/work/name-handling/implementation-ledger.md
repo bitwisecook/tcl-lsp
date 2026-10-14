@@ -1,6 +1,6 @@
 # Remaining name-handling obligations
 
-Temporary current snapshot on `work`; remove before PR. Checkpoint19:50 BST; next20:05 BST, hourly20:13 BST. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised. Required PR gates remain mandatory.
+Temporary current snapshot on `work`; remove before PR. Checkpoint20:05 BST; next20:20 BST, hourly20:13 BST. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised. Required PR gates remain mandatory.
 
 | Obligation | Current evidence | Next action |
 | --- | --- | --- |
@@ -10,7 +10,7 @@ Temporary current snapshot on `work`; remove before PR. Checkpoint19:50 BST; nex
 | Taint consumers | Shared status/report, exact source substitutions and Core/Explorer displays integrated; affected ordinary validation remains required. | Preserve complete current snapshots and unknown residuals; run original and new status/currentness/refusal controls. |
 | Runtime/VM and #2286 | Runtime126:106/107 PASS; VM132:49/52 PASS; captured source/provider/compiled-input/artifact drift maps0. | Repair the original Runtime child-alias-publication regression and two original VM child publication/handle regressions, then replay the retained affected controls. Original retained-import now passes; implement distinct authentic incarnation/header-residence ownership without extra frame references or revival. Keep unchanged #2286 required. |
 | Remaining surfaces/editors | Existing editor11-control result has source/output/binary drift0; MCP89 build-only capture has zero semantic controls. | Replay actual current MCP/server/editing/metadata consumers; metadata success alone supplies no Native acceptance. |
-| Private owners/docs/issues | Strict proof checker1,979 errors:996 evidence digests,952 census digests,12 paths,17 test comments,2 retired owners. Catalogue2,606 total questions. | Review bounded source gate and actual Named/method/slot routes; replace only real retired owner registrations and bind actual tests. Preserve evidence/census digests, current minimal docs and required gates. |
+| Private owners/docs/issues | CLI143 exits1 with207 contract failures (196 general+11 Source), source/docs-subset0. Separate full strict proof checker1,979 errors:996 evidence digests,952 census digests,12 paths,17 test comments,2 retired owners. Catalogue2,606 total questions. | Resolve actual CLI143 general/private owner route failures; all23 bounded Source controls pass. Review actual Named/method/slot routes; replace only real retired owner registrations and bind actual tests. Preserve evidence/census digests, current minimal docs and required gates. |
 | F5 | Actual returned appliance answers retained; missing answers remain explicit. | Preserve original software controls and receive actual BIG-IP answers; no software result proves F5 behaviour. |
 
 See [current state](current-state.md), [consumer inventory](consumer-inventory.md), [issue map](issues.md) and [plan](plan.md). No whole-codebase completion or PR-ready claim is made.

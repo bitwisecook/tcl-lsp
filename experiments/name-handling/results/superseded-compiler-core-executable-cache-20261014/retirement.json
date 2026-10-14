@@ -1,0 +1,15 @@
+{
+  "scope": "Superseded executable cache after original Compiler120/Core117 captures sealed and retained; source/raw captures/oracle inputs preserved. Current build uses fresh producer sources. No active dependency library or capture artefact removed.",
+  "files": [
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+      "bytes": 233961520,
+      "sha256": "5c277639477f03e699951c9d7673dcf879f004af9555df8e2bbee259867d87b6"
+    },
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+      "bytes": 184719664,
+      "sha256": "cda8502fe14c11f2a72ae466fc6f20d179b3fb8def41ea364c227f1c39710409"
+    }
+  ]
+}

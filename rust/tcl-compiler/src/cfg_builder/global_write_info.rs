@@ -296,7 +296,9 @@ pub(crate) fn detect_global_write_bodies_with_registry(
                     && module
                         .retained_source_bindings
                         .as_ref()
-                        .is_some_and(|owner| owner.matches_original_procedure(procedure)) =>
+                        .is_some_and(|owner| {
+                            owner.matches_original_procedure_summary(*id, procedure)
+                        }) =>
             {
                 own_body_global_writes(&procedure.body, semantics, &namespace)
             }
@@ -3041,5 +3043,29 @@ mod tests {
                 .names
                 .contains("y")
         );
+    }
+    #[test]
+    fn global_body_summaries_use_issued_identity_and_preserve_current_header_truth() {
+        let original = module("proc mutate {} {set ::x VALUE}");
+        let id = summary_id(&original, "::mutate");
+        let expected = detect_global_write_procs(&original);
+        assert!(expected[&id].names.contains("x"));
+        let mut labelled = original.clone();
+        if let Some(procedure) = labelled.procedures.get_mut(&id) {
+            procedure.qualified_name = "report-only-label".to_owned();
+        } else {
+            labelled.body_units.get_mut(&id).unwrap().qualified_name =
+                "report-only-label".to_owned();
+        }
+        assert_eq!(detect_global_write_procs(&labelled), expected);
+        let mut wrong_kind = original.clone();
+        if let Some(procedure) = wrong_kind.procedures.get_mut(&id) {
+            procedure.body_kind = crate::ir::ProcedureBodyKind::Event;
+        } else {
+            wrong_kind.body_units.get_mut(&id).unwrap().body_kind =
+                crate::ir::ProcedureBodyKind::Event;
+        }
+        let changed = detect_global_write_procs(&wrong_kind);
+        assert!(changed.get(&id).is_none_or(|info| info.opaque_global_frame));
     }
 }

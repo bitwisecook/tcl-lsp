@@ -203,7 +203,7 @@ impl InlineSpec {
 
 fn procedure_definition(proc: &Procedure) -> Option<ProcedureDefinitionIdentity> {
     Some(ProcedureDefinitionIdentity {
-        name: proc.qualified_name.clone(),
+        name: proc.publication.as_ref()?.source_spelling()?,
         namespace: proc
             .body
             .namespace_context

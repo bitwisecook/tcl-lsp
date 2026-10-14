@@ -166,7 +166,9 @@ fn include_original_callback_procedure_writes(
                     || !module
                         .retained_source_bindings
                         .as_ref()
-                        .is_some_and(|owner| owner.matches_original_procedure(procedure))
+                        .is_some_and(|owner| {
+                            owner.matches_original_procedure_summary(id, procedure)
+                        })
                 {
                     continue;
                 }

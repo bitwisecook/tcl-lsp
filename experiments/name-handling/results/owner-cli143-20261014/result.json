@@ -1,0 +1,18 @@
+{
+  "started_utc": "2026-10-14T18:58:35.406085+00:00",
+  "finished_utc": "2026-10-14T18:59:16.785657+00:00",
+  "command": [
+    "cargo",
+    "xtask",
+    "owner-resolution"
+  ],
+  "exit_code": 1,
+  "seconds": 41.37957183900289,
+  "log_sha256": "6b4e6f71831cdd021c7eba34276ac4195930882dac5a6ab7a33206e04eb799c9",
+  "binary": {
+    "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/xtask",
+    "sha256": "1fdcb7a2d91b54eecc2f1a254d4c888c5452ddc3681e9d6486cdbe2b92f955aa"
+  },
+  "source_subset_drift": {},
+  "scope": "Actual complete owner-resolution CLI; current source/doc subset; no row/digest waivers or semantic completion claim"
+}

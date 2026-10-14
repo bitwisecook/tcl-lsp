@@ -1137,6 +1137,7 @@ fn collect_expr_commands_at(expr: &ExprNode, out: &mut Vec<String>, depth: u32) 
 /// Split under the document's grammar, taken from the dialect-selected
 /// `registry`'s own profile — the same standalone command grammar,
 /// so one document is tokenised one way whichever harvest asks.
+#[cfg(test)]
 fn tokenise_to_words(source: &str, registry: &CommandRegistry) -> Vec<CommandWord> {
     tokenise_command_words(source, LexerConfig::for_profile(registry.profile()))
         .into_iter()

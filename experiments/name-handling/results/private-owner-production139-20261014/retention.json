@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "7396e884198f4c16712247a2465f482b0caf826f3b62fad164a9eca93e945cdb",
+    "source-after.json.gz": "c47d954fdeb64703e4602786765cd8f5134aaff4b43fd0cb8d8bd98033f1bf86",
+    "build.log": "57d414574b5432d1de91ef244fca771273f77b65588f597a9e6739dd4c0f93f1",
+    "start.json": "accc9becf99d4a702d86bdeb340a8782861f456fb2d073ee26d0da598c168756",
+    "source-before.json.gz": "4c6dc30c627657a33b1c13fc7c87cb96f22d78415844010377eb5d2e3c5fe1c1"
+  },
+  "scope": "Build-only failure in production compiler dependency: incorrectly test-gated imports used by three live escape handlers. No owner controls executed; source subset drift zero."
+}
