@@ -25,6 +25,7 @@ use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition, Trait
 pub struct OriginalLogicalProcedureBody {
     scope: Arc<OriginalDeclaredLogicalBodyContext>,
     site: crate::command_binding::CommandAllocationSite,
+    summary_coordinate: tcl_core_types::ByteCommandSlot,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     parameters_text: String,
     module_entry: Option<crate::command_binding::SourceAnalysisEntry>,
@@ -43,6 +44,10 @@ impl OriginalLogicalProcedureBody {
     pub(crate) fn site(&self) -> &crate::command_binding::CommandAllocationSite {
         &self.site
     }
+    /// Conditional header name geometry; never an installed command slot.
+    pub(crate) fn summary_coordinate(&self) -> &tcl_core_types::ByteCommandSlot {
+        &self.summary_coordinate
+    }
     pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
         &self.parameters
     }
@@ -57,7 +62,10 @@ impl OriginalLogicalProcedureBody {
         image: &tcl_lexer::SourceImage,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> bool {
-        self.site.source.source_image() == image
+        self.summary_coordinate.namespace == *self.scope.namespace_recipe()
+            && self.summary_coordinate.simple.as_bytes()
+                == tcl_syntax::naming::written_command_tail(self.scope.scope_name_input().bytes())
+            && self.site.source.source_image() == image
             && self.scope.matches_input(input)
             && self
                 .scope
@@ -311,6 +319,7 @@ impl LogicalBodyWalk<'_, '_> {
                 source: Arc::clone(self.context.origin),
                 offset: invocation.native.first()?.span().start(),
             },
+            summary_coordinate: key.clone(),
             parameters,
             parameters_text: parameters_text.to_owned(),
             module_entry: None,
@@ -446,6 +455,7 @@ impl LogicalBodyWalk<'_, '_> {
     ) -> Option<()> {
         let native = &command.words;
         tape.represented.insert(native.first()?.span().start());
+        tape.retain_logical_summary_scope(native, scope);
         let Some(written) = original_words(native, self.context.policy) else {
             graph.widen(native);
             return Some(());

@@ -43,10 +43,7 @@ use crate::ir::Module;
 use tcl_core_types::BodyFrameId;
 
 use super::cfg_propagation::{CfgEscapeResult, analyse_cfg_function_with_registry};
-use super::helpers::default_registry;
-use super::interprocedural::{
-    solve_interprocedural_escape, solve_interprocedural_escape_with_registry,
-};
+use super::interprocedural::solve_interprocedural_escape_with_registry;
 use super::slot_resolution::populate_local_slots;
 use super::types::{EscapeTag, ProcEscapeSummary};
 use super::walker::{analyse_script, analyse_script_with_registry};
@@ -91,6 +88,9 @@ pub fn analyse_var_escape(
     module: &Module,
     interprocedural: bool,
 ) -> HashMap<BodyFrameId, ProcEscapeSummary> {
+    if let Some(snapshot) = &module.registry_snapshot {
+        return analyse_var_escape_with_registry(module, interprocedural, snapshot.registry());
+    }
     let mut result: HashMap<BodyFrameId, ProcEscapeSummary> = HashMap::new();
     result.insert(
         BodyFrameId::Top(module.procedure_ids.module_id()),
@@ -109,10 +109,9 @@ pub fn analyse_var_escape(
         );
     }
     if interprocedural {
-        result = solve_interprocedural_escape(
-            &result,
-            &super::interprocedural::EscapeCallGraph::for_module(module, default_registry()),
-        );
+        for summary in result.values_mut() {
+            summary.pure_leaf = false;
+        }
     }
     populate_local_slots(&result, Some(module))
 }
@@ -155,16 +154,47 @@ pub fn analyse_var_escape_with_registry(
 /// Per-proc escape summaries from a [`CompilationUnit`] (the flow-sensitive
 /// CFG/SSA path). Used by codegen frame analysis.
 ///
-/// Dialect-blind: this answers from the `tcl8.6` registry whatever the unit
-/// was lowered under. Any caller that *holds* the unit's registry should use
-/// [`analyse_var_escape_cu_with_registry`] instead — the pairing here mirrors
-/// [`analyse_var_escape`] / [`analyse_var_escape_with_registry`].
+/// Uses the immutable command store retained by the unit. Missing ownership
+/// keeps the independent CFG analyses conservative.
 #[must_use]
 pub fn analyse_var_escape_cu(
     cu: &CompilationUnit,
     interprocedural: bool,
 ) -> HashMap<BodyFrameId, ProcEscapeSummary> {
-    analyse_var_escape_cu_with_registry(cu, interprocedural, default_registry())
+    if let Some(snapshot) = &cu.ir_module.registry_snapshot {
+        return analyse_var_escape_cu_with_registry(cu, interprocedural, snapshot.registry());
+    }
+    let mut result = HashMap::new();
+    result.insert(
+        BodyFrameId::Top(cu.ir_module.procedure_ids.module_id()),
+        cfg_result_to_summary(&super::cfg_propagation::analyse_cfg_function(
+            &cu.top_level.cfg,
+            &cu.top_level.ssa,
+            std::iter::empty::<String>(),
+        )),
+    );
+    for (id, function) in cu
+        .procedures
+        .iter()
+        .chain(cu.methods.iter())
+        .chain(cu.body_units.iter())
+    {
+        result.insert(
+            BodyFrameId::Body(*id),
+            cfg_result_to_summary(&super::cfg_propagation::analyse_cfg_function(
+                &function.cfg,
+                &function.ssa,
+                cu.ir_module
+                    .procedures
+                    .get(id)
+                    .or_else(|| cu.ir_module.body_units.get(id))
+                    .map(|body| body.params.clone())
+                    .or_else(|| cu.ir_module.methods.get(id).map(|body| body.params.clone()))
+                    .unwrap_or_default(),
+            )),
+        );
+    }
+    populate_local_slots(&result, Some(&cu.ir_module))
 }
 
 /// Registry-aware form of [`analyse_var_escape_cu`]. This is the production
@@ -245,6 +275,28 @@ mod tests {
         let id = *matching.next().expect("authored fixture body").0;
         assert!(matching.next().is_none(), "ambiguous authored fixture body");
         BodyFrameId::Body(id)
+    }
+
+    #[test]
+    fn implicit_escape_driver_uses_the_retained_actual_registry() {
+        let registry = CommandRegistry::build_default();
+        let module = lower_to_ir("info exists literal", &registry);
+        let implicit = analyse_var_escape(&module, false);
+        let explicit = analyse_var_escape_with_registry(&module, false, &registry);
+        assert_eq!(implicit, explicit);
+        let mut detached = module;
+        detached.registry_snapshot = None;
+        for statement in &mut detached.top_level.statements {
+            if let Some(tokens) = statement.tokens_mut() {
+                tokens.source_binding = None;
+            }
+        }
+        detached.top_level.command_binding_sites = Default::default();
+        assert!(
+            analyse_var_escape(&detached, false)
+                .values()
+                .all(|summary| { summary.dynamic_barrier() && !summary.pure_leaf })
+        );
     }
 
     #[test]

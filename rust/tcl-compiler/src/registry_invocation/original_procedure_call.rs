@@ -311,6 +311,100 @@ pub(crate) struct OriginalProcedureMayDependencies {
     pub(crate) unknown_alternatives: bool,
 }
 
+/// Possible Logical body dependencies under an authentic original source scope.
+/// Namespace/name coordinates select only current Module-issued source bodies;
+/// unknown alternatives remain and no argv binder, call or return is supplied.
+pub(crate) fn original_logical_procedure_may_dependencies_for_module(
+    tokens: &CommandTokens,
+    module: &Module,
+    registry: &CommandRegistry,
+) -> Option<OriginalProcedureMayDependencies> {
+    let input = module.source_metadata_input.as_ref()?;
+    if !input.has_logical_source_name_context()
+        || module.source_entry.native_entry.is_some()
+        || module.source_entry.hosted_execution_context.is_some()
+        || module.source_entry.unknown_entry
+        || tokens.synthetic.is_some()
+        || !tokens.original_words_match_argv_text()
+    {
+        return None;
+    }
+    super::InvocationMetadataContext::for_module(registry, module)?;
+    let retained = module.retained_source_bindings.as_ref()?;
+    let positioned = retained.positioned_for_module(module, registry)?;
+    let binding = tokens.source_binding.as_ref()?;
+    let mut held = false;
+    let mut pending = Vec::new();
+    for (_, procedure) in module.original_source_procedure_bodies() {
+        if retained.matches_original_procedure(procedure) {
+            pending.push(&procedure.body);
+        }
+    }
+    while let Some(script) = pending.pop() {
+        for statement in &script.statements {
+            pending.extend(statement.child_scripts());
+            let Some(parent) = script.retained_source_tokens_for_statement(statement) else {
+                continue;
+            };
+            held |= parent == tokens
+                || parent.nested_bindings.iter().any(|(offset, original)| {
+                    tokens
+                        .words()
+                        .first()
+                        .is_some_and(|head| head.source().span.start() == *offset)
+                        && original == binding
+                });
+        }
+    }
+    held.then_some(())?;
+    let offset = tokens.words().first()?.source().span.start();
+    let original = super::original_native_compiler_words(
+        &module.source,
+        tokens.words(),
+        offset,
+        input.lexer_config(),
+    )?;
+    let scope = positioned.original_logical_summary_scope(input, &original)?;
+    // An independently selected source descriptor has no user-procedure edge.
+    let named_only = super::source_structure::original_logical_registry_words_for_module(
+        module, registry, tokens,
+    )
+    .is_some_and(|words| {
+        matches!(words.source(),
+            super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+                if advice.has_named_only_logical_summary_descriptor())
+    });
+    if named_only {
+        return Some(OriginalProcedureMayDependencies {
+            bodies: Vec::new(),
+            unknown_alternatives: false,
+        });
+    }
+    let head = tcl_syntax::word_rules::original_static_word_unicode_value(original.first()?);
+    let candidates = head.as_deref().and_then(|head| {
+        tcl_syntax::naming::authored_source_command_candidates(scope.namespace_recipe(), &[], head)
+    });
+    let mut bodies: Vec<_> = module
+        .original_logical_declaration_body_units
+        .iter()
+        .filter_map(|(id, card)| {
+            let procedure = module.body_units.get(id)?;
+            (module.procedure_ids.owns(*id)
+                && card.matches_procedure(module, procedure)
+                && candidates
+                    .as_ref()
+                    .is_none_or(|candidates| candidates.contains(card.summary_coordinate())))
+            .then_some(*id)
+        })
+        .collect();
+    bodies.sort_unstable();
+    bodies.dedup();
+    Some(OriginalProcedureMayDependencies {
+        bodies,
+        unknown_alternatives: true,
+    })
+}
+
 /// Join original call geometry to genuine declaration cards for MAY consumers.
 /// Implementation-backed selection keeps its stronger existing owner; Native
 /// source cards retain other handler/alias possibilities independently.
@@ -320,22 +414,25 @@ pub(crate) fn original_procedure_may_dependencies_for_word_for_module(
     module: &Module,
     registry: &CommandRegistry,
 ) -> Option<OriginalProcedureMayDependencies> {
-    if let Some(bodies) =
-        original_source_procedure_ids_for_word_for_module(tokens, word, module, registry)
-    {
-        return Some(OriginalProcedureMayDependencies {
-            bodies,
-            unknown_alternatives: false,
-        });
-    }
     let binding = tokens.source_binding.as_ref()?;
-    if binding.original_native_source_may_owner(tokens, module, registry) {
+    if binding.has_original_native_source_command() {
+        if !binding.original_native_source_may_owner(tokens, word, module, registry) {
+            return None;
+        }
         return Some(OriginalProcedureMayDependencies {
             bodies: module
                 .original_source_procedure_bodies()
                 .map(|(id, _)| *id)
                 .collect(),
             unknown_alternatives: true,
+        });
+    }
+    if let Some(bodies) =
+        original_source_procedure_ids_for_word_for_module(tokens, word, module, registry)
+    {
+        return Some(OriginalProcedureMayDependencies {
+            bodies,
+            unknown_alternatives: false,
         });
     }
     let metadata = binding.original_invocation_metadata_for_module(tokens, module, registry)?;
@@ -510,5 +607,241 @@ mod native_may_dependency_tests {
         let unavailable = queried("alias");
         assert!(unavailable.bodies.is_empty());
         assert!(unavailable.unknown_alternatives);
+    }
+}
+
+#[cfg(test)]
+mod logical_may_dependency_tests {
+    use super::*;
+
+    fn module(source: &str) -> Module {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input),
+            source,
+        )
+    }
+
+    #[test]
+    fn logical_may_dependencies_keep_body_ids_and_refuse_missing_source_ownership() {
+        for head in ["target", "{target}", "\"target\""] {
+            let mut module = module(&format!(
+                "proc target {{value}} {{set ::hit $value}}; proc caller {{value}} {{{head} $value}}"
+            ));
+            let registry = module.resolved_registry();
+            let (target_id, _) = module
+                .original_source_procedure_bodies()
+                .find(|(_, procedure)| procedure.name == "target")
+                .unwrap();
+            let target_id = *target_id;
+            let (_, caller) = module
+                .original_source_procedure_bodies()
+                .find(|(_, procedure)| procedure.name == "caller")
+                .unwrap();
+            let tokens = caller
+                .body
+                .retained_source_tokens_for_statement(&caller.body.statements[0])
+                .unwrap()
+                .clone();
+            let dependencies =
+                original_logical_procedure_may_dependencies_for_module(&tokens, &module, registry)
+                    .unwrap();
+            assert_eq!(dependencies.bodies, vec![target_id]);
+            assert!(dependencies.unknown_alternatives);
+            assert!(
+                crate::registry_invocation::admitted_native_compiler_invocation(
+                    registry, None, &tokens
+                )
+                .is_none()
+            );
+            assert!(
+                crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                    registry,
+                    Some(
+                        super::super::InvocationMetadataContext::for_module(registry, &module)
+                            .unwrap()
+                    ),
+                    &tokens
+                )
+                .is_none()
+            );
+            let mut changed = tokens.clone();
+            changed.argv_texts[0] = "other".to_owned();
+            assert!(
+                original_logical_procedure_may_dependencies_for_module(&changed, &module, registry)
+                    .is_none()
+            );
+            changed = tokens.clone();
+            changed.source_binding = Some(Default::default());
+            assert!(
+                original_logical_procedure_may_dependencies_for_module(&changed, &module, registry)
+                    .is_none()
+            );
+            let mut missing = module.clone();
+            missing.source_metadata_input = None;
+            assert!(
+                original_logical_procedure_may_dependencies_for_module(&tokens, &missing, registry)
+                    .is_none()
+            );
+            for facet in 0..4 {
+                let mut changed = module.clone();
+                match facet {
+                    0 => changed.retained_source_bindings = None,
+                    1 => {
+                        changed.source =
+                            tcl_lexer::SourceImage::document("different complete source")
+                    }
+                    2 => changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting,
+                    3 => {
+                        let input = module.source_metadata_input.as_ref().unwrap();
+                        let foreign = std::sync::Arc::new(
+                            input
+                                .borrowed_context_registry()
+                                .with_command_store(registry.snapshot().shared_registry()),
+                        );
+                        changed.source_metadata_input =
+                            Some(crate::analyser::ResolvedAnalysisInput::new(
+                                input.analyser_profile(),
+                                input.unit_profile(),
+                                foreign,
+                                input.lexer_config(),
+                            ));
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(
+                    original_logical_procedure_may_dependencies_for_module(
+                        &tokens, &changed, registry
+                    )
+                    .is_none(),
+                    "facet {facet}"
+                );
+            }
+            let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+            let (_owner, native) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            let mut stronger = module.clone();
+            stronger.source_entry.native_entry = Some(std::sync::Arc::new(native));
+            assert!(
+                original_logical_procedure_may_dependencies_for_module(
+                    &tokens, &stronger, registry
+                )
+                .is_none()
+            );
+            module
+                .body_units
+                .get_mut(&target_id)
+                .unwrap()
+                .qualified_name = "reporting label only".to_owned();
+            let dependencies = original_logical_procedure_may_dependencies_for_module(
+                &tokens,
+                &module,
+                module.resolved_registry(),
+            )
+            .unwrap();
+            assert_eq!(dependencies.bodies, vec![target_id]);
+        }
+    }
+
+    #[test]
+    fn logical_may_dependencies_retain_colliding_and_dynamic_source_alternatives() {
+        let module = module(
+            "proc target {} {set ::first 1}; proc target {} {set ::second 1}; proc caller {} {target}; proc dynamic {command} {$command}",
+        );
+        let registry = module.resolved_registry();
+        let targets: std::collections::BTreeSet<_> = module
+            .original_source_procedure_bodies()
+            .filter(|(_, procedure)| procedure.name == "target")
+            .map(|(id, _)| *id)
+            .collect();
+        assert_eq!(targets.len(), 2);
+        for name in ["caller", "dynamic"] {
+            let (_, caller) = module
+                .original_source_procedure_bodies()
+                .find(|(_, procedure)| procedure.name == name)
+                .unwrap();
+            let tokens = caller
+                .body
+                .retained_source_tokens_for_statement(&caller.body.statements[0])
+                .unwrap();
+            let dependencies =
+                original_logical_procedure_may_dependencies_for_module(tokens, &module, registry)
+                    .unwrap();
+            let ids: std::collections::BTreeSet<_> = dependencies.bodies.into_iter().collect();
+            assert!(targets.is_subset(&ids));
+            assert!(dependencies.unknown_alternatives);
+        }
+    }
+}
+
+#[cfg(test)]
+mod logical_may_named_descriptor_tests {
+    use super::*;
+
+    #[test]
+    fn logical_may_named_descriptors_keep_shadow_and_unknown_handler_dependencies_open() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        for (source, expected_named_only) in [
+            ("proc caller {} {set x VALUE}", true),
+            (
+                "proc set args {set ::hit VALUE}; proc caller {} {set x VALUE}",
+                false,
+            ),
+            (
+                "proc target {} {set ::hit VALUE}; proc caller {} {unknown_command; set x VALUE}",
+                false,
+            ),
+        ] {
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            let module = crate::lowering::lower_to_ir_with(
+                crate::lowering::Lowerer::with_config(context.commands(), config)
+                    .with_resolved_analysis_input(input),
+                source,
+            );
+            let (_, caller) = module
+                .original_source_procedure_bodies()
+                .find(|(_, procedure)| procedure.name == "caller")
+                .unwrap();
+            let tokens = caller
+                .body
+                .retained_source_tokens_for_statement(caller.body.statements.last().unwrap())
+                .unwrap();
+            let dependencies = original_logical_procedure_may_dependencies_for_module(
+                tokens,
+                &module,
+                module.resolved_registry(),
+            )
+            .unwrap();
+            assert_eq!(
+                !dependencies.unknown_alternatives, expected_named_only,
+                "{source}"
+            );
+            if expected_named_only {
+                assert!(dependencies.bodies.is_empty());
+            }
+            if source.starts_with("proc set") {
+                let (id, _) = module
+                    .original_source_procedure_bodies()
+                    .find(|(_, procedure)| procedure.name == "set")
+                    .unwrap();
+                assert!(dependencies.bodies.contains(id));
+            }
+        }
     }
 }

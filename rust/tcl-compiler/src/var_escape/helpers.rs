@@ -76,6 +76,60 @@ pub(crate) fn default_registry() -> &'static CommandRegistry {
     tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
 }
 
+/// Reborrow one actual store shared by the complete retained source inventory.
+fn registry_from_original_sources<'a>(
+    sources: impl IntoIterator<Item = Option<&'a CommandTokens>>,
+) -> Option<&'a CommandRegistry> {
+    let mut selected: Option<&CommandRegistry> = None;
+    for source in sources {
+        let tokens = source?;
+        let registry = tokens
+            .source_binding
+            .as_ref()?
+            .retained_registry_for_tokens(tokens)?;
+        if selected.is_some_and(|owner| {
+            owner.snapshot().semantic_key() != registry.snapshot().semantic_key()
+        }) {
+            return None;
+        }
+        selected = Some(registry);
+    }
+    selected
+}
+
+pub(crate) fn retained_registry_for_script(body: &crate::ir::Script) -> Option<&CommandRegistry> {
+    fn sources<'a>(body: &'a crate::ir::Script, result: &mut Vec<Option<&'a CommandTokens>>) {
+        for statement in &body.statements {
+            if statement.is_executable_invocation() && statement.synthetic_marker().is_none() {
+                result.push(body.retained_source_tokens_for_statement(statement));
+            }
+            for child in statement.child_scripts() {
+                sources(child, result);
+            }
+        }
+    }
+    let mut inventory = Vec::new();
+    sources(body, &mut inventory);
+    registry_from_original_sources(inventory)
+}
+
+pub(crate) fn retained_registry_for_cfg(cfg: &crate::cfg::Function) -> Option<&CommandRegistry> {
+    let statements = cfg.blocks.iter().flat_map(|(block, data)| {
+        data.statements
+            .iter()
+            .enumerate()
+            .filter_map(move |(index, statement)| {
+                (statement.is_executable_invocation() && statement.synthetic_marker().is_none())
+                    .then(|| cfg.source_tokens_at(*block, index))
+            })
+    });
+    let conditions = cfg
+        .condition_binding_sites
+        .values()
+        .map(|site| site.source_tokens.as_deref());
+    registry_from_original_sources(statements.chain(conditions))
+}
+
 /// Resolve a compiler statement's source-safe word snapshot to the registry's
 /// target-neutral invocation facts.
 ///

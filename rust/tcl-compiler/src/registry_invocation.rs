@@ -27,11 +27,16 @@
 
 mod original_procedure_call;
 pub(crate) use original_procedure_call::{
-    original_authored_procedure_calls_for_module, original_logical_procedure_calls_for_module,
-    original_procedure_formal_count_shape, original_procedure_may_dependencies_for_word_for_module,
-    original_procedure_parameters, original_procedure_scalar_bindings,
-    original_source_procedure_calls_for_word_for_module,
+    OriginalProcedureMayDependencies, original_authored_procedure_calls_for_module,
+    original_logical_procedure_calls_for_module,
+    original_logical_procedure_may_dependencies_for_module, original_procedure_formal_count_shape,
+    original_procedure_may_dependencies_for_word_for_module, original_procedure_parameters,
+    original_procedure_scalar_bindings, original_source_procedure_calls_for_word_for_module,
     original_source_procedure_ids_for_word_for_module,
+};
+mod authored_source_structure;
+pub(crate) use authored_source_structure::{
+    AuthoredSourceStructuredInvocation, original_authored_source_structure,
 };
 mod execution_trace;
 mod metadata_context;
@@ -852,8 +857,16 @@ fn resolve_original_declared_layout<'a>(
     tokens: &CommandTokens,
     advice: &crate::command_binding::OriginalCompilationLookupAdvice,
 ) -> Option<ResolvedStatementInvocation> {
-    let context = context.into();
-    if !context.matches_registry(registry) {
+    resolve_original_source_layout(registry, Some(context.into()), tokens, advice)
+}
+
+fn resolve_original_source_layout(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+    advice: &crate::command_binding::OriginalCompilationLookupAdvice,
+) -> Option<ResolvedStatementInvocation> {
+    if context.is_some_and(|context| !context.matches_registry(registry)) {
         return None;
     }
     let dialect = advice.dialect();
@@ -862,7 +875,10 @@ fn resolve_original_declared_layout<'a>(
         if !target.registry_backed {
             return None;
         }
-        if !target.prepended.is_empty() && context.permits_logical_source_names() {
+        if !target.prepended.is_empty()
+            && context.is_some_and(|context| context.permits_logical_source_names())
+        {
+            let context = context?;
             let purpose = tokens
                 .source_binding
                 .as_ref()?
@@ -891,7 +907,7 @@ fn resolve_original_declared_layout<'a>(
         let RegistryInvocationResolution::Resolved(facts) =
             resolve_registry_words_in_realm_with_metadata_context(
                 registry,
-                Some(context),
+                context,
                 &words,
                 Some(dialect),
                 advice.realm(),

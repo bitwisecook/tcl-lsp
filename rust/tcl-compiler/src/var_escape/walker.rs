@@ -36,11 +36,11 @@ use crate::var_escape::handlers::{
     has_expand_word,
 };
 use crate::var_escape::helpers::{
-    default_registry, invocation_facts, invocation_facts_from_tokens, invocation_from_tokens,
-    is_dynamic_name, is_dynamic_token, normal_handler_is_frameless,
-    original_substitution_invocations, statement_needs_original_substitution_inventory,
+    invocation_facts, invocation_facts_from_tokens, invocation_from_tokens, is_dynamic_name,
+    is_dynamic_token, normal_handler_is_frameless, original_substitution_invocations,
+    retained_registry_for_script, statement_needs_original_substitution_inventory,
 };
-use crate::var_escape::known_names::collect_known_names;
+use crate::var_escape::known_names::{collect_known_name_inventory, collect_known_names};
 use crate::var_escape::state::EscapeState;
 use crate::var_escape::types::{EscapeTag, ProcEscapeSummary};
 
@@ -703,7 +703,14 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
     body: &Script,
     params: I,
 ) -> ProcEscapeSummary {
-    analyse_script_with_registry(body, params, default_registry())
+    if let Some(registry) = retained_registry_for_script(body) {
+        return analyse_script_with_registry(body, params, registry);
+    }
+    let mut state = EscapeState::new(collect_known_names(params, body));
+    if !body.statements.is_empty() {
+        state.mark_pessimistic();
+    }
+    summary_from_state(state)
 }
 
 /// Registry-aware form of [`analyse_script`]. Production callers that already
@@ -715,9 +722,16 @@ pub fn analyse_script_with_registry<I: IntoIterator<Item = String>>(
     params: I,
     registry: &tcl_registry::CommandRegistry,
 ) -> ProcEscapeSummary {
-    let known = collect_known_names(params, body);
-    let mut state = EscapeState::new(known);
+    let inventory = collect_known_name_inventory(params, body);
+    let mut state = EscapeState::new(inventory.names);
+    if inventory.unknown_residual {
+        state.mark_pessimistic();
+    }
     walk(&body.statements, &mut state, 0, registry);
+    summary_from_state(state)
+}
+
+fn summary_from_state(state: EscapeState) -> ProcEscapeSummary {
     let frame_needed =
         state.dynamic_barrier() || state.tags.values().any(|t| *t == EscapeTag::Frame);
     // Tentative pure_leaf — the interprocedural fixpoint can only

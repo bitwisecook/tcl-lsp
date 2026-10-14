@@ -102,6 +102,27 @@ impl OriginalProcedureSummaryOwners {
             .collect()
     }
 
+    /// Body dependencies never provide the stronger call's argument model.
+    pub(super) fn may_calls(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<crate::registry_invocation::OriginalProcedureMayDependencies> {
+        if let Some(calls) = self.calls(tokens, registry) {
+            return Some(
+                crate::registry_invocation::OriginalProcedureMayDependencies {
+                    bodies: calls.into_iter().map(|(id, _)| id).collect(),
+                    unknown_alternatives: false,
+                },
+            );
+        }
+        crate::registry_invocation::original_logical_procedure_may_dependencies_for_module(
+            tokens,
+            self.module(registry)?,
+            registry,
+        )
+    }
+
     pub(super) fn children(
         &self,
         tokens: &CommandTokens,

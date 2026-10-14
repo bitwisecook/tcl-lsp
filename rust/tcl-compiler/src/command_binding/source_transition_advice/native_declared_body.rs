@@ -164,6 +164,13 @@ impl SourceCommandBindings {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OriginalNativeSourceMayCommand {
+    pub(super) original: Arc<[tcl_lexer::NativeWord]>,
+    pub(super) head: super::SourceAdviceNameInput,
+    pub(super) body: Arc<crate::registry_invocation::OriginalSourceScriptBody>,
+}
+
 /// Whole original declaration/tape used only for readonly child consumers.
 #[derive(Debug)]
 pub(crate) struct OriginalNativeSourceBodyChildren {
@@ -329,6 +336,79 @@ impl OriginalNativeSourceCommand {
                             .is_some_and(|procedure| card.matches_procedure(module, procedure))
                 })
     }
+    fn may_matches(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        word: &str,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        if !self.matches_module(tokens, module, registry) {
+            return false;
+        }
+        let Some(head) = self.original.first() else {
+            return false;
+        };
+        let Some(key) = SignatureSourceNameKey::from_original_native_word(
+            head,
+            tcl_syntax::word_rules::WordValueRules::from_config(&self.owner.input.lexer_config()),
+            self.owner.declaration.name_input().policy(),
+        ) else {
+            return false;
+        };
+        if SignatureSourceNameInput::OriginalWord(key).bytes() != word.as_bytes() {
+            return false;
+        }
+        let offset = head.span().start();
+        let Some(Some(may)) = self.owner.tape.native_procedure_may_commands.get(&offset) else {
+            return false;
+        };
+        if may.original.as_ref() != self.original.as_ref()
+            || may.body.as_ref() != self.owner.declaration.procedure.body.as_ref()
+            || may
+                .head
+                .native_input()
+                .is_none_or(|input| input.bytes() != word.as_bytes())
+        {
+            return false;
+        }
+        if self.owner.tape.blocks_registry_source(offset) {
+            return false;
+        }
+        let advice = if let Some(advice) = self.owner.tape.body_catalogue(offset) {
+            Some(advice)
+        } else {
+            match self.owner.tape.lookup(offset) {
+                super::OriginalSourceTransitionAdviceLookup::Advice(advice) => Some(advice),
+                super::OriginalSourceTransitionAdviceLookup::Refused
+                | super::OriginalSourceTransitionAdviceLookup::Unrepresented => None,
+            }
+        };
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            return false;
+        };
+        if binding.lookup_state.is_some() {
+            if binding
+                .original_invocation_metadata_for_module(tokens, module, registry)
+                .is_none()
+            {
+                return false;
+            }
+            let Some(advice) = advice else {
+                return false;
+            };
+            if advice.original_words() != self.original.as_ref()
+                || !crate::command_binding::source_targets_match_advice(
+                    self.owner.input.borrowed_context_registry(),
+                    binding,
+                    advice,
+                )
+            {
+                return false;
+            }
+        }
+        true
+    }
     pub(crate) fn words(
         &self,
         tokens: &crate::ir::CommandTokens,
@@ -393,9 +473,13 @@ impl crate::command_binding::SourceInvocationBinding {
             .as_ref()?
             .words(tokens, input, registry)
     }
+    pub(crate) fn has_original_native_source_command(&self) -> bool {
+        self.original_native_source_command.is_some()
+    }
     pub(crate) fn original_native_source_may_owner(
         &self,
         tokens: &crate::ir::CommandTokens,
+        word: &str,
         module: &crate::ir::Module,
         registry: &tcl_registry::CommandRegistry,
     ) -> bool {
@@ -403,6 +487,113 @@ impl crate::command_binding::SourceInvocationBinding {
             && self
                 .original_native_source_command
                 .as_ref()
-                .is_some_and(|command| command.matches_module(tokens, module, registry))
+                .is_some_and(|command| command.may_matches(tokens, word, module, registry))
+    }
+}
+
+#[cfg(test)]
+mod may_terminal_tests {
+    use super::*;
+
+    fn fixture() -> (crate::ir::Module, crate::analyser::ResolvedAnalysisInput) {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input.clone()),
+            "puts ROOT\nproc f {} {not-declared VALUE}\n",
+        );
+        (module, input)
+    }
+
+    #[test]
+    fn native_source_may_preserves_terminal_tape_and_reached_owner_refusals() {
+        let (module, input) = fixture();
+        let registry = input.borrowed_context_registry().commands();
+        let (&id, _) = module
+            .original_native_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let tokens = module.body_units.get(&id).unwrap().body.statements[0]
+            .tokens()
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.original_native_source_may_owner(
+            tokens,
+            "not-declared",
+            &module,
+            registry
+        ));
+        let command = binding.original_native_source_command.as_ref().unwrap();
+        let offset = command.original[0].span().start();
+        for barrier in [false, true] {
+            let mut tape = super::super::OriginalSourceTransitionAdviceTape::default();
+            if barrier {
+                tape.native_procedure_may_commands.insert(
+                    offset,
+                    command
+                        .owner
+                        .tape
+                        .native_procedure_may_commands
+                        .get(&offset)
+                        .unwrap()
+                        .clone(),
+                );
+                tape.registry_barriers.insert(offset);
+            } else {
+                tape.native_procedure_may_commands.insert(offset, None);
+            }
+            let owner = Arc::new(OriginalNativeSourceBodyChildren {
+                declaration: Arc::clone(&command.owner.declaration),
+                input: input.clone(),
+                tape: Arc::new(tape),
+                commands: command.owner.commands.clone(),
+            });
+            let mut changed = tokens.clone();
+            changed
+                .source_binding
+                .as_mut()
+                .unwrap()
+                .original_native_source_command = Some(Arc::new(OriginalNativeSourceCommand {
+                owner,
+                original: Arc::clone(&command.original),
+            }));
+            assert!(
+                !changed
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_native_source_may_owner(&changed, "not-declared", &module, registry)
+            );
+            assert!(crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
+                &changed, "not-declared", &module, registry).is_none());
+        }
+        let reached = module.top_level.statements[0]
+            .tokens()
+            .unwrap()
+            .source_binding
+            .as_ref()
+            .unwrap();
+        assert!(reached.lookup_state.is_some());
+        let mut changed = tokens.clone();
+        changed.source_binding.as_mut().unwrap().lookup_state = reached.lookup_state.clone();
+        changed.source_binding.as_mut().unwrap().targets = reached.targets.clone();
+        changed.source_binding.as_mut().unwrap().unknown = reached.unknown;
+        assert!(
+            !changed
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_native_source_may_owner(&changed, "not-declared", &module, registry)
+        );
     }
 }

@@ -562,6 +562,23 @@ impl OriginalSourceCommandTransitionAdvice {
                 .as_ref()
                 .is_none_or(|input| std::ptr::eq(Arc::as_ptr(&input.context_registry()), context))
     }
+    /// A retained source descriptor excludes a declared-body dependency only
+    /// within its named Logical model, without fallback, alias or mutation debt.
+    pub(crate) fn has_named_only_logical_summary_descriptor(&self) -> bool {
+        self.logical_input.is_some()
+            && self.logical_scope.is_some()
+            && self.declaration.is_none()
+            && self.lineage.is_empty()
+            && self.uncertain_operations.is_empty()
+            && !self.obligations.iter().any(|obligation| {
+                matches!(
+                    obligation,
+                    SourceCommandTransitionObligation::UnknownEarlierMutation
+                        | SourceCommandTransitionObligation::ConditionalDeclarationApplicability
+                )
+            })
+    }
+
     pub(crate) fn logical_source_scope(
         &self,
     ) -> Option<&Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>> {
@@ -623,6 +640,12 @@ enum AdviceCell {
     Shadowed,
     Deleted,
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalLogicalSummaryScope {
+    original: Arc<[NativeWord]>,
+    scope: Arc<super::OriginalDeclaredLogicalBodyContext>,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct OriginalSourceTransitionAdviceTape {
     advice: BTreeMap<u32, OriginalSourceCommandTransitionAdvice>,
@@ -649,7 +672,10 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     >,
     configured_classes: BTreeMap<u32, Option<OriginalSourceConfiguredClassReference>>,
     procedure_publications: Option<OriginalSourceProcedurePublications>,
+    native_procedure_may_commands:
+        BTreeMap<u32, Option<native_declared_body::OriginalNativeSourceMayCommand>>,
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
+    logical_summary_scopes: BTreeMap<u32, Option<OriginalLogicalSummaryScope>>,
     class_publications: Option<OriginalSourceClassPublications>,
     scanned_procedure_declarations: BTreeSet<u32>,
     class_instance_calls: BTreeMap<u32, Option<OriginalSourceClassInstanceWords>>,
@@ -802,7 +828,31 @@ impl OriginalSourceTransitionAdviceTape {
         self.body_catalogue.get(&offset)?.as_ref()
     }
 
+    pub(super) fn retain_logical_summary_scope(
+        &mut self,
+        original: &[NativeWord],
+        scope: &Arc<super::OriginalDeclaredLogicalBodyContext>,
+    ) {
+        let Some(head) = original.first() else {
+            return;
+        };
+        source_class::merge_receipt(
+            &mut self.logical_summary_scopes,
+            head.span().start(),
+            Some(OriginalLogicalSummaryScope {
+                original: Arc::from(original),
+                scope: Arc::clone(scope),
+            }),
+        );
+    }
+
     fn extend_inventory(&mut self, other: Self) {
+        for (offset, receipt) in other.native_procedure_may_commands {
+            source_class::merge_receipt(&mut self.native_procedure_may_commands, offset, receipt);
+        }
+        for (offset, scope) in other.logical_summary_scopes {
+            source_class::merge_receipt(&mut self.logical_summary_scopes, offset, scope);
+        }
         for (offset, card) in other.logical_procedure_bodies {
             source_class::merge_receipt(&mut self.logical_procedure_bodies, offset, card);
         }
@@ -1968,6 +2018,7 @@ impl AdviceInvocationContext<'_> {
             graph.widen(&invocation.words);
             return Some(());
         };
+        self.retain_native_procedure_may_command(tape, graph, &invocation.words, &written);
         self.retain_original_operand_constructor_calls(tape, graph, &invocation.words, None);
         if self.retain_original_source_receiver(tape, graph, &invocation.words, &written) {
             return Some(());
@@ -2139,6 +2190,29 @@ impl super::SourceCommandBindings {
                 .flatten()
                 .collect(),
         )
+    }
+
+    /// Exact deferred Logical command scope for MAY body dependencies only.
+    pub(crate) fn original_logical_summary_scope(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        original: &[NativeWord],
+    ) -> Option<Arc<super::OriginalDeclaredLogicalBodyContext>> {
+        if self.original_logical_source_name_advice_input() != Some(input)
+            || self.source_metadata_owner().source_analysis_input() != Some(input)
+        {
+            return None;
+        }
+        let tape =
+            self.original_source_transition_advice_tape(input.borrowed_context_registry())?;
+        let record = tape
+            .logical_summary_scopes
+            .get(&original.first()?.span().start())?
+            .as_ref()?;
+        (record.original.as_ref() == original
+            && record.scope.matches_input(input)
+            && record.scope.owns_words(original))
+        .then(|| Arc::clone(&record.scope))
     }
 
     pub(crate) fn original_source_transition_advice_tape(

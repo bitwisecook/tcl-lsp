@@ -35,32 +35,88 @@ pub fn collect_known_names<I: IntoIterator<Item = String>>(
     params: I,
     body: &Script,
 ) -> HashSet<String> {
-    let mut names: HashSet<String> = params.into_iter().collect();
-    visit(&body.statements, &mut names);
-    names
+    collect_known_name_inventory(params, body).names
 }
 
-fn visit(stmts: &[Statement], names: &mut HashSet<String>) {
-    for stmt in stmts {
-        visit_one(stmt, names);
+pub(crate) struct KnownNameInventory {
+    pub(crate) names: HashSet<String>,
+    pub(crate) unknown_residual: bool,
+}
+
+pub(crate) fn collect_known_name_inventory<I: IntoIterator<Item = String>>(
+    params: I,
+    body: &Script,
+) -> KnownNameInventory {
+    let mut inventory = KnownNameInventory {
+        names: params.into_iter().collect(),
+        unknown_residual: false,
+    };
+    visit(body, &mut inventory);
+    inventory
+}
+
+fn visit(body: &Script, inventory: &mut KnownNameInventory) {
+    for statement in &body.statements {
+        if let Some(tokens) = body.retained_source_tokens_for_statement(statement)
+            && let Some(registry) = tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.retained_registry_for_tokens(tokens))
+            && let Some(source) =
+                crate::registry_invocation::original_authored_source_structure(tokens, registry)
+        {
+            inventory.unknown_residual |= source.has_unknown_residual();
+            for &(index, role) in &source.facts().arg_roles {
+                let argument = source.facts().argument_offset + usize::from(index);
+                let relevant = matches!(
+                    role,
+                    tcl_registry::ArgRole::VarRead
+                        | tcl_registry::ArgRole::VarWrite
+                        | tcl_registry::ArgRole::LoopVarList
+                        | tcl_registry::ArgRole::StaticVarList
+                );
+                let Some(value) = source.argument_literal(argument) else {
+                    inventory.unknown_residual |= relevant;
+                    continue;
+                };
+                match role {
+                    tcl_registry::ArgRole::VarRead | tcl_registry::ArgRole::VarWrite => {
+                        inventory.names.insert(value);
+                    }
+                    tcl_registry::ArgRole::LoopVarList | tcl_registry::ArgRole::StaticVarList => {
+                        if let Ok(values) =
+                            tcl_syntax::word_rules::WordValueRules::from_config(&source.config())
+                                .split_list(&value)
+                        {
+                            inventory
+                                .names
+                                .extend(values.into_iter().map(std::borrow::Cow::into_owned));
+                        } else {
+                            inventory.unknown_residual = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        visit_one(statement, inventory);
     }
 }
 
-fn insert_nonempty(names: &mut HashSet<String>, name: &str) {
-    if !name.is_empty() {
-        names.insert(name.to_string());
-    }
+fn insert_name(names: &mut HashSet<String>, name: &str) {
+    names.insert(name.to_owned());
 }
 
-fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
+fn visit_one(stmt: &Statement, inventory: &mut KnownNameInventory) {
+    let names = &mut inventory.names;
     match stmt {
         Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. } => insert_nonempty(names, name),
+        | Statement::Incr { name, .. } => insert_name(names, name),
         Statement::Call { defs, reads, .. } => {
             for name in defs.iter().chain(reads.iter()) {
-                insert_nonempty(names, name);
+                insert_name(names, name);
             }
         }
         Statement::Catch {
@@ -69,27 +125,27 @@ fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
             ..
         } => {
             for name in result_var.iter().chain(options_var.iter()) {
-                insert_nonempty(names, name);
+                insert_name(names, name);
             }
         }
         Statement::Try { handlers, .. } => {
             for handler in handlers {
                 for name in handler.var_name.iter().chain(handler.options_var.iter()) {
-                    insert_nonempty(names, name);
+                    insert_name(names, name);
                 }
             }
         }
         Statement::Foreach { iterators, .. } => {
             for iterator in iterators {
                 for name in &iterator.vars {
-                    insert_nonempty(names, name);
+                    insert_name(names, name);
                 }
             }
         }
         _ => {}
     }
     for child in stmt.child_scripts() {
-        visit(&child.statements, names);
+        visit(child, inventory);
     }
 }
 
@@ -118,6 +174,28 @@ mod tests {
         let names = collect_known_names(std::iter::empty::<String>(), &body);
         assert!(names.contains("foo"));
         assert!(names.contains("bar"));
+    }
+
+    #[test]
+    fn original_authored_name_roles_preserve_empty_and_literal_sigils() {
+        for (source, expected) in [
+            ("set {} VALUE", vec![""]),
+            ("info exists {$literal}", vec!["$literal"]),
+            (
+                "catch {puts value} {$result} {[options]}",
+                vec!["$result", "[options]"],
+            ),
+            (
+                "foreach {{} {$item} {[item]}} values {}",
+                vec!["", "$item", "[item]"],
+            ),
+        ] {
+            let body = body_of(source);
+            let inventory = collect_known_name_inventory(std::iter::empty::<String>(), &body);
+            for name in expected {
+                assert!(inventory.names.contains(name), "{source}: {name:?}");
+            }
+        }
     }
 
     #[test]

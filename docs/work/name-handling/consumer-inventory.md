@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T09:11:19Z. The [outstanding audit](outstanding-consumer-audit.md)
+Current bounded snapshot: 2026-10-14T09:27:09Z. The [outstanding audit](outstanding-consumer-audit.md)
 and machine inventory retain original issue and source observations.
 
 The current shared consumers retain complete original source, analysis input,
@@ -216,13 +216,25 @@ frame/context heap transport are integrated after independent review; new
 controls and fresh fixed-budget graph replay remain required. Logical immutable
 body inventory now delegates its positively issued source tokens to the existing
 shared Realm stamping. Native child source grammar is integrated with full
-input/origin/vector/card checks and explicit expansion refusal; its early MAY
-reader remains held for requested-head/tape/reached-refusal repair. Compiler62
+input/origin/vector/card checks and explicit expansion refusal; its MAY
+reader now uses a separate genuine deferred-body/vector purpose receipt and
+checks actual requested original name bytes, poison/barriers and reached target
+compatibility. Present child receipt selects this terminal source reader before
+legacy lookup. Logical MAY summaries retain actual BodyWalk scope and current
+issued body IDs; only an independently named descriptor without aliases or
+uncertainty can exclude a procedure edge. Global/CFG readers consume IDs and
+opacity only. Authored/Standalone source roles validate the complete original
+vector/configuration/snapshot and actual retained Registry; variable-escape
+consumers preserve literal empty/sigil names and unknown coverage. All three
+consumer migrations are integrated after independent source review. Compiler62
 seals build-only missing documentation failures with source drift zero; concise
-API contracts are corrected. Compiler64 is running the expanded current plan
-after the next fixture correction. No semantic result is claimed for that run.
+API contracts are corrected. Compiler65 builds but executes no controls because the taint filter is empty;
+its actual selector listing is corrected. Compiler66 stops at a Cow/String type
+conversion, source drift zero and no semantic controls; the representation-only
+conversion is corrected. Compiler67 is running the expanded current plan. No
+semantic result is claimed for that run.
 Shared exact Registry registration descriptor and Logical callback candidate
-projections are independently reviewed and queued. MCP path source categories
+projections are integrated after independent source review. MCP path source categories
 retain actual Event/Procedure kind separately from rendered labels; the typed
 consumer migration is integrated and awaits original actual binary controls.
 These source reviews establish no cache or whole-report acceptance.

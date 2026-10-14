@@ -1375,16 +1375,22 @@ pub(super) fn direct_call_targets(
                 continue;
             };
             if statement.is_executable_invocation() {
-                match owners.calls(tokens, registry) {
-                    Some(selected) => calls.extend(selected.into_iter().map(|(id, _)| id)),
+                match owners.may_calls(tokens, registry) {
+                    Some(selected) => {
+                        calls.extend(selected.bodies);
+                        opaque |= selected.unknown_alternatives;
+                    }
                     None => opaque = true,
                 }
             }
             match owners.children(tokens, registry) {
                 Some(children) => {
                     for child in children {
-                        match owners.calls(&child, registry) {
-                            Some(selected) => calls.extend(selected.into_iter().map(|(id, _)| id)),
+                        match owners.may_calls(&child, registry) {
+                            Some(selected) => {
+                                calls.extend(selected.bodies);
+                                opaque |= selected.unknown_alternatives;
+                            }
                             None => opaque = true,
                         }
                     }

@@ -877,6 +877,9 @@ impl BodyWalk<'_, '_> {
         depth: usize,
     ) -> Option<()> {
         self.mark_child_header(native)?;
+        if let (Some(tape), Some(scope)) = (&mut self.inventory, &self.logical_scope) {
+            tape.retain_logical_summary_scope(&native.words, scope);
+        }
         if let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body)
             && matches!(self.context.policy, AdviceNamingPolicy::Logical(_))
             && self.context.retain_original_body_constructor_calls(

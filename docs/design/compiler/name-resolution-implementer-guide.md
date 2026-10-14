@@ -139,6 +139,32 @@ or an unobserved BIG-IP result.
 
 ### Shared query inputs and results
 
+`original_authored_source_structure` supplies possible name roles for the
+explicit Authored/Standalone source model. Its issuer validates the whole original
+word vector, actual lexer configuration and original lookup snapshot before
+returning selected descriptor consensus and explicit unknown coverage. It reborrows the immutable command store held by
+`SourceInvocationBinding::retained_registry_for_tokens`; supplied, Native,
+Hosted, unknown-entry and captured-prefix ownership cannot use this route.
+`has_unknown_residual` preserves opaque alternatives, observers and incomplete
+lookup coverage. Consumers may protect the original literal names, including
+empty strings and literal sigils, but cannot infer complete absence, handler
+execution, a physical frame or Normal completion.
+
+The implicit variable-escape Module and CompilationUnit drivers use their
+retained `RegistrySnapshot`. Script and CFG drivers require unanimous actual
+original token stores; missing or incompatible ownership stays pessimistic.
+`collect_known_name_inventory` reads source VarRead, VarWrite, LoopVarList and
+StaticVarList roles through this facade and the shared list-value owner. Its
+possible-name set and unknown residual remain separate from physical cell and
+slot admission. Normal frameless queries require their independent owner.
+
+Owner paths: `registry_invocation/authored_source_structure.rs`,
+`command_binding.rs`, `var_escape/helpers.rs`, `var_escape/known_names.rs` and
+`var_escape/api.rs`. Controls:
+`authored_source_roles_require_the_actual_store_and_complete_original_vector`,
+`original_authored_name_roles_preserve_empty_and_literal_sigils`, and
+`implicit_escape_driver_uses_the_retained_actual_registry`.
+
 A shared function should answer one semantic question over an original owner
 receipt. Its signature must retain the coordinates that identify that question:
 actual interpreter and dialect, source instance and site, evaluation phase,

@@ -802,6 +802,15 @@ mod original_native_body_tests {
             )
             .unwrap();
         assert!(dependencies.unknown_alternatives);
+        assert!(
+            crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
+                tokens,
+                "forged-head",
+                &actual,
+                registry
+            )
+            .is_none()
+        );
         assert_eq!(dependencies.bodies.len(), 2);
         assert!(
             dependencies
@@ -815,7 +824,7 @@ mod original_native_body_tests {
                 .source_binding
                 .as_ref()
                 .unwrap()
-                .original_native_source_may_owner(tokens, &foreign, registry)
+                .original_native_source_may_owner(tokens, "not-declared", &foreign, registry)
         );
         assert!(procedure.body.executed_source.is_none());
         assert!(procedure.body.native_compilation_admission.is_none());

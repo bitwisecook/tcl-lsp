@@ -798,6 +798,7 @@ struct BindingBaseline {
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     fingerprint: u64,
     registry_snapshot: Option<tcl_registry::RegistrySemanticKey>,
+    registry_owner: Option<tcl_registry::RegistrySnapshot>,
     declared_commands: Arc<BTreeMap<String, String>>,
     declared_surface: Option<Arc<source_analysis_entry::SourceDeclaredCommandContracts>>,
     catalogue_commands: Arc<BTreeMap<String, String>>,
@@ -824,6 +825,14 @@ impl PartialEq for BindingBaseline {
             && self.execution_name_policy == other.execution_name_policy
             && self.unknown_entry == other.unknown_entry
             && self.registry_snapshot == other.registry_snapshot
+            && self
+                .registry_owner
+                .as_ref()
+                .map(tcl_registry::RegistrySnapshot::semantic_key)
+                == other
+                    .registry_owner
+                    .as_ref()
+                    .map(tcl_registry::RegistrySnapshot::semantic_key)
             && self.native_entry == other.native_entry
             && self.native_compilation == other.native_compilation
             && self.compiled_variable_provider == other.compiled_variable_provider
@@ -872,6 +881,7 @@ impl BindingBaseline {
             ),
             fingerprint: 0,
             registry_snapshot: Some(registry.snapshot().semantic_key()),
+            registry_owner: Some(registry.snapshot()),
             declared_commands: Arc::default(),
             declared_surface: None,
             catalogue_commands: Arc::new(
@@ -909,6 +919,10 @@ impl BindingBaseline {
     fn refresh_fingerprint(&mut self) {
         let mut state = std::collections::hash_map::DefaultHasher::new();
         self.registry_snapshot.hash(&mut state);
+        self.registry_owner
+            .as_ref()
+            .map(tcl_registry::RegistrySnapshot::semantic_key)
+            .hash(&mut state);
         self.execution_name_policy.hash(&mut state);
         self.metadata_context.hash(&mut state);
         self.declared.hash(&mut state);
@@ -1576,6 +1590,25 @@ impl OriginalCompilationLookupAdvice {
         self.snapshot.state.has_opaque_domain()
     }
 
+    /// Unclosed candidate coverage remains an explicit source-only residual.
+    pub(crate) fn has_unclosed_source_coverage(&self) -> bool {
+        !self.closed_lookup()
+            || self.has_opaque_handler_alternatives()
+            || self.snapshot.state.source_step_observed()
+            || !self.snapshot.state.command_observers.is_quiet()
+    }
+
+    /// Independently selected Authored/Standalone model, never a missing Native input.
+    pub(crate) fn is_authored_standalone_source(&self) -> bool {
+        let baseline = &self.snapshot.state.baseline;
+        baseline.metadata_context.is_standalone()
+            && baseline.native_entry.is_none()
+            && baseline.logical_source_input.is_none()
+            && baseline.vendor_source_input.is_none()
+            && baseline.hosted_execution_context.is_none()
+            && !baseline.unknown_entry
+    }
+
     /// Original candidate lookup is complete in its independently known namespace.
     pub(crate) fn closed_lookup(&self) -> bool {
         !self.unknown
@@ -1813,6 +1846,68 @@ impl SourceInvocationBinding {
                 binding
             },
         )
+    }
+
+    /// Actual immutable command store belonging to this complete source vector.
+    /// This reborrow supplies metadata only, without lookup or execution authority.
+    pub(crate) fn retained_registry_for_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<&tcl_registry::CommandRegistry> {
+        let owner = self
+            .lookup_state
+            .as_ref()?
+            .state
+            .baseline
+            .registry_owner
+            .as_ref()?;
+        let registry = owner.registry();
+        self.original_lexer_config_for_tokens(tokens)?;
+        self.original_invocation_metadata_at_point(tokens, registry)
+            .ok()?;
+        Some(registry)
+    }
+
+    /// MAY layout from the genuine Authored/Standalone world at this source point.
+    /// Present Native, hosted or supplied-source ownership cannot enter this route.
+    pub(crate) fn original_authored_source_layout(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<OriginalCompilationLookupAdvice> {
+        let retained = self.retained_registry_for_tokens(tokens)?;
+        if retained.snapshot().semantic_key() != registry.snapshot().semantic_key() {
+            return None;
+        }
+        let mut advice = self.original_compilation_lookup_advice(tokens)?;
+        let point = self.lookup_state.as_ref()?;
+        let baseline = &point.state.baseline;
+        if !advice.is_authored_standalone_source()
+            || !baseline.metadata_context.is_standalone()
+            || baseline.native_entry.is_some()
+            || baseline.logical_source_input.is_some()
+            || baseline.vendor_source_input.is_some()
+            || baseline.hosted_execution_context.is_some()
+            || baseline.unknown_entry
+        {
+            return None;
+        }
+        let head = self.lookup_word.as_deref()?;
+        let current = source_binding_projection(&point.state, head, advice.namespace());
+        if current.targets.as_slice() != advice.targets()
+            || advice
+                .targets()
+                .iter()
+                .any(|target| !target.prepended.is_empty())
+        {
+            return None;
+        }
+        advice.unknown |= current.unknown
+            || point.state.has_opaque_domain()
+            || point.state.source_step_observed()
+            || !point.state.command_observers.is_quiet();
+        advice.may_be_absent |= current.may_be_absent;
+        Some(advice)
     }
 
     /// Candidate lexical layout of this original static head, captured before

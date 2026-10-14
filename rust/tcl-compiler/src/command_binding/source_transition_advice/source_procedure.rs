@@ -198,6 +198,49 @@ impl AdviceInvocationContext<'_> {
         }))
     }
 
+    pub(super) fn retain_native_procedure_may_command(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        native: &[tcl_lexer::NativeWord],
+        written: &[SourceAdviceWord],
+    ) {
+        if !matches!(self.policy, AdviceNamingPolicy::Native(_))
+            || native.iter().any(|word| word.group().expand)
+            || written.len() != native.len()
+            || written
+                .iter()
+                .zip(native)
+                .any(|(word, native)| word.original != *native)
+        {
+            return;
+        }
+        let (Some(body), Some(head)) = (
+            graph.procedure_body.as_ref(),
+            written.first().and_then(|word| word.input.as_ref()),
+        ) else {
+            return;
+        };
+        if head.native_input().is_none()
+            || (graph.blocks_registry_source(head) && graph.original_procedure(head).is_none())
+        {
+            return;
+        }
+        let Some(offset) = native.first().map(|word| word.span().start()) else {
+            return;
+        };
+        let receipt = super::native_declared_body::OriginalNativeSourceMayCommand {
+            original: Arc::from(native),
+            head: head.clone(),
+            body: Arc::clone(body),
+        };
+        super::source_class::merge_receipt(
+            &mut tape.native_procedure_may_commands,
+            offset,
+            Some(receipt),
+        );
+    }
+
     pub(super) fn retain_original_source_receiver(
         &self,
         tape: &mut OriginalSourceTransitionAdviceTape,

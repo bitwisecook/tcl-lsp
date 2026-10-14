@@ -44,9 +44,9 @@ use crate::var_escape::cfg_propagation::known_names::collect_known_names_from_cf
 use crate::var_escape::cfg_propagation::state::{CfgEscapeResult, CfgState};
 use crate::var_escape::handlers::has_expand_word;
 use crate::var_escape::helpers::{
-    default_registry, invocation_facts, invocation_facts_from_tokens, invocation_from_tokens,
-    is_dynamic_name, is_dynamic_token, normal_handler_is_frameless,
-    original_substitution_invocations, statement_needs_original_substitution_inventory,
+    invocation_facts, invocation_facts_from_tokens, invocation_from_tokens, is_dynamic_name,
+    is_dynamic_token, normal_handler_is_frameless, original_substitution_invocations,
+    retained_registry_for_cfg, statement_needs_original_substitution_inventory,
 };
 
 fn apply_original_substitution_scan(
@@ -753,7 +753,18 @@ pub fn analyse_cfg_function<I: IntoIterator<Item = String>>(
     ssa: &SsaFunction,
     params: I,
 ) -> CfgEscapeResult {
-    analyse_cfg_function_with_registry(cfg, ssa, params, default_registry())
+    if let Some(registry) = retained_registry_for_cfg(cfg) {
+        return analyse_cfg_function_with_registry(cfg, ssa, params, registry);
+    }
+    let mut state = CfgState::new(collect_known_names_from_cfg(params, ssa));
+    if cfg
+        .blocks
+        .values()
+        .any(|block| !block.statements.is_empty() || block.terminator.is_some())
+    {
+        state.mark_pessimistic();
+    }
+    state.into_result()
 }
 
 /// Registry-aware form of [`analyse_cfg_function`].
@@ -803,6 +814,7 @@ mod tests {
     };
     use crate::lowering::lower_to_ir;
     use crate::ssa::build_ssa;
+    use crate::var_escape::helpers::default_registry;
     use crate::var_escape::types::EscapeTag;
     use tcl_registry::CommandRegistry;
 

@@ -1291,14 +1291,15 @@ impl<'a> CfgBuilder<'a> {
     }
 
     fn source_global_writes(&self, tokens: Option<&CommandTokens>) -> (Vec<String>, bool) {
-        let Some(calls) =
-            tokens.and_then(|tokens| self.procedure_summary_owners.calls(tokens, self.registry))
-        else {
+        let Some(calls) = tokens.and_then(|tokens| {
+            self.procedure_summary_owners
+                .may_calls(tokens, self.registry)
+        }) else {
             return (Vec::new(), true);
         };
         let mut names = BTreeSet::new();
-        let mut opaque = false;
-        for (id, _) in calls {
+        let mut opaque = calls.unknown_alternatives;
+        for id in calls.bodies {
             match self.global_write_procs.get(&id) {
                 Some(info) => {
                     names.extend(info.names.iter().cloned());
