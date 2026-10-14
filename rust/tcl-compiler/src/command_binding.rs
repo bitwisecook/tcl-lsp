@@ -2187,30 +2187,6 @@ enum OriginalOperandLayoutPurpose {
     LogicalDeclarationTargets,
 }
 
-fn original_replay_words_match(
-    original: &crate::ir::CommandTokens,
-    retained: &crate::ir::CommandTokens,
-    config: tcl_lexer::LexerConfig,
-    word_values: tcl_syntax::word_rules::WordValueRules,
-) -> bool {
-    original.words().len() == retained.words().len()
-        && original
-            .words()
-            .iter()
-            .zip(retained.words())
-            .all(|(original, retained)| {
-                crate::registry_invocation::effective_invocation_word(
-                    original,
-                    config.escapes,
-                    word_values,
-                ) == crate::registry_invocation::effective_invocation_word(
-                    retained,
-                    config.escapes,
-                    word_values,
-                )
-            })
-}
-
 fn original_site_layout_advice(
     site: &CommandAllocationSite,
     tokens: &crate::ir::CommandTokens,
@@ -2219,10 +2195,9 @@ fn original_site_layout_advice(
     purpose: OriginalOperandLayoutPurpose,
     config: tcl_lexer::LexerConfig,
 ) -> Option<OriginalCompilationLookupAdvice> {
-    if tokens.synthetic.is_some() {
+    if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
         return None;
     }
-    let original = crate::registry_invocation::native_compiler_replay_source(tokens, site)?;
     let dialect = snapshot.state.source_variables.invocation_dialect?;
     let logical_source = snapshot
         .state
@@ -2250,26 +2225,6 @@ fn original_site_layout_advice(
                 crate::var_resolve::VariableExecutionFrame::Unknown
             ))
     {
-        return None;
-    }
-    let image = tcl_lexer::SourceImage::from_bytes(
-        original.as_bytes(),
-        site.source.source_image().channel(),
-    );
-    let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
-        &image,
-        0,
-        config.nested(),
-    )?;
-    let [segment] = segments.as_slice() else {
-        return None;
-    };
-    if segment.is_partial {
-        return None;
-    }
-    let original_tokens =
-        crate::ir::CommandTokens::from_segmented(&image.source_map(), config, segment);
-    if !original_replay_words_match(&original_tokens, tokens, config, dialect.word_values) {
         return None;
     }
     let original = site

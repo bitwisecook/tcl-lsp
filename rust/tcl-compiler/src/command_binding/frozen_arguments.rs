@@ -253,10 +253,9 @@ mod tests {
         );
         let mut changed = tokens.clone();
         let binding = changed.source_binding.as_mut().unwrap();
-        binding.variable_context = Arc::new(crate::var_resolve::ResolveContext {
-            dynamic_traces: true,
-            ..binding.variable_context.as_ref().clone()
-        });
+        let mut observed_context = binding.variable_context.as_ref().clone();
+        observed_context.dynamic_traces = true;
+        binding.variable_context = Arc::new(observed_context);
         let binding = changed.source_binding.as_ref().unwrap();
         assert!(
             binding

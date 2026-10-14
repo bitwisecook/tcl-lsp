@@ -13150,13 +13150,13 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "head": "5f6522cdbd950b11732dcd0280aaad882bf36c24",
-    "checkpoint_utc": "2026-10-14T05:10:56Z",
-    "tracking_basis": "Actual Main consumer reconciliation and sealed Compiler33/Core34/Runtime09/DB38 results; strict current proof audit running read-only. Baseline source/issue/isolated observations remain unchanged.",
+    "head": "8f3874aa6f8ce4a98f6a1dc3cb5ce7840dad8a8b",
+    "checkpoint_utc": "2026-10-14T05:28:14Z",
+    "tracking_basis": "Actual Main consumer reconciliation with sealed DB38/Core34/Runtime09/Compiler33 results; Compiler40 running and strict proof/docs audits complete. Baseline source/issue/provider/evidence/replay snapshots unchanged.",
     "scope": "Only explicit current actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and issue records unchanged; no old proof digest renewed.",
-    "validation": "Compiler33 diagnostic 304 controls: 194 PASS, 110 FAIL, source drift 0. Core34 diagnostic 64 controls: 39 PASS, 25 FAIL, source drift 0; common original 30 gain two with no regressions, original scope 9 is 8 PASS/1 FAIL and earlier 14 is 13 PASS/1 FAIL. DB38 builds and executes exactly ten controls: 2 PASS, 8 FAIL, no missing selectors, source drift 0; whole-file lattice shift and original quoted/braced callee-edit memo observations pass. DB36/37 failed before semantic replay and retain independent results. Runtime09 78/79 PASS and all original 77 PASS, all three drift inventories 0; current corrections still require replay. Strict proof audit running without write-inventory/hash reseal. No whole-codebase/Native/F5/PR-ready acceptance.",
+    "validation": "Compiler40 running, no aggregate. DB38 build PASS, exact original ten controls 2 PASS/8 FAIL, source drift 0 and no missing selectors. Core34 diagnostic 64 controls 39 PASS/25 FAIL source drift 0; common original 30 gain two/no regressions. Runtime09 78/79 PASS, original 77 PASS, all three drift inventories 0; current corrections require replay. Strict current proof audit FAIL: 1,959 structural errors across 2,606 questions, including969 evidence digest references/631 changed files,952 census digests,12 census paths,4 absent owners; no hashes refreshed. Read-only docs mirror: 3,259 Markdown files/126,061 local links, one broken fragment and five unindexed design docs; real KCS/tag/audience gate remains required. No whole-codebase/Native/F5/PR-ready acceptance.",
     "source_write_policy": "Root-authorised three tracking documents only; no Rust/runtime/experiments/scripts/specs/Cargo/Git writes by this agent.",
-    "additional_bounded_families": "Source consumer migrations remain integrated with independent original controls. Current owner gate accepts public declarations; private helper registrations require accurate internal module/consumer mapping and cannot justify exposing helpers or relaxing existing Runtime guard-route checks. Current documentation link/index and development-history comment audits are active. DB original reuse counts, strict Native SSA hints, graph producer stack/IDs, OO edit controls and remaining consumer audits remain unfinished.",
+    "additional_bounded_families": "MCP genuine selected-dialect consumer migration is ready and unexecuted. Dedicated source-gate work checks accurate nested private owner/module/consumer routes without exposing APIs or relaxing existing Runtime typed-receiver checks; exact13 current mappings and217 restricted/private-looking entries across69 surfaces are retained as triage, not AST acceptance. Durable link/index/contract relocation and comment-only cleanup packets are separate from immutable source/provider evidence. Core graph producer stack/body IDs, Native SSA hints, OO hover/rename, DB original cache counts and remaining consumer audits stay active.",
     "reconciled_live_rows": [
       "bpf-thread-hint",
       "vm-authored-ns-wrappers",
@@ -13169,6 +13169,6 @@
       "bpf-selected-descriptor"
     ],
     "immutable_evidence_policy": "Earlier baseline fields, source/isolated snapshots, inherited330/package/issue rows and proof digests unchanged; current_review observations are not new execution evidence.",
-    "next_commit_due_utc": "2026-10-14T05:12:00Z"
+    "next_commit_due_utc": "2026-10-14T05:28:00Z"
   }
 }

@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-This is the bounded 05:10 UTC snapshot on `work`. The machine inventory keeps
+This is the bounded 05:28 UTC snapshot on `work`. The machine inventory keeps
 47 actionable rows, the inherited 330 lexical LSP candidates and original issue
 and source observations. Package membership or lexical search absence does not
 certify semantic completion. [Current consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
@@ -10,6 +10,7 @@ record each integrated owner and its remaining execution obligation.
 
 | Capture | Actual result | Scope and remaining work |
 | --- | --- | --- |
+| Compiler40 | Running; no final aggregate. | Current consumer/source repairs require exact original controls. Root source freeze remains active; older captures do not accept this newer source. |
 | Compiler33 diagnostic | 304 controls: 194 PASS, 110 FAIL; zero authored-source drift. | Among 295 common Compiler31 controls, 19 improve and one regresses. Source geometry and consumer repairs have measurable gains; global/upvar/deferred effects, source-frame fixture ownership and original summary body coverage still fail. Diagnostic capture does not establish Native provider acceptance. |
 | Full Runtime09 | 79 controls: 78 PASS, 1 FAIL; zero source/compiled-input/artifact drift. | All original 77 controls pass. Only new C8.5 rename error-code expectation fails. The independent per-engine correction is integrated and requires fresh replay. Engine host/guest closure remains separate. |
 | Core34 diagnostic | 64 controls: 39 PASS, 25 FAIL; zero authored-source drift. | Common original 30 gain 2 with no regressions; original scope 9 is 8 PASS/1 FAIL and earlier 14 is 13 PASS/1 FAIL. Linked definition 2 pass; hover 4/rename and provider/seed fail. Graph13 overflows during analysis producer; strict Native inlay has no definitions/types. |
@@ -106,13 +107,25 @@ before the merge-ready PR; durable documentation describes current contracts.
 
 ## Current final-gate audit
 
-The strict proof checker is running read-only against current source. No evidence,
-provider, replay or census hash is renewed. Its result remains pending.
+The strict current proof audit fails with 1,959 structural errors across 2,606
+questions. It reports 969 changed evidence references across 631 files, 952
+census digest mismatches, 12 census paths and four absent owners. No evidence,
+provider, replay or census hash is renewed; current-source inspection does not
+certify immutable execution or Native acceptance.
 
-Public owner rows require actual unrestricted public declarations. Several
-source-only helpers are intentionally crate/module-private and need accurate
-internal owner/consumer registration. The existing internal Runtime route
-requires its unchanged typed no-argument getter path; nested source helpers
-cannot invent that route or become public solely for documentation.
-Documentation link/index and remaining development-history comments are under
-inspection; source and oracle/legal provenance remain intact.
+Public owner rows require actual unrestricted public declarations. Accurate
+private source registration is under implementation with exact module/consumer
+routes, while the existing Runtime typed getter rule remains unchanged.
+Thirteen exact new mappings and 217 restricted/private-looking entries across
+69 surfaces are retained for AST review; trait and re-export cases are not
+resolved by lexical triage. Helpers cannot become public solely for the map.
+
+The read-only documentation mirror checks 3,259 Markdown files and 126,061
+local links. One F5 fragment and five unindexed design documents require
+cleanup. The linked-member document is a current contract; a byte-identical
+relocation/index patch avoids treating it as an unrecorded proof question.
+Original appliance/probe/legal text remains intact. Real Rust KCS, diagnostic
+tag and audience checks remain required.
+
+MCP selected-dialect migration is ready under the genuine requested context,
+with integration and exact consumer replay still pending.
