@@ -1,0 +1,347 @@
+[
+  {
+    "id": "naming.source.retained-positioned-command-realm",
+    "kind": "implementation-contract",
+    "document": "docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md",
+    "problem_statement": "A Module consumer needs the positioned source interpretation that produced that Module. Rebuilding from printable text, a dialect label or partial entry fields can replace missing original correspondence with a different interpretation. Caller seeds, conditional warnings and in-place rewrites must stop when the retained source owner is unavailable.",
+    "question": "How can every Module consumer reuse the exact positioned source interpretation produced by lowering while preserving source channel, complete grammar, entry, availability generation, namespace and Registry ownership, and how must refusal propagate?",
+    "conclusion": "RetainedSourceModuleBindings keeps one immutable Arc-backed positioned SourceCommandBindings inventory. Its checked projection joins the actual Module source/channel, complete grammar, entry/input, namespace and Registry snapshot to that original producer. document_realm_bindings_for_module shares the derived inventory and complete metadata input without fresh analysis. Refusal makes callers opaque, withdraws interprocedural summaries, withholds conditional warnings and stops rewrites before writes. Actual new cross-file or synthetic source enters its own explicit lowering path. Mutable derived inventory detaches through the central copy-on-write owner. The original missing-command source owner joins exact current table absence to typed mutation history under this same Module. Logical static head geometry uses the shared source naming purpose and original operand lookup closure; Native diagnostics separately require genuine generic compilation and reached original keys. An absent table cell creates no descriptor, unknown-handler target, Native compiler, frame or execution receipt.",
+    "scope": "Current Rust source ownership contract and nine genuine direct software test definitions. Their actual module parents, complete bodies and source hashes are inspected; no own executable inventory or assertion outcome is attached. The six-profile software recipe loop is not an external C/Jim comparison. An immutable earlier source owner supplies no correspondence for changed Module bytes, channel, configuration, availability or entry. None from the checked projection is terminal refusal; CommandBindingRealm::none/default and optional helper assistance cannot substitute. Existing Native lookup/evaluation, frame, completion, physical object/store, implementation identity and rewrite guards remain independent. No timing improvement, completed performance comparison, source-to-library equivalence or BIG-IP result is claimed.",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not tested",
+        "build": "No original external-provider process for this Rust source-owner contract",
+        "input_channel": "Current Rust source/API definitions only",
+        "dialect": "tcl8.4",
+        "status": "not-tested",
+        "answer": "This Rust immutable-source retention and projection contract does not run an external provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not tested",
+        "build": "No original external-provider process for this Rust source-owner contract",
+        "input_channel": "Current Rust source/API definitions only",
+        "dialect": "tcl8.5",
+        "status": "not-tested",
+        "answer": "This Rust immutable-source retention and projection contract does not run an external provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not tested",
+        "build": "No original external-provider process for this Rust source-owner contract",
+        "input_channel": "Current Rust source/API definitions only",
+        "dialect": "tcl8.6",
+        "status": "not-tested",
+        "answer": "This Rust immutable-source retention and projection contract does not run an external provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not tested",
+        "build": "No original external-provider process for this Rust source-owner contract",
+        "input_channel": "Current Rust source/API definitions only",
+        "dialect": "tcl9.0",
+        "status": "not-tested",
+        "answer": "This Rust immutable-source retention and projection contract does not run an external provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not tested",
+        "build": "No original external-provider process for this Rust source-owner contract",
+        "input_channel": "Current Rust source/API definitions only",
+        "dialect": "tcl9.1",
+        "status": "not-tested",
+        "answer": "This Rust immutable-source retention and projection contract does not run an external provider.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not tested",
+        "build": "No original external-provider process for this Rust source-owner contract",
+        "input_channel": "Current Rust source/API definitions only",
+        "dialect": "jim",
+        "status": "not-tested",
+        "answer": "This Rust immutable-source retention and projection contract does not run an external provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "not tested",
+        "build": "No original external-provider process for this Rust source-owner contract",
+        "input_channel": "Current Rust source/API definitions only",
+        "dialect": "bigip",
+        "status": "not-tested",
+        "answer": "This Rust immutable-source retention and projection contract does not run an external provider.",
+        "evidence": []
+      }
+    ],
+    "evidence": [
+      {
+        "id": "retained-positioned-command-binding",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "sha256": "924e7447dc103d9a4b71a5a32a106228835dabaed48675b71fdf8e6b1aff49e2",
+        "description": "Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology."
+      },
+      {
+        "id": "retained-positioned-retained-source",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+        "sha256": "914ceb69a4e2ab42af4b0ac99ede3a8c3374fc7743090488fe29b7cf0126e181",
+        "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+      },
+      {
+        "id": "retained-positioned-compilation-unit",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/compilation_unit.rs",
+        "sha256": "812947b77edb4b2f1fcd13b6a7b46f4bf737838abedea5c1f4f1ac1c77324cd7",
+        "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+      },
+      {
+        "id": "retained-positioned-inline-uplevel",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/inline_uplevel.rs",
+        "sha256": "0c9ca8564340860aa032cb2f8843acad05566eccb54d05181a5ee78920974420",
+        "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+      },
+      {
+        "id": "retained-positioned-lib",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/lib.rs",
+        "sha256": "00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759",
+        "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+      },
+      {
+        "id": "retained-positioned-manager",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+        "sha256": "3c70e2c9d77675a874a1d87d90cec00e2d7e8ac923b01ab54777ffa08f48f13b",
+        "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+      },
+      {
+        "id": "retained-positioned-mod",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+        "sha256": "83faed96f49ebc8e385578f2f27d850d68ab389300fabfebb5aaacd2d77f7932",
+        "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+      },
+      {
+        "id": "retained-positioned-realm",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/realm.rs",
+        "sha256": "1ec2575611039c76ce295b3af3440073c74b622baab70413d5b389e25e57d07e",
+        "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+      },
+      {
+        "id": "retained-positioned-taint",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/taint.rs",
+        "sha256": "ebfb084d0d2f5387582742f4c4f138852d288a012a544131112e100e847dc576",
+        "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+      },
+      {
+        "id": "retained-positioned-unit-scope",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/unit_scope.rs",
+        "sha256": "f273c9621b162af054148feba5f799fc6cfa5e889aea6cc1b8ebbcb0a9a6a057",
+        "description": "Actual Module/caller original metadata and retained invocation purpose precede Logical unit linkage/call evidence; argument evaluation, real entry and Native allocation/handler guards remain distinct."
+      },
+      {
+        "id": "original-compiler341345-software-validation",
+        "role": "observation",
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json",
+        "sha256": "351ea4e52dbb8c4e367956cbf3c5b7e40df9f1732daeb25dfeac3299734a72a5",
+        "json_pointer": "/question_observations/naming.source.retained-positioned-command-realm",
+        "description": "Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance."
+      },
+      {
+        "id": "own-source347-software-outcomes",
+        "role": "observation",
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json",
+        "sha256": "903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c",
+        "description": "Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.",
+        "json_pointer": "/exact_question_body_outcomes"
+      },
+      {
+        "id": "original-restored-declaration-64aa956da6cf",
+        "role": "implementation",
+        "path": "rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs",
+        "sha256": "392dac59a7de50f0d9a7d26fe5caa3c96667ee82062cc30ce50cb178132e4a9e",
+        "description": "Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology."
+      }
+    ],
+    "source_anchors": [],
+    "tests": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+        "selector": "command_binding::retained_source::tests::positioned_module_projection_shares_the_actual_producer_and_detaches_writes",
+        "assertion": "The genuine Lowerer-produced positioned inventory and derived copies share the immutable original owner. Copy-on-write mutation detaches the derived state; the retained producer and its subsequent checked projection stay unchanged.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+        "selector": "command_binding::retained_source::tests::positioned_module_projection_refuses_each_changed_original_input",
+        "assertion": "Changes to original source bytes/channel, complete grammar, entry, namespace geometry, compilation scope, loop depth, actual Registry snapshot or foreign Registry withdraw the projection. Matching printable source or a retained earlier entry cannot repair these joins.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/realm.rs",
+        "selector": "realm::tests::original_module_realm_reuses_positioned_inventory_across_native_engine_profiles",
+        "assertion": "Six selected C/Jim Rust engine-profile recipes reuse their actual Lowerer inventory, complete source origin and derived positioned data; an explicit fresh source ingress supplies its own equal model. This loop is software source inspection, not six external-provider observations.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/realm.rs",
+        "selector": "realm::tests::original_module_realm_refuses_missing_and_same_store_foreign_availability",
+        "assertion": "Missing retained owner/input and older availability from the same command-store allocation refuse the projection. Updating entry metadata to that older availability does not revive the original owner; the current original input remains unchanged.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/compilation_unit.rs",
+        "selector": "compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results",
+        "assertion": "Missing or changed Module source ownership makes reachable callers opaque and withholds uniform caller seeds. Ordinary and memoized interprocedural consumers withdraw summaries; the refused memoized route invokes no taint memo.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/unit_scope.rs",
+        "selector": "unit_scope::tests::independent_caller_ingresses_keep_their_actual_sources_and_loader_identity",
+        "assertion": "Two genuine independent caller ingresses retain their own new source and literal caller evidence while preserving the actual loader implementation identity. Their fresh lowering is independent of a refused existing Module query.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/taint.rs",
+        "selector": "taint::tests::whole_unit_warning_query_requires_its_retained_positioned_source_owner",
+        "assertion": "A genuine whole-unit warning query returns its conditional warning under the retained source owner and returns no warnings for missing owner, changed original source or missing Registry snapshot. The original positive remains unchanged.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/taint.rs",
+        "selector": "taint::tests::command_substitution_callbacks_stop_before_replay_when_original_owner_is_refused",
+        "assertion": "A genuine selected command-substitution callback creates its conditional warning through one replay. Missing or changed original Module ownership stops before replay-name search or synthetic compilation. Authored Tk source provenance supplies no external callback execution.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/inline_uplevel.rs",
+        "selector": "inline_uplevel::tests::rewriter_uses_the_original_positioned_owner_and_stops_before_writes_on_refusal",
+        "assertion": "A genuine model uplevel candidate can rewrite through its retained original producer. Missing owner, changed source/configuration or missing snapshot refuses before statements move and preserves the complete Module. Independent callsite, implementation, frame and completion guards remain required.",
+        "status": "linked"
+      },
+      {
+        "path": "rust/tcl-compiler/src/realm.rs",
+        "selector": "realm::original_resolved_realm_input_tests::original_resolved_realm_producers_keep_exact_input_and_independent_source_currency",
+        "status": "linked",
+        "assertion": "Finite source-defined control: original resolved realm producers keep exact input and independent source currency. Retaining editing input supplies no Native admission or frame entry. Same exact input is independent of source-byte/channel currency. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+      },
+      {
+        "path": "rust/tcl-compiler/src/realm.rs",
+        "selector": "realm::original_resolved_realm_input_tests::original_resolved_realm_producers_refuse_missing_foreign_and_changed_inputs",
+        "status": "linked",
+        "assertion": "Finite source-defined control: original resolved realm producers refuse missing foreign and changed inputs. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+      },
+      {
+        "path": "rust/tcl-compiler/src/taint.rs",
+        "selector": "taint::original_taint_local_parser_purpose_tests::original_taint_callback_and_bracket_shapes_keep_actual_full_config",
+        "status": "linked",
+        "assertion": "Finite source-defined control: original taint callback and bracket shapes keep actual full config. Genuine full Module/FU input passes full selected lexerconfig into local callback/bracket shape projections; nested BOM, FirstClose/Nesting, stale and missing actual source metadata controls. Synthetic source cannot create execution receipts. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs",
+        "selector": "command_binding::original_restored_nested_declaration_tests::original_script_restoration_keeps_reached_nested_statement_and_consumed_site_bindings",
+        "status": "linked",
+        "assertion": "A software Vm retains a genuine known Native compilation entry through actual Lowerer Module and public restore_script_bindings. Original nested reached rows in statements and consumed command sites remain the separate raw route, with no new Logical receipt or external Native callback/reference chronology claim."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_missing_command.rs",
+        "selector": "command_binding::original_missing_command::tests::original_missing_mutated_slot_requires_current_complete_source",
+        "status": "linked",
+        "assertion": "A genuine supplied Logical deletion has an absent mutated slot; altered compatibility argv, missing binding and changed whole-source Module cannot borrow it."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_missing_command.rs",
+        "selector": "command_binding::original_missing_command::tests::source_absence_does_not_turn_external_or_dynamic_heads_into_rebound_slots",
+        "status": "linked",
+        "assertion": "External, dynamic and replacement calls cannot acquire the deleted-slot report; original operands that republish a name withdraw the readonly pre-operand closure."
+      }
+    ],
+    "owners": [
+      {
+        "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+        "symbol": "RetainedSourceModuleBindings::positioned_for_module",
+        "purpose": "Retain the actual original producer and require complete current Module/source ownership before borrowing."
+      },
+      {
+        "path": "rust/tcl-compiler/src/realm.rs",
+        "symbol": "document_realm_bindings_for_module",
+        "purpose": "Share positioned source inventory and complete input without fresh interpretation or fallback."
+      },
+      {
+        "path": "rust/tcl-compiler/src/compilation_unit.rs",
+        "symbol": "resolve_unit_scope",
+        "purpose": "Use the authentic Module projection; refusal records every reachable local callee as opaque, including future external merges."
+      },
+      {
+        "path": "rust/tcl-compiler/src/compilation_unit.rs",
+        "symbol": "CompilationUnit::with_interprocedural",
+        "purpose": "Use authentic original realm, withdraw stale summaries and stop when unavailable."
+      },
+      {
+        "path": "rust/tcl-compiler/src/compilation_unit.rs",
+        "symbol": "CompilationUnit::with_interprocedural_memoized",
+        "purpose": "The same Module projection and refusal boundary applies before a taint memo can execute."
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+        "symbol": "optimise_raw_for_profile",
+        "purpose": "Build interprocedural analysis from the existing Module original inventory; missing ownership withholds results."
+      },
+      {
+        "path": "rust/tcl-compiler/src/unit_scope.rs",
+        "symbol": "scan_source_call_sites_with_entry",
+        "purpose": "Use actual freshly lowered Module owner; refusal retracts dispatch-reachable caller seeds."
+      },
+      {
+        "path": "rust/tcl-compiler/src/taint.rs",
+        "symbol": "find_taint_warnings_for_cu_base_with_external_variable_seeds",
+        "purpose": "Use authentic Module positioned owner before solving and withhold all results on refusal."
+      },
+      {
+        "path": "rust/tcl-compiler/src/taint.rs",
+        "symbol": "find_callback_substitution_warnings",
+        "purpose": "Lazily retain Module owner or refusal for command-substitution builders; refused candidate never allocates replay names or builds synthetic unit."
+      },
+      {
+        "path": "rust/tcl-compiler/src/inline_uplevel.rs",
+        "symbol": "inline_uplevel_passthrough",
+        "purpose": "Borrow actual positioned producer independently of Module mutations, and terminate before writes on original source-owner refusal."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "symbol": "SourceCommandBindings::restore_original_nested_bindings",
+        "purpose": "Restore only existing original nested source rows from an exact parent/input/configuration/complete vector and the existing declaration issuer. Readonly conditional Logical availability and correspondence supply no reached lookup, runtime handler, Native admission or allocation."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_missing_command.rs",
+        "symbol": "OriginalMissingCommandContext",
+        "purpose": "Borrow the exact retained Module/Registry and build typed mutation history once; require current complete original table cells all Missing and an actual mutation key, without a procedure reporting-name seed."
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_missing_command.rs",
+        "symbol": "SourceInvocationBinding::original_missing_rebound_command",
+        "purpose": "Retain complete current source/input/configuration, original operand lookup preservation and unanimous readonly Logical observations; Native reports require independent genuine generic compilation and original reached keys."
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+        "symbol": "Analyser::emit_w128_renamed_command",
+        "purpose": "Consume actual original-source table absence and typed mutation history, preserving deterministic CFG ordering and diagnostics without String procedure inventory seeds or suffix inversion."
+      }
+    ],
+    "replay": {
+      "command": [],
+      "limitations": "Source definitions only. A matching independently successful own producer, exact executable inventory and complete assertion receipt are required for executed software outcomes. Actual independent source ingress and every Native/provider/frame/completion/edit receipt remain separate. Complete original/current measurement receipts are required for performance claims."
+    }
+  }
+]

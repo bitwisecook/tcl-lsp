@@ -1,0 +1,42 @@
+{
+  "manifest_before_sha256": "9a297e07dca6bfa6745664c98af2e78ef1c605f55f33b8b2ee035741f7f7968a",
+  "records": [
+    {
+      "id": "naming.consumer.original-structural-diagrams",
+      "reviewed_record": "/tmp/name-diagnostic-shadowing-20261014/contracts/reviewed-records.json",
+      "sha256": "227233a7ebea73ef43e23ef9eef039be562641753b5723acbf563029f101bea1",
+      "provider_evidence_replay_unchanged": true
+    },
+    {
+      "id": "naming.compiler.original-analysis-metadata-context",
+      "reviewed_record": "/tmp/name-diagnostic-shadowing-20261014/contracts/reviewed-records.json",
+      "sha256": "227233a7ebea73ef43e23ef9eef039be562641753b5723acbf563029f101bea1",
+      "provider_evidence_replay_unchanged": true
+    },
+    {
+      "id": "naming.compiler.original-analysis-metadata-context",
+      "reviewed_record": "/tmp/name-core-shadow-owner-20261014/reviewed-records.json",
+      "sha256": "57987e2e08b9620ee82a57b56dc3c271721e8a435760f2c8dc1b757874964b82",
+      "provider_evidence_replay_unchanged": true
+    },
+    {
+      "id": "naming.analysis.constructed-key-consumer-projections",
+      "reviewed_record": "/tmp/name-import-shadow-geometry-20261014/reviewed-records.json",
+      "sha256": "1e5ff8d582338b7fbe656436a2e5a4e07ed7dd30ddee87d5bad0fda1f47aa56a",
+      "provider_evidence_replay_unchanged": true
+    },
+    {
+      "id": "naming.compiler.original-analysis-metadata-context",
+      "reviewed_record": "/tmp/name-global-logical-effects-20261014/reviewed-records.json",
+      "sha256": "b2fecf1b97168334732451467d0efdc44d841a829a70435c980cd5709c2bc455",
+      "provider_evidence_replay_unchanged": true
+    },
+    {
+      "id": "naming.source.retained-positioned-command-realm",
+      "reviewed_record": "/tmp/name-w128-original-missing-20261014/reviewed-records.json",
+      "sha256": "78677a20bb66a11a924e35cae74dee64eab0991e7f38a75c0f39949194f81ea2",
+      "provider_evidence_replay_unchanged": true
+    }
+  ],
+  "validation": "source contract merge only; evidence and replay unchanged; execution pending"
+}

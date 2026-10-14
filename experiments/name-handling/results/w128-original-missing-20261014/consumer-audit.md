@@ -1,0 +1,9 @@
+# Original command-table absence diagnostics
+
+W128 consumes the retained positioned source Module and its independently retained mutation keys. No procedure reporting label seeds a positive binding. The shared original-source owner retains the mutation projection once per diagnostic pass and tests actual command-table cells at each complete original invocation.
+
+A positive missing-table report requires every candidate namespace cell to be exactly Missing and at least one actual typed mutation-history key. Unavailable, dynamic or conflicting source ownership declines. Logical source input is selected independently, with exact complete original words, policy, configuration, source and store correspondence. The original operand-name closure remains mandatory. A missing command receives no fabricated descriptor, handler or Native key/value receipt. Native calls require independently selected generic compilation and their own original reached name input; inline, named or unavailable compilation cannot borrow the absence report.
+
+The message describes current source absence and a mutation in the file. It does not assert that a future mutation ran earlier or that a particular unknown handler executed. Original diagnostic assertions and ordering remain intact. Genuine source controls cover deletion, replacement, external names, dynamic names, missing/changed carriers, changed source and an operand that republishes the name.
+
+All five retained C Tcl providers and latest Jim return catch1 after deletion and catch0 after replacement. Direct original interpreter source, outputs, binaries and provider receipts are retained under `oracles`; no tcltest is used. Rust source parsing and patch applicability pass. The new Rust controls and existing W128 diagnostics have not executed; a missing mutation-history producer remains an honest refusal rather than a reporting-name fallback.

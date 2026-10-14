@@ -261,6 +261,10 @@ impl LogicalStructuredInvocation {
         &self.invocation.facts.canonical_command
     }
 
+    pub(crate) fn descriptor_key(&self) -> tcl_registry::CanonicalCommandDescriptorKey<'_> {
+        self.invocation.facts.descriptor_key()
+    }
+
     /// Borrow selected source descriptors under the genuine supplied generation.
     /// Original direct-word correspondence remains part of this issuer.
     pub(crate) fn with_metadata_schema<T>(
@@ -1042,6 +1046,13 @@ impl AdmittedNativeCompilerInvocation {
     pub fn canonical_logical_command(&self) -> &str {
         &self.invocation.facts.canonical_command
     }
+
+    /// Exact metadata key retained by the already admitted original compiler.
+    /// The key supplies no additional handler, frame, completion or admission.
+    #[must_use]
+    pub fn descriptor_key(&self) -> tcl_registry::CanonicalCommandDescriptorKey<'_> {
+        self.invocation.facts.descriptor_key()
+    }
     /// Statement emitter metadata; admission remains an independent premise.
     #[must_use]
     pub fn codegen_hook(&self) -> Option<tcl_registry::hooks::CodegenHookId> {
@@ -1182,6 +1193,30 @@ pub fn admitted_native_compiler_invocation(
         selection: binding.native_compilation_admission_selection(),
         hook_operand_prefix,
     })
+}
+
+/// Separate original compiler registration requirements from Logical metadata.
+#[derive(Clone, Copy)]
+pub(crate) enum SelectedLoweringBindingIdentity<'a> {
+    Native(&'a AdmittedNativeCompilerInvocation),
+    Logical(tcl_registry::CanonicalCommandDescriptorKey<'a>),
+}
+
+impl<'a> SelectedLoweringBindingIdentity<'a> {
+    pub(crate) fn descriptor_key(self) -> tcl_registry::CanonicalCommandDescriptorKey<'a> {
+        match self {
+            Self::Native(invocation) => invocation.descriptor_key(),
+            Self::Logical(key) => key,
+        }
+    }
+
+    pub(crate) fn binding_identity(self) -> &'a str {
+        let name = match self {
+            Self::Native(invocation) => invocation.canonical_registration_name(),
+            Self::Logical(key) => key.label(),
+        };
+        tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
+    }
 }
 
 /// A reached handler's normal variable transfer, independent of compiler-hook

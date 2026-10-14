@@ -68,7 +68,9 @@ mod materialized_footprint;
 mod native_list_assignment;
 mod original_callback_lookup;
 mod original_compiler_effects;
+mod original_missing_command;
 mod original_source_projection;
+pub(crate) use original_missing_command::OriginalMissingCommandContext;
 mod pre_handler_failure;
 #[cfg(any(test, debug_assertions))]
 mod root_owner_work;

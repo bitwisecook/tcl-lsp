@@ -1,0 +1,65 @@
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -4135,7 +4135,7 @@
+                 continue;
+             }
+             if let Some(name) = invocation.argument_literal(index) {
+-                let name = normalise_var_name(&name).to_owned();
++                let name = tcl_syntax::naming::normalise_var_name_braced(&name, true).to_owned();
+                 found.by_name.insert(name.clone());
+                 if defs.contains(&name) {
+                     reads_own_def.insert(name);
+@@ -4200,9 +4200,6 @@
+     // rather than substituting it, so they are `UseClass::Name` — a real read
+     // with no operand word behind it.
+     for name in reads.iter().filter(|_| retained_roles) {
+-        if name.is_empty() {
+-            continue;
+-        }
+         found.by_name.insert(name.clone());
+         // A name this statement both reads and defines is read *before* it is
+         // written — the same rule `uses_in_barrier` applies to a `dict with`
+@@ -4585,7 +4582,9 @@
+                                 .contains(tcl_registry::Traits::READS_BEFORE_WRITE)))
+                         && let Some(name) = invocation.argument_literal(index)
+                     {
+-                        by_name.insert(normalise_var_name(&name).to_owned());
++                        by_name.insert(
++                            tcl_syntax::naming::normalise_var_name_braced(&name, true).to_owned(),
++                        );
+                     }
+                 }
+             }
+@@ -8472,6 +8471,32 @@
+     }
+ 
+     #[test]
++    fn lowered_literal_read_names_keep_empty_and_dollar_data() {
++        // Public native literal-name cases: experiments/name-handling/results/frame-local-name-geometry.
++        let registry = default_registry();
++        let module = crate::lowering::lower_to_ir("info exists {}; info exists {$name}", &registry);
++        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
++        let reads: Vec<_> = module
++            .top_level
++            .statements
++            .iter()
++            .map(|statement| uses_of_classified(statement, &mut scanner, &registry))
++            .collect();
++        assert!(
++            reads[0].contains(&(String::new(), UseClass::Name)),
++            "{reads:?}"
++        );
++        assert!(
++            reads[1].contains(&("$name".to_owned(), UseClass::Name)),
++            "{reads:?}"
++        );
++        assert!(
++            !reads[1].iter().any(|(name, _)| name == "name"),
++            "{reads:?}"
++        );
++    }
++
++    #[test]
+     fn uses_of_assign_const() {
+         let reg = default_registry();
+         let mut scanner = VarReferenceScanner::new(VarScanOptions::default());

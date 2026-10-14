@@ -1,0 +1,639 @@
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+index 1005527..16145b2 100644
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -169,7 +169,7 @@ fn join_namespace(parent: &str, child: &str) -> String {
+ /// full materialization frame while lowering another body.
+ struct StructuredHookSelection<'a> {
+     hook: LoweringHookId,
+-    canonical_command: &'a str,
++    requirement: crate::registry_invocation::SelectedLoweringBindingIdentity<'a>,
+     error_context: Option<tcl_registry::InlineBodyErrorContext>,
+ }
+ 
+@@ -502,14 +502,6 @@ fn is_instance_var_name(nm: &str) -> bool {
+     !nm.is_empty() && !nm.contains('$') && !nm.contains('[') && !nm.starts_with('-')
+ }
+ 
+-/// True iff a statement's command (preferring its canonical form,
+-/// `::`-stripped) equals `bare`, tolerating the IR's
+-/// `canonical_command == None` for un-aliased commands.
+-fn canonical_matches(command: &str, canonical: Option<&str>, bare: &str) -> bool {
+-    let c = canonical.unwrap_or(command);
+-    c.strip_prefix("::").unwrap_or(c) == bare
+-}
+-
+ /// Qualify a procedure name relative to a namespace.
+ fn qualify_proc_name(namespace: &str, proc_name: &str) -> String {
+     tcl_syntax::naming::qualify(namespace, proc_name)
+@@ -836,8 +828,10 @@ fn body_has_dynamic_barrier(
+             continue;
+         }
+         let raw_name = sc.texts[0].as_str();
+-        // Strip any leading `::` so the fully-qualified spellings resolve too.
+-        let name = raw_name.strip_prefix("::").unwrap_or(raw_name);
++        let selected = registry
++            .get(raw_name)
++            .map(tcl_registry::CommandSpec::descriptor_key);
++        let name = selected.map_or(raw_name, tcl_registry::CanonicalCommandDescriptorKey::label);
+         let args: Vec<&str> = sc.texts[1..].iter().map(String::as_str).collect();
+         // A "dynamic barrier" command evaluates a script (`eval`,
+         // `uplevel`, `namespace eval`, `interp eval`, …).  Sourced from
+@@ -2876,14 +2870,18 @@ impl<'r> Lowerer<'r> {
+             let admitted = admitted.as_ref()?;
+             StructuredHookSelection {
+                 hook: admitted.lowering_hook()?,
+-                canonical_command: admitted.canonical_logical_command(),
++                requirement: crate::registry_invocation::SelectedLoweringBindingIdentity::Native(
++                    admitted,
++                ),
+                 error_context: admitted.compiler_operand_error_context(),
+             }
+         } else {
+             let logical = logical.as_ref()?.as_ref()?;
+             StructuredHookSelection {
+                 hook: logical.lowering_hook()?,
+-                canonical_command: logical.canonical_command(),
++                requirement: crate::registry_invocation::SelectedLoweringBindingIdentity::Logical(
++                    logical.descriptor_key(),
++                ),
+                 error_context: logical.error_context(),
+             }
+         };
+@@ -2927,7 +2925,7 @@ impl<'r> Lowerer<'r> {
+                         seg,
+                         namespace,
+                         inline_body_error_context,
+-                        resolved.canonical_command,
++                        resolved.requirement,
+                     )
+                 }),
+ 
+@@ -2942,11 +2940,7 @@ impl<'r> Lowerer<'r> {
+                 // braced literal body is walked in a fresh frame bound to the two
+                 // loop variables so it is analysable.
+                 LoweringHookId::ArrayFor => {
+-                    this.record_consumed_command_binding(
+-                        seg,
+-                        namespace,
+-                        resolved.canonical_command,
+-                    );
++                    this.record_consumed_command_binding(seg, namespace, resolved.requirement);
+                     this.box_lowered_statement(|this| this.lower_array_for(seg, namespace))
+                 }
+ 
+@@ -2954,46 +2948,26 @@ impl<'r> Lowerer<'r> {
+                 // single-method dispatch with no arity / shared-method /
+                 // subcommand complications.
+                 LoweringHookId::If => {
+-                    this.record_consumed_command_binding(
+-                        seg,
+-                        namespace,
+-                        resolved.canonical_command,
+-                    );
++                    this.record_consumed_command_binding(seg, namespace, resolved.requirement);
+                     this.box_lowered_statement(|this| this.lower_if(seg, namespace))
+                 }
+                 LoweringHookId::Switch => {
+-                    this.record_consumed_command_binding(
+-                        seg,
+-                        namespace,
+-                        resolved.canonical_command,
+-                    );
++                    this.record_consumed_command_binding(seg, namespace, resolved.requirement);
+                     this.box_lowered_statement(|this| this.lower_switch(seg, namespace))
+                 }
+                 LoweringHookId::For => {
+-                    this.record_consumed_command_binding(
+-                        seg,
+-                        namespace,
+-                        resolved.canonical_command,
+-                    );
++                    this.record_consumed_command_binding(seg, namespace, resolved.requirement);
+                     this.box_lowered_statement(|this| this.lower_for(seg, namespace))
+                 }
+                 LoweringHookId::While => {
+-                    this.record_consumed_command_binding(
+-                        seg,
+-                        namespace,
+-                        resolved.canonical_command,
+-                    );
++                    this.record_consumed_command_binding(seg, namespace, resolved.requirement);
+                     this.box_lowered_statement(|this| this.lower_while(seg, namespace))
+                 }
+                 LoweringHookId::Catch => this.box_lowered_statement(|this| {
+-                    this.lower_catch_with_binding(seg, namespace, resolved.canonical_command)
++                    this.lower_catch_with_binding(seg, namespace, resolved.requirement)
+                 }),
+                 LoweringHookId::Try => {
+-                    this.record_consumed_command_binding(
+-                        seg,
+-                        namespace,
+-                        resolved.canonical_command,
+-                    );
++                    this.record_consumed_command_binding(seg, namespace, resolved.requirement);
+                     this.box_lowered_statement(|this| this.lower_try(seg, namespace))
+                 }
+ 
+@@ -3008,7 +2982,11 @@ impl<'r> Lowerer<'r> {
+                 // be a real token, not synthesised whitespace).
+                 LoweringHookId::Proc => {
+                     return this.box_optional_lowered_statement(|this| {
+-                        this.try_lower_proc_declaration(seg, namespace, resolved.canonical_command)
++                        this.try_lower_proc_declaration(
++                            seg,
++                            namespace,
++                            resolved.requirement.descriptor_key().label(),
++                        )
+                     });
+                 }
+                 // `namespace eval ns body` — the subcommand match
+@@ -3028,19 +3006,11 @@ impl<'r> Lowerer<'r> {
+                 // dedicated lowerer handles its own shape errors,
+                 // so no precondition here.
+                 LoweringHookId::Foreach => {
+-                    this.record_consumed_command_binding(
+-                        seg,
+-                        namespace,
+-                        resolved.canonical_command,
+-                    );
++                    this.record_consumed_command_binding(seg, namespace, resolved.requirement);
+                     this.box_lowered_statement(|this| this.lower_foreach(seg, namespace, false))
+                 }
+                 LoweringHookId::Lmap => {
+-                    this.record_consumed_command_binding(
+-                        seg,
+-                        namespace,
+-                        resolved.canonical_command,
+-                    );
++                    this.record_consumed_command_binding(seg, namespace, resolved.requirement);
+                     this.box_lowered_statement(|this| this.lower_foreach(seg, namespace, true))
+                 }
+                 // `dict <subcommand> ...` — must have at least one
+@@ -3050,11 +3020,7 @@ impl<'r> Lowerer<'r> {
+                     if args.is_empty() {
+                         return None;
+                     }
+-                    this.record_consumed_command_binding(
+-                        seg,
+-                        namespace,
+-                        resolved.canonical_command,
+-                    );
++                    this.record_consumed_command_binding(seg, namespace, resolved.requirement);
+                     this.box_lowered_statement(|this| this.lower_dict(seg, namespace))
+                 }
+ 
+@@ -3074,7 +3040,11 @@ impl<'r> Lowerer<'r> {
+                 // source.
+                 LoweringHookId::When => {
+                     return this.box_optional_lowered_statement(|this| {
+-                        this.try_lower_when_declaration(seg, namespace, resolved.canonical_command)
++                        this.try_lower_when_declaration(
++                            seg,
++                            namespace,
++                            resolved.requirement.descriptor_key().label(),
++                        )
+                     });
+                 }
+                 // `foreachLine varName filename body` — Tcl 9.0
+@@ -3088,11 +3058,7 @@ impl<'r> Lowerer<'r> {
+                 // barrier inside the dedicated emitter.
+                 LoweringHookId::ForeachLine => {
+                     return this.box_optional_lowered_statement(|this| {
+-                        this.try_lower_foreach_line_structured(
+-                            seg,
+-                            namespace,
+-                            resolved.canonical_command,
+-                        )
++                        this.try_lower_foreach_line_structured(seg, namespace, resolved.requirement)
+                     });
+                 }
+ 
+@@ -3155,7 +3121,7 @@ impl<'r> Lowerer<'r> {
+         &mut self,
+         seg: &SegmentedCommand,
+         resolution_namespace: &str,
+-        canonical_command: &str,
++        requirement: crate::registry_invocation::SelectedLoweringBindingIdentity<'_>,
+     ) {
+         let source_tokens = Some(Box::new(self.cmd_tokens(seg)));
+         let name = crate::registry_invocation::static_command_word(
+@@ -3198,9 +3164,7 @@ impl<'r> Lowerer<'r> {
+             binding: tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
+                 resolution_namespace,
+                 name,
+-                canonical_command
+-                    .strip_prefix("::")
+-                    .unwrap_or(canonical_command),
++                requirement.binding_identity(),
+             )
+             .with_namespace_context(namespace_context)
+             .with_guard(guard),
+@@ -3211,11 +3175,11 @@ impl<'r> Lowerer<'r> {
+         &mut self,
+         seg: &SegmentedCommand,
+         namespace: &str,
+-        canonical_command: &str,
++        requirement: crate::registry_invocation::SelectedLoweringBindingIdentity<'_>,
+     ) -> Statement {
+         let lowered = self.lower_catch(seg, namespace);
+         if matches!(lowered, Statement::Catch { .. }) {
+-            self.record_consumed_command_binding(seg, namespace, canonical_command);
++            self.record_consumed_command_binding(seg, namespace, requirement);
+         }
+         lowered
+     }
+@@ -3225,11 +3189,11 @@ impl<'r> Lowerer<'r> {
+         seg: &SegmentedCommand,
+         namespace: &str,
+         inline_body_error_context: Option<tcl_registry::InlineBodyErrorContext>,
+-        canonical_command: &str,
++        requirement: crate::registry_invocation::SelectedLoweringBindingIdentity<'_>,
+     ) -> Statement {
+         let lowered = self.try_lower_eval_static(seg, namespace, inline_body_error_context);
+         if lowered.is_some() {
+-            self.record_consumed_command_binding(seg, namespace, canonical_command);
++            self.record_consumed_command_binding(seg, namespace, requirement);
+         }
+         lowered.unwrap_or_else(|| self.lower_default(seg, namespace))
+     }
+@@ -3238,7 +3202,7 @@ impl<'r> Lowerer<'r> {
+         &mut self,
+         seg: &SegmentedCommand,
+         namespace: &str,
+-        canonical_command: &str,
++        requirement: crate::registry_invocation::SelectedLoweringBindingIdentity<'_>,
+     ) -> Option<Statement> {
+         if seg.args().len() != 3 {
+             return None;
+@@ -3246,7 +3210,7 @@ impl<'r> Lowerer<'r> {
+ 
+         let lowered = self.lower_foreach_line(seg, namespace);
+         if matches!(lowered, Statement::Foreach { .. }) {
+-            self.record_consumed_command_binding(seg, namespace, canonical_command);
++            self.record_consumed_command_binding(seg, namespace, requirement);
+         }
+         Some(lowered)
+     }
+@@ -3572,17 +3536,30 @@ impl<'r> Lowerer<'r> {
+                         .or_else(|| binding.proved_execution_target())
+                 })
+                 .filter(|target| target.registry_backed);
+-            let Some(target) = target.filter(|target| target.prepended.is_empty()) else {
++            if target
++                .filter(|target| target.prepended.is_empty())
++                .is_none()
++            {
+                 return Some(self.lower_default_boxed(seg, namespace));
+-            };
+-            target.command.clone()
++            }
++            if let Some(admitted) = crate::registry_invocation::admitted_native_compiler_invocation(
++                self.registry,
++                None,
++                &tokens,
++            ) {
++                admitted.descriptor_key().label().to_owned()
++            } else if let Some(label) = self.retained_metadata_descriptor_label(&tokens) {
++                label
++            } else {
++                return Some(self.lower_default_boxed(seg, namespace));
++            }
+         } else {
+             let Some(logical) = self.logical_structured_invocation(&tokens) else {
+                 return Some(self.lower_default_boxed(seg, namespace));
+             };
+-            logical.canonical_command().to_owned()
++            logical.descriptor_key().label().to_owned()
+         };
+-        let resolved_name = resolved_name.strip_prefix("::").unwrap_or(&resolved_name);
++        let resolved_name = resolved_name.as_str();
+ 
+         if self.irules_execution_context == IrulesExecutionContext::TopLevel
+             && let Some(value) = tokens.source_binding.as_ref().and_then(|binding| {
+@@ -3676,6 +3653,22 @@ impl<'r> Lowerer<'r> {
+             .dialect_context
+             .as_deref()
+             .map(tcl_registry::model::ContextRegistry::context);
++        let admitted = self.target.is_bytecode().then(|| {
++            crate::registry_invocation::admitted_native_compiler_invocation(
++                self.registry,
++                None,
++                hook_cmd.tokens.as_ref()?,
++            )
++        });
++        let logical = (!self.target.is_bytecode())
++            .then(|| self.logical_structured_invocation(hook_cmd.tokens.as_ref()?));
++        let requirement = if let Some(admitted) = &admitted {
++            crate::registry_invocation::SelectedLoweringBindingIdentity::Native(admitted.as_ref()?)
++        } else {
++            crate::registry_invocation::SelectedLoweringBindingIdentity::Logical(
++                logical.as_ref()?.as_ref()?.descriptor_key(),
++            )
++        };
+         let mut lowered = if self.target.is_bytecode() {
+             crate::lowering_hooks::try_lower_admitted_hook_with_binding(
+                 &hook_cmd,
+@@ -3685,10 +3678,10 @@ impl<'r> Lowerer<'r> {
+                 self.safe_on_uninit(resolved_name, args),
+             )?
+         } else {
+-            let logical = self.logical_structured_invocation(hook_cmd.tokens.as_ref()?)?;
++            let logical = logical.as_ref()?.as_ref()?;
+             crate::lowering_hooks::try_lower_logical_hook_with_binding(
+                 &hook_cmd,
+-                &logical,
++                logical,
+                 &self.aliases,
+                 self.registry,
+                 context,
+@@ -3705,7 +3698,7 @@ impl<'r> Lowerer<'r> {
+         let binding = tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
+             namespace,
+             name,
+-            resolved_name.strip_prefix("::").unwrap_or(resolved_name),
++            requirement.binding_identity(),
+         )
+         .with_namespace_context(crate::registry_invocation::compiled_namespace_context(
+             &tokens,
+@@ -4909,6 +4902,45 @@ impl<'r> Lowerer<'r> {
+             .collect()
+     }
+ 
++    fn retained_metadata_descriptor_label(&self, tokens: &CommandTokens) -> Option<String> {
++        self.resolved_metadata_invocation(tokens)
++            .map(|invocation| invocation.facts.descriptor_key().label().to_owned())
++    }
++
++    fn advisory_method_instance_names(&self, statement: &Statement) -> Vec<String> {
++        let Statement::Call { args, tokens, .. } = statement else {
++            return Vec::new();
++        };
++        let possible = tokens.as_deref().and_then(|tokens| {
++            let context = self.invocation_metadata_context()?;
++            let advice = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
++                self.registry, Some(context), tokens,
++            )?;
++            if advice.unknown_residual || advice.may_be_absent || advice.candidates.is_empty() {
++                return None;
++            }
++            let mut names = Vec::new();
++            for candidate in &advice.candidates {
++                let declaration = candidate.with_source_schema(self.registry, context, tokens, |selected| {
++                    Some(selected.authored_source_descriptors().command.lowering_hook
++                        == Some(LoweringHookId::Variable))
++                })?;
++                if declaration {
++                    names.extend(candidate.effective.argument_presentations(tokens.argv_texts.get(1..)?)?
++                        .into_iter().flatten());
++                }
++            }
++            Some(names)
++        });
++        // Unavailable source advice only widens the textual protection inventory.
++        possible
++            .unwrap_or_else(|| args.clone())
++            .iter()
++            .filter(|name| is_instance_var_name(name))
++            .map(|name| normalise_var_name(name).to_owned())
++            .collect()
++    }
++
+     fn resolved_metadata_invocation(
+         &self,
+         tokens: &CommandTokens,
+@@ -5016,11 +5048,20 @@ impl<'r> Lowerer<'r> {
+                 foreach_groups: None,
+             };
+         };
+-        let role_cmd = target
+-            .command
+-            .strip_prefix("::")
+-            .unwrap_or(&target.command)
+-            .to_owned();
++        let Some(role_cmd) = self.retained_metadata_descriptor_label(&tokens) else {
++            return Statement::Call {
++                span: seg.span,
++                command: cmd_name.into(),
++                canonical_command: None,
++                args: args.to_vec(),
++                defs: vec![],
++                reads: vec![],
++                reads_own_defs: false,
++                safe_on_uninit: false,
++                tokens: Some(tokens),
++                foreach_groups: None,
++            };
++        };
+         let prepend_n = target.prepended.len();
+         let Some(prefix): Option<Vec<String>> = target
+             .prepended
+@@ -5826,21 +5867,8 @@ impl<'r> Lowerer<'r> {
+         // these mutates object state (impure for O126).
+         let mut method_ivars = class_ivars.clone();
+         method_ivars.extend(call.grammar.implicit_vars.iter().map(|s| (*s).to_string()));
+-        for st in &body_script.statements {
+-            if let Statement::Call {
+-                command,
+-                canonical_command,
+-                args,
+-                ..
+-            } = st
+-                && canonical_matches(command, canonical_command.as_deref(), "variable")
+-            {
+-                for nm in args {
+-                    if is_instance_var_name(nm) {
+-                        method_ivars.insert(normalise_var_name(nm).to_string());
+-                    }
+-                }
+-            }
++        for statement in &body_script.statements {
++            method_ivars.extend(self.advisory_method_instance_names(statement));
+         }
+ 
+         let original_receiver_context = body_script.executed_source.as_deref().and_then(|source| {
+@@ -10016,6 +10044,112 @@ mod tests {
+         ));
+     }
+ 
++    #[test]
++    fn descriptor_binding_requirement_keeps_original_head_and_exact_metadata_without_native_receipt()
++     {
++        let mut registry = reg();
++        let prototype = registry.get_exact("list").unwrap().clone();
++        for label in ["::probe", ":probe", "A:::probe", "probe::", ""] {
++            let mut descriptor = prototype.clone();
++            descriptor.name = label;
++            registry.insert(descriptor);
++        }
++        for label in ["::probe", ":probe", "A:::probe", "probe::", ""] {
++            let source = if label.is_empty() {
++                "{} value".to_owned()
++            } else {
++                format!("{label} value")
++            };
++            let mut lowerer = Lowerer::new(&registry);
++            lowerer.word_space = WordSpace::new(&source, 0, lowerer.source_channel);
++            lowerer.command_binding_site_stack.push(Vec::new());
++            let commands = crate::segmenter::segment_commands_with_offset_and_config(
++                &source,
++                0,
++                lowerer.config,
++            );
++            let key = registry.get_exact(label).unwrap().descriptor_key();
++            lowerer.record_consumed_command_binding(
++                &commands[0],
++                "::",
++                crate::registry_invocation::SelectedLoweringBindingIdentity::Logical(key),
++            );
++            let site = &lowerer.command_binding_site_stack[0][0];
++            assert_eq!(site.binding.name, label);
++            assert_eq!(
++                site.binding.identity,
++                tcl_syntax::naming::unroot_rooted_key(label).unwrap_or(label)
++            );
++            assert!(site.binding.namespace_context.is_none());
++            assert!(
++                site.source_tokens
++                    .as_deref()
++                    .unwrap()
++                    .source_binding
++                    .is_none()
++            );
++        }
++    }
++
++    #[test]
++    fn unavailable_lowering_metadata_keeps_generic_dispatch_and_conservative_method_names() {
++        let registry = reg();
++        let source = "unresolved local $dynamic";
++        let mut lowerer = Lowerer::new(&registry);
++        lowerer.source_entry_origin = SourceEntryOrigin::Driver;
++        lowerer.metadata_origin = LoweringMetadataOrigin::Supplied;
++        lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
++        let commands =
++            crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config);
++        let statement = lowerer.lower_default(&commands[0], "::");
++        let Statement::Call {
++            canonical_command,
++            defs,
++            reads,
++            ..
++        } = &statement
++        else {
++            panic!("missing original/context ownership must retain a generic call");
++        };
++        assert!(canonical_command.is_none());
++        assert!(defs.is_empty());
++        assert!(reads.is_empty());
++        assert_eq!(
++            lowerer.advisory_method_instance_names(&statement),
++            vec!["local"]
++        );
++    }
++
++    #[test]
++    fn body_barrier_metadata_keeps_exact_selected_rooted_descriptor() {
++        let mut registry = reg();
++        assert!(body_has_dynamic_barrier(
++            "::eval $body",
++            &registry,
++            tcl_lexer::LexerConfig::default()
++        ));
++        let mut rooted = registry.get_exact("list").unwrap().clone();
++        rooted.name = "::eval";
++        registry.insert(rooted);
++        assert!(!body_has_dynamic_barrier(
++            "::eval $body",
++            &registry,
++            tcl_lexer::LexerConfig::default()
++        ));
++        assert!(body_has_dynamic_barrier(
++            "eval $body",
++            &registry,
++            tcl_lexer::LexerConfig::default()
++        ));
++        for head in ["::::eval", ":eval", "eval::", "eval:::member"] {
++            assert!(!body_has_dynamic_barrier(
++                &format!("{head} $body"),
++                &registry,
++                tcl_lexer::LexerConfig::default()
++            ));
++        }
++    }
++
+     #[test]
+     fn body_has_dynamic_barrier_dynamic_eval_body() {
+         // ``eval $x`` inside the outer body — dynamic.
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index ab6411f..1858f0c 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -261,6 +261,10 @@ impl LogicalStructuredInvocation {
+         &self.invocation.facts.canonical_command
+     }
+ 
++    pub(crate) fn descriptor_key(&self) -> tcl_registry::CanonicalCommandDescriptorKey<'_> {
++        self.invocation.facts.descriptor_key()
++    }
++
+     /// Borrow selected source descriptors under the genuine supplied generation.
+     /// Original direct-word correspondence remains part of this issuer.
+     pub(crate) fn with_metadata_schema<T>(
+@@ -1042,6 +1046,13 @@ impl AdmittedNativeCompilerInvocation {
+     pub fn canonical_logical_command(&self) -> &str {
+         &self.invocation.facts.canonical_command
+     }
++
++    /// Exact metadata key retained by the already admitted original compiler.
++    /// The key supplies no additional handler, frame, completion or admission.
++    #[must_use]
++    pub fn descriptor_key(&self) -> tcl_registry::CanonicalCommandDescriptorKey<'_> {
++        self.invocation.facts.descriptor_key()
++    }
+     /// Statement emitter metadata; admission remains an independent premise.
+     #[must_use]
+     pub fn codegen_hook(&self) -> Option<tcl_registry::hooks::CodegenHookId> {
+@@ -1184,6 +1195,30 @@ pub fn admitted_native_compiler_invocation(
+     })
+ }
+ 
++/// Separate original compiler registration requirements from Logical metadata.
++#[derive(Clone, Copy)]
++pub(crate) enum SelectedLoweringBindingIdentity<'a> {
++    Native(&'a AdmittedNativeCompilerInvocation),
++    Logical(tcl_registry::CanonicalCommandDescriptorKey<'a>),
++}
++
++impl<'a> SelectedLoweringBindingIdentity<'a> {
++    pub(crate) fn descriptor_key(self) -> tcl_registry::CanonicalCommandDescriptorKey<'a> {
++        match self {
++            Self::Native(invocation) => invocation.descriptor_key(),
++            Self::Logical(key) => key,
++        }
++    }
++
++    pub(crate) fn binding_identity(self) -> &'a str {
++        let name = match self {
++            Self::Native(invocation) => invocation.canonical_registration_name(),
++            Self::Logical(key) => key.label(),
++        };
++        tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
++    }
++}
++
+ /// A reached handler's normal variable transfer, independent of compiler-hook
+ /// selection. This carrier cannot license an opcode, body evaluation or command
+ /// completion: its registry facts remain private to the variable transfer owner.
+diff --git a/docs/design/contracts/shared-utility-contracts-rust.md b/docs/design/contracts/shared-utility-contracts-rust.md
+index 1354c1f..414ea34 100644
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -48,6 +48,7 @@ audits and inventory-writing modes do not satisfy that route.
+ | Source-owned analysis cache correspondence | `rust/tcl-compiler/src/body_analysis_capsule.rs` | `BodyAnalysisCapsule`; `BodyAnalysisCapsule::retain`; `BodyAnalysisCapsule::body_id`; `BodyLatticeInputs`; `BodyLatticeInputs::retain`; `BodyLatticeInputs::rebind_cached`; `BodyLatticeCommandBindings`; `BodyLatticeCommandBindings::bindings`; `BodySummaryInputs`; `BodySummaryInputs::retain` | genuine compilation, Module issuer, body ID, FunctionUnit and original source/input/configuration own every analysis; exact source and variable relocation or a closed registry-only Logical dependency certificate permit analytical reuse; cached results rebind onto the current owner and retain current proofs; missing/changed dependencies recompute, and analytical equality supplies no Native compiler, callable, frame, object or execution authority | `xtask-owner-resolution` |
+ | Typed event-body connection scope | `rust/tcl-compiler/src/connection_scope.rs` | `EventCell`; `ConnectionScope`; `ConnectionScope::handler_source_names`; `ConnectionScope::observes_cross_event_place`; `build_connection_scope`; `build_connection_scope_with_registry` | actual CompilationUnit/Module-issued handler IDs and independently retained event metadata preserve repeated event labels; resolved cells and supplied worker/interpreter/storage domains remain separate from report unions; written protection labels project only from the matching handler keys and establish no arbitrary event order or current value | `xtask-owner-resolution` |
+ | Declared frame-effect metadata coordinates | `rust/tcl-registry/src/model/declaration.rs`; `rust/tcl-compiler/src/declared_frame_effects.rs`; `rust/tcl-compiler/src/dynamic_names.rs`; `rust/tcl-compiler/src/deferred_writes.rs` | `DocumentCommandSurface::plain_call_frame_effect_descriptor_keys`; `collect_declared_frame_effects`; `declared_frame_effect_for_metadata` | genuine selected document descriptor labels retain exact optional-root metadata coordinates; distinct colliding declarations withdraw assistance and selected registry commands retain precedence; standalone catalogue readers use this owner while original-source and entered Native frame evidence remain independent | `xtask-owner-resolution` |
++| Selected lowering descriptor transport | `rust/tcl-registry/src/resolved_invocation.rs`; `rust/tcl-compiler/src/registry_invocation.rs`; `rust/tcl-compiler/src/lowering/mod.rs` | `InvocationFacts::descriptor_key`; `ResolvedInvocation::descriptor_key`; `AdmittedNativeCompilerInvocation::descriptor_key` | genuine retained selected facts supply exact metadata labels to admitted and Logical hook selection and generic role reporting; private SelectedLoweringBindingIdentity separates actual admitted Native registration requirements from Logical descriptor metadata and delegates their one-root transport to Syntax; compiler admission, original argv/context/guard and reached handler remain independent; method-variable MAY protection uses actual conditional source-schema declaration shapes and unavailable advice widens textual protection instead of proving absence; explicit body-text shape classification selects exact-first Registry metadata and never issues Native lookup or frame authority | `xtask-owner-resolution` |
+ | Conditional variable observation names | `rust/tcl-compiler/src/variable_observation_names.rs` | `VariableObservationNameSet`; `VariableProtectionPurpose`; `VariableWriteObservationPurpose`; `module_observation_key`; `variable_name_may_be_observed`; `record_variable_write_name` | explicit textual MAY inventories select module report-key, mixed exact/report or one-root native-lowering protection separately; deferred/global and outer-scope write projections retain their own aliases and array-root policies; decoded literal sigils, braces and empty variable names remain data, unknown inventories protect every name; exact VariableCellKey checks and genuine entered-Native observer guards remain independent, with no interpreted lookup, cell identity, callback-free state, absence or erasure permission | `xtask-owner-resolution` |
+ | APL variable convention | `rust/tcl-bigip/src/apl/variable_names.rs` | `tcl_var_to_apl_name`; `apl_name_to_tcl_var` | pure field convention delegates written root/qualifier geometry to Syntax; rooted and simple roots preserve lone colons while namespace-qualified roots decline; conventional export text is reporting only and supplies no appliance publication, native variable lookup or source-edit authority | `xtask-owner-resolution` |
+ | External script command inventory | `rust/tcl-syntax/src/naming/script_name_query.rs`; `rust/tcl-syntax/src/naming/script_command_inventory.rs`; `rust/tcl-cli/src/commands/spec_probe.rs` | `original_script_name_query_support`; `original_script_command_inventory_support`; `render_script` | real shell observations select query grammar without Native authority; C original simple words retain namespace context and checked root addressing; Jim uses its independent flat table; opaque or ambiguous inventory refuses as a whole; scanned registration literals remain unresolved authoring inputs | `xtask-owner-resolution` |

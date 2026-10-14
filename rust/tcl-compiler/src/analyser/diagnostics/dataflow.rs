@@ -571,71 +571,36 @@ struct W210ChainCtx<'a> {
 }
 
 impl Analyser {
-    /// **W128.** Flag a call to a command that was
-    /// renamed or deleted earlier in the same file — it falls through to
-    /// the `unknown` handler.
-    ///
-    /// Backed by the flow-sensitive command-binding lattice
-    /// ([`crate::command_binding`]).  The lattice is seeded with every
-    /// module procedure (canonically qualified) as `Proc` so a proc
-    /// defined inside a `namespace eval` block — whose top-level CFG never
-    /// sees the full qname — is still known, matching the optimiser's
-    /// gating view.  A call fires W128 only when its resolved binding is
-    /// `Opaque` *and* its name was actually perturbed somewhere in this
-    /// file (`rebound_names`); a merely-undefined external command (always
-    /// opaque, never rebound) does not.  A dynamic mutation collapses the
-    /// lattice to the wildcard ⊤, under which every binding resolves to
-    /// `Unknown` (not `Opaque`), so W128 conservatively goes quiet.
+    /// W128 describes original table absence at a slot this Module mutates.
+    /// Dynamic or ambiguous source ownership suppresses the diagnostic.
     pub(super) fn emit_w128_renamed_command(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        use crate::command_binding::{Binding, BindingKind, analyse_command_binding};
         use crate::ir::Statement;
-        use crate::naming::normalise_qualified_name as nqn;
 
-        let cfg = &cu.top_level.cfg;
-        let seed: Vec<(String, Binding)> = cu
-            .ir_module
-            .procedures
-            .unique_displays()
-            .map(|q| {
-                (
-                    q.clone(),
-                    Binding {
-                        kind: BindingKind::Proc,
-                        target: Some(q.clone()),
-                    },
-                )
-            })
-            .collect();
-        let binding = analyse_command_binding(cfg, registry, &seed);
-        let rebound = binding.rebound_names();
-        if rebound.is_empty() {
+        let Some(context) = crate::command_binding::OriginalMissingCommandContext::for_module(
+            &cu.ir_module,
+            registry,
+        ) else {
             return;
-        }
+        };
+        let cfg = &cu.top_level.cfg;
         // Reverse-postorder for deterministic diagnostic ordering.
         for block_id in cfg.reverse_postorder() {
             let Some(block) = cfg.blocks.get(&block_id) else {
                 continue;
             };
-            for (idx, stmt) in block.statements.iter().enumerate() {
+            for stmt in &block.statements {
                 let Statement::Call { command, span, .. } = stmt else {
                     continue;
                 };
-                // The mutation commits after this invocation's successful
-                // completion, so the point-wise binding query naturally sees
-                // the command's incoming binding here.  No mutator-name
-                // exclusion is required.
-                if command.is_empty() {
+                let Some(tokens) = stmt.tokens() else {
                     continue;
-                }
-                if binding.binding_at(block_id, idx, command).kind != BindingKind::Opaque {
+                };
+                if !context.missing_rebound_command(tokens) {
                     continue;
-                }
-                if !rebound.contains(&nqn(command)) {
-                    continue; // never bound here → an ordinary external command
                 }
                 self.result
                     .diagnostics
@@ -643,8 +608,8 @@ impl Analyser {
                         DiagCode::W128,
                         *span,
                         format!(
-                            "Command '{command}' was renamed or deleted earlier in this \
-file; this call falls through to the 'unknown' handler."
+                            "Command '{command}' has no binding at this call, and its name \
+is renamed or deleted in this file."
                         ),
                         Severity::Warning,
                     ));

@@ -1,0 +1,15 @@
+--- a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+@@ -8720,10 +8720,8 @@
+     //
+     // Oracle (tclsh8.6.14 / tclsh9.0.4): `oo::class create Dog {…}; Cat new`
+     // — before any `rename` — fails with `invalid command name "Cat"`.
+-    // The out-of-order call itself is W128's ("called after it was renamed or
+-    // deleted earlier in this file" — the same order fact from the other
+-    // side); W123 owns the case where the name is never established at all,
+-    // as `w123_tp_a_class_renamed_away_still_flags_its_old_name` pins.
++    // W128 owns the unbound call to a name this file later renames.
++    // W123 owns names that the file never establishes.
+     let src = "oo::class create Dog { method bark {} { return woof } }\nCat new\nset d [Cat new]\nrename Dog Cat\n$d fly\n";
+     let mut a = Analyser::new();
+     let r = a.analyse(src, "tcl");

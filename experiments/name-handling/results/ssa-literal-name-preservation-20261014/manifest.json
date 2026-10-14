@@ -1,0 +1,7 @@
+{
+  "path": "rust/tcl-compiler/src/ssa.rs",
+  "before_sha256": "25e7786138bf3fd07a3d9c081a309de8837309be6da0e4b99244a907eef816ed",
+  "after_sha256": "f98ba9e93ac03265cf3a563f15eb578fa4b52966814299bcd7b9fe8c38c33498",
+  "patch_sha256": "c393de12d85dabb22bc84bb6182b2882974c395a452690fbf79465cf0ee8718d",
+  "purpose": "Already evaluated literal role operands preserve sigils and empty names; independently retained role/point owners unchanged. Actual lowering-to-read classification control preserves source names; software acceptance unexecuted."
+}

@@ -1,0 +1,30 @@
+{
+  "source_domain": "Original command table absence after deletion and presence after replacement",
+  "files": {
+    "jim/receipt.json": "df732bb6052cd78b70673b6cdfc9af5150e2af4b8cbe5806be82d56c9b89da66",
+    "jim/source.tcl": "8d4e451d0840bf57897cc3612d9fb5bae9f7aa48fbb500a4ae7e7c5588b3ff72",
+    "jim/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "jim/stdout": "5d90ef7fc0d040fd56a1e48697cfa99e0dfaf4fd803aefefc3b5053ec1d36aea",
+    "results.json": "231e58e0a3c81092d69bdce66f034c9520d006f4fb9c85b6351bf4a4da810ce9",
+    "tcl8.4.20/receipt.json": "c9af2532fb68f003c164d5c443753145049684301d684c9aaa61d400787260f1",
+    "tcl8.4.20/source.tcl": "8d4e451d0840bf57897cc3612d9fb5bae9f7aa48fbb500a4ae7e7c5588b3ff72",
+    "tcl8.4.20/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tcl8.4.20/stdout": "5d90ef7fc0d040fd56a1e48697cfa99e0dfaf4fd803aefefc3b5053ec1d36aea",
+    "tcl8.5.19/receipt.json": "c81131c38da9b7433dfe592a156450ee7dda343f1147e7d8e6d5db9614379244",
+    "tcl8.5.19/source.tcl": "8d4e451d0840bf57897cc3612d9fb5bae9f7aa48fbb500a4ae7e7c5588b3ff72",
+    "tcl8.5.19/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tcl8.5.19/stdout": "5d90ef7fc0d040fd56a1e48697cfa99e0dfaf4fd803aefefc3b5053ec1d36aea",
+    "tcl8.6.18/receipt.json": "a389cdcd7dbf84c519287588ef62e48efc0591d78efb2096276174c4ce5c53b7",
+    "tcl8.6.18/source.tcl": "8d4e451d0840bf57897cc3612d9fb5bae9f7aa48fbb500a4ae7e7c5588b3ff72",
+    "tcl8.6.18/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tcl8.6.18/stdout": "5d90ef7fc0d040fd56a1e48697cfa99e0dfaf4fd803aefefc3b5053ec1d36aea",
+    "tcl9.0.4/receipt.json": "a8d72f3e1724ab41fbbebeff57ef2bb977edab4960dea42ec06b68f48b1dae16",
+    "tcl9.0.4/source.tcl": "8d4e451d0840bf57897cc3612d9fb5bae9f7aa48fbb500a4ae7e7c5588b3ff72",
+    "tcl9.0.4/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tcl9.0.4/stdout": "5d90ef7fc0d040fd56a1e48697cfa99e0dfaf4fd803aefefc3b5053ec1d36aea",
+    "tcl9.1.0/receipt.json": "7ea9a0d8fb2c484ffa28411725e792a47619b83d284f31867085ec2c3f3e9fe8",
+    "tcl9.1.0/source.tcl": "8d4e451d0840bf57897cc3612d9fb5bae9f7aa48fbb500a4ae7e7c5588b3ff72",
+    "tcl9.1.0/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tcl9.1.0/stdout": "5d90ef7fc0d040fd56a1e48697cfa99e0dfaf4fd803aefefc3b5053ec1d36aea"
+  }
+}
