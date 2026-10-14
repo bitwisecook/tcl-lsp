@@ -1,0 +1,177 @@
+--- a/rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+@@ -1448,21 +1448,70 @@
+     {
+         return None;
+     }
++    let state = &observation.snapshot.state;
++    let mut options = super::SourceAnalysisOptions::for_logical_source(input)?;
++    options.invocation_realm = advice.realm();
++    let mut context = super::root_source_execution_context(
++        &state.variable_frame,
++        &state.source_variables.namespace,
++        &observation.namespace,
++        observation.config,
++        registry,
++        options,
++        tcl_lexer::SourceSegmentationPurpose::NestedScript,
++    );
++    context.invocation_offset = site.offset;
++    let original = super::logical_word_values::LogicalOriginalWordValue::capture_invocation(
++        tokens.words(),
++        site.offset,
++        state,
++        context,
++    )?;
+     let dialect = advice.dialect();
+     let actual_context = input.context_registry();
+     let mut agreed = None;
+     for target in advice.targets() {
+         let effective = effective_words_for_target(tokens, target)?;
++        let prefix = if target.prepended.is_empty() {
++            Vec::new()
++        } else {
++            target
++                .logical_original_prefix
++                .as_ref()?
++                .matches_state(state)
++                .then_some(())?;
++            target
++                .original_logical_prepended_name_inputs(
++                    input,
++                    site.source.source_image(),
++                    observation.config,
++                )?
++                .iter()
++                .map(|value| std::str::from_utf8(value.bytes()).ok().map(str::to_owned))
++                .collect::<Option<Vec<_>>>()?
++        };
+         let values = effective
+-            .words
++            .origins
+             .iter()
+-            .map(|word| {
+-                effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
++            .enumerate()
++            .map(|(ordinal, origin)| {
++                if ordinal == 0 {
++                    return Some(target.command.clone());
++                }
++                match origin {
++                    crate::registry_invocation::InvocationWordOrigin::Written(written) => {
++                        Some(original.get(*written)?.value().to_owned())
++                    }
++                    crate::registry_invocation::InvocationWordOrigin::BindingPrefix(captured) => {
++                        prefix.get(*captured).cloned()
++                    }
++                    _ => None,
++                }
+             })
+-            .collect::<Vec<_>>();
++            .collect::<Option<Vec<_>>>()?;
+         let words = values
+             .iter()
+-            .map(EffectiveInvocationWord::as_registry_word)
++            .map(|value| tcl_registry::InvocationWord::Literal(value))
+             .collect::<Vec<_>>();
+         let (&head, arguments) = words.split_first()?;
+         let resolution =
+@@ -1497,9 +1546,6 @@
+             words.get(shape.body + 1)?.literal()?,
+             observation.config,
+         );
+-        if source.origin != site.source {
+-            return None;
+-        }
+         let namespace = key.holder().into_owned();
+         let body = DeclaredProcedureBody {
+             declaration: site.clone(),
+@@ -3485,6 +3531,88 @@
+         )
+     }
+ 
++    #[test]
++    fn logical_evaluated_declaration_body_retains_derived_source_without_native_receipts() {
++        let source = "set name {LiteralChild}; set body {return original}; proc $name {} $body";
++        let bindings = logical(source);
++        let (site, rows) = bindings
++            .declaration_layouts
++            .iter()
++            .find(|(site, _)| site.offset as usize == source.find("proc $name").unwrap())
++            .expect("actual original declaration point");
++        let row = original_declaration_layouts(rows).unwrap().next().unwrap();
++        let input = row
++            .snapshot
++            .state
++            .logical_source_name_advice_input()
++            .unwrap();
++        let registry = input.borrowed_context_registry().commands();
++        let tokens = declaration_tokens(site, row).unwrap();
++        let recipe = bindings
++            .original_logical_procedure_declaration(&tokens, registry, input)
++            .expect("quiet original values retain the conditional body recipe");
++        assert_eq!(recipe.qualified_name(), Some("::LiteralChild"));
++        assert_eq!(recipe.source().try_text().unwrap(), "return original");
++        assert_eq!(
++            recipe.source().mapping,
++            super::super::ExecutedScriptMapping::Materialised
++        );
++        assert_ne!(recipe.source().origin, site.source);
++        assert_eq!(recipe.source().base(), 0);
++        assert!(recipe.body.original_parameters.is_none());
++        assert!(row.snapshot.state.baseline.native_entry.is_none());
++        let original = crate::registry_invocation::original_native_compiler_words(
++            site.source.source_image(),
++            tokens.words(),
++            site.offset,
++            row.config,
++        )
++        .unwrap();
++        assert!(super::super::logical_definition::static_value(&original[1]).is_none());
++        assert!(super::super::logical_definition::static_value(&original[3]).is_none());
++        let mut changed = tokens.clone();
++        changed.word_exprs.swap(1, 3);
++        assert!(
++            bindings
++                .original_logical_procedure_declaration(&changed, registry, input)
++                .is_none()
++        );
++    }
++
++    #[test]
++    fn logical_evaluated_declaration_body_refuses_unknown_array_and_effectful_values() {
++        for source in [
++            "set name {LiteralChild}; proc $name {} $missing",
++            "set name {LiteralChild}; set body {return original}; proc $name {} $body(index)",
++            "set name {LiteralChild}; set body {return original}; unknown_writer; proc $name {} $body",
++            "set name {LiteralChild}; set body {return original}; proc $name {} [opaque]",
++        ] {
++            let bindings = logical(source);
++            let offset = source.find("proc $name").unwrap();
++            if let Some((site, rows)) = bindings
++                .declaration_layouts
++                .iter()
++                .find(|(site, _)| site.offset as usize == offset)
++                && let Some(row) =
++                    original_declaration_layouts(rows).and_then(|mut rows| rows.next())
++            {
++                let input = row
++                    .snapshot
++                    .state
++                    .logical_source_name_advice_input()
++                    .unwrap();
++                let registry = input.borrowed_context_registry().commands();
++                let tokens = declaration_tokens(site, row).unwrap();
++                assert!(
++                    bindings
++                        .original_logical_procedure_declaration(&tokens, registry, input)
++                        .is_none(),
++                    "{source}"
++                );
++            }
++        }
++    }
++
+     fn puts_parent(
+         bindings: &SourceCommandBindings,
+     ) -> (

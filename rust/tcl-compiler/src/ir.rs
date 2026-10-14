@@ -2976,6 +2976,55 @@ pub struct ReferenceImport {
 }
 
 impl Module {
+    /// Original procedure syntax under this Module issuer, including retained
+    /// declaration bodies. Lambdas and installed-only units are separate purposes.
+    pub(crate) fn original_source_procedure_bodies(
+        &self,
+    ) -> impl Iterator<Item = (&ProcedureId, &Procedure)> {
+        self.procedures
+            .iter()
+            .filter(|(id, _)| self.procedure_ids.owns(**id))
+            .chain(
+                self.original_declaration_body_units
+                    .iter()
+                    .filter_map(|(id, allocation)| {
+                        let procedure = self.body_units.get(id)?;
+                        (self.procedure_ids.owns(*id)
+                            && procedure.body_kind == ProcedureBodyKind::OriginalDeclaration
+                            && procedure.declaration_site.as_ref() == Some(&allocation.site)
+                            && allocation.matches_source_declaration_image(
+                                &self.source,
+                                allocation.site.offset,
+                            ))
+                        .then_some((id, procedure))
+                    }),
+            )
+    }
+
+    /// Conditional source allocation lookup; no callable publication or Native
+    /// entry follows from an original declaration retained only for analysis.
+    pub(crate) fn original_source_procedure_for_target(
+        &self,
+        target: &crate::command_binding::SourceCommandTarget,
+    ) -> Option<(ProcedureId, &Procedure)> {
+        if target.registry_backed || target.kind != crate::command_binding::BindingKind::Proc {
+            return None;
+        }
+        let allocation = target.implementation_allocation.as_ref()?;
+        let mut matching = self
+            .original_source_procedure_bodies()
+            .filter(|(_, procedure)| {
+                procedure.declaration_site.as_ref() == Some(&allocation.site)
+                    && allocation
+                        .matches_source_declaration_image(&self.source, allocation.site.offset)
+                    && target
+                        .matches_authored_implementation_image(&self.source, allocation.site.offset)
+            });
+        let (id, procedure) = matching.next()?;
+        self.procedure_ids.owns(*id).then_some(())?;
+        matching.next().is_none().then_some((*id, procedure))
+    }
+
     pub(crate) fn source_procedure_for_target(
         &self,
         target: &crate::command_binding::SourceCommandTarget,
@@ -4255,5 +4304,69 @@ mod tests {
             value_span: None,
         };
         assert_eq!(stmt.canonical_command_or_source(), "");
+    }
+}
+
+#[cfg(test)]
+mod original_source_procedure_inventory_tests {
+    fn module() -> super::Module {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input),
+            "proc ::uncreated::p {} {global x; set x VALUE}",
+        )
+    }
+
+    #[test]
+    fn original_declaration_summary_inventory_requires_issued_body_and_allocation() {
+        let module = module();
+        assert!(module.source_entry.native_entry.is_none());
+        let (id, allocation) = module
+            .original_declaration_body_units
+            .iter()
+            .next()
+            .expect("original declaration retained without callable publication");
+        let id = *id;
+        assert!(
+            module
+                .original_source_procedure_bodies()
+                .any(|(body, _)| *body == id)
+        );
+        assert!(!module.procedures.iter().any(|(body, _)| *body == id));
+        let mut stale = module.clone();
+        stale
+            .original_declaration_body_units
+            .get_mut(&id)
+            .unwrap()
+            .site
+            .offset = allocation.site.offset.saturating_add(1);
+        assert!(
+            !stale
+                .original_source_procedure_bodies()
+                .any(|(body, _)| *body == id)
+        );
+        let mut missing = module.clone();
+        missing.body_units.remove(&id);
+        assert!(
+            !missing
+                .original_source_procedure_bodies()
+                .any(|(body, _)| *body == id)
+        );
+        let mut other_issuer = module;
+        other_issuer.procedure_ids = super::ProcedureIdIssuer::default();
+        assert!(
+            !other_issuer
+                .original_source_procedure_bodies()
+                .any(|(body, _)| *body == id)
+        );
     }
 }

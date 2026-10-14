@@ -15705,41 +15705,13 @@ impl Backend {
             |sp: tcl_lexer::Span| (sp.start() as usize) <= offset && offset < (sp.end() as usize);
         let offset_u32 = u32::try_from(offset).unwrap_or(u32::MAX);
 
-        // A declaration in a *sourced* document resolves standalone to its
-        // global-rooted name; the index holds one source-site re-homed twin
-        // per seed, so map through the applied seeds to the full set.
-        if let Some(proc_def) = analysis.all_procs.values().find(|p| covers(p.name_span)) {
-            return self
-                .seed_mapped_symbols(uri, proc_def.qualified_name.clone())
-                .await;
-        }
-        if let Some(class_def) = analysis.all_classes.values().find(|c| covers(c.name_span)) {
-            return self
-                .seed_mapped_symbols(uri, class_def.qualified_name.clone())
-                .await;
-        }
-        // A proc declared twice, verbatim, in the same document (plain
-        // Tcl's own "last redefinition wins" semantics) — the cursor may
-        // sit on the *shadowed* (non-winning) declaration's own name
-        // token, which `all_procs` above can never match: it is a map
-        // keyed by qualified name, so only the winner's span survives a
-        // duplicate insert. `proc_declaration_sites` is the flat,
-        // never-deduplicated companion recording every declaration site;
-        // finding the cursor there still means "this token declares
-        // qualified name X", so resolve through `all_procs` to whichever
-        // definition currently wins for X — never the shadowed span
-        // itself: a rename or find-references issued from the shadowed
-        // declaration must reach the same cross-file callers as one issued
-        // from the winning declaration or a call site, or a rename silently
-        // corrupts the program by leaving callers bound to the dead
-        // definition.
-        if let Some((qualified, _)) = analysis
-            .proc_declaration_sites
-            .iter()
-            .find(|(_, span)| covers(*span))
-            && analysis.all_procs.contains_key(qualified)
+        if let Some(names) = self
+            .workspace_index
+            .read()
+            .await
+            .logical_declaration_source_names_at(uri.as_str(), source, analysis, offset_u32)
         {
-            return self.seed_mapped_symbols(uri, qualified.clone()).await;
+            return names;
         }
 
         let Some(inv) = analysis
@@ -24318,49 +24290,6 @@ impl Backend {
                 }
             }
         }
-    }
-
-    /// Declaration side of source-site re-homing: a cursor on a definition
-    /// inside a *sourced* document resolves, in that document's standalone
-    /// analysis, to its global-rooted name — but the index holds one re-homed
-    /// twin **per source-site namespace**.  One physical declaration is several
-    /// runtime identities (`namespace eval ::x {source b.tcl}` +
-    /// `namespace eval ::y {source b.tcl}` creates both `::x::helper`
-    /// and `::y::helper` — tclsh 9.0.4), so the mapping returns the
-    /// **full identity set**, never an arbitrary first seed: references union
-    /// every view's call sites, and a rename
-    /// of the one physical token is explicitly a multi-symbol edit.
-    async fn seed_mapped_symbols(&self, uri: &Uri, qualified: String) -> Vec<String> {
-        let seeds = self
-            .rehomed_source_seeds
-            .lock()
-            .await
-            .get(uri.as_str())
-            .cloned()
-            .unwrap_or_default();
-        if seeds.is_empty() {
-            return vec![qualified];
-        }
-        let index = self.workspace_index.read().await;
-        let mut out: Vec<String> = Vec::new();
-        for seed in &seeds {
-            let mapped = if seed == "::" {
-                // A standalone / global-sourced view exists alongside; the
-                // plain name is one of the real identities.
-                qualified.clone()
-            } else {
-                format!("{seed}{qualified}")
-            };
-            if index.workspace_command_exists(&mapped) && !out.contains(&mapped) {
-                out.push(mapped);
-            }
-        }
-        if out.is_empty() {
-            // No seeded twin materialised (stale index edge): the plain
-            // name is still the best identity.
-            out.push(qualified);
-        }
-        out
     }
 
     /// Wait (bounded) for the workspace index to reflect a completed folder

@@ -16037,10 +16037,11 @@ impl Interp {
                     Command::Ensemble(token) => Some(Rc::clone(token)),
                     _ => None,
                 };
-                let restored = self
-                    .namespaces
-                    .borrow_mut()
-                    .restore_with_original_key_checked(name, binding, original_key);
+                let restored = {
+                    let mut namespaces = self.namespaces.borrow_mut();
+                    let slot = namespaces.exposed_command_publication_at(name);
+                    namespaces.restore_binding_at_checked(slot, binding, original_key)
+                };
                 if let Err(unpublished) = restored {
                     self.refuse_host_command("exposed command has no actual publication slot");
                     if let Err(first) =
@@ -19678,7 +19679,7 @@ mod tests {
                 CommandVisibilityOutcome::Moved
             );
             assert_eq!(
-                interpreter.expose_command(b"hidden", b""),
+                interpreter.expose_command(b"hidden", b"::unavailable"),
                 CommandVisibilityOutcome::Missing
             );
             assert_eq!(calls.get(), 1);
@@ -19733,7 +19734,7 @@ mod tests {
                 CommandVisibilityOutcome::Moved
             );
             assert_eq!(
-                interpreter.expose_command(b"hidden", b""),
+                interpreter.expose_command(b"hidden", b"::unavailable"),
                 CommandVisibilityOutcome::Missing
             );
             assert_eq!(EXPOSURE_CONFIG_CALLS.with(std::cell::Cell::get), 1);

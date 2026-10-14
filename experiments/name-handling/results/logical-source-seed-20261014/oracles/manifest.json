@@ -1,0 +1,43 @@
+{
+  "script_sha256": "7efed662c57d16f8023e2851b38a2ecc8caf0b0d69263de7b81b4b886bac066e",
+  "providers": [
+    {
+      "provider": "TCL_LSP_TCLSH84",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "returncode": 0
+    },
+    {
+      "provider": "TCL_LSP_TCLSH85",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "returncode": 0
+    },
+    {
+      "provider": "TCL_LSP_TCLSH86",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "returncode": 0
+    },
+    {
+      "provider": "TCL_LSP_TCLSH90",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "returncode": 0
+    },
+    {
+      "provider": "TCL_LSP_TCLSH91",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "returncode": 0
+    },
+    {
+      "provider": "TCL_LSP_JIMSH",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "executable_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "returncode": 1
+    }
+  ],
+  "tcltest_used": false,
+  "scope": "original supplied interpreters, expose destination geometry only; no F5 observations"
+}

@@ -3694,6 +3694,79 @@ impl WorkspaceIndex {
             && target.matches_indexed_member_provider(declaring_uri, provider, context, input)
     }
 
+    /// Declaration-side Logical names from this document's retained source views.
+    /// Complete original occurrences select records; missing views grant no fallback.
+    #[must_use]
+    pub fn logical_declaration_source_names_at(
+        &self,
+        uri: &str,
+        source: &str,
+        analysis: &AnalysisResult,
+        offset: u32,
+    ) -> Option<Vec<String>> {
+        let config = analysis.body_lexer_config?;
+        let image = tcl_lexer::SourceImage::document(source);
+        if !analysis.allows_retained_logical_declaration_advice()
+            || !analysis.matches_original_source_image(&image, config)
+        {
+            return Some(Vec::new());
+        }
+        let covers = |span: Span| span.start() <= offset && offset < span.end();
+        let procedures = analysis
+            .original_procedure_declarations()
+            .filter(|record| covers(record.name_input().span()))
+            .map(|record| (record.original_occurrence(), false, record.name().policy()));
+        let classes = analysis
+            .original_class_declarations()
+            .filter(|record| covers(record.name_input().span()))
+            .map(|record| (record.original_occurrence(), true, record.name().policy()));
+        let mut selected = procedures.chain(classes);
+        let (occurrence, class, policy) = selected.next()?;
+        if selected.next().is_some() {
+            return Some(Vec::new());
+        }
+        let Some(document) = self.slots.get(uri).and_then(|slot| self.docs.get(*slot)) else {
+            return Some(Vec::new());
+        };
+        let Some(context) = document.diagnostic_source.as_ref() else {
+            return Some(Vec::new());
+        };
+        if context.uses_original_names()
+            || context.image() != &image
+            || context.config() != config
+            || document.original_source_input.as_ref() != analysis.resolved_input.as_ref()
+        {
+            return Some(Vec::new());
+        }
+        let records = document
+            .original_procs
+            .iter()
+            .map(|record| (record.original_occurrence(), record.name(), false))
+            .chain(
+                document
+                    .original_classes
+                    .iter()
+                    .map(|record| (record.original_occurrence(), record.name(), true)),
+            );
+        let mut slots = Vec::new();
+        for (candidate, name, candidate_class) in records {
+            if candidate == occurrence
+                && candidate_class == class
+                && name.policy() == policy
+                && !slots.contains(name.slot())
+            {
+                slots.push(name.slot().clone());
+            }
+        }
+        let names = slots
+            .iter()
+            .filter_map(|slot| {
+                tcl_syntax::naming::native_command_source_spelling(policy.recipe(), slot)
+            })
+            .collect();
+        Some(names)
+    }
+
     /// Retained document source/configuration for diagnostic dependency checks.
     /// Missing context is unknown; report names cannot recreate it.
     #[must_use]
@@ -13669,6 +13742,59 @@ mod original_settlement_transport_tests {
         assert!(!index.allows_lexical_rename_advice());
         index.remove_document("file:///unknown.tcl");
         assert!(index.allows_lexical_rename_advice());
+    }
+
+    #[test]
+    fn logical_declaration_source_views_use_original_occurrences_and_current_input() {
+        let source = "proc helper {} {}; proc helper {} {}; proc ::fixed {} {}";
+        let standalone = Analyser::new().analyse(source, "tcl");
+        assert!(standalone.allows_retained_logical_declaration_advice());
+        assert_eq!(standalone.original_procedure_declarations().count(), 3);
+        let first = Analyser::new().analyse_with_source_namespace(source, "tcl", "::x");
+        let second = Analyser::new().analyse_with_source_namespace(source, "tcl", "::y");
+        let uri = "file:///source-views.tcl";
+        let mut index = WorkspaceIndex::from_documents([(uri, &first), (uri, &second)]);
+        for offset in [5, 24] {
+            assert_eq!(
+                index.logical_declaration_source_names_at(uri, source, &standalone, offset),
+                Some(vec!["::x::helper".to_owned(), "::y::helper".to_owned()])
+            );
+        }
+        assert_eq!(
+            index.logical_declaration_source_names_at(uri, source, &standalone, 44),
+            Some(vec!["::fixed".to_owned()])
+        );
+        assert_eq!(
+            index.logical_declaration_source_names_at("file:///other.tcl", source, &standalone, 5),
+            Some(Vec::new())
+        );
+        assert_eq!(
+            index.logical_declaration_source_names_at(
+                uri,
+                "proc helper {} {changed}",
+                &standalone,
+                5
+            ),
+            Some(Vec::new())
+        );
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert_eq!(
+            index.logical_declaration_source_names_at(uri, source, &native, 5),
+            Some(Vec::new())
+        );
+        index.replace_document(
+            uri,
+            &Analyser::new().analyse("proc helper {} {changed}", "tcl"),
+        );
+        assert_eq!(
+            index.logical_declaration_source_names_at(uri, source, &standalone, 5),
+            Some(Vec::new())
+        );
+        index.remove_document(uri);
+        assert_eq!(
+            index.logical_declaration_source_names_at(uri, source, &standalone, 5),
+            Some(Vec::new())
+        );
     }
 
     #[test]

@@ -1,0 +1,319 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -38,6 +38,9 @@
+     inventory: Option<OriginalSourceTransitionAdviceTape>,
+     authored_prefixes: OriginalSourceTransitionAdviceTape,
+     source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
++    logical_scope: Option<
++        Arc<crate::command_binding::source_declared_command::OriginalDeclaredLogicalBodyContext>,
++    >,
+     member_catalogue_body:
+         Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
+     catalogue_body: Option<super::OriginalSourceCatalogueBody>,
+@@ -174,6 +177,7 @@
+             inventory: Some(OriginalSourceTransitionAdviceTape::default()),
+             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+             source_body: None,
++            logical_scope: None,
+             member_catalogue_body: None,
+             catalogue_body: None,
+         };
+@@ -252,6 +256,7 @@
+                         inventory: None,
+                         authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+                         source_body: None,
++                        logical_scope: None,
+                         member_catalogue_body: Some(body.clone()),
+                         catalogue_body: None,
+                     };
+@@ -343,6 +348,7 @@
+             inventory: None,
+             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+             source_body: None,
++            logical_scope: None,
+             member_catalogue_body: None,
+             catalogue_body: Some(body.clone()),
+         };
+@@ -374,6 +380,7 @@
+                 inventory: matches!(self.policy, AdviceNamingPolicy::Logical(_))
+                     .then(OriginalSourceTransitionAdviceTape::default),
+                 source_body: None,
++                logical_scope: None,
+                 member_catalogue_body: None,
+                 catalogue_body: None,
+                 authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+@@ -393,6 +400,11 @@
+         graph: &mut AdviceGraph,
+         advice: &OriginalSourceCommandTransitionAdvice,
+         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
++        logical_scope: Option<
++            &Arc<
++                crate::command_binding::source_declared_command::OriginalDeclaredLogicalBodyContext,
++            >,
++        >,
+     ) -> BodyEffectProjection {
+         let mut walk = BodyWalk {
+             context: self,
+@@ -410,6 +422,7 @@
+                                 .contains(tcl_registry::Traits::DECLARES_NAMESPACE)))))
+             .then(OriginalSourceTransitionAdviceTape::default),
+             source_body: None,
++            logical_scope: logical_scope.cloned(),
+             member_catalogue_body: None,
+             catalogue_body: None,
+             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+@@ -550,6 +563,7 @@
+             // Changing namespace source coordinates retain their independently
+             // selected policy; no frame or body execution follows.
+             let mut branch = original.clone();
++            let mut child_scope = self.logical_scope.clone();
+             if span.start() != span.end()
+                 && schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+                 && !lifecycle
+@@ -561,11 +575,41 @@
+                     lineage: advice.lineage(),
+                 };
+                 match self.context.policy {
+-                    AdviceNamingPolicy::Logical(_) => {
+-                        let selected = self
+-                            .context
+-                            .logical_namespace_scope(&original, invocation, schema)?;
+-                        branch.logical_namespace = Some(selected.namespace().clone());
++                    AdviceNamingPolicy::Logical(input) => {
++                        if schema.semantics.frame_effect.is_some_and(|frame| {
++                            frame.layout == tcl_registry::FrameArgLayout::ScriptInSelectedFrame
++                        }) {
++                            let scope = self.logical_scope.as_ref()?;
++                            if !scope.matches_input(input)
++                                || !scope.owns_words(advice.original_words())
++                                || original.logical_namespace.as_ref()
++                                    != Some(scope.namespace_recipe())
++                            {
++                                return None;
++                            }
++                            let tcl_registry::frame_effect::FrameArgumentResolution::Valid {
++                                level,
++                                ..
++                            } = schema.authored_logical_source_frame_argument_layout()?
++                            else {
++                                return None;
++                            };
++                            let body = Arc::new(region.clone());
++                            let child = if level.is_global_frame() {
++                                scope.with_global_body(body)?
++                            } else if level.is_current_frame() {
++                                scope.with_body(body)?
++                            } else {
++                                return None;
++                            };
++                            branch.logical_namespace = Some(child.namespace_recipe().clone());
++                            child_scope = Some(Arc::new(child));
++                        } else {
++                            let selected = self
++                                .context
++                                .logical_namespace_scope(&original, invocation, schema)?;
++                            branch.logical_namespace = Some(selected.namespace().clone());
++                        }
+                     }
+                     AdviceNamingPolicy::Native(_) => {
+                         branch.c_source_namespace = Some(
+@@ -593,7 +637,9 @@
+                     || branch.c_source_namespace.is_some()))
+             .then(|| Arc::new(region));
+             let parent = std::mem::replace(&mut self.source_body, source_body);
++            let parent_scope = std::mem::replace(&mut self.logical_scope, child_scope);
+             let walked = self.script(&mut branch, span, depth);
++            self.logical_scope = parent_scope;
+             self.source_body = parent;
+             self.catalogue_body = catalogue;
+             walked?;
+@@ -643,6 +689,8 @@
+                 graph.unknown_exports.insert(namespace.clone());
+             }
+         }
++        graph.unknown_paths.extend(branch.unknown_paths);
++        graph.unknown_exports.extend(branch.unknown_exports);
+         for operation in branch.uncertain_operations {
+             if !graph.uncertain_operations.contains(&operation) {
+                 graph.uncertain_operations.push(operation);
+@@ -657,7 +705,7 @@
+         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+         depth: usize,
+     ) -> Option<()> {
+-        let (roles, complete) = schema.authored_source_argument_roles();
++        let (roles, complete) = self.context.authored_roles(schema);
+         #[cfg(test)]
+         trace_body_inventory(
+             "expressions.roles",
+@@ -916,8 +964,9 @@
+             self.unavailable_lifecycle_effects = true;
+             return Some(());
+         }
+-        let immediate = schema
+-            .authored_source_argument_roles()
++        let immediate = self
++            .context
++            .authored_roles(&schema)
+             .0
+             .iter()
+             .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+@@ -1441,7 +1490,7 @@
+         let following = original[0].input.as_ref().unwrap();
+         let before = graph.resolve(following);
+         assert!(before.is_some(), "real selected following Registry command");
+-        let projection = owner.apply_immediate_body_effects(&mut graph, &advice, &schema);
++        let projection = owner.apply_immediate_body_effects(&mut graph, &advice, &schema, None);
+         (projection, graph.resolve(following) == before)
+     }
+ 
+@@ -1635,6 +1684,7 @@
+             inventory: Some(OriginalSourceTransitionAdviceTape::default()),
+             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+             source_body: None,
++            logical_scope: None,
+             member_catalogue_body: None,
+             catalogue_body: None,
+         };
+@@ -1663,6 +1713,7 @@
+             inventory: None,
+             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+             source_body: None,
++            logical_scope: None,
+             member_catalogue_body: None,
+             catalogue_body: None,
+         };
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+@@ -501,14 +501,19 @@
+                 SourceCommandTransitionObligation::DeferredLogicalBodyApplicability,
+             ),
+         );
+-        let (roles, complete) = schema.authored_source_argument_roles();
++        let (roles, complete) = self.context.authored_roles(schema);
+         let immediate_body = roles
+             .iter()
+             .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+             && !schema.semantics.traits.contains(Traits::DEFERS_BODY);
+         if !complete || immediate_body {
+-            self.context
+-                .apply_schema_transition(graph, invocation, selected, schema)?;
++            self.context.apply_schema_transition(
++                graph,
++                invocation,
++                selected,
++                schema,
++                Some(scope),
++            )?;
+         } else {
+             self.context
+                 .apply_source_body_lookup_effects(graph, selected, invocation, schema);
+@@ -699,6 +704,66 @@
+                 ..input.lexer_config()
+             });
+             assert!(words_at(source, &changed, fragment).is_none());
++        }
++    }
++
++    #[test]
++    fn logical_sequential_selected_frame_bodies_keep_exact_source_owners() {
++        let source = "set x ROOT\nnamespace eval N {proc p {} {set x LOCAL; uplevel #0 {puts $x}; uplevel 0 {puts $x}}}\n";
++        let analysis = analyse_source(source);
++        let input = analysis.resolved_input.as_ref().unwrap();
++        for (fragment, level) in [
++            ("uplevel #0 {puts $x}", b"#0".as_slice()),
++            ("uplevel 0 {puts $x}", b"0".as_slice()),
++        ] {
++            let words = words_at(source, &analysis, fragment).unwrap();
++            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
++                panic!("actual original selected-frame advice")
++            };
++            assert_eq!(advice.logical_source_input(), Some(input));
++            assert!(advice.original_head().native_input().is_none());
++            let offset = source.find(fragment).unwrap() + fragment.find("puts").unwrap();
++            let tail = &source[offset..];
++            let segment = crate::segmenter::segment_commands_with_offset_and_config(
++                &tail[..tail.find('}').unwrap()],
++                u32::try_from(offset).unwrap(),
++                input.lexer_config(),
++            )
++            .remove(0);
++            let child = source_registry_words(source, &analysis, &segment).unwrap();
++            let OriginalRegistrySource::SourceTransitions(child_advice) = child.source() else {
++                panic!("actual original child advice")
++            };
++            let owner = child_advice.logical_source_body().unwrap();
++            assert_eq!(
++                owner.original_container().image().bytes(),
++                source.as_bytes()
++            );
++            assert_eq!(
++                owner.source_words().arguments()[0].literal_bytes(),
++                Some(level)
++            );
++            assert!(words_at(&format!("{source} "), &analysis, fragment).is_none());
++        }
++    }
++
++    #[test]
++    fn logical_selected_frame_mutations_still_withdraw_following_source_advice() {
++        for body in [
++            "uplevel #0 {rename ::uplevel {}}",
++            "uplevel 0 {rename ::uplevel {}}",
++            "uplevel #0 {unknown missing}",
++            "uplevel $level {puts $x}",
++            "uplevel 1 {puts $x}",
++        ] {
++            let source = format!(
++                "namespace eval N {{proc p {{}} {{set x LOCAL; {body}; uplevel 0 {{puts $x}}}}}}\n"
++            );
++            let analysis = analyse_source(&source);
++            assert!(
++                words_at(&source, &analysis, "uplevel 0 {puts $x}").is_none(),
++                "{body}"
++            );
+         }
+     }
+ 
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -1705,6 +1705,9 @@
+         invocation: AdviceInvocation<'_>,
+         command: &str,
+         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
++        logical_scope: Option<
++            &Arc<super::source_declared_command::OriginalDeclaredLogicalBodyContext>,
++        >,
+     ) -> Option<OriginalSourceTransitionAdviceTape> {
+         let AdviceInvocation {
+             native,
+@@ -1729,8 +1732,8 @@
+             }
+         }
+         let declared = schema.semantics.state_transitions.is_declared();
+-        let immediate_body = schema
+-            .authored_source_argument_roles()
++        let immediate_body = self
++            .authored_roles(schema)
+             .0
+             .iter()
+             .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+@@ -1745,7 +1748,8 @@
+             graph.widen(native);
+         } else if immediate_body {
+             let advice = self.schema_advice(invocation, graph, schema)?;
+-            let projected = self.apply_immediate_body_effects(graph, &advice, schema);
++            let projected =
++                self.apply_immediate_body_effects(graph, &advice, schema, logical_scope);
+             if !projected.effects_complete {
+                 graph.widen(native);
+             }
+@@ -2023,7 +2027,8 @@
+             class.as_ref(),
+             procedure.as_ref(),
+         );
+-        let body_inventory = self.apply_schema_transition(graph, selected, &command, &schema)?;
++        let body_inventory =
++            self.apply_schema_transition(graph, selected, &command, &schema, None)?;
+         tape.extend_inventory(body_inventory);
+         if operand_barrier {
+             // The current receipt is only a pre-operand source possibility.

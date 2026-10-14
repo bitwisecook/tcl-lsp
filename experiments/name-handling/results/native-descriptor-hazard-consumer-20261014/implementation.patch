@@ -1,0 +1,43 @@
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -19482,6 +19482,20 @@
+         !self.dynamic && self.observed_binding_is_the_builtin(command_name)
+     }
+ 
++    /// Descriptor-label eligibility under the module's MAY mutation and
++    /// observer inventories. This supplies no actual command or trace owner.
++    #[must_use]
++    pub(crate) fn trusts_unobserved_descriptor(
++        &self,
++        descriptor: tcl_registry::CanonicalCommandDescriptorKey<'_>,
++        dynamic_trace: bool,
++        traced: &std::collections::BTreeSet<String>,
++    ) -> bool {
++        let name = descriptor.label();
++        let key = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
++        self.trusts(key) && !dynamic_trace && !traced.contains(key) && !traced.contains(name)
++    }
++
+     /// The **named-subject** half of [`Self::trusts`]: whether the module's
+     /// own observed bindings leave `command_name` denoting its registry
+     /// builtin — no shadowing `proc`, no `rename` or alias onto it, no
+--- a/rust/tcl-compiler/src/native_lowering/lower.rs
++++ b/rust/tcl-compiler/src/native_lowering/lower.rs
+@@ -1475,12 +1475,11 @@
+     /// Whether the module keeps `name` bound to its registry builtin at every
+     /// point, so a nested command word may take the builtin's native shape.
+     fn command_trusted(&self, descriptor: tcl_registry::CanonicalCommandDescriptorKey<'_>) -> bool {
+-        let name = descriptor.label();
+-        let bare = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
+-        self.mutations.trusts(bare)
+-            && !self.input.module.has_dynamic_trace
+-            && !self.input.module.traced_commands.contains(bare)
+-            && !self.input.module.traced_commands.contains(name)
++        self.mutations.trusts_unobserved_descriptor(
++            descriptor,
++            self.input.module.has_dynamic_trace,
++            &self.input.module.traced_commands,
++        )
+     }
+ 
+     // Expressions.

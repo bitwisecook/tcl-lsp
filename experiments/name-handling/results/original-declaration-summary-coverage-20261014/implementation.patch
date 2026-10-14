@@ -1,0 +1,223 @@
+diff --git a/rust/tcl-compiler/src/cfg_builder/global_write_info.rs b/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
+index 1d30d4a97..59ccd0e96 100644
+--- a/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
+@@ -270,7 +270,7 @@ pub(crate) fn detect_global_write_bodies_with_registry(
+     let owners = super::OriginalProcedureSummaryOwners::for_module(module, registry);
+     let mut rows = HashMap::new();
+     let mut edges = HashMap::new();
+-    for (id, procedure) in module.procedures.iter() {
++    for (id, procedure) in module.original_source_procedure_bodies() {
+         let namespace = procedure
+             .body
+             .namespace_context
+diff --git a/rust/tcl-compiler/src/cfg_builder/mod.rs b/rust/tcl-compiler/src/cfg_builder/mod.rs
+index ae9aa9a79..42d5ea557 100644
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -3277,8 +3277,7 @@ pub(crate) fn detect_upvar_bodies_with_registry(
+         .as_ref()
+         .filter(|owner| owner.matches_module(module, registry));
+     let mut summaries: HashMap<_, _> = module
+-        .procedures
+-        .iter()
++        .original_source_procedure_bodies()
+         .map(|(id, procedure)| {
+             let namespace = procedure
+                 .body
+@@ -3311,7 +3310,7 @@ pub(crate) fn detect_upvar_bodies_with_registry(
+         .collect();
+     let prior = summaries.clone();
+     let owners = OriginalProcedureSummaryOwners::for_module(module, registry);
+-    for (id, procedure) in module.procedures.iter() {
++    for (id, procedure) in module.original_source_procedure_bodies() {
+         let (calls, opaque) =
+             global_write_info::direct_call_targets(&procedure.body, &owners, registry);
+         if opaque
+@@ -3395,8 +3394,7 @@ pub(crate) fn prepare_cfg_context_bundle(
+     let global_write_procs =
+         global_write_info::detect_global_write_bodies_with_registry(module, registry);
+     let proc_params = module
+-        .procedures
+-        .iter()
++        .original_source_procedure_bodies()
+         .filter(|(id, procedure)| {
+             module.procedure_ids.owns(**id)
+                 && module
+diff --git a/rust/tcl-compiler/src/cfg_builder/summary_candidates.rs b/rust/tcl-compiler/src/cfg_builder/summary_candidates.rs
+index 637181133..1d86a9bfd 100644
+--- a/rust/tcl-compiler/src/cfg_builder/summary_candidates.rs
++++ b/rust/tcl-compiler/src/cfg_builder/summary_candidates.rs
+@@ -93,7 +93,7 @@ impl OriginalProcedureSummaryOwners {
+             .iter()
+             .filter(|target| !target.registry_backed)
+             .map(|target| {
+-                let (id, _) = module?.source_procedure_for_target(target)?;
++                let (id, _) = module?.original_source_procedure_for_target(target)?;
+                 Some((
+                     id,
+                     crate::registry_invocation::effective_words_for_target(tokens, target)?,
+diff --git a/rust/tcl-compiler/src/command_binding/retained_source.rs b/rust/tcl-compiler/src/command_binding/retained_source.rs
+index d841634fb..485a6382c 100644
+--- a/rust/tcl-compiler/src/command_binding/retained_source.rs
++++ b/rust/tcl-compiler/src/command_binding/retained_source.rs
+@@ -123,8 +123,7 @@ impl RetainedSourceModuleBindings {
+             observed: bindings.module_projection(module),
+             positioned: Arc::new(bindings.clone()),
+             procedures: module
+-                .procedures
+-                .iter()
++                .original_source_procedure_bodies()
+                 .map(|(name, procedure)| (name.clone(), OriginalProcedureSource::retain(procedure)))
+                 .collect(),
+         }))
+diff --git a/rust/tcl-compiler/src/ir.rs b/rust/tcl-compiler/src/ir.rs
+index 949eea39d..b83198be2 100644
+--- a/rust/tcl-compiler/src/ir.rs
++++ b/rust/tcl-compiler/src/ir.rs
+@@ -2976,6 +2976,55 @@ pub struct ReferenceImport {
+ }
+ 
+ impl Module {
++    /// Original procedure syntax under this Module issuer, including retained
++    /// declaration bodies. Lambdas and installed-only units are separate purposes.
++    pub(crate) fn original_source_procedure_bodies(
++        &self,
++    ) -> impl Iterator<Item = (&ProcedureId, &Procedure)> {
++        self.procedures
++            .iter()
++            .filter(|(id, _)| self.procedure_ids.owns(**id))
++            .chain(
++                self.original_declaration_body_units
++                    .iter()
++                    .filter_map(|(id, allocation)| {
++                        let procedure = self.body_units.get(id)?;
++                        (self.procedure_ids.owns(*id)
++                            && procedure.body_kind == ProcedureBodyKind::OriginalDeclaration
++                            && procedure.declaration_site.as_ref() == Some(&allocation.site)
++                            && allocation.matches_source_declaration_image(
++                                &self.source,
++                                allocation.site.offset,
++                            ))
++                        .then_some((id, procedure))
++                    }),
++            )
++    }
++
++    /// Conditional source allocation lookup; no callable publication or Native
++    /// entry follows from an original declaration retained only for analysis.
++    pub(crate) fn original_source_procedure_for_target(
++        &self,
++        target: &crate::command_binding::SourceCommandTarget,
++    ) -> Option<(ProcedureId, &Procedure)> {
++        if target.registry_backed || target.kind != crate::command_binding::BindingKind::Proc {
++            return None;
++        }
++        let allocation = target.implementation_allocation.as_ref()?;
++        let mut matching = self
++            .original_source_procedure_bodies()
++            .filter(|(_, procedure)| {
++                procedure.declaration_site.as_ref() == Some(&allocation.site)
++                    && allocation
++                        .matches_source_declaration_image(&self.source, allocation.site.offset)
++                    && target
++                        .matches_authored_implementation_image(&self.source, allocation.site.offset)
++            });
++        let (id, procedure) = matching.next()?;
++        self.procedure_ids.owns(*id).then_some(())?;
++        matching.next().is_none().then_some((*id, procedure))
++    }
++
+     pub(crate) fn source_procedure_for_target(
+         &self,
+         target: &crate::command_binding::SourceCommandTarget,
+@@ -4257,3 +4306,67 @@ mod tests {
+         assert_eq!(stmt.canonical_command_or_source(), "");
+     }
+ }
++
++#[cfg(test)]
++mod original_source_procedure_inventory_tests {
++    fn module() -> super::Module {
++        let profile = tcl_dialect::DialectProfile::plain_tcl();
++        let context = tcl_registry::model::ingress::context_for_profile(profile);
++        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            std::sync::Arc::clone(&context),
++            config,
++        );
++        crate::lowering::lower_to_ir_with(
++            crate::lowering::Lowerer::with_config(context.commands(), config)
++                .with_resolved_analysis_input(input),
++            "proc ::uncreated::p {} {global x; set x VALUE}",
++        )
++    }
++
++    #[test]
++    fn original_declaration_summary_inventory_requires_issued_body_and_allocation() {
++        let module = module();
++        assert!(module.source_entry.native_entry.is_none());
++        let (id, allocation) = module
++            .original_declaration_body_units
++            .iter()
++            .next()
++            .expect("original declaration retained without callable publication");
++        let id = *id;
++        assert!(
++            module
++                .original_source_procedure_bodies()
++                .any(|(body, _)| *body == id)
++        );
++        assert!(!module.procedures.iter().any(|(body, _)| *body == id));
++        let mut stale = module.clone();
++        stale
++            .original_declaration_body_units
++            .get_mut(&id)
++            .unwrap()
++            .site
++            .offset = allocation.site.offset.saturating_add(1);
++        assert!(
++            !stale
++                .original_source_procedure_bodies()
++                .any(|(body, _)| *body == id)
++        );
++        let mut missing = module.clone();
++        missing.body_units.remove(&id);
++        assert!(
++            !missing
++                .original_source_procedure_bodies()
++                .any(|(body, _)| *body == id)
++        );
++        let mut other_issuer = module;
++        other_issuer.procedure_ids = super::ProcedureIdIssuer::default();
++        assert!(
++            !other_issuer
++                .original_source_procedure_bodies()
++                .any(|(body, _)| *body == id)
++        );
++    }
++}
+diff --git a/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs b/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs
+index 671ec20ab..a48430578 100644
+--- a/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs
++++ b/rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs
+@@ -137,7 +137,7 @@ pub(crate) fn original_source_procedure_ids_for_word_for_module(
+     }
+     let mut ids = Vec::new();
+     for target in &lookup.targets {
+-        let (id, procedure) = module.source_procedure_for_target(target)?;
++        let (id, procedure) = module.original_source_procedure_for_target(target)?;
+         if !module
+             .retained_source_bindings
+             .as_ref()?
+@@ -179,7 +179,7 @@ fn original_procedure_calls_for_targets<'a>(
+     targets
+         .iter()
+         .map(|target| {
+-            let (id, procedure) = module.source_procedure_for_target(target)?;
++            let (id, procedure) = module.original_source_procedure_for_target(target)?;
+             if !module
+                 .retained_source_bindings
+                 .as_ref()?

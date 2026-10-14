@@ -2280,9 +2280,8 @@ impl Analyser {
     }
 
     /// **W116 / W117.** Stub command / expression definition shadows a
-    /// built-in.  Post-walk check.  W116 fires when a `# tcl-lsp:
-    /// stub` command name (with leading `::` stripped) collides with a
-    /// registered command; W117 when a stub expr function/operator name
+    /// built-in. W116 uses this analysis generation's selected descriptor;
+    /// W117 fires when a stub expr function/operator name
     /// collides with a built-in `expr` function or operator.
     pub(in crate::analyser) fn emit_w116_w117_stub_shadows(&mut self) {
         use super::types::Severity;
@@ -2291,20 +2290,19 @@ impl Analyser {
             return;
         }
 
-        // W116 — stub command shadows a built-in command.  Build the
-        // dialect command-name set locally.
         if !self.result.stub_commands.is_empty() {
-            // The shared per-profile registry cache: same contents as a
-            // fresh build_default + load_dialect, without rebuilding the
-            // whole registry per analysed document.
-            let registry =
-                tcl_registry::model::ingress::static_context_for(self.dialect()).commands();
-            let commands: std::collections::HashSet<&str> = registry.command_names().collect();
+            let context = self.analysis_context();
             let hits: Vec<(String, tcl_lexer::Span)> = self
                 .result
                 .stub_commands
                 .iter()
-                .filter(|s| !s.from_sidecar && commands.contains(s.name.trim_start_matches(':')))
+                .filter(|stub| {
+                    !stub.from_sidecar
+                        && context
+                            .context()
+                            .resolve_spec(context.commands(), &stub.name)
+                            .is_some()
+                })
                 .map(|s| (s.name.clone(), s.range))
                 .collect();
             for (name, span) in hits {
@@ -2539,11 +2537,11 @@ impl Analyser {
             return;
         }
         let facts = UserResolutionFacts::build(self);
-        let required: Vec<String> = self
+        let required: Vec<&str> = self
             .result
             .package_requires
             .iter()
-            .map(|pr| pr.name.trim_start_matches(':').to_string())
+            .map(|required| required.name.as_str())
             .collect();
         let pending = std::mem::take(&mut self.pending_w143);
         for (cmd_name, ns, enforce_order, diag) in pending {
@@ -2554,11 +2552,11 @@ impl Analyser {
             if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, diag.span.start()) {
                 continue;
             }
-            let bare = cmd_name.trim_start_matches(':');
-            if required
-                .iter()
-                .any(|pkg| bare == pkg || bare.starts_with(&format!("{pkg}::")))
-            {
+            if required.iter().any(|package| {
+                tcl_registry::private_tcl_namespaces::required_package_namespace_advice_covers(
+                    package, &cmd_name,
+                )
+            }) {
                 continue;
             }
             self.result.diagnostics.push(diag);

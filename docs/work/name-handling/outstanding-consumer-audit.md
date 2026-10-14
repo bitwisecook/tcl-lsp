@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-This is the bounded 04:27 UTC checkpoint on `work`. The machine inventory keeps
+This is the bounded 04:40 UTC snapshot on `work`. The machine inventory keeps
 47 actionable rows, the inherited 330 lexical LSP candidates and original issue
 and source observations. Package membership or lexical search absence does not
 certify semantic completion. [Current consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
@@ -12,14 +12,16 @@ record each integrated owner and its remaining execution obligation.
 | --- | --- | --- |
 | Compiler33 diagnostic | 304 controls: 194 PASS, 110 FAIL; zero authored-source drift. | Among 295 common Compiler31 controls, 19 improve and one regresses. Source geometry and consumer repairs have measurable gains; global/upvar/deferred effects, source-frame fixture ownership and original summary body coverage still fail. Diagnostic capture does not establish Native provider acceptance. |
 | Core32 | 30 controls: 20 PASS, 10 FAIL; zero authored-source drift. | OriginalScope9 is 6 PASS, 3 FAIL; original14 is 11 PASS, 3 FAIL. Namespace04, nested method03 and custom prefix28 pass. Current-level scope05/06/08, repeated type/colon and strict original SSA hint failures remain. |
-| Full Runtime09 | 79 controls running; no final aggregate. | Full source and compiled-provider capture is active. Current runtime repairs require its exact results; paired Runtime08 remains independently scoped. |
+| Full Runtime09 | 79 controls: 78 PASS, 1 FAIL; zero source/compiled-input/artifact drift. | All original 77 controls pass. Only new C8.5 rename error-code expectation fails. The independent per-engine correction is integrated and requires fresh replay. Engine host/guest closure remains separate. |
+| Core34 diagnostic | 40 exact controls plus 26 namespace-rename controls running; no aggregate. | Current source/effect/body and incoming-provider repairs require their exact positive/refusal assertions. Prior Core32 results do not accept this newer source. |
 | Paired Runtime08 | 2 controls: 1 PASS, 1 FAIL; zero source/compiled/artifact drift. | Only Jim rename message NUL extent fails. Actual C8.4/C8.5 observations retain counted full diagnostics; universal CString proposal rejected before Main, per-engine correction active. Prior Runtime07 76/77 remains retained scoped evidence. |
 | AI/editor | Current TypeScript typecheck PASS. | Real LSP/Electron provider, language/currentness and unavailable-owner controls remain unexecuted. |
 
 Compiler33 diagnostic build and selected replay are complete. Main fixes after
 that frozen capture require fresh replay and do not inherit its outcomes.
-Original declaration body units must be included through genuine issued-owner
-selection before their global-write assertions can be assessed.
+Authentic original-declaration summary inventory/allocation selection is now
+integrated alongside issued-body fixture selection. Original assertions remain
+unchanged and need fresh execution.
 
 ## Integrated repairs awaiting replay
 
@@ -40,11 +42,19 @@ W214 formal controls and Logical inlining fixtures now use actual plain-Tcl full
 source input and its authored naming contract. Their prior projected Jim079
 profile had no authored naming policy and could not establish positive source
 naming geometry. Existing source and assertions remain intact. Inlining readonly
-source context accepts original declaration correspondence without fabricating
-a reached lookup; Native splice/admission remains separate.
+source context retains original declaration correspondence without fabricating
+a reached lookup. Compiler33 shows that the readonly frame consumer still
+requests the absent Native variable policy for unversioned Tcl. The integrated
+consumer now selects the shared authored policy after positive Logical purpose;
+original frame controls require fresh replay.
+Native splice/admission remains separate.
 
-Current body-unit source joins, server case/provider and transport corrections
-are integrated or completing integration at this checkpoint. Every subsequent
+Current body-unit source joins, server case/provider, W116/W143 document-stub,
+namespace rename MAY hazard and Native descriptor transport delegates are
+integrated. Genuine authored factory value and Logical evaluated-body readers
+retain their independent original word/purpose/source owners. Current/root
+Logical child lowering retains actual Module realm and shared body geometry;
+unknown-caller source coordinates remain unavailable. Every subsequent
 patch needs current execution; old source hashes or passing captures are not
 renewed by these tracking updates. Deferred source-effect unknown-command
 residual, global/upvar/deferred effects, linked-member reference/edit hazards,

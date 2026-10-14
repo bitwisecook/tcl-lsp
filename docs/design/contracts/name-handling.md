@@ -50,6 +50,11 @@ Logical root coordinate. Exact source/input/configuration/context and selected
 body containment remain required. Invalid, dynamic and unavailable caller
 coordinates decline; a procedure or method namespace cannot stand in for them.
 This source recipe supplies no entered frame, physical namespace or edit span.
+Immediate child mutation coverage reuses that exact body/frame owner and the
+selected naming policy's source argument roles. Sequential selected-frame
+operations retain their independently selected coordinates. Possible child
+binding changes and unknown namespace path/export effects still withdraw
+subsequent source advice.
 
 The Compiler's `SourceReadScope` obtains declaration/read schemas from the
 original transition catalogue. `CompletePrefix` retains completed source
@@ -192,6 +197,7 @@ existence of a structured type does not establish a consumer's ownership.
 | Command lookup base order | `naming::command_lookup_bases` supplies current/path/root coordinates; `NativeCommandSlotProjection::{lookup_bases, lookup_uses_namespace_path}` selects original C extent and path availability. Logical candidate renderers, authored source geometry, native compilation snapshots and live runtime adapters reuse that order; source consumers retain separate path alternatives and stop before later uncertainty when an earlier binding settles lookup. Coordinates grant no live namespace, command binding or closed-world evidence. |
 | Variable namespace geometry and query order | `NativeNameProjection::variable_namespace_projection` retains the selected C `VariableRoot` or `NamespaceVariableQuery` components; `NativeVariableNamespaceProjection::namespace_query_bases` admits only the namespace query purpose and selects its C8.4–8.6 global alternate. `variable_namespace_lookup_bases` supplies the same coordinate sequence under an explicit Logical fallback policy. Ordinary scalar/element operation flags, frames, aliases, cell presence and lifetimes remain adapter-owned; Jim query canonicalization is independent. |
 | Empty namespace address | `NativeNameProtocol::namespace_address_path` distinguishes `EmptyNamespaceOutsideRoot` from unsupported recipes. Lookup treats that selected invalid address as missing; `report_native_namespace_creation_error` supplies the C creation diagnostic and release-selected error-code update. This supplies no native String allocation or entered namespace. |
+| Rename refusal | `NativeNameProtocol::rename_diagnostic` consumes the actual missing-source/delete or occupied-destination failure stage and original counted operand. C messages retain counted bytes; Jim messages use its selected C-string extent. C8.4/8.5 and Jim select the neutral adapter path, while C8.6–9.1 select exact lookup or destination-exists codes. Reporting never selects bindings or changes retirement and observer order. |
 | Shared static slot projection | `tcl_runtime_api::command_identity::{StaticCommandSlot, display_namespace, display_command, encode_command_slot}` |
 | Original name recipes | `NativeNameProtocol` and the selected operation's checked object/input facade; C, Jim and hosted issuers remain independent |
 | Native source text materialisation | `tcl_syntax::backslash::native_arena_text`, over retained `ExecutablePartArena` source/channel/config; runtime admission and operation currency belong to `Interp`, not decoded lexical bytes |

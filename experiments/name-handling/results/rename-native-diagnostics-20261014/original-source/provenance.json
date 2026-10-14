@@ -1,0 +1,56 @@
+{
+  "sources": [
+    {
+      "provider": "8.4.20",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "original_file_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "excerpt_file": "tcl8.4.20-TclRenameCommand.c",
+      "excerpt_sha256": "d3048b7f3d9b85a68eb915ed0f2ff4c84e83f487ed45a2cf590c94bdb793cf08",
+      "first_line": 2061,
+      "last_line": 2219,
+      "license_file": "tcl8.4.20-license.terms"
+    },
+    {
+      "provider": "8.5.19",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+      "original_file_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "excerpt_file": "tcl8.5.19-TclRenameCommand.c",
+      "excerpt_sha256": "f4e4a7f14f2b8d4d17bd1d45ff947797c1187b2a34beab448b7afb6cc1f7091f",
+      "first_line": 2294,
+      "last_line": 2457,
+      "license_file": "tcl8.5.19-license.terms"
+    },
+    {
+      "provider": "8.6.18",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "original_file_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "excerpt_file": "tcl8.6.18-TclRenameCommand.c",
+      "excerpt_sha256": "5866c6bc7c7f05fd43fe6bcb47c111ec66aec6469486e8a4ccd45f7d215e3697",
+      "first_line": 2648,
+      "last_line": 2827,
+      "license_file": "tcl8.6.18-license.terms"
+    },
+    {
+      "provider": "9.0.4",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+      "original_file_sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "excerpt_file": "tcl9.0.4-TclRenameCommand.c",
+      "excerpt_sha256": "099da2e9b3fa2a52e1a156653a0e4db5e17904dea1754581125bc68cda92d9c9",
+      "first_line": 3151,
+      "last_line": 3330,
+      "license_file": "tcl9.0.4-license.terms"
+    },
+    {
+      "provider": "9.1.0",
+      "original_file": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+      "original_file_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "excerpt_file": "tcl9.1.0-TclRenameCommand.c",
+      "excerpt_sha256": "099da2e9b3fa2a52e1a156653a0e4db5e17904dea1754581125bc68cda92d9c9",
+      "first_line": 3114,
+      "last_line": 3293,
+      "license_file": "tcl9.1.0-license.terms"
+    }
+  ],
+  "Jim": "Existing experiments/name-handling/rename-error-reporting/jim-original.c and JIM-LICENSE retained unchanged.",
+  "tcltest": "not used"
+}

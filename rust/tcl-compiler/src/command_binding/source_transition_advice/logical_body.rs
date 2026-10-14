@@ -501,14 +501,19 @@ impl LogicalBodyWalk<'_, '_> {
                 SourceCommandTransitionObligation::DeferredLogicalBodyApplicability,
             ),
         );
-        let (roles, complete) = schema.authored_source_argument_roles();
+        let (roles, complete) = self.context.authored_roles(schema);
         let immediate_body = roles
             .iter()
             .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
             && !schema.semantics.traits.contains(Traits::DEFERS_BODY);
         if !complete || immediate_body {
-            self.context
-                .apply_schema_transition(graph, invocation, selected, schema)?;
+            self.context.apply_schema_transition(
+                graph,
+                invocation,
+                selected,
+                schema,
+                Some(scope),
+            )?;
         } else {
             self.context
                 .apply_source_body_lookup_effects(graph, selected, invocation, schema);
@@ -699,6 +704,66 @@ mod tests {
                 ..input.lexer_config()
             });
             assert!(words_at(source, &changed, fragment).is_none());
+        }
+    }
+
+    #[test]
+    fn logical_sequential_selected_frame_bodies_keep_exact_source_owners() {
+        let source = "set x ROOT\nnamespace eval N {proc p {} {set x LOCAL; uplevel #0 {puts $x}; uplevel 0 {puts $x}}}\n";
+        let analysis = analyse_source(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        for (fragment, level) in [
+            ("uplevel #0 {puts $x}", b"#0".as_slice()),
+            ("uplevel 0 {puts $x}", b"0".as_slice()),
+        ] {
+            let words = words_at(source, &analysis, fragment).unwrap();
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("actual original selected-frame advice")
+            };
+            assert_eq!(advice.logical_source_input(), Some(input));
+            assert!(advice.original_head().native_input().is_none());
+            let offset = source.find(fragment).unwrap() + fragment.find("puts").unwrap();
+            let tail = &source[offset..];
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                &tail[..tail.find('}').unwrap()],
+                u32::try_from(offset).unwrap(),
+                input.lexer_config(),
+            )
+            .remove(0);
+            let child = source_registry_words(source, &analysis, &segment).unwrap();
+            let OriginalRegistrySource::SourceTransitions(child_advice) = child.source() else {
+                panic!("actual original child advice")
+            };
+            let owner = child_advice.logical_source_body().unwrap();
+            assert_eq!(
+                owner.original_container().image().bytes(),
+                source.as_bytes()
+            );
+            assert_eq!(
+                owner.source_words().arguments()[0].literal_bytes(),
+                Some(level)
+            );
+            assert!(words_at(&format!("{source} "), &analysis, fragment).is_none());
+        }
+    }
+
+    #[test]
+    fn logical_selected_frame_mutations_still_withdraw_following_source_advice() {
+        for body in [
+            "uplevel #0 {rename ::uplevel {}}",
+            "uplevel 0 {rename ::uplevel {}}",
+            "uplevel #0 {unknown missing}",
+            "uplevel $level {puts $x}",
+            "uplevel 1 {puts $x}",
+        ] {
+            let source = format!(
+                "namespace eval N {{proc p {{}} {{set x LOCAL; {body}; uplevel 0 {{puts $x}}}}}}\n"
+            );
+            let analysis = analyse_source(&source);
+            assert!(
+                words_at(&source, &analysis, "uplevel 0 {puts $x}").is_none(),
+                "{body}"
+            );
         }
     }
 

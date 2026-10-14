@@ -1,0 +1,62 @@
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -2037,8 +2037,41 @@
+     }
+ }
+ 
++/// Possible rooted names in unattributed text, for conservative edit refusal.
++/// Delimiter and sigil scanning is deliberately broader than executable Tcl;
++/// these fragments grant no name lookup, variable access or editable span.
++pub fn unattributed_rooted_name_candidates(text: &str) -> impl Iterator<Item = &str> {
++    text.split(|character: char| character.is_whitespace() || "{}[];\"".contains(character))
++        .map(|token| token.trim_start_matches(['$', '{']).trim_end_matches('}'))
++        .filter(|token| token.starts_with("::"))
++        .map(|token| token.split_once('(').map_or(token, |(root, _)| root))
++}
++
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn unattributed_rooted_candidates_preserve_data_and_refuse_lookup_authority() {
++        let text = "literal {::old::member} [::other] $::array(index)\u{2003}\":::lone\" ; :relative ::empty::";
++        assert_eq!(
++            unattributed_rooted_name_candidates(text).collect::<Vec<_>>(),
++            [
++                "::old::member",
++                "::other",
++                "::array",
++                ":::lone",
++                "::empty::"
++            ]
++        );
++        assert_eq!(
++            unattributed_rooted_name_candidates("$${::old(index)}").collect::<Vec<_>>(),
++            ["::old"]
++        );
++        assert_eq!(
++            unattributed_rooted_name_candidates(":: :relative plain").collect::<Vec<_>>(),
++            ["::"]
++        );
++    }
++
+     #[test]
+     fn command_lookup_bases_visit_path_only_after_current() {
+         use super::{CommandLookupBase, command_lookup_bases};
+--- a/rust/tcl-lsp-core/src/namespace_rename.rs
++++ b/rust/tcl-lsp-core/src/namespace_rename.rs
+@@ -688,13 +688,8 @@
+ /// list literal, so `{::old::tick $arg}` is examined token by token rather
+ /// than as one string.  Rooted spellings only; see the module docs' bounds.
+ fn embedded_rooted_name_under(text: &str, cell: &str) -> bool {
+-    text.split(|c: char| c.is_whitespace() || "{}[];\"".contains(c))
+-        .map(|token| token.trim_start_matches(['$', '{']).trim_end_matches('}'))
+-        .filter(|token| token.starts_with("::"))
+-        .any(|token| {
+-            let token = token.split_once('(').map_or(token, |(base, _)| base);
+-            names_at_or_under(cell, token) || names_under(cell, token)
+-        })
++    tcl_syntax::naming::unattributed_rooted_name_candidates(text)
++        .any(|candidate| names_at_or_under(cell, candidate) || names_under(cell, candidate))
+ }
+ 
+ #[cfg(test)]

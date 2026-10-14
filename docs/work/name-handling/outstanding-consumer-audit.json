@@ -13150,13 +13150,13 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "head": "1267a9ccf79d7900f7e2e75ade7ffda5f92d98a1",
-    "checkpoint_utc": "2026-10-14T04:27:00Z",
-    "tracking_basis": "Actual Main owner/caller reconciliation and sealed Compiler33/Core32 results; full Runtime09 capture running. Original snapshots and isolated evidence remain unchanged.",
+    "head": "201f29d910daa73c9faf751c615b94e2dba3e5db",
+    "checkpoint_utc": "2026-10-14T04:40:32Z",
+    "tracking_basis": "Actual Main owner/caller reconciliation with sealed Compiler33/Core32 and full Runtime09 results; Core34 diagnostic replay running. Original snapshots and isolated evidence remain unchanged.",
     "scope": "Only explicit current actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and issue records unchanged; no old proof digest renewed.",
-    "validation": "Compiler33 diagnostic capture 304=194PASS110FAIL, authored-source drift0; 295 common Compiler31 controls improve19 and regress1. Core32 30=20PASS10FAIL source drift0. Full Runtime09 79 controls running, no aggregate yet; paired Runtime08 1PASS1FAIL source/compiled/artifact drift0 remains separately scoped. AI TypeScript typecheck PASS; real LSP/Electron and DB original reuse controls pending. No whole-codebase/Native/F5/PR-ready acceptance.",
+    "validation": "Compiler33 diagnostic304=194PASS110FAIL, authored-source drift0; common295 improve19/regress1. Core32 30=20PASS10FAIL source drift0. Full Runtime09 79=78PASS1FAIL; all original77 controls PASS, only new C8.5 rename error-code control FAIL; ALL source/compiled-input/artifact drift0. Its per-engine error-code correction is integrated and unexecuted. Core34 diagnostic40 exact plus namespace rename26 running, no aggregate claimed. AI TypeScript typecheck PASS; real LSP/Electron and DB original reuse controls pending. No whole-codebase/Native/F5/PR-ready acceptance.",
     "source_write_policy": "Root-authorised three tracking documents only; no Rust/runtime/experiments/scripts/specs/Cargo/Git writes by this agent.",
-    "additional_bounded_families": "Audited consumer migrations remain the implementation priority. Current global/upvar/deferred source effects, original declaration summary-body coverage, Native SSA hints, OO linked-member references/editing, DB original reuse and Runtime replay remain active.",
+    "additional_bounded_families": "Original declaration summary inventory/allocation consumers, readonly Logical frame authored policy, current/root body owner, authored factory value reader and Logical evaluated body reader are integrated with their current contracts, awaiting fresh original controls. Additional W116/W143 document-stub, namespace rename MAY hazard and Native descriptor transport delegates are integrated, unexecuted. Unknown-caller effects and full remaining consumer reconciliation remain active.",
     "reconciled_live_rows": [
       "bpf-thread-hint",
       "vm-authored-ns-wrappers",
@@ -13168,6 +13168,7 @@
       "vm-import-forget",
       "bpf-selected-descriptor"
     ],
-    "immutable_evidence_policy": "Earlier baseline fields, source/isolated snapshots, inherited330/package/issue rows and proof digests unchanged; current_review observations are not new execution evidence."
+    "immutable_evidence_policy": "Earlier baseline fields, source/isolated snapshots, inherited330/package/issue rows and proof digests unchanged; current_review observations are not new execution evidence.",
+    "next_commit_due_utc": "2026-10-14T04:42:00Z"
   }
 }

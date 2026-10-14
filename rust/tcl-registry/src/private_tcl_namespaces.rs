@@ -225,6 +225,21 @@ pub fn classify_private_tcl_namespace_call(
     })
 }
 
+/// Literal package-name prefix advice for an original written command.
+/// Package names remain data; only command geometry uses the shared written
+/// name projection. This establishes no loaded package or callable binding.
+#[must_use]
+pub fn required_package_namespace_advice_covers(package: &str, command: &str) -> bool {
+    if package.is_empty() {
+        return false;
+    }
+    let command = tcl_syntax::naming::canonical_written_command(command);
+    command == package
+        || command
+            .strip_prefix(package)
+            .is_some_and(|tail| tail.starts_with("::"))
+}
+
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
@@ -238,6 +253,41 @@ mod tests {
             registry,
             Some(SurfaceQuery::core(Family::Tcl, "9.0")),
         )
+    }
+
+    #[test]
+    fn required_package_namespace_advice_preserves_literal_package_colons() {
+        for command in [
+            "tcl::dict",
+            "::tcl::dict::member",
+            "::::tcl:::dict:::member",
+        ] {
+            assert!(required_package_namespace_advice_covers(
+                "tcl::dict",
+                command
+            ));
+        }
+        for package in [
+            "",
+            ":tcl::dict",
+            "::tcl::dict",
+            "::::tcl::dict",
+            "Tcl::dict",
+            "tcl::dictionary",
+        ] {
+            assert!(!required_package_namespace_advice_covers(
+                package,
+                "::tcl::dict::member"
+            ));
+        }
+        assert!(required_package_namespace_advice_covers(
+            ":provider",
+            ":provider::member"
+        ));
+        assert!(!required_package_namespace_advice_covers(
+            "provider",
+            ":provider::member"
+        ));
     }
 
     #[test]

@@ -1,0 +1,4 @@
+/tmp/name-remaining-consumers-20261014/oracles/visibility.tcl:3: Error: wrong # args: should be "interp"
+Traceback (most recent call last):
+  File "/tmp/name-remaining-consumers-20261014/oracles/visibility.tcl", line 3
+    interp create kid

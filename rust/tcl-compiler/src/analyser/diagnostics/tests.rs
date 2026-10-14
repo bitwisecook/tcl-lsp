@@ -18484,3 +18484,67 @@ fn a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211() {
         assert_eq!(per_item, whole, "per item: {src}");
     }
 }
+
+#[test]
+fn w116_stub_shadow_uses_actual_selected_registry_and_exact_descriptor_data() {
+    use std::sync::Arc;
+    let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+    let mut registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+    registry.insert(tcl_registry::CommandSpec {
+        name: "overlay_stub_target",
+        surface: registry.get("puts").unwrap().surface,
+        ..tcl_registry::CommandSpec::DEFAULT
+    });
+    let context = Arc::new(
+        tcl_registry::model::ingress::context_for_profile(profile)
+            .with_command_store(Arc::new(registry)),
+    );
+    let input = crate::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        context,
+        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+    );
+    for (name, expected) in [
+        ("overlay_stub_target", true),
+        ("::overlay_stub_target", true),
+        (":overlay_stub_target", false),
+        ("::::overlay_stub_target", false),
+    ] {
+        let source = format!(
+            "# tcl-lsp: stubs-begin\n# tcl-lsp: stub {name} {{value}}\n# tcl-lsp: stubs-end\n"
+        );
+        let result = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(&source, "tcl8.6");
+        assert_eq!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W116),
+            expected,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn w143_package_namespace_advice_keeps_literal_package_names() {
+    for (package, expected) in [
+        ("tcl::dict", false),
+        (":tcl::dict", true),
+        ("::tcl::dict", true),
+        ("tcl::dictionary", true),
+    ] {
+        let source = format!("package require {package}\n::tcl::dict::unregistered_member\n");
+        let result = Analyser::new().analyse(&source, "tcl8.6");
+        assert_eq!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W143),
+            expected,
+            "{package}"
+        );
+    }
+}

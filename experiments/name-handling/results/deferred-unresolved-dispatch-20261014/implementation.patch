@@ -1,0 +1,33 @@
+diff --git a/rust/tcl-compiler/src/deferred_writes/supplied.rs b/rust/tcl-compiler/src/deferred_writes/supplied.rs
+index 8f75645ca..4b2b06732 100644
+--- a/rust/tcl-compiler/src/deferred_writes/supplied.rs
++++ b/rust/tcl-compiler/src/deferred_writes/supplied.rs
+@@ -214,10 +214,15 @@ impl SourceScan<'_> {
+                 self.value_script(&text, state, context, false, depth + 1);
+             }
+         }
+-        let Some(holder) = words
++        let Some((head, holder)) = words
+             .first()
+             .and_then(CommandWord::literal)
+-            .and_then(|head| context.namespace.for_head_context(head))
++            .and_then(|head| {
++                context
++                    .namespace
++                    .for_head_context(head)
++                    .map(|holder| (head, holder))
++            })
+         else {
+             self.out.any = true;
+             return;
+@@ -229,7 +234,9 @@ impl SourceScan<'_> {
+             return;
+         };
+         let mut selected = Vec::new();
+-        let mut unknown = false;
++        // A fallback handler's schema cannot bound an absent callback command.
++        let mut unknown = state.may_dispatch_unresolved(head, holder.as_ref())
++            || state.target_resolution_may_be_unknown(head, holder.as_ref());
+         state.for_each_resolved_command_words(words, holder.as_ref(), |target, arguments| {
+             if !target.registry_backed {
+                 unknown = true;

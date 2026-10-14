@@ -1073,6 +1073,42 @@ mod tests {
     }
 
     #[test]
+    fn original_c_empty_exposure_preserves_the_actual_token_and_global_slot() {
+        for version in TclVersion::ALL {
+            let mut interp = Interp::new();
+            interp.set_runtime_version(version);
+            interp.bind_command_replacement(
+                crate::namespace::GLOBAL,
+                b"kept",
+                Command::Builtin(worker),
+            );
+            let generation = interp
+                .namespaces
+                .borrow()
+                .command_generation(crate::namespace::GLOBAL, b"kept")
+                .unwrap();
+            assert_eq!(
+                interp.hide_command(b"kept", b"hidden"),
+                super::super::CommandVisibilityOutcome::Moved
+            );
+            assert_eq!(
+                interp.expose_command(b"hidden", b""),
+                super::super::CommandVisibilityOutcome::Moved
+            );
+            assert_eq!(
+                interp
+                    .namespaces
+                    .borrow()
+                    .command_generation(crate::namespace::GLOBAL, b""),
+                Some(generation)
+            );
+            assert_eq!(interp.eval_str(b"{}"), crate::Code::Ok);
+            assert!(interp.hidden_names().is_empty());
+            assert!(interp.host_command_refusal().is_none());
+        }
+    }
+
+    #[test]
     fn failed_lookup_applies_release_selected_primary_without_erasing_c9_cache() {
         for version in [
             TclVersion::V8_4,

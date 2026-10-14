@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Unit tests for the proc inliner (v0 / verbatim / v3).
+//! Procedure inlining shape and source-ownership controls.
 //!
 //! These are IR-shape tests: they verify the structure the splice leaves. What
 //! the spliced code answers is run, against what the definitions answer as
@@ -164,20 +164,7 @@ fn has_inline_binding(stmts: &[Statement]) -> bool {
     })
 }
 
-/// `tally_calls`,
-/// `has_irreturn_in_unsafe_scope`, and `walk_local_writes` each recurse
-/// once per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/
-/// `Block`/`UpFrame` body, with no depth cap of their own before this
-/// fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the
-/// lowering pass today, so this is defence-in-depth / consistency with
-/// every other full-tree walker in this crate, not a
-/// currently-reproducible crash. 1000 levels of source nesting is
-/// comfortably past this new cap; the assertion is that `inline_module`
-/// returns at all, not what it returns. Spawns its own big-stack thread
-/// since the lexer/CST/segmenter stages upstream of the lowering cap
-/// still walk the full un-truncated source nesting before that cap trims
-/// it — same rationale as
-/// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+/// Select exactly one issued fixture body by its reporting label.
 fn fixture_id(module: &Module, display: &str) -> crate::ir::ProcedureId {
     let mut matching = module
         .procedures
@@ -188,6 +175,8 @@ fn fixture_id(module: &Module, display: &str) -> crate::ir::ProcedureId {
     id
 }
 
+/// Upstream source walkers need a large stack before the lowering depth cap.
+/// The control requires the bounded inlining traversal to terminate.
 #[test]
 fn deeply_nested_if_survives_inlining_walks() {
     const DEPTH: usize = 1000;
@@ -212,16 +201,11 @@ fn deeply_nested_if_survives_inlining_walks() {
         .unwrap();
 }
 
-// v0 / verbatim tests
+// Verbatim body controls
 
 /// A braced `switch` subject is literal: alpha-renaming must not rewrite a
 /// `$x` inside it, exactly as it already leaves the arm patterns alone.
 ///
-/// Latent until the subject's braced-ness was recorded — while the subject was
-/// substituted at run time regardless of its braces, renaming it and then
-/// reading the renamed variable happened to produce an answer. Once a braced
-/// subject is the literal it always was, a rewritten subject compares
-/// `$__inline_…__x` against the pattern `$x` and takes the wrong arm.
 #[test]
 fn a_braced_switch_subject_survives_alpha_renaming() {
     let stmts = inlined_native_top(
@@ -488,7 +472,7 @@ fn count_statements_walks_nested_bodies() {
     assert_eq!(count_statements(&proc.body), 4);
 }
 
-// v3 parameterised
+// Parameter binding controls
 
 #[test]
 fn v3_binds_param_and_renames_body() {

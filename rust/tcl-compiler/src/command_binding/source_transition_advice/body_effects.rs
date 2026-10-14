@@ -38,6 +38,9 @@ struct BodyWalk<'context, 'source> {
     inventory: Option<OriginalSourceTransitionAdviceTape>,
     authored_prefixes: OriginalSourceTransitionAdviceTape,
     source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+    logical_scope: Option<
+        Arc<crate::command_binding::source_declared_command::OriginalDeclaredLogicalBodyContext>,
+    >,
     member_catalogue_body:
         Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
     catalogue_body: Option<super::OriginalSourceCatalogueBody>,
@@ -174,6 +177,7 @@ impl AdviceInvocationContext<'_> {
             inventory: Some(OriginalSourceTransitionAdviceTape::default()),
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
+            logical_scope: None,
             member_catalogue_body: None,
             catalogue_body: None,
         };
@@ -252,6 +256,7 @@ impl AdviceInvocationContext<'_> {
                         inventory: None,
                         authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
                         source_body: None,
+                        logical_scope: None,
                         member_catalogue_body: Some(body.clone()),
                         catalogue_body: None,
                     };
@@ -343,6 +348,7 @@ impl AdviceInvocationContext<'_> {
             inventory: None,
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
+            logical_scope: None,
             member_catalogue_body: None,
             catalogue_body: Some(body.clone()),
         };
@@ -374,6 +380,7 @@ impl AdviceInvocationContext<'_> {
                 inventory: matches!(self.policy, AdviceNamingPolicy::Logical(_))
                     .then(OriginalSourceTransitionAdviceTape::default),
                 source_body: None,
+                logical_scope: None,
                 member_catalogue_body: None,
                 catalogue_body: None,
                 authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
@@ -393,6 +400,11 @@ impl AdviceInvocationContext<'_> {
         graph: &mut AdviceGraph,
         advice: &OriginalSourceCommandTransitionAdvice,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        logical_scope: Option<
+            &Arc<
+                crate::command_binding::source_declared_command::OriginalDeclaredLogicalBodyContext,
+            >,
+        >,
     ) -> BodyEffectProjection {
         let mut walk = BodyWalk {
             context: self,
@@ -410,6 +422,7 @@ impl AdviceInvocationContext<'_> {
                                 .contains(tcl_registry::Traits::DECLARES_NAMESPACE)))))
             .then(OriginalSourceTransitionAdviceTape::default),
             source_body: None,
+            logical_scope: logical_scope.cloned(),
             member_catalogue_body: None,
             catalogue_body: None,
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
@@ -550,6 +563,7 @@ impl BodyWalk<'_, '_> {
             // Changing namespace source coordinates retain their independently
             // selected policy; no frame or body execution follows.
             let mut branch = original.clone();
+            let mut child_scope = self.logical_scope.clone();
             if span.start() != span.end()
                 && schema.semantics.body_kind != tcl_registry::BodyKind::Plain
                 && !lifecycle
@@ -561,11 +575,41 @@ impl BodyWalk<'_, '_> {
                     lineage: advice.lineage(),
                 };
                 match self.context.policy {
-                    AdviceNamingPolicy::Logical(_) => {
-                        let selected = self
-                            .context
-                            .logical_namespace_scope(&original, invocation, schema)?;
-                        branch.logical_namespace = Some(selected.namespace().clone());
+                    AdviceNamingPolicy::Logical(input) => {
+                        if schema.semantics.frame_effect.is_some_and(|frame| {
+                            frame.layout == tcl_registry::FrameArgLayout::ScriptInSelectedFrame
+                        }) {
+                            let scope = self.logical_scope.as_ref()?;
+                            if !scope.matches_input(input)
+                                || !scope.owns_words(advice.original_words())
+                                || original.logical_namespace.as_ref()
+                                    != Some(scope.namespace_recipe())
+                            {
+                                return None;
+                            }
+                            let tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+                                level,
+                                ..
+                            } = schema.authored_logical_source_frame_argument_layout()?
+                            else {
+                                return None;
+                            };
+                            let body = Arc::new(region.clone());
+                            let child = if level.is_global_frame() {
+                                scope.with_global_body(body)?
+                            } else if level.is_current_frame() {
+                                scope.with_body(body)?
+                            } else {
+                                return None;
+                            };
+                            branch.logical_namespace = Some(child.namespace_recipe().clone());
+                            child_scope = Some(Arc::new(child));
+                        } else {
+                            let selected = self
+                                .context
+                                .logical_namespace_scope(&original, invocation, schema)?;
+                            branch.logical_namespace = Some(selected.namespace().clone());
+                        }
                     }
                     AdviceNamingPolicy::Native(_) => {
                         branch.c_source_namespace = Some(
@@ -593,7 +637,9 @@ impl BodyWalk<'_, '_> {
                     || branch.c_source_namespace.is_some()))
             .then(|| Arc::new(region));
             let parent = std::mem::replace(&mut self.source_body, source_body);
+            let parent_scope = std::mem::replace(&mut self.logical_scope, child_scope);
             let walked = self.script(&mut branch, span, depth);
+            self.logical_scope = parent_scope;
             self.source_body = parent;
             self.catalogue_body = catalogue;
             walked?;
@@ -643,6 +689,8 @@ impl BodyWalk<'_, '_> {
                 graph.unknown_exports.insert(namespace.clone());
             }
         }
+        graph.unknown_paths.extend(branch.unknown_paths);
+        graph.unknown_exports.extend(branch.unknown_exports);
         for operation in branch.uncertain_operations {
             if !graph.uncertain_operations.contains(&operation) {
                 graph.uncertain_operations.push(operation);
@@ -657,7 +705,7 @@ impl BodyWalk<'_, '_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         depth: usize,
     ) -> Option<()> {
-        let (roles, complete) = schema.authored_source_argument_roles();
+        let (roles, complete) = self.context.authored_roles(schema);
         #[cfg(test)]
         trace_body_inventory(
             "expressions.roles",
@@ -916,8 +964,9 @@ impl BodyWalk<'_, '_> {
             self.unavailable_lifecycle_effects = true;
             return Some(());
         }
-        let immediate = schema
-            .authored_source_argument_roles()
+        let immediate = self
+            .context
+            .authored_roles(&schema)
             .0
             .iter()
             .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
@@ -1441,7 +1490,7 @@ mod original_empty_coverage_tests {
         let following = original[0].input.as_ref().unwrap();
         let before = graph.resolve(following);
         assert!(before.is_some(), "real selected following Registry command");
-        let projection = owner.apply_immediate_body_effects(&mut graph, &advice, &schema);
+        let projection = owner.apply_immediate_body_effects(&mut graph, &advice, &schema, None);
         (projection, graph.resolve(following) == before)
     }
 
@@ -1635,6 +1684,7 @@ mod original_expression_purpose_frontier_tests {
             inventory: Some(OriginalSourceTransitionAdviceTape::default()),
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
+            logical_scope: None,
             member_catalogue_body: None,
             catalogue_body: None,
         };
@@ -1663,6 +1713,7 @@ mod original_expression_purpose_frontier_tests {
             inventory: None,
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
+            logical_scope: None,
             member_catalogue_body: None,
             catalogue_body: None,
         };

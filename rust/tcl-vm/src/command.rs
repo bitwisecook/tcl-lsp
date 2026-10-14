@@ -865,29 +865,15 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
     let Some((cmd, mut rename)) = prepared else {
-        // Renaming to the empty name is a delete; C words the miss accordingly.
-        let verb = if new_name.is_empty() {
-            "delete"
+        let failure = if new_name.is_empty() {
+            tcl_syntax::naming::NativeRenameFailure::MissingDeleteSource
         } else {
-            "rename"
+            tcl_syntax::naming::NativeRenameFailure::MissingSource
         };
-        let reported = match vm.native_rename_reported_operand(&old_name) {
-            Ok(name) => name,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+        return match vm.native_rename_diagnostic(failure, &old_name) {
+            Ok(error) => completion_from_cmd_error(vm, error),
+            Err(error) => vm.refuse_host_command(error.to_string()),
         };
-        return completion_from_cmd_error(
-            vm,
-            tcl_cmd_core::CmdError::new_bytes(
-                [
-                    b"can't ".as_slice(),
-                    verb.as_bytes(),
-                    b" \"",
-                    reported.as_slice(),
-                    b"\": command doesn't exist",
-                ]
-                .concat(),
-            ),
-        );
     };
     let old_key = rename.old_key().to_owned();
     // A coroutine's state travels with its command: a delete (`rename $coro {}`)
@@ -1005,23 +991,15 @@ fn check_renamed_alias_loop(
 
 fn rename_destination_failure(vm: &mut Vm, new_name: &[u8]) -> Option<Completion<Value>> {
     match vm.rename_destination_exists(new_name) {
-        Ok(true) => {
-            let reported = match vm.native_rename_reported_operand(new_name) {
-                Ok(name) => name,
-                Err(error) => return Some(vm.refuse_host_command(error.to_string())),
-            };
-            Some(completion_from_cmd_error(
-                vm,
-                tcl_cmd_core::CmdError::new_bytes(
-                    [
-                        b"can't rename to \"".as_slice(),
-                        reported.as_slice(),
-                        b"\": command already exists",
-                    ]
-                    .concat(),
-                ),
-            ))
-        }
+        Ok(true) => Some(
+            match vm.native_rename_diagnostic(
+                tcl_syntax::naming::NativeRenameFailure::TargetExists,
+                new_name,
+            ) {
+                Ok(error) => completion_from_cmd_error(vm, error),
+                Err(error) => vm.refuse_host_command(error.to_string()),
+            },
+        ),
         Ok(false) => None,
         Err(error) => Some(vm.refuse_host_command(error.to_string())),
     }

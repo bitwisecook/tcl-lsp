@@ -1,0 +1,204 @@
+diff --git a/rust/tcl-compiler/src/command_binding/original_body_namespace.rs b/rust/tcl-compiler/src/command_binding/original_body_namespace.rs
+index b744e1e55..e7e6511ed 100644
+--- a/rust/tcl-compiler/src/command_binding/original_body_namespace.rs
++++ b/rust/tcl-compiler/src/command_binding/original_body_namespace.rs
+@@ -71,6 +71,45 @@ impl SourceInvocationBinding {
+         selected
+     }
+ 
++    /// A known Logical current/root body recipe retains only source coordinates.
++    /// Relative caller levels cannot borrow the declaration namespace.
++    pub(crate) fn original_logical_frame_body_namespace(
++        &self,
++        registry: &CommandRegistry,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        parent: &CommandTokens,
++    ) -> Option<SourceNamespaceKey> {
++        let metadata = self.original_invocation_metadata_for_input(parent, input, registry)?;
++        if self.original_source_advice_purpose(parent, metadata, registry)?
++            != super::OriginalInvocationSourcePurpose::Logical
++        {
++            return None;
++        }
++        let advice = self.original_logical_declaration_layout_advice(parent)?;
++        if !advice.closed_logical_source_lookup() {
++            return None;
++        }
++        let selected =
++            crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
++                registry, metadata, parent,
++            )?;
++        let tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. } =
++            selected.arguments()?
++        else {
++            return None;
++        };
++        match selected.layout()? {
++            tcl_registry::FrameArgLayout::ScriptInCurrentFrame => Some(advice.namespace().clone()),
++            tcl_registry::FrameArgLayout::ScriptInSelectedFrame if level.is_current_frame() => {
++                Some(advice.namespace().clone())
++            }
++            tcl_registry::FrameArgLayout::ScriptInSelectedFrame if level.is_global_frame() => {
++                advice.snapshot.state.source_root_namespace_key()
++            }
++            _ => None,
++        }
++    }
++
+     /// Inherit namespace syntax only for an independently selected immediate
+     /// Plain body in the Current interpreter. Exact source, full supplied
+     /// metadata and the retained namespace incarnation remain prerequisites.
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+index 8e05df490..07303252f 100644
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -1905,6 +1905,61 @@ impl<'r> Lowerer<'r> {
+         Some(lowerer.lower_original_body(source, Some(&namespace)))
+     }
+ 
++    /// Readonly Logical child lowering under the actual complete Module owner.
++    /// Original body geometry and selected current/root source namespace stay
++    /// independent of reached body-entry and Native compilation receipts.
++    pub(crate) fn original_logical_body_for_module(
++        module: &Module,
++        registry: &'r CommandRegistry,
++        parent: &CommandTokens,
++        argument: usize,
++    ) -> Option<Script> {
++        let input = module.source_metadata_input.as_ref()?;
++        if !input.has_logical_source_name_context() {
++            return None;
++        }
++        let retained = module.retained_source_bindings.as_deref()?;
++        let positioned = retained.positioned_for_module(module, registry)?;
++        let binding = parent.source_binding.as_ref()?;
++        binding.original_invocation_metadata_for_module(parent, module, registry)?;
++        let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
++        let words = crate::registry_invocation::source_structure::original_registry_words_for_supplied_tokens(
++            &realm, input, parent,
++        )?;
++        let original = parent.words().get(argument.checked_add(1)?)?;
++        let mut bodies = words
++            .source_script_bodies(input.borrowed_context_registry())
++            .into_iter()
++            .filter(|body| {
++                body.original_container().span()
++                    == tcl_lexer::word_span_at(module.source.bytes(), original.source().span)
++                    && body.matches_source(&module.source, input.lexer_config())
++                    && body.matches_context(input.borrowed_context_registry())
++            });
++        let body = bodies.next()?;
++        if bodies.next().is_some() {
++            return None;
++        }
++        let namespace = binding.original_logical_frame_body_namespace(registry, input, parent)?;
++        let source = module.source.try_text().ok()?;
++        let text = source.get(body.content_span().as_range())?;
++        let mut lowerer = Self::with_config(registry, module.lexer_config)
++            .with_resolved_analysis_input(input.clone());
++        lowerer.set_source_analysis_options(module.source_entry.options());
++        lowerer.source = source.to_owned();
++        lowerer.source_channel = module.source.channel();
++        lowerer.source_bindings = Some(positioned.clone().into());
++        lowerer.structured_source_parent = Some(Box::new(parent.clone()));
++        lowerer.suppress_proc_register = true;
++        let mut script = lowerer.lower_body(
++            text,
++            body.content_span().start(),
++            &namespace.advisory_key()?,
++        );
++        script.namespace_context = Some(Box::new(namespace));
++        Some(script)
++    }
++
+     /// Retain an original body without inventing a namespace when its entry
+     /// context is unknown. Known contexts survive unsupported text/admission.
+     fn lower_original_body(
+diff --git a/rust/tcl-compiler/src/registry_invocation/logical_frame.rs b/rust/tcl-compiler/src/registry_invocation/logical_frame.rs
+index 8b62dd42a..4b45d91b4 100644
+--- a/rust/tcl-compiler/src/registry_invocation/logical_frame.rs
++++ b/rust/tcl-compiler/src/registry_invocation/logical_frame.rs
+@@ -75,7 +75,9 @@ impl OriginalLogicalFrameInvocation {
+     ) -> Option<crate::ir::Script> {
+         self.literal(argument)?;
+         let written = self.selected.effective.written_argument(argument)?;
+-        crate::lowering::Lowerer::original_body_for_module(module, registry, tokens, written)
++        crate::lowering::Lowerer::original_logical_body_for_module(
++            module, registry, tokens, written,
++        )
+     }
+ }
+ 
+@@ -116,3 +118,72 @@ pub(crate) fn original_logical_frame_invocation_with_metadata_context(
+         offset,
+     })
+ }
++
++#[cfg(test)]
++mod tests {
++    fn module(source: &str) -> crate::ir::Module {
++        let profile = tcl_dialect::DialectProfile::plain_tcl();
++        let context = tcl_registry::model::ingress::context_for_profile(profile);
++        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            std::sync::Arc::clone(&context),
++            config,
++        );
++        crate::lowering::lower_to_ir_with(
++            crate::lowering::Lowerer::with_config(context.commands(), config)
++                .with_resolved_analysis_input(input),
++            source,
++        )
++    }
++
++    #[test]
++    fn original_logical_body_keeps_actual_parent_and_declines_unknown_caller_scope() {
++        for (level, expected) in [("#0", true), ("0", true), ("1", false), ("$level", false)] {
++            let module = module(&format!(
++                "interp alias {{}} g {{}} uplevel {level}; proc p {{}} {{g {{set x VALUE}}}}"
++            ));
++            let registry = module.resolved_registry();
++            assert!(module.source_entry.native_entry.is_none());
++            let procedure = module
++                .original_source_procedure_bodies()
++                .next()
++                .map(|(_, procedure)| procedure)
++                .expect("original source procedure");
++            let statement = procedure.body.statements.first().expect("original call");
++            let tokens = procedure
++                .body
++                .retained_source_tokens_for_statement(statement)
++                .expect("complete original vector");
++            let body = crate::lowering::Lowerer::original_logical_body_for_module(
++                &module, registry, tokens, 0,
++            );
++            assert_eq!(body.is_some(), expected, "{level}");
++            if let Some(body) = body {
++                assert!(!body.statements.is_empty());
++                assert!(body.namespace_context.is_some());
++                assert!(
++                    body.executed_source.is_none(),
++                    "source syntax does not issue an entered body"
++                );
++            }
++            let mut stale = tokens.clone();
++            stale.argv_texts[1] = "set different VALUE".to_owned();
++            assert!(
++                crate::lowering::Lowerer::original_logical_body_for_module(
++                    &module, registry, &stale, 0,
++                )
++                .is_none()
++            );
++            let mut missing = module.clone();
++            missing.retained_source_bindings = None;
++            assert!(
++                crate::lowering::Lowerer::original_logical_body_for_module(
++                    &missing, registry, tokens, 0,
++                )
++                .is_none()
++            );
++        }
++    }
++}

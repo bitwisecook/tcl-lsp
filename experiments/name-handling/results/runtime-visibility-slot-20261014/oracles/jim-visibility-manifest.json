@@ -1,0 +1,7 @@
+{
+  "provider_path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "provider_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "script_sha256": "f57f2e189b84ae68edccc47a4a87420a8c0f8ae47bc9c3f53fe60a9ab5e558fc",
+  "returncode": 0,
+  "tcltest_used": false
+}

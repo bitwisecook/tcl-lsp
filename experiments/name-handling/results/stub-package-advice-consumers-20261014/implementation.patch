@@ -1,0 +1,210 @@
+--- a/rust/tcl-registry/src/private_tcl_namespaces.rs
++++ b/rust/tcl-registry/src/private_tcl_namespaces.rs
+@@ -225,6 +225,21 @@
+     })
+ }
+ 
++/// Literal package-name prefix advice for an original written command.
++/// Package names remain data; only command geometry uses the shared written
++/// name projection. This establishes no loaded package or callable binding.
++#[must_use]
++pub fn required_package_namespace_advice_covers(package: &str, command: &str) -> bool {
++    if package.is_empty() {
++        return false;
++    }
++    let command = tcl_syntax::naming::canonical_written_command(command);
++    command == package
++        || command
++            .strip_prefix(package)
++            .is_some_and(|tail| tail.starts_with("::"))
++}
++
+ #[cfg(test)]
+ mod tests {
+     use tcl_dialect::model::{Family, SurfaceQuery};
+@@ -238,6 +253,41 @@
+             registry,
+             Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+         )
++    }
++
++    #[test]
++    fn required_package_namespace_advice_preserves_literal_package_colons() {
++        for command in [
++            "tcl::dict",
++            "::tcl::dict::member",
++            "::::tcl:::dict:::member",
++        ] {
++            assert!(required_package_namespace_advice_covers(
++                "tcl::dict",
++                command
++            ));
++        }
++        for package in [
++            "",
++            ":tcl::dict",
++            "::tcl::dict",
++            "::::tcl::dict",
++            "Tcl::dict",
++            "tcl::dictionary",
++        ] {
++            assert!(!required_package_namespace_advice_covers(
++                package,
++                "::tcl::dict::member"
++            ));
++        }
++        assert!(required_package_namespace_advice_covers(
++            ":provider",
++            ":provider::member"
++        ));
++        assert!(!required_package_namespace_advice_covers(
++            "provider",
++            ":provider::member"
++        ));
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/analyser/diagnostics/validity.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/validity.rs
+@@ -2280,9 +2280,8 @@
+     }
+ 
+     /// **W116 / W117.** Stub command / expression definition shadows a
+-    /// built-in.  Post-walk check.  W116 fires when a `# tcl-lsp:
+-    /// stub` command name (with leading `::` stripped) collides with a
+-    /// registered command; W117 when a stub expr function/operator name
++    /// built-in. W116 uses this analysis generation's selected descriptor;
++    /// W117 fires when a stub expr function/operator name
+     /// collides with a built-in `expr` function or operator.
+     pub(in crate::analyser) fn emit_w116_w117_stub_shadows(&mut self) {
+         use super::types::Severity;
+@@ -2291,20 +2290,19 @@
+             return;
+         }
+ 
+-        // W116 — stub command shadows a built-in command.  Build the
+-        // dialect command-name set locally.
+         if !self.result.stub_commands.is_empty() {
+-            // The shared per-profile registry cache: same contents as a
+-            // fresh build_default + load_dialect, without rebuilding the
+-            // whole registry per analysed document.
+-            let registry =
+-                tcl_registry::model::ingress::static_context_for(self.dialect()).commands();
+-            let commands: std::collections::HashSet<&str> = registry.command_names().collect();
++            let context = self.analysis_context();
+             let hits: Vec<(String, tcl_lexer::Span)> = self
+                 .result
+                 .stub_commands
+                 .iter()
+-                .filter(|s| !s.from_sidecar && commands.contains(s.name.trim_start_matches(':')))
++                .filter(|stub| {
++                    !stub.from_sidecar
++                        && context
++                            .context()
++                            .resolve_spec(context.commands(), &stub.name)
++                            .is_some()
++                })
+                 .map(|s| (s.name.clone(), s.range))
+                 .collect();
+             for (name, span) in hits {
+@@ -2539,11 +2537,11 @@
+             return;
+         }
+         let facts = UserResolutionFacts::build(self);
+-        let required: Vec<String> = self
++        let required: Vec<&str> = self
+             .result
+             .package_requires
+             .iter()
+-            .map(|pr| pr.name.trim_start_matches(':').to_string())
++            .map(|required| required.name.as_str())
+             .collect();
+         let pending = std::mem::take(&mut self.pending_w143);
+         for (cmd_name, ns, enforce_order, diag) in pending {
+@@ -2554,11 +2552,11 @@
+             if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, diag.span.start()) {
+                 continue;
+             }
+-            let bare = cmd_name.trim_start_matches(':');
+-            if required
+-                .iter()
+-                .any(|pkg| bare == pkg || bare.starts_with(&format!("{pkg}::")))
+-            {
++            if required.iter().any(|package| {
++                tcl_registry::private_tcl_namespaces::required_package_namespace_advice_covers(
++                    package, &cmd_name,
++                )
++            }) {
+                 continue;
+             }
+             self.result.diagnostics.push(diag);
+--- a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+@@ -18484,3 +18484,67 @@
+         assert_eq!(per_item, whole, "per item: {src}");
+     }
+ }
++
++#[test]
++fn w116_stub_shadow_uses_actual_selected_registry_and_exact_descriptor_data() {
++    use std::sync::Arc;
++    let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
++    let mut registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
++    registry.insert(tcl_registry::CommandSpec {
++        name: "overlay_stub_target",
++        surface: registry.get("puts").unwrap().surface,
++        ..tcl_registry::CommandSpec::DEFAULT
++    });
++    let context = Arc::new(
++        tcl_registry::model::ingress::context_for_profile(profile)
++            .with_command_store(Arc::new(registry)),
++    );
++    let input = crate::analyser::ResolvedAnalysisInput::new(
++        profile,
++        profile,
++        context,
++        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++    );
++    for (name, expected) in [
++        ("overlay_stub_target", true),
++        ("::overlay_stub_target", true),
++        (":overlay_stub_target", false),
++        ("::::overlay_stub_target", false),
++    ] {
++        let source = format!(
++            "# tcl-lsp: stubs-begin\n# tcl-lsp: stub {name} {{value}}\n# tcl-lsp: stubs-end\n"
++        );
++        let result = Analyser::new()
++            .with_resolved_input(input.clone())
++            .analyse(&source, "tcl8.6");
++        assert_eq!(
++            result
++                .diagnostics
++                .iter()
++                .any(|diagnostic| diagnostic.code == DiagCode::W116),
++            expected,
++            "{name}"
++        );
++    }
++}
++
++#[test]
++fn w143_package_namespace_advice_keeps_literal_package_names() {
++    for (package, expected) in [
++        ("tcl::dict", false),
++        (":tcl::dict", true),
++        ("::tcl::dict", true),
++        ("tcl::dictionary", true),
++    ] {
++        let source = format!("package require {package}\n::tcl::dict::unregistered_member\n");
++        let result = Analyser::new().analyse(&source, "tcl8.6");
++        assert_eq!(
++            result
++                .diagnostics
++                .iter()
++                .any(|diagnostic| diagnostic.code == DiagCode::W143),
++            expected,
++            "{package}"
++        );
++    }
++}

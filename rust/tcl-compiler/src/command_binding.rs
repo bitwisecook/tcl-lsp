@@ -19482,6 +19482,20 @@ impl ModuleCommandMutations {
         !self.dynamic && self.observed_binding_is_the_builtin(command_name)
     }
 
+    /// Descriptor-label eligibility under the module's MAY mutation and
+    /// observer inventories. This supplies no actual command or trace owner.
+    #[must_use]
+    pub(crate) fn trusts_unobserved_descriptor(
+        &self,
+        descriptor: tcl_registry::CanonicalCommandDescriptorKey<'_>,
+        dynamic_trace: bool,
+        traced: &std::collections::BTreeSet<String>,
+    ) -> bool {
+        let name = descriptor.label();
+        let key = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
+        self.trusts(key) && !dynamic_trace && !traced.contains(key) && !traced.contains(name)
+    }
+
     /// The **named-subject** half of [`Self::trusts`]: whether the module's
     /// own observed bindings leave `command_name` denoting its registry
     /// builtin — no shadowing `proc`, no `rename` or alias onto it, no

@@ -1705,6 +1705,9 @@ impl AdviceInvocationContext<'_> {
         invocation: AdviceInvocation<'_>,
         command: &str,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        logical_scope: Option<
+            &Arc<super::source_declared_command::OriginalDeclaredLogicalBodyContext>,
+        >,
     ) -> Option<OriginalSourceTransitionAdviceTape> {
         let AdviceInvocation {
             native,
@@ -1729,8 +1732,8 @@ impl AdviceInvocationContext<'_> {
             }
         }
         let declared = schema.semantics.state_transitions.is_declared();
-        let immediate_body = schema
-            .authored_source_argument_roles()
+        let immediate_body = self
+            .authored_roles(schema)
             .0
             .iter()
             .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
@@ -1745,7 +1748,8 @@ impl AdviceInvocationContext<'_> {
             graph.widen(native);
         } else if immediate_body {
             let advice = self.schema_advice(invocation, graph, schema)?;
-            let projected = self.apply_immediate_body_effects(graph, &advice, schema);
+            let projected =
+                self.apply_immediate_body_effects(graph, &advice, schema, logical_scope);
             if !projected.effects_complete {
                 graph.widen(native);
             }
@@ -2023,7 +2027,8 @@ impl AdviceInvocationContext<'_> {
             class.as_ref(),
             procedure.as_ref(),
         );
-        let body_inventory = self.apply_schema_transition(graph, selected, &command, &schema)?;
+        let body_inventory =
+            self.apply_schema_transition(graph, selected, &command, &schema, None)?;
         tape.extend_inventory(body_inventory);
         if operand_barrier {
             // The current receipt is only a pre-operand source possibility.

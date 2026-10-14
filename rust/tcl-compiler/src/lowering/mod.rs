@@ -1905,6 +1905,61 @@ impl<'r> Lowerer<'r> {
         Some(lowerer.lower_original_body(source, Some(&namespace)))
     }
 
+    /// Readonly Logical child lowering under the actual complete Module owner.
+    /// Original body geometry and selected current/root source namespace stay
+    /// independent of reached body-entry and Native compilation receipts.
+    pub(crate) fn original_logical_body_for_module(
+        module: &Module,
+        registry: &'r CommandRegistry,
+        parent: &CommandTokens,
+        argument: usize,
+    ) -> Option<Script> {
+        let input = module.source_metadata_input.as_ref()?;
+        if !input.has_logical_source_name_context() {
+            return None;
+        }
+        let retained = module.retained_source_bindings.as_deref()?;
+        let positioned = retained.positioned_for_module(module, registry)?;
+        let binding = parent.source_binding.as_ref()?;
+        binding.original_invocation_metadata_for_module(parent, module, registry)?;
+        let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
+        let words = crate::registry_invocation::source_structure::original_registry_words_for_supplied_tokens(
+            &realm, input, parent,
+        )?;
+        let original = parent.words().get(argument.checked_add(1)?)?;
+        let mut bodies = words
+            .source_script_bodies(input.borrowed_context_registry())
+            .into_iter()
+            .filter(|body| {
+                body.original_container().span()
+                    == tcl_lexer::word_span_at(module.source.bytes(), original.source().span)
+                    && body.matches_source(&module.source, input.lexer_config())
+                    && body.matches_context(input.borrowed_context_registry())
+            });
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        let namespace = binding.original_logical_frame_body_namespace(registry, input, parent)?;
+        let source = module.source.try_text().ok()?;
+        let text = source.get(body.content_span().as_range())?;
+        let mut lowerer = Self::with_config(registry, module.lexer_config)
+            .with_resolved_analysis_input(input.clone());
+        lowerer.set_source_analysis_options(module.source_entry.options());
+        lowerer.source = source.to_owned();
+        lowerer.source_channel = module.source.channel();
+        lowerer.source_bindings = Some(positioned.clone().into());
+        lowerer.structured_source_parent = Some(Box::new(parent.clone()));
+        lowerer.suppress_proc_register = true;
+        let mut script = lowerer.lower_body(
+            text,
+            body.content_span().start(),
+            &namespace.advisory_key()?,
+        );
+        script.namespace_context = Some(Box::new(namespace));
+        Some(script)
+    }
+
     /// Retain an original body without inventing a namespace when its entry
     /// context is unknown. Known contexts survive unsupported text/admission.
     fn lower_original_body(
@@ -2598,6 +2653,24 @@ impl<'r> Lowerer<'r> {
             .then_some(())?;
         binding
             .evaluated_written_argument_value(argument)
+            .map(str::to_owned)
+    }
+
+    fn original_authored_written_argument_value(
+        &self,
+        seg: &SegmentedCommand,
+        argument: usize,
+    ) -> Option<String> {
+        let tokens = self.cmd_tokens(seg);
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_authored_written_argument_value(
+                &tokens,
+                argument,
+                self.invocation_metadata_context()?,
+                self.registry,
+            )
             .map(str::to_owned)
     }
 
@@ -4047,6 +4120,7 @@ impl<'r> Lowerer<'r> {
                 .is_some_and(|t| t.kind == tcl_lexer::TokenType::Var)
         {
             self.original_native_written_argument_value(seg, 0)
+                .or_else(|| self.original_authored_written_argument_value(seg, 0))
                 .or_else(|| self.const_map_lookup(proc_name_initial))
         } else {
             None
@@ -4111,6 +4185,7 @@ impl<'r> Lowerer<'r> {
                 // inner content, so strip the outer `[…]` before
                 // handing it over.
                 self.original_native_written_argument_value(seg, 2)
+                    .or_else(|| self.original_authored_written_argument_value(seg, 2))
                     .or_else(|| {
                         args[2]
                             .strip_prefix('[')
@@ -4119,6 +4194,7 @@ impl<'r> Lowerer<'r> {
                     })
             } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
                 self.original_native_written_argument_value(seg, 2)
+                    .or_else(|| self.original_authored_written_argument_value(seg, 2))
                     .or_else(|| self.const_map_lookup(&args[2]))
             } else {
                 None

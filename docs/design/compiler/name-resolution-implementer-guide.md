@@ -10255,6 +10255,11 @@ or a foreign store withdraws the catalogue. Only independently positive Logical
 source naming advice supplies this source recipe; a Native source carrier
 cannot borrow that applicability or a runtime activation.
 
+After that positive purpose check, the source-locality walk uses
+`InvocationDialect::authored_name_policy().variable_lookup_policy()`.
+Unversioned Tcl retains its explicit C8.6 analysis recipe; unavailable recipes
+decline, and the source policy supplies no Native frame.
+
 Use `SourceContext::invocation` for each original statement and nested call.
 It validates the statement's original source image, retained input and
 configuration before the shared
@@ -10487,3 +10492,42 @@ the owner boundaries.
 Use `resolve_original_encoding_name` for entered encoding system operands and `prepare_source_file` for the source encoding/path/backend handoff. Keep the existing Runtime `OriginalArguments` or VM `OriginalNameConsumerScope` around every reached stage and cleanup. A successful or failed getter, Host callback, catalogue lookup, file open, read or close is followed by the same original receiver/header/currency check before later work or Guest presentation.
 
 Encoding names remain original bytes through literal-zero C-string extent and catalogue lookup. C filesystem paths retain their counted original bytes at the filesystem door; Jim retains its separate C-string filename extent. Supported names use the shared implemented codec table; unknown external keys require the actual Host catalogue capability. Missing catalogue knowledge is a typed refusal. Preserve the early encoding String getter and the later lookup after successful file open and before reading. System reset reads the captured Host default rather than deriving a default from the release or mutable current value. The proof `naming.encoding.original-byte-name-lookup-and-source-order` records the six measured provider environments and their public byte results separately from software adapter controls and whole-file Host capability limits.
+
+## Original declaration summary bodies and word contents
+
+Use `Module::original_source_procedure_bodies` for conditional procedure-effect
+summaries. It retains ordinary procedures and genuine OriginalDeclaration units
+under the actual Module issuer, allocation site and source image. Lambdas and
+installed-only units keep separate purposes.
+`Module::original_source_procedure_for_target` selects exactly one such body
+through the target’s authentic implementation allocation and original image.
+Global, caller-frame and parameter summaries retain that issued ID; a report
+label cannot recover it. Native callable selection keeps its independent
+`source_procedure_for_target` admission.
+
+`LogicalOriginalWordValue::capture_invocation` retains the exact original words,
+complete Logical input, source frame, namespace and variable snapshot. It uses
+the shared component/substitution owner for same-source quiet scalar WrittenAt
+contents; arrays, commands and unknown contents decline. `is_current` must still
+match every retained owner before a consumer reads `value`. Effective written
+and captured operands keep their own origin vector. A descriptor-selected
+evaluated declaration body retains its own materialised source origin and base
+zero; it cannot borrow the variable token’s document extent.
+
+`SourceInvocationBinding::original_authored_written_argument_value` supplies a
+separate Standalone/AuthoredSimulation value query. It checks the actual retained
+purpose, unchanged complete original vector and frozen ordinal, exact evaluated
+contents, and absence of dynamic storage/traces or Native execution coordinates.
+Native and Logical purposes use their own owners. These value queries supply no
+handler entry, Native read/frame, callable publication, Normal completion, quiet
+store or executable erasure.
+
+`Lowerer::original_logical_body_for_module` selects a readonly current/root
+script child through the actual Module/positioned realm and shared
+`OriginalRegistryScriptBody` geometry. Whole parent words, input, source/channel,
+configuration, registry and one matching body container remain required.
+`SourceInvocationBinding::original_logical_frame_body_namespace` retains only
+known current/root source coordinates; relative caller and dynamic levels
+decline. The child does not fabricate an entered `executed_source` or Native
+body receipt. Existing `original_body_for_module` keeps its independent
+reached/Native checks.

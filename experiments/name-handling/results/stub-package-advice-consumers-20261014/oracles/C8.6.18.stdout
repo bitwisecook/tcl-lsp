@@ -1,0 +1,12 @@
+PACKAGE_IDENTITY name_probe name_probe 0 1.0
+PACKAGE_IDENTITY name_probe :name_probe 1 {can't find package :name_probe}
+PACKAGE_IDENTITY name_probe ::name_probe 1 {can't find package ::name_probe}
+PACKAGE_IDENTITY name_probe ::::name_probe 1 {can't find package ::::name_probe}
+PACKAGE_IDENTITY :name_probe name_probe 1 {can't find package name_probe}
+PACKAGE_IDENTITY :name_probe :name_probe 0 1.0
+PACKAGE_IDENTITY :name_probe ::name_probe 1 {can't find package ::name_probe}
+PACKAGE_IDENTITY :name_probe ::::name_probe 1 {can't find package ::::name_probe}
+PACKAGE_IDENTITY ::name_probe name_probe 1 {can't find package name_probe}
+PACKAGE_IDENTITY ::name_probe :name_probe 1 {can't find package :name_probe}
+PACKAGE_IDENTITY ::name_probe ::name_probe 0 1.0
+PACKAGE_IDENTITY ::name_probe ::::name_probe 1 {can't find package ::::name_probe}

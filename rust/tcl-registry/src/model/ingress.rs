@@ -16,68 +16,21 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **The** dialect-name ingress seam (centralisation contract R-a, ledger
-//! rows C2/F2/F3/F9).
+//! Shared dialect-name ingress for compiler, LSP, editor and persisted inputs.
 //!
-//! Every place the toolchain accepts a dialect *name* — a compiler
-//! `analyse` call, an LSP document's recorded dialect, an editor language
-//! id, a persisted session, a settings string — resolves it here,
-//! **once**, to an [`EnvironmentDefinition`] through the one
-//! [`EnvironmentRegistry`] resolver, and derives everything downstream
-//! from the resolved environment: the per-context registry generation
-//! ([`ContextRegistry`], carrying the [`ResolvedContext`] availability
-//! view and the generation's command store), the Tk-environment fact, and
-//! — as the
-//! documented wave-1 interop — the old interned [`DialectProfile`] the
-//! rest of the pipeline still threads for grammar, versions, and
-//! diagnostic labels. The interop mapping goes through the **resolved
-//! canonical id**, never back through the raw string, so the retired name
-//! validators (`by_name` at ingress, `resolve_known`,
-//! `availability_for_name`, raw `DialectProfile::find`) have no remaining
-//! caller outside the projections documented at their sites.
+//! One live [`EnvironmentRegistry`] resolves canonical IDs, aliases and editor
+//! identities. The resolved environment supplies its [`ContextRegistry`],
+//! availability, grammar and interned [`DialectProfile`]; raw input spelling
+//! cannot independently reconstruct those facts. Unknown and empty inputs use
+//! the lenient Tcl sink. Checked callers use [`resolve_known_environment`].
 //!
-//! # Why this lives in `tcl-registry`
+//! This owner lives in `tcl-registry` because the environment definition and
+//! command-store generation must travel together. `tcl-dialect` supplies the
+//! definition without depending on the Registry.
 //!
-//! The seam has to hand back both halves of a resolved document
-//! environment: the definition ([`tcl_dialect`]) *and* its registry
-//! generation ([`ContextRegistry`], this crate). `tcl-dialect` cannot host
-//! it — it does not, and must not, depend on `tcl-registry` — so
-//! `tcl-registry::model` is the only home that can express the whole
-//! answer, and it is where wave 1 already put the generation door
-//! ([`registry_for_environment_if_built`]). `tcl-compiler`'s
-//! `environment_ingress` module now delegates here rather than owning a
-//! second copy; the LSP crates (`tcl-lsp-core`, `tcl-lsp-db`,
-//! `tcl-lsp-server`) call it directly.
-//!
-//! # The accepted micro-unifications (wave 1, unchanged here)
-//!
-//! Three inputs resolve *slightly* differently than they did before the
-//! port. Each was measured to be unexercised by any shipped call site, and
-//! each replaces a divergence between the old validators with the single
-//! resolver's answer:
-//!
-//! 1. **Editor language ids resolve everywhere.** `EnvironmentRegistry`
-//!    accepts canonical ids, aliases *and* contributed editor identities
-//!    (`tcl84`, `tcl91`, `tcl-irule`, `tclspec`, `wish`), where
-//!    `DialectProfile::find` accepted only the first two. A name the old
-//!    ingress sank to the permissive fallback can now resolve to its real
-//!    environment. Every shipped caller already mapped editor ids to
-//!    canonical names before the ingress (the LSP's
-//!    `dialect_from_language_id`), so no shipped path changes answer.
-//! 2. **`tk` resolves as an environment, not a synthesised profile.** The
-//!    old ingress recognised `tk` by `DialectProfile::find` and built
-//!    `TK_PROFILE`; here it is the `tk` environment, which places the `Tk`
-//!    package **ambient**, so every Tk fact — availability, the
-//!    authoring point, the Tk-checks activation, W120's silence — is one
-//!    placement query on the resolved context, and
-//!    [`DocumentEnvironment::unit_profile`] still hands back the same
-//!    typed additive profile for the identity interop.
-//! 3. **A malformed library-version override drops to the axis default**
-//!    rather than being carried verbatim ([`KeyedVersions::from_overrides`]
-//!    is `Result`, and this seam takes the default on error). The old
-//!    string-floor path carried the spelling through; a non-version
-//!    spelling never named a real floor, so the comparison it fed always
-//!    answered permissively anyway.
+//! Tk availability comes from its package placement. The Tk environment retains
+//! its additive unit profile and permissive analyser-profile interop. Malformed
+//! library-version overrides use the axis defaults.
 //!
 //! [`DialectProfile`]: tcl_dialect::DialectProfile
 
@@ -130,9 +83,8 @@ pub struct DocumentEnvironment {
 }
 
 /// Resolve a user-written dialect name — canonical id, alias, or editor
-/// language id — to its environment. Unknown names (and the empty string)
-/// resolve to the lenient `tcl` environment, exactly as every unknown name
-/// resolved to the permissive fallback profile before.
+/// language id — to its environment. Unknown names and the empty string
+/// resolve to the lenient `tcl` environment.
 #[must_use]
 pub fn resolve_environment(name: &str) -> DocumentEnvironment {
     let registry = environments();
@@ -208,25 +160,11 @@ impl DocumentEnvironment {
         self.definition.id.as_str()
     }
 
-    /// The interned profile the analyser threads for this environment —
-    /// interop (retired with ledger C1's re-type, in place of the name
-    /// validators it replaced): the catalogue environments map to
-    /// their same-named profile; the model-only ids (`tcl`, `tk`) map to
-    /// the permissive fallback, exactly as the old name ingress resolved
-    /// them.
-    ///
-    /// **The `tk` asymmetry against [`Self::unit_profile`] is permanent.**
-    /// It is not an availability split any more — the
-    /// context derives the point, so both faces answer the same
-    /// availability question — but a *catalogue* one, and the
-    /// classification rule (§2) is what fixes it: `tk` is a package plus
-    /// an environment, never a dialect, so `DialectProfile::find("tk")`
-    /// must keep answering `None` and this face must keep sinking to the
-    /// permissive fallback. Two consumers depend on exactly that — the
-    /// CLI's KCS help filter and the pack-carrying registry cache key
-    /// (centralisation §2.4, wave 3) — and promoting here would silently
-    /// widen both. The asymmetry disappears when the interned
-    /// `DialectProfile` does, under ledger C1/F1.
+    /// The analyser's interned profile for the resolved environment.
+    /// Catalogue environments retain their named profile; model-only Tcl/Tk
+    /// IDs retain the permissive fallback. Tk's additive unit profile stays
+    /// separate because its availability is a package-placement query.
+    /// CLI help filtering and pack-carrying cache keys retain this distinction.
     #[must_use]
     pub fn analyser_profile(&self) -> &'static DialectProfile {
         let id = self.definition.id.as_str();
@@ -780,15 +718,11 @@ mod tests {
         }
     }
 
-    /// The seam reproduces the LSP's old `profile_for_dialect`
-    /// (`resolve_known` first, `by_name` as the sink) for every catalogue
-    /// name and alias, the `tk` ingress, and the unknown-name sink.
+    /// Unit profiles preserve catalogue aliases, additive Tk and the unknown sink.
     #[test]
     fn unit_profile_reproduces_the_old_lsp_ingress() {
         fn old(name: &str) -> &'static DialectProfile {
-            // The retired LSP ingress, spelled inline now the validators
-            // are deleted: `resolve_known` was the catalogue lookup plus
-            // the `tk` promotion, and `by_name` the plain-Tcl sink.
+            // This fixture states the catalogue/Tk/fallback projection explicitly.
             DialectProfile::find(name)
                 .or_else(|| (name == "tk").then(DialectProfile::tk))
                 .unwrap_or_else(DialectProfile::plain_tcl)
@@ -876,10 +810,7 @@ mod tests {
         }
     }
 
-    /// Every name the retired validators accepted still resolves — the union
-    /// of `DialectProfile::find` (catalogue names and aliases) and
-    /// `DialectProfile::find`'s ingress spellings, which the LSP's
-    /// `is_known_dialect_name` took as its acceptance set.
+    /// Declared catalogue names, aliases and editor ingress spellings resolve.
     #[test]
     fn the_validator_accepts_every_retired_validators_name() {
         for profile in DialectProfile::all() {

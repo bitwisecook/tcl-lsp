@@ -154,6 +154,8 @@ pub enum NativeNamePurpose {
     /// Coroutine declaration in an existing current-namespace holder.
     CoroutinePublication,
     CommandCApiPublication,
+    /// C visibility restoration into the actual global command table.
+    ExposedCommandPublication,
     RenameSource,
     RenameDestination,
     AliasPublication,
@@ -1807,6 +1809,31 @@ impl NativeNameProtocol {
         ))
     }
 
+    /// Global C visibility destination, preserving an empty hash key.
+    /// Qualification is rejected before publication; Jim has no exposed table.
+    ///
+    /// # Errors
+    /// Refuses unaudited engines and namespace-qualified destinations.
+    pub fn exposed_command_publication_slot(
+        self,
+        original: &[u8],
+    ) -> Result<tcl_core_types::ByteCommandSlot, NameProjectionUnavailable> {
+        if self.is_jim084() || is_qualified(c_string_extent(original)) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let selected = projection(
+            self,
+            NativeNamePurpose::ExposedCommandPublication,
+            original,
+            Cow::Borrowed(c_string_extent(original)),
+            None,
+        );
+        Ok(tcl_core_types::ByteCommandSlot::new(
+            tcl_core_types::ByteNamespacePath::root(),
+            tcl_core_types::NameBytes::from(selected.selected()),
+        ))
+    }
+
     /// C hidden-table tokens use their own `CString` namespace, without qualifiers.
     ///
     /// # Errors
@@ -1900,6 +1927,74 @@ fn is_command_purpose(purpose: NativeNamePurpose) -> bool {
             | NativeNamePurpose::ChildAliasPublication
             | NativeNamePurpose::OoObjectPublication
     )
+}
+
+/// The failed stage selected by the actual rename operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeRenameFailure {
+    /// The source was absent when requesting a nonempty destination.
+    MissingSource,
+    /// The source was absent when requesting deletion.
+    MissingDeleteSource,
+    /// The destination already has a command binding.
+    TargetExists,
+}
+
+/// Selected rename result bytes and independently selected explicit error code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeRenameDiagnostic {
+    /// Exact native diagnostic bytes.
+    pub message: Vec<u8>,
+    /// Explicit native tuple; absence uses the adapter's neutral error path.
+    pub error_code: Option<Vec<u8>>,
+}
+
+impl NativeNameProtocol {
+    /// Project an actual rename refusal without selecting or mutating bindings.
+    /// Original counted operands remain independent of Jim's report extent.
+    #[must_use]
+    pub fn rename_diagnostic(
+        self,
+        failure: NativeRenameFailure,
+        original: &[u8],
+    ) -> NativeRenameDiagnostic {
+        let reported = if self.is_jim084() {
+            c_string_extent(original)
+        } else {
+            original
+        };
+        let (prefix, suffix) = match failure {
+            NativeRenameFailure::MissingSource => (
+                b"can't rename \"".as_slice(),
+                b"\": command doesn't exist".as_slice(),
+            ),
+            NativeRenameFailure::MissingDeleteSource => (
+                b"can't delete \"".as_slice(),
+                b"\": command doesn't exist".as_slice(),
+            ),
+            NativeRenameFailure::TargetExists => (
+                b"can't rename to \"".as_slice(),
+                b"\": command already exists".as_slice(),
+            ),
+        };
+        let message = [prefix, reported, suffix].concat();
+        let error_code = if matches!(self, Self::C(version) if version >= TclVersion::V8_6) {
+            Some(match failure {
+                NativeRenameFailure::MissingSource | NativeRenameFailure::MissingDeleteSource => {
+                    let mut code = b"TCL LOOKUP COMMAND ".to_vec();
+                    crate::list::append_list_element(&mut code, original, false);
+                    code
+                }
+                NativeRenameFailure::TargetExists => b"TCL OPERATION RENAME TARGET_EXISTS".to_vec(),
+            })
+        } else {
+            None
+        };
+        NativeRenameDiagnostic {
+            message,
+            error_code,
+        }
+    }
 }
 
 /// Native namespace lookup failure, with a complete current-context report.
@@ -4746,6 +4841,51 @@ fn jim_namespace_command_query_uses_two_fresh_report_candidates() {
 #[cfg(test)]
 mod rename_reporting_tests {
     use super::*;
+
+    #[test]
+    fn rename_diagnostic_codes_follow_original_c_releases_and_jim() {
+        let original = b"::missing\0suffix";
+        for protocol in TclVersion::ALL
+            .into_iter()
+            .map(NativeNameProtocol::C)
+            .chain([NativeNameProtocol::Jim084])
+        {
+            for (failure, prefix, suffix) in [
+                (
+                    NativeRenameFailure::MissingSource,
+                    b"can't rename \"".as_slice(),
+                    b"\": command doesn't exist".as_slice(),
+                ),
+                (
+                    NativeRenameFailure::MissingDeleteSource,
+                    b"can't delete \"".as_slice(),
+                    b"\": command doesn't exist".as_slice(),
+                ),
+                (
+                    NativeRenameFailure::TargetExists,
+                    b"can't rename to \"".as_slice(),
+                    b"\": command already exists".as_slice(),
+                ),
+            ] {
+                let error = protocol.rename_diagnostic(failure, original);
+                let extent = if protocol.is_jim084() {
+                    b"::missing".as_slice()
+                } else {
+                    original
+                };
+                assert_eq!(error.message, [prefix, extent, suffix].concat());
+                let expected = match (protocol, failure) {
+                    (NativeNameProtocol::C(version), _) if version <= TclVersion::V8_5 => None,
+                    (NativeNameProtocol::Jim084, _) => None,
+                    (_, NativeRenameFailure::TargetExists) => {
+                        Some(b"TCL OPERATION RENAME TARGET_EXISTS".as_slice())
+                    }
+                    _ => Some(b"TCL LOOKUP COMMAND ::missing\0suffix".as_slice()),
+                };
+                assert_eq!(error.error_code.as_deref(), expected);
+            }
+        }
+    }
 
     #[test]
     fn rename_diagnostics_preserve_counted_lookup_operands_and_selected_report_extent() {

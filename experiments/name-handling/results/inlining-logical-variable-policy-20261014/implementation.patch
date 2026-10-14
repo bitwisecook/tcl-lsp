@@ -1,0 +1,38 @@
+--- a/rust/tcl-compiler/src/inlining/frame.rs
++++ b/rust/tcl-compiler/src/inlining/frame.rs
+@@ -115,20 +115,24 @@
+         }
+         let metadata =
+             crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
++        if module.original_invocation_source_purpose(registry, metadata)?
++            != crate::command_binding::OriginalInvocationSourcePurpose::Logical
++        {
++            return None;
++        }
+         let variable_lookup = module
+             .source_entry
+             .invocation_dialect?
+-            .variable_lookup_policy?;
+-        (module.original_invocation_source_purpose(registry, metadata)?
+-            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+-            .then_some(Self {
+-                registry,
+-                metadata,
+-                config: module.lexer_config,
+-                variable_lookup,
+-                image: &module.source,
+-                retained: module.retained_source_bindings.as_deref()?,
+-            })
++            .authored_name_policy()?
++            .variable_lookup_policy();
++        Some(Self {
++            registry,
++            metadata,
++            config: module.lexer_config,
++            variable_lookup,
++            image: &module.source,
++            retained: module.retained_source_bindings.as_deref()?,
++        })
+     }
+ 
+     pub(super) fn matches_procedure(self, procedure: &Procedure) -> bool {

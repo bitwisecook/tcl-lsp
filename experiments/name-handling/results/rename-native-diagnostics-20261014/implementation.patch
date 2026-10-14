@@ -1,0 +1,354 @@
+--- a/runtime/rust/src/cmd_alias.rs
++++ b/runtime/rust/src/cmd_alias.rs
+@@ -184,61 +184,43 @@
+             interp.set_result_bytes(b"");
+             Code::Ok
+         }
+-        RenameOutcome::NoSuchCommand => {
+-            // TclRenameCommand chooses the verb from the requested operation:
+-            // an empty destination is a deletion, while a non-empty
+-            // destination is a rename (tclNamesp.c).
+-            let verb = if new.is_empty() {
+-                b"can't delete \"".as_slice()
++        RenameOutcome::NoSuchCommand => rename_diagnostic(
++            interp,
++            if new.is_empty() {
++                tcl_syntax::naming::NativeRenameFailure::MissingDeleteSource
+             } else {
+-                b"can't rename \"".as_slice()
+-            };
+-            let reported = match rename_reported_operand(interp, &old) {
+-                Ok(reported) => reported,
+-                Err(code) => return code,
+-            };
+-            let mut m = verb.to_vec();
+-            m.extend_from_slice(&reported);
+-            m.extend_from_slice(b"\": command doesn't exist");
+-            let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", &old]);
+-            interp.error_with_code(&m, &code)
+-        }
++                tcl_syntax::naming::NativeRenameFailure::MissingSource
++            },
++            &old,
++        ),
+         RenameOutcome::AliasLoop => match interp.original_rename_alias_loop_name(&old, &new) {
+             Ok(reported) => alias_loop_error(interp, &reported),
+             Err(error) => interp.report_cmd_error(error.into()),
+         },
+-        RenameOutcome::TargetExists => {
+-            let reported = match rename_reported_operand(interp, &new) {
+-                Ok(reported) => reported,
+-                Err(code) => return code,
+-            };
+-            let mut m = b"can't rename to \"".to_vec();
+-            m.extend_from_slice(&reported);
+-            m.extend_from_slice(b"\": command already exists");
+-            interp.error_with_code(&m, b"TCL OPERATION RENAME TARGET_EXISTS")
+-        }
++        RenameOutcome::TargetExists => rename_diagnostic(
++            interp,
++            tcl_syntax::naming::NativeRenameFailure::TargetExists,
++            &new,
++        ),
+     }
+ }
+ 
+-fn rename_reported_operand(interp: &mut Interp, original: &[u8]) -> Result<Vec<u8>, Code> {
++fn rename_diagnostic(
++    interp: &mut Interp,
++    failure: tcl_syntax::naming::NativeRenameFailure,
++    original: &[u8],
++) -> Code {
+     let Some(policy) = interp.name_policy_protocol() else {
+-        return Err(interp.report_cmd_error(
++        return interp.report_cmd_error(
+             tcl_syntax::value::ValueError::CommandProtocolUnavailable("rename name reporting")
+                 .into(),
+-        ));
+-    };
+-    tcl_syntax::naming::report_native_name_bytes(
+-        policy.recipe(),
+-        tcl_syntax::naming::NativeNameReportPurpose::RenameCommandError,
+-        original,
+-    )
+-    .map(<[u8]>::to_vec)
+-    .map_err(|_| {
+-        interp.report_cmd_error(
+-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("rename name reporting")
+-                .into(),
+-        )
+-    })
++        );
++    };
++    let error = policy.recipe().rename_diagnostic(failure, original);
++    match error.error_code {
++        Some(code) => interp.error_with_code(&error.message, &code),
++        None => interp.error(&error.message),
++    }
+ }
+ 
+ /// C's `TclPreventAliasLoop` refusal (`tclInterp.c`), shared by the `interp
+--- a/rust/tcl-syntax/src/naming/native.rs
++++ b/rust/tcl-syntax/src/naming/native.rs
+@@ -1927,6 +1927,74 @@
+             | NativeNamePurpose::ChildAliasPublication
+             | NativeNamePurpose::OoObjectPublication
+     )
++}
++
++/// The failed stage selected by the actual rename operation.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum NativeRenameFailure {
++    /// The source was absent when requesting a nonempty destination.
++    MissingSource,
++    /// The source was absent when requesting deletion.
++    MissingDeleteSource,
++    /// The destination already has a command binding.
++    TargetExists,
++}
++
++/// Selected rename result bytes and independently selected explicit error code.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct NativeRenameDiagnostic {
++    /// Exact native diagnostic bytes.
++    pub message: Vec<u8>,
++    /// Explicit native tuple; absence uses the adapter's neutral error path.
++    pub error_code: Option<Vec<u8>>,
++}
++
++impl NativeNameProtocol {
++    /// Project an actual rename refusal without selecting or mutating bindings.
++    /// Original counted operands remain independent of Jim's report extent.
++    #[must_use]
++    pub fn rename_diagnostic(
++        self,
++        failure: NativeRenameFailure,
++        original: &[u8],
++    ) -> NativeRenameDiagnostic {
++        let reported = if self.is_jim084() {
++            c_string_extent(original)
++        } else {
++            original
++        };
++        let (prefix, suffix) = match failure {
++            NativeRenameFailure::MissingSource => (
++                b"can't rename \"".as_slice(),
++                b"\": command doesn't exist".as_slice(),
++            ),
++            NativeRenameFailure::MissingDeleteSource => (
++                b"can't delete \"".as_slice(),
++                b"\": command doesn't exist".as_slice(),
++            ),
++            NativeRenameFailure::TargetExists => (
++                b"can't rename to \"".as_slice(),
++                b"\": command already exists".as_slice(),
++            ),
++        };
++        let message = [prefix, reported, suffix].concat();
++        let error_code = if matches!(self, Self::C(version) if version >= TclVersion::V8_6) {
++            Some(match failure {
++                NativeRenameFailure::MissingSource | NativeRenameFailure::MissingDeleteSource => {
++                    let mut code = b"TCL LOOKUP COMMAND ".to_vec();
++                    crate::list::append_list_element(&mut code, original, false);
++                    code
++                }
++                NativeRenameFailure::TargetExists => b"TCL OPERATION RENAME TARGET_EXISTS".to_vec(),
++            })
++        } else {
++            None
++        };
++        NativeRenameDiagnostic {
++            message,
++            error_code,
++        }
++    }
+ }
+ 
+ /// Native namespace lookup failure, with a complete current-context report.
+@@ -4775,6 +4843,51 @@
+     use super::*;
+ 
+     #[test]
++    fn rename_diagnostic_codes_follow_original_c_releases_and_jim() {
++        let original = b"::missing\0suffix";
++        for protocol in TclVersion::ALL
++            .into_iter()
++            .map(NativeNameProtocol::C)
++            .chain([NativeNameProtocol::Jim084])
++        {
++            for (failure, prefix, suffix) in [
++                (
++                    NativeRenameFailure::MissingSource,
++                    b"can't rename \"".as_slice(),
++                    b"\": command doesn't exist".as_slice(),
++                ),
++                (
++                    NativeRenameFailure::MissingDeleteSource,
++                    b"can't delete \"".as_slice(),
++                    b"\": command doesn't exist".as_slice(),
++                ),
++                (
++                    NativeRenameFailure::TargetExists,
++                    b"can't rename to \"".as_slice(),
++                    b"\": command already exists".as_slice(),
++                ),
++            ] {
++                let error = protocol.rename_diagnostic(failure, original);
++                let extent = if protocol.is_jim084() {
++                    b"::missing".as_slice()
++                } else {
++                    original
++                };
++                assert_eq!(error.message, [prefix, extent, suffix].concat());
++                let expected = match (protocol, failure) {
++                    (NativeNameProtocol::C(version), _) if version <= TclVersion::V8_5 => None,
++                    (NativeNameProtocol::Jim084, _) => None,
++                    (_, NativeRenameFailure::TargetExists) => {
++                        Some(b"TCL OPERATION RENAME TARGET_EXISTS".as_slice())
++                    }
++                    _ => Some(b"TCL LOOKUP COMMAND ::missing\0suffix".as_slice()),
++                };
++                assert_eq!(error.error_code.as_deref(), expected);
++            }
++        }
++    }
++
++    #[test]
+     fn rename_diagnostics_preserve_counted_lookup_operands_and_selected_report_extent() {
+         let original = b"::alias\0old";
+         for protocol in tcl_dialect::TclVersion::ALL
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -113,18 +113,18 @@
+     NativeNamePurpose, NativeNameQualification, NativeNameReportPurpose,
+     NativeNamespaceLookupError, NativeNamespaceLookupOperation, NativeNamespaceOperationError,
+     NativeNamespacePatternParts, NativeNamespacePatternSource, NativeNamespaceTextResult,
+-    NativeVariableDiagnosticOperation, NativeVariableDiagnosticProjection,
+-    NativeVariableDiagnosticReason, NativeVariableFailureSite, NativeVariableInputForm,
+-    NativeVariableProjection, NativeVariableTraceNames, NativeVariableTraceReportingInput,
+-    checked_command_slot_utf8, checked_namespace_path_utf8, native_command_full_name_bytes,
+-    native_command_source_spelling, native_command_source_word, native_constant_failure_verb,
+-    native_jim_namespace_source_spelling, native_namespace_full_name_bytes,
+-    native_namespace_source_spelling, native_procedure_compilation_name_input,
+-    report_native_c_variable_value_name, report_native_dictionary_missing_key,
+-    report_native_name_bytes, report_native_namespace_creation_error,
+-    report_native_namespace_lookup_error, report_native_namespace_operation_error,
+-    report_native_variable_access_trace_names, report_native_variable_diagnostic,
+-    report_native_variable_diagnostic_at,
++    NativeRenameDiagnostic, NativeRenameFailure, NativeVariableDiagnosticOperation,
++    NativeVariableDiagnosticProjection, NativeVariableDiagnosticReason, NativeVariableFailureSite,
++    NativeVariableInputForm, NativeVariableProjection, NativeVariableTraceNames,
++    NativeVariableTraceReportingInput, checked_command_slot_utf8, checked_namespace_path_utf8,
++    native_command_full_name_bytes, native_command_source_spelling, native_command_source_word,
++    native_constant_failure_verb, native_jim_namespace_source_spelling,
++    native_namespace_full_name_bytes, native_namespace_source_spelling,
++    native_procedure_compilation_name_input, report_native_c_variable_value_name,
++    report_native_dictionary_missing_key, report_native_name_bytes,
++    report_native_namespace_creation_error, report_native_namespace_lookup_error,
++    report_native_namespace_operation_error, report_native_variable_access_trace_names,
++    report_native_variable_diagnostic, report_native_variable_diagnostic_at,
+ };
+ 
+ /// Rooted slot for an authored support-command registration label.
+--- a/rust/tcl-vm/src/command.rs
++++ b/rust/tcl-vm/src/command.rs
+@@ -865,29 +865,15 @@
+         Err(error) => return vm.refuse_host_command(error.to_string()),
+     };
+     let Some((cmd, mut rename)) = prepared else {
+-        // Renaming to the empty name is a delete; C words the miss accordingly.
+-        let verb = if new_name.is_empty() {
+-            "delete"
++        let failure = if new_name.is_empty() {
++            tcl_syntax::naming::NativeRenameFailure::MissingDeleteSource
+         } else {
+-            "rename"
++            tcl_syntax::naming::NativeRenameFailure::MissingSource
+         };
+-        let reported = match vm.native_rename_reported_operand(&old_name) {
+-            Ok(name) => name,
+-            Err(error) => return vm.refuse_host_command(error.to_string()),
++        return match vm.native_rename_diagnostic(failure, &old_name) {
++            Ok(error) => completion_from_cmd_error(vm, error),
++            Err(error) => vm.refuse_host_command(error.to_string()),
+         };
+-        return completion_from_cmd_error(
+-            vm,
+-            tcl_cmd_core::CmdError::new_bytes(
+-                [
+-                    b"can't ".as_slice(),
+-                    verb.as_bytes(),
+-                    b" \"",
+-                    reported.as_slice(),
+-                    b"\": command doesn't exist",
+-                ]
+-                .concat(),
+-            ),
+-        );
+     };
+     let old_key = rename.old_key().to_owned();
+     // A coroutine's state travels with its command: a delete (`rename $coro {}`)
+@@ -1005,23 +991,15 @@
+ 
+ fn rename_destination_failure(vm: &mut Vm, new_name: &[u8]) -> Option<Completion<Value>> {
+     match vm.rename_destination_exists(new_name) {
+-        Ok(true) => {
+-            let reported = match vm.native_rename_reported_operand(new_name) {
+-                Ok(name) => name,
+-                Err(error) => return Some(vm.refuse_host_command(error.to_string())),
+-            };
+-            Some(completion_from_cmd_error(
+-                vm,
+-                tcl_cmd_core::CmdError::new_bytes(
+-                    [
+-                        b"can't rename to \"".as_slice(),
+-                        reported.as_slice(),
+-                        b"\": command already exists",
+-                    ]
+-                    .concat(),
+-                ),
+-            ))
+-        }
++        Ok(true) => Some(
++            match vm.native_rename_diagnostic(
++                tcl_syntax::naming::NativeRenameFailure::TargetExists,
++                new_name,
++            ) {
++                Ok(error) => completion_from_cmd_error(vm, error),
++                Err(error) => vm.refuse_host_command(error.to_string()),
++            },
++        ),
+         Ok(false) => None,
+         Err(error) => Some(vm.refuse_host_command(error.to_string())),
+     }
+--- a/rust/tcl-vm/src/interp/native_rename.rs
++++ b/rust/tcl-vm/src/interp/native_rename.rs
+@@ -6,20 +6,19 @@
+ use tcl_syntax::naming::{NativeCommandSlotProjection, NativeNameContext};
+ 
+ impl Vm {
+-    pub(crate) fn native_rename_reported_operand(
++    pub(crate) fn native_rename_diagnostic(
+         &self,
++        failure: tcl_syntax::naming::NativeRenameFailure,
+         original: &[u8],
+-    ) -> Result<Vec<u8>, NativeCommandLookupUnavailable> {
++    ) -> Result<tcl_cmd_core::CmdError, NativeCommandLookupUnavailable> {
+         let policy = self
+             .name_policy_protocol()
+             .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?;
+-        tcl_syntax::naming::report_native_name_bytes(
+-            policy.recipe(),
+-            tcl_syntax::naming::NativeNameReportPurpose::RenameCommandError,
+-            original,
+-        )
+-        .map(<[u8]>::to_vec)
+-        .map_err(|_| NativeCommandLookupUnavailable::ProtocolUnavailable)
++        let error = policy.recipe().rename_diagnostic(failure, original);
++        Ok(match error.error_code {
++            Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(error.message, code),
++            None => tcl_cmd_core::CmdError::new_bytes(error.message),
++        })
+     }
+ 
+     pub(super) fn native_rename_destination_slot(

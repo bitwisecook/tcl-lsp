@@ -270,7 +270,7 @@ pub(crate) fn detect_global_write_bodies_with_registry(
     let owners = super::OriginalProcedureSummaryOwners::for_module(module, registry);
     let mut rows = HashMap::new();
     let mut edges = HashMap::new();
-    for (id, procedure) in module.procedures.iter() {
+    for (id, procedure) in module.original_source_procedure_bodies() {
         let namespace = procedure
             .body
             .namespace_context
@@ -1364,17 +1364,22 @@ mod tests {
     use tcl_registry::{ArgRole, CommandRegistry, CommandSpec, StateTransitionDescriptor};
     fn summary_id(module: &Module, label: &str) -> crate::ir::ProcedureId {
         let mut matching: Vec<_> = module
-            .procedures
-            .iter()
-            .filter(|(_, procedure)| procedure.qualified_name == label || procedure.name == label)
+            .original_source_procedure_bodies()
+            .filter(|(_, procedure)| {
+                procedure.qualified_name == label
+                    || procedure.name == label
+                    || tcl_syntax::naming::key_tail(&procedure.name) == label
+            })
             .map(|(id, _)| *id)
             .collect();
         if matching.is_empty() {
             let registry = module.resolved_registry();
             let owners = super::super::OriginalProcedureSummaryOwners::for_module(module, registry);
-            for script in std::iter::once(&module.top_level)
-                .chain(module.procedures.values().map(|procedure| &procedure.body))
-            {
+            for script in std::iter::once(&module.top_level).chain(
+                module
+                    .original_source_procedure_bodies()
+                    .map(|(_, procedure)| &procedure.body),
+            ) {
                 for statement in &script.statements {
                     let Some(tokens) = script.retained_source_tokens_for_statement(statement)
                     else {

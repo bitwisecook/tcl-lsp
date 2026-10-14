@@ -2086,44 +2086,50 @@ impl Namespaces {
         self.arena[ns].commands.remove_binding(&simple)
     }
 
-    /// Restore a command token taken for a visibility move under `name`,
-    /// preserving its generation while creating any destination namespaces.
-    pub(crate) fn restore(&mut self, name: &[u8], binding: CommandBinding) -> bool {
-        self.restore_with_original_key(name, binding, None)
+    #[cfg(test)]
+    fn restore(&mut self, name: &[u8], binding: CommandBinding) -> bool {
+        let Some(slot) = tcl_syntax::naming::support_command_registration_slot(name) else {
+            return false;
+        };
+        let mut namespace = GLOBAL;
+        for part in slot.namespace.as_segments() {
+            namespace = self.ensure_child(namespace, part.as_bytes());
+        }
+        self.restore_binding_at_checked(
+            Some((namespace, slot.simple.as_bytes().to_vec())),
+            binding,
+            None,
+        )
+        .is_ok()
     }
 
-    pub(crate) fn restore_with_original_key(
-        &mut self,
-        name: &[u8],
-        binding: CommandBinding,
-        original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
-    ) -> bool {
-        self.restore_with_original_key_checked(name, binding, original_jim_key)
-            .is_ok()
+    /// Select the exposed C table's global slot from the original operand.
+    pub(crate) fn exposed_command_publication_at(
+        &self,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let slot = self
+            .variable_name_protocol?
+            .exposed_command_publication_slot(original)
+            .ok()?;
+        Some((GLOBAL, slot.simple.as_bytes().to_vec()))
     }
 
-    /// Return unpublished original owners so checked callers retire outside the table borrow.
-    pub(crate) fn restore_with_original_key_checked(
+    /// Restore the original token in its independently selected physical slot.
+    /// Unpublished owners retire outside the caller's table borrow.
+    pub(crate) fn restore_binding_at_checked(
         &mut self,
-        name: &[u8],
+        slot: Option<(NsId, Vec<u8>)>,
         binding: CommandBinding,
         original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
     ) -> Result<(), RetiredCommandSlot> {
-        let mut parts = written_command_parts(name);
-        if parts.simple.is_empty() {
-            let Some(simple) = parts.qualifiers.pop() else {
-                return Err(RetiredCommandSlot {
-                    procedure: None,
-                    original_jim_key,
-                    binding: Some(binding),
-                });
-            };
-            parts.simple = simple;
-        }
-        let mut ns = GLOBAL;
-        for part in parts.qualifiers {
-            ns = self.ensure_child(ns, part);
-        }
+        let Some((namespace, simple)) = slot else {
+            return Err(RetiredCommandSlot {
+                procedure: None,
+                original_jim_key,
+                binding: Some(binding),
+            });
+        };
         let hook = self
             .native_compiler_hook(binding.generation)
             .expect("restored command retains its native node");
@@ -2131,8 +2137,8 @@ impl Namespaces {
             None,
             tcl_registry::native_procedure::NativeCompilerCacheMutation::CommandToken { hook },
         );
-        self.insert_moved_binding(ns, parts.simple.to_vec(), binding, original_jim_key);
-        self.invalidate_native_command_lookup(ns);
+        self.insert_moved_binding(namespace, simple, binding, original_jim_key);
+        self.invalidate_native_command_lookup(namespace);
         Ok(())
     }
 

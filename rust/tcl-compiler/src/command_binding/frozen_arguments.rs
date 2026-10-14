@@ -139,6 +139,41 @@ impl<'a> SourceScriptOperands<'a> {
     }
 }
 
+impl super::SourceInvocationBinding {
+    /// Original argument contents in a retained authored model. This grants
+    /// no Native read, handler entry, quiet store or executable erasure.
+    pub(crate) fn original_authored_written_argument_value(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        argument: usize,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&str> {
+        if !matches!(
+            self.original_invocation_source_purpose(tokens, metadata, registry)?,
+            super::OriginalInvocationSourcePurpose::Standalone
+                | super::OriginalInvocationSourcePurpose::AuthoredSimulation
+        ) {
+            return None;
+        }
+        let written = argument.checked_add(1)?;
+        if tokens.synthetic.is_some()
+            || self.original_lexer_config_for_tokens(tokens).is_none()
+            || self.variable_context.dynamic_bindings
+            || self.variable_context.dynamic_traces
+            || self.variable_context.interpreter.is_some()
+            || self.variable_context.execution.is_some()
+            || matches!(tokens.words().get(written)?, WordExpr::Expand { .. })
+            || self.frozen_written_words()?.len() != tokens.words().len()
+        {
+            return None;
+        }
+        let value = self.evaluated_written_argument_value(argument)?;
+        (self.frozen_written_words()?.get(written)?.literal_bytes() == Some(value.as_bytes()))
+            .then_some(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,6 +198,71 @@ mod tests {
                 ..Default::default()
             },
         )
+    }
+
+    #[test]
+    fn authored_original_argument_values_require_retained_purpose_and_original_vector() {
+        let source = "set name {LiteralChild}; set body {return original}; proc $name {} $body";
+        let bindings = analyse(source);
+        let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let metadata = tcl_registry::model::semantic::SemanticContext::for_profile(profile);
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            .into_iter()
+            .last()
+            .unwrap();
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            &segment,
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        let binding = tokens
+            .source_binding
+            .as_ref()
+            .expect("actual original authored point");
+        assert_eq!(
+            binding.original_invocation_source_purpose(&tokens, metadata.into(), &registry),
+            Some(super::super::OriginalInvocationSourcePurpose::Standalone)
+        );
+        assert_eq!(
+            binding.original_authored_written_argument_value(
+                &tokens,
+                0,
+                metadata.into(),
+                &registry
+            ),
+            Some("LiteralChild")
+        );
+        assert_eq!(
+            binding.original_authored_written_argument_value(
+                &tokens,
+                2,
+                metadata.into(),
+                &registry
+            ),
+            Some("return original")
+        );
+        let mut changed = tokens.clone();
+        changed.word_exprs.swap(1, 3);
+        assert!(
+            binding
+                .original_authored_written_argument_value(&changed, 0, metadata.into(), &registry)
+                .is_none()
+        );
+        let mut changed = tokens.clone();
+        let binding = changed.source_binding.as_mut().unwrap();
+        binding.variable_context = Arc::new(crate::var_resolve::ResolveContext {
+            dynamic_traces: true,
+            ..binding.variable_context.as_ref().clone()
+        });
+        let binding = changed.source_binding.as_ref().unwrap();
+        assert!(
+            binding
+                .original_authored_written_argument_value(&changed, 0, metadata.into(), &registry)
+                .is_none()
+        );
     }
 
     #[test]

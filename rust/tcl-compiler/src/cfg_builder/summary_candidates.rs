@@ -93,7 +93,7 @@ impl OriginalProcedureSummaryOwners {
             .iter()
             .filter(|target| !target.registry_backed)
             .map(|target| {
-                let (id, _) = module?.source_procedure_for_target(target)?;
+                let (id, _) = module?.original_source_procedure_for_target(target)?;
                 Some((
                     id,
                     crate::registry_invocation::effective_words_for_target(tokens, target)?,

@@ -1475,12 +1475,11 @@ impl<'a> Lowerer<'a> {
     /// Whether the module keeps `name` bound to its registry builtin at every
     /// point, so a nested command word may take the builtin's native shape.
     fn command_trusted(&self, descriptor: tcl_registry::CanonicalCommandDescriptorKey<'_>) -> bool {
-        let name = descriptor.label();
-        let bare = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
-        self.mutations.trusts(bare)
-            && !self.input.module.has_dynamic_trace
-            && !self.input.module.traced_commands.contains(bare)
-            && !self.input.module.traced_commands.contains(name)
+        self.mutations.trusts_unobserved_descriptor(
+            descriptor,
+            self.input.module.has_dynamic_trace,
+            &self.input.module.traced_commands,
+        )
     }
 
     // Expressions.

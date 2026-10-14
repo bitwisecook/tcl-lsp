@@ -137,7 +137,7 @@ pub(crate) fn original_source_procedure_ids_for_word_for_module(
     }
     let mut ids = Vec::new();
     for target in &lookup.targets {
-        let (id, procedure) = module.source_procedure_for_target(target)?;
+        let (id, procedure) = module.original_source_procedure_for_target(target)?;
         if !module
             .retained_source_bindings
             .as_ref()?
@@ -179,7 +179,7 @@ fn original_procedure_calls_for_targets<'a>(
     targets
         .iter()
         .map(|target| {
-            let (id, procedure) = module.source_procedure_for_target(target)?;
+            let (id, procedure) = module.original_source_procedure_for_target(target)?;
             if !module
                 .retained_source_bindings
                 .as_ref()?

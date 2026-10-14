@@ -123,8 +123,7 @@ impl RetainedSourceModuleBindings {
             observed: bindings.module_projection(module),
             positioned: Arc::new(bindings.clone()),
             procedures: module
-                .procedures
-                .iter()
+                .original_source_procedure_bodies()
                 .map(|(name, procedure)| (name.clone(), OriginalProcedureSource::retain(procedure)))
                 .collect(),
         }))

@@ -1,0 +1,72 @@
+[
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+    "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+    "retained_path": "original-source/8.4.20/generic/tclBasic.c.gz",
+    "gzip_sha256": "c62a6b4ebdaf4db90fdf987f3c1c8976a4d9c13364b133a9171248d8f28e7b06"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/license.terms",
+    "sha256": "42aef2a1337ef1f45ae2832aa5aa268c79b2560fb1f3ebab519629372cb24ffe",
+    "retained_path": "original-source/8.4.20/license.terms.gz",
+    "gzip_sha256": "b3df8a53b400a833c36af00456144237c4616c343bf0cf319a99447ac181385c"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+    "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+    "retained_path": "original-source/8.5.19/generic/tclBasic.c.gz",
+    "gzip_sha256": "8e6da97408e3866ff47d3cfbcabea8c65ecfb94ed387ba452bf25cdece6433f4"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/license.terms",
+    "sha256": "8c6262c5c5f0983f49cb13804050f06f4fb0d22b84084447065817db12820bd3",
+    "retained_path": "original-source/8.5.19/license.terms.gz",
+    "gzip_sha256": "c197633e492b872f5e4c98aa83116e1da2c7d1d3fd285372a027cf516e9afa7e"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+    "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "retained_path": "original-source/8.6.18/generic/tclBasic.c.gz",
+    "gzip_sha256": "056dee2d5c12027d416065a5196c9e3bf1ba7a25abb68f77426285b1186ed43d"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/license.terms",
+    "sha256": "c0a69a2bfd757361ec7e6143973b103c90409316b49e9c88db26ad6388e79f16",
+    "retained_path": "original-source/8.6.18/license.terms.gz",
+    "gzip_sha256": "f2635bb89f561c464388b868e703abe46f609c5774f52435a499c6cbb325166a"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+    "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+    "retained_path": "original-source/9.0.4/generic/tclBasic.c.gz",
+    "gzip_sha256": "22b2a743d06479003368fc45886be35180c375017435bdfd13e8033d800f6ed6"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/license.terms",
+    "sha256": "c0a69a2bfd757361ec7e6143973b103c90409316b49e9c88db26ad6388e79f16",
+    "retained_path": "original-source/9.0.4/license.terms.gz",
+    "gzip_sha256": "f2635bb89f561c464388b868e703abe46f609c5774f52435a499c6cbb325166a"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+    "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "retained_path": "original-source/9.1.0/generic/tclBasic.c.gz",
+    "gzip_sha256": "9730aa7ac40a3166453c50d8344db7089b241d7d10668f8a21a34587c302313c"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/license.terms",
+    "sha256": "c0a69a2bfd757361ec7e6143973b103c90409316b49e9c88db26ad6388e79f16",
+    "retained_path": "original-source/9.1.0/license.terms.gz",
+    "gzip_sha256": "f2635bb89f561c464388b868e703abe46f609c5774f52435a499c6cbb325166a"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-interp.c",
+    "sha256": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+    "retained_path": "original-source/jim/jim-interp.c"
+  },
+  {
+    "source_path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/LICENSE",
+    "sha256": "419f1146334e57fb258d6c957d1f94d43455ec0d24b1b54c4447e5f61a353950",
+    "retained_path": "original-source/jim/LICENSE"
+  }
+]

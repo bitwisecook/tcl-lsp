@@ -1,0 +1,6 @@
+
+running 1 test
+test engine_abi::command_receipts::tests::receipt_restriction_keeps_renamed_handler_and_drops_replacement_at_old_name ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2146 filtered out; finished in 2.87s
+

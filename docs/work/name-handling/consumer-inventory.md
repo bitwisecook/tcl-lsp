@@ -94,36 +94,37 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 ## Current implementation and audit priorities
 
 The [outstanding audit](outstanding-consumer-audit.md) and JSON current refresh
-record the bounded 04:27 UTC checkpoint. Compiler33 diagnostic replay executed 304 controls:
+record the bounded 04:40 UTC snapshot. Compiler33 diagnostic replay executed 304 controls:
 194 PASS and 110 FAIL, with zero authored-source drift. Of the 295 common
-Compiler31 controls, 19 improve and one regresses. Full Runtime09 is running
-79 controls without a final aggregate. Core32 executed 30:
+Compiler31 controls, 19 improve and one regresses. Full Runtime09 executes
+79 controls: 78 PASS and one new C8.5 error-code FAIL; all original77 pass, with
+zero source/compiled-input/artifact drift. Core34 diagnostic40 plus namespace
+rename26 is running without an aggregate. Core32 executed 30:
 20 PASS and 10 FAIL, also with zero drift. Source integration and execution
 acceptance remain separate; no whole-codebase completion percentage is established.
 
 | Consumer | Current shared owner | Remaining obligation |
 | --- | --- | --- |
-| CFG/global/deferred procedure summaries | ProcedureId, OriginalProcedureSummaryOwners and actual Module/Registry/original vectors travel through PreparedCfgContext. | Current Logical global/upvar/nested-child and deferred unknown-callback failures; original declaration summary-body coverage requires genuine issued-owner selection, followed by unchanged effect assertions. |
-| SSA/scanner/elimination/materialized footprints | Explicit lexical versus standalone MAY reads; positively retained Logical source role projection is separate from Native Normal. | Compiler31 source-name controls fail; integrated conditional original-source reader repair awaits replay. Missing input, foreign registry and unknown reads retain independent protections. |
-| Slot/CFG/index reads | Retained point places select existing SSA symbols; genuine child readers protect host writes; detached words use lexical policy. | Compiler31 slot controls stopped before represented returns. Integrated original source-realm repair and actual CU CFG/SSA fixture ingress await replay of exact, foreign, unavailable, array-member and nested-command assertions. |
-| SSA literal/empty names | Actual literal payload preserves empty and dollar names; original source role owner excludes braced name data from lexical substitution. | Three Compiler31 controls fail. Source role/loop-list metadata repair is integrated, unexecuted; Native Normal/store/value proofs remain independent. |
-| Inlining frame locality | Shared Syntax predicate consumes retained VariableLookupPolicy; original complete source correspondence supplies readonly frame metadata. | Compiler33 retains a Native-dispatch negative fixture failure before its assertions because its source Module ownership is unavailable. Actual plain-Tcl source and original declaration context gains remain scoped; source producer correction and exact negative replay are pending. Finite C5/Jim observations remain scoped; no Native splice/admission claim. |
+| CFG/global/deferred procedure summaries | ProcedureId, OriginalProcedureSummaryOwners and actual Module/Registry/original vectors travel through PreparedCfgContext. | Current Logical global/upvar/nested-child and deferred unknown-callback failures; authentic original declaration inventory/allocation selection is integrated, with unchanged effect assertions awaiting replay. |
+| SSA/scanner/elimination/materialized footprints | Explicit lexical versus standalone MAY reads; positively retained Logical source role projection is separate from Native Normal. | Compiler33 original source-name role control passes; SSA literal controls still fail. Missing input, foreign registry and unknown reads retain independent protections. |
+| Slot/CFG/index reads | Retained point places select existing SSA symbols; genuine child readers protect host writes; detached words use lexical policy. | Compiler33 foreign/unavailable terminator, array-member and nested-command controls pass; exact original SSA-cell selection and backward fixpoint still fail. |
+| SSA literal/empty names | Actual literal payload preserves empty and dollar names; original source role owner excludes braced name data from lexical substitution. | Compiler33 original loop empty/dollar metadata passes; literal lowered and original read/mutation controls still fail. Native Normal/store/value proofs remain independent. |
+| Inlining frame locality | Shared Syntax predicate consumes retained VariableLookupPolicy; original complete source correspondence supplies readonly frame metadata. | Compiler33 frame controls fail before their assertions because plain-Tcl lacks the Native variable lookup field. Integrated consumer authenticates actual Logical Module purpose, then selects the shared authored naming recipe; exact original positive/negative replay remains pending. Finite C5/Jim observations remain scoped; no Native splice/admission claim. |
 | DB/CommonAOT | Issued bodies, genuine capsules, actual Module/caller/callee/SSA owners and exact workspace declaration ingress. | Original cold/edit reuse counts and uncached comparisons remain mandatory; current certificate/fixture and dependency controls still need replay. |
 | Core inlay/graph joins | Core13 actual original declaration/source allocation and issued bodies; current body-unit coverage repair is integrated. | Core32 includes repeated-type/colon/body-hint failures. Strict original Native SSA definition hint failure cannot borrow Logical source roles or reporting maps. |
-| Diagnostic parameter spans | Actual Module/body/ProcedureId/declaration plus full-config original formal source geometry. | Compiler31 W214 and two formal geometry controls fail from unmeasured Jim079 source ingress. Genuine plain-Tcl fixture repair is integrated, unexecuted; source and all tight/quoted/refusal assertions are retained. |
+| Diagnostic parameter spans | Actual Module/body/ProcedureId/declaration plus full-config original formal source geometry. | Compiler33 both original formal geometry controls pass. W214 tight span/quoted marker diagnostic control still fails; source and all refusal assertions remain retained. |
 | Source prefix and caller bodies | Original captured-prefix provenance and shared root/current readonly body recipes. | Compiler31 direct prefix143, root146 and root/current child148 PASS; namespace currency01 PASS. Deferred source-effect147 fails the unknown-command negative after positives; narrow residual effect repair awaits replay. Core32 current-level scope05/06/08 still fail. |
-| Method/class variables and OO links | Exact literal source data and quiet Logical store owner; Native original argument/reference owners stay separate. | Current owner-specific literal/const/Native controls and linked-member reference/edit hazards remain bounded active work. |
-| Shared classifiers/lowering | DeclaredFrame, metadata/slot, SelfDispatch, URI/iRule delegates and six lowering bridges. | Scoped positives do not accept every caller; preserve current original positive/refusal and effect controls. |
+| Method/class variables and OO links | Exact literal source data and quiet Logical store owner; Native original argument/reference owners stay separate. | Authored factory values and Logical evaluated-body consumers are integrated under separate retained purpose/source/word owners; original factory/assertion replay and linked-member edit hazards remain active. |
+| Shared classifiers/lowering | DeclaredFrame, metadata/slot, SelfDispatch, URI/iRule delegates and six lowering bridges. | Document-stub W116/W143, namespace rename MAY hazard and selected Native descriptor transport consumers are integrated; preserve exact original positive/refusal and effect controls in fresh replay. |
 | F5 paths/events and AI/editor transports | ObjectNamePolicy alternatives preserve caller ordering; event/source cards and document symbols use retained provider ownership. | Bounded F5 software comparisons pass; appliance questions unanswered. AI TypeScript typecheck passes; real LSP/Electron tests unexecuted. Current server case/provider and transport repairs require replay. |
 
-Paired Runtime08 completes 2 selected controls: 1 PASS and 1 FAIL, with zero
-original source, compiled dependency or artifact drift. Only the Jim rename
-message NUL extent fails. Actual C8.4/C8.5 oracle results retain counted full
-diagnostics, so a universal CString proposal was rejected before Main; the
-per-engine correction remains active. Temporary Compiler33 diagnostic build passed; test logs are arriving without
-a final aggregate. Successful builds alone are not semantic acceptance.
-Compiler, Core, DB original reuse, Engine/VM and whole-surface acceptance remain
-independent. Runtime07's earlier scoped 76/77 capture is retained, not renewed.
+Full Runtime09 seals 79 controls: 78 PASS and one FAIL, with zero source,
+compiled-input and artifact drift. All original77 controls pass. The new C8.5
+rename error-code control fails; its independent per-engine correction is
+integrated and unexecuted. Compiler33 diagnostic replay is 194 PASS and 110
+FAIL with zero authored-source drift. Compiler, Core, DB original reuse,
+Engine/VM and whole-surface acceptance remain independent. Earlier captures
+retain their exact scoped results and source identities.
 
 The inherited isolated-only statuses for descriptor rosters, runtime publication,
 VM import/forget and BPF selection are superseded by actual Main integration;

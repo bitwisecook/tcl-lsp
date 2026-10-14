@@ -113,18 +113,18 @@ pub use native::{
     NativeNamePurpose, NativeNameQualification, NativeNameReportPurpose,
     NativeNamespaceLookupError, NativeNamespaceLookupOperation, NativeNamespaceOperationError,
     NativeNamespacePatternParts, NativeNamespacePatternSource, NativeNamespaceTextResult,
-    NativeVariableDiagnosticOperation, NativeVariableDiagnosticProjection,
-    NativeVariableDiagnosticReason, NativeVariableFailureSite, NativeVariableInputForm,
-    NativeVariableProjection, NativeVariableTraceNames, NativeVariableTraceReportingInput,
-    checked_command_slot_utf8, checked_namespace_path_utf8, native_command_full_name_bytes,
-    native_command_source_spelling, native_command_source_word, native_constant_failure_verb,
-    native_jim_namespace_source_spelling, native_namespace_full_name_bytes,
-    native_namespace_source_spelling, native_procedure_compilation_name_input,
-    report_native_c_variable_value_name, report_native_dictionary_missing_key,
-    report_native_name_bytes, report_native_namespace_creation_error,
-    report_native_namespace_lookup_error, report_native_namespace_operation_error,
-    report_native_variable_access_trace_names, report_native_variable_diagnostic,
-    report_native_variable_diagnostic_at,
+    NativeRenameDiagnostic, NativeRenameFailure, NativeVariableDiagnosticOperation,
+    NativeVariableDiagnosticProjection, NativeVariableDiagnosticReason, NativeVariableFailureSite,
+    NativeVariableInputForm, NativeVariableProjection, NativeVariableTraceNames,
+    NativeVariableTraceReportingInput, checked_command_slot_utf8, checked_namespace_path_utf8,
+    native_command_full_name_bytes, native_command_source_spelling, native_command_source_word,
+    native_constant_failure_verb, native_jim_namespace_source_spelling,
+    native_namespace_full_name_bytes, native_namespace_source_spelling,
+    native_procedure_compilation_name_input, report_native_c_variable_value_name,
+    report_native_dictionary_missing_key, report_native_name_bytes,
+    report_native_namespace_creation_error, report_native_namespace_lookup_error,
+    report_native_namespace_operation_error, report_native_variable_access_trace_names,
+    report_native_variable_diagnostic, report_native_variable_diagnostic_at,
 };
 
 /// Rooted slot for an authored support-command registration label.
@@ -2037,8 +2037,41 @@ pub mod conformance {
     }
 }
 
+/// Possible rooted names in unattributed text, for conservative edit refusal.
+/// Delimiter and sigil scanning is deliberately broader than executable Tcl;
+/// these fragments grant no name lookup, variable access or editable span.
+pub fn unattributed_rooted_name_candidates(text: &str) -> impl Iterator<Item = &str> {
+    text.split(|character: char| character.is_whitespace() || "{}[];\"".contains(character))
+        .map(|token| token.trim_start_matches(['$', '{']).trim_end_matches('}'))
+        .filter(|token| token.starts_with("::"))
+        .map(|token| token.split_once('(').map_or(token, |(root, _)| root))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unattributed_rooted_candidates_preserve_data_and_refuse_lookup_authority() {
+        let text = "literal {::old::member} [::other] $::array(index)\u{2003}\":::lone\" ; :relative ::empty::";
+        assert_eq!(
+            unattributed_rooted_name_candidates(text).collect::<Vec<_>>(),
+            [
+                "::old::member",
+                "::other",
+                "::array",
+                ":::lone",
+                "::empty::"
+            ]
+        );
+        assert_eq!(
+            unattributed_rooted_name_candidates("$${::old(index)}").collect::<Vec<_>>(),
+            ["::old"]
+        );
+        assert_eq!(
+            unattributed_rooted_name_candidates(":: :relative plain").collect::<Vec<_>>(),
+            ["::"]
+        );
+    }
+
     #[test]
     fn command_lookup_bases_visit_path_only_after_current() {
         use super::{CommandLookupBase, command_lookup_bases};

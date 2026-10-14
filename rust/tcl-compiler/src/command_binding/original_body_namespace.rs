@@ -71,6 +71,45 @@ impl SourceInvocationBinding {
         selected
     }
 
+    /// A known Logical current/root body recipe retains only source coordinates.
+    /// Relative caller levels cannot borrow the declaration namespace.
+    pub(crate) fn original_logical_frame_body_namespace(
+        &self,
+        registry: &CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        parent: &CommandTokens,
+    ) -> Option<SourceNamespaceKey> {
+        let metadata = self.original_invocation_metadata_for_input(parent, input, registry)?;
+        if self.original_source_advice_purpose(parent, metadata, registry)?
+            != super::OriginalInvocationSourcePurpose::Logical
+        {
+            return None;
+        }
+        let advice = self.original_logical_declaration_layout_advice(parent)?;
+        if !advice.closed_logical_source_lookup() {
+            return None;
+        }
+        let selected =
+            crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
+                registry, metadata, parent,
+            )?;
+        let tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. } =
+            selected.arguments()?
+        else {
+            return None;
+        };
+        match selected.layout()? {
+            tcl_registry::FrameArgLayout::ScriptInCurrentFrame => Some(advice.namespace().clone()),
+            tcl_registry::FrameArgLayout::ScriptInSelectedFrame if level.is_current_frame() => {
+                Some(advice.namespace().clone())
+            }
+            tcl_registry::FrameArgLayout::ScriptInSelectedFrame if level.is_global_frame() => {
+                advice.snapshot.state.source_root_namespace_key()
+            }
+            _ => None,
+        }
+    }
+
     /// Inherit namespace syntax only for an independently selected immediate
     /// Plain body in the Current interpreter. Exact source, full supplied
     /// metadata and the retained namespace incarnation remain prerequisites.

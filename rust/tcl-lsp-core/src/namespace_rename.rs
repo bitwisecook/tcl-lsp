@@ -688,13 +688,8 @@ fn spans_overlap(a: Span, b: Span) -> bool {
 /// list literal, so `{::old::tick $arg}` is examined token by token rather
 /// than as one string.  Rooted spellings only; see the module docs' bounds.
 fn embedded_rooted_name_under(text: &str, cell: &str) -> bool {
-    text.split(|c: char| c.is_whitespace() || "{}[];\"".contains(c))
-        .map(|token| token.trim_start_matches(['$', '{']).trim_end_matches('}'))
-        .filter(|token| token.starts_with("::"))
-        .any(|token| {
-            let token = token.split_once('(').map_or(token, |(base, _)| base);
-            names_at_or_under(cell, token) || names_under(cell, token)
-        })
+    tcl_syntax::naming::unattributed_rooted_name_candidates(text)
+        .any(|candidate| names_at_or_under(cell, candidate) || names_under(cell, candidate))
 }
 
 #[cfg(test)]

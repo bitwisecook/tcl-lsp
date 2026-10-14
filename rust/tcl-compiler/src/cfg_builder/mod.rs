@@ -3277,8 +3277,7 @@ pub(crate) fn detect_upvar_bodies_with_registry(
         .as_ref()
         .filter(|owner| owner.matches_module(module, registry));
     let mut summaries: HashMap<_, _> = module
-        .procedures
-        .iter()
+        .original_source_procedure_bodies()
         .map(|(id, procedure)| {
             let namespace = procedure
                 .body
@@ -3311,7 +3310,7 @@ pub(crate) fn detect_upvar_bodies_with_registry(
         .collect();
     let prior = summaries.clone();
     let owners = OriginalProcedureSummaryOwners::for_module(module, registry);
-    for (id, procedure) in module.procedures.iter() {
+    for (id, procedure) in module.original_source_procedure_bodies() {
         let (calls, opaque) =
             global_write_info::direct_call_targets(&procedure.body, &owners, registry);
         if opaque
@@ -3395,8 +3394,7 @@ pub(crate) fn prepare_cfg_context_bundle(
     let global_write_procs =
         global_write_info::detect_global_write_bodies_with_registry(module, registry);
     let proc_params = module
-        .procedures
-        .iter()
+        .original_source_procedure_bodies()
         .filter(|(id, procedure)| {
             module.procedure_ids.owns(**id)
                 && module
@@ -4907,9 +4905,12 @@ mod tests {
     use super::*;
     fn summary_id(module: &Module, label: &str) -> crate::ir::ProcedureId {
         let matching: Vec<_> = module
-            .procedures
-            .iter()
-            .filter(|(_, procedure)| procedure.qualified_name == label || procedure.name == label)
+            .original_source_procedure_bodies()
+            .filter(|(_, procedure)| {
+                procedure.qualified_name == label
+                    || procedure.name == label
+                    || tcl_syntax::naming::key_tail(&procedure.name) == label
+            })
             .map(|(id, _)| *id)
             .collect();
         assert_eq!(

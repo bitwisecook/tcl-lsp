@@ -184,61 +184,43 @@ fn rename_original(
             interp.set_result_bytes(b"");
             Code::Ok
         }
-        RenameOutcome::NoSuchCommand => {
-            // TclRenameCommand chooses the verb from the requested operation:
-            // an empty destination is a deletion, while a non-empty
-            // destination is a rename (tclNamesp.c).
-            let verb = if new.is_empty() {
-                b"can't delete \"".as_slice()
+        RenameOutcome::NoSuchCommand => rename_diagnostic(
+            interp,
+            if new.is_empty() {
+                tcl_syntax::naming::NativeRenameFailure::MissingDeleteSource
             } else {
-                b"can't rename \"".as_slice()
-            };
-            let reported = match rename_reported_operand(interp, &old) {
-                Ok(reported) => reported,
-                Err(code) => return code,
-            };
-            let mut m = verb.to_vec();
-            m.extend_from_slice(&reported);
-            m.extend_from_slice(b"\": command doesn't exist");
-            let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", &old]);
-            interp.error_with_code(&m, &code)
-        }
+                tcl_syntax::naming::NativeRenameFailure::MissingSource
+            },
+            &old,
+        ),
         RenameOutcome::AliasLoop => match interp.original_rename_alias_loop_name(&old, &new) {
             Ok(reported) => alias_loop_error(interp, &reported),
             Err(error) => interp.report_cmd_error(error.into()),
         },
-        RenameOutcome::TargetExists => {
-            let reported = match rename_reported_operand(interp, &new) {
-                Ok(reported) => reported,
-                Err(code) => return code,
-            };
-            let mut m = b"can't rename to \"".to_vec();
-            m.extend_from_slice(&reported);
-            m.extend_from_slice(b"\": command already exists");
-            interp.error_with_code(&m, b"TCL OPERATION RENAME TARGET_EXISTS")
-        }
+        RenameOutcome::TargetExists => rename_diagnostic(
+            interp,
+            tcl_syntax::naming::NativeRenameFailure::TargetExists,
+            &new,
+        ),
     }
 }
 
-fn rename_reported_operand(interp: &mut Interp, original: &[u8]) -> Result<Vec<u8>, Code> {
+fn rename_diagnostic(
+    interp: &mut Interp,
+    failure: tcl_syntax::naming::NativeRenameFailure,
+    original: &[u8],
+) -> Code {
     let Some(policy) = interp.name_policy_protocol() else {
-        return Err(interp.report_cmd_error(
+        return interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("rename name reporting")
                 .into(),
-        ));
+        );
     };
-    tcl_syntax::naming::report_native_name_bytes(
-        policy.recipe(),
-        tcl_syntax::naming::NativeNameReportPurpose::RenameCommandError,
-        original,
-    )
-    .map(<[u8]>::to_vec)
-    .map_err(|_| {
-        interp.report_cmd_error(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("rename name reporting")
-                .into(),
-        )
-    })
+    let error = policy.recipe().rename_diagnostic(failure, original);
+    match error.error_code {
+        Some(code) => interp.error_with_code(&error.message, &code),
+        None => interp.error(&error.message),
+    }
 }
 
 /// C's `TclPreventAliasLoop` refusal (`tclInterp.c`), shared by the `interp

@@ -6,20 +6,19 @@ use tcl_core_types::NameBytes;
 use tcl_syntax::naming::{NativeCommandSlotProjection, NativeNameContext};
 
 impl Vm {
-    pub(crate) fn native_rename_reported_operand(
+    pub(crate) fn native_rename_diagnostic(
         &self,
+        failure: tcl_syntax::naming::NativeRenameFailure,
         original: &[u8],
-    ) -> Result<Vec<u8>, NativeCommandLookupUnavailable> {
+    ) -> Result<tcl_cmd_core::CmdError, NativeCommandLookupUnavailable> {
         let policy = self
             .name_policy_protocol()
             .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?;
-        tcl_syntax::naming::report_native_name_bytes(
-            policy.recipe(),
-            tcl_syntax::naming::NativeNameReportPurpose::RenameCommandError,
-            original,
-        )
-        .map(<[u8]>::to_vec)
-        .map_err(|_| NativeCommandLookupUnavailable::ProtocolUnavailable)
+        let error = policy.recipe().rename_diagnostic(failure, original);
+        Ok(match error.error_code {
+            Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(error.message, code),
+            None => tcl_cmd_core::CmdError::new_bytes(error.message),
+        })
     }
 
     pub(super) fn native_rename_destination_slot(

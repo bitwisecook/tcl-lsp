@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_alias::original_operand_tests::original_child_handle_alias_reads_the_selected_operand_before_publication ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2146 filtered out; finished in 6.60s
+

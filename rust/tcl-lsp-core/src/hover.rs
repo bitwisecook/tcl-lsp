@@ -993,16 +993,8 @@ fn hover_impl(
     None
 }
 
-/// Resolve an unqualified command `name` at byte offset `cursor_offset` to its
-/// qualified registry spec via the document's `namespace import`s
-/// (`namespace import ::tcltest::*` → `test` resolves to `tcltest::test`).
-/// Mirrors the analyser's imported-command body resolution, respecting the
-/// import's **scope** and **source order**: only an import made at global scope
-/// (`ns == "::"`, in effect everywhere via Tcl's unqualified-name fallback) and
-/// positioned *before* the hovered word applies — a nested-namespace import
-/// (e.g. inside `namespace eval ns { … }`) or one appearing after the cursor
-/// must not retroactively resolve a bare name here.  Returns the qualified name
-/// and its spec, or `None`.  Only unqualified names are resolved.
+/// Standalone fixture lookup through global imports before the cursor.
+/// Newest eligible import wins; qualified source names decline.
 #[cfg(test)]
 fn resolve_imported_command<'r>(
     registry: &'r CommandRegistry,
@@ -1010,7 +1002,7 @@ fn resolve_imported_command<'r>(
     analysis: &AnalysisResult,
     cursor_offset: u32,
 ) -> Option<(String, &'r tcl_registry::CommandSpec)> {
-    if name.contains("::") {
+    if tcl_syntax::naming::is_qualified(name.as_bytes()) {
         return None;
     }
     // Iterate imports newest-first (`namespace_imports` is in source order): when
@@ -5587,10 +5579,7 @@ mod tests {
 
     #[test]
     fn class_member_hover_linked_sibling_method_resolves() {
-        // TP — `link greet` (called from the
-        // constructor) makes `greet` genuinely bareword-callable, so
-        // hover now resolves. alias == target here, so no "linked from"
-        // note (see the two-element-alias test below for that).
+        // C9's selected link schema couples the alias and target name.
         let src = "oo::class create C {\n    constructor {} { link greet }\n    method greet {who} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method twice {} { greet ; greet }` — same text/col
@@ -5623,11 +5612,7 @@ mod tests {
 
     #[test]
     fn class_member_hover_two_element_link_alias_notes_the_real_target() {
-        // TP — `link {shortcut realMethod}` aliases
-        // a DIFFERENT bareword to the real method; hover on the alias
-        // must resolve to `realMethod`'s own declaration and note it was
-        // reached via the alias (a currently-live false negative this
-        // closes: today's LSP returns no hover at all for `shortcut`).
+        // C9's two-field link keeps the alias distinct from its target member.
         let src = "oo::class create C {\n    constructor {} { link {shortcut realMethod} }\n    method realMethod {x} { return $x }\n    method bar {} { return [shortcut 42] }\n}\n";
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method bar {} { return [shortcut 42] }` — col 28
@@ -5642,15 +5627,7 @@ mod tests {
 
     #[test]
     fn my_dispatch_hover_resolves_a_plain_call_in_a_single_block_class() {
-        // TP — a definite, single-target `my methodName` call must hover,
-        // like a `link`-exposed bareword sibling call or `$obj method` —
-        // go-to-definition and find-references resolve this exact shape (they
-        // use
-        // `enclosing_class_at`/`method_dispatch_definition` directly,
-        // cursor-shape-driven; hover had no equivalent path, only the
-        // word-match-driven `class_member_hover_text`, gated on
-        // `linked_members`, which a plain un-linked `my` call never
-        // populates).
+        // Explicit self-dispatch selects its member without a bareword link.
         let src = "oo::class create geo::Plane {\n    method GetType {} { return Plane }\n    method WhichAmI {} { return [my GetType] }\n}\n";
         let analysis = analyse(src);
         // Line 2: `    method WhichAmI {} { return [my GetType] }` — cursor
@@ -5781,8 +5758,7 @@ mod tests {
 
     #[test]
     fn class_member_hover_linked_sibling_classmethod_resolves() {
-        // TP — `link factory` makes the classmethod
-        // hover resolve.
+        // C9's link retains the selected classmethod's member side.
         let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method use {} { factory }` — same text/col as the

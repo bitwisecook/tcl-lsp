@@ -1,0 +1,242 @@
+--- a/rust/tcl-lsp-core/src/workspace_index.rs
++++ b/rust/tcl-lsp-core/src/workspace_index.rs
+@@ -3694,6 +3694,79 @@
+             && target.matches_indexed_member_provider(declaring_uri, provider, context, input)
+     }
+ 
++    /// Declaration-side Logical names from this document's retained source views.
++    /// Complete original occurrences select records; missing views grant no fallback.
++    #[must_use]
++    pub fn logical_declaration_source_names_at(
++        &self,
++        uri: &str,
++        source: &str,
++        analysis: &AnalysisResult,
++        offset: u32,
++    ) -> Option<Vec<String>> {
++        let config = analysis.body_lexer_config?;
++        let image = tcl_lexer::SourceImage::document(source);
++        if !analysis.allows_retained_logical_declaration_advice()
++            || !analysis.matches_original_source_image(&image, config)
++        {
++            return Some(Vec::new());
++        }
++        let covers = |span: Span| span.start() <= offset && offset < span.end();
++        let procedures = analysis
++            .original_procedure_declarations()
++            .filter(|record| covers(record.name_input().span()))
++            .map(|record| (record.original_occurrence(), false, record.name().policy()));
++        let classes = analysis
++            .original_class_declarations()
++            .filter(|record| covers(record.name_input().span()))
++            .map(|record| (record.original_occurrence(), true, record.name().policy()));
++        let mut selected = procedures.chain(classes);
++        let (occurrence, class, policy) = selected.next()?;
++        if selected.next().is_some() {
++            return Some(Vec::new());
++        }
++        let Some(document) = self.slots.get(uri).and_then(|slot| self.docs.get(*slot)) else {
++            return Some(Vec::new());
++        };
++        let Some(context) = document.diagnostic_source.as_ref() else {
++            return Some(Vec::new());
++        };
++        if context.uses_original_names()
++            || context.image() != &image
++            || context.config() != config
++            || document.original_source_input.as_ref() != analysis.resolved_input.as_ref()
++        {
++            return Some(Vec::new());
++        }
++        let records = document
++            .original_procs
++            .iter()
++            .map(|record| (record.original_occurrence(), record.name(), false))
++            .chain(
++                document
++                    .original_classes
++                    .iter()
++                    .map(|record| (record.original_occurrence(), record.name(), true)),
++            );
++        let mut slots = Vec::new();
++        for (candidate, name, candidate_class) in records {
++            if candidate == occurrence
++                && candidate_class == class
++                && name.policy() == policy
++                && !slots.contains(name.slot())
++            {
++                slots.push(name.slot().clone());
++            }
++        }
++        let names = slots
++            .iter()
++            .filter_map(|slot| {
++                tcl_syntax::naming::native_command_source_spelling(policy.recipe(), slot)
++            })
++            .collect();
++        Some(names)
++    }
++
+     /// Retained document source/configuration for diagnostic dependency checks.
+     /// Missing context is unknown; report names cannot recreate it.
+     #[must_use]
+@@ -13672,6 +13745,59 @@
+     }
+ 
+     #[test]
++    fn logical_declaration_source_views_use_original_occurrences_and_current_input() {
++        let source = "proc helper {} {}; proc helper {} {}; proc ::fixed {} {}";
++        let standalone = Analyser::new().analyse(source, "tcl");
++        assert!(standalone.allows_retained_logical_declaration_advice());
++        assert_eq!(standalone.original_procedure_declarations().count(), 3);
++        let first = Analyser::new().analyse_with_source_namespace(source, "tcl", "::x");
++        let second = Analyser::new().analyse_with_source_namespace(source, "tcl", "::y");
++        let uri = "file:///source-views.tcl";
++        let mut index = WorkspaceIndex::from_documents([(uri, &first), (uri, &second)]);
++        for offset in [5, 24] {
++            assert_eq!(
++                index.logical_declaration_source_names_at(uri, source, &standalone, offset),
++                Some(vec!["::x::helper".to_owned(), "::y::helper".to_owned()])
++            );
++        }
++        assert_eq!(
++            index.logical_declaration_source_names_at(uri, source, &standalone, 44),
++            Some(vec!["::fixed".to_owned()])
++        );
++        assert_eq!(
++            index.logical_declaration_source_names_at("file:///other.tcl", source, &standalone, 5),
++            Some(Vec::new())
++        );
++        assert_eq!(
++            index.logical_declaration_source_names_at(
++                uri,
++                "proc helper {} {changed}",
++                &standalone,
++                5
++            ),
++            Some(Vec::new())
++        );
++        let native = Analyser::new().analyse(source, "tcl8.6");
++        assert_eq!(
++            index.logical_declaration_source_names_at(uri, source, &native, 5),
++            Some(Vec::new())
++        );
++        index.replace_document(
++            uri,
++            &Analyser::new().analyse("proc helper {} {changed}", "tcl"),
++        );
++        assert_eq!(
++            index.logical_declaration_source_names_at(uri, source, &standalone, 5),
++            Some(Vec::new())
++        );
++        index.remove_document(uri);
++        assert_eq!(
++            index.logical_declaration_source_names_at(uri, source, &standalone, 5),
++            Some(Vec::new())
++        );
++    }
++
++    #[test]
+     fn workspace_symbols_require_current_source_context_before_report_advice() {
+         // naming.editor.original-indexed-source-location
+         // docs/design/analysis/name-resolution-proofs/original-indexed-source-location.md
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -15705,41 +15705,13 @@
+             |sp: tcl_lexer::Span| (sp.start() as usize) <= offset && offset < (sp.end() as usize);
+         let offset_u32 = u32::try_from(offset).unwrap_or(u32::MAX);
+ 
+-        // A declaration in a *sourced* document resolves standalone to its
+-        // global-rooted name; the index holds one source-site re-homed twin
+-        // per seed, so map through the applied seeds to the full set.
+-        if let Some(proc_def) = analysis.all_procs.values().find(|p| covers(p.name_span)) {
+-            return self
+-                .seed_mapped_symbols(uri, proc_def.qualified_name.clone())
+-                .await;
+-        }
+-        if let Some(class_def) = analysis.all_classes.values().find(|c| covers(c.name_span)) {
+-            return self
+-                .seed_mapped_symbols(uri, class_def.qualified_name.clone())
+-                .await;
+-        }
+-        // A proc declared twice, verbatim, in the same document (plain
+-        // Tcl's own "last redefinition wins" semantics) — the cursor may
+-        // sit on the *shadowed* (non-winning) declaration's own name
+-        // token, which `all_procs` above can never match: it is a map
+-        // keyed by qualified name, so only the winner's span survives a
+-        // duplicate insert. `proc_declaration_sites` is the flat,
+-        // never-deduplicated companion recording every declaration site;
+-        // finding the cursor there still means "this token declares
+-        // qualified name X", so resolve through `all_procs` to whichever
+-        // definition currently wins for X — never the shadowed span
+-        // itself: a rename or find-references issued from the shadowed
+-        // declaration must reach the same cross-file callers as one issued
+-        // from the winning declaration or a call site, or a rename silently
+-        // corrupts the program by leaving callers bound to the dead
+-        // definition.
+-        if let Some((qualified, _)) = analysis
+-            .proc_declaration_sites
+-            .iter()
+-            .find(|(_, span)| covers(*span))
+-            && analysis.all_procs.contains_key(qualified)
++        if let Some(names) = self
++            .workspace_index
++            .read()
++            .await
++            .logical_declaration_source_names_at(uri.as_str(), source, analysis, offset_u32)
+         {
+-            return self.seed_mapped_symbols(uri, qualified.clone()).await;
++            return names;
+         }
+ 
+         let Some(inv) = analysis
+@@ -24320,49 +24292,6 @@
+         }
+     }
+ 
+-    /// Declaration side of source-site re-homing: a cursor on a definition
+-    /// inside a *sourced* document resolves, in that document's standalone
+-    /// analysis, to its global-rooted name — but the index holds one re-homed
+-    /// twin **per source-site namespace**.  One physical declaration is several
+-    /// runtime identities (`namespace eval ::x {source b.tcl}` +
+-    /// `namespace eval ::y {source b.tcl}` creates both `::x::helper`
+-    /// and `::y::helper` — tclsh 9.0.4), so the mapping returns the
+-    /// **full identity set**, never an arbitrary first seed: references union
+-    /// every view's call sites, and a rename
+-    /// of the one physical token is explicitly a multi-symbol edit.
+-    async fn seed_mapped_symbols(&self, uri: &Uri, qualified: String) -> Vec<String> {
+-        let seeds = self
+-            .rehomed_source_seeds
+-            .lock()
+-            .await
+-            .get(uri.as_str())
+-            .cloned()
+-            .unwrap_or_default();
+-        if seeds.is_empty() {
+-            return vec![qualified];
+-        }
+-        let index = self.workspace_index.read().await;
+-        let mut out: Vec<String> = Vec::new();
+-        for seed in &seeds {
+-            let mapped = if seed == "::" {
+-                // A standalone / global-sourced view exists alongside; the
+-                // plain name is one of the real identities.
+-                qualified.clone()
+-            } else {
+-                format!("{seed}{qualified}")
+-            };
+-            if index.workspace_command_exists(&mapped) && !out.contains(&mapped) {
+-                out.push(mapped);
+-            }
+-        }
+-        if out.is_empty() {
+-            // No seeded twin materialised (stale index edge): the plain
+-            // name is still the best identity.
+-            out.push(qualified);
+-        }
+-        out
+-    }
+-
+     /// Wait (bounded) for the workspace index to reflect a completed folder
+     /// scan before answering a workspace-wide query.
+     ///

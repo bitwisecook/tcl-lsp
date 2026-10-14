@@ -33,10 +33,8 @@
 //! 3. **Which frame does the effect land in?**  The one the level word
 //!    selects, the current one, or the command's own caller's.
 //!
-//! Answering them by matching command names in the consumer is exactly the
-//! duplication the registry exists to prevent — three copies of the level
-//! rule had already drifted apart before this descriptor existed, two of
-//! them wrong (see [`FrameLevelWord::ArityParity`]).
+//! Consumers select these rules through the Registry descriptor rather than
+//! matching command names. See [`FrameLevelWord::ArityParity`].
 //!
 //! # C Tcl provenance
 //!
@@ -62,10 +60,8 @@
 //! difference in the release's numeral grammar: 8.6 and 9.0 select *different
 //! frames* for `010` (8 up vs 10 up), and one errors where the other succeeds
 //! for `08`, `0d1` and `1_0`.  See [`FrameLevel::parse_for`] for the pinned
-//! matrix.  A small sample can hide this: a 20-spelling matrix that
-//! happens to contain no divergent spelling, plus a call chain too shallow
-//! to distinguish a parse failure from an out-of-range level (C reports
-//! `bad level` for both), can look invariant when it is not.
+//! matrix. A deep call chain distinguishes parsing errors from levels past
+//! the stack: C reports `bad level` for both.
 //!
 //! For the presence rule's two divergent classes and their transcripts, see
 //! [`FrameLevelWord::LeadingProbe`].
@@ -221,9 +217,8 @@ impl FrameLevel {
     /// only `-0` survives its sign. The `#` must be the word's first byte — a
     /// space before it is a `bad level`, though a space *after* it is fine.
     ///
-    /// This grammar is *not* version-invariant, contrary to what this module
-    /// claimed before: 8.6 and 9.0 select **different frames** for the same
-    /// word, and for some spellings one errors where the other succeeds.
+    /// Tcl 8.6 and 9.0 can select different frames for the same word; some
+    /// spellings error in one release and succeed in the other.
     /// Pinned on tclsh 8.6.16 and 9.0.4 (`level_value_matrix_diverges_by_release`):
     ///
     /// | word  | 8.6           | 9.0         | why |
@@ -234,10 +229,6 @@ impl FrameLevel {
     /// | `1_0` | `bad level`   | 10 frames up | `_` separators are 9.0+ |
     /// | `007` | 7 frames up   | 7 frames up  | octal 7 and decimal 7 coincide |
     /// | `0x1`, `0o1` | caller | caller       | prefix in both |
-    ///
-    /// The earlier "version-invariant" claim came from a matrix that contained
-    /// no divergent spelling, measured against a call chain too shallow to tell
-    /// a parse failure from an out-of-range level — both report `bad level`.
     ///
     /// With `version` `None`, a word every release reads the same way resolves
     /// normally and a word they disagree about yields [`Self::Dynamic`]: the
@@ -1092,17 +1083,12 @@ mod tests {
         }
     }
 
-    /// The level value is read by `Tcl_GetIntFromObj`, so it inherits every
-    /// version difference in the numeral grammar — the module's former
-    /// "version-invariant" claim was wrong.
+    /// Level values inherit the selected release's numeral grammar.
     ///
     /// Pinned on tclsh 8.6.16 and 9.0.4 against a **16-deep** call chain. The
     /// depth matters: C reports `bad level` both for a word it cannot parse and
     /// for a level past the top of the stack, so a chain shallow enough for a
-    /// divergent value to be out of range hides the difference. That is how the
-    /// original 9-deep matrix concluded invariance — at depth 9, `1_0` is level
-    /// 10 on 9.0, out of range, reported as `bad level` exactly as 8.6's parse
-    /// failure is.
+    /// divergent value to be out of range hides the difference.
     ///
     /// ```text
     /// # 16 frames deep, so 8 and 10 are both in range:
