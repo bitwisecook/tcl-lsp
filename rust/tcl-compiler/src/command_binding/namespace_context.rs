@@ -87,6 +87,21 @@ impl SourceNamespaceKey {
         }
     }
 
+    /// Namespace geometry for a source artifact. Authored rooted coordinates
+    /// remain distinct from an actual native namespace incarnation.
+    #[must_use]
+    pub fn source_artifact_path(&self) -> Option<ByteNamespacePath> {
+        match self {
+            Self::Authored(coordinate) => {
+                let unrooted = tcl_syntax::naming::unroot_rooted_key(coordinate)?;
+                Some(ByteNamespacePath::from_segments(
+                    tcl_syntax::naming::key_segments(unrooted),
+                ))
+            }
+            _ => self.exact_native_path().cloned(),
+        }
+    }
+
     /// Actual retained native context, excluding source-created allocations.
     #[must_use]
     pub fn native_context(&self) -> Option<&NativeNamespaceContext> {

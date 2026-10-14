@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "6c110200c183f69c4abc285cca406573cc90ed6aa99845f4f7dec7073fe17503",
+    "source-after.json.gz": "6576c4225899d30f309a07f12a6c375dab6a6da48b42bc167a99a7c3532fb624",
+    "build.log": "c78c9a455565101789aa1df1c5b0cabc9aed137fde5df876335e05175626c7ff",
+    "start.json": "c4f0647c9bff9e7d6e18ac942f45201f0bf7cd65be01cc1e01ecf2eab2be8484",
+    "source-before.json.gz": "59cc4623c128204929b8d1de5fede84b3fe5348024bff171fb1a0ceb6f2f1a00"
+  },
+  "scope": "Actual xtask binary build failure: three current syn API mismatches; zero selectors executed; source subset drift zero."
+}

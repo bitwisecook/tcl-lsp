@@ -296,7 +296,7 @@ impl Lowerer<'_> {
                         .authored_source_command_publication()
                         .map(|name| name.argument)
                 })?;
-            let name_idx = name_arg.checked_add(1)?;
+            let name_idx = invocation.written_argument(name_arg)?.checked_add(1)?;
             (name_idx < tokens.argv.len()).then_some(DefinerCall {
                 definition_scope: None,
                 descriptor: selected.descriptor_key(),
@@ -5638,34 +5638,47 @@ impl<'r> Lowerer<'r> {
             ..call
         };
         let texts = &definer.argv_texts;
-        let target = texts[call.name_idx].as_str();
         let body_text = texts[call.body_idx].as_str();
-        let class_qname = if call.per_object {
-            // An `oo::objdefine` receiver is usually a substitution
-            // (`oo::objdefine $obj { … }`) — that is the common shape and
-            // the whole point, so it is NOT skipped as a dynamic name.  The per-object members home under
-            // a synthetic, unrepresentable class name keyed by the
-            // receiver's written tail (mirroring the analyser's
-            // `::@objdefine@::…` keying), so they never collide with a real
-            // class or pollute its instance-variable union.
-            let tail = target.trim().trim_start_matches('$');
-            let tail = tail.trim_matches(|c| c == '{' || c == '}');
-            if tail.is_empty() || tail.contains('[') {
-                self.module.oo_evidence.unretained_executable_roots = true;
-                return;
+        let target = definer
+            .words()
+            .first()
+            .and_then(|head| head.original_written_span(self.module.source.bytes()))
+            .and_then(|span| {
+                crate::registry_invocation::original_native_compiler_words(
+                    &self.module.source,
+                    definer.words(),
+                    span.start(),
+                    self.config,
+                )
+            })
+            .and_then(|words| {
+                words
+                    .get(call.name_idx)
+                    .and_then(crate::registry_invocation::original_source_receiver_name_operand)
+            })
+            .filter(|target| match target {
+                crate::registry_invocation::SourceReceiverNameOperand::Literal(name)
+                | crate::registry_invocation::SourceReceiverNameOperand::ScalarVariable(name) => {
+                    !name.as_bytes().contains(&0)
+                }
+            });
+        let class_qname = match (call.per_object, target) {
+            // This label reports per-object source units; definition IDs own their scope.
+            (
+                true,
+                Some(
+                    crate::registry_invocation::SourceReceiverNameOperand::Literal(name)
+                    | crate::registry_invocation::SourceReceiverNameOperand::ScalarVariable(name),
+                ),
+            ) => format!("::@objdefine@::{name}"),
+            (false, Some(crate::registry_invocation::SourceReceiverNameOperand::Literal(name))) => {
+                qualify_proc_name(namespace, &name)
             }
-            format!("::@objdefine@::{tail}")
-        } else {
-            // Dynamic class names can't be resolved statically — and the
-            // block may (re)define methods on ANY class, so whole-module OO
-            // evidence is incomplete: the propagation barrier and method
-            // purity must widen rather than trust the bodies they can see.
-            if target.contains('$') || target.contains('[') {
+            _ => {
                 self.module.oo_evidence.dynamic_target = true;
                 self.module.oo_evidence.unretained_executable_roots = true;
                 return;
             }
-            qualify_proc_name(namespace, target)
         };
         let Some(segments) = self.segment_source(
             body_text,
@@ -11959,5 +11972,56 @@ mod original_script_purpose_tests {
                 .invocation_site()
                 .is_none()
         );
+    }
+    #[test]
+    fn original_definer_targets_keep_literal_data_distinct_from_scalar_references() {
+        for (target, expected) in [
+            ("{$obj}", "::@objdefine@::$obj"),
+            ("$obj", "::@objdefine@::obj"),
+            ("${two words}", "::@objdefine@::two words"),
+            ("{two words}", "::@objdefine@::two words"),
+            ("{}", "::@objdefine@::"),
+            ("{[obj]}", "::@objdefine@::[obj]"),
+        ] {
+            let source = format!("oo::objdefine {target} {{method m {{}} {{return VALUE}}}}");
+            let analysis = crate::analyser::Analyser::new().analyse(&source, "tcl");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let module = lower_to_ir_with(
+                Lowerer::with_config(
+                    input.borrowed_context_registry().commands(),
+                    input.lexer_config(),
+                )
+                .with_resolved_analysis_input(input.clone()),
+                &source,
+            );
+            let method = module
+                .methods
+                .values()
+                .find(|method| method.method_name == "m")
+                .expect("actual conditional original definition body");
+            assert_eq!(method.class_name, expected);
+            assert!(method.definition_scope.is_some());
+        }
+        for target in [
+            "$obj(key)",
+            "${obj(key)}",
+            "[pick]",
+            "x$obj",
+            "{nul\0receiver}",
+        ] {
+            let source = format!("oo::objdefine {target} {{method m {{}} {{return VALUE}}}}");
+            let analysis = crate::analyser::Analyser::new().analyse(&source, "tcl");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let module = lower_to_ir_with(
+                Lowerer::with_config(
+                    input.borrowed_context_registry().commands(),
+                    input.lexer_config(),
+                )
+                .with_resolved_analysis_input(input.clone()),
+                &source,
+            );
+            assert!(module.methods.is_empty());
+            assert!(module.oo_evidence.unretained_executable_roots);
+        }
     }
 }

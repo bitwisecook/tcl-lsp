@@ -24,9 +24,11 @@
 use crate::ir::CommandTokens;
 #[cfg(test)]
 use crate::var_escape::helpers::is_name_first_command;
+#[cfg(test)]
 use crate::var_escape::helpers::{is_dynamic_token, is_dynamic_upvar_level};
 use crate::var_escape::state::EscapeState;
 use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
+#[cfg(test)]
 use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
@@ -251,6 +253,7 @@ fn transfer_introspection(
 /// rules: escape every local-side var, record caller-frame
 /// source names when the level targets a caller, mark
 /// pessimistic on a dynamic level.
+#[cfg(test)]
 pub fn handle_upvar(args: &[String], state: &mut EscapeState) {
     if args.is_empty() {
         return;

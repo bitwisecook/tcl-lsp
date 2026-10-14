@@ -394,7 +394,14 @@ fn codegen_procedures(
     let mut functions = HashMap::new();
     let mut provenance = HashMap::new();
     for (qname, cfg_func) in &cfg_module.procedures {
-        let ir_proc = ir_module.procedures.get(qname);
+        let Some(procedure) = ir_module
+            .procedures
+            .get(qname)
+            .filter(|_| ir_module.procedure_ids.owns(*qname))
+        else {
+            continue;
+        };
+        let ir_proc = Some(procedure);
         // Skip procs defined inside namespace eval — tclsh compiles
         // them lazily at runtime, not at compile time.
         if let Some(p) = ir_proc
@@ -420,19 +427,11 @@ fn codegen_procedures(
         });
         let namespace_context =
             ir_proc.and_then(|procedure| procedure.body.namespace_context.as_deref());
-        let procedure_namespace = namespace_context
-            .and_then(crate::command_binding::SourceNamespaceKey::exact_native_path)
-            .cloned()
-            .unwrap_or_else(|| {
-                let authored = namespace_context.and_then(|context| match context {
-                    crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
-                        Some(namespace.as_str())
-                    }
-                    _ => None,
-                });
-                let legacy = || tcl_syntax::naming::key_holder_and_tail(&cfg_func.name).0;
-                super::namespace_path_from_constructed_key(authored.unwrap_or_else(legacy))
-            });
+        let Some(procedure_namespace) = namespace_context
+            .and_then(crate::command_binding::SourceNamespaceKey::source_artifact_path)
+        else {
+            continue;
+        };
         let mut asm = codegen_function_src(
             cfg_func,
             &params,
@@ -801,6 +800,51 @@ mod tests {
                 .expect("tk has a core")
                 .grammar(),
             "the name resolves to the environment's point"
+        );
+    }
+    #[test]
+    fn unavailable_procedure_namespace_keeps_the_original_declaration_call() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let source = "proc p {} {return VALUE}";
+        let mut ir = crate::lowering::lower_to_ir(source, &registry);
+        let id = fixture_id(&ir.procedures, "::p");
+        let tokens = ir
+            .top_level
+            .statements
+            .iter()
+            .find_map(|statement| match statement {
+                crate::ir::Statement::Call { tokens, .. } => tokens.as_ref(),
+                _ => None,
+            })
+            .expect("actual original declaration call");
+        assert_eq!(tokens.words().len(), 4);
+        let written: Vec<_> = tokens
+            .words()
+            .iter()
+            .map(|word| {
+                let span = word.original_written_span(ir.source.bytes()).unwrap();
+                ir.source.bytes()[span.as_range()].to_vec()
+            })
+            .collect();
+        assert_eq!(
+            written,
+            [
+                b"proc".to_vec(),
+                b"p".to_vec(),
+                b"{}".to_vec(),
+                b"{return VALUE}".to_vec()
+            ]
+        );
+        ir.procedures.get_mut(&id).unwrap().body.namespace_context = None;
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
+        let asm = super::codegen_module(&cfg, &ir, &registry);
+        assert!(!asm.procedures.contains_key(&id));
+        assert!(!asm.procedure_provenance.contains_key(&id));
+        assert!(
+            asm.top_level
+                .instructions
+                .iter()
+                .any(|instruction| instruction.source_cmd_text.bytes() == source.as_bytes())
         );
     }
 }

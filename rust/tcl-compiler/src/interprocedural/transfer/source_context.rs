@@ -124,7 +124,7 @@ impl<'a> SourceSummaryContext<'a> {
             .module
             .retained_source_bindings
             .as_ref()?
-            .matches_original_procedure(procedure))
+            .matches_original_procedure_summary(*id, procedure))
         .then_some(procedure)
     }
 

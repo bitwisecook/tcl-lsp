@@ -332,6 +332,7 @@ pub(crate) fn statement_needs_original_substitution_inventory(statement: &Statem
 /// Applies the same "starts with `$` or `[`" filter used throughout
 /// the memory-SSA alias detectors.
 #[must_use]
+#[cfg(test)]
 pub fn is_literal_name(arg: &str) -> bool {
     if arg.is_empty() {
         return false;
@@ -339,28 +340,17 @@ pub fn is_literal_name(arg: &str) -> bool {
     !arg.starts_with('$') && !arg.starts_with('[')
 }
 
-/// True if *arg* contains a runtime substitution.
+/// Conservative marker scan of an unattributed source presentation.
+/// Original words retain their own kind and selected source owner.
 #[must_use]
 pub fn is_dynamic_token(arg: &str) -> bool {
-    arg.starts_with('$') || arg.starts_with('[') || arg.contains('$') || arg.contains('[')
+    tcl_syntax::naming::is_dynamic_word(arg)
 }
 
-/// True if *head* is the level argument of `upvar` and is
-/// potentially dynamic at runtime.
-///
-/// Any non-literal head shape —
-/// `$var`, `[cmd]`, double-quoted `"..."` containing `$` or `[`, or
-/// `#`-absolute forms with embedded substitution like `"#${n}"` /
-/// `"#[expr ...]"` — must trigger the pessimistic-spill path.
-/// Recognising only `$var` let `upvar [expr {$n}] ...` /
-/// `upvar "#${n}" ...` / `upvar $::ns::level ...` callsites bypass
-/// the pessimism, leaving caller-side mirrors stale after an alias
-/// write through the dynamic level.
-///
-/// The caller is expected to invoke this only when the registry's
-/// `FrameLevelWord::ArityParity` layout says a level word is present; this
-/// helper only classifies the dynamic shape.
+/// Dynamic-level presentation policy for independent compatibility fixtures.
+/// Actual invocations use the selected alias and frame-level owners.
 #[must_use]
+#[cfg(test)]
 pub fn is_dynamic_upvar_level(head: &str) -> bool {
     head.starts_with('$')
         || head.starts_with('[')
@@ -368,12 +358,8 @@ pub fn is_dynamic_upvar_level(head: &str) -> bool {
         || (head.starts_with('#') && (head.contains('$') || head.contains('[')))
 }
 
-/// True if *name* is an empty or interpolated variable name.
-///
-/// Lowering preserves dynamic names as e.g. `${user_var}` literal
-/// text in the `name` field of `Statement::AssignValue` / `Incr`.
-/// Treat both the empty-name form and any substituted form as
-/// dynamic.
+/// An unattributed name presentation that cannot close a scalar target.
+/// Literal empty and sigil names require their independent operand owner.
 #[must_use]
 pub fn is_dynamic_name(name: &str) -> bool {
     if name.is_empty() {
@@ -382,26 +368,17 @@ pub fn is_dynamic_name(name: &str) -> bool {
     is_dynamic_token(name)
 }
 
-/// True if *cmd* is in the audited frameless-runtime allow-list
-/// (the registry's [`Traits::FRAMELESS_RUNTIME`] commands).
-///
-/// Built from `build_default()`, so this answers for plain Tcl whatever
-/// dialect the caller is analysing. Any caller holding the unit's registry
-/// should use [`is_frameless_runtime_command_in`] instead: the trait is
-/// carried by `lassign`, `lrepeat`, `lreverse`, `namespace`, `puts` and
-/// `throw` under `tcl8.6` and by none of them under `f5-irules`.
+/// Independent compatibility fixture roster; no original handler or frame proof.
 #[must_use]
 #[cfg(test)]
 pub fn is_frameless_runtime_command(cmd: &str) -> bool {
     frameless_runtime_set().contains(cmd)
 }
 
-/// Registry-aware form of [`is_frameless_runtime_command`].
-///
-/// A command the registry does not know is *not* frameless — the same
-/// conservative answer the allow-list gives for a name outside it, so an
-/// unrecognised head still records a fallback rather than being waved past.
+/// Catalogue metadata classification for independent compatibility fixtures.
+/// Production eligibility requires the retained original Normal handler.
 #[must_use]
+#[cfg(test)]
 pub fn is_frameless_runtime_command_in(cmd: &str, registry: &CommandRegistry) -> bool {
     registry.get(cmd).is_some_and(|spec| {
         registry

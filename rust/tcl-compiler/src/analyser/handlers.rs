@@ -6601,25 +6601,18 @@ impl Analyser {
         else {
             return (None, None);
         };
-        if let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(&word) {
-            if self.selected_logical_declaration_advice() && value.contains(&0) {
-                return (None, None);
+        let operand = crate::registry_invocation::original_source_receiver_name_operand(&word);
+        let written = match operand {
+            Some(crate::registry_invocation::SourceReceiverNameOperand::Literal(value)) => {
+                if self.selected_logical_declaration_advice() && value.as_bytes().contains(&0) {
+                    return (None, None);
+                }
+                return (Some(value), None);
             }
-            return (String::from_utf8(value).ok(), None);
-        }
-        let arena = word.executable_parts();
-        let [part] = arena.list(arena.root()) else {
-            return (None, None);
-        };
-        let tcl_lexer::ExecutablePart::Variable { name, index: None } = part.part else {
-            return (None, None);
-        };
-        let Some(written) = arena
-            .bytes(name)
-            .and_then(|bytes| std::str::from_utf8(bytes).ok())
-            .map(str::to_owned)
-        else {
-            return (None, None);
+            Some(crate::registry_invocation::SourceReceiverNameOperand::ScalarVariable(name)) => {
+                name
+            }
+            None => return (None, None),
         };
         if self.selected_logical_declaration_advice() && written.as_bytes().contains(&0) {
             return (None, None);

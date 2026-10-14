@@ -40,6 +40,10 @@ pub(crate) use source_scoped_body::original_written_script_body_span;
 mod authored_source_bodies;
 pub use authored_source_bodies::OriginalAuthoredProcedureBody;
 pub(crate) use authored_source_bodies::original_authored_procedure_body;
+mod source_receiver_names;
+pub(crate) use source_receiver_names::{
+    SourceReceiverNameOperand, original_source_receiver_name_operand,
+};
 mod source_name_roles;
 pub(crate) use source_name_roles::{
     OriginalVariableNameOperand, SourceNameRoleInventory, original_assignment_name_operand,
@@ -306,6 +310,10 @@ impl LogicalStructuredInvocation {
 
     pub(crate) fn lowering_hook(&self) -> Option<tcl_registry::hooks::LoweringHookId> {
         self.invocation.facts.lowering_hook
+    }
+
+    pub(crate) fn written_argument(&self, effective: usize) -> Option<usize> {
+        self.invocation.effective.written_argument(effective)
     }
 
     pub(crate) fn written_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {

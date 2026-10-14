@@ -4478,13 +4478,7 @@ impl CompilationUnit {
         self.function_for_body(Some(*id))
     }
 
-    /// Iterate over every function unit in the module: the top-level unit
-    /// first, then procedures **in qualified-name order**.
-    ///
-    /// The procedure store is a `HashMap`, whose iteration order is not
-    /// stable across runs; sorting here gives every consumer
-    /// (taint/gvn/shimmer/callouts/stats…) a deterministic function order,
-    /// so the per-function diagnostics they emit are reproducible.
+    /// Top-level first, followed by primary procedures ordered by reporting name.
     pub fn functions(&self) -> impl Iterator<Item = &FunctionUnit> {
         let mut procs: Vec<&FunctionUnit> = self.procedures.values().collect();
         procs.sort_by(|a, b| a.name.cmp(&b.name));
@@ -4702,25 +4696,13 @@ impl CompilationUnit {
         ))
     }
 
-    /// Like [`Self::functions`] but skips the functions the complexity guard
-    /// excluded from deep analysis (oversized bodies). Per-proc diagnostic and
-    /// optimiser passes iterate this so a guarded body — whose `ssa` and
-    /// dataflow lattices are trivial — contributes no findings and costs no
-    /// CFG walk. The relative order of the remaining functions is unchanged.
+    /// Top-level and primary procedure units that permit deep analysis.
     pub fn analysable_functions(&self) -> impl Iterator<Item = &FunctionUnit> {
         self.functions().filter(|fu| !fu.complexity_guarded)
     }
 
-    /// Iterate every *body-bearing* function unit whose body is statically
-    /// analysable: the top-level, every procedure, every `TclOO` method, **and**
-    /// every synthetic body unit (`apply` lambda / `namespace eval` body).
-    ///
-    /// This is the coverage-complete iterator for analyses that must reach
-    /// *inside* every statically-known frame (e.g. regex-source tracking),
-    /// unlike [`Self::functions`] which — for backwards compatibility with the
-    /// per-proc diagnostic passes — yields only top-level + procedures. Order:
-    /// top-level, procedures (name-sorted), then methods and body units
-    /// (name-sorted) for reproducibility.
+    /// Top-level first, then primary procedures, then methods and additional
+    /// bodies together. Each following group is ordered by reporting name.
     pub fn all_body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
         let mut extra: Vec<&FunctionUnit> = self
             .methods
@@ -4731,51 +4713,21 @@ impl CompilationUnit {
         self.functions().chain(extra)
     }
 
-    /// Like [`Self::all_body_function_units`] but skips complexity-guarded
-    /// bodies — the coverage-complete counterpart to
-    /// [`Self::analysable_functions`].
-    ///
-    /// `compiler_checks::run_all_checks` (SCCP / GVN / shimmer / taint) used
-    /// to iterate [`Self::analysable_functions`], which — per that method's
-    /// "backwards compatibility" note — never reached `TclOO` method bodies
-    /// or synthetic `apply`/`namespace eval` body units: a tainted value
-    /// flowing into `puts` (or any other sink) *inside a method* produced no
-    /// diagnostic at all, even though the optimiser's whole-module pass
-    /// already iterates `cu.methods` directly (`optimiser::manager`) and
-    /// `all_body_function_units` already exists for other coverage-complete
-    /// analyses (regex-source tracking). This is the drop-in replacement
-    /// that closes that gap without reintroducing a guarded body (whose
-    /// trivial lattices would contribute noise, not findings) — see
-    /// `compiler_checks::push_taint_and_module_checks`.
+    /// All retained function units that permit deep analysis.
     pub fn analysable_body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
         self.all_body_function_units()
             .filter(|fu| !fu.complexity_guarded)
     }
 
-    /// The synthetic body units (`apply` / `namespace eval`) alone, name-sorted.
+    /// Additional retained body units, ordered by reporting name.
     pub fn body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
         let mut v: Vec<&FunctionUnit> = self.body_units.values().collect();
         v.sort_by(|a, b| a.name.cmp(&b.name));
         v.into_iter()
     }
 
-    /// Every `TclOO` method and synthetic body unit (`apply` lambda,
-    /// `namespace eval` body) that isn't complexity-guarded — the extra half
-    /// of [`Self::all_body_function_units`] beyond [`Self::analysable_functions`]
-    /// (top-level + procedures), name-sorted for reproducibility.
-    ///
-    /// Exists for a pass that already reaches top-level + procedures through
-    /// [`Self::analysable_functions`] elsewhere and wants *only* these two
-    /// extra function kinds added, without double-visiting top-level or a
-    /// procedure or double-counting a diagnostic. Used by
-    /// `tcl-lsp-db::proc_taint_solve`'s `function_nontaint_checks` top-up loop:
-    /// that memoised query's main per-function loop still iterates
-    /// [`Self::analysable_functions`] (proc-only), unlike
-    /// `compiler_checks::run_all_checks_with_solved_and_patterns`'s direct
-    /// path, which iterates the wider [`Self::all_body_function_units`]
-    /// (filtered) and so needs no separate top-up — adding this iterator's
-    /// output there too would re-run `function_nontaint_checks` a second time
-    /// over the methods/body units the direct path already covers.
+    /// Methods and additional retained bodies that permit deep analysis,
+    /// ordered by reporting name.
     pub fn analysable_methods_and_body_units(&self) -> impl Iterator<Item = &FunctionUnit> {
         let mut v: Vec<&FunctionUnit> = self
             .methods

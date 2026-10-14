@@ -275,8 +275,8 @@ impl super::SourceInvocationBinding {
             {
                 return None;
             }
-            let (_, procedure) = module.source_procedure_for_allocation(allocation)?;
-            if !retained.matches_original_procedure(procedure)
+            let (id, procedure) = module.source_procedure_for_allocation(allocation)?;
+            if !retained.matches_original_procedure_summary(id, procedure)
                 || procedure.span.start() != allocation.site.offset
             {
                 return None;

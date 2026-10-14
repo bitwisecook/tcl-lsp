@@ -285,6 +285,20 @@ impl SourceStructuredInvocation {
             Self::Hosted(selected) | Self::NativeSource(selected) => Some(selected.hook),
         }
     }
+    /// Original whole written argument for an effective source operand.
+    pub(crate) fn written_argument(&self, effective: usize) -> Option<usize> {
+        match self {
+            Self::Logical(selected) => selected.written_argument(effective),
+            Self::Hosted(selected) | Self::NativeSource(selected) => {
+                match selected.words.origins().get(effective.checked_add(1)?)? {
+                    super::InvocationWordOrigin::Written(written) => written.checked_sub(1),
+                    _ => None,
+                }
+            }
+            Self::Authored(_) => None,
+        }
+    }
+
     pub(crate) fn written_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {
         match self {
             Self::Logical(selected) => selected.written_roles(),
