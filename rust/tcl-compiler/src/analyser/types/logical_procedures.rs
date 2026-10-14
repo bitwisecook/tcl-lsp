@@ -86,6 +86,18 @@ impl LogicalSourceProcedureDeclaration {
         tcl_syntax::word_rules::lexical_ascii_source_word(&value, config)
     }
 
+    /// Current original body geometry for source readers. This does not
+    /// authorise evaluation or editing of the body.
+    #[must_use]
+    pub fn original_body_word(
+        &self,
+        image: &SourceImage,
+        input: &ResolvedAnalysisInput,
+    ) -> Option<&tcl_lexer::NativeWord> {
+        self.matches_source(image, input).then_some(())?;
+        Some(self.body.scope().scope_body().original_container())
+    }
+
     /// Original declared metadata for presentation, never invocation admission.
     #[must_use]
     pub fn metadata(&self) -> &ProcDef {
@@ -143,6 +155,37 @@ impl AnalysisResult {
 mod tests {
     use super::*;
     use crate::analyser::Analyser;
+
+    #[test]
+    fn logical_procedure_body_geometry_keeps_actual_input_and_original_word() {
+        let source = "proc helper {value} {puts \"literal \\} ${value}\"}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let procedure = &analysis.all_procs["::helper"];
+        let declaration = analysis
+            .logical_source_procedure_declaration(procedure)
+            .unwrap();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = SourceImage::document(source);
+        let word = declaration.original_body_word(&image, input).unwrap();
+        assert_eq!(
+            source.get(word.content_span().unwrap().as_range()),
+            Some("puts \"literal \\} ${value}\"")
+        );
+        assert!(
+            declaration
+                .original_body_word(&SourceImage::document("changed"), input)
+                .is_none()
+        );
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let different = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        assert!(declaration.original_body_word(&image, &different).is_none());
+    }
 
     #[test]
     fn logical_procedure_insertions_keep_original_namespace_and_current_header() {

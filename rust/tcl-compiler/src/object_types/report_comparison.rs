@@ -211,15 +211,27 @@ impl ObjectHandleFacts {
             return;
         };
         let module = &unit.ir_module;
-        if !analysis.allows_retained_logical_declaration_advice()
-            || !input.has_logical_source_name_context()
+        let logical = input.has_logical_source_name_context();
+        // Unreached versioned source has original coordinates independently
+        // of Native dispatch. This record is used only for report comparison.
+        let versioned_source = !input.has_hosted_source_name_context()
+            && [input.analyser_profile(), input.unit_profile()]
+                .into_iter()
+                .all(|profile| {
+                    tcl_registry::InvocationDialect::of_profile(profile)
+                        .native_name_protocol()
+                        .is_some()
+                });
+        if (!logical && !versioned_source)
+            || (logical && !analysis.allows_retained_logical_declaration_advice())
             || !realm.matches_resolved_analysis_input(input)
             || image != &module.source
             || image.try_text().ok() != Some(unit.source.as_str())
             || module.source_metadata_input.as_ref() != Some(input)
             || module.native_lexer_config() != input.lexer_config()
             || module.source_entry.native_entry.is_some()
-            || module.source_entry.unknown_entry
+            || (module.source_entry.unknown_entry && !versioned_source)
+            || module.source_entry.metadata_context.source_analysis_input() != Some(input)
             || module
                 .retained_source_bindings
                 .as_ref()
@@ -368,17 +380,18 @@ mod tests {
     #[test]
     fn independent_logical_reports_match_original_coordinates_without_equal_runtime_owners() {
         let source = "oo::class create C {variable {$literal}; method m {} {return VALUE}; method n {} {return OTHER}}";
-        let a = Analyser::new().analyse(source, "tcl8.6");
-        let b = Analyser::new().analyse(source, "tcl8.6");
+        let a = Analyser::new().analyse(source, tcl_dialect::DialectProfile::plain_tcl().name);
+        let b = Analyser::new().analyse(source, tcl_dialect::DialectProfile::plain_tcl().name);
         assert!(a.object_handle_facts.report_source.is_some());
         assert!(b.object_handle_facts.report_source.is_some());
         assert_ne!(a.object_handle_facts, b.object_handle_facts);
         assert!(a == b);
-        let incremental = Analyser::new().analyse_per_item(source, "tcl8.6");
+        let incremental =
+            Analyser::new().analyse_per_item(source, tcl_dialect::DialectProfile::plain_tcl().name);
         assert!(incremental == a);
 
         let changed = Analyser::new().analyse(
-            "oo::class create C {variable {$literal}; method m {} {return DIFFERENT}; method n {} {return OTHER}}", "tcl8.6");
+            "oo::class create C {variable {$literal}; method m {} {return DIFFERENT}; method n {} {return OTHER}}", tcl_dialect::DialectProfile::plain_tcl().name);
         assert!(changed != a);
         let mut donated = b.clone();
         donated.object_handle_facts = a.object_handle_facts.clone();
@@ -393,8 +406,8 @@ mod tests {
     #[test]
     fn report_coordinate_mapping_refuses_missing_duplicate_and_changed_body_owners() {
         let source = "oo::class create C {method m {} {return VALUE}; method n {} {return OTHER}}";
-        let a = Analyser::new().analyse(source, "tcl8.6");
-        let b = Analyser::new().analyse(source, "tcl8.6");
+        let a = Analyser::new().analyse(source, tcl_dialect::DialectProfile::plain_tcl().name);
+        let b = Analyser::new().analyse(source, tcl_dialect::DialectProfile::plain_tcl().name);
         assert!(a == b);
         let mut missing = b.clone();
         let owner =
@@ -426,5 +439,29 @@ mod tests {
         assert!(changed_facts != a);
         assert!(changed_facts == changed_facts.clone());
         assert!(a != changed_facts);
+    }
+
+    #[test]
+    fn versioned_source_reports_compare_coordinates_without_logical_or_native_admission() {
+        let source = "oo::class create C {method m {} {return VALUE}}";
+        let a = Analyser::new().analyse(source, "tcl8.6");
+        let b = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            !a.resolved_input
+                .as_ref()
+                .unwrap()
+                .has_logical_source_name_context()
+        );
+        assert!(!a.allows_retained_logical_declaration_advice());
+        assert!(a.object_handle_facts.logical_source_candidates.is_none());
+        assert!(a.object_handle_facts.report_source.is_some());
+        assert!(b.object_handle_facts.report_source.is_some());
+        assert_ne!(a.object_handle_facts, b.object_handle_facts);
+        assert!(a == b);
+        assert!(b == a);
+        let mut copied = b.clone();
+        copied.object_handle_facts = a.object_handle_facts.clone();
+        assert!(copied == a && copied == b);
+        assert!(a == a.clone() && copied == copied.clone());
     }
 }

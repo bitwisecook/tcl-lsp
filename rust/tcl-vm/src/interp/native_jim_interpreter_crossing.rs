@@ -350,7 +350,7 @@ mod tests {
         let parent = vm.cur_interp();
         let original = {
             let _scope = NativeOperationScope::enter(&mut vm).unwrap();
-            Value::new_native_string_bytes(b"A\0\xc3\xa9")
+            Value::new_native_string_bytes(b"A\0\xc3\xa9".as_slice())
         };
         let parent_context = vm.native_jim_object_context().unwrap();
         original
@@ -438,7 +438,7 @@ mod tests {
         let parent = vm.cur_interp();
         let original = {
             let _scope = NativeOperationScope::enter(&mut vm).unwrap();
-            Value::new_native_string_bytes(b"set")
+            Value::new_native_string_bytes(b"set".as_slice())
         };
         let count = original.native_object_reference_count();
         let (prefix, words) = vm
@@ -466,15 +466,15 @@ mod tests {
             vm.capture_original_jim_parent_alias_prefix(
                 parent,
                 vec![
-                    Value::new_native_string_bytes(b"set"),
-                    Value::new_native_string_bytes(b"::saved"),
+                    Value::new_native_string_bytes(b"set".as_slice()),
+                    Value::new_native_string_bytes(b"::saved".as_slice()),
                 ],
             )
             .unwrap()
         };
         vm.in_interp(child, |vm| {
             let _scope = NativeOperationScope::enter(vm).unwrap();
-            let argument = Value::new_native_string_bytes(b"A\0B");
+            let argument = Value::new_native_string_bytes(b"A\0B".as_slice());
             let count = argument.native_object_reference_count();
             let completion = vm.invoke_original_jim_parent_alias(
                 parent,
@@ -498,16 +498,16 @@ mod tests {
             vm.capture_original_jim_parent_alias_prefix(
                 parent,
                 vec![
-                    Value::new_native_string_bytes(b"return"),
-                    Value::new_native_string_bytes(b"-code"),
-                    Value::new_native_string_bytes(b"7"),
+                    Value::new_native_string_bytes(b"return".as_slice()),
+                    Value::new_native_string_bytes(b"-code".as_slice()),
+                    Value::new_native_string_bytes(b"7".as_slice()),
                 ],
             )
             .unwrap()
         };
         vm.in_interp(child, |vm| {
             let _scope = NativeOperationScope::enter(vm).unwrap();
-            let argument = Value::new_native_string_bytes(b"PAYLOAD");
+            let argument = Value::new_native_string_bytes(b"PAYLOAD".as_slice());
             let completion = vm.invoke_original_jim_parent_alias(parent, &prefix, &[argument]);
             assert_eq!(completion.code, tcl_core_types::Code::Return);
             assert_eq!(

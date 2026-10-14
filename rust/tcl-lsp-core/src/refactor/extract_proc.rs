@@ -85,6 +85,7 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
+#[cfg(test)]
 use tcl_dialect::BracedVarStyle;
 use tcl_lexer::LexerConfig;
 
@@ -419,15 +420,11 @@ fn plan_extraction(
         return original_extraction_plan(source, selected, analysis);
     }
 
-    // The document's own `${…}` close rule — a brace-bearing name read by
-    // the wrong release's rule produces a proc built for a variable that
-    // does not exist.
-    let style = config.braced_var;
     let walk = super::FrameWalk::new(source, analysis)
         .ok_or_else(|| "the original document context is unavailable".to_owned())?;
     reject_enclosing_definition_body(source, scope, &walk)?;
     reject_frame_sensitive_selection(source, selected, &walk)?;
-    let roles = classify_variables(source, selected, &walk, style)?;
+    let roles = classify_variables(source, selected, &walk)?;
 
     // The selection's own byte range, snapped to the commands it covers.
     let block_start = command_span_offsets(source, selected[0]).0;
@@ -442,13 +439,17 @@ fn plan_extraction(
     let mut nested_tail = Vec::new();
     for (start, end) in observing_regions(source, &walk, block_start, block_end) {
         let text = source.get(start as usize..end as usize).unwrap_or_default();
-        used_after.extend(variable_references(text, style));
         // Segmented at its real offset so the same-frame walk below can
         // address nested bodies in `source`'s own coordinates.
         for command in segment_commands_with_offset_and_config(text, start, config) {
             if command.name().is_empty() {
                 continue;
             }
+            used_after.extend(
+                command_variable_references(source, &command, &walk)?
+                    .into_iter()
+                    .map(|reference| reference.name),
+            );
             used_after.extend(role_named_variables(source, &command, &walk)?);
             // A read decides `upvar` versus proc local, so a role-named read
             // nested in a control-flow body has to count exactly as a
@@ -458,6 +459,11 @@ fn plan_extraction(
             nested_tail.clear();
             walk.nested_same_frame_commands(source, &command, &mut nested_tail);
             for inner in &nested_tail {
+                used_after.extend(
+                    command_variable_references(source, inner, &walk)?
+                        .into_iter()
+                        .map(|reference| reference.name),
+                );
                 used_after.extend(role_named_variables(source, inner, &walk)?);
             }
         }
@@ -621,90 +627,13 @@ struct VariableRoles {
     written: BTreeMap<String, u32>,
 }
 
-/// The braced word interiors of `command` that substitute nothing, appended to
-/// `out`.
-///
-/// A braced word is a literal: `set msg {$notavar}` reads no variable at all,
-/// and scanning its text for `$name` would put a name in the generated
-/// parameter list that the caller need not have — the extraction then rewrites
-/// a working file into one that dies on `can't read`.
-///
-/// Four kinds of braced word are *not* such a literal and stay scanned: an
-/// [`ArgRole::Expr`] word, whose `$name`s `expr` substitutes; any word a
-/// same-frame or frame-opening region overlaps, which is script rather than
-/// data; every word of a command that performs Tcl substitution, which reads
-/// through its own arguments; and every word of a command the registry does
-/// not know, where nothing says the word is data.
-fn literal_word_holes(
+fn command_variable_references(
     source: &str,
     command: &SegmentedCommand,
     walk: &super::FrameWalk<'_>,
-    out: &mut Vec<(u32, u32)>,
-) {
-    let Some(words) = walk.source_words(source, command) else {
-        return;
-    };
-    let Some(kinds) = walk.substitution_kinds(source, command) else {
-        return;
-    };
-    if kinds.is_some_and(|kinds| kinds.variables) {
-        return;
-    }
-    let evaluated = words
-        .written_argument_roles()
-        .into_iter()
-        .filter_map(|(ordinal, role)| (role == ArgRole::Expr).then_some(ordinal))
-        .collect::<Vec<_>>();
-    let mut scripts = walk.same_frame_regions(source, command);
-    scripts.extend(walk.frame_shifted_regions(source, command));
-    for (index, token) in command.argv.iter().enumerate().skip(1) {
-        if evaluated.contains(&(index - 1)) {
-            continue;
-        }
-        if token.kind != tcl_lexer::TokenType::Str
-            || token.content_offset != 1
-            || source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
-        {
-            continue;
-        }
-        let start = token.span.start() + u32::from(token.content_offset);
-        let end = token.span.end();
-        if start >= end {
-            continue;
-        }
-        let overlaps_script = scripts.iter().any(|(from, to)| {
-            u32::try_from(*to).is_ok_and(|to| to > start)
-                && u32::try_from(*from).is_ok_and(|from| from < end)
-        });
-        if !overlaps_script {
-            out.push((start, end));
-        }
-    }
-}
-
-/// `start..end` with every range in `holes` cut out of it.
-fn same_frame_slices(start: u32, end: u32, holes: &[(u32, u32)]) -> Vec<(u32, u32)> {
-    let mut cuts: Vec<(u32, u32)> = holes
-        .iter()
-        .copied()
-        .filter(|(from, to)| *to > start && *from < end && from < to)
-        .collect();
-    cuts.sort_unstable();
-    let mut slices = Vec::new();
-    let mut cursor = start;
-    for (from, to) in cuts {
-        if from > cursor {
-            slices.push((cursor, from.min(end)));
-        }
-        cursor = cursor.max(to);
-        if cursor >= end {
-            break;
-        }
-    }
-    if cursor < end {
-        slices.push((cursor, end));
-    }
-    slices
+) -> Result<Vec<super::VariableReference>, String> {
+    walk.variable_references(source, command)
+        .ok_or_else(|| "the original variable components are unavailable".to_owned())
 }
 
 /// Classify the selection's variable use from the registry's argument roles
@@ -728,41 +657,32 @@ fn classify_variables(
     source: &str,
     selected: &[&SegmentedCommand],
     walk: &super::FrameWalk<'_>,
-    style: BracedVarStyle,
 ) -> Result<VariableRoles, String> {
     let mut roles = VariableRoles {
         read: BTreeMap::new(),
         written: BTreeMap::new(),
     };
     let mut nested = Vec::new();
-    let mut holes = Vec::new();
     for command in selected {
-        // One text scan per selected command covers the `$name` reads of its
-        // whole subtree, minus the parts of it that read nothing the caller
-        // owns: a body that opens a variable frame of its own, and a braced
-        // word that substitutes nothing.  Either one would ask the caller for
-        // a variable that need not exist there.
-        let (start, end) = command_span_offsets(source, command);
         nested.clear();
         walk.nested_same_frame_commands(source, command, &mut nested);
-        holes.clear();
-        walk.frame_shifted_regions_within(source, command, &mut holes);
-        for inner in std::iter::once(*command).chain(nested.iter()) {
-            literal_word_holes(source, inner, walk, &mut holes);
+        if !walk.complete() {
+            return Err("the original same-frame traversal is incomplete".to_owned());
         }
-        for (from, to) in same_frame_slices(start, end, &holes) {
-            let text = source.get(from as usize..to as usize).unwrap_or("");
-            for (name, at, _) in super::variable_reference_spans(text, style) {
-                let at = from.saturating_add(u32::try_from(at).unwrap_or(0));
+        for inner in std::iter::once(*command).chain(nested.iter()) {
+            for reference in command_variable_references(source, inner, walk)? {
+                if reference.array {
+                    return Err(
+                        "an array element read needs an independent array capture contract"
+                            .to_owned(),
+                    );
+                }
                 roles
                     .read
-                    .entry(name)
-                    .and_modify(|first| *first = (*first).min(at))
-                    .or_insert(at);
+                    .entry(reference.name)
+                    .and_modify(|first| *first = (*first).min(reference.span.start()))
+                    .or_insert(reference.span.start());
             }
-        }
-        classify_command(source, command, walk, &mut roles)?;
-        for inner in &nested {
             classify_command(source, inner, walk, &mut roles)?;
         }
     }
@@ -1151,18 +1071,19 @@ fn first_fresh_proc_name(mut taken: impl FnMut(&str) -> Option<bool>) -> Result<
     )
 }
 
-/// Distinct `$name` / `${name}` references in `text`, array elements
-/// reduced to the array's own name.
-///
-/// `style` is the document's `${…}` close rule: the captured-variable set
-/// decides the generated proc's parameter list and its call-site arguments,
-/// so reading a brace-bearing name by the wrong release's rule emits a proc
-/// built for a variable that does not exist.
+#[cfg(test)]
 fn variable_references(text: &str, style: BracedVarStyle) -> BTreeSet<String> {
-    super::variable_reference_spans(text, style)
-        .into_iter()
-        .map(|(name, _, _)| name)
-        .collect()
+    super::syntax_variable_references(
+        text,
+        LexerConfig {
+            braced_var: style,
+            ..LexerConfig::default()
+        },
+    )
+    .unwrap_or_default()
+    .into_iter()
+    .map(|reference| reference.name)
+    .collect()
 }
 
 /// The variable names `command` names through a registry `VarRead` /
@@ -1222,6 +1143,24 @@ mod tests {
         }
     }
 
+    #[test]
+    fn extraction_original_components_keep_literal_sigil_data_and_refuse_array_captures() {
+        let source = "set value TEXT\nputs \"escaped=\\$notavar $value\"\nputs done\n";
+        let result = outcome(source, "puts \"escaped=\\$notavar $value\"").unwrap();
+        assert!(result.contains("proc extracted_proc {value}"), "{result}");
+        assert!(!result.contains("{notavar value}"), "{result}");
+        assert!(result.contains("escaped=\\$notavar $value"), "{result}");
+        let source = "set {$literal} TEXT\nputs ${$literal}\nputs done\n";
+        let result = outcome(source, "puts ${$literal}").unwrap();
+        assert!(result.contains("${$literal}"), "{result}");
+        let source = "set array(key) TEXT\nputs $array(key)\nputs done\n";
+        assert!(
+            outcome(source, "puts $array(key)")
+                .unwrap_err()
+                .contains("array element read")
+        );
+    }
+
     // TP: a pure selection with live-ins and no live-outs.
 
     #[test]
@@ -1245,11 +1184,8 @@ mod tests {
     /// `a{b}c`) and `EIGHTc}` on 8.6.16 (the name ends at the first `}` and
     /// `c}` is ordinary word text).
     ///
-    /// Asserted on `variable_references` rather than through a whole
-    /// extraction because the **segmenter**'s own `${…}` word span still
-    /// truncates at the first `}` on a 9.x document (the compiled-word
-    /// path), so the block boundary an end-to-end extraction computes is
-    /// wrong for a reason unrelated to the captured-variable set.
+    /// The configured shared component projection supplies the same names
+    /// independently of extraction's frame and insertion prerequisites.
     #[test]
     fn variable_references_read_braced_names_by_the_documents_release() {
         let text = "puts ${a{b}c}";

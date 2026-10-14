@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "46620fabfcceea7a3e23d7b8f3573ddbcfe2edf991056b2f434cce3298ce3cc7",
+    "source-after.json.gz": "d4312950973721c38970864bb7c8ac5cebba79e26356e5c45b5defb2394efaf7",
+    "build.log": "51223c09ae1414bd1bb8948a50ab4fa4119ef8b1f424c234c346da3c1c997682",
+    "start.json": "a9dbe37dc4d73fa3b5d93331837a3ee5eeae7990db63f1ced211c9f17cfde3e5",
+    "source-before.json.gz": "29342a4016716c5db91964c4be43e474f342c692a8190e7726652bb11a640126"
+  },
+  "scope": "VM actual production builds; library test build failed on12newfixture byte-array IntoRc API arguments; zero controls run; source subset drift zero."
+}

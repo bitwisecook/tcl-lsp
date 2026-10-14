@@ -6902,6 +6902,14 @@ Missing editable coverage reports `AlphaRenameGeometryUnavailable`. Source
 syntax compaction subsequently checks the exact edited word sequence under the
 same configuration; it does not rebuild a command world from the edited text.
 
+`OriginalVariableReferences` captures the current analysed source and its actual
+lexer configuration. `reference_at` delegates complete variable geometry to the
+shared source structure and executable-part arena. Minifier name edits require
+all selected references to agree on original name/token/whole extents; a missing
+match prevents partial renaming. This syntax receipt does not replace the
+independent declaration/editing contract or a represented read/version required
+for value erasure.
+
 Other name compaction, semantic transfer, alias insertion, and keyword selection
 have separate eligibility obligations. Native planning returns
 `MissingAlphaRenameContract`, `MissingAliasInsertionContract`,
@@ -9735,6 +9743,14 @@ logging also keeps its selected protocol and independent evaluator flag; origina
 public error reads preserve that existing episode. Whole-array teardown captures
 old member registration IDs before root callbacks and retires only those IDs, so
 new registrations on a replacement generation retain their own lifetime.
+
+`SourceNamespaceKey::source_artifact_path` projects retained source namespace
+components for emitted artifacts; an authored rooted coordinate remains separate
+from a reached namespace incarnation. `constructed_command_address_bytes`
+constructs counted absolute input from an already selected component path and
+command tail. Runtime OO abbreviation dispatch obtains those components and the
+current command generation before constructing its replacement head. Neither
+projection parses a reporting label or establishes command lookup success.
 
 ### Jim interpreter copies and child initialisation
 

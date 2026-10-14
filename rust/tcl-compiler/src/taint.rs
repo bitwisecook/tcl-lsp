@@ -7133,6 +7133,57 @@ fn var_only_in_safe_positions(
     !in_dangerous_slot
 }
 
+fn standalone_list_wrapper_head(
+    argument: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Option<String> {
+    let original = argument.trim();
+    if original.as_bytes().first() != Some(&b'[') {
+        return None;
+    }
+    let end = tcl_lexer::command_subst_close(
+        original.as_bytes(),
+        0,
+        tcl_lexer::SubstFlags::default(),
+        config,
+    )
+    .ok()?;
+    if end != original.len() {
+        return None;
+    }
+    let image = tcl_lexer::SourceImage::document(original);
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        image,
+        tcl_lexer::Span::new(1, u32::try_from(end.checked_sub(1)?).ok()?),
+        config.nested(),
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    let invocation = crate::registry_invocation::standalone_written_source_name_roles(
+        registry,
+        &command.words,
+        dialect,
+    )?;
+    if invocation.has_unknown_residual()
+        || !matches!(
+            invocation.facts().native_result,
+            Some(tcl_registry::native_result::NativeResultContract::ListArguments { from: 0 })
+        )
+    {
+        return None;
+    }
+    let head = invocation.argument_literal(0)?;
+    (!head.contains('\0') && registry.get(&head).is_some()).then_some(head)
+}
+
 /// `true` when one of `args` is a `[list <head> …]` command substitution
 /// whose constructed-list command word (`<head>`) is a literal known
 /// registry command and `name` is referenced in that argument. The tainted
@@ -7185,22 +7236,16 @@ fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool 
         if !call.source.allows_nominal_metadata() {
             continue;
         }
-        let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
-            continue;
-        };
-        let mut words = inner.split_whitespace();
-        if words.next() != Some("list") {
-            continue;
-        }
-        // First element of the constructed list = the command word.
-        let Some(head) = words.next() else {
-            continue;
-        };
-        // The head must be a literal known command, not a substitution.
-        if head.starts_with('$') || head.contains(['[', '$', '{']) {
-            continue;
-        }
-        if registry.get(head).is_none() {
+        if standalone_list_wrapper_head(
+            trimmed,
+            registry,
+            config,
+            call.source
+                .dialect()
+                .map(tcl_registry::InvocationDialect::of_profile),
+        )
+        .is_none()
+        {
             continue;
         }
         // `name` must actually flow through this list arg (and, since the
@@ -12683,6 +12728,56 @@ mod tests {
         let names = arg_var_names_with_config(&tokens.argv_texts[1], source.config);
         assert!(!names.has_unknown_residual());
         assert_eq!(names.names(), ["arr", "index", "a{b}c", "tail", "tail"]);
+    }
+
+    #[test]
+    fn standalone_list_wrapper_uses_original_grouped_head_values_and_exact_extent() {
+        let registry = CommandRegistry::build_default();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let dialect = registry
+            .profile()
+            .map(tcl_registry::InvocationDialect::of_profile);
+        for original in [
+            "[list puts $value]",
+            "[list {puts} $value]",
+            "[::list \"puts\" $value]",
+        ] {
+            assert_eq!(
+                standalone_list_wrapper_head(original, &registry, config, dialect).as_deref(),
+                Some("puts")
+            );
+        }
+        for original in [
+            "[list $command $value]",
+            "[list {$command} $value]",
+            "[list {} $value]",
+            "[list {*}{puts value}]",
+            "[list puts $value; list puts $value]",
+            "[list puts $value]suffix",
+            "[list puts $value]; missing",
+            "[list puts $value",
+            "[string cat puts $value]",
+        ] {
+            assert!(
+                standalone_list_wrapper_head(original, &registry, config, dialect).is_none(),
+                "{original}"
+            );
+        }
+        let args = vec!["[list {puts} $value]".to_owned()];
+        let call = SinkCall {
+            source: TaintSourceContext::standalone(&registry, registry.profile()),
+            command: "eval",
+            args: &args,
+            registry: &registry,
+            tokens: None,
+            effective: None,
+            source_read: None,
+            argument_offset: 0,
+        };
+        assert!(list_wrapped_arg_command_is_literal(&call, "value"));
+        let mut unavailable = call;
+        unavailable.source = TaintSourceContext::for_input(&registry, None, config);
+        assert!(!list_wrapped_arg_command_is_literal(&unavailable, "value"));
     }
 
     #[test]

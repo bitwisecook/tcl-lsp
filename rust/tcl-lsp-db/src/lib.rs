@@ -2969,16 +2969,11 @@ pub fn lower_proc_body_source<'db>(
 ///
 /// Shared by the analyser's CFG/SSA diagnostic tail
 /// ([`file_analysis_incremental`]) and the optimiser's compiler-checks pass
-/// ([`compiler_check_diagnostics`]) so an unchanged procedure's lattice is built
-/// once and reused (rebased to its new offset) across edits *and* across both
-/// consumers' passes — and garbage-collected by salsa, not a process-wide
-/// content cache.  Byte-identical to
-/// [`CompilationUnit::build_for_with_config`] `+ with_interprocedural`.
-///
-/// The two consumers lower with different [`tcl_lexer::LexerConfig`]s (which can
-/// change a `{*}`/`}{` body's IR), so the same procedure can intern to two
-/// different bodies; because the **post-lowering body is part of the key**, the
-/// two never cross-pollute — no explicit namespace is needed.
+/// ([`compiler_check_diagnostics`]). Admitted baseline lattices and neutral
+/// source syntax use tracked per-body queries; current input, entry state,
+/// grammar and retained source owners independently govern reuse and restoration.
+/// Unsupported source templates use the exact full-world lattice key or fresh
+/// lowering. The resulting unit receives the interprocedural summary.
 ///
 /// # Must be called from inside a tracked query
 ///
@@ -3003,10 +2998,9 @@ pub(crate) fn memoised_compilation_unit(
     build_unit_with_keys(db, source, options).0
 }
 
-/// `qname`'s offset-0 lattice key, when the unit reads its lattice from the
-/// memo: a lattice that read another procedure of the module was built
-/// afresh for the unit (`SccpResult::reads_module`), and every reader of the
-/// memo — the checks, the rewrites, the taint cascade — takes the unit's.
+/// Return the issued body's retained lattice key when its memo does not read
+/// another procedure of the module. Module-reading lattices use the current
+/// unit's result for checks, rewrites and the taint cascade.
 fn memo_key<'db>(
     db: &'db dyn TclDb,
     keys: &HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
@@ -3017,19 +3011,14 @@ fn memo_key<'db>(
         .filter(|&key| !function_lattice(db, key).sccp.reads_module)
 }
 
-/// `memoised_compilation_unit` that also returns the per-procedure
-/// [`FnLatticeKey`] map built during lowering (qname → offset-0 baseline key).
+/// Build the unit and retain its issued body-ID to [`FnLatticeKey`] mapping.
 ///
-/// [`proc_taint_solve`] needs those keys to memoise the interprocedural summary
-/// fixpoint per procedure ([`proc_summary_cascade`]), but they **cannot be
-/// threaded out of the shared [`compilation_unit`] query**: a salsa tracked
-/// return must be `'static`, and `FnLatticeKey<'db>` is `'db`-interned (the
-/// finished `CompilationUnit` keeps only the rebased `FunctionUnit`s, not the
-/// offset-0 bodies the keys are built from).  So the checks path re-derives them
-/// with this second build — whose per-procedure lattice/cascade demands hit the
-/// **same** [`function_lattice`] / [`taint_cascade`] memos the shared build
-/// already populated, making the duplicate build mostly cache hits (~29 ms warm
-/// vs ~57 ms cold, measured on `linalg.tcl`).
+/// [`proc_taint_solve`] uses these keys for the interprocedural summary fixpoint
+/// ([`proc_summary_cascade`]). A salsa tracked return must be `'static`, while
+/// `FnLatticeKey<'db>` is interned for `'db`, so this mapping cannot leave the
+/// shared [`compilation_unit`] query. The checks path builds its current unit
+/// and requests the tracked memos independently; a hit requires the actual
+/// query key and successful current-owner restoration.
 fn build_unit_with_keys<'db>(
     db: &'db dyn TclDb,
     source: &str,
@@ -3192,13 +3181,13 @@ fn build_unit_with_keys_and_input<'db>(
         }
         (*function_lattice(db, key)).clone()
     };
-    // The binding owner proves isolated-body equivalence against each actual
-    // entry state. Cache hits restore positioned carriers after rebasing, so
-    // namespace, activation and nested-dispatch proofs remain current.
+    // Isolated-body and readonly source-syntax caches have separate request
+    // owners. Each admitted hit must restore its positioned carriers against
+    // the current input and entry state before the unit can retain it.
     let cu = {
-        // Same offset-0-plus-rebase contract as `lattice_memo` above: the caller
-        // shifts the returned `Script` to the body's real position, so it needs
-        // an owned copy.
+        // The isolated-body caller positions this owned baseline Script and
+        // restores current binding proofs. Source-only syntax uses its separate
+        // genuine pre-lowering request below.
         let body_memo = |body_text: &str, namespace: &str| -> Script {
             let key = ProcBodyKey::new(
                 db,

@@ -209,7 +209,7 @@ impl CrateModules {
         let mut modules = BTreeMap::new();
         Self::load_module(
             root,
-            crate_root.join("src/lib.rs"),
+            Self::crate_source(root, crate_root, &cargo)?,
             "crate",
             required,
             "crate",
@@ -217,6 +217,59 @@ impl CrateModules {
             &mut modules,
         )?;
         Ok(Self { name, modules })
+    }
+
+    fn crate_source(root: &Path, crate_root: &Path, cargo: &str) -> Result<PathBuf, String> {
+        let library = crate_root.join("src/lib.rs");
+        if root.join(&library).is_file() {
+            return Ok(library);
+        }
+        // This bounded fallback models only an explicit conventional binary.
+        // Arbitrary Cargo target paths and competing binary roots remain unavailable.
+        let mut section = "";
+        let mut binaries = 0;
+        let mut binary_name = None;
+        let mut binary_path = None;
+        for raw in cargo.lines() {
+            let line = raw.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if line.starts_with('[') {
+                if line == "[lib]" {
+                    return Err("custom library root is unavailable".into());
+                }
+                section = line;
+                if section == "[[bin]]" {
+                    binaries += 1;
+                }
+                continue;
+            }
+            if section != "[[bin]]" {
+                continue;
+            }
+            let (key, value) = line.split_once('=').ok_or("unsupported binary target")?;
+            let value = value
+                .trim()
+                .strip_prefix('"')
+                .and_then(|v| v.strip_suffix('"'))
+                .ok_or("nonliteral binary target")?;
+            match key.trim() {
+                "name" if binary_name.is_none() => binary_name = Some(value),
+                "path" if binary_path.is_none() => binary_path = Some(value),
+                _ => return Err("ambiguous or unsupported binary target".into()),
+            }
+        }
+        let main = crate_root.join("src/main.rs");
+        if binaries != 1
+            || binary_name.is_none_or(str::is_empty)
+            || binary_path != Some("src/main.rs")
+            || !root.join(&main).is_file()
+            || root.join(crate_root).join("src/bin").exists()
+        {
+            return Err("no unique conventional source crate root".into());
+        }
+        Ok(main)
     }
 
     fn load_module(
@@ -243,10 +296,9 @@ impl CrateModules {
             }
             return Ok(());
         }
-        let directory = if source
-            .file_name()
-            .is_some_and(|name| name == "lib.rs" || name == "mod.rs")
-        {
+        let directory = if source.file_name().is_some_and(|name| {
+            name == "lib.rs" || name == "mod.rs" || (module == "crate" && name == "main.rs")
+        }) {
             source.parent().ok_or("missing module parent")?.to_owned()
         } else {
             source.with_extension("")
@@ -2562,6 +2614,34 @@ mod file_route_tests {
         let (coverage, failures) = validate(&fixture.0, &text);
         assert_eq!(coverage.len(), 1);
         assert_eq!(failures.len(), 1);
+    }
+
+    #[test]
+    fn explicit_binary_root_keeps_actual_child_modules_and_refuses_ambiguous_targets() {
+        let fixture = root();
+        std::fs::rename(
+            fixture.0.join("rust/a/src/lib.rs"),
+            fixture.0.join("rust/a/src/main.rs"),
+        )
+        .unwrap();
+        let cargo = "[package]\nname = \"a\"\n[[bin]]\nname = \"a\"\npath = \"src/main.rs\"\n";
+        std::fs::write(fixture.0.join("rust/a/Cargo.toml"), cargo).unwrap();
+        let (coverage, failures) = validate(&fixture.0, &manifest());
+        assert!(failures.is_empty(), "{failures:?}");
+        assert_eq!(coverage.len(), 1);
+        for changed in [
+            cargo.replace("src/main.rs", "src/other.rs"),
+            format!("{cargo}[[bin]]\nname = \"other\"\npath = \"src/main.rs\"\n"),
+            format!("{cargo}[lib]\npath = \"src/custom.rs\"\n"),
+        ] {
+            std::fs::write(fixture.0.join("rust/a/Cargo.toml"), changed).unwrap();
+            let (coverage, failures) = validate(&fixture.0, &manifest());
+            assert!(coverage.is_empty());
+            assert!(!failures.is_empty());
+        }
+        std::fs::write(fixture.0.join("rust/a/Cargo.toml"), cargo).unwrap();
+        std::fs::create_dir(fixture.0.join("rust/a/src/bin")).unwrap();
+        assert!(!validate(&fixture.0, &manifest()).1.is_empty());
     }
 
     #[test]

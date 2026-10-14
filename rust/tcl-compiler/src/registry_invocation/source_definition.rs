@@ -108,6 +108,7 @@ mod tests {
 
     fn source_tokens(source: &str, input: &ResolvedAnalysisInput) -> CommandTokens {
         let image = tcl_lexer::SourceImage::document(source);
+        assert!(input.has_logical_source_name_context());
         let registry = input.borrowed_context_registry().commands();
         let config = input.lexer_config();
         let bindings =
@@ -134,7 +135,10 @@ mod tests {
     #[test]
     fn logical_definition_layout_uses_original_source_without_a_handler_grant() {
         let mut analyser = crate::analyser::Analyser::new();
-        let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
+        let input = analyser
+            .prepare_analysis_input(tcl_dialect::DialectProfile::plain_tcl().name)
+            .unwrap();
+        assert!(input.has_logical_source_name_context());
         let registry = input.borrowed_context_registry().commands();
         let source = "oo::class create C {method m {} {return VALUE}}";
         let tokens = source_tokens(source, &input);
@@ -178,7 +182,10 @@ mod tests {
     #[test]
     fn logical_definition_layout_refuses_missing_changed_and_expanded_source_owners() {
         let mut analyser = crate::analyser::Analyser::new();
-        let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
+        let input = analyser
+            .prepare_analysis_input(tcl_dialect::DialectProfile::plain_tcl().name)
+            .unwrap();
+        assert!(input.has_logical_source_name_context());
         let registry = input.borrowed_context_registry().commands();
         let tokens = source_tokens("oo::class create C {method m {} {return VALUE}}", &input);
         assert!(original_logical_source_definition_layout(registry, &input, &tokens).is_some());

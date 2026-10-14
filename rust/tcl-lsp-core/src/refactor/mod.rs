@@ -78,63 +78,74 @@ pub use source_command::find_original_command_at;
 pub use switch_to_dict::switch_to_dict;
 
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_dialect::BracedVarStyle;
 use tcl_lexer::{LexerConfig, LineIndex, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::definition::LspRange;
 
-/// Every `$name` / `${name}` reference in `text`, as
-/// `(name, start, end)` byte offsets covering the whole reference
-/// (`$` through the closing `}`).
-///
-/// The braced form is delimited by [`tcl_lexer::braced_var_name_end`] — the
-/// one release-aware `Tcl_ParseVarName` port — rather than a `find('}')`,
-/// so a brace-bearing name is read the way the document's own release reads
-/// it. An unterminated `${` is not a reference: it is a parse error in the
-/// document, and inventing a name for it would put that name into a
-/// generated parameter list.
-///
-/// Array elements are **not** reduced here; a caller that wants the array's
-/// own name (extract-proc's captured set) trims at the `(`.
-pub(crate) fn variable_reference_spans(
-    text: &str,
-    style: BracedVarStyle,
-) -> Vec<(String, usize, usize)> {
-    let bytes = text.as_bytes();
-    let mut out = Vec::new();
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes[index] != b'$' {
-            index += 1;
-            continue;
+/// An original variable component's name data and complete written extent.
+/// Array shape supplies no scalar capture or replacement permission.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct VariableReference {
+    name: String,
+    span: tcl_lexer::Span,
+    array: bool,
+}
+
+fn component_variable_references(
+    source: &str,
+    arenas: &[tcl_lexer::ExecutablePartArena],
+    config: LexerConfig,
+) -> Option<Vec<VariableReference>> {
+    let mut references = std::collections::BTreeMap::new();
+    for arena in arenas {
+        if arena.image().bytes() != source.as_bytes() {
+            return None;
         }
-        if bytes.get(index + 1) == Some(&b'{') {
-            let name_start = index + 2;
-            if let tcl_lexer::BracedVarEnd::Closed(close) =
-                tcl_lexer::braced_var_name_end(bytes, name_start, style)
-            {
-                out.push((text[name_start..close].to_string(), index, close + 1));
-                index = close + 1;
-                continue;
+        for part in arena.all_parts() {
+            match part.part {
+                tcl_lexer::ExecutablePart::Variable { .. } => {
+                    let text = arena.bytes(part.span)?;
+                    let reference = tcl_lexer::word_parts::whole_var_ref(text, config).ok()??;
+                    let root =
+                        tcl_syntax::naming::variable_reference_root_bytes(text, config).ok()??;
+                    let name = std::str::from_utf8(root).ok()?;
+                    if name.contains('\0') {
+                        return None;
+                    }
+                    let selected = VariableReference {
+                        name: name.to_owned(),
+                        span: part.span,
+                        array: reference.index.is_some()
+                            || tcl_syntax::naming::split_element_ref_bytes(reference.name)
+                                .is_some(),
+                    };
+                    if let Some(previous) =
+                        references.insert((part.span.start(), part.span.end()), selected.clone())
+                        && previous != selected
+                    {
+                        return None;
+                    }
+                }
+                tcl_lexer::ExecutablePart::ParseError(_)
+                | tcl_lexer::ExecutablePart::Expression { .. } => return None,
+                tcl_lexer::ExecutablePart::Command { .. } | tcl_lexer::ExecutablePart::Text(_) => {}
             }
-            index += 1;
-            continue;
-        }
-        let mut end = index + 1;
-        while end < bytes.len()
-            && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b':')
-        {
-            end += 1;
-        }
-        if end > index + 1 {
-            out.push((text[index + 1..end].to_string(), index, end));
-            index = end;
-        } else {
-            index += 1;
         }
     }
-    out
+    Some(references.into_values().collect())
+}
+
+#[cfg(test)]
+fn syntax_variable_references(text: &str, config: LexerConfig) -> Option<Vec<VariableReference>> {
+    let arena = tcl_lexer::ExecutablePartArena::decompose(
+        tcl_lexer::SourceImage::document(text),
+        tcl_lexer::Span::new(0, u32::try_from(text.len()).ok()?),
+        tcl_lexer::SubstFlags::default(),
+        config,
+    )
+    .ok()?;
+    component_variable_references(text, &[arena], config)
 }
 
 /// A single text replacement, in byte-offset space.
@@ -440,15 +451,40 @@ impl<'a> FrameWalk<'a> {
                 self.analysis.resolved_input.as_ref()?,
                 span.start(),
             )?;
-            arenas.push(
-                tcl_lexer::ExecutablePartArena::decompose(
-                    word.image().clone(),
-                    span,
-                    tcl_lexer::word_parts::SubstFlags::default(),
-                    self.config,
-                )
-                .ok()?,
+            let expression = word.image().bytes().get(span.as_range())?;
+            let (tokens, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
+                expression,
+                &self.config.grammar_over(self.dialect.grammar),
+                self.dialect.expr_grammar_base,
+                self.dialect.f5_core_expr_grammar(),
             );
+            if unknown {
+                return None;
+            }
+            for term in tcl_lexer::expression_terms(expression, &tokens, self.config)? {
+                let relative = match term.kind {
+                    tcl_lexer::ExprTermKind::Variable
+                    | tcl_lexer::ExprTermKind::IndexedVariable
+                    | tcl_lexer::ExprTermKind::Command => term.source,
+                    tcl_lexer::ExprTermKind::EscapedString => term.value,
+                    tcl_lexer::ExprTermKind::Number
+                    | tcl_lexer::ExprTermKind::Boolean
+                    | tcl_lexer::ExprTermKind::String => continue,
+                };
+                let part = tcl_lexer::Span::new(
+                    span.start().checked_add(relative.start)?,
+                    span.start().checked_add(relative.end)?,
+                );
+                arenas.push(
+                    tcl_lexer::ExecutablePartArena::decompose(
+                        word.image().clone(),
+                        part,
+                        tcl_lexer::word_parts::SubstFlags::default(),
+                        self.config,
+                    )
+                    .ok()?,
+                );
+            }
         }
         if let Some(kinds) = self.substitution_kinds(source, command)? {
             let variables = match selected.dialect()?.family()? {
@@ -483,6 +519,16 @@ impl<'a> FrameWalk<'a> {
             }
         }
         Some(arenas)
+    }
+
+    /// References only from this actual command's selected original components.
+    /// The same-frame walker owns command/body descent separately.
+    pub(crate) fn variable_references(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<Vec<VariableReference>> {
+        component_variable_references(source, &self.components(source, command)?, self.config)
     }
 
     fn original_regions(
@@ -1180,6 +1226,68 @@ mod tests {
 #[cfg(test)]
 mod original_frame_walk_tests {
     use super::*;
+    #[test]
+    fn original_variable_components_keep_index_children_and_current_document_owner() {
+        let source = "puts \"literal=\\$ignored ${$literal} $array($key)\"";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let analysis = analyser.analyse(source, "tcl8.6").clone();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let [command] = commands.as_slice() else {
+            panic!("one original command")
+        };
+        let references = walk.variable_references(source, command).unwrap();
+        assert_eq!(
+            references
+                .iter()
+                .map(|reference| reference.name.as_str())
+                .collect::<Vec<_>>(),
+            ["$literal", "array", "key"]
+        );
+        assert!(!references[0].array);
+        assert!(references[1].array);
+        assert!(!references[2].array);
+        assert_eq!(&source[references[0].span.as_range()], "${$literal}");
+        assert_eq!(&source[references[1].span.as_range()], "$array($key)");
+        assert_eq!(&source[references[2].span.as_range()], "$key");
+        assert!(walk.variable_references("puts $changed", command).is_none());
+        assert!(FrameWalk::new(&format!("{source} # changed"), &analysis).is_none());
+        let malformed = "puts ${unfinished";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let analysis = analyser.analyse(malformed, "tcl8.6").clone();
+        let walk = FrameWalk::new(malformed, &analysis).unwrap();
+        let commands = walk.segment_document(malformed);
+        let [command] = commands.as_slice() else {
+            panic!("one original partial command")
+        };
+        assert!(walk.variable_references(malformed, command).is_none());
+    }
+
+    #[test]
+    fn original_expression_components_keep_braced_literals_inert_and_quoted_reads_active() {
+        let source = "expr {{${inert} [missing $also_inert]} eq \"${active}\" && $array($index) ne [set value $nested]}";
+        let mut analyser = tcl_compiler::analyser::Analyser::new();
+        let analysis = analyser.analyse(source, "tcl8.6").clone();
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment_document(source);
+        let [command] = commands.as_slice() else {
+            panic!("one original expression command")
+        };
+        let references = walk.variable_references(source, command).unwrap();
+        assert_eq!(
+            references
+                .iter()
+                .map(|reference| reference.name.as_str())
+                .collect::<Vec<_>>(),
+            ["active", "array", "index", "nested"]
+        );
+        let mut nested = Vec::new();
+        walk.nested_same_frame_commands(source, command, &mut nested);
+        assert!(walk.complete());
+        assert!(nested.iter().any(|command| command.name() == "set"));
+        assert!(nested.iter().all(|command| command.name() != "missing"));
+    }
+
     #[test]
     fn original_frame_walk_keeps_full_document_context_and_absolute_components() {
         // Implementation contract: naming.refactor.original-frame-traversal

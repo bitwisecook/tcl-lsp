@@ -73,7 +73,9 @@
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_dialect::{BracedVarStyle, NumberSyntax};
+#[cfg(test)]
+use tcl_dialect::BracedVarStyle;
+use tcl_dialect::NumberSyntax;
 use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -180,10 +182,6 @@ fn plan_inline(
         .resolved_profile()
         .ok_or_else(|| "the original dialect is unavailable".to_owned())?;
     let numbers: NumberSyntax = profile.grammar.numbers;
-    // …and its `${…}` close rule, for the same reason: which bytes are the
-    // variable's name is release-dependent, and this transform rewrites the
-    // reference's own span.
-    let style: BracedVarStyle = config.braced_var;
     if proc_def.params_computed {
         return Err(
             "the proc's parameter list is computed at run time, so its formals are unknown"
@@ -209,8 +207,17 @@ fn plan_inline(
     let bindings = bind_arguments(source, call, proc_def)?;
     reject_frame_sensitive_body(source, &body, &nested, &walk)?;
     reject_body_variable_writes(source, &body, &nested, &walk)?;
-    reject_args_reference(&body, proc_def, style)?;
-    substitute_bindings(source, &body, &nested, &bindings, &walk, numbers, style)
+    let references = body_variable_references(source, &body, &nested, &walk)?;
+    reject_args_reference(&references, proc_def)?;
+    substitute_bindings(
+        source,
+        &body,
+        &nested,
+        &bindings,
+        &walk,
+        numbers,
+        &references,
+    )
 }
 
 /// Rewrite only the selected original allocation and exact formal/argv
@@ -470,107 +477,63 @@ fn single_command_body(
     analysis: &AnalysisResult,
     config: LexerConfig,
 ) -> Result<BodyCommand, String> {
-    if !analysis.allows_lexical_declaration_advice() {
-        let image = tcl_lexer::SourceImage::document(source);
-        let input = analysis
-            .retained_command_realm()
-            .and_then(|realm| {
-                realm.original_written_name_input_at_span_in_source(
-                    &image,
-                    proc_def.body_span,
-                    config,
-                )
+    let image = tcl_lexer::SourceImage::document(source);
+    let realm = analysis
+        .retained_command_realm()
+        .ok_or_else(|| "the proc's original body owner is unavailable".to_owned())?;
+    let native_input = (!analysis.allows_lexical_declaration_advice())
+        .then(|| {
+            realm.original_written_name_input_at_span_in_source(&image, proc_def.body_span, config)
+        })
+        .flatten();
+    let word = if analysis.allows_lexical_declaration_advice() {
+        analysis
+            .logical_source_procedure_declaration(proc_def)
+            .and_then(|declaration| {
+                declaration.original_body_word(&image, analysis.resolved_input.as_ref()?)
             })
-            .ok_or_else(|| "the proc's original body word is unavailable".to_owned())?;
-        let word = input
-            .original_word_key()
-            .map(|key| key.original_word())
-            .filter(|word| {
-                word.image() == &image
-                    && word.config() == config
-                    && word.group().kind == tcl_lexer::WordKind::Braced
-                    && !word.group().expand
-                    && word
-                        .tokens()
-                        .first()
-                        .is_some_and(|token| token.span == proc_def.body_span)
-            })
-            .ok_or_else(|| "the proc body has no editable original literal word".to_owned())?;
-        let span = word
-            .content_span()
-            .map_err(|_| "the body content extent is unavailable".to_owned())?;
-        let raw = source
-            .get(span.as_range())
-            .ok_or_else(|| "the body content is unavailable".to_owned())?;
-        let text = raw.trim();
-        let origin = span.start()
-            + u32::try_from(raw.len() - raw.trim_start().len())
-                .map_err(|_| "the body is too large".to_owned())?;
-        let commands = segment_commands_with_offset_and_config(
-            text,
-            origin,
-            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
-        );
-        let [command] = commands.as_slice() else {
-            return Err(format!("the proc body is {} commands", commands.len()));
-        };
-        if command.is_partial {
-            return Err("the proc body is incomplete".to_owned());
-        }
-        return Ok(BodyCommand {
-            text: text.to_owned(),
-            origin,
-            command: command.clone(),
-        });
-    }
-    let span = proc_def.body_span;
-    let raw = source
-        .get(span.start() as usize..span.end() as usize)
-        .unwrap_or("")
-        .trim();
-    // `body_span` may exclude the proc's closing `}` (the lexer's inner-end
-    // convention), so strip a trailing `}` only when it is the unbalanced
-    // *outer* brace — a greedy `trim_end_matches('}')` would eat an inner
-    // sub-expression brace (`expr {$n * 2}`) and leave unparseable text.
-    let inner = raw.strip_prefix('{').map_or(raw, str::trim_start);
-    let text = if inner.matches('}').count() > inner.matches('{').count() {
-        let trimmed = inner.trim_end();
-        trimmed.strip_suffix('}').unwrap_or(trimmed).trim()
     } else {
-        inner.trim()
+        native_input
+            .as_ref()
+            .and_then(|input| input.original_word_key())
+            .map(|key| key.original_word())
     }
-    .to_string();
-    if text.is_empty() {
-        return Err("the proc body is empty".to_string());
-    }
-    let commands: Vec<_> = segment_commands_with_offset_and_config(
-        &text,
-        span.start()
-            + u32::try_from(
-                source
-                    .get(span.as_range())
-                    .unwrap_or("")
-                    .find(&text)
-                    .unwrap_or(0),
-            )
-            .unwrap_or(0),
-        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
-    )
-    .into_iter()
-    .filter(|command| !command.name().is_empty())
-    .collect();
-    if commands.len() != 1 {
-        return Err(format!(
-            "the proc body is {} commands; inlining several commands into a \
-             single caller word would change how the caller parses",
-            commands.len()
-        ));
-    }
-    let command = commands.into_iter().next().expect("length checked above");
-    Ok(BodyCommand {
-        origin: command.span.start(),
+    .filter(|word| {
+        word.image() == &image
+            && word.config() == config
+            && word.group().kind == tcl_lexer::WordKind::Braced
+            && !word.group().expand
+            && word
+                .tokens()
+                .first()
+                .is_some_and(|token| token.span == proc_def.body_span)
+    })
+    .ok_or_else(|| "the proc body has no current original literal word".to_owned())?;
+    let span = word
+        .content_span()
+        .map_err(|_| "the body content extent is unavailable".to_owned())?;
+    let raw = source
+        .get(span.as_range())
+        .ok_or_else(|| "the body content is unavailable".to_owned())?;
+    let text = raw.trim();
+    let origin = span.start()
+        + u32::try_from(raw.len() - raw.trim_start().len())
+            .map_err(|_| "the body is too large".to_owned())?;
+    let commands = segment_commands_with_offset_and_config(
         text,
-        command,
+        origin,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
+    );
+    let [command] = commands.as_slice() else {
+        return Err(format!("the proc body is {} commands", commands.len()));
+    };
+    if command.is_partial {
+        return Err("the proc body is incomplete".to_owned());
+    }
+    Ok(BodyCommand {
+        text: text.to_owned(),
+        origin,
+        command: command.clone(),
     })
 }
 
@@ -777,6 +740,38 @@ fn reject_body_variable_writes(
     Ok(())
 }
 
+fn body_variable_references(
+    source: &str,
+    body: &BodyCommand,
+    nested: &[tcl_compiler::segmenter::SegmentedCommand],
+    walk: &super::FrameWalk<'_>,
+) -> Result<Vec<super::VariableReference>, String> {
+    let mut references = std::collections::BTreeMap::new();
+    for command in std::iter::once(&body.command).chain(nested) {
+        for reference in walk
+            .variable_references(source, command)
+            .ok_or_else(|| "the body's original variable components are unavailable".to_owned())?
+        {
+            if reference.array {
+                return Err(
+                    "an array reference needs its original activation and index evaluation"
+                        .to_owned(),
+                );
+            }
+            let key = (reference.span.start(), reference.span.end());
+            if let Some(previous) = references.insert(key, reference.clone())
+                && previous != reference
+            {
+                return Err("the body's original variable components disagree".to_owned());
+            }
+        }
+    }
+    if !walk.complete() {
+        return Err("the body's original variable components are incomplete".to_owned());
+    }
+    Ok(references.into_values().collect())
+}
+
 /// Refuse a body that reads the variadic `args` list.
 ///
 /// `args` holds a *list* of the trailing argument values.  Writing that list
@@ -786,17 +781,13 @@ fn reject_body_variable_writes(
 /// *declares* `args` but never reads it is fine: the binding simply has no
 /// occurrence to substitute.
 fn reject_args_reference(
-    body: &BodyCommand,
+    references: &[super::VariableReference],
     proc_def: &tcl_compiler::analyser::ProcDef,
-    style: BracedVarStyle,
 ) -> Result<(), String> {
     if proc_def.params.last().is_none_or(|p| p.name != "args") {
         return Ok(());
     }
-    if variable_references(&body.text, style)
-        .into_iter()
-        .any(|(name, _, _)| name == "args")
-    {
+    if references.iter().any(|reference| reference.name == "args") {
         return Err(
             "the body reads `args`, whose value is a list — there is no spelling \
              of a list that means the same thing in every word context"
@@ -816,9 +807,8 @@ fn substitute_bindings(
     bindings: &[Binding],
     walk: &super::FrameWalk<'_>,
     numbers: NumberSyntax,
-    style: BracedVarStyle,
+    references: &[super::VariableReference],
 ) -> Result<String, String> {
-    let references = variable_references(&body.text, style);
     // The occurrences come from the whole body text, so the expression
     // positions have to as well: `puts [expr {$n eq "abc"}]` puts its operand
     // one level below the body's own command, and substituting a bareword
@@ -837,10 +827,10 @@ fn substitute_bindings(
     }
     let mut replacements: Vec<(usize, usize, String)> = Vec::new();
     for binding in bindings {
-        let occurrences: Vec<&(String, usize, usize)> = references
+        let occurrences = references
             .iter()
-            .filter(|(name, _, _)| *name == binding.name)
-            .collect();
+            .filter(|reference| reference.name == binding.name)
+            .collect::<Vec<_>>();
         if occurrences.is_empty() {
             continue;
         }
@@ -860,14 +850,29 @@ fn substitute_bindings(
                 binding.name, binding.value
             ));
         }
-        for (_, start, end) in occurrences {
+        for reference in occurrences {
+            let start = reference
+                .span
+                .start()
+                .checked_sub(body.origin)
+                .ok_or("a reference lies outside the original body")?
+                as usize;
+            let end = reference
+                .span
+                .end()
+                .checked_sub(body.origin)
+                .ok_or("a reference lies outside the original body")?
+                as usize;
+            if end > body.text.len() {
+                return Err("a reference lies outside the original body".to_owned());
+            }
             // An `expr` operand is a different language: a bare word there is
             // a function name or an error, not the string it spells.  The
             // positions come from the registry's `ArgRole::Expr`, so this
             // holds for every expression-taking command, not just `expr`.
             if expr_ranges
                 .iter()
-                .any(|(from, to)| *start >= *from && *end <= *to)
+                .any(|(from, to)| start >= *from && end <= *to)
                 && !is_expr_literal(&binding.value, numbers)
             {
                 return Err(format!(
@@ -877,7 +882,7 @@ fn substitute_bindings(
                     binding.name, binding.value
                 ));
             }
-            replacements.push((*start, *end, binding.value.clone()));
+            replacements.push((start, end, binding.value.clone()));
         }
     }
     let mut out = body.text.clone();
@@ -918,18 +923,25 @@ fn expr_argument_ranges(
         .collect()
 }
 
-/// `(name, start, end)` for every `$name` / `${name}` reference in `text`,
-/// where `start..end` covers the whole reference including the `$` and any
-/// braces.
-///
-/// Matching whole references rather than doing a `str::replace` is what keeps
-/// `$nn` intact when the parameter is `n`, and stops a `$name` embedded in a
-/// longer token being half-rewritten.
-/// Every `$name` / `${name}` reference in `text`, with the byte span of the
-/// whole reference — the span this transform rewrites, so it must be the
-/// span the document's own release would parse.
+#[cfg(test)]
 fn variable_references(text: &str, style: BracedVarStyle) -> Vec<(String, usize, usize)> {
-    super::variable_reference_spans(text, style)
+    super::syntax_variable_references(
+        text,
+        LexerConfig {
+            braced_var: style,
+            ..LexerConfig::default()
+        },
+    )
+    .unwrap_or_default()
+    .into_iter()
+    .map(|reference| {
+        (
+            reference.name,
+            reference.span.start() as usize,
+            reference.span.end() as usize,
+        )
+    })
+    .collect()
 }
 
 /// `true` when `value` can be written into any Tcl word position verbatim
@@ -1332,6 +1344,35 @@ mod tests {
     }
 
     #[test]
+    fn inline_original_components_keep_literal_and_escaped_parameter_spelling() {
+        for source in [
+            "proc show {value} {puts {$value}}\nshow TEXT\n",
+            "proc show {value} {puts \"escaped=\\$value $value\"}\nshow TEXT\n",
+        ] {
+            let result = outcome(source, "show TEXT").unwrap();
+            assert!(result.contains("$value"), "{result}");
+            assert!(!result.contains("{$TEXT}"), "{result}");
+            if source.contains("escaped=") {
+                assert!(result.contains("escaped=\\$value TEXT"), "{result}");
+            } else {
+                assert!(result.contains("puts {$value}"), "{result}");
+            }
+        }
+        let source = "proc same {value} {expr {{${value}} eq \"$value\"}}\nsame TEXT\n";
+        let result = outcome(source, "same TEXT").unwrap();
+        assert!(
+            result.ends_with("expr {{${value}} eq \"TEXT\"}\n"),
+            "{result}"
+        );
+        let source = "proc show {value} {puts $array($value)}\nshow TEXT\n";
+        assert!(
+            outcome(source, "show TEXT")
+                .unwrap_err()
+                .contains("array reference")
+        );
+    }
+
+    #[test]
     fn variable_references_finds_whole_names_only() {
         let found = variable_references("puts $n$nn ${n}x", BracedVarStyle::Tcl9Nesting);
         let names: Vec<&str> = found.iter().map(|(name, _, _)| name.as_str()).collect();
@@ -1524,6 +1565,23 @@ p";
 #[cfg(test)]
 mod original_inline_body_purpose_tests {
     use super::*;
+
+    #[test]
+    fn logical_inline_body_uses_retained_word_extent_for_literal_closers() {
+        let source = "proc helper {value} {puts \"literal \\} ${value}\"}\nhelper TEXT";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let procedure = &analysis.all_procs["::helper"];
+        let config = analysis.body_lexer_config.unwrap();
+        let body = single_command_body(source, procedure, &analysis, config).unwrap();
+        assert_eq!(body.text, "puts \"literal \\} ${value}\"");
+        assert_eq!(
+            source.get(body.command.span.as_range()),
+            Some(body.text.as_str())
+        );
+        let mut stale = analysis.clone();
+        stale.all_procs.get_mut("::helper").unwrap().params.clear();
+        assert!(single_command_body(source, &stale.all_procs["::helper"], &stale, config).is_err());
+    }
 
     #[test]
     fn original_inline_body_keeps_bom_head_and_retained_parent_correspondence() {

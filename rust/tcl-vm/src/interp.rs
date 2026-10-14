@@ -32346,10 +32346,13 @@ mod native_child_constructor_tests {
         let parent = vm.native_jim_object_context().unwrap();
         let original = {
             let _scope = native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
-            let original = Value::new_native_string_bytes(b"parent\0tail");
+            let original = Value::new_native_string_bytes(b"parent\0tail".as_slice());
             vm.write_scalar_raw("argv", original.clone());
-            vm.write_scalar_raw("argc", Value::new_native_string_bytes(b"9"));
-            vm.write_scalar_raw("jim::argv0", Value::new_native_string_bytes(b"\xc3\xa9"));
+            vm.write_scalar_raw("argc", Value::new_native_string_bytes(b"9".as_slice()));
+            vm.write_scalar_raw(
+                "jim::argv0",
+                Value::new_native_string_bytes(b"\xc3\xa9".as_slice()),
+            );
             original
         };
         let count = original.native_object_reference_count();
