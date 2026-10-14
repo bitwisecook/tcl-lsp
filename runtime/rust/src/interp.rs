@@ -7943,13 +7943,15 @@ impl Interp {
         // `enter`/`leave` traces. Only the step machinery is gated, in
         // `dispatch_traced`.
         let traced = !self.traces.borrow().cmd_traces.is_empty();
-        if !traced {
-            return match prebound {
+        let code = if traced {
+            self.dispatch_traced(argv, prebound)
+        } else {
+            match prebound {
                 Some((_, binding)) => self.invoke(binding.command, argv),
                 None => self.dispatch_inner(argv),
-            };
-        }
-        self.dispatch_traced(argv, prebound)
+            }
+        };
+        self.charge_result(code)
     }
 
     /// Slow path: the command may carry execution (enter/leave/step) traces, or

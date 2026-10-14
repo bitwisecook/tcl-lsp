@@ -407,6 +407,14 @@ pub fn generate<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<O::Value, &'sta
     Ok(ops.new_list(elems))
 }
 
+/// Charge a series of `len` elements against the value-size limit before it is
+/// built: each element renders to at least one byte, with a separator between.
+fn charge_series<O: ValueOps>(ops: &mut O, len: i128) -> Result<(), &'static [u8]> {
+    let bytes = u64::try_from(len.saturating_mul(2).saturating_sub(1)).unwrap_or(0);
+    crate::value_size::charge(ops, |_, _| bytes)
+        .map_err(|_| crate::value_size::VALUE_SIZE_EXCEEDED.as_bytes())
+}
+
 /// `power10` for the precision scaling.
 fn power10(n: u32) -> f64 {
     10f64.powi(n as i32)
@@ -458,6 +466,7 @@ fn build_int<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<Vec<O::Value>, &'s
     if len > i128::from(MAX_MATERIALIZE) {
         return Err(b"max length of a Tcl list exceeded");
     }
+    charge_series(ops, len)?;
     let len = len as i64;
     let mut out = Vec::with_capacity(len as usize);
     for i in 0..len {
@@ -515,6 +524,7 @@ fn build_double<O: ValueOps>(ops: &mut O, plan: &Plan) -> Result<Vec<O::Value>, 
     if len > MAX_MATERIALIZE {
         return Err(b"max length of a Tcl list exceeded");
     }
+    charge_series(ops, i128::from(len))?;
     let mut out = Vec::with_capacity(len as usize);
     for i in 0..len {
         let d = arith_round(ds + (i as f64) * dstep, prec);

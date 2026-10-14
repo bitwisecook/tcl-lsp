@@ -69,6 +69,18 @@ pub(crate) fn int_add(a: Option<&Value>, b: &Value) -> Result<Value, ValueError>
 impl ValueOps for Vm {
     type Value = Value;
 
+    fn value_size_limit(&self) -> Option<u64> {
+        self.value_size_limit_value()
+    }
+
+    fn measure_value(&mut self, v: &Value, cap: u64) -> u64 {
+        v.measured_bytes(cap)
+    }
+
+    fn admit_value_bytes(&mut self, bytes: u64) -> bool {
+        self.charge_allocation(bytes).is_none()
+    }
+
     fn new_str(&mut self, s: &str) -> Value {
         Value::string(s)
     }

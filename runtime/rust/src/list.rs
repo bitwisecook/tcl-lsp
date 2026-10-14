@@ -168,6 +168,15 @@ pub fn new_list_obj(elems: &[*mut TclObj]) -> *mut TclObj {
     obj::alloc_typed(&TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64)
 }
 
+/// `f` over `obj`'s elements when it already holds the list rep — no shimmer.
+pub(crate) fn with_list_rep<R>(obj: *mut TclObj, f: impl FnOnce(&[*mut TclObj]) -> R) -> Option<R> {
+    if obj::obj_type_ptr(obj) != &TCL_LIST_TYPE {
+        return None;
+    }
+    // SAFETY: the list type was just checked.
+    Some(f(&unsafe { list_ref(obj) }.elems))
+}
+
 /// `Tcl_ListObjLength`. Shimmers a string to a list if needed.
 pub fn list_length(obj: *mut TclObj) -> Result<usize, ListError> {
     ensure_list(obj)?;

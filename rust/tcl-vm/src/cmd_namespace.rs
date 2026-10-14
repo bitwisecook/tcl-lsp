@@ -790,7 +790,10 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"namespace inscope namespace arg ?arg ...?\"");
     };
     let written = ns.to_str().to_string();
-    let body = inscope_script(vm, script, extra);
+    let body = match inscope_script(vm, script, extra) {
+        Ok(body) => body,
+        Err(error) => return crate::command::completion_from_cmd_error(error),
+    };
     let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
     call_argv.extend(rest.iter().cloned());
     eval_in_ns(vm, &written, &body, call_argv)
@@ -825,14 +828,18 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// With no trailing words C takes the `objc == 3` arm and evaluates `script`
 /// verbatim (no concat, hence no trim and no trailing space), which the early
 /// return mirrors.
-fn inscope_script(vm: &mut Vm, script: &Value, extra: &[Value]) -> String {
+fn inscope_script(
+    vm: &mut Vm,
+    script: &Value,
+    extra: &[Value],
+) -> Result<String, tcl_cmd_core::CmdError> {
     if extra.is_empty() {
-        return script.to_str().to_string();
+        return Ok(script.to_str().to_string());
     }
     let tail = Value::list(extra.to_vec());
-    tcl_cmd_core::list::concat(vm, &[script.clone(), tail])
+    Ok(tcl_cmd_core::list::concat(vm, &[script.clone(), tail])?
         .to_str()
-        .to_string()
+        .to_string())
 }
 
 fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {

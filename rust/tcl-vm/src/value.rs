@@ -27,7 +27,7 @@
 
 #![allow(clippy::cast_precision_loss)] // i64→f64 numeric coercion is intentional
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use tcl_cmd_core::namespace::TclStringHashOrder;
@@ -70,7 +70,15 @@ struct Obj {
     string: RefCell<Option<Rc<str>>>,
     /// Typed internal rep; `RefCell` so a value can shimmer in place.
     intrep: RefCell<IntRep>,
+    /// The bytes a typed value measured to ([`Value::measured_bytes`]),
+    /// [`UNMEASURED`] until first asked. A value never changes what it
+    /// renders to, so the answer holds for its lifetime and each value is
+    /// measured once however often a limit asks.
+    measure: Cell<u64>,
 }
+
+/// [`Obj::measure`] before the value is first measured.
+const UNMEASURED: u64 = u64::MAX;
 
 /// The typed internal representation — a closed enum (the VM does not need open
 /// extension `Tcl_ObjType`s short-term).
@@ -101,6 +109,7 @@ impl Value {
         Self(Rc::new(Obj {
             string: RefCell::new(string),
             intrep: RefCell::new(intrep),
+            measure: Cell::new(UNMEASURED),
         }))
     }
 
@@ -469,11 +478,69 @@ impl Value {
         Ok((bucket_count, copied))
     }
 
+    /// The byte length this value has, or would have once rendered, counting
+    /// no further than just past `cap`: a string's bytes, a number's digits,
+    /// and a list's or dict's elements plus a separator between each (the
+    /// quoting rendering may add is not counted). A list is measured through
+    /// its elements rather than rendered — a list holding itself twice, nested
+    /// a few dozen deep, renders to more than any host has — and a complete
+    /// measure is kept, so a list built from measured elements costs one pass.
+    pub(crate) fn measured_bytes(&self, cap: u64) -> u64 {
+        self.measured_bytes_at_depth(cap, 0)
+    }
+
+    /// [`Value::measured_bytes`] at nesting `depth`; past the depth
+    /// [`Value::to_str`] renders, an element counts as one byte.
+    fn measured_bytes_at_depth(&self, cap: u64, depth: u32) -> u64 {
+        if let Some(s) = self.0.string.borrow().as_ref() {
+            return s.len() as u64;
+        }
+        let cached = self.0.measure.get();
+        if cached != UNMEASURED {
+            return cached;
+        }
+        let total = match &*self.0.intrep.borrow() {
+            IntRep::Str => return 0,
+            IntRep::Bool(_) => return 1,
+            IntRep::Int(n) => {
+                u64::from(n.unsigned_abs().checked_ilog10().unwrap_or(0) + 1) + u64::from(*n < 0)
+            }
+            IntRep::Double(f) => number::format_double(*f).len() as u64,
+            _ if MAX_LIST_TO_STR_DEPTH.exceeded(depth) => return 1,
+            IntRep::List(items) => measure_elements(items.iter(), cap, depth),
+            IntRep::Dict(dict) => measure_elements(
+                dict.pairs.iter().flat_map(|(key, value)| [key, value]),
+                cap,
+                depth,
+            ),
+        };
+        if total > cap {
+            return total;
+        }
+        self.0.measure.set(total);
+        total
+    }
+
     /// Whether two handles refer to the same Tcl value object.
     #[must_use]
     pub(crate) fn is_same_object(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
     }
+}
+
+/// The bytes `items` measure to with a separator between each, stopping once
+/// past `cap`.
+fn measure_elements<'a>(items: impl Iterator<Item = &'a Value>, cap: u64, depth: u32) -> u64 {
+    let mut total = 0u64;
+    for (i, item) in items.enumerate() {
+        total = total
+            .saturating_add(u64::from(i > 0))
+            .saturating_add(item.measured_bytes_at_depth(cap.saturating_sub(total), depth + 1));
+        if total > cap {
+            break;
+        }
+    }
+    total
 }
 
 impl std::fmt::Debug for Value {

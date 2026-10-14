@@ -206,9 +206,8 @@ fn lreverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `concat ?arg ...?` — trim each arg of surrounding whitespace, drop empties,
 /// join with single spaces (Tcl's string-level concat).
 fn concat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let v = list_core::concat(interp, &argv[1..]);
-    interp.set_result(v);
-    Code::Ok
+    let r = list_core::concat(interp, &argv[1..]);
+    adapt(interp, r)
 }
 
 /// `join list ?joinString?` — element string reps joined by `joinString`

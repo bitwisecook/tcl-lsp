@@ -631,6 +631,7 @@ impl Engine for TclVmEngine {
             self.vm.set_wall_clock_budget(Some(wall_clock));
         }
         let completion = self.vm.invoke_command(&handle.procedure, &arguments);
+        self.vm.charge_value_size(&completion.result);
         Self::completion_to_result(&self.vm, &completion)
     }
 
@@ -963,6 +964,58 @@ mod tests {
             .invoke(&fine, &arguments)
             .expect("a fresh invocation");
         assert_eq!(value.as_str(), Some("exact"));
+    }
+
+    /// Every value builder answers to the value-size limit, not `string repeat`
+    /// alone: a concatenation, a repeated list, an append loop, a word built
+    /// from substitutions, and a list that holds itself twice — which renders
+    /// to more than any host has while its elements stay small — are each
+    /// refused, inline or dispatched, and a `catch` does not hide it.
+    #[test]
+    fn every_value_builder_answers_to_the_value_size_budget() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .set_budget(
+                Budget::of_commands(1_000_000)
+                    .with_wall_clock(Duration::from_secs(5))
+                    .with_max_value_bytes(64),
+            )
+            .expect("the VM enforces all three");
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        for body in [
+            "return [string cat abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh \
+             abcdefgh abcdefgh abcdefgh]",
+            "return [lrepeat 100 abcdefgh]",
+            "return [lrepeat 1000000000 abcdefgh]",
+            "set c string; return [$c cat abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh \
+             abcdefgh abcdefgh abcdefgh abcdefgh]",
+            "return [concat abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh \
+             abcdefgh]",
+            "return [join [lrepeat 8 abcdefgh] --]",
+            "return [format %100s x]",
+            "return [lseq 100]",
+            "return [string map {a abcdefgh} aaaaaaaaaa]",
+            "set s abcdefgh; while 1 {append s $s}",
+            "set s abcdefgh; while 1 {set s $s$s}",
+            "set l x; for {set i 0} {$i < 64} {incr i} {set l [list $l $l]}; string length $l",
+            "set s abcdefgh; catch {while 1 {append s $s}}; return exact",
+        ] {
+            let handle = engine.compile(unit(body)).expect("compiles");
+            assert_eq!(
+                engine.invoke(&handle, &arguments).expect_err(body),
+                EngineError::BudgetExceeded(BudgetKind::ValueSize),
+                "{body}"
+            );
+        }
+        let within = engine
+            .compile(unit(
+                "list [string cat ab cd] [lrepeat 2 x] [concat a b] [format %3s x]",
+            ))
+            .expect("compiles");
+        let value = engine
+            .invoke(&within, &arguments)
+            .expect("well within the cap");
+        assert_eq!(value.as_str(), Some("abcd {x x} {a b} {  x}"));
     }
 
     /// An error that merely spells a limit's message is the script's own error,

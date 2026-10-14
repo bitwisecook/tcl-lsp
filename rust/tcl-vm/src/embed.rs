@@ -456,6 +456,20 @@ impl Vm {
         self.limit_exceeded_value()
     }
 
+    /// Charge `value` — a result about to leave the VM — against the
+    /// value-size limit, recording the breach when it is over. Answers whether
+    /// it was within the limit.
+    pub fn charge_value_size(&mut self, value: &Value) -> bool {
+        let Some(limit) = self.value_size_limit_value() else {
+            return true;
+        };
+        if value.measured_bytes(limit) <= limit {
+            return true;
+        }
+        let _ = self.exceed_limit_inner(crate::LimitKind::ValueSize);
+        false
+    }
+
     /// Record that work run on the body's behalf outran `kind` — a limit the
     /// VM itself could not see, such as a host command's own budget — and
     /// answer the error the command fails with.
