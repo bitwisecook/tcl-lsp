@@ -1,0 +1,13 @@
+{
+  "observed_utc": "2026-10-14T11:15:35.615715+00:00",
+  "remote": "https://github.com/msteveb/jimtcl.git",
+  "command": [
+    "git",
+    "ls-remote",
+    "https://github.com/msteveb/jimtcl.git",
+    "HEAD"
+  ],
+  "remote_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "local_source_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "scope": "Source HEAD currentness only; interpreter semantic results remain separately captured"
+}

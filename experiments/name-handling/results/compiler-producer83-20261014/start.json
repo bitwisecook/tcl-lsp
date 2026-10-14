@@ -1,0 +1,29 @@
+{
+  "started_utc": "2026-10-14T11:16:20.099966+00:00",
+  "label": "Focused current shared producer and original escape controls",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014",
+  "source_paths": 34706,
+  "plan": {
+    "exact": [
+      "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+      "command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners",
+      "registry_invocation::authored_source_bodies::tests::authored_declaration_cards_retain_actual_source_bodies_without_publication",
+      "ssa::native_source_definition_tests::native_source_definitions_select_actual_body_symbols_without_physical_store_grants",
+      "ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner",
+      "command_binding::generated_procedures::original_native_body_tests::native_source_children_refuse_original_expansion_cardinality",
+      "command_binding::generated_procedures::original_native_body_tests::native_source_declaration_birth_requires_complete_actual_input",
+      "registry_invocation::source_body_names::tests::original_evaluated_body_names_remain_candidates_without_frame_entry",
+      "var_escape::walker::tests::eval_body_escapes_a_name_inside_a_brace_quoted_word",
+      "var_escape::walker::tests::uplevel_zero_walks_body_like_eval"
+    ],
+    "filters": [],
+    "scope": "Focused current shared source producer positives/refusals and original eval/upframe regressions on production81 frozen ELF; source subset only."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "4c5410f7a221df31b95d78e96699b3bb21e5c3de6c3d634287bb67fbc6278030",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

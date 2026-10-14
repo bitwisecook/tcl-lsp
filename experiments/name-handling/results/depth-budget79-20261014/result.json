@@ -26,5 +26,19 @@
       "exit_code": -6,
       "seconds": 0.8663393740134779
     }
-  ]
+  ],
+  "debugger": {
+    "frozen_binary": "/workspace/tcl-lsp/tmp/name-depth-budget79-compiler-ELF",
+    "sha256_before": "f912d63e66397262ffa4bf8effb477cee9aed187914b4c994fa23306b150929e",
+    "sha256_after": "f912d63e66397262ffa4bf8effb477cee9aed187914b4c994fa23306b150929e",
+    "gdb_version": "Debian GDB16.3",
+    "commands": "/tmp/name-depth-stack-debugger-plan-20261014/commands.gdb",
+    "scope": "Own existing unchanged unit-test child; no source/budget/oracle changes",
+    "outcome": "SIGSEGV captured with actual recurring SourceCommandBindings body-flow stack; diagnostic only",
+    "logs": [
+      "lldb-source-walk.log",
+      "gdb-source-walk.log",
+      "gdb-source-walk-permitted.log"
+    ]
+  }
 }
