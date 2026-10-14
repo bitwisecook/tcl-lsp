@@ -1,0 +1,32 @@
+{
+  "source_channel": "same ordinary Compiler114 ELF with existing immutable debug flags; no source change or assertion change",
+  "selector": "ssa::original_analysis_definition_selector_tests::named_source_body_tokens_require_the_actual_header_body_and_attachment",
+  "flags": [
+    "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1",
+    "TCL_LSP_TRACE_ORIGINAL_DECLARATION=1"
+  ],
+  "before": {
+    "binary": "b9b3803f781cd7ce38934058ec70480de5a767120d3027ffa54df4e375b50a92",
+    "source": {
+      "rust/tcl-compiler/src/ssa.rs": "07723d6c59c217ee8cca9013b6c9b7eeacc4bdd6cb90b2a9f1290ad28e871649",
+      "rust/tcl-compiler/src/command_binding/retained_source.rs": "31259f3791b74c42cf3377eb296db03479d17c7653a355553e2ddede528b7877",
+      "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "ba53cf8755e86dcfd8dfde7d3e12207b8729d1eb444427357bc216a7b5b0cc05",
+      "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "560569c5074d8f4fcff518d97249fa5cb7690c30ffce4bea9108f635a3649223"
+    }
+  },
+  "after": {
+    "binary": "b9b3803f781cd7ce38934058ec70480de5a767120d3027ffa54df4e375b50a92",
+    "source": {
+      "rust/tcl-compiler/src/ssa.rs": "07723d6c59c217ee8cca9013b6c9b7eeacc4bdd6cb90b2a9f1290ad28e871649",
+      "rust/tcl-compiler/src/command_binding/retained_source.rs": "31259f3791b74c42cf3377eb296db03479d17c7653a355553e2ddede528b7877",
+      "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "ba53cf8755e86dcfd8dfde7d3e12207b8729d1eb444427357bc216a7b5b0cc05",
+      "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "560569c5074d8f4fcff518d97249fa5cb7690c30ffce4bea9108f635a3649223"
+    }
+  },
+  "unchanged": true,
+  "exit_code": 101,
+  "elapsed_seconds": 2.0086843929893803,
+  "timed_out": false,
+  "raw_log_bytes": 571052,
+  "gzip_sha256": "2c054a82ebc73fab2c0d08a649ce560f2d755cc7e09fc91ba7a4b7117b39df66"
+}

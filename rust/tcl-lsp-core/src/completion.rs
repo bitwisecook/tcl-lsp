@@ -1527,23 +1527,10 @@ fn method_items(
             });
         }
     }
-    // Methods the class system *generates* from declared `property` members
-    // (`oo::configurable`'s `configure`) — written by no `method` body, so
-    // the MRO walk above cannot see them.  The same registry-driven set the
-    // W308 existence check and the semantic-token classifier consult:
-    // completion offering a method those two accept is the
-    // whole point of sharing the predicate.  Instance-only — the accessor
-    // is an instance method on the configurable class, not a class-side one.
     if bucket == MethodBucket::Instance {
-        for name in hierarchy.property_accessor_methods(registry, class_q) {
-            if seen.insert(name.to_string()) {
-                items.push(CompletionItem {
-                    label: name.to_string(),
-                    insert_text: name.to_string(),
-                    kind: CompletionKind::Function,
-                    detail: Some("method — generated property accessor".to_string()),
-                    ..CompletionItem::default()
-                });
+        for item in generated_property_method_items(analysis, registry, class_q) {
+            if seen.insert(item.label.clone()) {
+                items.push(item);
             }
         }
     }
@@ -1590,6 +1577,68 @@ fn layer_per_object_members(
     Some(())
 }
 
+/// Catalogue name data uses the actual retained source grammar, not a runtime name recipe.
+fn source_method_name_word(analysis: &AnalysisResult, name: &str) -> Option<String> {
+    let input = analysis.resolved_input.as_ref()?;
+    if analysis.body_lexer_config != Some(input.lexer_config()) || name.contains('\0') {
+        return None;
+    }
+    tcl_syntax::word_rules::lexical_ascii_source_word(name, input.lexer_config())
+}
+
+fn generated_property_method_items(
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    class_q: &str,
+) -> Vec<CompletionItem> {
+    let Some(registry) = registry else {
+        return Vec::new();
+    };
+    if analysis
+        .resolved_registry()
+        .is_none_or(|actual| actual.snapshot().semantic_key() != registry.snapshot().semantic_key())
+    {
+        return Vec::new();
+    }
+    let Some(class) = analysis.all_classes.get(class_q) else {
+        return Vec::new();
+    };
+    if analysis.logical_source_class_declaration(class).is_none() {
+        return Vec::new();
+    }
+    let hierarchy = analysis.class_hierarchy();
+    let providers = hierarchy
+        .mro_map
+        .get(class_q)
+        .cloned()
+        .unwrap_or_else(|| vec![class_q.to_owned()]);
+    if providers
+        .iter()
+        .filter_map(|name| analysis.all_classes.get(name))
+        .any(|provider| {
+            analysis
+                .logical_source_class_declaration(provider)
+                .is_none()
+        })
+    {
+        return Vec::new();
+    }
+    hierarchy
+        .property_accessor_methods(Some(registry), class_q)
+        .into_iter()
+        .filter_map(|name| {
+            let insert_text = source_method_name_word(analysis, name)?;
+            Some(CompletionItem {
+                label: name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: Some("method — generated property accessor".to_owned()),
+                ..CompletionItem::default()
+            })
+        })
+        .collect()
+}
+
 /// Every instance method/subcommand item for a *registry*-modelled class:
 /// a tcllib-style factory (`report::report`, `struct::graph` — a distinct
 /// `ObjectClassSpec`) or a Tk/ttk widget (self-referential — `class_q`
@@ -1620,13 +1669,16 @@ fn registry_method_items(
         registry.instance_methods_at(class_q, package_version, Some(context.authoring_query()));
     let mut items: Vec<CompletionItem> = methods
         .into_iter()
-        .map(|m| CompletionItem {
-            label: m.name.to_owned(),
-            insert_text: m.name.to_owned(),
-            kind: CompletionKind::Function,
-            detail: Some(format!("method — {class_q}")),
-            documentation: (!m.detail.is_empty()).then(|| m.detail.to_owned()),
-            ..CompletionItem::default()
+        .filter_map(|method| {
+            let insert_text = source_method_name_word(analysis, method.name)?;
+            Some(CompletionItem {
+                label: method.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: Some(format!("method — {class_q}")),
+                documentation: (!method.detail.is_empty()).then(|| method.detail.to_owned()),
+                ..CompletionItem::default()
+            })
         })
         .collect();
     if items.is_empty() {
@@ -6462,6 +6514,37 @@ mod configured_receiver_completion_tests {
                 changed.resolved_profile().unwrap(),
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn generated_member_completion_requires_current_property_source_and_registry() {
+        let source = "oo::configurable create C {property p}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let registry = analysis.resolved_registry().unwrap();
+        let items = generated_property_method_items(&analysis, Some(registry), "::C");
+        let configure = items
+            .iter()
+            .find(|item| item.label == "configure")
+            .expect("genuine current property source generator");
+        assert_eq!(configure.insert_text, "configure");
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::C")
+            .unwrap()
+            .properties
+            .clear();
+        assert!(
+            generated_property_method_items(&changed, changed.resolved_registry(), "::C")
+                .is_empty()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(generated_property_method_items(&missing, Some(registry), "::C").is_empty());
+        let foreign = tcl_registry::model::ingress::static_context_for("jim");
+        assert!(
+            generated_property_method_items(&analysis, Some(foreign.commands()), "::C").is_empty()
         );
     }
 

@@ -4884,10 +4884,39 @@ mod tests {
         let mut class = analysis.all_classes["::C"].clone();
         class.original_members = Default::default();
         let current = &analysis.all_classes["::C"];
+        let actual_input = analysis.resolved_input.as_ref().unwrap();
+        let actual_image = analysis
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        let outer = crate::segmenter::segment_commands_with_offset_and_config(
+            direct_source,
+            0,
+            actual_input.lexer_config(),
+        );
+        let [outer] = outer.as_slice() else {
+            panic!("one authentic original class command")
+        };
+        let groups = tcl_lexer::group_commands_bytes(
+            &outer.all_tokens,
+            actual_image.bytes(),
+            actual_input.lexer_config(),
+        );
+        let body_group = &groups[0].words[3];
+        assert_eq!(body_group.span, current.body_span);
+        let body = tcl_lexer::NativeWord::from_group(
+            actual_image.clone(),
+            actual_input.lexer_config(),
+            &outer.all_tokens,
+            body_group,
+        )
+        .unwrap();
+        let content = crate::registry_invocation::original_written_script_body_span(&body).unwrap();
         let commands = crate::segmenter::segment_commands_with_offset_and_config(
-            &direct_source[current.body_span.as_range()],
-            current.body_span.start(),
-            input.lexer_config().nested(),
+            &direct_source[content.as_range()],
+            content.start(),
+            actual_input.lexer_config().nested(),
         );
         let mut command = commands
             .into_iter()
