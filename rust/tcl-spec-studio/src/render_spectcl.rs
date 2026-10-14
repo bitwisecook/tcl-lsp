@@ -3373,6 +3373,7 @@ fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     }
     for key in [
         "implicit_vars",
+        "implicit_receiver_vars",
         "member_body_namespace_path",
         "builtin_type_methods",
     ] {

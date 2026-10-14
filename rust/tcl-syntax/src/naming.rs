@@ -1525,6 +1525,12 @@ pub fn unroot_rooted_key(key: &str) -> Option<&str> {
     key.strip_prefix("::")
 }
 
+/// Remove one root marker from a counted constructed key, retaining all other bytes.
+#[must_use]
+pub fn unroot_rooted_key_bytes(key: &[u8]) -> Option<&[u8]> {
+    key.strip_prefix(b"::")
+}
+
 /// A command lookup base supplied by a consumer's context owner.
 /// Coordinates carry no namespace liveness or binding evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

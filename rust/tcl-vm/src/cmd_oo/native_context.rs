@@ -290,13 +290,13 @@ fn definition_head(vm: &Vm, requested: &[u8]) -> Option<Value> {
             _ => return None,
         }
     };
-    let mut full = b"::".to_vec();
-    full.extend_from_slice(vm.namespace_object_bytes(vm.current_ns_id()).as_bytes());
-    if !full.ends_with(b"::") {
-        full.extend_from_slice(b"::");
-    }
-    full.extend_from_slice(selected.as_bytes());
-    Some(Value::from_native_string_bytes(full))
+    let slot = tcl_core_types::ByteCommandSlot {
+        namespace: vm.namespace_path_for_token(vm.current_ns_id()),
+        simple: selected.clone(),
+    };
+    Some(Value::from_native_string_bytes(
+        tcl_syntax::naming::constructed_command_address_bytes(&slot),
+    ))
 }
 
 pub(super) fn magic_definition_invoke(

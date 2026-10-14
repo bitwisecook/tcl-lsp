@@ -1002,6 +1002,7 @@ fn the_inline_snit_grammar_matches_the_shipped_constant() {
         format!("{:?}", shipped.family)
     );
     assert_eq!(built.implicit_vars, shipped.implicit_vars);
+    assert_eq!(built.implicit_receiver_vars, shipped.implicit_receiver_vars);
     assert_eq!(
         built.member_body_namespace_path,
         shipped.member_body_namespace_path
@@ -1056,4 +1057,42 @@ fn the_inline_snit_grammar_matches_the_shipped_constant() {
             "the bare-word construction hint disagrees on {word:?}"
         );
     }
+}
+
+#[test]
+fn implicit_receiver_roles_round_trip_without_becoming_all_implicit_variables() {
+    use tcl_registry::definer::{DefinitionBodyGrammar, ITCL_GRAMMAR};
+    const GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+        implicit_vars: &["receiver", "options"],
+        implicit_receiver_vars: &["receiver", "hidden"],
+        ..ITCL_GRAMMAR
+    };
+    let spec = tcl_registry::CommandSpec {
+        name: "source_class",
+        definition_body: Some(&GRAMMAR),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let seeded = draft::from_command_spec(&spec);
+    let seeded = seeded.as_object().unwrap().clone();
+    let rust = tcl_spec_studio::render_rs::render(&seeded);
+    assert!(rust.contains("implicit_receiver_vars:"));
+    let text = tcl_spec_studio::render_spectcl::render_pack(&[seeded], "receiver_roles");
+    let pack = spectcl::evaluate_pack(&text);
+    let reloaded = &pack
+        .command("source_class")
+        .expect("retained descriptor")
+        .spec;
+    let grammar = reloaded
+        .definition_body
+        .expect("authored definition grammar");
+    assert_eq!(
+        grammar.implicit_receiver_vars,
+        GRAMMAR.implicit_receiver_vars
+    );
+    assert!(grammar.is_implicit_receiver_variable("receiver"));
+    for name in ["options", "hidden", "self", "this"] {
+        assert!(!grammar.is_implicit_receiver_variable(name));
+    }
+    assert!(reloaded.native_compilation.is_none());
+    assert!(reloaded.successful_handler.is_none());
 }

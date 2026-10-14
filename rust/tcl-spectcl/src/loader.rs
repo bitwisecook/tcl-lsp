@@ -4990,6 +4990,7 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
         family: DefinerFamily::TclOo,
         members: &[],
         implicit_vars: &[],
+        implicit_receiver_vars: &[],
         member_body_namespace_path: &[],
         builtin_type_methods: &[],
         builtin_object_methods: &[],
@@ -5029,6 +5030,9 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
             "member" => members.extend(member_row(stmt, log)),
             "member_option" => member_options.extend(member_option_row(stmt, log)),
             "implicit_vars" => grammar.implicit_vars = leak_strs(&list_words(&value)),
+            "implicit_receiver_vars" => {
+                grammar.implicit_receiver_vars = leak_strs(&list_words(&value));
+            }
             "member_body_namespace_path" => {
                 grammar.member_body_namespace_path = leak_strs(&list_words(&value));
             }

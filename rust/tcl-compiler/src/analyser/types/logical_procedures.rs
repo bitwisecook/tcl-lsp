@@ -140,6 +140,10 @@ impl AnalysisResult {
     ) -> Option<&LogicalSourceProcedureDeclaration> {
         self.all_procs
             .values()
+            .chain(
+                self.original_procedure_declarations()
+                    .map(|declaration| declaration.metadata()),
+            )
             .any(|current| std::ptr::eq(current, procedure))
             .then_some(())?;
         let mut declarations = self
@@ -296,5 +300,69 @@ mod tests {
                     .is_none()
             );
         }
+    }
+    #[test]
+    fn logical_body_geometry_accepts_actual_original_records_and_rejects_copies() {
+        let source = "proc p {x} {expr {$x + 1}}\np 2";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let record = analysis.original_procedure_declarations().next().unwrap();
+        let procedure = record.metadata();
+        assert!(!std::ptr::eq(procedure, &analysis.all_procs["::p"]));
+        let declaration = analysis
+            .logical_source_procedure_declaration(procedure)
+            .expect("the actual retained original record shares its Logical body");
+        let image = SourceImage::document(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert_eq!(
+            declaration
+                .original_body_word(&image, input)
+                .unwrap()
+                .content_span()
+                .ok()
+                .and_then(|span| source.get(span.as_range())),
+            Some("expr {$x + 1}")
+        );
+        assert!(
+            analysis
+                .logical_source_procedure_declaration(&procedure.clone())
+                .is_none()
+        );
+        let foreign = Analyser::new().analyse(source, "tcl");
+        assert!(
+            analysis
+                .logical_source_procedure_declaration(
+                    foreign
+                        .original_procedure_declarations()
+                        .next()
+                        .unwrap()
+                        .metadata(),
+                )
+                .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            missing
+                .logical_source_procedure_declaration(
+                    missing
+                        .original_procedure_declarations()
+                        .next()
+                        .unwrap()
+                        .metadata(),
+                )
+                .is_none()
+        );
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            native
+                .logical_source_procedure_declaration(
+                    native
+                        .original_procedure_declarations()
+                        .next()
+                        .unwrap()
+                        .metadata(),
+                )
+                .is_none()
+        );
     }
 }

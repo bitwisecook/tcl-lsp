@@ -171,10 +171,13 @@
 //!    untracked code mints immortal slots holding whole `CompilationUnit`
 //!    lattices.
 //!
-//! Interned structs with a *bounded* key space are outside this contract:
-//! [`LexerCfgKey`] is two booleans and [`CommandTail`] one command name, so
-//! minting them from untracked host code (as [`compilation_unit`]'s own
-//! signature requires) can retain only a handful of tiny slots.
+//! [`LexerCfgKey`] and [`CommandTail`] have different churn boundaries from
+//! these per-body keys. Production lexer keys retain the resolved environment
+//! id; command keys retain an exact declaration or bare-tail assistance name.
+//! New environments or symbols can add entries, but body text and revision
+//! offsets do not enter these keys. They are not covered by the six-key growth
+//! control below; [`compilation_unit`]'s signature takes a lexer key interned
+//! by its caller.
 //! [`CfgContext`] is content-keyed but signature-level, so a body edit leaves
 //! it alone; it is collected by the same mechanism when a signature does move.
 //!
@@ -6026,7 +6029,84 @@ p\uD801 ordinary";
                     Arc::clone(&generation),
                     config,
                 ));
-        let module = lowerer.lower("throw ERROR payload; set reached 1").clone();
+        let source = "throw ERROR payload; set reached 1";
+        let unknown_module = lowerer.lower(source).clone();
+        assert!(unknown_module.source_entry.unknown_entry);
+        assert!(unknown_module.source_entry.native_entry.is_none());
+        let input = unknown_module.source_metadata_input.as_ref().unwrap();
+        let unknown = supplied_cfg_lattice_key(&db, &unknown_module, Some(input.clone()));
+
+        struct Capture(
+            std::rc::Rc<std::cell::RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>,
+        );
+        impl tcl_vm::CompileService for Capture {
+            type Module = <tcl_compiler::compile_service::BytecodeCompileService as tcl_vm::CompileService>::Module;
+
+            fn compile(&self, _: &str) -> Result<Self::Module, tcl_vm::CompileError> {
+                Err(tcl_vm::CompileError::Unsupported(
+                    "entry capture only".into(),
+                ))
+            }
+
+            fn compile_script_with_entry(
+                &self,
+                _: tcl_runtime_api::ScriptCompileTarget<'_>,
+                _: &'static tcl_dialect::DialectProfile,
+                entry: &tcl_runtime_api::NativeCompilationEntry,
+            ) -> Result<Self::Module, tcl_vm::CompileError> {
+                *self.0.borrow_mut() = Some(entry.clone());
+                self.compile("")
+            }
+        }
+        let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut owner = tcl_vm::Vm::with_native_core(
+            Box::new(std::io::sink()),
+            std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        owner.set_compiler(Box::new(Capture(std::rc::Rc::clone(&captured))));
+        assert!(owner.try_compile_function("set entry_probe 1").is_err());
+        let native = captured
+            .borrow_mut()
+            .take()
+            .expect("actual VM compiler entry");
+        assert_eq!(
+            native.execution_point,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").point()
+        );
+        assert!(
+            native
+                .compiler_pass_environment
+                .as_ref()
+                .unwrap()
+                .is_current_for(native.interpreter)
+        );
+        let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
+                    Some(input),
+                ),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                loop_depth: 0,
+                catch_depth: Some(0),
+            },
+            native_entry: Some(Arc::new(native)),
+            ..tcl_compiler::command_binding::SourceAnalysisEntry::default()
+        };
+        let mut lowerer =
+            tcl_compiler::lowering::Lowerer::with_config(generation.commands(), config)
+                .with_resolved_analysis_input(input.clone());
+        lowerer.set_source_analysis_options(entry.options());
+        let module = lowerer.lower(source).clone();
+        assert!(!module.source_entry.unknown_entry);
+        assert!(module.source_entry.native_entry.is_some());
+        assert_eq!(module.source_metadata_input.as_ref(), Some(input));
         let input = module.source_metadata_input.as_ref().unwrap();
         assert!(Arc::ptr_eq(&input.context_registry(), &generation));
         let selected = supplied_cfg_lattice_key(&db, &module, Some(input.clone()));
@@ -6067,7 +6147,7 @@ p\uD801 ordinary";
         let current = function_lattice(&db, selected);
         assert_eq!(current.cfg.blocks[&current.cfg.entry].terminator, expected);
         assert_eq!(current.cfg.blocks[&current.cfg.entry].statements.len(), 1);
-        for negative in [unavailable, foreign, missing] {
+        for negative in [unavailable, foreign, missing, unknown] {
             assert!(
                 selected != negative,
                 "complete source input owns memo identity"
@@ -6082,6 +6162,17 @@ p\uD801 ordinary";
             );
         }
         assert!(Arc::ptr_eq(&current, &function_lattice(&db, selected)));
+        assert!(
+            entry
+                .native_entry
+                .as_ref()
+                .unwrap()
+                .compiler_pass_environment
+                .as_ref()
+                .unwrap()
+                .is_current_for(entry.native_entry.as_ref().unwrap().interpreter)
+        );
+        drop(owner);
     }
 
     fn semantic_bundle_has_selected_invocation(

@@ -138,6 +138,7 @@ command snit::type {
         member expose   -effect configuration
 
         implicit_vars {self selfns type options}
+        implicit_receiver_vars {self}
 
         # `member_body_namespace_path` is absent = `&[]`: snit member bodies
         # resolve bare words through the generated type namespace, with no

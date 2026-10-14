@@ -594,8 +594,28 @@ fn loop_installed_member_shape(
     let name_idx = member
         .indices_for_call_in(inner_texts, dialect, ArgRole::Name)
         .next()?;
-    let name_word = inner_texts.get(name_idx)?;
-    if crate::static_loops::simple_var_ref(name_word).as_deref() != Some(var_name) {
+    let original = tcl_lexer::native_script_words_in_with_purpose(
+        tcl_lexer::SourceImage::document(body_word),
+        Span::new(0, u32::try_from(body_word.len()).ok()?),
+        lexer_config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    if original.fatal_tail.is_some() || original.commands.len() != 1 {
+        return None;
+    }
+    let words = &original.commands.first()?.words;
+    if words.len() != inner.argv.len() {
+        return None;
+    }
+    let ordinal = statement
+        .row
+        .keyword_index
+        .checked_add(1)?
+        .checked_add(name_idx)?;
+    let name =
+        tcl_syntax::word_rules::original_scalar_variable_with_prefix(words.get(ordinal)?, &[b""])?;
+    if name != var_name.as_bytes() {
         return None;
     }
     let body_idx = member
@@ -5029,6 +5049,56 @@ mod tests {
                 )
                 .is_none()
         );
+    }
+
+    #[test]
+    fn loop_installed_members_require_the_original_variable_word() {
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.1");
+        let dialect = tcl_registry::model::ingress::static_context_for("tcl9.1")
+            .context()
+            .authoring_query();
+        let shape =
+            |body, name| loop_installed_member_shape(tcloo(), body, 7, config, Some(dialect), name);
+        for body in [
+            "method $name {} {}",
+            r#"method "$name" {} {}"#,
+            "method ${name} {} {}",
+            "private method $name {} {}",
+            "self method $name {} {}",
+        ] {
+            assert!(shape(body, "name").is_some(), "{body}");
+        }
+        for body in [
+            "method {$name} {} {}",
+            r"method \$name {} {}",
+            "method {${name}} {} {}",
+            "method prefix$name {} {}",
+            "method $name$suffix {} {}",
+            "method $name(key) {} {}",
+            "method ${name(key)} {} {}",
+            "method {*}{$name} {} {}",
+            r#"method " $name" {} {}"#,
+        ] {
+            assert!(shape(body, "name").is_none(), "{body}");
+        }
+        assert!(shape("method ${literal:::name} {} {}", "literal:::name").is_some());
+        assert!(shape("method ${literal:::name} {} {}", "literal::name").is_none());
+        let flat = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..config
+        };
+        assert!(
+            loop_installed_member_shape(
+                tcloo(),
+                "method ${a{b} {} {}",
+                7,
+                flat,
+                Some(dialect),
+                "a{b"
+            )
+            .is_some()
+        );
+        assert!(shape("method ${a{b} {} {}", "a{b").is_none());
     }
 
     #[test]

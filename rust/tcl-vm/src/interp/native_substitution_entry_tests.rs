@@ -23,7 +23,7 @@ fn substitution_entry_requires_selected_handler_and_independent_source_context()
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
-        let snapshot = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let snapshot = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
         let selected = snapshot.commands.iter().find(|row| matches!(&row.implementation,
             tcl_runtime_api::native_compilation::NativeCommandImplementation::Registry { identity, .. } if identity == "subst")).unwrap();
         let flags = NativeSubstitutionFlags::new(true, true, true);
@@ -67,8 +67,7 @@ fn substitution_entry_requires_selected_handler_and_independent_source_context()
         assert!(NativeSelectedSubstitutionHandler::capture(&snapshot, &wrong).is_err());
         let foreign =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
-        let foreign_snapshot =
-            foreign.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let foreign_snapshot = foreign.native_compilation_entry_for_namespace_token(ROOT_NS, false);
         assert!(
             NativeSubstitutionCompilationEntry::from_selected_handler(
                 &foreign_snapshot,
@@ -107,7 +106,7 @@ fn substitution_entry_requires_selected_handler_and_independent_source_context()
     for engine in ["tcl8.4", "tcl8.5", "jim"] {
         let vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
-        let snapshot = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let snapshot = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
         if let Some(selected) = snapshot.commands.iter().find(|row| matches!(&row.implementation,
             tcl_runtime_api::native_compilation::NativeCommandImplementation::Registry { identity, .. } if identity == "subst")) {
             assert!(NativeSelectedSubstitutionHandler::capture(&snapshot, selected).is_err());

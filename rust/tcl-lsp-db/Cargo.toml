@@ -46,6 +46,8 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 
 [dev-dependencies]
+tcl-vm = { path = "../tcl-vm" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
 rayon = "1"
 # The value-transfer parity tests load a workspace pack, install its
 # overlay registry and publish its hook plan exactly as the server does, so

@@ -11168,7 +11168,7 @@ impl Vm {
             .ok_or_else(unavailable)?;
         let namespace = self.source_namespace_path();
         let snapshot =
-            self.native_compilation_entry_for_namespace_token(Some(self.current_ns_id()), false);
+            self.native_compilation_entry_for_namespace_token(self.current_ns_id(), false);
         let selected = NativeSelectedSubstitutionHandler::capture(&snapshot, &selected)
             .map_err(|_| unavailable())?;
         if let Some(cache) = original.native_substitution_cache() {
@@ -11223,7 +11223,7 @@ impl Vm {
         let source = self.native_script_source_image(original)?;
         let namespace = self.source_namespace_path();
         let snapshot =
-            self.native_compilation_entry_for_namespace_token(Some(self.current_ns_id()), false);
+            self.native_compilation_entry_for_namespace_token(self.current_ns_id(), false);
         let entry =
             NativeSubstitutionCompilationEntry::from_selected_handler(&snapshot, selected, flags)
                 .map_err(|error| {
@@ -17075,7 +17075,7 @@ impl Vm {
             .map_err(|error| self.original_name_cmd_error(error))?;
         let source = tcl_runtime_api::SourceImage::native(bytes.as_ref());
         let path = self.ns_path(namespace);
-        let mut entry = self.native_compilation_entry_for_namespace_token(Some(namespace), true);
+        let mut entry = self.native_compilation_entry_for_namespace_token(namespace, true);
         let procedure = command_namespace.and_then(|token| {
             let namespace = entry.retained_namespace_context(u64::from(token.0)).ok()?;
             let mut name = b"::".to_vec();
@@ -17348,7 +17348,7 @@ impl Vm {
             tcl_lexer::SourceImage::document(target.source),
         );
         let entry = std::sync::Arc::new(
-            self.native_compilation_entry_for_namespace(target.namespace, false),
+            self.native_compilation_entry_for_namespace(target.namespace, false)?,
         );
         if let Some(cached) = self.eval_cache_plain.get(&key)
             && cached.entry.same_compilation_world(&entry)
@@ -24343,7 +24343,7 @@ impl Vm {
         &self,
         namespace: &str,
         procedure: bool,
-    ) -> tcl_runtime_api::NativeCompilationEntry {
+    ) -> Result<tcl_runtime_api::NativeCompilationEntry, TclError> {
         let current = if namespace.is_empty() {
             Some(ROOT_NS)
         } else if namespace == self.current_ns() {
@@ -24358,12 +24358,20 @@ impl Vm {
             });
             matches.next().filter(|_| matches.next().is_none())
         };
-        self.native_compilation_entry_for_namespace_token(current, procedure)
+        let current = current.ok_or_else(Self::unavailable_native_compilation_namespace)?;
+        Ok(self.native_compilation_entry_for_namespace_token(current, procedure))
+    }
+
+    fn unavailable_native_compilation_namespace() -> TclError {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native compilation namespace coordinates",
+        )
+        .into()
     }
 
     fn native_compilation_entry_for_namespace_token(
         &self,
-        current: Option<NsId>,
+        current: NsId,
         procedure: bool,
     ) -> tcl_runtime_api::NativeCompilationEntry {
         use tcl_runtime_api::native_compilation::{
@@ -24412,7 +24420,7 @@ impl Vm {
             ),
             inline_compilation_disabled: self.step_trace_active(),
             math_functions: self.native_math_function_table(),
-            closed: complete && current.is_some(),
+            closed: complete,
             commands,
             namespaces,
             // VM command lookup visits its own namespace/table arena only;
@@ -24425,7 +24433,7 @@ impl Vm {
                     tcl_runtime_api::native_compilation::NativeCommandResolverPresence::Absent,
                 ),
             ),
-            current_namespace: u64::from(current.unwrap_or(ROOT_NS).0),
+            current_namespace: u64::from(current.0),
             authored_tmm_static: self.authored_static_compilation_context(),
             variable_observers: if !self.variable_observers.script_traces.is_empty()
                 || !self.active_traces.is_empty()
@@ -25056,7 +25064,7 @@ impl Vm {
             tcl_lexer::SourceImage::document(src),
         );
         let entry =
-            std::sync::Arc::new(self.native_compilation_entry_for_namespace(namespace, false));
+            std::sync::Arc::new(self.native_compilation_entry_for_namespace(namespace, false)?);
         if let Some(cached) = self.eval_cache.get(&key)
             && cached.entry.same_compilation_world(&entry)
         {
@@ -25140,6 +25148,7 @@ impl Vm {
         } else {
             self.namespace_token_at_path(namespace, true)
         };
+        let current = current.ok_or_else(Self::unavailable_native_compilation_namespace)?;
         let entry =
             std::sync::Arc::new(self.native_compilation_entry_for_namespace_token(current, false));
         let key = (namespace.clone(), source.clone());
@@ -25410,8 +25419,7 @@ impl Vm {
         self.claim_number_grammar();
         self.reset_error_state_for_eval();
         let namespace = self.source_namespace_path();
-        let entry =
-            self.native_compilation_entry_for_namespace_token(Some(self.current_ns_id()), false);
+        let entry = self.native_compilation_entry_for_namespace_token(self.current_ns_id(), false);
         let Some(compiler) = self.compiler.clone() else {
             return Err(self.compile_service_error_bytes(
                 tcl_runtime_api::CompileError::Unsupported(
@@ -25788,8 +25796,7 @@ impl Vm {
         source: &tcl_runtime_api::SourceImage,
         namespace: &NamespacePath,
     ) -> Result<tcl_runtime_api::ScriptCommandPlan, TclError> {
-        let entry =
-            self.native_compilation_entry_for_namespace_token(Some(self.current_ns_id()), false);
+        let entry = self.native_compilation_entry_for_namespace_token(self.current_ns_id(), false);
         let Some(compiler) = self.compiler.as_ref() else {
             return Err(self.compile_service_error_bytes(
                 tcl_runtime_api::CompileError::Unsupported(
@@ -27683,7 +27690,7 @@ mod family_b_tests {
         vm.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
         let context = vm.activate_namespace_operand(b"n\0z").unwrap();
         vm.push_ns_eval_token_frame(context, Vec::new());
-        let entry = vm.native_compilation_entry_for_namespace_token(Some(context), true);
+        let entry = vm.native_compilation_entry_for_namespace_token(context, true);
         assert_eq!(entry.current_namespace, u64::from(context.0));
         let row = entry
             .namespaces
@@ -27755,7 +27762,9 @@ mod family_b_tests {
                 Namespaces::find_command_bytes(&vm, ROOT_NS, &materialised),
                 Namespaces::find_command_bytes(&vm, ROOT_NS, b"k\xc3\xbf")
             );
-            let entry = vm.native_compilation_entry_for_namespace("", false);
+            let entry = vm
+                .native_compilation_entry_for_namespace("", false)
+                .unwrap();
             for name in names {
                 assert!(
                     entry
@@ -27956,7 +27965,7 @@ mod family_b_tests {
                 let mut reported = rooted;
                 reported.extend_from_slice(b"::p");
                 assert_eq!(Namespaces::command_name_bytes(&vm, command), Some(reported));
-                let entry = vm.native_compilation_entry_for_namespace_token(Some(namespace), false);
+                let entry = vm.native_compilation_entry_for_namespace_token(namespace, false);
                 assert!(
                     entry
                         .namespaces
@@ -27968,11 +27977,65 @@ mod family_b_tests {
     }
 
     #[test]
+    fn native_compilation_capture_refuses_missing_namespace_coordinates() {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+        let root = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
+        assert_eq!(root.current_namespace, u64::from(ROOT_NS.0));
+        assert_eq!(
+            root.retained_namespace_context(root.current_namespace)
+                .unwrap()
+                .path,
+            NamespacePath::root()
+        );
+        let literal_world = root.empty_literal_world.as_ref().unwrap();
+        assert!(literal_world.is_current());
+        let absent = NamespacePath::from_segments([b"unallocated_capture_namespace".as_slice()]);
+        assert!(vm.namespace_token_at_path(&absent, true).is_none());
+        for error in [
+            vm.native_compilation_entry_for_namespace("unallocated_capture_namespace", false)
+                .unwrap_err(),
+            vm.compile_module_bytes(
+                &tcl_lexer::SourceImage::document("set value 1"),
+                &absent,
+                false,
+            )
+            .unwrap_err(),
+        ] {
+            assert_eq!(
+                error.native_access_refusal(),
+                Some(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "native compilation namespace coordinates"
+                    )
+                )
+            );
+            assert!(error.guest_completion().is_none());
+        }
+        assert!(vm.namespace_token_at_path(&absent, true).is_none());
+        assert!(literal_world.is_current());
+        let current_root = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
+        assert_eq!(current_root.current_namespace, root.current_namespace);
+        assert_eq!(
+            current_root
+                .retained_namespace_context(current_root.current_namespace)
+                .unwrap(),
+            root.retained_namespace_context(root.current_namespace)
+                .unwrap()
+        );
+    }
+
+    #[test]
     fn default_native_entry_retains_actual_execution_point_and_assistance_profile() {
         use tcl_dialect::model::DialectPoint;
         let mut vm = Vm::new();
         assert!(vm.dialect_profile().is_fallback());
-        let entry = vm.native_compilation_entry_for_namespace("", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         assert_eq!(entry.profile, vm.dialect_profile().cache_key());
         assert_eq!(
             entry.execution_point,
@@ -27982,6 +28045,7 @@ mod family_b_tests {
             vm.set_runtime_version(version);
             assert_eq!(
                 vm.native_compilation_entry_for_namespace("", false)
+                    .unwrap()
                     .execution_point,
                 Some(DialectPoint::for_tcl_version(version))
             );
@@ -27999,6 +28063,7 @@ mod family_b_tests {
         assert!(vm.set_command_surface_profile(host));
         assert!(
             vm.native_compilation_entry_for_namespace("", false)
+                .unwrap()
                 .execution_point
                 .is_none()
         );
@@ -28024,7 +28089,9 @@ mod family_b_tests {
             vm.lexer_config().grammar_over(source.grammar),
             lexical.grammar_over(source.grammar)
         );
-        let entry = vm.native_compilation_entry_for_namespace("", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         assert_eq!(entry.profile, source.cache_key());
         assert_eq!(
             entry.execution_point,
@@ -28119,12 +28186,16 @@ mod family_b_tests {
         let mut vm = Vm::new();
         vm.set_dialect_profile(source);
         assert!(vm.set_native_engine_profile(host));
-        let absent = vm.native_compilation_entry_for_namespace("", false);
+        let absent = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         assert!(absent.expression_policy.is_none());
         assert!(vm.set_logical_expression_parse_provider(
             LogicalExpressionParseProvider::Tcl84CoreSimulation
         ));
-        let parser = vm.native_compilation_entry_for_namespace("", false);
+        let parser = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         assert_eq!(
             parser.expression_policy.unwrap().origin,
             ExpressionEvaluationOrigin::AuthoredTcl84Parser
@@ -28138,7 +28209,9 @@ mod family_b_tests {
         );
         assert!(!absent.same_compilation_world(&parser));
         assert!(vm.set_logical_numeric_provider(AuthoredLogicalNumericSimulation::Tcl84Core));
-        let scalar = vm.native_compilation_entry_for_namespace("", false);
+        let scalar = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         assert!(!parser.same_compilation_world(&scalar));
         assert!(scalar.math_functions.is_none());
         assert_eq!(
@@ -28395,7 +28468,9 @@ mod family_b_tests {
         vm.set_compiler(Box::new(BytecodeCompileService::for_profile(source)));
         vm.register_native_command("policy_probe", Rc::new(PolicyProbe));
         let user_stamp = vm.native_cache_stamp(ROOT_NS);
-        let user_entry = vm.native_compilation_entry_for_namespace("", false);
+        let user_entry = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         let generation = vm.profile_generation();
         let completion = vm
             .try_eval_native_host_source("policy_probe")
@@ -28411,7 +28486,8 @@ mod family_b_tests {
         assert_eq!(completion.code, Code::Ok);
         assert_eq!(completion.result.string_bytes().as_ref(), b"USER");
         assert_eq!(
-            vm.native_compilation_entry_for_namespace("", false),
+            vm.native_compilation_entry_for_namespace("", false)
+                .unwrap(),
             user_entry
         );
         let child = vm.fork_child_state();
@@ -28452,7 +28528,9 @@ mod family_b_tests {
         assert!(vm.set_logical_source_word_provider(
             tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
         ));
-        let original = vm.native_compilation_entry_for_namespace("", false);
+        let original = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         assert_eq!(original.profile, user.cache_key());
         assert!(!vm.lexer_config().expand_syntax);
         assert_eq!(
@@ -28461,7 +28539,9 @@ mod family_b_tests {
         );
 
         vm.active_native_profile = Some(host);
-        let entry = vm.native_compilation_entry_for_namespace("", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         assert_eq!(entry.profile, host.cache_key());
         assert_eq!(vm.source_profile().cache_key(), host.cache_key());
         assert_eq!(
@@ -28479,7 +28559,8 @@ mod family_b_tests {
 
         vm.active_native_profile = None;
         assert_eq!(
-            vm.native_compilation_entry_for_namespace("", false),
+            vm.native_compilation_entry_for_namespace("", false)
+                .unwrap(),
             original
         );
         assert_eq!(vm.source_profile().cache_key(), user.cache_key());
@@ -28886,7 +28967,9 @@ mod family_b_tests {
                 .code
                 .is_ok()
         );
-        let entry = vm.native_compilation_entry_for_namespace("N", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("N", false)
+            .unwrap();
         let callable = entry
             .commands
             .iter()
@@ -28940,7 +29023,9 @@ mod family_b_tests {
                 .code
                 .is_ok()
         );
-        let entry = vm.native_compilation_entry_for_namespace("N", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("N", false)
+            .unwrap();
         assert!(entry.closed);
         let moved = entry
             .commands
@@ -28973,7 +29058,9 @@ mod family_b_tests {
             },
         );
 
-        let entry = vm.native_compilation_entry_for_namespace("N", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("N", false)
+            .unwrap();
         let captured = entry
             .namespaces
             .iter()
@@ -29000,7 +29087,9 @@ mod family_b_tests {
         };
         let mut vm = Vm::new();
         vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
-        let entry = vm.native_compilation_entry_for_namespace("", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         let table = entry
             .math_functions
             .expect("C8.4 uses a fixed native math table");
@@ -29131,7 +29220,9 @@ mod family_b_tests {
                 ensemble,
                 "{name}"
             );
-            let entry = vm.native_compilation_entry_for_namespace("", false);
+            let entry = vm
+                .native_compilation_entry_for_namespace("", false)
+                .unwrap();
             let worker = entry
                 .commands
                 .iter()
@@ -29173,7 +29264,9 @@ mod family_b_tests {
             vm.set_dialect_profile(
                 tcl_registry::model::ingress::resolve_environment(name).unit_profile(),
             );
-            let entry = vm.native_compilation_entry_for_namespace("", false);
+            let entry = vm
+                .native_compilation_entry_for_namespace("", false)
+                .unwrap();
             for (family, root, member) in [
                 (
                     tcl_registry::EnsembleImplementationFamily::String,
@@ -29246,7 +29339,9 @@ mod family_b_tests {
                 ensemble,
                 "{name}"
             );
-            let entry = vm.native_compilation_entry_for_namespace("", false);
+            let entry = vm
+                .native_compilation_entry_for_namespace("", false)
+                .unwrap();
             let worker = entry.commands.iter().find(|row| {
                 row.slot.namespace == ["tcl", "namespace"] && row.slot.simple == "current"
             });
@@ -29284,7 +29379,9 @@ mod family_b_tests {
         use tcl_runtime_api::native_compilation::NativeVariableObserverPresence;
         let mut vm = Vm::new();
         vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
-        let initial = vm.native_compilation_entry_for_namespace("", false);
+        let initial = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         assert_eq!(
             initial.variable_observers,
             NativeVariableObserverPresence::BoundedNativeOnly
@@ -29296,7 +29393,9 @@ mod family_b_tests {
             "callback".to_owned(),
             false,
         );
-        let observed = vm.native_compilation_entry_for_namespace("", false);
+        let observed = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         assert_eq!(
             observed.variable_observers,
             NativeVariableObserverPresence::Present
@@ -29309,6 +29408,7 @@ mod family_b_tests {
         vm.remove_var_trace("::count", &["write".to_owned()], "callback");
         assert_eq!(
             vm.native_compilation_entry_for_namespace("", false)
+                .unwrap()
                 .variable_observers,
             NativeVariableObserverPresence::BoundedNativeOnly
         );
@@ -29317,6 +29417,7 @@ mod family_b_tests {
         );
         assert_eq!(
             vm.native_compilation_entry_for_namespace("", false)
+                .unwrap()
                 .variable_observers,
             NativeVariableObserverPresence::Absent
         );
@@ -29327,7 +29428,9 @@ mod family_b_tests {
     fn native_entry_trusts_registered_stock_identity_and_keeps_host_builtins_opaque() {
         use tcl_runtime_api::native_compilation::NativeCommandImplementation;
         let mut vm = Vm::new();
-        let entry = vm.native_compilation_entry_for_namespace("", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         let stock = entry
             .commands
             .iter()
@@ -29336,7 +29439,9 @@ mod family_b_tests {
         assert!(matches!(&stock.implementation,
             NativeCommandImplementation::Registry { identity, .. } if identity == "set"));
         vm.register_guarded_builtin("set", guarded_builtin, GUARDED_IDENTITY);
-        let entry = vm.native_compilation_entry_for_namespace("", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         let custom = entry
             .commands
             .iter()
@@ -29368,7 +29473,9 @@ mod family_b_tests {
             ],
         )];
         token.configure(config);
-        let entry = vm.native_compilation_entry_for_namespace("", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         let binding = entry
             .commands
             .iter()
@@ -29425,7 +29532,9 @@ mod family_b_tests {
                     );
                 }
             }
-            let entry = vm.native_compilation_entry_for_namespace("", false);
+            let entry = vm
+                .native_compilation_entry_for_namespace("", false)
+                .unwrap();
             let custom = entry
                 .commands
                 .iter()
@@ -29446,7 +29555,9 @@ mod family_b_tests {
             "a host callable has its own availability"
         );
         vm.register_native_command("host", Rc::new(TestNative));
-        let entry = vm.native_compilation_entry_for_namespace("", false);
+        let entry = vm
+            .native_compilation_entry_for_namespace("", false)
+            .unwrap();
         let host = entry
             .commands
             .iter()
@@ -31800,7 +31911,7 @@ mod compiled_variable_provider_tests {
             policy.recipe(),
             NativeCompiledVariableRecipe::C(tcl_dialect::TclVersion::V8_4)
         );
-        let entry = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let entry = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
         assert_eq!(entry.compiled_variable_protocol, Some(policy));
         assert_eq!(
             entry.execution_point,
@@ -32034,7 +32145,7 @@ mod native_definition_registration_tests {
             let vm =
                 crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
             let dialect = vm.actual_native_invocation_dialect();
-            let native = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+            let native = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
             for member in [
                 "private",
                 "classmethod",
@@ -32104,7 +32215,7 @@ mod native_oo_bootstrap_inventory_tests {
             tcl_dialect::TclVersion::V9_1,
         ] {
             let vm = vm(version);
-            let entry = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+            let entry = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
             let inventory = entry.oo_classes.as_ref().expect("actual OO allocations");
             let factory = inventory
                 .classes

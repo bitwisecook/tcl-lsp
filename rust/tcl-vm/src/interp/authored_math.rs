@@ -239,6 +239,7 @@ mod tests {
         assert_eq!(completion.result.try_to_str().unwrap().as_ref(), "077 63");
         assert!(
             vm.native_compilation_entry_for_namespace("", false)
+                .unwrap()
                 .math_functions
                 .is_none()
         );
@@ -274,6 +275,7 @@ mod tests {
         );
         assert!(
             vm.native_compilation_entry_for_namespace("", false)
+                .unwrap()
                 .math_functions
                 .is_none()
         );

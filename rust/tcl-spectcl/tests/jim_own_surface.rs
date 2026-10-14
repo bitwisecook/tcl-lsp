@@ -320,6 +320,8 @@ fn class_carries_the_jim_class_grammar_and_no_body_word() {
     assert!(grammar.manufacturer("new").is_some());
     assert!(grammar.dynamic_method_dispatch);
     assert_eq!(grammar.implicit_vars, ["self"]);
+    assert_eq!(grammar.implicit_receiver_vars, ["self"]);
+    assert!(grammar.is_implicit_receiver_variable("self"));
 
     let generation = jim();
     let store = generation.commands();

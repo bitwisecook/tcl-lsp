@@ -113,7 +113,7 @@ fn native_command_resolver_inventory_requires_exact_entry_and_no_target_donation
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
         vm.register("opaque_lookup_probe", opaque_handler);
-        let entry = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let entry = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
         let inventory = entry
             .command_resolvers
             .expect("the VM owns its lookup surface");

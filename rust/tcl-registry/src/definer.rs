@@ -1829,6 +1829,9 @@ pub struct DefinitionBodyGrammar {
     /// `type` / `selfns` / `options`, a widget's `win` / `hull`).  Consumed by
     /// the analyser's read-before-set / stray-dispatch suppression.
     pub implicit_vars: &'static [&'static str],
+    /// Implicit variables whose value is the receiving object in instance bodies.
+    /// Consumers independently select the actual body and receiver context.
+    pub implicit_receiver_vars: &'static [&'static str],
     /// The **implicit `namespace path`** every member body of this class
     /// system runs with — namespaces a bare command word resolves through
     /// after the body's own current namespace and before global, exactly as
@@ -2323,6 +2326,12 @@ fn slot_op_at(slot: SlotSpec, args: InvocationArguments<'_>) -> Option<SlotOp> {
 }
 
 impl DefinitionBodyGrammar {
+    /// Receiver vocabulary requires both an implicit binding and its explicit role.
+    #[must_use]
+    pub fn is_implicit_receiver_variable(&self, name: &str) -> bool {
+        self.implicit_vars.contains(&name) && self.implicit_receiver_vars.contains(&name)
+    }
+
     /// Selected root-definer operand containing a list of base-class names.
     /// The Jim three-operand form has a base list between name and dictionary;
     /// other families express relations through their member declarations.
@@ -4053,6 +4062,7 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::TclOo,
     members: TCLOO_MEMBERS,
     implicit_vars: &[],
+    implicit_receiver_vars: &[],
     member_body_namespace_path: TCLOO_MEMBER_BODY_NAMESPACE_PATH,
     // The class command's own built-in, non-manufacturing surface. tclsh
     // 9.0.4 and 8.6.16 agree byte for byte:
@@ -4356,6 +4366,7 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options"],
+    implicit_receiver_vars: &["self"],
     member_body_namespace_path: &[],
     // snit(n): "Every snit type has the following type methods: create,
     // info, destroy."  `create` is left out — see the field's doc comment.
@@ -4388,6 +4399,7 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options", "win", "hull"],
+    implicit_receiver_vars: &["self"],
     // Same as SNIT_GRAMMAR: snit resolves member-body barewords through its
     // own generated type namespace, not an implicit helper path (the
     // `::oo::Helpers` fact is TclOO-only).
@@ -4503,6 +4515,7 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Itcl,
     members: ITCL_MEMBERS,
     implicit_vars: &["this"],
+    implicit_receiver_vars: &["this"],
     member_body_namespace_path: &[],
     // [incr Tcl] class commands expose `::itcl::class` introspection rather
     // than built-in typemethods on the class command itself.
@@ -4849,6 +4862,7 @@ const SPECTCL_DEFINITION_BODY_MEMBERS: &[MemberSpec] = &[
     setting_word("member"),
     setting_word("member_option"),
     setting_word("implicit_vars"),
+    setting_word("implicit_receiver_vars"),
     setting_word("member_body_namespace_path"),
     setting_word("builtin_type_methods"),
     setting_word("builtin_object_method"),
@@ -4885,6 +4899,7 @@ const fn spectcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGramma
         family: DefinerFamily::SpecTcl,
         members,
         implicit_vars: &[],
+        implicit_receiver_vars: &[],
         member_body_namespace_path: &[],
         builtin_type_methods: &[],
         builtin_object_methods: &[],
@@ -5091,6 +5106,7 @@ const fn sslictcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGramm
         family: DefinerFamily::SslicTcl,
         members,
         implicit_vars: &[],
+        implicit_receiver_vars: &[],
         member_body_namespace_path: &[],
         builtin_type_methods: &[],
         builtin_object_methods: &[],
@@ -7037,5 +7053,34 @@ mod original_member_presentation_tests {
                 .is_empty(),
             "unavailable option cannot shift the selected body"
         );
+    }
+}
+
+#[cfg(test)]
+mod implicit_receiver_variable_tests {
+    use super::{
+        DefinitionBodyGrammar, ITCL_GRAMMAR, SNIT_GRAMMAR, SNIT_WIDGET_GRAMMAR, TCLOO_GRAMMAR,
+    };
+
+    #[test]
+    fn receiver_variables_require_the_explicit_role_and_implicit_binding() {
+        for grammar in [&SNIT_GRAMMAR, &SNIT_WIDGET_GRAMMAR] {
+            assert!(grammar.is_implicit_receiver_variable("self"));
+            for name in ["selfns", "type", "options", "win", "hull", "this"] {
+                assert!(!grammar.is_implicit_receiver_variable(name));
+            }
+        }
+        assert!(ITCL_GRAMMAR.is_implicit_receiver_variable("this"));
+        assert!(!ITCL_GRAMMAR.is_implicit_receiver_variable("self"));
+        assert!(!TCLOO_GRAMMAR.is_implicit_receiver_variable("self"));
+        const CUSTOM: DefinitionBodyGrammar = DefinitionBodyGrammar {
+            implicit_vars: &["receiver", "options"],
+            implicit_receiver_vars: &["receiver", "hidden"],
+            ..ITCL_GRAMMAR
+        };
+        assert!(CUSTOM.is_implicit_receiver_variable("receiver"));
+        for name in ["options", "hidden", "this", "self"] {
+            assert!(!CUSTOM.is_implicit_receiver_variable(name));
+        }
     }
 }

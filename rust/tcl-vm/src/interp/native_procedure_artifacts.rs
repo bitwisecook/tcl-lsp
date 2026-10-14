@@ -157,7 +157,7 @@ mod tests {
 
     fn context(vm: &Vm, namespace: NsId) -> CompiledNamespaceContext {
         CompiledNamespaceContext::Native(
-            vm.native_compilation_entry_for_namespace_token(Some(namespace), true)
+            vm.native_compilation_entry_for_namespace_token(namespace, true)
                 .retained_namespace_context(u64::from(namespace.0))
                 .unwrap(),
         )

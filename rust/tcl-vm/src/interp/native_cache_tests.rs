@@ -868,11 +868,11 @@ fn compiler_and_resolver_epochs_match_all_87_original_native_mutation_rows() {
 fn empty_literal_world_entry_is_original_capture_and_registration_scoped() {
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let vm = native_vm(engine);
-        let first = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let first = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
         let receipt = first.empty_literal_world.as_ref().expect(engine);
         assert!(receipt.is_current_for(first.interpreter, first.epoch));
         assert!(!receipt.is_current_for(first.interpreter, first.epoch + 1));
-        let second = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let second = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
         assert!(!receipt.is_current());
         let current = second.empty_literal_world.as_ref().unwrap();
         assert!(current.is_current_for(second.interpreter, second.epoch));
@@ -893,14 +893,14 @@ fn empty_literal_world_entry_is_original_capture_and_registration_scoped() {
         let references = pool
             .with_original(index, Value::native_object_reference_count)
             .unwrap();
-        let populated = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let populated = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
         assert!(populated.empty_literal_world.is_none());
         assert_eq!(
             pool.with_original(index, Value::native_object_reference_count),
             Some(references)
         );
         drop(pool);
-        let fresh = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let fresh = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
         let final_receipt = fresh.empty_literal_world.unwrap();
         assert!(final_receipt.is_current());
         drop(vm);
@@ -911,14 +911,14 @@ fn empty_literal_world_entry_is_original_capture_and_registration_scoped() {
 #[test]
 fn compiler_pass_capture_uses_actual_parent_limits_and_state_lifetime() {
     let mut vm = native_vm("tcl8.6");
-    let entry = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+    let entry = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
     let environment = entry.compiler_pass_environment.as_ref().unwrap();
     assert!(environment.is_current_for(entry.interpreter));
     assert!(environment.is_root());
     assert!(!environment.has_enabled_limits());
     vm.set_command_limit_value(Some(10_000));
     assert!(
-        vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false)
+        vm.native_compilation_entry_for_namespace_token(ROOT_NS, false)
             .compiler_pass_environment
             .unwrap()
             .has_enabled_limits()
@@ -926,7 +926,7 @@ fn compiler_pass_capture_uses_actual_parent_limits_and_state_lifetime() {
     vm.set_command_limit_value(None);
     vm.set_time_limit_deadline(Some(i128::from(i64::MAX)));
     assert!(
-        vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false)
+        vm.native_compilation_entry_for_namespace_token(ROOT_NS, false)
             .compiler_pass_environment
             .unwrap()
             .has_enabled_limits()
@@ -935,14 +935,14 @@ fn compiler_pass_capture_uses_actual_parent_limits_and_state_lifetime() {
     let name = vm.create_child(Some("child".into()), false);
     let id = vm.children[name.as_bytes()];
     let child_entry = vm.in_interp(id, |vm| {
-        vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false)
+        vm.native_compilation_entry_for_namespace_token(ROOT_NS, false)
     });
     assert!(!child_entry.compiler_pass_environment.unwrap().is_root());
     drop(vm);
     assert!(!environment.is_current_for(entry.interpreter));
     let jim = native_vm("jimtcl");
     assert!(
-        jim.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false)
+        jim.native_compilation_entry_for_namespace_token(ROOT_NS, false)
             .compiler_pass_environment
             .is_none()
     );

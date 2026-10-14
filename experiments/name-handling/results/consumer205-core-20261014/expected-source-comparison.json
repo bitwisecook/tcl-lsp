@@ -1,0 +1,5 @@
+{
+  "expected_source": "/tmp/name-consumer203-preflight-20261014/source-before.json.gz",
+  "expected_paths": 34734,
+  "mismatches": {}
+}

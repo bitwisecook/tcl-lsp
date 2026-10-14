@@ -1,0 +1,43 @@
+{
+  "original_log": "test-04.log.gz",
+  "bytes": 167094934,
+  "sha256": "b4b9091d370d31298c30dbbef2813c656ece68f246abb86bb4f695442ebfbb65",
+  "encoding": "ordered lossless binary chunks of the original gzip stream",
+  "parts": [
+    {
+      "path": "test-04.log.gz.parts/part-000",
+      "bytes": 25165824,
+      "sha256": "10a55f94955b0f1d0021b4460410a4a2d44687d1f1a0ed71668ee2f410e644b1"
+    },
+    {
+      "path": "test-04.log.gz.parts/part-001",
+      "bytes": 25165824,
+      "sha256": "b273b08c3f467f06387124bbbaf40fce7b3c8a1fc7d2ce7e7aa78fc4461ea826"
+    },
+    {
+      "path": "test-04.log.gz.parts/part-002",
+      "bytes": 25165824,
+      "sha256": "5539c8841531a49f8bc270e3be5a713c40973fd2d8789ed4f21e50e70de62fe6"
+    },
+    {
+      "path": "test-04.log.gz.parts/part-003",
+      "bytes": 25165824,
+      "sha256": "855c6cf16083d3acdc1fa5e10ae5afbd938325b5d42233da86c55acf3fc3dcc9"
+    },
+    {
+      "path": "test-04.log.gz.parts/part-004",
+      "bytes": 25165824,
+      "sha256": "580ff6ae04e55fe6114be317e7ce5498a82b2d21e76cd6649a513f70222741cf"
+    },
+    {
+      "path": "test-04.log.gz.parts/part-005",
+      "bytes": 25165824,
+      "sha256": "ef0788fd03bd25d858ca9207a75c42b93e86428cc178ffdfff6eedf046740194"
+    },
+    {
+      "path": "test-04.log.gz.parts/part-006",
+      "bytes": 16099990,
+      "sha256": "4559e0e3e4a8e1c55716c771dc6f449999baca40e25f6c1d939e707a550166ca"
+    }
+  ]
+}

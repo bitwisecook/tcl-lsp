@@ -8357,7 +8357,11 @@ impl Interp {
                         .native_command_slot_at_node(generation)
                         .is_some_and(|(ns, simple)| {
                             let report = namespaces.command_fqn_at(ns, &simple);
-                            !keep(generation, report.strip_prefix(b"::").unwrap_or(&report))
+                            !keep(
+                                generation,
+                                tcl_syntax::naming::unroot_rooted_key_bytes(&report)
+                                    .unwrap_or(&report),
+                            )
                         })
                 })
                 .collect()

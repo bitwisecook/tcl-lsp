@@ -499,12 +499,17 @@ the descriptor's own field names, so nothing new has to be learnt:
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
 | `state_transitions` | `composition Extend\|Replace`, `argument_shape Independent\|Positional`, `resolver none\|from-frame-effect\|-native ID\|{words ctx} {…}`, `widen -operands EveryArgument\|{Indices N …}\|{Strided FIRST STRIDE} -domains {…}`*, `covers SOURCE -domains {…}`*, `commit OnOkOnly\|MayCommitBeforeAbruptCompletion` |
 | `object_class NAME` | `superclasses`, `allow_unknown_methods`, `method_prefix_matching`, `method NAME { … }`* (a `subcommand` body) |
-| `definition_body` | `family`, `member KEYWORD … -effect E ?-shift S?`*, `member_option KEYWORD POS VALUE -role R ?-visibility V?`*, `implicit_vars`, `member_body_namespace_path`, `builtin_type_methods`, `builtin_object_method …`*, `builtin_terminating_methods`, `member_body_command …`*, `bare_word_construction`, `dynamic_method_dispatch`, `manufacturer …`*, `unknown_dispatch_method`, `property_accessor_methods`; effects `{callable -receiver R -role K ?-name N? ?-params N? ?-body N?}`, `{forward ?-name N? ?-prefix N?}`, `{state-declaration per-instance\|per-type\|option}`, `{relation superclass\|mixin\|filter}`, `visibility`, `retraction`, `{init-script ?-body N? -timing at-definition\|at-construction}`, `configuration` |
+| `definition_body` | `family`, `member KEYWORD … -effect E ?-shift S?`*, `member_option KEYWORD POS VALUE -role R ?-visibility V?`*, `implicit_vars`, `implicit_receiver_vars`, `member_body_namespace_path`, `builtin_type_methods`, `builtin_object_method …`*, `builtin_terminating_methods`, `member_body_command …`*, `bare_word_construction`, `dynamic_method_dispatch`, `manufacturer …`*, `unknown_dispatch_method`, `property_accessor_methods`; effects `{callable -receiver R -role K ?-name N? ?-params N? ?-body N?}`, `{forward ?-name N? ?-prefix N?}`, `{state-declaration per-instance\|per-type\|option}`, `{relation superclass\|mixin\|filter}`, `visibility`, `retraction`, `{init-script ?-body N? -timing at-definition\|at-construction}`, `configuration` |
 | `body_scope` | `name`, `include_sibling_definitions`, `allow_unknown_commands`, `command NAME { … }`* |
 
 `*` marks a repeatable row. `world_effects none` is the one-word
 `WorldEffectDescriptor::EMPTY`. The last two are specified under
 "Definer grammars and scoped bodies" below.
+
+`implicit_receiver_vars` marks only the receiver-bearing subset of
+`implicit_vars`; the shared reader checks both lists. It supplies vocabulary
+inside the selected instance-callable body, independently of Native receiver
+identity, actual variable contents and entered-frame proof.
 
 Native result dependencies (`native_result`) are currently native descriptors,
 with an explicit Spec Studio `GAPS` entry. Their selected-cell observer callbacks,
@@ -1112,6 +1117,7 @@ definition_body {
     member option     -effect {state-declaration option}    ;# keyword-only
     member_option method 1 -export -role Option -visibility Public -dialects tcl9.0+
     implicit_vars {self selfns type options}
+    implicit_receiver_vars {self}
     member_body_namespace_path {::oo::Helpers}
     builtin_type_methods {info destroy}
     builtin_object_method cget ?-unexported? -receiver AnyObject|ClassObject -detail {…}

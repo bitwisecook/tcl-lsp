@@ -344,6 +344,17 @@ pub(crate) fn original_method_site_at(
     if command.is_partial {
         return None;
     }
+    if tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        source, analysis, command,
+    )
+    .is_some_and(|words| {
+        words
+            .written_argument_roles()
+            .into_iter()
+            .any(|(argument, role)| argument == 0 && role == ArgRole::Expr)
+    }) {
+        return None;
+    }
     let image = SourceImage::document(source);
     let plan =
         tcl_lexer::native_script_words_in(image, command.execution_span(source), config).ok()?;

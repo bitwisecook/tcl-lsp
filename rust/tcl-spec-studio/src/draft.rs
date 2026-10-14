@@ -721,6 +721,7 @@ pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
         family,
         members,
         implicit_vars,
+        implicit_receiver_vars,
         member_body_namespace_path,
         builtin_type_methods,
         builtin_object_methods,
@@ -737,6 +738,7 @@ pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
         "family": catalogue::variant_name(family),
         "members": Value::Array(members.iter().map(member_spec).collect()),
         "implicit_vars": str_list(implicit_vars),
+        "implicit_receiver_vars": str_list(implicit_receiver_vars),
         "member_body_namespace_path": str_list(member_body_namespace_path),
         "builtin_type_methods": str_list(builtin_type_methods),
         "builtin_object_methods": Value::Array(

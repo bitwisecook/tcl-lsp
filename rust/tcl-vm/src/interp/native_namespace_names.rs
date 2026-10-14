@@ -414,7 +414,7 @@ mod tests {
         vm: &Vm,
         namespace: NsId,
     ) -> tcl_runtime_api::native_compilation::NativeNamespaceContext {
-        vm.native_compilation_entry_for_namespace_token(Some(namespace), true)
+        vm.native_compilation_entry_for_namespace_token(namespace, true)
             .retained_namespace_context(u64::from(namespace.0))
             .unwrap()
     }

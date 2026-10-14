@@ -1840,38 +1840,40 @@ fn insert_object_method_overrides(
     // is name-keyed regardless of whether the name came from a `set` LHS or a
     // bareword factory, so the same map already carries these — see
     // `object_types::harvest_unit`'s `Statement::Call` arm).
-    let mut candidates: Vec<String> = match head_tok.kind {
-        TokenType::Var => {
-            let original_words = tcl_compiler::ir::CommandTokens::from_segmented(
-                &tcl_lexer::SourceMap::new(ctx.full_source),
-                ctx.config,
-                seg,
-            );
-            original_words
-                .word_exprs
-                .first()
-                .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
-                .and_then(|(spelling, _)| object_handle_name(spelling, Some(ctx.config)))
-                .and_then(|name| object_classes.get(name))
+    let original_words = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(ctx.full_source),
+        ctx.config,
+        seg,
+    );
+    let variable = original_words
+        .word_exprs
+        .first()
+        .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+        .and_then(|(spelling, _)| object_handle_name(spelling, Some(ctx.config)));
+    let mut candidates: Vec<String> = if let Some(name) = variable {
+        object_classes
+            .get(name)
+            .map(|classes| classes.iter().cloned().collect())
+            .unwrap_or_default()
+    } else {
+        match head_tok.kind {
+            // The genuine whole receiver word, child source binding and selected
+            // family determine conditional candidates. Missing canonical class
+            // receipts remain typed unavailable inside the shared receiver path.
+            TokenType::Cmd => match receiver_source::candidates(ctx, seg) {
+                Ok(receiver_source::ReceiverSourceCandidates::ClassNames(classes)) => classes,
+                Ok(receiver_source::ReceiverSourceCandidates::LogicalClass(class)) => {
+                    class.insert_method(ctx, seg, classes, overrides);
+                    return;
+                }
+                Err(_) => Vec::new(),
+            },
+            TokenType::Esc => object_classes
+                .get(head_text.as_str())
                 .map(|s| s.iter().cloned().collect())
-                .unwrap_or_default()
+                .unwrap_or_default(),
+            _ => Vec::new(),
         }
-        // The genuine whole receiver word, child source binding and selected
-        // family determine conditional candidates. Missing canonical class
-        // receipts remain typed unavailable inside the shared receiver path.
-        TokenType::Cmd => match receiver_source::candidates(ctx, seg) {
-            Ok(receiver_source::ReceiverSourceCandidates::ClassNames(classes)) => classes,
-            Ok(receiver_source::ReceiverSourceCandidates::LogicalClass(class)) => {
-                class.insert_method(ctx, seg, classes, overrides);
-                return;
-            }
-            Err(_) => Vec::new(),
-        },
-        TokenType::Esc => object_classes
-            .get(head_text.as_str())
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default(),
-        _ => Vec::new(),
     };
     if candidates.is_empty() {
         return;
@@ -2162,10 +2164,8 @@ fn insert_self_method_overrides(
             .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
             .and_then(|(spelling, _)| object_handle_name(spelling, Some(ctx.config)))
             .is_some_and(|name| {
-                matches!(name, "self" | "this")
-                    && ctx
-                        .receiver_grammar
-                        .is_some_and(|grammar| grammar.implicit_vars.contains(&name))
+                ctx.receiver_grammar
+                    .is_some_and(|grammar| grammar.is_implicit_receiver_variable(name))
             });
         if !implicit_self && !original_self_accessor(ctx, *head) {
             return;
@@ -10829,6 +10829,51 @@ mod configured_semantic_receiver_tests {
         assert!(lines.contains(&3), "{lines:?}");
         assert!(!lines.contains(&4), "{lines:?}");
         assert!(!lines.contains(&5), "{lines:?}");
+    }
+
+    #[test]
+    fn implicit_receiver_colours_use_the_selected_explicit_variable_role() {
+        use tcl_registry::definer::{DefinitionBodyGrammar, ITCL_GRAMMAR};
+        const GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+            implicit_vars: &["receiver", "options"],
+            implicit_receiver_vars: &["receiver", "hidden"],
+            ..ITCL_GRAMMAR
+        };
+        let source = concat!(
+            "source_class C {\n",
+            "method m {} {}\n",
+            "method run {} {\n",
+            "${receiver} m\n",
+            "${options} m\n",
+            "${hidden} m\n",
+            "${this} m\n",
+            "proc helper {} {${receiver} m}\n",
+            "apply {{} {${receiver} m}}\n",
+            "}\n",
+            "}\n",
+        );
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = CommandRegistry::build_default();
+        let mut spec = registry.get("itcl::class").unwrap().clone();
+        spec.name = "source_class";
+        spec.required_package = None;
+        spec.definition_body = Some(&GRAMMAR);
+        registry.insert(spec);
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.1")
+            .with_command_store(Arc::new(registry));
+        let analysis = Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::new(context),
+                tcl_lexer::LexerConfig::default(),
+            ))
+            .analyse(source, profile.name);
+        let lines = method_lines(source, &analysis);
+        assert!(lines.contains(&3), "{lines:?}");
+        for line in [4, 5, 6, 7, 8] {
+            assert!(!lines.contains(&line), "{line}: {lines:?}");
+        }
     }
 
     #[test]

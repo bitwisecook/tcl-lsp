@@ -1234,6 +1234,7 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
         family: _,
         members: _,
         implicit_vars: _,
+        implicit_receiver_vars: _,
         member_body_namespace_path: _,
         builtin_type_methods: _,
         builtin_object_methods: _,
@@ -1255,6 +1256,10 @@ pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
     f("family", Surface::Key("family")),
     f("members", Surface::Key("members")),
     f("implicit_vars", Surface::Key("implicit_vars")),
+    f(
+        "implicit_receiver_vars",
+        Surface::Key("implicit_receiver_vars"),
+    ),
     f(
         "member_body_namespace_path",
         Surface::Key("member_body_namespace_path"),

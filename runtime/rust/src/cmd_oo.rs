@@ -598,17 +598,11 @@ impl OoState {
     }
 }
 
-/// The object command name as named from the global scope (strip a single
-/// leading `::`) — the `wrong # args` prefix for a method (approximating C's
-/// literal `objv[0]` for the common, global-scope case).
-fn object_display(obj: &[u8]) -> Vec<u8> {
-    obj.strip_prefix(b"::")
-        .map(<[u8]>::to_vec)
-        .unwrap_or_else(|| obj.to_vec())
-}
-
 fn oo_display(interp: &Interp, obj: OoId) -> Vec<u8> {
-    object_display(&interp.oo_name(obj))
+    let report = interp.oo_name(obj);
+    tcl_syntax::naming::unroot_rooted_key_bytes(&report)
+        .unwrap_or(&report)
+        .to_vec()
 }
 
 /// Actual dispatch origin; a direct method named unknown does not issue fallback.

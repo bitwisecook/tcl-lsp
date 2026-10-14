@@ -312,6 +312,7 @@ fn definition_body_expr(value: &Value, indent: &str) -> Option<String> {
          {inner}family: crate::definer::DefinerFamily::{family},\n\
          {inner}members: {members},\n\
          {inner}implicit_vars: {implicit_vars},\n\
+         {inner}implicit_receiver_vars: {implicit_receiver_vars},\n\
          {inner}member_body_namespace_path: {path},\n\
          {inner}builtin_type_methods: {type_methods},\n\
          {inner}builtin_object_methods: {object_methods},\n\
@@ -326,6 +327,7 @@ fn definition_body_expr(value: &Value, indent: &str) -> Option<String> {
          {indent}}})",
         members = list("members", &member_spec_expr)?,
         implicit_vars = strs("implicit_vars"),
+        implicit_receiver_vars = strs("implicit_receiver_vars"),
         path = strs("member_body_namespace_path"),
         type_methods = strs("builtin_type_methods"),
         object_methods = list("builtin_object_methods", &builtin_object_method_expr)?,

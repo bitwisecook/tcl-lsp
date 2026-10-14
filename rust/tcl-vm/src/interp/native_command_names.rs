@@ -717,7 +717,7 @@ impl Vm {
         let namespace = NsId(u32::try_from(receipt.context.namespace_token).map_err(|_| {
             Error::unavailable("native command literal namespace token is unavailable")
         })?);
-        let entry = self.native_compilation_entry_for_namespace_token(Some(namespace), false);
+        let entry = self.native_compilation_entry_for_namespace_token(namespace, false);
         if !receipt.matches_entry(&entry) {
             return Err(Error::unavailable(
                 "native command literal binding or compilation entry is stale",
@@ -1175,7 +1175,7 @@ mod tests {
                 vm.set_runtime_version(version);
                 command(&mut vm, b"head");
                 let head: &[u8] = if absolute { b"::head" } else { b"head" };
-                let entry = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+                let entry = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
                 let context = NativeLiteralContext {
                     interpreter: entry.interpreter,
                     namespace_token: entry.current_namespace,

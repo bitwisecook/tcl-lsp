@@ -4522,8 +4522,10 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-spectcl",
  "tcl-syntax",
+ "tcl-vm",
 ]
 
 [[package]]

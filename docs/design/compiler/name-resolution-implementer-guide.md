@@ -10059,6 +10059,13 @@ braces, arrays and compound words cannot donate a scalar read.
 activation/formal frame and source state. Lexical class labels and method
 declaration previews cannot issue that context.
 
+An implicit receiver variable is an explicit definition-body role. Use
+`DefinitionBodyGrammar::is_implicit_receiver_variable` on the selected grammar;
+`implicit_receiver_vars` must also belong to `implicit_vars`. Other implicit
+variables do not become receivers. Semantic colouring still requires the actual
+instance-callable body, current source and sole-word form under its existing
+Native guards. This vocabulary supplies no physical receiver or entered frame.
+
 Object-class source candidates use the shared MAY assignment and original
 factory-schema queries only with positively retained Logical metadata. Possible
 original schemas may coexist with unknown handlers only when the actual retained binding also owns Logical source purpose,

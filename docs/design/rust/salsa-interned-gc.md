@@ -29,10 +29,12 @@ All are defined in `rust/tcl-lsp-db/src/lib.rs`.
 
 The following interned keys have different churn boundaries:
 
-- `LexerCfgKey` (two booleans) and `CommandTail` (one command name) have a
-  bounded key space, so even immortal slots cost a handful of tiny entries.
-  This matters because `compilation_unit`'s own public signature takes a
-  `LexerCfgKey`, which callers must therefore mint from untracked host code.
+- Production `LexerCfgKey` entries retain canonical resolved environment ids;
+  `CommandTail` entries retain exact declaration or bare-tail assistance names.
+  Their keys exclude body text and revision offsets, but new environments or
+  symbols can add entries. The six-key growth controls do not bound this
+  separate churn. `compilation_unit`'s public signature takes a `LexerCfgKey`
+  interned by its caller.
 - `CfgContext` is content-keyed but *signature*-level: a body edit leaves it
   equal, so it churns only when a signature moves. It is reclaimed by the same
   mechanism when that happens.
