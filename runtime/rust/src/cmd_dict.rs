@@ -534,9 +534,27 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(Some(v)) => Some(v),
         _ => None,
     };
+    // Coercion order matches C: an existing value goes through `TclIncrObj`
+    // (current value, then increment); a new key only checks the increment is
+    // an integer of any size.
+    let checked = match cur {
+        Some(cur) => [Some(cur), argv.get(4).copied()]
+            .into_iter()
+            .flatten()
+            .try_for_each(crate::typed_value::incr_operand),
+        None => argv
+            .get(4)
+            .copied()
+            .map_or(Ok(()), crate::typed_value::integer),
+    };
+    if let Err(error) = checked {
+        if is_new {
+            drop_fresh(target);
+        }
+        return interp.report_typed_error(&error);
+    }
     let one = obj::new_wide_int_obj(1);
     let amount = if argv.len() == 5 { argv[4] } else { one };
-    // Coercion order matches C: the current value first, then the increment.
     let sum = tcl_syntax::value::ValueOps::int_add(interp, cur.as_ref(), &amount);
     drop_fresh(one); // the transient `1` (used or not) is no longer needed
     let sum = match sum {
@@ -545,7 +563,7 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if is_new {
                 drop_fresh(target);
             }
-            return interp.set_error(e.message().as_bytes());
+            return interp.report_cmd_error(e.into());
         }
     };
     if let Err(e) = dict::dict_set(target, key, sum) {
@@ -1102,15 +1120,7 @@ fn dict_parse_error_code(msg: &str) -> Option<&'static [u8]> {
 /// Map a dict string-parse failure to its C-faithful message + `-errorcode`
 /// (`SetDictFromAny`/`FindElement`, type strings `dict`/`DICTIONARY`).
 fn bad_dict(interp: &mut Interp, e: crate::dict::DictError) -> Code {
-    use crate::dict::DictError as E;
-    let code: &[u8] = match &e {
-        E::MissingValue | E::NotUtf8 => b"TCL VALUE DICTIONARY",
-        E::BraceJunk(_) | E::QuoteJunk(_) => b"TCL VALUE DICTIONARY JUNK",
-        E::UnmatchedBrace => b"TCL VALUE DICTIONARY BRACE",
-        E::UnmatchedQuote => b"TCL VALUE DICTIONARY QUOTE",
-    };
-    let msg = e.message_bytes();
-    interp.error_with_code(&msg, code)
+    interp.error_with_code(&e.message_bytes(), e.error_code())
 }
 
 fn key_not_known(interp: &mut Interp, key: &[u8]) -> Code {

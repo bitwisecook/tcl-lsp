@@ -38,7 +38,7 @@
 //! Semantics follow tclsh 9.0.
 
 use tcl_syntax::list::split_list;
-use tcl_syntax::value::ValueOps;
+use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::index;
 use crate::prefix::OptionTable;
@@ -76,29 +76,55 @@ const OPT_NAMES: [&str; 12] = [
 ];
 const OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
 
-/// An `lsort` failure (message-only — `lsort` sets no `errorCode`).
+/// An `lsort` failure: the message, and the `-errorcode` C sets where this
+/// core knows it.
 pub struct LsortError {
     pub message: Vec<u8>,
+    pub code: Option<&'static [u8]>,
 }
 
 impl LsortError {
     fn msg(m: impl Into<Vec<u8>>) -> Self {
-        Self { message: m.into() }
+        Self {
+            message: m.into(),
+            code: None,
+        }
+    }
+    fn coded(m: impl Into<Vec<u8>>, code: &'static [u8]) -> Self {
+        Self {
+            message: m.into(),
+            code: Some(code),
+        }
     }
 }
 
-fn not_integer(s: &[u8]) -> LsortError {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(s);
-    m.push(b'"');
-    LsortError::msg(m)
+/// A failed integer read keeps the code the shared value seam carries.
+impl From<ValueError> for LsortError {
+    fn from(error: ValueError) -> Self {
+        Self {
+            message: error.message().into_bytes(),
+            code: error.error_code().map(str::as_bytes),
+        }
+    }
 }
+
+/// A failed `-index` step keeps the code the shared index owner sets.
+impl From<index::IndexPathError> for LsortError {
+    fn from(error: index::IndexPathError) -> Self {
+        Self {
+            message: error.message,
+            code: error.code,
+        }
+    }
+}
+
+const BADSTRIDE: &[u8] = b"TCL OPERATION LSORT BADSTRIDE";
 
 fn not_real(s: &[u8]) -> LsortError {
     let mut m = b"expected floating-point number but got \"".to_vec();
     m.extend_from_slice(s);
     m.push(b'"');
-    LsortError::msg(m)
+    LsortError::coded(m, b"TCL VALUE NUMBER")
 }
 
 /// The outcome of [`prepare`].
@@ -165,17 +191,21 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
                     return Err(needs_value(b"-index", b"list index"));
                 }
                 index_path = split_index(&ops.as_bytes(&args[i + 1]))?;
+                index::check_index_path(&index_path)?;
                 i += 1;
             }
             OPT_STRIDE => {
                 if i + 1 >= last {
                     return Err(needs_value(b"-stride", b"stride length"));
                 }
-                let sb = ops.as_bytes(&args[i + 1]);
-                match sort::parse_wide(&sb) {
-                    Some(w) if w >= 2 => group = w as usize,
-                    Some(_) => return Err(LsortError::msg("stride length must be at least 2")),
-                    None => return Err(not_integer(&sb)),
+                match ops.as_int(&args[i + 1])? {
+                    w if w >= 2 => group = usize::try_from(w).unwrap_or(usize::MAX),
+                    _ => {
+                        return Err(LsortError::coded(
+                            "stride length must be at least 2",
+                            BADSTRIDE,
+                        ));
+                    }
                 }
                 i += 1;
             }
@@ -207,16 +237,18 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
     let mut key_path: &[Vec<u8>] = &index_path;
     if group > 1 {
         if len % group != 0 {
-            return Err(LsortError::msg(
+            return Err(LsortError::coded(
                 "list size must be a multiple of the stride length",
+                BADSTRIDE,
             ));
         }
         if !index_path.is_empty() {
             match index::resolve_opt(&String::from_utf8_lossy(&index_path[0]), group) {
                 Some(g) if g >= 0 && (g as usize) < group => group_offset = g as usize,
                 _ => {
-                    return Err(LsortError::msg(
+                    return Err(LsortError::coded(
                         "when used with \"-stride\", the leading \"-index\" value must be within the group",
+                        b"TCL OPERATION LSORT BADINDEX",
                     ));
                 }
             }
@@ -231,8 +263,7 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
         let mut items: Vec<(usize, O::Value)> = Vec::with_capacity(logical);
         for l in 0..logical {
             let base = l * group;
-            let key = index::drill(ops, &elems[base + group_offset], key_path)
-                .map_err(LsortError::msg)?;
+            let key = index::drill(ops, &elems[base + group_offset], key_path)?;
             items.push((base, key));
         }
         return Ok(Lsort::Command(CommandJob {
@@ -250,16 +281,16 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
     let mut items: Vec<(usize, Vec<u8>)> = Vec::with_capacity(logical);
     for l in 0..logical {
         let base = l * group;
-        let key =
-            index::drill(ops, &elems[base + group_offset], key_path).map_err(LsortError::msg)?;
+        let key = index::drill(ops, &elems[base + group_offset], key_path)?;
+        // An `-integer` key is a wide read: a beyond-wide one is C's overflow.
+        if mode == SortMode::Integer {
+            ops.as_int(&key)?;
+        }
         items.push((base, ops.as_bytes(&key).to_vec()));
     }
-    // Validate numeric keys up front (Tcl errors on the first non-number).
-    if mode == SortMode::Integer
-        && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_wide(k).is_none())
-    {
-        return Err(not_integer(k));
-    } else if mode == SortMode::Real
+    // Validate real keys up front (Tcl errors on the first non-number); the
+    // integer ones were read as they were extracted.
+    if mode == SortMode::Real
         && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_real(k).is_none())
     {
         return Err(not_real(k));

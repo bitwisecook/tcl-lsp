@@ -72,6 +72,12 @@ pub fn format_cmd_with_syntax<O: ValueOps>(
 
 const MAX_RUNTIME_FIELD: usize = i32::MAX as usize;
 
+/// C's `overflow` failure (`TCL FORMAT OVERFLOW`): a field the result could
+/// not hold.
+fn value_too_large() -> CmdError {
+    CmdError::with_error_code("max size for a Tcl value exceeded", "TCL FORMAT OVERFLOW")
+}
+
 /// Render `fmt` against `args`, consuming arguments left-to-right.
 fn render<O: ValueOps>(
     ops: &mut O,
@@ -123,12 +129,14 @@ fn render<O: ValueOps>(
                 ));
             }
         };
+        // A `%s` precision only truncates, so C takes any that parses.
         if spec.width.is_some_and(|width| width > MAX_RUNTIME_FIELD)
-            || spec
-                .precision
-                .is_some_and(|precision| precision > MAX_RUNTIME_FIELD)
+            || (spec.verb != b's'
+                && spec
+                    .precision
+                    .is_some_and(|precision| precision > MAX_RUNTIME_FIELD))
         {
-            return Err(CmdError::new("max size for a Tcl value exceeded"));
+            return Err(value_too_large());
         }
         // A positional `%n$` spec consumes consecutively starting at `n-1`
         // (the `*` width, then the `.*` precision, then the value), leaving
@@ -271,7 +279,7 @@ fn consume_conversion_args<'a, O: ValueOps>(
         }
         let magnitude = usize::try_from(w.unsigned_abs()).unwrap_or(usize::MAX);
         if magnitude > MAX_RUNTIME_FIELD {
-            return Err(CmdError::new("max size for a Tcl value exceeded"));
+            return Err(value_too_large());
         }
         fields.width = Some(magnitude);
     }
@@ -406,7 +414,7 @@ fn render_spec<O: ValueOps>(
             Ok(pad_unsigned_number(&based_digits(u, spec, syntax), spec))
         }
         b'c' => {
-            let n = ops.as_int(arg)?;
+            let n = ops.as_c_int(arg)?;
             let ch = u32::try_from(n)
                 .ok()
                 .and_then(char::from_u32)
@@ -415,6 +423,11 @@ fn render_spec<O: ValueOps>(
         }
         b'f' | b'e' | b'E' | b'g' | b'G' => {
             let x = ops.as_double(arg)?;
+            // C renders through `snprintf`, whose `int` count cannot reach a
+            // precision of `INT_MAX` digits.
+            if spec.precision.is_some_and(|p| p >= MAX_RUNTIME_FIELD) {
+                return Err(value_too_large());
+            }
             Ok(pad_number(
                 &float_digits(x, spec),
                 x.is_sign_negative(),

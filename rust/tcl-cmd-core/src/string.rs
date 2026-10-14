@@ -139,9 +139,10 @@ pub fn repeat<O: ValueOps>(
     }
     let total = n.wrapping_mul(len);
     let overflow = || {
-        CmdError::new(format!(
-            "string size overflow: unable to alloc {total} bytes"
-        ))
+        CmdError::with_error_code(
+            format!("string size overflow: unable to alloc {total} bytes"),
+            "TCL MEMORY",
+        )
     };
     // C has no fixed ceiling here: `TclStringRepeat` *attempts* the allocation
     // and reports `string size overflow` only when the allocator refuses, so

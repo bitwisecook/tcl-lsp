@@ -412,11 +412,26 @@ fn read_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"read ?-nonewline? channelId");
     };
     let id = obj_bytes(id_obj);
-    let nchars = argv.get(id_idx + 1).and_then(|&a| {
-        core::str::from_utf8(&obj_bytes(a))
-            .ok()
-            .and_then(|s| s.trim().parse::<usize>().ok())
-    });
+    // C finds a readable channel before reading the count; a missing or
+    // write-only one is reported below.
+    let readable = interp
+        .channels
+        .borrow()
+        .map
+        .get(&id)
+        .is_some_and(|st| st.reader.is_some());
+    let nchars = match argv.get(id_idx + 1).filter(|_| readable) {
+        None => None,
+        Some(&a) => match crate::typed_value::wide_int(a).map(usize::try_from) {
+            Ok(Ok(n)) => Some(n),
+            _ => {
+                let mut m = b"expected non-negative integer but got \"".to_vec();
+                m.extend_from_slice(&obj_bytes(a));
+                m.push(b'"');
+                return interp.error_with_code(&m, b"TCL VALUE NUMBER");
+            }
+        },
+    };
     let op = {
         let mut channels = interp.channels.borrow_mut();
         match channels.map.get_mut(&id) {
@@ -720,10 +735,16 @@ fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"seek channelId offset ?origin?");
     }
     let id = obj_bytes(argv[1]);
-    let offset: i64 = core::str::from_utf8(&obj_bytes(argv[2]))
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-        .unwrap_or(0);
+    // C finds the channel before reading the offset as a wide integer; a
+    // missing channel is reported below.
+    let offset = if interp.channels.borrow().map.contains_key(&id) {
+        match crate::typed_value::wide_int(argv[2]) {
+            Ok(offset) => offset,
+            Err(error) => return interp.report_typed_error(&error),
+        }
+    } else {
+        0
+    };
     let origin = match argv.get(3) {
         None => 0,
         Some(&a) => match SEEK_ORIGINS.index_of(&obj_bytes(a)) {

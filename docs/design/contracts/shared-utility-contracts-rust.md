@@ -46,7 +46,7 @@ entry point, or gate moves without this contract being updated.
 | quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at`; `braced_var_name_end` | `${...}` close rule per release (`BracedVarStyle`); tmsh brace mode per dialect | none |
 | array-index source scan | `rust/tcl-lexer/src/ranges.rs`; `rust/tcl-dialect/src/grammar.rs` | `scan_array_index`; `ArrayIndexSyntax` | `LexerGrammar::array_index` per release | none |
 | word substitution components | `rust/tcl-lexer/src/word_parts.rs` | `decompose`; `decompose_spanned`; `scan_var_ref`; `command_subst_close`; `quoted_word_close`; `SubstFlags`; `WordPart`; `SpannedPart`; `WordBody`; `VarRef`; `RawVarRef`; `MISSING_QUOTE`; `MISSING_CLOSE_BRACKET`; `MISSING_CLOSE_BRACE`; `MISSING_PAREN`; `EXTRA_AFTER_CLOSE_BRACE` | `LexerConfig` per emulated release (`${...}` close rule, array-index source mask, escape grammar); compiled-word vs source-word `$` spelling | none |
-| indices | `rust/tcl-cmd-core/src/index.rs` | `read_with`, `read_under`, `encode`; `drill` | grammar- or release-parameterised, inheriting the number axis and reading each integer in the release's range; a literal word compiled (8.6's `TclIndexEncode`) or read as its command runs | none |
+| indices | `rust/tcl-cmd-core/src/index.rs` | `read_with`, `read_under`, `encode`; `drill`; `check_index_path`; `bad_index_under` | grammar- or release-parameterised, inheriting the number axis and reading each integer in the release's range; a literal word compiled (8.6's `TclIndexEncode`) or read as its command runs | none |
 | path names | `rust/tcl-cmd-core/src/path.rs`; `rust/tcl-cmd-core/src/path/canonical.rs`; `rust/tcl-platform/src/lib.rs` | `PathReading`; `PathType`; `path_type`; `split`; `join`; `dirname`; `tail`; `extension`; `rootname`; `home_user`; `home_directory`; `tilde_expand`; `translate`; `normalize`; `part_name`; `Env::user_home` | per release (`PathReading`): a leading `//host` and the zipfs volume are roots from 9.0, a `~user` is a home directory before it, and `join` hands back a name already in its final form from 8.5 (8.5 alone keeping a leading `//`); a home from the host's `Env` | none |
 | binary field grammar | `rust/tcl-cmd-core/src/binary.rs` | `specifiers`; `Specifier`; `is_specifier`; `signedness_available`; `specifier_min_version` | field letters per release (`t n m r R q Q` are 8.5+); the TIP 275 unsigned suffix (`u` only, after any field letter) per resolved release | none |
 | option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::EnsembleToken`; `ensemble::InvocationLayout`; `ensemble::invocation_layout`; `ensemble::UNKNOWN_DELETED_MESSAGE`; `ensemble::UNKNOWN_DELETED_ERROR_CODE`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message`; `ensemble::validate_map_targets` | option surface per release/dialect; ensemble token lifecycle and invocation layout invariant | `xtask-option-registry-drift` |
@@ -291,6 +291,14 @@ the alias whose expression words a later sibling evaluates.
   `true`/`yes`/`on`/`false`/`no`/`off`). Its prefix rule is *not* the
   option-table matcher below — boolean words have a fixed six-word
   vocabulary with cross-set ambiguity (`o`), so it stays here.
+- `value` — the `ValueOps` seam the shared command cores read values
+  through. `ValueOps::as_int` is `Tcl_GetWideIntFromObj` and
+  `ValueOps::as_c_int` is `Tcl_GetIntFromObj`, whose `INT_MIN..=UINT_MAX`
+  truncation is `narrow_to_c_int`; a runtime overrides both with its own
+  typed read (`runtime/rust`'s `typed_value`, the VM's `Value::as_int` /
+  `Value::as_c_int`). `ValueError::error_code` is the `-errorcode` beside
+  each failure's message (`TCL VALUE NUMBER`, `ARITH IOVERFLOW`), which
+  `CmdError`'s conversion carries.
 - `expr` — the expression AST, parser, evaluator seam, and walk
   (`ExprOps`, `mathfunc`). The math-function table is one dispatch over
   `NumValue<B>` for both engines and the const-folder, with the two release
@@ -700,7 +708,10 @@ the alias whose expression words a later sibling evaluates.
   canonical names, so an exact 9-only spelling would otherwise still
   run under an 8.6 pin.
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
-  `1+1`) and nested-index drilling.
+  `1+1`), the release-worded `bad index` error (`bad_index_under`), and
+  `lsearch`/`lsort -index` paths: `check_index_path` encodes each element
+  as `TclIndexEncode` does at option parse, and `drill` steps through the
+  nested lists, naming a missing element as `SelectObjFromSublists` does.
 - `prefix` — the `Tcl_GetIndexFromObjStruct` port, with
   `prefix::OptionTable` as the one API: a const-constructible value
   generic over `AsRef<[u8]>` entries carrying a command's names in C

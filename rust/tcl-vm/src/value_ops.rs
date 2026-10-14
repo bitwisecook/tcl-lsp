@@ -114,8 +114,13 @@ impl ValueOps for Vm {
     }
 
     fn as_int(&mut self, v: &Value) -> Result<i64, ValueError> {
-        v.as_int()
-            .map_err(|_| ValueError::NotInteger(v.to_str().to_string()))
+        v.as_int().map_err(|error| {
+            if error.error_code.as_deref() == Some(tcl_syntax::expr::errors::IOVERFLOW_CODE) {
+                ValueError::IntegerOverflow
+            } else {
+                ValueError::NotInteger(v.to_str().to_string())
+            }
+        })
     }
 
     fn integer_magnitude(

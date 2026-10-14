@@ -247,21 +247,6 @@ pub(crate) fn display_namespace(canonical: &str) -> String {
     }
 }
 
-/// Parse an `interp recursionlimit` integer the way C's `Tcl_GetIntFromObj`
-/// reports: a decimal that overflows `i64` is "too large to represent", a
-/// non-numeric value is "expected integer but got …".
-fn parse_recursion_limit(s: &str) -> Result<i64, String> {
-    let t = s.trim();
-    if let Ok(n) = t.parse::<i64>() {
-        return Ok(n);
-    }
-    let body = t.strip_prefix(['+', '-']).unwrap_or(t);
-    if !body.is_empty() && body.bytes().all(|b| b.is_ascii_digit()) {
-        return Err("integer value too large to represent".to_string());
-    }
-    Err(format!("expected integer but got \"{s}\""))
-}
-
 /// `interp debug`'s one option word (`debugTypes[]`, `tclInterp.c`): C resolves
 /// it with `Tcl_GetIndexFromObj(…, "debug option", 0)`, so `-f`/`-fr`
 /// abbreviate and a miss is `bad debug option "…": must be -frame` — a
@@ -313,12 +298,10 @@ fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, Stri
     }
 }
 
-/// Parse an `interp limit` integer option value, mirroring `parse_recursion_limit`'s
-/// `expected integer but got "X"` wording.
-fn parse_limit_int(s: &str) -> Result<i64, String> {
-    s.trim()
-        .parse::<i64>()
-        .map_err(|_| format!("expected integer but got \"{s}\""))
+/// An `interp limit` value outside its option's range (`TCL OPERATION INTERP
+/// BADVALUE`).
+fn bad_limit_value(message: &str) -> TclError {
+    TclError::with_error_code(message, "TCL OPERATION INTERP BADVALUE")
 }
 
 /// The on-demand autoloader bootstrap (see [`Vm::init_auto_load`]). A focused
@@ -4525,17 +4508,17 @@ impl Vm {
 
     /// `interp limit limitType ?-option value …?` on this interp (query / set;
     /// enforced for `time`).
-    pub(crate) fn limit_apply(&mut self, ltype: &str, args: &[Value]) -> Result<Value, String> {
+    pub(crate) fn limit_apply(&mut self, ltype: &str, args: &[Value]) -> Result<Value, TclError> {
         match LIMIT_TYPES
             .index_of_str(ltype)
-            .map_err(tcl_cmd_core::CmdError::into_message)?
+            .map_err(|error| TclError::new(error.into_message()))?
         {
             0 => self.limit_commands(args),
             _ => self.limit_time(args),
         }
     }
 
-    fn limit_commands(&mut self, args: &[Value]) -> Result<Value, String> {
+    fn limit_commands(&mut self, args: &[Value]) -> Result<Value, TclError> {
         const OPTS: &[&str] = &["-command", "-granularity", "-value"];
         let l = &self.limits;
         let query = |opt: &str| match opt {
@@ -4552,30 +4535,35 @@ impl Vm {
                 Value::string("-value"),
                 l.cmd_value.map_or_else(|| Value::string(""), Value::int),
             ])),
-            [opt] => Ok(query(resolve_limit_opt(&opt.to_str(), OPTS)?)),
+            [opt] => Ok(query(
+                resolve_limit_opt(&opt.to_str(), OPTS).map_err(TclError::new)?,
+            )),
             _ => {
                 for pair in args.chunks(2) {
                     // A trailing option with no value is a catchable error, not a
                     // panic (`interp limit c commands -value 1 -granularity`).
                     let [opt, val] = pair else {
-                        return Err("wrong # args: should be \"interp limit path commands \
-                                    ?-option value ...?\""
-                            .into());
+                        return Err(TclError::new(
+                            "wrong # args: should be \"interp limit path commands \
+                             ?-option value ...?\"",
+                        ));
                     };
-                    let opt = resolve_limit_opt(&opt.to_str(), OPTS)?;
+                    let opt = resolve_limit_opt(&opt.to_str(), OPTS).map_err(TclError::new)?;
                     match opt {
                         "-command" => self.limits.cmd_command = val.clone(),
                         "-granularity" => {
-                            let n = parse_limit_int(&val.to_str())?;
+                            let n = i64::from(val.as_c_int()?);
                             if n < 1 {
-                                return Err("granularity must be at least 1".into());
+                                return Err(bad_limit_value("granularity must be at least 1"));
                             }
                             self.limits.cmd_granularity = n;
                         }
                         _ => {
-                            let n = parse_limit_int(&val.to_str())?;
+                            let n = val.as_int()?;
                             if n < 0 {
-                                return Err("command limit value must be at least 0".into());
+                                return Err(bad_limit_value(
+                                    "command limit value must be at least 0",
+                                ));
                             }
                             self.forget_exceeded(LimitKind::Commands);
                             self.limits.cmd_value = Some(n);
@@ -4587,7 +4575,7 @@ impl Vm {
         }
     }
 
-    fn limit_time(&mut self, args: &[Value]) -> Result<Value, String> {
+    fn limit_time(&mut self, args: &[Value]) -> Result<Value, TclError> {
         const OPTS: &[&str] = &["-command", "-granularity", "-milliseconds", "-seconds"];
         let l = &self.limits;
         let query = |opt: &str| match opt {
@@ -4613,38 +4601,41 @@ impl Vm {
                 l.time_value
                     .map_or_else(|| Value::string(""), |(s, _)| Value::int(s)),
             ])),
-            [opt] => Ok(query(resolve_limit_opt(&opt.to_str(), OPTS)?)),
+            [opt] => Ok(query(
+                resolve_limit_opt(&opt.to_str(), OPTS).map_err(TclError::new)?,
+            )),
             _ => {
                 let (mut sec, mut ms) = self.limits.time_value.unwrap_or((0, 0));
                 let mut touched = self.limits.time_value.is_some();
                 for pair in args.chunks(2) {
                     let [opt, val] = pair else {
-                        return Err("wrong # args: should be \"interp limit path time \
-                                    ?-option value ...?\""
-                            .into());
+                        return Err(TclError::new(
+                            "wrong # args: should be \"interp limit path time \
+                             ?-option value ...?\"",
+                        ));
                     };
-                    let opt = resolve_limit_opt(&opt.to_str(), OPTS)?;
+                    let opt = resolve_limit_opt(&opt.to_str(), OPTS).map_err(TclError::new)?;
                     match opt {
                         "-command" => self.limits.time_command = val.clone(),
                         "-granularity" => {
-                            let n = parse_limit_int(&val.to_str())?;
+                            let n = i64::from(val.as_c_int()?);
                             if n < 1 {
-                                return Err("granularity must be at least 1".into());
+                                return Err(bad_limit_value("granularity must be at least 1"));
                             }
                             self.limits.time_granularity = n;
                         }
                         "-seconds" => {
-                            let n = parse_limit_int(&val.to_str())?;
+                            let n = val.as_int()?;
                             if n < 0 {
-                                return Err("seconds must be non-negative".into());
+                                return Err(bad_limit_value("seconds must be non-negative"));
                             }
                             sec = n;
                             touched = true;
                         }
                         _ => {
-                            let n = parse_limit_int(&val.to_str())?;
+                            let n = val.as_int()?;
                             if n < 0 {
-                                return Err("milliseconds must be non-negative".into());
+                                return Err(bad_limit_value("milliseconds must be non-negative"));
                             }
                             ms = n;
                             touched = true;
@@ -4653,7 +4644,7 @@ impl Vm {
                 }
                 if touched {
                     // Normalise excess milliseconds into seconds.
-                    sec += ms.div_euclid(1000);
+                    sec = sec.saturating_add(ms.div_euclid(1000));
                     ms = ms.rem_euclid(1000);
                     self.forget_exceeded(LimitKind::WallClock);
                     self.limits.time_value = Some((sec, ms));
@@ -4694,8 +4685,8 @@ impl Vm {
     pub(crate) fn child_recursion_limit_apply(
         &mut self,
         name: &str,
-        newlimit: Option<&str>,
-    ) -> Option<Result<i64, String>> {
+        newlimit: Option<&Value>,
+    ) -> Option<Result<i64, TclError>> {
         let id = self.child_id(name)?;
         Some(self.in_interp(id, |vm| vm.recursion_limit_apply(newlimit)))
     }
@@ -5778,13 +5769,14 @@ impl Vm {
         id: InterpId,
         rest: &[Value],
     ) -> Completion<Value> {
-        let nl = rest.first().map(|v| v.to_str().to_string());
+        let nl = rest.first();
         if !self.interp_alive(id) {
             return err(format!("could not find interpreter \"{name}\""));
         }
-        match self.in_interp(id, |vm| vm.recursion_limit_apply(nl.as_deref())) {
-            Ok(n) => ok(Value::int(n)),
-            Err(m) => err(m),
+        // C answers a new limit with the word it was given.
+        match self.in_interp(id, |vm| vm.recursion_limit_apply(nl)) {
+            Ok(n) => ok(nl.cloned().unwrap_or_else(|| Value::int(n))),
+            Err(e) => crate::command::completion_from_tcl_error(e),
         }
     }
 
@@ -5808,7 +5800,7 @@ impl Vm {
         }
         match self.in_interp(id, |vm| vm.limit_apply(&ltype, &opts)) {
             Ok(v) => ok(v),
-            Err(m) => err(m),
+            Err(e) => crate::command::completion_from_tcl_error(e),
         }
     }
 
@@ -10211,15 +10203,21 @@ impl Vm {
     }
 
     /// `interp recursionlimit` get / set on this interp. `newlimit` is the
-    /// optional new-limit string; returns the resulting limit or the error
-    /// message the caller should raise.
-    pub(crate) fn recursion_limit_apply(&mut self, newlimit: Option<&str>) -> Result<i64, String> {
+    /// optional new limit, read as C 9's `TclGetWideIntFromObj` reads it;
+    /// returns the resulting limit or the error the caller should raise.
+    pub(crate) fn recursion_limit_apply(
+        &mut self,
+        newlimit: Option<&Value>,
+    ) -> Result<i64, TclError> {
         match newlimit {
             None => Ok(i64::try_from(self.recursion_limit).unwrap_or(i64::MAX)),
-            Some(s) => {
-                let n = parse_recursion_limit(s)?;
+            Some(word) => {
+                let n = word.as_int()?;
                 if n <= 0 {
-                    return Err("recursion limit must be > 0".to_string());
+                    return Err(TclError::with_error_code(
+                        "recursion limit must be > 0",
+                        "TCL OPERATION INTERP BADLIMIT",
+                    ));
                 }
                 self.recursion_limit = usize::try_from(n).unwrap_or(usize::MAX);
                 Ok(n)

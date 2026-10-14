@@ -263,11 +263,10 @@ pub unsafe extern "C" fn Tcl_DuplicateObj(objPtr: *mut TclObj) -> *mut TclObj {
 // objects: the typed reads, each leaving C Tcl's error in `interp` when it is
 // given one
 
-/// `Tcl_GetIntFromObj` — the value as a C `int`. C Tcl reads a `long` first, as
-/// [`Tcl_GetLongFromObj`] does, and takes `INT_MIN` to `UINT_MAX` of it on every
-/// host, an unsigned value truncated rather than refused. So on an LP64 host an
-/// integer past the wide range that the `long` read takes modulo 2^64 is an `int`
-/// when what it reads is in range: `18446744073709551615` is -1.
+/// `Tcl_GetIntFromObj` — the value as a C `int` ([`typed_value::int`]). So on an
+/// LP64 host an integer past the wide range that the `long` read takes modulo
+/// 2^64 is an `int` when what it reads is in range: `18446744073709551615` is
+/// -1.
 ///
 /// # Safety
 /// `interp` must be null or live; `objPtr` live; `intPtr` writable.
@@ -277,22 +276,20 @@ pub unsafe extern "C" fn Tcl_GetIntFromObj(
     objPtr: *mut TclObj,
     intPtr: *mut c_int,
 ) -> c_int {
-    let long = match long_value(objPtr) {
+    match typed_value::int(objPtr) {
+        Ok(int) => {
+            // SAFETY: the caller guarantees a writable `int`.
+            unsafe { intPtr.write(int) };
+            TCL_OK
+        }
         // SAFETY: forwarded per this fn's contract.
-        Err(error) => return unsafe { typed_error(interp, &error) },
-        Ok(long) => long,
-    };
-    if !(TclWideInt::from(i32::MIN)..=TclWideInt::from(u32::MAX)).contains(&long) {
-        // SAFETY: forwarded per this fn's contract.
-        return unsafe { overflow(interp) };
+        Err(error) => unsafe { typed_error(interp, &error) },
     }
-    // SAFETY: the caller guarantees a writable `int`.
-    unsafe { intPtr.write(wrap_to_i32(long)) };
-    TCL_OK
 }
 
 /// `Tcl_GetLongFromObj` — the value as a C `long`, read as C Tcl reads one on
-/// this host ([`long_value`]).
+/// this host ([`typed_value::long`]): on LP64, `18446744073709551615` reads -1
+/// and `0x8000000000000000` reads `LONG_MIN`.
 ///
 /// # Safety
 /// `interp` must be null or live; `objPtr` live; `longPtr` writable.
@@ -302,7 +299,7 @@ pub unsafe extern "C" fn Tcl_GetLongFromObj(
     objPtr: *mut TclObj,
     longPtr: *mut c_long,
 ) -> c_int {
-    let long = match long_value(objPtr) {
+    let long = match typed_value::long(objPtr) {
         // SAFETY: forwarded per this fn's contract.
         Err(error) => return unsafe { typed_error(interp, &error) },
         Ok(long) => long,
@@ -315,26 +312,6 @@ pub unsafe extern "C" fn Tcl_GetLongFromObj(
         unsafe { longPtr.cast::<i64>().write(long) };
     }
     TCL_OK
-}
-
-/// What C Tcl's `Tcl_GetLongFromObj` reads, as a wide integer for the caller
-/// to narrow. Where `long` is 32 bits (`wasm32`), an integer from `LONG_MIN` to
-/// `ULONG_MAX`, which the caller truncates. Where it is 64 bits, any wide
-/// integer, and an integer past the wide range that fits 64 bits unsigned, taken
-/// modulo 2^64 as C's `(long)` of an `unsigned long` takes it:
-/// `18446744073709551615` reads -1 and `0x8000000000000000` reads `LONG_MIN`.
-/// Anything else is C's `ARITH IOVERFLOW`.
-fn long_value(objPtr: *mut TclObj) -> Result<TclWideInt, TypedError> {
-    if core::mem::size_of::<c_long>() == 4 {
-        let wide = typed_value::wide_int(objPtr)?;
-        if (TclWideInt::from(i32::MIN)..=TclWideInt::from(u32::MAX)).contains(&wide) {
-            Ok(wide)
-        } else {
-            Err(TypedError::overflow())
-        }
-    } else {
-        typed_value::wide_int_modulo_unsigned(objPtr)
-    }
 }
 
 /// `Tcl_GetWideIntFromObj` — the value as a `Tcl_WideInt`.
@@ -830,15 +807,6 @@ unsafe fn report(interp: *mut Interp, message: &[u8], code: Option<&[u8]>) -> c_
 unsafe fn typed_error(interp: *mut Interp, error: &TypedError) -> c_int {
     // SAFETY: forwarded per this fn's contract.
     unsafe { report(interp, &error.message, Some(error.code)) }
-}
-
-/// C Tcl's integer overflow ([`TypedError::overflow`]).
-///
-/// # Safety
-/// `interp` must be null or live.
-unsafe fn overflow(interp: *mut Interp) -> c_int {
-    // SAFETY: forwarded per this fn's contract.
-    unsafe { typed_error(interp, &TypedError::overflow()) }
 }
 
 /// A list that would not parse, reported with the shared list owner's message

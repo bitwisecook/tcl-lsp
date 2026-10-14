@@ -287,13 +287,17 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 return interp.wrong_args(b"interp recursionlimit path ?newlimit?");
             }
             let path = interp_path(argv[2]);
-            let newlimit = argv.get(3).map(|&a| obj_bytes(a));
-            match interp.with_child_path(&path, |c| c.recursion_limit_apply(newlimit.as_deref())) {
+            let newlimit = argv.get(3).copied();
+            match interp.with_child_path(&path, |c| c.recursion_limit_apply(newlimit)) {
+                // C answers a new limit with the word it was given.
                 Some(Ok(n)) => {
-                    interp.set_result_bytes(n.to_string().as_bytes());
+                    match newlimit {
+                        Some(word) => interp.set_result(word),
+                        None => interp.set_result_bytes(n.to_string().as_bytes()),
+                    }
                     Code::Ok
                 }
-                Some(Err(m)) => interp.set_error(&m),
+                Some(Err(e)) => interp.report_cmd_error(e),
                 None => not_found_path(interp, &path),
             }
         }
@@ -492,7 +496,7 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(o);
             Code::Ok
         }
-        Some(Err(m)) => interp.set_error(&m),
+        Some(Err(e)) => interp.report_cmd_error(e),
         None => not_found_path(interp, &path),
     }
 }

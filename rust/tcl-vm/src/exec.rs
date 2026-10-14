@@ -2774,7 +2774,7 @@ impl Vm {
                 let amount = pop(f);
                 match amount.as_int() {
                     Ok(a) => try_op!(self.incr_var(f, &name, a)),
-                    Err(e) => return Tick::Return(err(e.message)),
+                    Err(e) => return Tick::Return(crate::command::completion_from_tcl_error(e)),
                 }
             }
             Op::INCR_SCALAR1_IMM => {
@@ -5935,7 +5935,7 @@ impl Vm {
         let cur = self.read_for_update(name);
         let inc = Value::int(amount);
         let next = tcl_syntax::value::ValueOps::int_add(self, cur.as_ref(), &inc)
-            .map_err(|e| err(e.message()))?;
+            .map_err(|e| crate::command::completion_from_cmd_error(e.into()))?;
         let stored = self.store_var_result(name, next)?;
         f.stack.push(stored);
         Ok(())

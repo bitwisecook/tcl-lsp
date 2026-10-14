@@ -29,7 +29,10 @@ use tcl_dialect::model::SurfaceQuery;
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, CommandEvaluation, Completion};
 
-use crate::command::{command_lookup_error, err_with_code, lookup_error, settle_control_options};
+use crate::command::{
+    command_lookup_error, completion_from_cmd_error, completion_from_tcl_error, err_with_code,
+    lookup_error, settle_control_options,
+};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 use tcl_dialect::model::surface_admits;
@@ -545,7 +548,7 @@ fn apply_shared_option(
             let pairs = vm.dict_pairs(val)?;
             let mut map = Vec::with_capacity(pairs.len());
             for (key, value) in pairs {
-                let mut prefix = value.as_list().map_err(|e| err(e.message))?.to_vec();
+                let mut prefix = value.as_list().map_err(completion_from_tcl_error)?.to_vec();
                 // C qualifies the target at *parse* time, so the qualified
                 // name is what the ensemble stores, what dispatch calls, and
                 // what `-map` reads back — a target left raw would be looked
@@ -563,23 +566,23 @@ fn apply_shared_option(
                 map.push((key, prefix));
             }
             tcl_cmd_core::ensemble::validate_map_targets(&map)
-                .map_err(|e| err(e.into_message()))?;
+                .map_err(completion_from_cmd_error)?;
             opts.map = map;
         }
         SharedOption::Subcommands => {
-            let elems = val.as_list().map_err(|e| err(e.message))?;
+            let elems = val.as_list().map_err(completion_from_tcl_error)?;
             opts.subcommands =
                 (!elems.is_empty()).then(|| elems.iter().map(|v| v.to_str().to_string()).collect());
         }
         SharedOption::Parameters => {
-            let elems = val.as_list().map_err(|e| err(e.message))?;
+            let elems = val.as_list().map_err(completion_from_tcl_error)?;
             opts.parameters = elems.iter().map(|v| v.to_str().to_string()).collect();
         }
         SharedOption::Prefixes => {
-            opts.prefixes = val.as_bool().map_err(|e| err(e.message))?;
+            opts.prefixes = val.as_bool().map_err(completion_from_tcl_error)?;
         }
         SharedOption::Unknown => {
-            let elems = val.as_list().map_err(|e| err(e.message))?;
+            let elems = val.as_list().map_err(completion_from_tcl_error)?;
             opts.unknown = (!elems.is_empty()).then(|| elems.to_vec());
         }
     }
@@ -613,7 +616,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         let word = pair[0].to_str();
         let resolved = match CreateOption::resolve(word.as_bytes()) {
             Ok(resolved) => resolved,
-            Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+            Err(error) => return completion_from_cmd_error(error),
         };
         let Some(shared) = resolved.shared() else {
             // `-command` names the command rather than configuring it.
@@ -699,7 +702,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let [only] = rest {
         return match ConfigOption::resolve(only.to_str().as_bytes()) {
             Ok(option) => ok(ensemble_option_value(vm, &def, option)),
-            Err(message) => err(String::from_utf8_lossy(&message).into_owned()),
+            Err(error) => completion_from_cmd_error(error),
         };
     }
     let mut opts = EnsembleOptions::from_def(&def);
@@ -714,7 +717,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     for pair in rest.as_chunks::<2>().0 {
         let resolved = match ConfigOption::resolve(pair[0].to_str().as_bytes()) {
             Ok(resolved) => resolved,
-            Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+            Err(error) => return completion_from_cmd_error(error),
         };
         let Some(shared) = resolved.shared() else {
             return err_with_code("option -namespace is read-only", "TCL ENSEMBLE READ_ONLY");

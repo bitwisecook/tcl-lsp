@@ -509,13 +509,6 @@ fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// Parse a Tcl integer (decimal, or `0x`/`0o`/`0b` radix, optional sign) into an
-/// `i128` for `-integer` sort keys. `None` if not an integer.
-/// Parse a Tcl integer for `-integer` sort/search keys (shared core).
-fn parse_wide(b: &[u8]) -> Option<i128> {
-    tcl_cmd_core::sort::parse_wide(b)
-}
-
 /// `lsort ?-option value ...? list` — sort the list (`Tcl_LsortObjCmd`).
 /// `lsort ?-option value ...? list` — a thin adapter over the shared
 /// [`tcl_cmd_core::lsort`] core. Non-command modes are sorted+built entirely in
@@ -529,7 +522,12 @@ fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return Code::Ok;
         }
         Ok(Lsort::Command(job)) => job,
-        Err(e) => return interp.set_error(&e.message),
+        Err(e) => {
+            return match e.code {
+                Some(code) => interp.error_with_code(&e.message, code),
+                None => interp.set_error(&e.message),
+            };
+        }
     };
     // `-command`: pre-split the comparison prefix into words, run the reentrant
     // merge sort over the user comparator (which evaluates Tcl), then build.
@@ -565,28 +563,30 @@ fn lsort_cmd_compare(
         unsafe { obj::incr_ref_count(o) };
     }
     let code = interp.dispatch(&call);
-    let result = interp.result_bytes();
     for &o in &call {
         unsafe { obj::decr_ref_count(o) };
     }
     if code != Code::Ok {
         return Err(code);
     }
-    match parse_wide(&result) {
-        Some(v) => Ok(v.signum() as i32),
-        None => {
-            let mut m = b"-command comparison script returned non-integer result: ".to_vec();
-            m.extend_from_slice(&result);
-            Err(interp.set_error(&m))
-        }
+    // C reads the comparator's result as a C `int`.
+    match crate::typed_value::int(interp.result_obj()) {
+        Ok(order) => Ok(order.signum()),
+        Err(_) => Err(interp.error_with_code(
+            b"-compare command returned non-integer result",
+            b"TCL OPERATION LSORT COMPARISONFAILED",
+        )),
     }
 }
 
-fn bad_index(interp: &mut Interp, spec: &[u8]) -> Code {
-    let mut m = b"bad index \"".to_vec();
-    m.extend_from_slice(spec);
-    m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-    interp.set_error(&m)
+/// The `bad index` error the emulated release raises for `spec`, through the
+/// shared index owner.
+pub(crate) fn bad_index(interp: &mut Interp, spec: &[u8]) -> Code {
+    let error = tcl_cmd_core::index::bad_index_under(
+        &String::from_utf8_lossy(spec),
+        interp.runtime_version(),
+    );
+    interp.report_cmd_error(error)
 }
 
 /// Free a freshly created (`rc 0`) object not stored anywhere.

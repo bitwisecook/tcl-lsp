@@ -494,11 +494,9 @@ fn file_time(interp: &mut Interp, argv: &[*mut TclObj], access: bool) -> Code {
         return interp.set_error(b"filesystem not available");
     };
     if let Some(value) = argv.get(3) {
-        let Ok(secs) = core::str::from_utf8(&obj_bytes(*value))
-            .unwrap_or("")
-            .parse::<i64>()
-        else {
-            return interp.set_error(b"expected integer but got invalid time");
+        let secs = match crate::typed_value::wide_int(*value) {
+            Ok(secs) => secs,
+            Err(error) => return interp.report_typed_error(&error),
         };
         return match fs.set_times(
             as_str(&path),

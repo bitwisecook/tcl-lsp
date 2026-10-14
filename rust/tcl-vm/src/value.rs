@@ -251,28 +251,48 @@ impl Value {
     }
 
     /// The value as a wide integer (`Tcl_GetWideIntFromObj`), caching the typed
-    /// rep when it parses from the string side.
+    /// rep when it parses from the string side. A failure carries C's message
+    /// and `-errorcode`: an integer past the wide range is `ARITH IOVERFLOW`, a
+    /// double is refused under `TCL VALUE INTEGER` and anything else under
+    /// `TCL VALUE NUMBER`.
     pub fn as_int(&self) -> Result<i64, TclError> {
-        match &*self.0.intrep.borrow() {
+        let holds_double = match &*self.0.intrep.borrow() {
             IntRep::Int(n) => return Ok(*n),
             IntRep::Bool(b) => return Ok(i64::from(*b)),
-            IntRep::Str
-            | IntRep::Double(_)
-            | IntRep::List(_)
-            | IntRep::ParsedList(_)
-            | IntRep::Dict(_) => {}
-        }
+            IntRep::Double(_) => true,
+            IntRep::Str | IntRep::List(_) | IntRep::ParsedList(_) | IntRep::Dict(_) => false,
+        };
         let s = self.to_str();
         match number::parse_whole(&s) {
             Some(Number::Int(n)) => {
                 *self.0.intrep.borrow_mut() = IntRep::Int(n);
                 Ok(n)
             }
-            _ => Err(TclError::new(format!(
-                "expected integer but got {}",
-                list::describe_bad_value(&s)
-            ))),
+            Some(Number::Big { .. }) => Err(TclError::with_error_code(
+                tcl_syntax::expr::errors::IOVERFLOW_MESSAGE,
+                tcl_syntax::expr::errors::IOVERFLOW_CODE,
+            )),
+            _ if holds_double => Err(TclError::with_error_code(
+                format!("expected integer but got \"{s}\""),
+                "TCL VALUE INTEGER",
+            )),
+            _ => Err(TclError::with_error_code(
+                format!("expected integer but got {}", list::describe_bad_value(&s)),
+                "TCL VALUE NUMBER",
+            )),
         }
+    }
+
+    /// The value as a C `int` (`Tcl_GetIntFromObj`): [`Self::as_int`] narrowed
+    /// as C narrows it ([`tcl_syntax::value::narrow_to_c_int`]), so
+    /// `4294967295` reads -1 and `4294967296` is the overflow.
+    pub fn as_c_int(&self) -> Result<i32, TclError> {
+        tcl_syntax::value::narrow_to_c_int(self.as_int()?).map_err(|_| {
+            TclError::with_error_code(
+                tcl_syntax::expr::errors::IOVERFLOW_MESSAGE,
+                tcl_syntax::expr::errors::IOVERFLOW_CODE,
+            )
+        })
     }
 
     /// The value truncated to a 64-bit wide (`wide()`): an in-range integer
@@ -375,7 +395,10 @@ impl Value {
                 Number::Big { .. } => Ok(true),
                 // NaN is a domain error in a boolean context (tclsh 8.6/9.0:
                 // "floating point value is Not a Number"), never truthy.
-                Number::Nan { .. } => Err(TclError::new("floating point value is Not a Number")),
+                Number::Nan { .. } => Err(TclError::with_error_code(
+                    "floating point value is Not a Number",
+                    "TCL VALUE DOUBLE NAN",
+                )),
             };
         }
         // The canonical word acceptor (`ParseBoolean`, tclObj.c): any
@@ -383,10 +406,13 @@ impl Value {
         // one home in `tcl_syntax::boolean`, oracle-table-pinned.
         match tcl_syntax::boolean::parse_boolean_word(&s) {
             Some(b) => Ok(b),
-            None => Err(TclError::new(format!(
-                "expected boolean value but got {}",
-                list::describe_bad_value(&s)
-            ))),
+            None => Err(TclError::with_error_code(
+                format!(
+                    "expected boolean value but got {}",
+                    list::describe_bad_value(&s)
+                ),
+                "TCL VALUE NUMBER",
+            )),
         }
     }
 

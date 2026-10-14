@@ -23,9 +23,9 @@
 //! runs in the current scope; `uplevel ?level?` runs in an enclosing frame's
 //! variable scope *and* namespace (C Tcl `tclProc.c` `Tcl_UplevelObjCmd` —
 //! restore caller ns + depth together). Multiple args are space-joined (the `concat`-style
-//! eval form). Level parsing is shared with `upvar` ([`crate::cmd_var::parse_level`]).
+//! eval form). Level parsing is shared with `upvar` ([`crate::cmd_var::frame_level`]).
 
-use crate::cmd_var::parse_level;
+use crate::cmd_var::{frame_level, FrameLevel};
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
@@ -73,24 +73,16 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `uplevel ?level? arg ?arg ...?` — evaluate in an enclosing frame's scope.
 /// The optional level is `#N` (absolute) or `N` (relative; default 1); it is
-/// present iff the first arg is level-shaped (`#`digits / all-digits).
+/// present iff the first arg reads as one ([`frame_level`]).
 fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let usage = b"uplevel ?level? command ?arg ...?";
     if argv.len() < 2 {
         return interp.wrong_args(usage);
     }
-    let spec = obj_bytes(argv[1]);
-    let (target, body_start) = if looks_like_level(&spec) {
-        match parse_level(&spec, interp.current_level()) {
-            Some(t) => (t, 2),
-            None => return bad_level(interp, &spec),
-        }
-    } else {
-        // Default relative level 1 (one frame up from the active level).
-        match interp.current_level().checked_sub(1) {
-            Some(t) => (t, 1),
-            None => return bad_level(interp, b"1"),
-        }
+    let (target, body_start) = match frame_level(interp, Some(argv[1])) {
+        Ok(FrameLevel::Named(target)) => (target, 2),
+        Ok(FrameLevel::Default(target)) => (target, 1),
+        Err(code) => return code,
     };
     if body_start >= argv.len() {
         return interp.wrong_args(usage);
@@ -105,21 +97,6 @@ fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         interp.append_body_frame(b"uplevel");
     }
     code
-}
-
-/// Whether `s` is level-shaped: `#` + digits, or all digits.
-fn looks_like_level(s: &[u8]) -> bool {
-    match s.strip_prefix(b"#") {
-        Some(rest) => !rest.is_empty() && rest.iter().all(u8::is_ascii_digit),
-        None => !s.is_empty() && s.iter().all(u8::is_ascii_digit),
-    }
-}
-
-fn bad_level(interp: &mut Interp, spec: &[u8]) -> Code {
-    let mut m = b"bad level \"".to_vec();
-    m.extend_from_slice(spec);
-    m.push(b'"');
-    interp.set_error(&m)
 }
 
 #[cfg(test)]

@@ -40,6 +40,7 @@
 use std::cell::{Cell, RefCell};
 use std::ops::Range;
 
+use crate::error::CmdError;
 use crate::prefix::{OptionTable, Resolution};
 
 /// The stable command-token state behind a `namespace ensemble` command.
@@ -244,12 +245,12 @@ pub enum CreateOption {
 
 impl CreateOption {
     /// Resolve one create-option word (abbreviations included), or the C miss
-    /// message bytes (`bad option "-x": must be …`).
+    /// (`bad option "-x": must be …`, `TCL LOOKUP INDEX option -x`).
     ///
     /// # Errors
-    /// `Tcl_GetIndexFromObj`'s bad/ambiguous option message.
-    pub fn resolve(word: &[u8]) -> Result<Self, Vec<u8>> {
-        Ok(match CREATE_OPTIONS.index_of(word)? {
+    /// `Tcl_GetIndexFromObj`'s bad/ambiguous option error.
+    pub fn resolve(word: &[u8]) -> Result<Self, CmdError> {
+        Ok(match CREATE_OPTIONS.index_of_cmd(word)? {
             0 => Self::Command,
             1 => Self::Map,
             2 => Self::Parameters,
@@ -294,12 +295,12 @@ pub enum ConfigOption {
 
 impl ConfigOption {
     /// Resolve one configure-option word (abbreviations included), or the C
-    /// miss message bytes.
+    /// miss.
     ///
     /// # Errors
-    /// `Tcl_GetIndexFromObj`'s bad/ambiguous option message.
-    pub fn resolve(word: &[u8]) -> Result<Self, Vec<u8>> {
-        Ok(match CONFIG_OPTIONS.index_of(word)? {
+    /// `Tcl_GetIndexFromObj`'s bad/ambiguous option error.
+    pub fn resolve(word: &[u8]) -> Result<Self, CmdError> {
+        Ok(match CONFIG_OPTIONS.index_of_cmd(word)? {
             0 => Self::Map,
             1 => Self::Namespace,
             2 => Self::Parameters,
@@ -449,8 +450,11 @@ mod tests {
         // bad option "-namespace": must be -command, -map, -parameters,
         // -prefixes, -subcommands, or -unknown.
         assert_eq!(
-            String::from_utf8(CreateOption::resolve(b"-namespace").unwrap_err()).unwrap(),
-            "bad option \"-namespace\": must be -command, -map, -parameters, -prefixes, -subcommands, or -unknown"
+            CreateOption::resolve(b"-namespace").unwrap_err().into_parts(),
+            (
+                "bad option \"-namespace\": must be -command, -map, -parameters, -prefixes, -subcommands, or -unknown".to_string(),
+                Some("TCL LOOKUP INDEX option -namespace".to_string())
+            )
         );
         assert_eq!(
             CreateOption::resolve(b"-parameters"),
@@ -464,7 +468,7 @@ mod tests {
         );
         // `-p` prefixes both -parameters and -prefixes.
         assert_eq!(
-            String::from_utf8(CreateOption::resolve(b"-p").unwrap_err()).unwrap(),
+            CreateOption::resolve(b"-p").unwrap_err().message(),
             "ambiguous option \"-p\": must be -command, -map, -parameters, -prefixes, -subcommands, or -unknown"
         );
     }
@@ -480,7 +484,7 @@ mod tests {
             Ok(ConfigOption::Subcommands)
         );
         assert_eq!(
-            String::from_utf8(ConfigOption::resolve(b"-command").unwrap_err()).unwrap(),
+            ConfigOption::resolve(b"-command").unwrap_err().message(),
             "bad option \"-command\": must be -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown"
         );
     }

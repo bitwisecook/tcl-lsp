@@ -254,7 +254,10 @@ fn cmd_exit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         [c] => match c.as_int() {
             Ok(n) => i32::try_from(n).unwrap_or(0),
             Err(_) => {
-                return err(format!("expected integer but got \"{}\"", c.to_str()));
+                return err_with_code(
+                    format!("expected integer but got \"{}\"", c.to_str()),
+                    "TCL VALUE NUMBER",
+                );
             }
         },
         _ => return err("wrong # args: should be \"exit ?returnCode?\""),
@@ -723,19 +726,20 @@ fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (path, newlimit) = match rest {
         [path] => (path.to_str(), None),
-        [path, nl] => (path.to_str(), Some(nl.to_str().to_string())),
+        [path, nl] => (path.to_str(), Some(nl)),
         _ => return err("wrong # args: should be \"interp recursionlimit path ?newlimit?\""),
     };
     let result = if path.is_empty() {
-        vm.recursion_limit_apply(newlimit.as_deref())
-    } else if let Some(r) = vm.child_recursion_limit_apply(&path, newlimit.as_deref()) {
+        vm.recursion_limit_apply(newlimit)
+    } else if let Some(r) = vm.child_recursion_limit_apply(&path, newlimit) {
         r
     } else {
         return err(format!("could not find interpreter \"{path}\""));
     };
+    // C answers a new limit with the word it was given.
     match result {
-        Ok(n) => ok(Value::int(n)),
-        Err(m) => err(m),
+        Ok(n) => ok(newlimit.cloned().unwrap_or_else(|| Value::int(n))),
+        Err(e) => completion_from_tcl_error(e),
     }
 }
 
@@ -766,7 +770,7 @@ fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let opts = opts.to_vec();
     match vm.in_interp(id, |vm| vm.limit_apply(&ltype, &opts)) {
         Ok(v) => ok(v),
-        Err(m) => err(m),
+        Err(e) => completion_from_tcl_error(e),
     }
 }
 
@@ -1306,7 +1310,7 @@ fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let cur = vm.read_for_update(&name);
     let sum = match tcl_syntax::value::ValueOps::int_add(vm, cur.as_ref(), &amount) {
         Ok(v) => v,
-        Err(e) => return err(e.message()),
+        Err(e) => return completion_from_cmd_error(e.into()),
     };
     match vm.store_var_result(&name, sum) {
         Ok(stored) => ok(stored),
@@ -1866,10 +1870,11 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.is_empty() || args.len() > 2 {
         return err("wrong # args: should be \"time command ?count?\"");
     }
+    // C reads the count as a C `int`, so `4294967295` is -1 iterations.
     let count = if args.len() == 2 {
-        match args[1].as_int() {
-            Ok(n) => n,
-            Err(e) => return err(e.message),
+        match args[1].as_c_int() {
+            Ok(n) => i64::from(n),
+            Err(e) => return completion_from_tcl_error(e),
         }
     } else {
         1
