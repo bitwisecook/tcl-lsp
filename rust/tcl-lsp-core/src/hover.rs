@@ -5592,7 +5592,7 @@ mod tests {
         // hover now resolves. alias == target here, so no "linked from"
         // note (see the two-element-alias test below for that).
         let src = "oo::class create C {\n    constructor {} { link greet }\n    method greet {who} {}\n    method twice {} { greet ; greet }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method twice {} { greet ; greet }` — same text/col
         // as the un-linked test above, one line further down.
         let h = hover(src, 3, 22, &analysis, None).expect("hover");
@@ -5613,7 +5613,7 @@ mod tests {
         // `enclosing_class_at` containment check must recognise as part of
         // `Gadget`'s body too, not just the original creation block.
         let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    constructor {} { link Helper }\n    method Helper {} { return hi }\n    method Caller {} { Helper }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 6: `    method Caller {} { Helper }` — cursor on the bareword
         // `Helper` call (col 23).
         let h = hover(src, 6, 23, &analysis, None).expect("hover");
@@ -5629,7 +5629,7 @@ mod tests {
         // reached via the alias (a currently-live false negative this
         // closes: today's LSP returns no hover at all for `shortcut`).
         let src = "oo::class create C {\n    constructor {} { link {shortcut realMethod} }\n    method realMethod {x} { return $x }\n    method bar {} { return [shortcut 42] }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method bar {} { return [shortcut 42] }` — col 28
         // lands on the `s` of `shortcut`.
         let h = hover(src, 3, 28, &analysis, None).expect("hover");
@@ -5784,7 +5784,7 @@ mod tests {
         // TP — `link factory` makes the classmethod
         // hover resolve.
         let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method use {} { factory }` — same text/col as the
         // un-linked test above, one line further down.
         let h = hover(src, 3, 20, &analysis, None).expect("hover");

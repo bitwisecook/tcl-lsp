@@ -1,0 +1,6 @@
+
+running 1 test
+test variable_observation_names::tests::module_protection_keeps_namespace_and_literal_name_data ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9676 filtered out; finished in 0.00s
+

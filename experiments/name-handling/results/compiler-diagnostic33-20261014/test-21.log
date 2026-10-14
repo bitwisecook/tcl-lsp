@@ -1,0 +1,1491 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::alias_chain_composes_every_baked_argument_in_order ... ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=40 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=40 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=40 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=40 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=80 passed=true count=6
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=80 passed=true count=6
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=80 passed=true count=6
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=80 passed=true count=6
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=117 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=117 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=117 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=117 passed=true count=4
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=131 passed=true count=2
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(40) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(40) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(40) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(40) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(40) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(40) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(80) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(80) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(80) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(80) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(80) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(80) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=117 passed=true count=4
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(131) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(131) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.roles_complete offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.arity offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.word_count offset=Some(131) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.written_origins offset=Some(131) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=149 passed=true count=3
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(0) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(0) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(40) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(40) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(80) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(80) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(117) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(117) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(117) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(117) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.complete offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.resolved_handler offset=Some(131) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.owned_body_layout offset=Some(131) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.original_declaration offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.roles_complete offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.arity offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.word_count offset=Some(131) passed=false
+ORIGINAL_SOURCE_JOIN stage=structure.written_origins offset=Some(131) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(149) words=3 synthetic=None written=true compiler=false declaration=false
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(149) passed=true
+LOGICAL_CALLBACK_ENTRY_STAGE span=Span { start: 131, end: 147 } executable=true tokens=true any=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request offset=Some(131) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request_input offset=Some(131) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.reached_lookup offset=Some(131) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.declaration_layout offset=Some(131) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.declaration_closed offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=131 passed=true count=2
+ORIGINAL_CHILD_GUARD label=footprint.declaration offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(131) passed=true
+LOGICAL_CALLBACK_STAGE offset=Some(131) descriptor=upvar deferred=[] immediate=0 lambdas=0 any=false
+LOGICAL_CALLBACK_ENTRY_STAGE span=Span { start: 149, end: 160 } executable=true tokens=true any=false
+LOGICAL_CALLBACK_ENTRY_STAGE span=Span { start: 0, end: 39 } executable=true tokens=true any=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request_input offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.reached_lookup offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.point_metadata offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.known offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.present offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.closed_domain offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.quiet offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.no_step offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.origin offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.image offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.store offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.config offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(0) passed=true
+LOGICAL_CALLBACK_STAGE offset=Some(0) descriptor=interp deferred=[(Some("upvar"), None)] immediate=0 lambdas=0 any=true
+LOGICAL_CALLBACK_ENTRY_STAGE span=Span { start: 40, end: 79 } executable=true tokens=true any=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request_input offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.reached_lookup offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.point_metadata offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.known offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.present offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.closed_domain offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.quiet offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.no_step offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.origin offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.image offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.store offset=Some(40) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.config offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(40) words=7 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(40) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(40) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(40) passed=true
+LOGICAL_CALLBACK_STAGE offset=Some(40) descriptor=interp deferred=[(Some("bind_global"), None)] immediate=0 lambdas=0 any=true
+LOGICAL_CALLBACK_ENTRY_STAGE span=Span { start: 80, end: 116 } executable=true tokens=true any=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request_input offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.reached_lookup offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.point_metadata offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.known offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.present offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.closed_domain offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.quiet offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.no_step offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.origin offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.image offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.store offset=Some(80) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.config offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(80) words=6 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(80) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(80) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(80) passed=true
+LOGICAL_CALLBACK_STAGE offset=Some(80) descriptor=interp deferred=[(Some("bind_x"), None)] immediate=0 lambdas=0 any=true
+LOGICAL_CALLBACK_ENTRY_STAGE span=Span { start: 117, end: 162 } executable=true tokens=true any=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request_input offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.reached_lookup offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.point_metadata offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.known offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.present offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.closed_domain offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.quiet offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.no_step offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.origin offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.image offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.store offset=Some(117) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.config offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(117) words=4 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(117) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(117) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(117) passed=true
+LOGICAL_CALLBACK_STAGE offset=Some(117) descriptor=proc deferred=[(Some(" bind_local local; set local 1 "), None)] immediate=0 lambdas=0 any=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=131 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=117 passed=true count=4
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(130) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(130) passed=true count=2
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(131) passed=false count=0
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(149) passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=117 passed=true count=4
+CURRENT_SOURCE_GRAPH stage=pre-operands offset=131 head=[98, 105, 110, 100, 95, 108, 111, 99, 97, 108] namespace=Some(ByteNamespacePath([])) unknown_path=false selected=true uncertain=0
+CURRENT_SOURCE_GRAPH stage=post-operands offset=131 head=[98, 105, 110, 100, 95, 108, 111, 99, 97, 108] namespace=Some(ByteNamespacePath([])) unknown_path=false selected=true uncertain=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=131 passed=true count=2
+CURRENT_SOURCE_GRAPH stage=pre-effects offset=131 head=[98, 105, 110, 100, 95, 108, 111, 99, 97, 108] namespace=Some(ByteNamespacePath([])) unknown_path=false selected=true uncertain=0
+CURRENT_SOURCE_GRAPH stage=post-effects offset=131 head=[98, 105, 110, 100, 95, 108, 111, 99, 97, 108] namespace=Some(ByteNamespacePath([])) unknown_path=false selected=true uncertain=0
+CURRENT_SOURCE_GRAPH stage=pre-operands offset=149 head=[115, 101, 116] namespace=Some(ByteNamespacePath([])) unknown_path=false selected=true uncertain=0
+CURRENT_SOURCE_GRAPH stage=post-operands offset=149 head=[115, 101, 116] namespace=Some(ByteNamespacePath([])) unknown_path=false selected=true uncertain=0
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=149 passed=true count=3
+CURRENT_SOURCE_GRAPH stage=pre-effects offset=149 head=[115, 101, 116] namespace=Some(ByteNamespacePath([])) unknown_path=false selected=true uncertain=0
+CURRENT_SOURCE_GRAPH stage=post-effects offset=149 head=[115, 101, 116] namespace=Some(ByteNamespacePath([])) unknown_path=false selected=true uncertain=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=149 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=40 passed=true count=7
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=80 passed=true count=6
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=117 passed=true count=4
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.variable.metadata offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.variable.operation offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.variable.realm offset=Some(131) passed=true
+LOGICAL_VARIABLE_STAGE offset=Some(131) descriptor=upvar writes=VariableWriteProjection { literal_names: [], read_before_write_names: [], opaque_variable_frame: false } aliases=[]
+ORIGINAL_SOURCE_JOIN stage=structure.variable.schema offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=131 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=structure.variable.metadata offset=Some(149) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(149) words=3 synthetic=None written=true compiler=false declaration=false
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(149) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=149 passed=true count=3
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.variable.metadata offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.variable.operation offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.variable.realm offset=Some(131) passed=true
+LOGICAL_VARIABLE_STAGE offset=Some(131) descriptor=upvar writes=VariableWriteProjection { literal_names: [], read_before_write_names: [], opaque_variable_frame: false } aliases=[]
+ORIGINAL_SOURCE_JOIN stage=structure.variable.schema offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=131 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=structure.variable.metadata offset=Some(149) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(149) words=3 synthetic=None written=true compiler=false declaration=false
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(149) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=149 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=structure.frame.input offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.frame.metadata offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_advice offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_closed offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.declaration_facts offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.frame.operation offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.frame.realm offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.frame.schema offset=Some(131) passed=true
+LOGICAL_FRAME_STAGE offset=Some(131) layout=Some(AliasPairs) arguments=Some(Valid { level_word_len: 1, level: Absolute(0) }) start=0 argc=3 literals=[Some("#0"), Some("x"), Some("local")] words=[("::upvar", Opaque), ("#0", Opaque), ("x", Opaque), ("local", Source)]
+ORIGINAL_SOURCE_JOIN stage=structure.frame.input offset=Some(149) passed=true
+ORIGINAL_SOURCE_JOIN stage=structure.frame.metadata offset=Some(149) passed=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(131) words=2 synthetic=None written=false compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_site offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_rows offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_vector offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_origin offset=Some(131) passed=true
+ORIGINAL_WORD_CONFIG stage=declaration_consensus offset=Some(131) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=131 passed=true count=2
+ORIGINAL_WORD_CONFIG stage=request offset=Some(149) words=3 synthetic=None written=true compiler=false declaration=false
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(149) words=3 synthetic=None written=true compiler=false declaration=false
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(149) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(149) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=149 passed=true count=3
+
+thread 'cfg_builder::global_write_info::tests::alias_chain_composes_every_baked_argument_in_order' (233706) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2082:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::alias_chain_composes_every_baked_argument_in_order
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9676 filtered out; finished in 0.37s
+

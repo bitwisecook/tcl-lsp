@@ -13150,13 +13150,13 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
-    "checkpoint_utc": "2026-10-14T04:12:00Z",
-    "tracking_basis": "Actual Main owner/caller reconciliation plus Root sealed Compiler31/Core32/paired Runtime08 report; original snapshots and isolated evidence remain unchanged.",
+    "head": "1267a9ccf79d7900f7e2e75ade7ffda5f92d98a1",
+    "checkpoint_utc": "2026-10-14T04:27:00Z",
+    "tracking_basis": "Actual Main owner/caller reconciliation and sealed Compiler33/Core32 results; full Runtime09 capture running. Original snapshots and isolated evidence remain unchanged.",
     "scope": "Only explicit current actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and issue records unchanged; no old proof digest renewed.",
-    "validation": "Compiler31 295=171PASS124FAIL, source drift0; Core32 30=20PASS10FAIL source drift0. Paired Runtime08 1PASS1FAIL with all source/compiled/artifact drift0; only Jim rename diagnostic NUL extent fails. Actual C8.4/C8.5 observations preserve counted full diagnostics; universal CString proposal rejected before Main, per-engine repair active. Temporary Compiler33 diagnostic build passed; tests are arriving, with no final aggregate yet. AI TypeScript typecheck PASS; real LSP/Electron and DB original reuse controls remain pending. No whole-codebase/Native/F5/PR-ready acceptance.",
+    "validation": "Compiler33 diagnostic capture 304=194PASS110FAIL, authored-source drift0; 295 common Compiler31 controls improve19 and regress1. Core32 30=20PASS10FAIL source drift0. Full Runtime09 79 controls running, no aggregate yet; paired Runtime08 1PASS1FAIL source/compiled/artifact drift0 remains separately scoped. AI TypeScript typecheck PASS; real LSP/Electron and DB original reuse controls pending. No whole-codebase/Native/F5/PR-ready acceptance.",
     "source_write_policy": "Root-authorised three tracking documents only; no Rust/runtime/experiments/scripts/specs/Cargo/Git writes by this agent.",
-    "additional_bounded_families": "Nine earlier additional owner families remain integrated with independent current-source execution obligations. Current Native definition hints, source effects, OO linked-member references/editing, DB original reuse and paired Runtime replay remain active.",
+    "additional_bounded_families": "Audited consumer migrations remain the implementation priority. Current global/upvar/deferred source effects, original declaration summary-body coverage, Native SSA hints, OO linked-member references/editing, DB original reuse and Runtime replay remain active.",
     "reconciled_live_rows": [
       "bpf-thread-hint",
       "vm-authored-ns-wrappers",

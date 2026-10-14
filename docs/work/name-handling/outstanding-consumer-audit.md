@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-This is the bounded 04:12 UTC checkpoint on `work`. The machine inventory keeps
+This is the bounded 04:27 UTC checkpoint on `work`. The machine inventory keeps
 47 actionable rows, the inherited 330 lexical LSP candidates and original issue
 and source observations. Package membership or lexical search absence does not
 certify semantic completion. [Current consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
@@ -10,14 +10,16 @@ record each integrated owner and its remaining execution obligation.
 
 | Capture | Actual result | Scope and remaining work |
 | --- | --- | --- |
-| Compiler31 | 295 controls: 171 PASS, 124 FAIL; zero authored-source drift. | Prefix143, root146, root/current148 and namespace currency01 pass. Actual global/upvar/deferred, SSA, frame, W214, slot and cache controls retain failures. Repairs integrated after this capture are unexecuted. |
+| Compiler33 diagnostic | 304 controls: 194 PASS, 110 FAIL; zero authored-source drift. | Among 295 common Compiler31 controls, 19 improve and one regresses. Source geometry and consumer repairs have measurable gains; global/upvar/deferred effects, source-frame fixture ownership and original summary body coverage still fail. Diagnostic capture does not establish Native provider acceptance. |
 | Core32 | 30 controls: 20 PASS, 10 FAIL; zero authored-source drift. | OriginalScope9 is 6 PASS, 3 FAIL; original14 is 11 PASS, 3 FAIL. Namespace04, nested method03 and custom prefix28 pass. Current-level scope05/06/08, repeated type/colon and strict original SSA hint failures remain. |
+| Full Runtime09 | 79 controls running; no final aggregate. | Full source and compiled-provider capture is active. Current runtime repairs require its exact results; paired Runtime08 remains independently scoped. |
 | Paired Runtime08 | 2 controls: 1 PASS, 1 FAIL; zero source/compiled/artifact drift. | Only Jim rename message NUL extent fails. Actual C8.4/C8.5 observations retain counted full diagnostics; universal CString proposal rejected before Main, per-engine correction active. Prior Runtime07 76/77 remains retained scoped evidence. |
 | AI/editor | Current TypeScript typecheck PASS. | Real LSP/Electron provider, language/currentness and unavailable-owner controls remain unexecuted. |
 
-Temporary Compiler33 diagnostic build passed; selected test logs are arriving
-without a final aggregate. Main-only fixes after earlier captures require fresh
-replay and do not inherit their outcomes.
+Compiler33 diagnostic build and selected replay are complete. Main fixes after
+that frozen capture require fresh replay and do not inherit its outcomes.
+Original declaration body units must be included through genuine issued-owner
+selection before their global-write assertions can be assessed.
 
 ## Integrated repairs awaiting replay
 

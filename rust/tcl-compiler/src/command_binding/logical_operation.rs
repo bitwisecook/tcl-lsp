@@ -327,7 +327,7 @@ fn scalar_store(
 
 /// Check an authored continuation's cell coordinate, independently of the
 /// storage-domain facet. This never selects a physical namespace or store.
-fn logical_cell_is_local(
+pub(super) fn logical_cell_is_local(
     access: &crate::place::Place,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,

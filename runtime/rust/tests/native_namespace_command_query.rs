@@ -597,3 +597,58 @@ fn alias_registration_records_original_c91() {
         include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
         include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/9.1.0/stdout.bin"), 26);
 }
+
+#[test]
+fn rename_error_reporting_original_c_and_jim() {
+    let cases: &[(&str, &[u8])] = &[
+        (
+            "tcl8.4",
+            include_bytes!(
+                "../../../experiments/name-handling/rename-error-reporting/tcl8.4.20/stdout.bin"
+            ),
+        ),
+        (
+            "tcl8.5",
+            include_bytes!(
+                "../../../experiments/name-handling/rename-error-reporting/tcl8.5.19/stdout.bin"
+            ),
+        ),
+        (
+            "tcl8.6",
+            include_bytes!(
+                "../../../experiments/name-handling/rename-error-reporting/tcl8.6.18/stdout.bin"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_bytes!(
+                "../../../experiments/name-handling/rename-error-reporting/tcl9.0.4/stdout.bin"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_bytes!(
+                "../../../experiments/name-handling/rename-error-reporting/tcl9.1.0/stdout.bin"
+            ),
+        ),
+        (
+            "jim",
+            include_bytes!(
+                "../../../experiments/name-handling/rename-error-reporting/jim/stdout.bin"
+            ),
+        ),
+    ];
+    for &(environment, expected) in cases {
+        compare_reports_with_setup(
+            environment,
+            include_bytes!("../../../experiments/name-handling/rename-error-reporting/input.tcl"),
+            expected,
+            6,
+            |interp| {
+                if environment == "jim" {
+                    tcl_runtime::cmd_binary::install(interp);
+                }
+            },
+        );
+    }
+}

@@ -1,0 +1,203 @@
+--- a/rust/tcl-syntax/src/naming/native.rs
++++ b/rust/tcl-syntax/src/naming/native.rs
+@@ -2435,6 +2435,8 @@
+     TraceCallbackName2,
+     /// Missing command formatter, independently of command-table extent.
+     CommandLookupError,
++    /// Rename missing-source and occupied-destination formatters, separate from lookup keys.
++    RenameCommandError,
+     /// C interpreter-handle lookup diagnostic uses its `CString` operand.
+     InterpreterLookupError,
+     /// `TclOO` method enumeration formats the counted table key as `CString`.
+@@ -2455,6 +2457,9 @@
+     purpose: NativeNameReportPurpose,
+     original_operation_part: &[u8],
+ ) -> Result<&[u8], NameProjectionUnavailable> {
++    if purpose == NativeNameReportPurpose::RenameCommandError && !protocol.is_jim084() {
++        return Ok(original_operation_part);
++    }
+     if matches!(
+         purpose,
+         NativeNameReportPurpose::OoMethodEnumeration | NativeNameReportPurpose::OoMethodLookupError
+@@ -4737,3 +4742,39 @@
+         Err(NameProjectionUnavailable::PurposeNotModelled)
+     );
+ }
++
++#[cfg(test)]
++mod rename_reporting_tests {
++    use super::*;
++
++    #[test]
++    fn rename_diagnostics_preserve_counted_lookup_operands_and_selected_report_extent() {
++        let original = b"::alias\0old";
++        for protocol in tcl_dialect::TclVersion::ALL
++            .into_iter()
++            .map(NativeNameProtocol::C)
++            .chain([NativeNameProtocol::Jim084])
++        {
++            assert_eq!(
++                report_native_name_bytes(
++                    protocol,
++                    NativeNameReportPurpose::RenameCommandError,
++                    original
++                )
++                .unwrap(),
++                if protocol.is_jim084() {
++                    b"::alias".as_slice()
++                } else {
++                    original
++                }
++            );
++            let lookup = protocol
++                .rename_source_input(NativeNameContext::root(), original)
++                .unwrap();
++            assert_eq!(lookup.original(), original);
++            if protocol.is_jim084() {
++                assert_eq!(lookup.selected(), original);
++            }
++        }
++    }
++}
+--- a/runtime/rust/src/cmd_alias.rs
++++ b/runtime/rust/src/cmd_alias.rs
+@@ -193,8 +193,12 @@
+             } else {
+                 b"can't rename \"".as_slice()
+             };
++            let reported = match rename_reported_operand(interp, &old) {
++                Ok(reported) => reported,
++                Err(code) => return code,
++            };
+             let mut m = verb.to_vec();
+-            m.extend_from_slice(&old);
++            m.extend_from_slice(&reported);
+             m.extend_from_slice(b"\": command doesn't exist");
+             let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", &old]);
+             interp.error_with_code(&m, &code)
+@@ -204,12 +208,37 @@
+             Err(error) => interp.report_cmd_error(error.into()),
+         },
+         RenameOutcome::TargetExists => {
++            let reported = match rename_reported_operand(interp, &new) {
++                Ok(reported) => reported,
++                Err(code) => return code,
++            };
+             let mut m = b"can't rename to \"".to_vec();
+-            m.extend_from_slice(&new);
++            m.extend_from_slice(&reported);
+             m.extend_from_slice(b"\": command already exists");
+             interp.error_with_code(&m, b"TCL OPERATION RENAME TARGET_EXISTS")
+         }
+     }
++}
++
++fn rename_reported_operand(interp: &mut Interp, original: &[u8]) -> Result<Vec<u8>, Code> {
++    let Some(policy) = interp.name_policy_protocol() else {
++        return Err(interp.report_cmd_error(
++            tcl_syntax::value::ValueError::CommandProtocolUnavailable("rename name reporting")
++                .into(),
++        ));
++    };
++    tcl_syntax::naming::report_native_name_bytes(
++        policy.recipe(),
++        tcl_syntax::naming::NativeNameReportPurpose::RenameCommandError,
++        original,
++    )
++    .map(<[u8]>::to_vec)
++    .map_err(|_| {
++        interp.report_cmd_error(
++            tcl_syntax::value::ValueError::CommandProtocolUnavailable("rename name reporting")
++                .into(),
++        )
++    })
+ }
+ 
+ /// C's `TclPreventAliasLoop` refusal (`tclInterp.c`), shared by the `interp
+--- a/rust/tcl-vm/src/interp/native_rename.rs
++++ b/rust/tcl-vm/src/interp/native_rename.rs
+@@ -13,16 +13,13 @@
+         let policy = self
+             .name_policy_protocol()
+             .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?;
+-        if policy.recipe().is_jim084() {
+-            return Ok(original.to_vec());
+-        }
+-        let path = self.ns_path(self.current_ns_id());
+-        Ok(policy
+-            .recipe()
+-            .rename_source_input(NativeNameContext::new(&path), original)
+-            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?
+-            .selected()
+-            .to_vec())
++        tcl_syntax::naming::report_native_name_bytes(
++            policy.recipe(),
++            tcl_syntax::naming::NativeNameReportPurpose::RenameCommandError,
++            original,
++        )
++        .map(<[u8]>::to_vec)
++        .map_err(|_| NativeCommandLookupUnavailable::ProtocolUnavailable)
+     }
+ 
+     pub(super) fn native_rename_destination_slot(
+--- a/runtime/rust/tests/native_namespace_command_query.rs
++++ b/runtime/rust/tests/native_namespace_command_query.rs
+@@ -597,3 +597,58 @@
+         include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+         include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/9.1.0/stdout.bin"), 26);
+ }
++
++#[test]
++fn rename_error_reporting_original_c_and_jim() {
++    let cases: &[(&str, &[u8])] = &[
++        (
++            "tcl8.4",
++            include_bytes!(
++                "../../../experiments/name-handling/rename-error-reporting/tcl8.4.20/stdout.bin"
++            ),
++        ),
++        (
++            "tcl8.5",
++            include_bytes!(
++                "../../../experiments/name-handling/rename-error-reporting/tcl8.5.19/stdout.bin"
++            ),
++        ),
++        (
++            "tcl8.6",
++            include_bytes!(
++                "../../../experiments/name-handling/rename-error-reporting/tcl8.6.18/stdout.bin"
++            ),
++        ),
++        (
++            "tcl9.0",
++            include_bytes!(
++                "../../../experiments/name-handling/rename-error-reporting/tcl9.0.4/stdout.bin"
++            ),
++        ),
++        (
++            "tcl9.1",
++            include_bytes!(
++                "../../../experiments/name-handling/rename-error-reporting/tcl9.1.0/stdout.bin"
++            ),
++        ),
++        (
++            "jim",
++            include_bytes!(
++                "../../../experiments/name-handling/rename-error-reporting/jim/stdout.bin"
++            ),
++        ),
++    ];
++    for &(environment, expected) in cases {
++        compare_reports_with_setup(
++            environment,
++            include_bytes!("../../../experiments/name-handling/rename-error-reporting/input.tcl"),
++            expected,
++            6,
++            |interp| {
++                if environment == "jim" {
++                    tcl_runtime::cmd_binary::install(interp);
++                }
++            },
++        );
++    }
++}

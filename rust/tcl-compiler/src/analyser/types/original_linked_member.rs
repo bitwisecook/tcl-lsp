@@ -27,6 +27,7 @@ pub struct OriginalSourceLinkedMember {
     target_input: SignatureSourceNameInput,
     target_span: Option<Span>,
     coupled: bool,
+    receiver_side: MemberSide,
 }
 
 impl OriginalSourceLinkedMember {
@@ -214,6 +215,22 @@ fn scope_links(
                 .metadata()
                 .original_members
                 .method_for_input(side, &target.0)?;
+            let method = if side == MemberSide::Instance && method.native_class_delegate() {
+                let delegated = class
+                    .metadata()
+                    .original_members
+                    .method_for_input(MemberSide::ClassObject, &target.0)?;
+                if !delegated.native_class_delegate()
+                    || delegated.declaration() != method.declaration()
+                    || delegated.parameters_word() != method.parameters_word()
+                    || delegated.body_word() != method.body_word()
+                {
+                    return None;
+                }
+                delegated
+            } else {
+                method
+            };
             links.push(OriginalSourceLinkedMember {
                 class: class.clone(),
                 target: method,
@@ -222,6 +239,7 @@ fn scope_links(
                 target_input: target.0.clone(),
                 target_span: target.1,
                 coupled,
+                receiver_side: side,
             });
         }
     }
@@ -306,7 +324,7 @@ pub fn original_source_linked_member_at(
         .into_iter()
         .filter(|link| {
             link.class.name() == class.name()
-                && link.target.side() == side
+                && link.receiver_side == side
                 && native_oo_link_alias_geometry(link.alias.policy().recipe(), link.alias.bytes())
                     == Some(called.clone())
         });
@@ -380,10 +398,9 @@ pub fn original_source_linked_member_reference_spans(
         member: &OriginalSourceMethodMetadata,
         spans: &mut Vec<Span>,
     ) -> Option<()> {
-        if let Some((owner, body, input, side)) =
+        if let Some((owner, body, input, _side)) =
             scope_owner(scope, analysis, &SourceImage::document(source))
             && owner.name() == class.name()
-            && side == member.side()
         {
             for command in original_body_commands(body, input)? {
                 let head = command.words.first()?;
@@ -488,5 +505,131 @@ mod tests {
         let analysis = Analyser::new().analyse(&unknown, "tcl9.0");
         let call = u32::try_from(unknown.rfind("[foo]").unwrap() + 1).unwrap();
         assert!(original_source_linked_member_at(&analysis, &unknown, call).is_none());
+    }
+    #[test]
+    fn stock_classmethod_link_keeps_the_original_delegate_and_member_axis() {
+        for (dialect, output) in [
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../../../../experiments/name-handling/tcloo-linked-source/class-delegate/9.0.4/stdout.bin"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../../../../experiments/name-handling/tcloo-linked-source/class-delegate/9.1.0/stdout.bin"
+                ),
+            ),
+        ] {
+            assert!(output.contains("DELEGATE 0 FACTORY"));
+            let source = "oo::class create C {constructor {} {link factory}; classmethod factory {} {}; method use {} {factory}}";
+            let analysis = Analyser::new().analyse(source, dialect);
+            let cursor = u32::try_from(source.rfind("factory").unwrap()).unwrap();
+            let linked = original_source_linked_member_at(&analysis, source, cursor).unwrap();
+            assert_eq!(linked.target().side(), MemberSide::ClassObject);
+            assert!(linked.target().native_class_delegate());
+            let references = original_source_linked_member_reference_spans(
+                &analysis,
+                source,
+                linked.class_declaration().metadata(),
+                linked.target().metadata(),
+                MemberSide::ClassObject,
+            )
+            .unwrap();
+            assert_eq!(references.len(), 2);
+        }
+    }
+
+    #[test]
+    fn original_link_advice_refuses_malformed_foreign_and_conflicting_receipts() {
+        for descriptor in ["{}", "{route first second}", "$descriptor"] {
+            let source = format!(
+                "oo::class create C {{method first {{}} {{}}; method second {{}} {{}}; constructor {{}} {{link {descriptor}}}; method use {{}} {{route}}}}"
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl9.0");
+            let cursor = u32::try_from(source.rfind("route").unwrap()).unwrap();
+            assert!(
+                original_source_linked_member_at(&analysis, &source, cursor).is_none(),
+                "{descriptor}"
+            );
+        }
+        let conflicting = "oo::class create C {method first {} {}; method second {} {}; constructor {} {link {route first} {route second}}; method use {} {route}}";
+        let analysis = Analyser::new().analyse(conflicting, "tcl9.0");
+        let cursor = u32::try_from(conflicting.rfind("route").unwrap()).unwrap();
+        assert!(original_source_linked_member_at(&analysis, conflicting, cursor).is_none());
+
+        let source =
+            "oo::class create C {method foo {} {}; constructor {} {link foo}; method use {} {foo}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl9.0");
+        let cursor = u32::try_from(source.rfind("foo").unwrap()).unwrap();
+        let genuine = original_source_linked_member_at(&analysis, source, cursor).unwrap();
+        fn change_report_labels(scope: &mut Scope) {
+            scope.name = "::report-only".to_owned();
+            for child in &mut scope.children {
+                change_report_labels(child);
+            }
+        }
+        change_report_labels(&mut analysis.global_scope);
+        for class in analysis.all_classes.values_mut() {
+            class.qualified_name = "::report-only".to_owned();
+            class.linked_members.clear();
+        }
+        assert_eq!(
+            original_source_linked_member_at(&analysis, source, cursor)
+                .unwrap()
+                .target(),
+            genuine.target()
+        );
+        let foreign_source = format!("{source}\n# independent source image\n");
+        let foreign = Analyser::new().analyse(&foreign_source, "tcl9.0");
+        let foreign_link =
+            original_source_linked_member_at(&foreign, &foreign_source, cursor).unwrap();
+        let mut foreign_ancestry = genuine.clone();
+        foreign_ancestry.target_input = foreign_link.target_input().clone();
+        assert!(foreign_ancestry.editable_target_span(source).is_none());
+        let class = genuine.class_declaration();
+        assert!(
+            original_source_linked_members_for_class(&foreign, &foreign_source, class).is_none()
+        );
+        analysis.resolved_input = Analyser::new().analyse(source, "tcl9.1").resolved_input;
+        assert!(original_source_linked_member_at(&analysis, source, cursor).is_none());
+    }
+
+    #[test]
+    fn link_does_not_borrow_a_changed_or_unrelated_classmethod_delegate() {
+        let source = "oo::class create C {constructor {} {link factory}; classmethod factory {} {}; method factory {} {}; method use {} {factory}}";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let cursor = u32::try_from(source.rfind("factory").unwrap()).unwrap();
+        let linked = original_source_linked_member_at(&analysis, source, cursor).unwrap();
+        assert_eq!(linked.target().side(), MemberSide::Instance);
+        assert!(!linked.target().native_class_delegate());
+        let changed = "oo::class create C {constructor {} {link factory}; classmethod factory {} {}; method use {} {factory}}; oo::define C {self method factory {} {return OTHER}}";
+        let analysis = Analyser::new().analyse(changed, "tcl9.0");
+        let class = analysis.original_class_declarations().next().unwrap();
+        let instance = class
+            .metadata()
+            .original_members
+            .methods(MemberSide::Instance)
+            .unwrap();
+        assert!(
+            instance
+                .iter()
+                .any(|method| method.original_name_input().bytes() == b"factory"
+                    && method.native_class_delegate())
+        );
+        let class_object = class
+            .metadata()
+            .original_members
+            .methods(MemberSide::ClassObject)
+            .unwrap();
+        assert!(
+            class_object
+                .iter()
+                .any(|method| method.original_name_input().bytes() == b"factory"
+                    && !method.native_class_delegate())
+        );
+        let cursor = u32::try_from(changed.find("{factory}").unwrap() + 1).unwrap();
+        assert!(original_source_linked_member_at(&analysis, changed, cursor).is_none());
     }
 }

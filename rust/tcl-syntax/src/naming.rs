@@ -127,6 +127,25 @@ pub use native::{
     report_native_variable_diagnostic_at,
 };
 
+/// Rooted slot for an authored support-command registration label.
+/// Empty tails select the last nonempty written component. Counted opaque bytes
+/// remain data; this supplies no native publication, lookup or existence proof.
+#[must_use]
+pub fn support_command_registration_slot(
+    written: &[u8],
+) -> Option<tcl_core_types::ByteCommandSlot> {
+    let mut parts = written_command_parts(written);
+    let simple = if parts.simple.is_empty() {
+        parts.qualifiers.pop()?
+    } else {
+        parts.simple
+    };
+    Some(tcl_core_types::ByteCommandSlot::new(
+        tcl_core_types::ByteNamespacePath::from_segments(parts.qualifiers),
+        tcl_core_types::NameBytes::from(simple),
+    ))
+}
+
 /// Checked compatibility key for the exact native namespace components.
 /// Opaque UTF-8 or an ambiguous constructed-key round trip declines; the
 /// original byte path remains authoritative. This grants no native lookup.
@@ -2777,5 +2796,28 @@ mod shared_boundary_tests {
             key_suffixes("::é::雪\0p"),
             ["::é::雪\0p", "é::雪\0p", "雪\0p"]
         );
+    }
+}
+
+#[cfg(test)]
+mod support_registration_tests {
+    use super::*;
+
+    #[test]
+    fn support_registration_retains_counted_labels_and_last_nonempty_component() {
+        for name in [b"".as_slice(), b"::", b"::::"] {
+            assert!(support_command_registration_slot(name).is_none());
+        }
+        for (name, holder, tail) in [
+            (b"::A:::b::".as_slice(), b"A".as_slice(), b"b".as_slice()),
+            (b"\xff::k\0tail::", b"\xff", b"k\0tail"),
+            (b"A:::b", b"A", b"b"),
+            (b"$literal::member", b"$literal", b"member"),
+        ] {
+            let slot = support_command_registration_slot(name).unwrap();
+            assert_eq!(slot.namespace.as_segments().len(), 1);
+            assert_eq!(slot.namespace.as_segments()[0].as_bytes(), holder);
+            assert_eq!(slot.simple.as_bytes(), tail);
+        }
     }
 }

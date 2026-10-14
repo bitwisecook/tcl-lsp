@@ -1935,16 +1935,12 @@ impl Namespaces {
             self.insert_bound_after_entry(entry, key.clone(), command);
             return Some((namespace, key));
         }
-        let mut parts = written_command_parts(name);
-        // Bootstrap registration binds the last nonempty component.
-        if parts.simple.is_empty() {
-            parts.simple = parts.qualifiers.pop()?;
-        }
+        let slot = tcl_syntax::naming::support_command_registration_slot(name)?;
         let mut ns = GLOBAL;
-        for part in parts.qualifiers {
-            ns = self.ensure_child(ns, part);
+        for part in slot.namespace.as_segments() {
+            ns = self.ensure_child(ns, part.as_bytes());
         }
-        let simple = parts.simple.to_vec();
+        let simple = slot.simple.as_bytes().to_vec();
         self.insert_bound(ns, simple.clone(), command);
         Some((ns, simple))
     }

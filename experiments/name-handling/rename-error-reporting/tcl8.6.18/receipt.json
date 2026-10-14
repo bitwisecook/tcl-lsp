@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.6.18",
+  "case": "rename-error-cstring",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles-08/tcl8.6.18/rename-error-cstring/source.tcl"
+  ],
+  "started_at": "2026-10-14T04:08:28.920448+00:00",
+  "exit_code": 0,
+  "source_sha256": "129f655f04697f4c43e3244b45a0939b53c5d441f4bb22585e278d642a568990",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "stdout_sha256": "42952e324367db6d316ec19fd945d3b6c34bfd2286f7ff4a81f098358755d3d7",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

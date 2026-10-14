@@ -7129,7 +7129,7 @@ c\uD800";
         // genuinely bareword-callable from every method body of this class, so
         // the bare call resolves to the method's declaration.
         let src = "oo::class create C {\n    constructor {} { link greet }\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method twice {} { greet ; greet }` — same text/col
         // as the un-linked test above, one line further down.
         let locs = definition(src, 3, 22, &analysis);
@@ -7202,7 +7202,7 @@ c\uD800";
         // TP — `link factory` makes the classmethod
         // call resolve.
         let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Line 3: `    method use {} { factory }` — same text/col as the
         // un-linked test above, one line further down.
         let locs = definition(src, 3, 20, &analysis);

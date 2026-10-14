@@ -1,0 +1,110 @@
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -34,8 +34,13 @@
+ <!-- owner-resolution-manifest -->
+ | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
+ | --- | --- | --- | --- | --- |
++| Debugger current-frame variable reporting | `rust/tcl-vm/src/interp.rs`; `rust/tcl-debugger/src/backend.rs`; `rust/tcl-vm/src/debug.rs` | `Vm::debug_snapshot`; `DebugBackend::evaluate`; `DebugVar` | actual current frame local bindings and arena VarIds select scalar/array state before native name bytes are rendered; undefined and linked bindings retain their existing exclusion; arrays retain empty root values; valid UTF-8 stays literal and opaque bytes use full existing escape rendering; captured labels carry reporting purpose only and replay requires one matching label, declining collisions without dropping displayed cards; this grants no native variable-name acceptance, new frame selection or live evaluation | `xtask-owner-resolution` |
++| Current Logical member-provider correspondence | `rust/tcl-lsp-core/src/call_hierarchy.rs`; `rust/tcl-lsp-core/src/workspace_index.rs`; `rust/tcl-lsp-server/src/lib.rs` | `LogicalCallTarget::capture`; `WorkspaceIndex::logical_member_provider_matches_target`; `LogicalCallTarget::matches_indexed_member_provider` | positive Logical full-source input, current image/configuration/registry, original class occurrence and original member declaration/side are retained together; actual indexed provider ownership and declaring URI are required; changed source, detached copied provider, ambiguous source publication or missing member owner declines; class display labels do not establish provider identity and this issues no Native dispatch or edit authority | `xtask-owner-resolution` |
++| Native rename diagnostic operand reporting | `rust/tcl-syntax/src/naming/native.rs`; `runtime/rust/src/cmd_alias.rs`; `rust/tcl-vm/src/interp/native_rename.rs` | `report_native_name_bytes`; `NativeNameReportPurpose::RenameCommandError` | audited original C8.4/8.5/8.6/9.0/9.1 retains counted original operand bytes for missing-source and occupied-destination messages; original latest Jim formats its selected operand through CString reporting; lookup operands, command generations, retirement/check ordering and independently selected error-code updates remain separate | `xtask-owner-resolution` |
+ | Contextual catalogue case advice | `rust/tcl-registry/src/model/context.rs`; `rust/tcl-lsp-server/src/lib.rs` | `ResolvedContext::resolve_spec_case_advice` | literal catalogue query and actual command store under the selected full availability context; exact admitted lookup wins, unique case-folded admitted descriptor supplies advice, and distinct descriptor ambiguity declines; spaces and empty names remain data in the shared query; descriptor metadata is returned directly without reconstructing identity from its display label; UI advice supplies no Native binding, dispatch, presence, runtime case policy or edit grant | `xtask-owner-resolution` |
+ | Authored F5 configuration object paths | `rust/tcl-bigip/src/object_names.rs` | `ObjectNamePolicy`; `ObjectNameCandidates`; `object_name_candidates`; `ObjectNameCandidates::first_in_order`; `ObjectNameCandidates::first_exact_in_order_or_unique`; `ObjectNameCandidates::unique`; `owner_partition_reference_paths`; `reference_without_numeric_service`; `EmptyServiceSuffix` | literal authored slash-domain paths; caller-filtered actual configuration/module/type and input order; explicit exact, partition/Common, suffix and leaf policies; ordered selections retain duplicate exact rows without unique identity, unique fallback declines ambiguity; service suffix grammar remains purpose-specific; independent of Tcl namespace paths, C/Jim lookup and unmeasured BIG-IP execution | `xtask-owner-resolution` |
++| Original linked-member source ownership | `rust/tcl-compiler/src/analyser/types/original_linked_member.rs`; `rust/tcl-syntax/src/naming.rs`; `rust/tcl-lsp-core/src/definition.rs`; `rust/tcl-lsp-core/src/hover.rs`; `rust/tcl-lsp-core/src/references.rs`; `rust/tcl-lsp-core/src/rename.rs` | `OriginalSourceLinkedMember`; `original_source_linked_members_for_class`; `original_source_linked_member_at`; `original_source_linked_member_reference_spans`; `OriginalSourceLinkedMember::editable_target_span` | authentic original class/member/body/side and full source input; selected original TCLOO_BINDS_METHOD_ALIAS schema; original list-field alias publication geometry remains separate from literal target method data; ambiguous or unreadable source aliases decline; editable spans additionally require exact unchanged raw bytes/static list ancestry, coupled-name call spelling and complete reference coverage; no entered alias/receiver, Native helper/private worker, runtime publication or general edit grant | `xtask-owner-resolution` |
++| Original conditional case source geometry | `rust/tcl-compiler/src/registry_invocation/source_structure.rs`; `rust/tcl-compiler/src/analyser/oo.rs` | `OriginalSourceCase`; `original_logical_source_case_for_tokens`; `original_native_source_case_for_statement` | full original vector/input/configuration and actual selected descriptor; readonly Logical case roles retain possible/no-match/unknown selection, patterns and original subject references; Native branch requires an already typed Switch and closed actual handler; original whole words own geometry while captured prefix values keep their own origins; no handler completion, compiler admission, Native frame or executable rewrite grant | `xtask-owner-resolution` |
+ | incomplete variable completion source geometry | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-lsp-core/src/completion.rs` | `array_variable_completion_prefix` | editor fragment already excludes the substitution opener; preserves name/index source prefixes without stripping arbitrary braces; supplies no evaluated variable name, complete reference, cell or read proof | `xtask-owner-resolution` |
+ | Logical variable source-scope eligibility | `rust/tcl-compiler/src/analyser/scope.rs`; `rust/tcl-compiler/src/analyser/types.rs`; `rust/tcl-compiler/src/analyser/handlers.rs`; `rust/tcl-lsp-core/src/definition.rs`; `rust/tcl-lsp-core/src/completion.rs`; `rust/tcl-lsp-core/src/rename.rs` | `LogicalVariableScopeAdvice`; `AnalysisResult::logical_variable_scope_advice`; `LogicalVariableScopeAdvice::eligible_scopes`; `LogicalVariableScopeAdvice::root_names_require_qualification` | independently retained Logical input, exact whole image/channel/configuration and checked cursor; shared smallest-body descent and Registry frame-level grammar; distinct namespace/local/root/current/unknown-caller source tables; missing namespace coordinates retain only their own body tables without guessed qualification or bare root fallback; interpreter source bodies and foreign domain owners decline document-root borrowing; consumers retain table/cell selection and independent edit checks; Native/hosted bodies and original readonly aliases cannot issue this source-only selector | `xtask-owner-resolution` |
+ | Source activation-local variable geometry | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-compiler/src/inlining/frame.rs` | `source_variable_name_is_frame_local` | actual retained VariableLookupPolicy and independently owned source-name extent; the empty name is local, C qualifiers select namespace storage, Jim relative qualified names stay local, and initial Jim root markers select global storage; inlining retains the unchanged original Module/metadata/driver policy and declines missing ownership; no Native frame, lookup, input extent, presence or edit permission is issued | `xtask-owner-resolution` |
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -131,6 +131,28 @@
+ authority. A runtime artifact cache retains
+ separate candidate IDs and declines when multiple current candidates agree
+ only in name/body/namespace geometry.
++
++## Original member and case source metadata
++
++`OriginalSourceLinkedMember` joins a link's authentic original class/member body
++and member side to the selected `TCLOO_BINDS_METHOD_ALIAS` source schema. The
++alias publication and literal target method name have separate inputs. Symbolic
++receiver-relative or absolute alias geometry cannot create an object namespace.
++Definition and hover use the exact retained target. References and rename use
++`original_source_linked_member_reference_spans`; unreadable or ambiguous aliases
++withdraw the complete edit set. A static field needs unchanged raw bytes and
++original list ancestry before it supplies an editable target extent. One-field
++links couple the target and call spelling; publication that changes that
++spelling declines coupled edits. These source records establish neither an
++entered alias nor a Native helper, receiver or private worker.
++
++`OriginalSourceCase` describes original case patterns, possible bodies and a
++subject's exact scalar parameter reference. The Logical issuer requires the
++selected original source schema and complete input/word correspondence. The
++Native issuer accepts only an already typed `Switch` with its actual closed
++handler. Captured prefix values retain their origins; only original whole words
++supply geometry. Unknown option/body selection and possible no-match remain
++explicit. This view grants no compiler admission, completed handler or frame.
+ 
+ ## Representations
+ 
+@@ -545,3 +567,37 @@
+ return the selected descriptor's metadata directly. Any UI input cleanup is
+ separate from this shared query. Catalogue advice supplies no source/runtime
+ binding, Native case policy, command presence, dispatch or edit authority.
++
++## Debugger variable snapshots
++
++`Vm::debug_snapshot` reads current-frame bindings through their actual arena
++cell IDs before rendering names. Scalar values come from the selected cell;
++array roots keep their empty displayed value. Undefined and linked bindings
++are excluded. Valid UTF-8 names remain literal; opaque names use full escaped
++byte rendering. Display labels do not select live variables. Replay evaluation
++requires a unique captured label and declines collisions while preserving all
++variable cards. The controls are
++`snapshot_reads_owned_cells_before_rendering_native_name_bytes` and
++`evaluate_refuses_ambiguous_captured_labels`.
++
++## Logical workspace method providers
++
++`WorkspaceIndex::logical_member_provider_matches_target` joins an actual
++indexed provider with a retained `LogicalCallTarget`. Whole source, full input,
++registry, original class occurrence, original method declaration, side and
++publication URI must agree. Detached provider copies and changed source decline.
++Class display names are report metadata. This query supplies conditional
++Logical incoming-call advice; Native dispatch and editing retain their own
++owners. `logical_workspace_member_provider_uses_current_source_owners_instead_of_labels`
++checks these boundaries.
++
++## Rename error names
++
++`report_native_name_bytes` with `RenameCommandError` owns operand presentation
++for missing-source and occupied-destination rename errors. C8.4 through the
++audited C9.1 releases preserve counted original bytes. The audited latest Jim
++formats the operand through its CString extent. Runtime and VM call this owner
++without replacing lookup bytes, actual command identity or retirement order.
++The original comparison control is
++`rename_error_reporting_original_c_and_jim`; pure geometry uses
++`rename_diagnostics_preserve_counted_lookup_operands_and_selected_report_extent`.
+--- a/docs/design/contracts/naming-consumer-matrix.md
++++ b/docs/design/contracts/naming-consumer-matrix.md
+@@ -17,6 +17,9 @@
+ 
+ | Surface | Current owner and interface | Consumers and purpose boundary |
+ | --- | --- | --- |
++| Original linked method references | Compiler `OriginalSourceLinkedMember` and original linked-member queries; Core definition/hover/references/rename | Actual class/body/member-side and selected source helper schema own alias and target fields. Literal method data stays exact; ambiguous source aliases and unavailable list ancestry decline. Complete static/raw/coupled-name guards remain required for edits; no Native alias/receiver/private-worker grant. |
++| Current workspace member providers | `WorkspaceIndex::logical_member_provider_matches_target`; `LogicalCallTarget` | Actual indexed allocation, URI, complete source context/input and unique original class/member/side select the provider. Equal labels, copied records or ambiguous source names do not. |
++| Original conditional case metadata | `OriginalSourceCase`; original Logical and typed Native case issuers; analyser OO consumers | Original selected descriptors, full words/input/configuration and explicit possible/no-match/unknown routes own patterns and source parameter references. Native typed IR and handler obligations are independent of Logical readonly case roles. |
+ | Exact byte storage and constructed geometry | `tcl-core-types::name_bytes::{NameBytes,ByteNamespacePath,ByteCommandSlot}` | Syntax naming, compiler source scopes, runtime API snapshots, VM/Runtime name tables. Checked UTF-8 is presentation evidence; display text cannot recover component boundaries. |
+ | Engine and naming policy ingress | `tcl-syntax::naming::{ExecutionNamePolicy,NativeNameProtocol,NamePolicyProtocol,NamePolicyAuthority}`; `InvocationDialect::{native_name_protocol,authored_name_policy,authored_logical_name_simulation}` | Compiler runtime entry, signature scanner, autoload evaluator, VM and Runtime. The independent execution policy selects native C/Jim, explicitly authored simulation or bounded observed context. It does not derive from the producer-string protocol. |
+ | Command lookup input and publication | `NativeNameProtocol::{command_lookup_input,command_lookup_slot,command_publication_slot,command_c_api_publication_slot}` | Original-source command binding, signature declaration scope, VM/Runtime command registration and dispatch. Publication and lookup use separate purposes; a publication key is not another written lookup. |
+--- a/docs/design/compiler/name-resolution-implementer-guide.md
++++ b/docs/design/compiler/name-resolution-implementer-guide.md
+@@ -227,6 +227,10 @@
+ | Selected slot presence | `SourceInvocationBinding::selected_slot_presence` | Distinguish present, absent, may-present and unknown independently of alias target validity and missing-command fallback. Candidate lookup and navigation share `ModuleCommandBindings::source_lookup_paths`; consumers must not rebuild path alternatives. |
+ | Another computed command value at the same invocation | `SourceInvocationBinding::lookup_command_word` | Resolve in the retained namespace and table; cannot add another execution, substitute a default registry or search unrelated namespace tails. |
+ | Exact pre-fallback command absence | `SourceCommandBindings::command_is_absent_at` | Prove a missing table entry at that site; does not prove that its missing-command handler fails or has no effects. |
++| Original linked method source target | `OriginalSourceLinkedMember`; `original_source_linked_member_at` | Retain actual original class/body/member side and selected link schema; alias publication geometry stays separate from literal target method bytes. No entered helper, alias, receiver or Native worker follows. |
++| Original linked method source edits | `original_source_linked_member_reference_spans`; `editable_target_span` | Require complete original references, static list ancestry, unchanged raw bytes and coupled call-spelling correspondence. Unknown/ambiguous aliases decline the edit set; source target metadata alone is insufficient. |
++| Current indexed Logical member provider | `WorkspaceIndex::logical_member_provider_matches_target` | Retain the current indexed provider allocation, URI, full source input/context and unique exact class/member/side. Never reconstruct this owner from report labels. |
++| Original case source metadata | `OriginalSourceCase`; `original_logical_source_case_for_tokens`; `original_native_source_case_for_statement` | Logical roles describe possible original bodies/patterns and subject references without execution. Native requires existing typed Switch and actual closed handler; captured values cannot borrow written source extents. |
+ | Logical structured analysis | `logical_structured_invocation`, `LogicalStructuredInvocation` | Consume the exact selected handler or a declaration's owned conditional frame, selected facts and original argument indices. Conditional structure grants no actual activation, outward store or native opcode. Source-shape hooks decline inserted prefix operands, rewritten selectors and expanded elements they cannot map exactly. |
+ | Declared formal input and direct argument components | `SourceCommandBindings::symbolic_declaration_formal_value_at`, `symbolic_declaration_formal_components_in_word` | Select the immutable original declaration frame for parameter-role and caller-frame advice. Ordinary incoming formal slots and source-attested copies retain that conditional input; changed declarations, writes, observers, caller links and conflicting alternatives withdraw it. Direct outer argument components exclude nested command-result reads. No entered-call values or actual caller stores follow. |
+ | Original formal input with entered-frame evidence | `SourceCommandBindings::symbolic_formal_value_at` | Preserve the original source/read receipt and independently selected entered-frame evidence for actual or joined purposes; declaration-only advice cannot substitute for those observations. |

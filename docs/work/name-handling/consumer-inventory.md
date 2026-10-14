@@ -94,18 +94,20 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 ## Current implementation and audit priorities
 
 The [outstanding audit](outstanding-consumer-audit.md) and JSON current refresh
-record the bounded 04:12 UTC checkpoint. Compiler31 executed 295 controls:
-171 PASS and 124 FAIL, with zero authored-source drift. Core32 executed 30:
+record the bounded 04:27 UTC checkpoint. Compiler33 diagnostic replay executed 304 controls:
+194 PASS and 110 FAIL, with zero authored-source drift. Of the 295 common
+Compiler31 controls, 19 improve and one regresses. Full Runtime09 is running
+79 controls without a final aggregate. Core32 executed 30:
 20 PASS and 10 FAIL, also with zero drift. Source integration and execution
 acceptance remain separate; no whole-codebase completion percentage is established.
 
 | Consumer | Current shared owner | Remaining obligation |
 | --- | --- | --- |
-| CFG/global/deferred procedure summaries | ProcedureId, OriginalProcedureSummaryOwners and actual Module/Registry/original vectors travel through PreparedCfgContext. | Current Logical global/upvar/nested-child and deferred unknown-callback failures; genuine source-frame/effect repairs and replay. |
+| CFG/global/deferred procedure summaries | ProcedureId, OriginalProcedureSummaryOwners and actual Module/Registry/original vectors travel through PreparedCfgContext. | Current Logical global/upvar/nested-child and deferred unknown-callback failures; original declaration summary-body coverage requires genuine issued-owner selection, followed by unchanged effect assertions. |
 | SSA/scanner/elimination/materialized footprints | Explicit lexical versus standalone MAY reads; positively retained Logical source role projection is separate from Native Normal. | Compiler31 source-name controls fail; integrated conditional original-source reader repair awaits replay. Missing input, foreign registry and unknown reads retain independent protections. |
 | Slot/CFG/index reads | Retained point places select existing SSA symbols; genuine child readers protect host writes; detached words use lexical policy. | Compiler31 slot controls stopped before represented returns. Integrated original source-realm repair and actual CU CFG/SSA fixture ingress await replay of exact, foreign, unavailable, array-member and nested-command assertions. |
 | SSA literal/empty names | Actual literal payload preserves empty and dollar names; original source role owner excludes braced name data from lexical substitution. | Three Compiler31 controls fail. Source role/loop-list metadata repair is integrated, unexecuted; Native Normal/store/value proofs remain independent. |
-| Inlining frame locality | Shared Syntax predicate consumes retained VariableLookupPolicy; original complete source correspondence supplies readonly frame metadata. | Compiler31 empty-name positive failed under unmeasured Jim079 fixture ingress. Actual plain-Tcl source fixture and original declaration source-context joins are integrated, unexecuted. Finite C5/Jim observations remain scoped; no Native splice/admission claim. |
+| Inlining frame locality | Shared Syntax predicate consumes retained VariableLookupPolicy; original complete source correspondence supplies readonly frame metadata. | Compiler33 retains a Native-dispatch negative fixture failure before its assertions because its source Module ownership is unavailable. Actual plain-Tcl source and original declaration context gains remain scoped; source producer correction and exact negative replay are pending. Finite C5/Jim observations remain scoped; no Native splice/admission claim. |
 | DB/CommonAOT | Issued bodies, genuine capsules, actual Module/caller/callee/SSA owners and exact workspace declaration ingress. | Original cold/edit reuse counts and uncached comparisons remain mandatory; current certificate/fixture and dependency controls still need replay. |
 | Core inlay/graph joins | Core13 actual original declaration/source allocation and issued bodies; current body-unit coverage repair is integrated. | Core32 includes repeated-type/colon/body-hint failures. Strict original Native SSA definition hint failure cannot borrow Logical source roles or reporting maps. |
 | Diagnostic parameter spans | Actual Module/body/ProcedureId/declaration plus full-config original formal source geometry. | Compiler31 W214 and two formal geometry controls fail from unmeasured Jim079 source ingress. Genuine plain-Tcl fixture repair is integrated, unexecuted; source and all tight/quoted/refusal assertions are retained. |

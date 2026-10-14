@@ -193,8 +193,12 @@ fn rename_original(
             } else {
                 b"can't rename \"".as_slice()
             };
+            let reported = match rename_reported_operand(interp, &old) {
+                Ok(reported) => reported,
+                Err(code) => return code,
+            };
             let mut m = verb.to_vec();
-            m.extend_from_slice(&old);
+            m.extend_from_slice(&reported);
             m.extend_from_slice(b"\": command doesn't exist");
             let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", &old]);
             interp.error_with_code(&m, &code)
@@ -204,12 +208,37 @@ fn rename_original(
             Err(error) => interp.report_cmd_error(error.into()),
         },
         RenameOutcome::TargetExists => {
+            let reported = match rename_reported_operand(interp, &new) {
+                Ok(reported) => reported,
+                Err(code) => return code,
+            };
             let mut m = b"can't rename to \"".to_vec();
-            m.extend_from_slice(&new);
+            m.extend_from_slice(&reported);
             m.extend_from_slice(b"\": command already exists");
             interp.error_with_code(&m, b"TCL OPERATION RENAME TARGET_EXISTS")
         }
     }
+}
+
+fn rename_reported_operand(interp: &mut Interp, original: &[u8]) -> Result<Vec<u8>, Code> {
+    let Some(policy) = interp.name_policy_protocol() else {
+        return Err(interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("rename name reporting")
+                .into(),
+        ));
+    };
+    tcl_syntax::naming::report_native_name_bytes(
+        policy.recipe(),
+        tcl_syntax::naming::NativeNameReportPurpose::RenameCommandError,
+        original,
+    )
+    .map(<[u8]>::to_vec)
+    .map_err(|_| {
+        interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("rename name reporting")
+                .into(),
+        )
+    })
 }
 
 /// C's `TclPreventAliasLoop` refusal (`tclInterp.c`), shared by the `interp

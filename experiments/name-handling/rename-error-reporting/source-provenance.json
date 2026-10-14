@@ -1,0 +1,13 @@
+{
+  "source_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "original_jim_c_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "Jim_RenameCommand_source_lines": [
+    4462,
+    4505
+  ],
+  "Jim_SetResultFormatted_source_lines": [
+    17127,
+    17177
+  ],
+  "claim": "Exact original C8.4/8.5/8.6/9.0/9.1 and initialized latest Jim runs; no tcltest, fake native receipts, hosted/F5 or Rust acceptance. Missing rename, occupied destination and missing deletion distinguish reporting extent from counted names; same SOURCE/OCCUPIED remain after refusals."
+}

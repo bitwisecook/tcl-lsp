@@ -1,0 +1,28 @@
+{
+  "common": 295,
+  "improved": [
+    "cfg_builder::global_write_info::tests::alias_baked_custom_varwrite_target_uses_its_registry_descriptor",
+    "cfg_builder::global_write_info::tests::alias_baked_set_target_is_a_global_value_write",
+    "cfg_builder::global_write_info::tests::alias_baked_variable_name_still_records_value_write",
+    "cfg_builder::global_write_info::tests::declaration_after_write_still_counted",
+    "cfg_builder::global_write_info::tests::embedded_incr_in_command_substitution_recorded",
+    "cfg_builder::global_write_info::tests::renamed_global_descriptor_establishes_alias_without_counting_declaration_as_write",
+    "cfg_builder::global_write_info::tests::unrelated_global_write_is_not_confused_with_other_procs",
+    "cfg_builder::global_write_info::tests::variable_mixed_pairs_only_record_value_bearing_cells",
+    "cfg_builder::global_write_info::tests::variable_value_form_records_the_namespace_value_write",
+    "cfg_builder::upvar_info::tests::logical_frame_aliases_keep_real_formals_and_literal_dollar_names",
+    "command_binding::logical_definition::tests::escaped_logical_formal_parent_keeps_names_without_fabricating_spans",
+    "command_binding::logical_definition::tests::logical_formal_source_geometry_survives_same_labels_and_missing_reports",
+    "command_binding::source_transition_advice::logical_body::tests::logical_deferred_source_lookup_keeps_scalar_effects_and_binding_barriers_separate",
+    "lowering::tests::unavailable_lowering_metadata_keeps_generic_dispatch_and_conservative_method_names",
+    "lowering::tests::unresolved_method_name_protection_keeps_original_source_text_without_reparsing",
+    "slot_allocation::tests::foreign_and_unavailable_terminator_owners_keep_known_cells_live",
+    "slot_allocation::tests::retained_array_root_read_keeps_its_known_members_live",
+    "slot_allocation::tests::standalone_nested_command_keeps_protective_reads",
+    "ssa::tests::original_loop_name_lists_keep_empty_and_dollar_elements"
+  ],
+  "regressed": [
+    "inlining::frame::tests::native_dispatch_is_not_spliced_without_frame_or_head_rewrite_evidence"
+  ],
+  "scope": "different immutable captures with diagnostics; no complete provider acceptance"
+}

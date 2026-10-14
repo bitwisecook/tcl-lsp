@@ -65,6 +65,7 @@ mod incomplete_body_metadata;
 mod logical_definition;
 mod logical_operation;
 mod logical_prefix;
+mod logical_word_values;
 mod materialized_footprint;
 mod native_list_assignment;
 mod original_callback_lookup;

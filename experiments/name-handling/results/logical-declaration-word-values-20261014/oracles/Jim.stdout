@@ -1,0 +1,4 @@
+version 0.84-9-g5bac7c9
+declaration 0 LiteralChild
+original-values LiteralChild {return original}
+child-call 0 original

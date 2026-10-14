@@ -2435,6 +2435,8 @@ pub enum NativeNameReportPurpose {
     TraceCallbackName2,
     /// Missing command formatter, independently of command-table extent.
     CommandLookupError,
+    /// Rename missing-source and occupied-destination formatters, separate from lookup keys.
+    RenameCommandError,
     /// C interpreter-handle lookup diagnostic uses its `CString` operand.
     InterpreterLookupError,
     /// `TclOO` method enumeration formats the counted table key as `CString`.
@@ -2455,6 +2457,9 @@ pub fn report_native_name_bytes(
     purpose: NativeNameReportPurpose,
     original_operation_part: &[u8],
 ) -> Result<&[u8], NameProjectionUnavailable> {
+    if purpose == NativeNameReportPurpose::RenameCommandError && !protocol.is_jim084() {
+        return Ok(original_operation_part);
+    }
     if matches!(
         purpose,
         NativeNameReportPurpose::OoMethodEnumeration | NativeNameReportPurpose::OoMethodLookupError
@@ -4736,4 +4741,40 @@ fn jim_namespace_command_query_uses_two_fresh_report_candidates() {
             .jim_namespace_command_query_candidates(context, b"name"),
         Err(NameProjectionUnavailable::PurposeNotModelled)
     );
+}
+
+#[cfg(test)]
+mod rename_reporting_tests {
+    use super::*;
+
+    #[test]
+    fn rename_diagnostics_preserve_counted_lookup_operands_and_selected_report_extent() {
+        let original = b"::alias\0old";
+        for protocol in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(NativeNameProtocol::C)
+            .chain([NativeNameProtocol::Jim084])
+        {
+            assert_eq!(
+                report_native_name_bytes(
+                    protocol,
+                    NativeNameReportPurpose::RenameCommandError,
+                    original
+                )
+                .unwrap(),
+                if protocol.is_jim084() {
+                    b"::alias".as_slice()
+                } else {
+                    original
+                }
+            );
+            let lookup = protocol
+                .rename_source_input(NativeNameContext::root(), original)
+                .unwrap();
+            assert_eq!(lookup.original(), original);
+            if protocol.is_jim084() {
+                assert_eq!(lookup.selected(), original);
+            }
+        }
+    }
 }

@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::tests::namespace_resolution_projection_preserves_written_runs_and_constructed_colons ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9676 filtered out; finished in 0.00s
+

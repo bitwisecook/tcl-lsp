@@ -132,6 +132,28 @@ authority. A runtime artifact cache retains
 separate candidate IDs and declines when multiple current candidates agree
 only in name/body/namespace geometry.
 
+## Original member and case source metadata
+
+`OriginalSourceLinkedMember` joins a link's authentic original class/member body
+and member side to the selected `TCLOO_BINDS_METHOD_ALIAS` source schema. The
+alias publication and literal target method name have separate inputs. Symbolic
+receiver-relative or absolute alias geometry cannot create an object namespace.
+Definition and hover use the exact retained target. References and rename use
+`original_source_linked_member_reference_spans`; unreadable or ambiguous aliases
+withdraw the complete edit set. A static field needs unchanged raw bytes and
+original list ancestry before it supplies an editable target extent. One-field
+links couple the target and call spelling; publication that changes that
+spelling declines coupled edits. These source records establish neither an
+entered alias nor a Native helper, receiver or private worker.
+
+`OriginalSourceCase` describes original case patterns, possible bodies and a
+subject's exact scalar parameter reference. The Logical issuer requires the
+selected original source schema and complete input/word correspondence. The
+Native issuer accepts only an already typed `Switch` with its actual closed
+handler. Captured prefix values retain their origins; only original whole words
+supply geometry. Unknown option/body selection and possible no-match remain
+explicit. This view grants no compiler admission, completed handler or frame.
+
 ## Representations
 
 A name's spelling, identity and presentation are different values:
@@ -545,3 +567,37 @@ iteration. Empty names and whitespace remain literal query data. Consumers
 return the selected descriptor's metadata directly. Any UI input cleanup is
 separate from this shared query. Catalogue advice supplies no source/runtime
 binding, Native case policy, command presence, dispatch or edit authority.
+
+## Debugger variable snapshots
+
+`Vm::debug_snapshot` reads current-frame bindings through their actual arena
+cell IDs before rendering names. Scalar values come from the selected cell;
+array roots keep their empty displayed value. Undefined and linked bindings
+are excluded. Valid UTF-8 names remain literal; opaque names use full escaped
+byte rendering. Display labels do not select live variables. Replay evaluation
+requires a unique captured label and declines collisions while preserving all
+variable cards. The controls are
+`snapshot_reads_owned_cells_before_rendering_native_name_bytes` and
+`evaluate_refuses_ambiguous_captured_labels`.
+
+## Logical workspace method providers
+
+`WorkspaceIndex::logical_member_provider_matches_target` joins an actual
+indexed provider with a retained `LogicalCallTarget`. Whole source, full input,
+registry, original class occurrence, original method declaration, side and
+publication URI must agree. Detached provider copies and changed source decline.
+Class display names are report metadata. This query supplies conditional
+Logical incoming-call advice; Native dispatch and editing retain their own
+owners. `logical_workspace_member_provider_uses_current_source_owners_instead_of_labels`
+checks these boundaries.
+
+## Rename error names
+
+`report_native_name_bytes` with `RenameCommandError` owns operand presentation
+for missing-source and occupied-destination rename errors. C8.4 through the
+audited C9.1 releases preserve counted original bytes. The audited latest Jim
+formats the operand through its CString extent. Runtime and VM call this owner
+without replacing lookup bytes, actual command identity or retirement order.
+The original comparison control is
+`rename_error_reporting_original_c_and_jim`; pure geometry uses
+`rename_diagnostics_preserve_counted_lookup_operands_and_selected_report_extent`.

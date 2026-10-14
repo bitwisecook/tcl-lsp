@@ -1,0 +1,6 @@
+
+running 1 test
+test var_resolve::tests::jim_namespace_activations_have_separate_cells_from_caller_and_siblings ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9676 filtered out; finished in 0.01s
+

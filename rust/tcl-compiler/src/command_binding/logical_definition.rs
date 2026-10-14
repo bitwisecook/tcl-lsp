@@ -16,6 +16,7 @@ struct LogicalProcedureDefinition {
     input: ResolvedAnalysisInput,
     site: CommandAllocationSite,
     words: Vec<NativeWord>,
+    values: Vec<super::logical_word_values::LogicalOriginalWordValue>,
     namespace: SourceNamespaceKey,
     target: SourceCommandTarget,
     key: SourceCommandKey,
@@ -48,7 +49,7 @@ pub(super) fn transfer_selected(
 ) -> Option<SourceOutcomes> {
     // naming.source.logical-procedure-definition-model
     // docs/design/analysis/name-resolution-proofs/logical-procedure-definition-model.md
-    let original = original_static_invocation_words(words, offset, state, context)?;
+    let original = original_invocation_words(words, offset, state, context)?;
     let head = static_value(original.first()?)?;
     let selected = source_binding_projection(state, &head, &context.namespace_identity());
     if selected.unknown || selected.may_be_absent {
@@ -77,26 +78,36 @@ impl LogicalProcedureDefinition {
         {
             return None;
         }
-        let original = original_static_invocation_words(words, offset, state, context)?;
-        let values = original
-            .iter()
-            .map(static_value)
-            .collect::<Option<Vec<_>>>()?;
-        let head = values.first()?;
+        let values = super::logical_word_values::LogicalOriginalWordValue::capture_invocation(
+            words, offset, state, context,
+        )?;
+        let original: Vec<_> = values.iter().map(|value| value.word().clone()).collect();
+        let head = static_value(original.first()?)?;
         let namespace = context.namespace_identity();
-        if !selected_target(state, head, &namespace, target) {
+        if !selected_target(state, &head, &namespace, target) {
             return None;
         }
         let actual_context = input.context_registry();
         let mut effective_values = vec![target.command.clone()];
-        effective_values.extend(
+        if !target.prepended.is_empty() {
             target
-                .prepended
-                .iter()
-                .map(captured_static_value)
-                .collect::<Option<Vec<_>>>()?,
-        );
-        effective_values.extend(values.into_iter().skip(1));
+                .logical_original_prefix
+                .as_ref()?
+                .matches_state(state)
+                .then_some(())?;
+            effective_values.extend(
+                target
+                    .original_logical_prepended_name_inputs(
+                        input,
+                        origin.source_image(),
+                        context.config,
+                    )?
+                    .iter()
+                    .map(|value| std::str::from_utf8(value.bytes()).ok().map(str::to_owned))
+                    .collect::<Option<Vec<_>>>()?,
+            );
+        }
+        effective_values.extend(values.iter().skip(1).map(|value| value.value().to_owned()));
         let arguments = effective_values
             .iter()
             .skip(1)
@@ -127,6 +138,7 @@ impl LogicalProcedureDefinition {
                 offset,
             },
             words: original,
+            values,
             namespace,
             target: target.clone(),
             key,
@@ -147,6 +159,12 @@ impl LogicalProcedureDefinition {
             || self.words.iter().any(|word| {
                 word.image() != self.site.source.source_image() || word.config() != context.config
             })
+            || self.values.len() != self.words.len()
+            || self
+                .values
+                .iter()
+                .zip(&self.words)
+                .any(|(value, word)| value.word() != word || !value.is_current(state, context))
             || !selected_target(
                 state,
                 &static_value(self.words.first()?)?,
@@ -233,7 +251,7 @@ fn selected_target(
 
 /// Capture one complete quiet original vector in the retained Logical domain.
 /// Authored model operands grant neither Native values nor execution receipts.
-pub(super) fn original_static_invocation_words(
+pub(super) fn original_invocation_words(
     words: &[crate::ir::WordExpr],
     offset: u32,
     state: &ModuleCommandBindings,
@@ -255,6 +273,16 @@ pub(super) fn original_static_invocation_words(
         offset,
         context.config,
     )?;
+    Some(original)
+}
+
+pub(super) fn original_static_invocation_words(
+    words: &[crate::ir::WordExpr],
+    offset: u32,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<Vec<NativeWord>> {
+    let original = original_invocation_words(words, offset, state, context)?;
     original
         .iter()
         .all(|word| static_value(word).is_some())

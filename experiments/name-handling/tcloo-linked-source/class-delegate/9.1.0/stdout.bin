@@ -1,0 +1,6 @@
+IDENTITY 9.1.0
+AVAILABILITY stockLink 1
+DECLARATION 0 ::LinkDelegateProbe
+DELEGATE 0 FACTORY
+INSTANCE_METHODS {destroy factory use}
+CLASS_METHODS {create destroy factory new}

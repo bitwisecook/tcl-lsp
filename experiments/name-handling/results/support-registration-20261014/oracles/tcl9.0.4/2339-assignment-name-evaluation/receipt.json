@@ -1,0 +1,14 @@
+{
+  "provider": "tcl9.0.4",
+  "case": "2339-assignment-name-evaluation",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles/tcl9.0.4/2339-assignment-name-evaluation/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:36:53.798291+00:00",
+  "exit_code": 0,
+  "source_sha256": "3ba83a7a53f0f88c105e9511c13e99768fbd0e901f848a82e6559c9100f19163",
+  "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+  "stdout_sha256": "25306aaa469b360353309d67b9b88284863e603a7173eaa0ae54a7264164dc73",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

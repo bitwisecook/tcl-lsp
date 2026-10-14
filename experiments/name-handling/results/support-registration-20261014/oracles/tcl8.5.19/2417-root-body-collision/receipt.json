@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.5.19",
+  "case": "2417-root-body-collision",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles/tcl8.5.19/2417-root-body-collision/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:36:53.337511+00:00",
+  "exit_code": 0,
+  "source_sha256": "90d752862ed541af9a65ea29649a91cbde30fcc96f3447ae4660ea9781bb98c0",
+  "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "stdout_sha256": "2dd118853612a1a7e83af728b092f85a8f3234d79ea49de67e45383fee29df70",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1786,7 +1786,11 @@ fn original_source_case_projection(
     let logical_source = binding.original_source_advice_purpose(tokens, metadata, registry)?
         == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     let config = binding.original_lexer_config_for_tokens(tokens)?;
-    let realm = binding.invocation_realm()?;
+    let realm = if logical_source {
+        binding.original_source_realm_for_input(tokens, input, registry)?
+    } else {
+        binding.invocation_realm()?
+    };
     selected.with_metadata_schema(registry, metadata, realm, |schema| {
         schema.semantics.options.case_list.map(|_| ())
     })?;

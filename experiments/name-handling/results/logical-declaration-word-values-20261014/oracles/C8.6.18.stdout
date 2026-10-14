@@ -1,0 +1,4 @@
+version 8.6.18
+declaration 0 {}
+original-values LiteralChild {return original}
+child-call 0 original

@@ -1,0 +1,4 @@
+can't find package struct::set
+    while executing
+"package require struct::set"
+    (file "/tmp/name-issues-refresh-20261014/oracles/tcl8.4.20/2419-tcllib-variable-writers/source.tcl" line 1)

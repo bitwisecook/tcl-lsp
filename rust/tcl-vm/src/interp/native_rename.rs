@@ -13,16 +13,13 @@ impl Vm {
         let policy = self
             .name_policy_protocol()
             .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?;
-        if policy.recipe().is_jim084() {
-            return Ok(original.to_vec());
-        }
-        let path = self.ns_path(self.current_ns_id());
-        Ok(policy
-            .recipe()
-            .rename_source_input(NativeNameContext::new(&path), original)
-            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?
-            .selected()
-            .to_vec())
+        tcl_syntax::naming::report_native_name_bytes(
+            policy.recipe(),
+            tcl_syntax::naming::NativeNameReportPurpose::RenameCommandError,
+            original,
+        )
+        .map(<[u8]>::to_vec)
+        .map_err(|_| NativeCommandLookupUnavailable::ProtocolUnavailable)
     }
 
     pub(super) fn native_rename_destination_slot(
