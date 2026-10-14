@@ -47,14 +47,14 @@ fn run_for_version(src: &str, version: TclVersion) -> String {
 }
 
 /// Runs `body` at the global level and answers `{code message errorCode}`.
-const PROBE: &str = r#"
+const PROBE: &str = r"
 proc probe {body} {
     global errorCode
     set errorCode SENTINEL
     set code [catch {uplevel #0 $body} msg]
     list $code $msg $errorCode
 }
-"#;
+";
 
 fn probe(version: TclVersion, setup: &str, body: &str) -> String {
     let src = format!("{PROBE}\n{setup}\nprobe {{{body}}}");

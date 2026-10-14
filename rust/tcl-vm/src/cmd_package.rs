@@ -489,10 +489,13 @@ fn requirements_suffix(
     } else {
         ""
     };
-    requested
-        .iter()
-        .map(|requirement| format!(" {exactly}{requirement}"))
-        .collect()
+    let mut suffix = String::new();
+    for requirement in requested {
+        suffix.push(' ');
+        suffix.push_str(exactly);
+        suffix.push_str(requirement);
+    }
+    suffix
 }
 
 fn version_conflict(
