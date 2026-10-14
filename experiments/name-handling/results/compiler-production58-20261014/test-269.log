@@ -1,0 +1,17 @@
+
+running 1 test
+test taint_interproc::tests::dynamic_original_head_retains_all_actual_summary_dependencies ... 
+thread 'taint_interproc::tests::dynamic_original_head_retains_all_actual_summary_dependencies' (297790) panicked at rust/tcl-compiler/src/taint_interproc.rs:1565:9:
+assertion `left == right` failed
+  left: 0
+ right: 3
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    taint_interproc::tests::dynamic_original_head_retains_all_actual_summary_dependencies
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.27s
+

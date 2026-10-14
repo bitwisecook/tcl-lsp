@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::late_alias_summary_is_published_under_its_source_spelling ... 
+thread 'cfg_builder::global_write_info::tests::late_alias_summary_is_published_under_its_source_spelling' (297244) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1438:30:
+original fixture call is closed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::late_alias_summary_is_published_under_its_source_spelling
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.45s
+

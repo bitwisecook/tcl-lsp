@@ -8809,6 +8809,210 @@ mod tests {
     }
 
     #[test]
+    fn empty_dictionary_scope_source_phases_keep_original_names_and_unknown_alias_contents() {
+        let (context, unit) = logical_metadata_fixture(
+            "set protected VALUE; dict with {} {}; dict with {$dict} {# comment only\n}; info exists {$dict}",
+        );
+        let registry = context.commands();
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .unwrap();
+        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
+        let script = &unit.ir_module.top_level;
+        let before = script
+            .retained_source_tokens_for_statement(&script.statements[1])
+            .unwrap();
+        assert_eq!(
+            before
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .variable_context
+                .literal_value("protected", registry),
+            Some("VALUE")
+        );
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions::default(),
+            unit.top_level.source_lexer_config(),
+        );
+        for (statement, expected) in script.statements[1..].iter().zip(["", "$dict", "$dict"]) {
+            let tokens = script
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            assert!(selection.logical_structure(tokens).is_some());
+            assert!(selection.normal(tokens).is_none());
+            let reads = uses_of_classified_in_context(statement, &mut scanner, selection);
+            assert!(
+                reads.contains(&(expected.to_owned(), UseClass::Name)),
+                "{reads:?}"
+            );
+            assert!(!reads.iter().any(|(name, _)| name == "dict"));
+        }
+        let tokens = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap();
+        let variables = &tokens.source_binding.as_ref().unwrap().variable_context;
+        assert!(variables.literal_value("protected", registry).is_none());
+        assert!(!variables.dynamic_bindings);
+        assert!(!variables.dynamic_traces);
+        assert!(variables.interpreter.is_none());
+        assert!(variables.execution.is_none());
+    }
+
+    fn dictionary_effect_fixture(
+        access: tcl_registry::world_effect::StaticEffectAccess,
+    ) -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        crate::compilation_unit::CompilationUnit,
+    ) {
+        use std::sync::Arc;
+        use tcl_registry::world_effect::{
+            CallbackEffect, StaticEffectFootprint, WorldEffectDescriptor,
+        };
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut info = registry.get("info").unwrap().clone();
+        info.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(info);
+        let mut dictionary = registry.get("dict").unwrap().clone();
+        let mut subcommands = dictionary.subcommands.to_vec();
+        subcommands
+            .iter_mut()
+            .find(|subcommand| subcommand.name == "with")
+            .unwrap()
+            .world_effects = Some(WorldEffectDescriptor {
+            static_footprint: StaticEffectFootprint {
+                accesses: Box::leak(vec![access].into_boxed_slice()),
+                callback: CallbackEffect::NONE,
+            },
+            ..WorldEffectDescriptor::EMPTY
+        });
+        dictionary.subcommands = Box::leak(subcommands.into_boxed_slice());
+        registry.insert(dictionary);
+        let context = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "dict with {} {}; info exists {$name}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (context, unit)
+    }
+
+    #[test]
+    fn dictionary_source_phases_refuse_unrepresented_explicit_writes() {
+        use tcl_registry::world_effect::{
+            EffectAccessMode, StaticEffectAccess, StaticInterpreterScope, StaticNamespaceScope,
+            StaticSubjectScope, WorldStateDomain,
+        };
+        for (domain, mode, namespace, subject) in [
+            (
+                WorldStateDomain::VariableTraces,
+                EffectAccessMode::Write,
+                StaticNamespaceScope::Current,
+                StaticSubjectScope::Wildcard,
+            ),
+            (
+                WorldStateDomain::VariableTraces,
+                EffectAccessMode::ReadWrite,
+                StaticNamespaceScope::Current,
+                StaticSubjectScope::Wildcard,
+            ),
+            (
+                WorldStateDomain::VariableStore,
+                EffectAccessMode::Write,
+                StaticNamespaceScope::Named("::foreign"),
+                StaticSubjectScope::Named("extra"),
+            ),
+            (
+                WorldStateDomain::VariableStore,
+                EffectAccessMode::Write,
+                StaticNamespaceScope::Any,
+                StaticSubjectScope::Wildcard,
+            ),
+            (
+                WorldStateDomain::VariableStore,
+                EffectAccessMode::Write,
+                StaticNamespaceScope::Current,
+                StaticSubjectScope::Wildcard,
+            ),
+        ] {
+            let (context, unit) = dictionary_effect_fixture(StaticEffectAccess::new(
+                domain,
+                mode,
+                StaticInterpreterScope::Current,
+                namespace,
+                subject,
+            ));
+            let registry = context.commands();
+            let metadata = unit
+                .top_level
+                .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                .unwrap();
+            let selection = SsaInvocationContext::supplied(registry, Some(metadata));
+            let script = &unit.ir_module.top_level;
+            let before = script
+                .retained_source_tokens_for_statement(&script.statements[0])
+                .unwrap();
+            assert!(
+                selection.logical_structure(before).is_some(),
+                "{domain:?} {namespace:?} {subject:?}"
+            );
+            let after = script
+                .retained_source_tokens_for_statement(script.statements.last().unwrap())
+                .unwrap();
+            assert!(
+                selection.logical_structure(after).is_none(),
+                "{domain:?} {namespace:?} {subject:?}"
+            );
+            assert!(selection.normal(after).is_none());
+        }
+    }
+
+    #[test]
+    fn dictionary_scope_bodies_and_variable_observers_keep_lookup_hazards() {
+        for source in [
+            "dict with {} {opaque_body}; info exists {$name}",
+            "trace add variable protected write observer; dict with {} {}; info exists {$name}",
+            "dict with $target {}; info exists {$name}",
+        ] {
+            let (context, unit) = logical_metadata_fixture(source);
+            let registry = context.commands();
+            let metadata = unit
+                .top_level
+                .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                .unwrap();
+            let selection = SsaInvocationContext::supplied(registry, Some(metadata));
+            let script = &unit.ir_module.top_level;
+            let tokens = script
+                .retained_source_tokens_for_statement(script.statements.last().unwrap())
+                .unwrap();
+            assert!(selection.logical_structure(tokens).is_none(), "{source}");
+            assert!(selection.normal(tokens).is_none(), "{source}");
+        }
+    }
+
+    #[test]
     fn conditional_logical_store_symbols_keep_original_empty_and_dollar_names() {
         let (context, unit) = logical_metadata_fixture("set {$literal} 9; set {} 8");
         let registry = context.commands();

@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::helpers::tests::original_substitutions_keep_inert_data_and_literal_operand_values ... 
+thread 'var_escape::helpers::tests::original_substitutions_keep_inert_data_and_literal_operand_values' (297995) panicked at rust/tcl-compiler/src/var_escape/helpers.rs:376:14:
+actual original invocation
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::helpers::tests::original_substitutions_keep_inert_data_and_literal_operand_values
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.22s
+

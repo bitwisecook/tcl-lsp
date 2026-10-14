@@ -1,0 +1,17 @@
+
+running 1 test
+test deferred_writes::tests::a_callback_script_names_what_it_writes ... 
+thread 'deferred_writes::tests::a_callback_script_names_what_it_writes' (297562) panicked at rust/tcl-compiler/src/deferred_writes.rs:1080:13:
+assertion `left == right` failed: trace add variable x write { set ::done 1 ;# }
+  left: []
+ right: ["done"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_callback_script_names_what_it_writes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.45s
+

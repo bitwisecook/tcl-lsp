@@ -3332,6 +3332,16 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         })
     }
 
+    /// Selected dictionary mapping phases for conditional source analysis.
+    /// Body shape/timing, source purpose and observer closure are independent;
+    /// generic invocation effects and Native/Normal admission remain unchanged.
+    #[must_use]
+    pub fn authored_dictionary_scope_source_phase(
+        &self,
+    ) -> Option<crate::dictionary_scope::AuthoredDictionaryScopeSourcePhase> {
+        crate::dictionary_scope::authored_dictionary_scope_source_phase(self)
+    }
+
     /// Timing of an independently selected original script/container ordinal.
     /// This does not identify a body role, entered callback or executing frame.
     #[must_use]
@@ -10419,6 +10429,104 @@ mod logical_source_alias_projection_tests {
             );
         }
     }
+    #[test]
+    fn dictionary_source_phase_keeps_generic_unknown_and_additional_effects() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = crate::model::ingress::context_for_profile(profile);
+        let arguments = [
+            crate::InvocationWord::Literal("with"),
+            crate::InvocationWord::Literal("$dict"),
+            crate::InvocationWord::Literal(""),
+        ];
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            crate::InvocationWords::structured(crate::InvocationWord::Literal("dict"), &arguments)
+                .with_profile(Some(profile)),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        let mut schema = selected.resolved().unwrap();
+        assert!(schema.facts().effects.callback().kinds.is_unknown());
+        let phase = schema.authored_dictionary_scope_source_phase().unwrap();
+        assert_eq!(phase.plan().dictionary_argument, 1);
+        assert_eq!(phase.plan().body_argument, 2);
+        assert_eq!(
+            phase.effects().callback().kinds,
+            crate::world_effect::CallbackKinds::TRACE
+        );
+        assert!(schema.facts().effects.callback().kinds.is_unknown());
+        fn extra(
+            _arguments: crate::InvocationArguments<'_>,
+        ) -> crate::world_effect::EffectFootprint {
+            crate::world_effect::EffectFootprint::conservative_unknown_invocation()
+        }
+        schema.semantics.world_effects.form = Some(crate::world_effect::WorldEffectDescriptor {
+            resolver: Some(extra),
+            ..crate::world_effect::WorldEffectDescriptor::EMPTY
+        });
+        let expanded = schema.authored_dictionary_scope_source_phase().unwrap();
+        assert!(expanded.effects().callback().kinds.is_unknown());
+        schema.semantics.body_execution = None;
+        assert!(schema.authored_dictionary_scope_source_phase().is_none());
+    }
+
+    #[test]
+    fn dictionary_source_phase_rejects_wrong_arity_and_scripted_helpers() {
+        for dialect in ["tcl8.6", "jim"] {
+            let ingress = crate::model::ingress::resolve_environment(dialect);
+            let context = ingress.default_context_registry();
+            let profile = ingress.unit_profile();
+            let arguments = [
+                crate::InvocationWord::Literal("with"),
+                crate::InvocationWord::Literal("d"),
+                crate::InvocationWord::Literal(""),
+            ];
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(
+                        crate::InvocationWord::Literal("dict"),
+                        &arguments,
+                    )
+                    .with_profile(Some(profile)),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            let mut schema = selected.resolved().unwrap();
+            assert!(
+                schema.authored_dictionary_scope_source_phase().is_some(),
+                "{dialect}"
+            );
+            assert!(schema.facts().effects.callback().kinds.is_unknown());
+            schema.semantics.arity = crate::Arity::exact(0);
+            assert!(
+                schema.authored_dictionary_scope_source_phase().is_none(),
+                "{dialect}"
+            );
+            assert!(schema.facts().effects.callback().kinds.is_unknown());
+        }
+        let ingress = crate::model::ingress::resolve_environment("jim");
+        let context = ingress.default_context_registry();
+        let arguments = [
+            crate::InvocationWord::Literal("update"),
+            crate::InvocationWord::Literal("d"),
+            crate::InvocationWord::Literal("key"),
+            crate::InvocationWord::Literal("mapped"),
+            crate::InvocationWord::Literal(""),
+        ];
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            crate::InvocationWords::structured(crate::InvocationWord::Literal("dict"), &arguments)
+                .with_profile(Some(ingress.unit_profile())),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        let schema = selected.resolved().unwrap();
+        assert_eq!(schema.facts().arity_accepts_frozen_arguments(), Some(true));
+        assert!(schema.authored_dictionary_scope_source_phase().is_none());
+        assert!(schema.facts().effects.callback().kinds.is_unknown());
+    }
+
     #[test]
     fn source_descriptor_replacement_withdraws_parent_layout_requirement() {
         let profile = tcl_dialect::DialectProfile::plain_tcl();

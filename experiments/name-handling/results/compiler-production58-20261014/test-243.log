@@ -1,0 +1,15 @@
+
+running 1 test
+test source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix ... 
+thread 'source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix' (297709) panicked at rust/tcl-compiler/src/source_graph.rs:532:9:
+assertion failed: !diagnostics.is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.42s
+

@@ -1,0 +1,17 @@
+
+running 1 test
+test var_escape::cfg_propagation::walker::tests::ssa_tags_track_per_version ... 
+thread 'var_escape::cfg_propagation::walker::tests::ssa_tags_track_per_version' (297915) panicked at rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:1013:9:
+assertion `left == right` failed
+  left: None
+ right: Some(Frame)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::cfg_propagation::walker::tests::ssa_tags_track_per_version
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.19s
+

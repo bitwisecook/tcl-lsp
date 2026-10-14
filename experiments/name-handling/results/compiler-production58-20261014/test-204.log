@@ -1,0 +1,6 @@
+
+running 1 test
+test inlining::frame::tests::original_frame_empty_and_dollar_names_require_actual_local_bindings ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 2.06s
+

@@ -1083,6 +1083,20 @@ fn original_word_script_body_geometry(word: &NativeWord) -> Option<ScriptBodyGeo
     })
 }
 
+/// Lexical zero-command shape of one genuine written script word.
+/// Selected body roles, timing, effects and execution remain independent.
+pub(crate) fn original_written_script_body_is_empty(word: &NativeWord) -> Option<bool> {
+    let geometry = original_word_script_body_geometry(word)?;
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        word.image().clone(),
+        geometry.content,
+        word.config(),
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    Some(plan.commands.is_empty() && plan.fatal_tail.is_none())
+}
+
 fn source_operand_body(
     operand: &super::source_structure::OriginalOperandSource,
 ) -> Option<ScriptBodyGeometry> {

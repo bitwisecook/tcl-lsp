@@ -64,6 +64,8 @@ pub(super) fn transfer(
         Some(AnalyserHookId::Rename | AnalyserHookId::InterpAlias)
     ) {
         command_transfer(&original, &facts, &transitions, state, offset, context)?;
+    } else if let Some(phase) = schema.authored_dictionary_scope_source_phase() {
+        empty_dictionary_scope_continuation(&original, &schema, &phase, state, offset, context)?;
     } else {
         variable_continuation(&original, &facts, &transitions, state, offset, context)?;
     }
@@ -423,6 +425,160 @@ fn scalar_write_continuation(
     let variables = Arc::make_mut(&mut state.source_variables);
     for write in writes {
         variables.record_contents_write(&write, offset, true);
+    }
+    Some(())
+}
+
+fn original_empty_dictionary_body(
+    original: &LogicalOriginalInvocation,
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    phase: &tcl_registry::dictionary_scope::AuthoredDictionaryScopeSourcePhase,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    let facts = schema.facts();
+    if !original.is_current(state, context)
+        || !schema.state_transitions().facts().is_empty()
+        || !facts.arg_roles_complete
+        || !matches!(
+            phase.plan().bindings,
+            tcl_registry::dictionary_scope::DictionaryScopeBindings::AllKeys(_)
+        )
+        || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+        || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+        || schema.authored_source_script_timing_at(phase.plan().body_argument)
+            != Some(tcl_registry::ScriptTiming::SameInvocation)
+        || state.source_variables.dynamic_bindings
+        || state.source_variables.dynamic_traces
+        || !state.source_variables.traced.is_empty()
+        || !matches!(
+            phase.effects().callback().kinds,
+            CallbackKinds::NONE | CallbackKinds::TRACE
+        )
+        || phase
+            .additional_effects()
+            .accesses()
+            .iter()
+            .any(|access| access.mode != EffectAccessMode::Read)
+        || phase.effects().callback().reentrancy
+            == tcl_registry::world_effect::Reentrancy::AnyInterpreter
+        || phase.effects().accesses().iter().any(|access| {
+            access.interpreter != InterpreterScope::Current
+                || access.mode == EffectAccessMode::Clobber
+                || (access.domain != WorldStateDomain::VariableStore
+                    && access.mode != EffectAccessMode::Read)
+                || !matches!(
+                    access.domain,
+                    WorldStateDomain::VariableStore | WorldStateDomain::VariableTraces
+                ) && !(access.domain == WorldStateDomain::InterpreterPolicy
+                    && access.mode == EffectAccessMode::Read)
+        })
+    {
+        return None;
+    }
+    let roles = facts
+        .arg_roles
+        .iter()
+        .map(|(ordinal, role)| (facts.argument_offset + usize::from(*ordinal), *role))
+        .collect::<Vec<_>>();
+    if roles.len() != 3
+        || ![
+            (phase.plan().dictionary_argument, ArgRole::VarRead),
+            (phase.plan().dictionary_argument, ArgRole::VarWrite),
+            (phase.plan().body_argument, ArgRole::Body),
+        ]
+        .iter()
+        .all(|expected| roles.contains(expected))
+    {
+        return None;
+    }
+    let written = phase
+        .plan()
+        .body_argument
+        .checked_sub(original.target.prepended.len())?
+        .checked_add(1)?;
+    let body = original.words.get(written)?;
+    if !crate::registry_invocation::original_written_script_body_is_empty(body)? {
+        return None;
+    }
+    Some(())
+}
+
+fn empty_dictionary_scope_continuation(
+    original: &LogicalOriginalInvocation,
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    phase: &tcl_registry::dictionary_scope::AuthoredDictionaryScopeSourcePhase,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    original_empty_dictionary_body(original, schema, phase, state, context)?;
+    let name = original.arguments.get(phase.plan().dictionary_argument)?;
+    let write = crate::var_resolve::resolve_literal_access(
+        name,
+        &state.source_variables,
+        false,
+        context.registry,
+        tcl_registry::TraceOperation::Write,
+    );
+    let read = crate::var_resolve::resolve_literal_access(
+        name,
+        &state.source_variables,
+        false,
+        context.registry,
+        tcl_registry::TraceOperation::Read,
+    );
+    if write.dynamic
+        || write.observed
+        || read.dynamic
+        || read.observed
+        || write.kind != crate::place::PlaceKind::Scalar
+        || write.index.is_some()
+        || !logical_cell_is_local(&write, state, context)
+        || !logical_cell_is_local(&read, state, context)
+        || state.source_variables.store_would_error(&write)
+    {
+        return None;
+    }
+    let arguments = original
+        .arguments
+        .iter()
+        .map(|value| tcl_registry::InvocationWord::Literal(value))
+        .collect::<Vec<_>>();
+    let input = state.logical_source_name_advice_input()?;
+    let arguments = tcl_registry::InvocationArguments::structured(&arguments)
+        .with_dialect(super::source_analysis_entry::source_input_dialect(input));
+    let mut candidate = state.source_variables.as_ref().clone();
+    let crate::dictionary_bindings::DictionaryScopeEntry::Entered(activation) =
+        crate::dictionary_bindings::enter_dictionary_scope(
+            &mut candidate,
+            phase.plan(),
+            arguments,
+            context.registry,
+            offset,
+        )
+    else {
+        return None;
+    };
+    if candidate.dynamic_bindings || candidate.dynamic_traces {
+        return None;
+    }
+    let effects = activation.entry_effects;
+    for place in effects.writes.iter().chain(&effects.destructions) {
+        if place.dynamic || place.observed || !logical_cell_is_local(place, state, context) {
+            return None;
+        }
+    }
+    // The entry's strong values and writeback completion never enter this model.
+    let variables = Arc::make_mut(&mut state.source_variables);
+    for place in effects
+        .writes
+        .iter()
+        .chain(&effects.destructions)
+        .chain(&effects.clobbers)
+        .chain(std::iter::once(&write))
+    {
+        variables.record_contents_write(place, offset, true);
     }
     Some(())
 }

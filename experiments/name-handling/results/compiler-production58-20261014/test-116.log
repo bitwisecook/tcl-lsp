@@ -1,0 +1,6 @@
+
+running 1 test
+test cfg_builder::upvar_info::tests::dynamic_current_frame_alias_target_widens_the_selected_caller_frame ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.27s
+

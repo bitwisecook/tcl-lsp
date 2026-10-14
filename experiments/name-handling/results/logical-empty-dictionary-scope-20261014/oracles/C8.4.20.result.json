@@ -1,0 +1,12 @@
+{
+  "provider": "C8.4.20",
+  "exe": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+  "exit_code": 0,
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/name-logical-empty-dictionary-scope-20261014/oracles/source.tcl"
+  ],
+  "original_release_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+  "input_drift": [],
+  "scope": "Actual original interpreter and original script/release-library inputs only; no tcltest, hosted F5, Native/compiler/Normal admission or complete loader closure."
+}

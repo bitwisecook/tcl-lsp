@@ -1,0 +1,17 @@
+
+running 1 test
+test analyser::diagnostics::dataflow::original_formal_diagnostic_source_tests::w214_uses_original_tight_name_spans_and_quoted_markers ... 
+thread 'analyser::diagnostics::dataflow::original_formal_diagnostic_source_tests::w214_uses_original_tight_name_spans_and_quoted_markers' (297133) panicked at rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:5992:9:
+assertion `left == right` failed
+  left: ["proc p {\"as\" value extra} {return 1}", "proc p {\"as\" value extra} {return 1}", "proc p {\"as\" value extra} {return 1}"]
+ right: ["value", "extra"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::dataflow::original_formal_diagnostic_source_tests::w214_uses_original_tight_name_spans_and_quoted_markers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.73s
+

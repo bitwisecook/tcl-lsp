@@ -1,0 +1,5 @@
+invalid command name "dict"
+    while executing
+"dict with d {# lexical comment only
+}"
+    (file "/tmp/name-logical-empty-dictionary-scope-20261014/oracles-isolated/comment-only.tcl" line 3)

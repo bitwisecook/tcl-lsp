@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::logical_frame::tests::protected_frame_bodies_use_actual_logical_scope_and_reject_unknown_callers ... 
+thread 'registry_invocation::logical_frame::tests::protected_frame_bodies_use_actual_logical_scope_and_reject_unknown_callers' (297679) panicked at rust/tcl-compiler/src/registry_invocation/logical_frame.rs:397:145:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::logical_frame::tests::protected_frame_bodies_use_actual_logical_scope_and_reject_unknown_callers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.18s
+

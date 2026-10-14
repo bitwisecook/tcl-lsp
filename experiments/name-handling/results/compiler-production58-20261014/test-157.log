@@ -1,0 +1,17 @@
+
+running 1 test
+test command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_retain_unentered_declarations_and_actual_ids ... 
+thread 'command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_retain_unentered_declarations_and_actual_ids' (297505) panicked at rust/tcl-compiler/src/command_binding/generated_procedures.rs:481:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_retain_unentered_declarations_and_actual_ids
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.14s
+

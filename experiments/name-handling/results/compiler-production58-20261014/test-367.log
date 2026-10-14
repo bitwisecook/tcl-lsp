@@ -1,0 +1,6 @@
+
+running 1 test
+test var_escape::info_subcommands::tests::interpreter_global_set_is_safe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 2.07s
+

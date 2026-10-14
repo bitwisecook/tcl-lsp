@@ -1,0 +1,4 @@
+invalid command name "dict"
+    while executing
+"dict with d {proc newly_defined_name {} {}}"
+    (file "/tmp/name-logical-empty-dictionary-scope-20261014/oracles-isolated/body-command-mutation.tcl" line 3)

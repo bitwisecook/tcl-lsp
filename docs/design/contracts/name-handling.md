@@ -162,6 +162,20 @@ handler. Captured prefix values retain their origins; only original whole words
 supply geometry. Unknown option/body selection and possible no-match remain
 explicit. This view grants no compiler admission, completed handler or frame.
 
+## Conditional dictionary source phases
+
+`ResolvedInvocation::authored_dictionary_scope_source_phase` selects accepted
+arity and typed dictionary grammar from the actual source descriptor. Its sealed
+phase retains additional effects separately before coalescing with mapping
+accesses; generic invocation UNKNOWN effects remain unchanged. Logical
+dict-with continuation requires the original whole written lexical-empty body,
+current SameInvocation timing, exact roles, quiet owned scalar dictionary and
+complete trace-free source inventory. Unrepresented additional writes, scripted
+helper implementations and nonempty bodies refuse. Only conditional contents
+footprints survive; unknown keys retain an unknown alias contents clobber.
+Scratch entry values, body entry, physical bindings, writeback completion and
+Native/Normal proof do not enter this source model.
+
 ## Representations
 
 A name's spelling, identity and presentation are different values:

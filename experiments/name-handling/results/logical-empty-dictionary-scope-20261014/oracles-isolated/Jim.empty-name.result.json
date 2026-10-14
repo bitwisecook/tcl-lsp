@@ -1,0 +1,12 @@
+{
+  "provider": "Jim",
+  "probe": "empty-name",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-logical-empty-dictionary-scope-20261014/oracles-isolated/empty-name.tcl"
+  ],
+  "exit_code": 0,
+  "input_drift": [],
+  "original_release_library": null,
+  "scope": "Original single script/executable/release library; no tcltest, complete loader closure or other provider/compiler/Native/Normal admission."
+}

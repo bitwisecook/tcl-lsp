@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T07:57:30Z on `work`. The machine inventory retains
+Current bounded snapshot: 2026-10-14T08:12:18Z on `work`. The machine inventory retains
 47 actionable rows, the inherited 330 lexical candidates and original issue
 and source observations. Package membership and search absence do not certify
 semantic completion. [Consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
@@ -19,33 +19,28 @@ complete original receipts agree; nested children retain their recorded source
 owner. Strict invocation metadata, Normal transfers and Native entry remain
 independent.
 
-Compiler51 builds and seals 337 exact controls: 216 PASS/121 FAIL, zero source
-drift and no missing/empty selectors. Its 322 common Compiler43 controls gain
-three and regress one. Original nested-write projection, literal uplevel caller
-writes and unknown-caller literal hazards improve; retained array-root member
-liveness regresses. The three new Logical carrier controls fail at the shared
-top-level catch child producer before their later consumer assertions. Their
-sources and assertions remain unchanged; no carrier acceptance follows. The
-current/root source-scope repair and exact parent-body donation guard are
-integrated after this frozen capture and require fresh replay. MCP52 stops in compilation before the actual binary's nine selectors: zero
-semantic controls and source drift zero. Its missing source-scope initializer
-is corrected. F5 production53 builds and seals 32 controls: 9 PASS/23 FAIL. The six lib
-controls are 3 PASS/3 FAIL, 25 original model controls are 6 PASS/19 FAIL and the
-original golden differential fails. The capture inventory records one newly
-added obsolete-agent-cache experiment receipt; zero total drift is not claimed.
-The original tests and expectations remain retained. Diagnostic54 builds and
-executes two original declaration producer controls: both FAIL, source drift
-zero. The Logical card is lost before final Module issuance; the Hosted header
-and formals pass but the retained source reconciliation remains absent.
-Temporary diagnostic edits are removed; actual producer repairs are required. Compiler49/50
-build-only failures remain retained with zero source drift. Compiler55 stops
-in compilation before all selectors: source drift zero. The shared original
-head lookup API type mismatch is corrected through the existing token facade.
-Compiler56 stops in compilation before any selectors with four test fixture
-ContextRegistry accessor errors and zero source drift. Test-only fixtures now
-use the actual selected registry profile; an integration-only fifth accessor
-remains queued. Compiler57 is running 349 exact original/new selectors plus the
-full var_escape lib filter; no aggregate is available.
+Compiler58 builds and seals 542 unique selected controls: 388 PASS/154 FAIL,
+zero source drift and no missing/empty selectors. Its exact plan of 349 controls
+is 227 PASS/122 FAIL; the full var_escape filter is 161 PASS/35 FAIL across 196,
+with three shared selectors. All original 337 Compiler51 controls are retained
+and improve nine without regressions. The array-root liveness regression is
+repaired; actual Hosted declaration/card identity, Logical source inventory,
+event held-body ownership and scalar literal/mutation consumers improve. New
+Native source-card positives, Native MAY dependency positives and protected
+scope/sibling-body positives still fail; no whole consumer closure follows.
+
+Compiler55/56 retain build-only failures with zero source drift; their actual
+shared token API/test-profile corrections are integrated. Compiler57 builds but
+runs no semantic controls because three new exact selectors missed the nested
+test module; source and assertions are unchanged. The corrected exact paths
+supply Compiler58. The integration-only fifth fixture accessor remains queued.
+MCP52 stops in compilation before nine actual binary selectors, source drift
+zero; its missing scope initializer is corrected. F5 production53 builds and
+seals 32 controls: 9 PASS/23 FAIL (lib 3/6, model 6/25, original golden
+differential FAIL). Its inventory records one new obsolete-agent-cache receipt;
+zero total drift is not claimed. Diagnostic54 is build PASS/2 FAIL/source drift
+zero; temporary diagnostics are removed, and actual producer repairs remain
+required.
 
 DB48 builds and executes all ten original controls: 1 PASS/9 FAIL, source drift
 zero and no missing/empty selectors. Whole-file lattice shift passes; the

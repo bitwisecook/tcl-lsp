@@ -1,0 +1,8 @@
+VERSION 8.6.18
+CASE dictionary-availability CODE 0 RESULT dict
+CASE empty-name-and-body CODE 0 RESULT {{mapped 11} 11}
+CASE literal-dollar-name-and-body CODE 0 RESULT {{literal 12} 12 0}
+CASE comment-only-body CODE 0 RESULT {{commented 13} 13}
+CASE trace-api CODE 0 RESULT trace
+TRACE_SETUP CODE 0 RESULT {}
+CASE empty-body-alias-write-observer CODE 0 RESULT {{observed 14} 14 1}

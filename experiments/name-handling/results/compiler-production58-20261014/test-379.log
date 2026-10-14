@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::known_names::tests::captures_foreach_loop_vars ... 
+thread 'var_escape::known_names::tests::captures_foreach_loop_vars' (298037) panicked at rust/tcl-compiler/src/var_escape/known_names.rs:159:9:
+assertion failed: names.contains("a")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::known_names::tests::captures_foreach_loop_vars
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.15s
+

@@ -79,7 +79,7 @@ pub use source_scoped_body::{
 };
 pub(crate) use source_scoped_body::{
     OriginalSourceScriptBodyOrigin, declared_source_script_bodies_for,
-    original_source_scoped_bodies,
+    original_source_scoped_bodies, original_written_script_body_is_empty,
 };
 mod source_taint;
 pub use source_taint::HostedSourceTaintContext;

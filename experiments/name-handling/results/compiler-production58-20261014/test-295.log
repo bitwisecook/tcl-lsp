@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::cfg_propagation::known_names::tests::captures_branch_uses ... 
+thread 'var_escape::cfg_propagation::known_names::tests::captures_branch_uses' (297842) panicked at rust/tcl-compiler/src/var_escape/cfg_propagation/known_names.rs:101:9:
+assertion failed: names.contains("y")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::cfg_propagation::known_names::tests::captures_branch_uses
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.13s
+

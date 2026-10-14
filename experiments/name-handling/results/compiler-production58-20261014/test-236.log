@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::original_procedure_call::native_may_dependency_tests::native_declaration_dependencies_preserve_repeated_headers_and_unrepresented_aliases ... 
+thread 'registry_invocation::original_procedure_call::native_may_dependency_tests::native_declaration_dependencies_preserve_repeated_headers_and_unrepresented_aliases' (297687) panicked at rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs:481:71:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::original_procedure_call::native_may_dependency_tests::native_declaration_dependencies_preserve_repeated_headers_and_unrepresented_aliases
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.16s
+

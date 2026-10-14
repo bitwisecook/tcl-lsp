@@ -98,6 +98,78 @@ pub enum DictionaryScopeSelection {
     Unknown,
 }
 
+/// Conditional source mapping/writeback effects, separate from body callbacks.
+/// This retains selected grammar and explicit effects without handler or Normal proof.
+#[derive(Debug, Clone)]
+pub struct AuthoredDictionaryScopeSourcePhase {
+    plan: DictionaryScopePlan,
+    effects: crate::world_effect::EffectFootprint,
+    additional_effects: crate::world_effect::EffectFootprint,
+}
+
+impl AuthoredDictionaryScopeSourcePhase {
+    /// Selected mapping grammar, without body entry or binding presence.
+    #[must_use]
+    pub const fn plan(&self) -> &DictionaryScopePlan {
+        &self.plan
+    }
+
+    /// Conditional direct-phase effects, including explicit additional declarations.
+    #[must_use]
+    pub const fn effects(&self) -> &crate::world_effect::EffectFootprint {
+        &self.effects
+    }
+
+    /// Explicit effects independently of dictionary mapping, without coalescing them away.
+    #[must_use]
+    pub const fn additional_effects(&self) -> &crate::world_effect::EffectFootprint {
+        &self.additional_effects
+    }
+}
+
+pub(crate) fn authored_dictionary_scope_source_phase(
+    invocation: &crate::ResolvedInvocation<'_, '_>,
+) -> Option<AuthoredDictionaryScopeSourcePhase> {
+    let crate::body_execution::BodyExecutionSpec::DictionaryScope(spec) =
+        invocation.semantics.body_execution?
+    else {
+        return None;
+    };
+    if invocation.semantics.successful_handler
+        != Some(crate::native_compilation::SuccessfulHandlerSpec::DictionaryScope)
+        || invocation.facts().arity_accepts_frozen_arguments() != Some(true)
+        || invocation.semantics.frame_effect.is_some()
+    {
+        return None;
+    }
+    let arguments = invocation.words.arguments();
+    let DictionaryScopeSelection::Selected(plan) =
+        spec.select(arguments, invocation.semantics.argument_offset)
+    else {
+        return None;
+    };
+    // Scripted implementations retain their independent helper-closure obligation.
+    if plan.implementation != DictionaryScopeImplementation::NativePrimitive {
+        return None;
+    }
+    let mut effects =
+        crate::world_effect::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE.resolve(arguments);
+    let mut additional_effects = crate::world_effect::EffectFootprint::from_legacy(
+        invocation.facts().effects.legacy().command_table_mutation,
+        invocation.semantics.frame_effect,
+        invocation.semantics.side_effects,
+    );
+    if invocation.semantics.world_effects.is_declared() {
+        additional_effects.extend(invocation.semantics.world_effects.resolve(arguments));
+    }
+    effects.extend(additional_effects.clone());
+    Some(AuthoredDictionaryScopeSourcePhase {
+        plan,
+        effects,
+        additional_effects,
+    })
+}
+
 impl DictionaryScopeSpec {
     /// Select positions through the central native grammar, never source names.
     #[must_use]

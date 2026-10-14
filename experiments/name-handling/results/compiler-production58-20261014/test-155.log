@@ -1,0 +1,15 @@
+
+running 1 test
+test command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_refuse_changed_and_foreign_owner_inputs ... 
+thread 'command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_refuse_changed_and_foreign_owner_inputs' (297501) panicked at rust/tcl-compiler/src/command_binding/generated_procedures.rs:528:14:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::generated_procedures::original_native_body_tests::original_native_source_cards_refuse_changed_and_foreign_owner_inputs
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.15s
+

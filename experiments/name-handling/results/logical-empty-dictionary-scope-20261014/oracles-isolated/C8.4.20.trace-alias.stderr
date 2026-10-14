@@ -1,0 +1,6 @@
+invalid command name "dict"
+    while executing
+"dict with d {}"
+    invoked from within
+"if {$code == 0} {set d {observed 14}; dict with d {}; puts [list RESULT [set d] [set observed] $observer_calls]}"
+    (file "/tmp/name-logical-empty-dictionary-scope-20261014/oracles-isolated/trace-alias.tcl" line 6)

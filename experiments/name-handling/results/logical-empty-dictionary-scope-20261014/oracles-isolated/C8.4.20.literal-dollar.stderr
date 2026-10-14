@@ -1,0 +1,4 @@
+invalid command name "dict"
+    while executing
+"dict with {$dict} {}"
+    (file "/tmp/name-logical-empty-dictionary-scope-20261014/oracles-isolated/literal-dollar.tcl" line 3)

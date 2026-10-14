@@ -1,0 +1,11 @@
+# Empty dictionary-body source observations
+
+The retained scripts ran against original source-built C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0, each with its original release library, and Jim 0.84-9-g5bac7c9. Script, executable and release-library inputs were hashed before and after; every captured input remained unchanged. Original `init.tcl` is included in the C release-library hash inventory. No tcltest was used. These receipts do not attest complete loader dependency closure or any other provider.
+
+`oracles-isolated` gives each probe its own process. C8.4 has no `dict` command. C8.5–9.1 and Jim observe successful empty-named and literal-dollar dictionary variables with empty bodies, and comment-only bodies; mapping values become caller variables. Nonempty bodies can define commands. Malformed dictionaries report an error. C8.5 observes a mapped-variable write callback. Jim reports that `trace` is unavailable.
+
+C8.6, C9.0 and C9.1 print the mapped-variable value and one callback, then terminate with `TclStackFree: incorrect freePtr ... Call out of sequence?` in the isolated trace probe. Their combined original script prints its empty-body, literal-name and callback observations before the same abort; its later cases are unreached. Those raw results are retained independently, and the failed processes are not counted as successful runs. Independent nonempty-body and malformed-dictionary probes complete normally.
+
+These observations support a conditional source model that preserves original names for lexical-empty bodies while retaining possible alias contents writes. An empty body does not eliminate dictionary mapping writes, observer callbacks, malformed-value errors or writeback obligations. Neither the observations nor descriptor metadata establish a Native handler, entered frame, successful store, numeric result or Normal completion. F5 is unanswered; C or Jim results cannot supply its hosted policy.
+
+Repeat with `python3 capture.py --repo /path/to/tcl-lsp --out /tmp/new-dictionary-results`; `--combined` selects the retained combined script. The portable runner creates a new directory and additionally hashes adjacent Tcl shared libraries for its own new captures. The original captures hash scripts, executables and release libraries; that new runner capability does not retroactively broaden their receipts.

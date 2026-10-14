@@ -1,0 +1,9 @@
+VERSION 0.84-9-g5bac7c9
+CASE dictionary-availability CODE 0 RESULT dict
+CASE empty-name-and-body CODE 0 RESULT {{mapped 11} 11}
+CASE literal-dollar-name-and-body CODE 0 RESULT {{literal 12} 12 0}
+CASE comment-only-body CODE 0 RESULT {{commented 13} 13}
+CASE trace-api CODE 0 RESULT {}
+TRACE_SETUP CODE 1 RESULT {invalid command name "trace"}
+CASE body-command-name-mutation CODE 0 RESULT {newly_defined_name 15}
+CASE malformed-dictionary-empty-body CODE 1 RESULT {missing value to go with key}

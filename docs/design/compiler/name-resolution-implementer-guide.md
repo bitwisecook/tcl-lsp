@@ -10037,6 +10037,39 @@ literal-name owner; they remain analysis facts. The [materialized footprint
 contract](../analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md)
 records the bounded source/API controls independently of provider execution.
 
+## Empty dictionary source bodies
+
+Use the actual selected `ResolvedInvocation::authored_dictionary_scope_source_phase`
+for dictionary mapping metadata. `AuthoredDictionaryScopeSourcePhase` retains
+explicit additional effects before they coalesce with its mapping baseline.
+The query checks selected accepted arity and typed body/handler grammar and
+refuses scripted implementations requiring helper closure. It leaves the
+ordinary invocation effect summary conservative.
+
+The Logical source consumer in `command_binding/logical_operation.rs` accepts
+only dict-with AllKeys grammar with its genuine complete original vector,
+current source/input/frame/namespace, exact roles and a current SameInvocation
+Plain body. `original_written_script_body_is_empty` delegates original word
+geometry and fatal-tail-free NestedScript parsing to the shared source/lexer
+owners. Literal emptiness cannot substitute a detached or captured body extent.
+Quiet dictionary ownership and complete trace-free source inventory are separate
+checks. Additional writes, observer changes and unsupported effects refuse.
+Shared dictionary entry runs on a discarded scratch state to obtain possible
+alias writes; only conditional contents footprints enter the source model.
+Unknown keys invalidate known contents without creating guessed variables or
+publishing mapped values. Physical entry, writeback and Normal completion remain
+with their independent runtime owners.
+
+Preserve `ssa::tests::empty_dictionary_scope_source_phases_keep_original_names_and_unknown_alias_contents`,
+`dictionary_scope_bodies_and_variable_observers_keep_lookup_hazards` and
+`dictionary_source_phases_refuse_unrepresented_explicit_writes`. Registry
+`resolved_invocation::tests::dictionary_source_phase_keeps_generic_unknown_and_additional_effects`
+and `dictionary_source_phase_rejects_wrong_arity_and_scripted_helpers` cover
+extra effects, custom arity and the genuine Jim scripted-helper refusal.
+The [retained observations](../../../experiments/name-handling/results/logical-empty-dictionary-scope-20261014/README.md)
+distinguish actual quiet positives, unsupported operations and trace-process
+failures. Hosted F5 answers remain separate.
+
 ## Conditional reads and substitution purity
 
 Hidden-read consumers use the original CFG carrier at each actual block and

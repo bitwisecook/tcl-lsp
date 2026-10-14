@@ -1,0 +1,10 @@
+VERSION 8.4.20
+CASE dictionary-availability CODE 0 RESULT {}
+CASE empty-name-and-body CODE 1 RESULT {invalid command name "dict"}
+CASE literal-dollar-name-and-body CODE 1 RESULT {invalid command name "dict"}
+CASE comment-only-body CODE 1 RESULT {invalid command name "dict"}
+CASE trace-api CODE 0 RESULT trace
+TRACE_SETUP CODE 0 RESULT {}
+CASE empty-body-alias-write-observer CODE 1 RESULT {invalid command name "dict"}
+CASE body-command-name-mutation CODE 1 RESULT {invalid command name "dict"}
+CASE malformed-dictionary-empty-body CODE 1 RESULT {invalid command name "dict"}

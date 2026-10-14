@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::types::original_linked_member::tests::original_link_advice_refuses_malformed_foreign_and_conflicting_receipts ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 3.02s
+

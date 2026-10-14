@@ -1,0 +1,12 @@
+{
+  "provider": "C8.6.18",
+  "probe": "trace-alias",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-logical-empty-dictionary-scope-20261014/oracles-isolated/trace-alias.tcl"
+  ],
+  "exit_code": -6,
+  "input_drift": [],
+  "original_release_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "scope": "Original single script/executable/release library; no tcltest, complete loader closure or other provider/compiler/Native/Normal admission."
+}

@@ -1,0 +1,6 @@
+
+running 1 test
+test lowering::tests::configured_source_ingress_retains_one_input_for_entry_and_module ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.25s
+

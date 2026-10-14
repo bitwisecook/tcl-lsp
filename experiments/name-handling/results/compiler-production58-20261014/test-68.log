@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::read_only_global_is_not_a_write ... 
+thread 'cfg_builder::global_write_info::tests::read_only_global_is_not_a_write' (297285) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2031:9:
+read-only declaration produced effects: GlobalWriteInfo { names: {}, opaque_global_frame: true }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::read_only_global_is_not_a_write
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.38s
+

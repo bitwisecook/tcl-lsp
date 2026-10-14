@@ -1,0 +1,15 @@
+
+running 1 test
+test var_escape::cfg_propagation::handlers::tests::owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic ... 
+thread 'var_escape::cfg_propagation::handlers::tests::owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic' (297822) panicked at rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs:555:13:
+info exists
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    var_escape::cfg_propagation::handlers::tests::owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.78s
+

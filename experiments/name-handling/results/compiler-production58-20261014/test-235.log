@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::original_procedure_call::native_may_dependency_tests::native_declaration_dependencies_keep_quoted_braced_heads_and_open_alternatives ... 
+thread 'registry_invocation::original_procedure_call::native_may_dependency_tests::native_declaration_dependencies_keep_quoted_braced_heads_and_open_alternatives' (297685) panicked at rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs:401:71:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::original_procedure_call::native_may_dependency_tests::native_declaration_dependencies_keep_quoted_braced_heads_and_open_alternatives
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.15s
+

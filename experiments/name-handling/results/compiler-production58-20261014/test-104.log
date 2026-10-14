@@ -1,0 +1,15 @@
+
+running 1 test
+test cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards ... 
+thread 'cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards' (297357) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2923:9:
+assertion failed: selected[&body_id].uplevel_literal_writes.contains("target")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9734 filtered out; finished in 0.75s
+
