@@ -183,6 +183,7 @@ impl SourceSyntaxStructure {
 /// describe selected syntax only; they grant no cell, runtime read or edit.
 pub(crate) struct SourceVariableReference<'a> {
     pub(crate) root: &'a str,
+    pub(crate) name_span: Span,
     pub(crate) whole_span: Span,
     pub(crate) token_span: Span,
 }
@@ -197,8 +198,17 @@ fn reference_from_arena<'a>(
     let config = arena.config();
     let root =
         tcl_syntax::naming::variable_reference_root_bytes(original.as_bytes(), config).ok()??;
+    let tcl_lexer::ExecutablePart::Variable { name, .. } = part.part else {
+        return None;
+    };
+    arena.bytes(name)?.starts_with(root).then_some(())?;
+    let name_span = Span::new(
+        name.start(),
+        name.start().checked_add(u32::try_from(root.len()).ok()?)?,
+    );
     Some(SourceVariableReference {
         root: std::str::from_utf8(root).ok()?,
+        name_span,
         whole_span: part.span,
         token_span: arena.source_span(part)?,
     })
@@ -279,6 +289,35 @@ pub(crate) fn source_variable_reference_end(
     });
     let end = parts.next()?.span.end();
     parts.next().is_none().then_some(end)
+}
+
+/// Reborrowed original variable geometry for one immutable analysis source.
+/// This view owns syntax only; callers retain name resolution and edit guards.
+pub(crate) struct OriginalVariableReferences<'a> {
+    source: &'a str,
+    analysis: &'a AnalysisResult,
+    config: LexerConfig,
+    structure: SourceStructure,
+}
+
+impl<'a> OriginalVariableReferences<'a> {
+    pub(crate) fn capture(source: &'a str, analysis: &'a AnalysisResult) -> Option<Self> {
+        let config = analysis.body_lexer_config?;
+        let structure = SourceStructure::capture(source, Some(analysis), config)?;
+        Some(Self {
+            source,
+            analysis,
+            config,
+            structure,
+        })
+    }
+
+    pub(crate) fn reference_at(&self, cursor: u32) -> Option<SourceVariableReference<'a>> {
+        if crate::definition::offset_is_inert(self.source, self.analysis, cursor)? {
+            return None;
+        }
+        variable_in_structure(self.source, &self.structure, self.config, cursor, true)
+    }
 }
 
 /// Selected original substitution syntax in one complete retained analysis.

@@ -296,7 +296,7 @@ fn original_jim_alias_creation_reaches_no_c_loop_string_worker() {
     let candidate = Command::Alias {
         words: Rc::new(vec![borrowed.into_value()]),
         publication_name: NameBytes::from(b"self".as_slice()),
-        registration_name: Value::new_native_string_bytes(b"self".as_slice()),
+        registration_name: Some(Value::new_native_string_bytes(b"self".as_slice())),
     };
     assert!(!vm.alias_chain_loops_for_rename("self", &candidate).unwrap());
     assert!(vm.execution_refusal.is_none());

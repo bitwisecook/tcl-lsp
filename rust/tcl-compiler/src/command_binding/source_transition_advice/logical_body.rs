@@ -34,6 +34,101 @@ pub struct OriginalLogicalProcedureBody {
     module_entry: Option<crate::command_binding::SourceAnalysisEntry>,
 }
 impl OriginalLogicalProcedureBody {
+    /// Pair a genuine child scope with its actual named declaration record.
+    pub(crate) fn retain_named_source_child(
+        module: &crate::ir::Module,
+        procedure: &crate::ir::Procedure,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Self> {
+        let input = module.source_metadata_input.as_ref()?;
+        let binding = tokens.source_binding.as_ref()?;
+        let words = binding.original_logical_source_words(tokens, input, registry)?;
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            child,
+        ) = words.source()
+        else {
+            return None;
+        };
+        let scope = child.logical_source_scope()?;
+        let header = scope.scope_body().source_words();
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            declaration,
+        ) = header.source()
+        else {
+            return None;
+        };
+        if declaration
+            .original_words()
+            .iter()
+            .any(|word| word.group().expand)
+            || !Arc::ptr_eq(&child.site().source, &declaration.site().source)
+            || !scope.owns_words(child.original_words())
+        {
+            return None;
+        }
+        let positions = header
+            .with_source_schema(input.borrowed_context_registry(), |schema| {
+                schema.authored_source_procedure_arguments()
+            })??;
+        for argument in [positions.name, positions.parameters, positions.body] {
+            if !matches!(
+                header.origins().get(argument.checked_add(1)?),
+                Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+            ) {
+                return None;
+            }
+        }
+        if header.original_argument_word(positions.name)?
+            != scope.scope_name_input().original_word()
+            || header.original_argument_word(positions.body)?
+                != scope.scope_body().original_container()
+        {
+            return None;
+        }
+        let formal = header.original_argument_word(positions.parameters)?;
+        let parameters_text = tcl_syntax::word_rules::original_static_word_unicode_value(formal)?;
+        let parameters_text = std::str::from_utf8(&parameters_text).ok()?;
+        let parameters = crate::command_binding::logical_definition::static_formals(
+            parameters_text,
+            input.lexer_config().list_parse,
+        )?;
+        let card = Self {
+            scope: Arc::clone(scope),
+            site: declaration.site().clone(),
+            summary_coordinate: tcl_core_types::ByteCommandSlot {
+                namespace: scope.namespace_recipe().clone(),
+                simple: tcl_core_types::NameBytes::from(tcl_syntax::naming::written_command_tail(
+                    scope.scope_name_input().bytes(),
+                )),
+            },
+            parameters,
+            parameters_text: parameters_text.to_owned(),
+            module_entry: Some(module.source_entry.clone()),
+        };
+        card.matches_named_procedure(module, procedure)
+            .then_some(card)
+    }
+
+    pub(crate) fn matches_named_procedure(
+        &self,
+        module: &crate::ir::Module,
+        procedure: &crate::ir::Procedure,
+    ) -> bool {
+        procedure.body_kind == crate::ir::ProcedureBodyKind::Named
+            && procedure.publication.is_some()
+            && self.matches_procedure_geometry(module, procedure)
+            && procedure
+                .body
+                .executed_source
+                .as_ref()
+                .is_some_and(|source| {
+                    Arc::ptr_eq(&source.origin, &self.site.source)
+                        && source.base() == procedure.body_offset
+                        && source.text.try_text().ok() == procedure.body_source.as_deref()
+                })
+    }
+
     pub(crate) fn retain_module_entry(
         mut self,
         entry: &crate::command_binding::SourceAnalysisEntry,
@@ -85,6 +180,16 @@ impl OriginalLogicalProcedureBody {
         module: &crate::ir::Module,
         procedure: &crate::ir::Procedure,
     ) -> bool {
+        procedure.body_kind == crate::ir::ProcedureBodyKind::OriginalDeclaration
+            && procedure.body.executed_source.is_none()
+            && self.matches_procedure_geometry(module, procedure)
+    }
+
+    fn matches_procedure_geometry(
+        &self,
+        module: &crate::ir::Module,
+        procedure: &crate::ir::Procedure,
+    ) -> bool {
         let Some(input) = module.source_metadata_input.as_ref() else {
             return false;
         };
@@ -95,7 +200,6 @@ impl OriginalLogicalProcedureBody {
             && module.native_lexer_config() == input.lexer_config()
             && self.matches_source(&module.source, input)
             && procedure.declaration_site.as_ref() == Some(&self.site)
-            && procedure.body_kind == crate::ir::ProcedureBodyKind::OriginalDeclaration
             && self.name() == Some(procedure.name.as_str())
             && procedure.params_raw == self.parameters_text
             && procedure
@@ -107,7 +211,6 @@ impl OriginalLogicalProcedureBody {
                 == tcl_syntax::naming::checked_namespace_path_key(self.scope.namespace_recipe())
                     .map(crate::command_binding::SourceNamespaceKey::authored)
                     .as_ref()
-            && procedure.body.executed_source.is_none()
             && procedure.body_offset == self.scope.scope_body().content_span().start()
             && procedure.body_source.as_deref()
                 == module

@@ -8725,18 +8725,26 @@ impl Vm {
             Some(Command::CrossAlias {
                 target: target_interp,
                 words: target,
+                original_jim_prefix,
                 ..
             }) => {
-                let mut argv = (*target).clone();
-                argv.extend_from_slice(&words[1..]);
-                let usage = self.alias_usage_rewrites_value(original, target.len(), dispatch.usage);
-                let res = self.invoke_alias_words_with_usage(
-                    target_interp,
-                    &argv,
-                    tcl_registry::AliasTargetLookup::Global,
-                    &usage,
-                );
-                self.settle_native_dispatch(f, res)
+                if let Some(prefix) = original_jim_prefix {
+                    let result =
+                        self.invoke_original_jim_parent_alias(target_interp, &prefix, &words[1..]);
+                    self.settle_native_dispatch(f, result)
+                } else {
+                    let mut argv = (*target).clone();
+                    argv.extend_from_slice(&words[1..]);
+                    let usage =
+                        self.alias_usage_rewrites_value(original, target.len(), dispatch.usage);
+                    let res = self.invoke_alias_words_with_usage(
+                        target_interp,
+                        &argv,
+                        tcl_registry::AliasTargetLookup::Global,
+                        &usage,
+                    );
+                    self.settle_native_dispatch(f, res)
+                }
             }
             Some(Command::ChildInterp(child)) => {
                 let res = self.dispatch_child(original, child, &words[1..]);
@@ -9774,17 +9782,22 @@ impl Vm {
                 Command::CrossAlias {
                     target: target_interp,
                     words: target,
+                    original_jim_prefix,
                     ..
                 } => {
-                    let mut full: Vec<Value> = (*target).clone();
-                    full.extend_from_slice(argv);
-                    let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
-                    self.invoke_alias_words_with_usage(
-                        target_interp,
-                        &full,
-                        tcl_registry::AliasTargetLookup::Global,
-                        &usage,
-                    )
+                    if let Some(prefix) = original_jim_prefix {
+                        self.invoke_original_jim_parent_alias(target_interp, &prefix, argv)
+                    } else {
+                        let mut full: Vec<Value> = (*target).clone();
+                        full.extend_from_slice(argv);
+                        let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
+                        self.invoke_alias_words_with_usage(
+                            target_interp,
+                            &full,
+                            tcl_registry::AliasTargetLookup::Global,
+                            &usage,
+                        )
+                    }
                 }
                 Command::ChildInterp(child) => self.dispatch_child(original, child, argv),
                 Command::Ensemble(e) => self.dispatch_ensemble("", &e, argv),

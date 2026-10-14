@@ -1320,7 +1320,7 @@ impl SourceInvocationBinding {
         &mut self,
         advice: OriginalSourceCommandTransitionAdvice,
     ) {
-        if self.lookup_state.is_none() && advice.logical_source_input().is_some() {
+        if !self.has_original_source_layout_owner() && advice.logical_source_input().is_some() {
             self.original_logical_source_advice = Some(Arc::new(advice));
         }
     }

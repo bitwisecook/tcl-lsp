@@ -256,6 +256,24 @@ impl Lowerer<'_> {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let context = self.invocation_metadata_context()?;
+        if let Some(binding) = tokens.source_binding.as_ref()
+            && binding.has_original_logical_source_name_role_owner()
+            && !binding.has_original_source_layout_owner()
+        {
+            let selected = crate::registry_invocation::original_logical_source_definition_layout(
+                self.registry,
+                context.source_analysis_input()?,
+                tokens,
+            )?;
+            return Some(DefinerCall {
+                definition_scope: None,
+                descriptor: selected.descriptor,
+                grammar: selected.grammar,
+                name_idx: selected.name_word,
+                body_idx: selected.body_word,
+                per_object: selected.per_object,
+            });
+        }
         let invocation = self.logical_structured_invocation(tokens)?;
         let mut bodies = invocation
             .written_roles()

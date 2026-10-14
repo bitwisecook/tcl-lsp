@@ -1028,6 +1028,61 @@ fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 /// empty-string result is then `push ""; pop` (folded to `nop`s mid-body, or
 /// the bare `push ""` return in tail position). Mirrors C Tcl's
 /// `TclCompileUnsetCmd`. Toplevel falls back to the generic invoke.
+fn emit_original_unset_operand(
+    ctx: &mut CodegenCtx,
+    argument: usize,
+    value: &str,
+    operand: tcl_syntax::native_variable_words::NativeVariableWordOperand,
+    flags: i32,
+) {
+    use tcl_syntax::native_variable_words::NativeVariableWordOperand;
+    match operand {
+        NativeVariableWordOperand::Literal { name, index, .. } => {
+            let slot = ctx.command_variable_slot(&name);
+            if slot.is_none() {
+                ctx.push_lit_bytes_exact(&name);
+            }
+            if let Some(index) = index {
+                ctx.push_lit_bytes_exact(&index);
+                if let Some(slot) = slot {
+                    ctx.emit(
+                        Op::UNSET_ARRAY,
+                        vec![Operand::Imm(flags), Operand::Imm(bytecode_imm(slot))],
+                    );
+                } else {
+                    ctx.emit(Op::UNSET_ARRAY_STK, vec![Operand::Imm(flags)]);
+                }
+            } else if let Some(slot) = slot {
+                ctx.emit(
+                    Op::UNSET_SCALAR,
+                    vec![Operand::Imm(flags), Operand::Imm(bytecode_imm(slot))],
+                );
+            } else {
+                ctx.emit(Op::UNSET_STK, vec![Operand::Imm(flags)]);
+            }
+        }
+        NativeVariableWordOperand::CompoundArray { name, index, .. } => {
+            let slot = ctx.command_variable_slot(&name);
+            if slot.is_none() {
+                ctx.push_lit_bytes_exact(&name);
+            }
+            ctx.emit_executable_arena(&index);
+            if let Some(slot) = slot {
+                ctx.emit(
+                    Op::UNSET_ARRAY,
+                    vec![Operand::Imm(flags), Operand::Imm(bytecode_imm(slot))],
+                );
+            } else {
+                ctx.emit(Op::UNSET_ARRAY_STK, vec![Operand::Imm(flags)]);
+            }
+        }
+        NativeVariableWordOperand::DynamicWord => {
+            ctx.emit_word_arg(argument, value);
+            ctx.emit(Op::UNSET_STK, vec![Operand::Imm(flags)]);
+        }
+    }
+}
+
 fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if !ctx.compiles_locals() {
         return false;
@@ -1047,6 +1102,26 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     let names = &args[options.names_from..];
     if names.is_empty() {
         return false;
+    }
+    if ctx.invocation_tokens.is_some() {
+        // Validate every original operand before emitting any mutation.
+        let operands = (options.names_from..args.len())
+            .map(|argument| {
+                let written = ctx.original_hook_argument(argument)?;
+                let word = ctx.invocation_tokens.as_deref()?.words().get(written + 1)?;
+                ctx.original_variable_operand(word)
+                    .map(|operand| (argument, operand))
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(operands) = operands else {
+            return false;
+        };
+        for (argument, operand) in operands {
+            emit_original_unset_operand(ctx, argument, &args[argument], operand, flags);
+        }
+        ctx.push_lit("");
+        ctx.emit(Op::POP, vec![]);
+        return true;
     }
     for name in names {
         if !is_qualified(name) && !name.starts_with('$') && !name.starts_with('[') {
@@ -2465,5 +2540,84 @@ mod tests {
         let ctx = CodegenCtx::new(true, &[], &irules);
         assert!(std::ptr::eq(ctx.registry, &raw const irules));
         assert_eq!(resolved.spec.name, "HTTP::header");
+    }
+    #[test]
+    fn unset_literal_operand_keeps_name_and_index_data_in_compiler_slots() {
+        use tcl_syntax::native_variable_words::NativeVariableWordOperand;
+        let registry = CommandRegistry::build_default();
+        for original in [
+            b"$literal".as_slice(),
+            b"[literal]".as_slice(),
+            b"".as_slice(),
+        ] {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            emit_original_unset_operand(
+                &mut ctx,
+                0,
+                "unused",
+                NativeVariableWordOperand::Literal {
+                    name: original.to_vec(),
+                    name_span: tcl_lexer::Span::new(0, 0),
+                    index: None,
+                },
+                1,
+            );
+            let slot = ctx
+                .lvt
+                .find_native(ctx.compiled_variable_protocol.unwrap(), original)
+                .unwrap();
+            assert_eq!(ctx.instructions.last().unwrap().op, Op::UNSET_SCALAR);
+            assert_eq!(
+                ctx.instructions.last().unwrap().operands,
+                vec![Operand::Imm(1), Operand::Imm(bytecode_imm(slot))]
+            );
+        }
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        emit_original_unset_operand(
+            &mut ctx,
+            0,
+            "unused",
+            NativeVariableWordOperand::Literal {
+                name: b"array".to_vec(),
+                name_span: tcl_lexer::Span::new(0, 0),
+                index: Some(b"$index".to_vec()),
+            },
+            0,
+        );
+        assert_eq!(ctx.instructions.last().unwrap().op, Op::UNSET_ARRAY);
+        assert!(
+            ctx.literals
+                .iter()
+                .any(|literal| literal.bytes() == b"$index")
+        );
+        assert!(
+            ctx.instructions
+                .iter()
+                .all(|instruction| !matches!(instruction.op, Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4))
+        );
+    }
+    #[test]
+    fn unset_source_without_original_compiler_ownership_emits_no_partial_mutation() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir("unset {$literal} {array($index)}", &registry);
+        let tokens = module
+            .top_level
+            .statements
+            .iter()
+            .find_map(|statement| match statement {
+                crate::ir::Statement::Call { tokens, .. }
+                | crate::ir::Statement::Barrier { tokens, .. } => tokens.clone(),
+                _ => None,
+            })
+            .expect("actual original source invocation");
+        assert_eq!(tokens.words().len(), 3);
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.set_source_image(module.source.clone());
+        ctx.invocation_tokens = Some(Box::new(tokens));
+        assert!(!unset_cmd(
+            &mut ctx,
+            &["$literal".to_owned(), "array($index)".to_owned()]
+        ));
+        assert!(ctx.instructions.is_empty());
     }
 }

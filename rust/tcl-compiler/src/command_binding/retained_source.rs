@@ -42,6 +42,10 @@ pub struct RetainedSourceModuleBindings {
     observed: ModuleCommandBindings,
     positioned: Arc<SourceCommandBindings>,
     procedures: std::collections::BTreeMap<crate::ir::ProcedureId, OriginalProcedureSource>,
+    named_logical_bodies: std::collections::BTreeMap<
+        crate::ir::ProcedureId,
+        Arc<super::OriginalLogicalProcedureBody>,
+    >,
 }
 
 /// Original header and body coordinates retained by the real Module producer.
@@ -132,6 +136,33 @@ impl RetainedSourceModuleBindings {
             registry: registry.snapshot().semantic_key(),
             observed: bindings.module_projection(module),
             positioned: Arc::new(bindings.clone()),
+            named_logical_bodies: module
+                .procedures
+                .iter()
+                .filter_map(|(&id, procedure)| {
+                    let tokens = procedure.body.statements.iter().find_map(|statement| {
+                        procedure
+                            .body
+                            .retained_source_tokens_for_statement(statement)
+                    })?;
+                    let binding = tokens.source_binding.as_ref()?;
+                    if binding
+                        .original_analysis_owner
+                        .as_ref()
+                        .zip(bindings.original_analysis_owner.as_ref())
+                        .is_none_or(|(actual, original)| !Arc::ptr_eq(actual, original))
+                    {
+                        return None;
+                    }
+                    let card = super::OriginalLogicalProcedureBody::retain_named_source_child(
+                        module, procedure, tokens, registry,
+                    )?;
+                    module
+                        .procedure_ids
+                        .owns(id)
+                        .then_some((id, Arc::new(card)))
+                })
+                .collect(),
             procedures: module
                 .original_source_procedure_bodies()
                 .map(|(name, procedure)| (name.clone(), OriginalProcedureSource::retain(procedure)))
@@ -274,12 +305,23 @@ impl RetainedSourceModuleBindings {
             return false;
         }
         if binding.has_original_logical_source_advice() {
-            let Some(card) = module.original_logical_declaration_body_units.get(&body) else {
-                return false;
+            let card = if procedure.body_kind == crate::ir::ProcedureBodyKind::Named {
+                let Some(card) = self.named_logical_bodies.get(&body) else {
+                    return false;
+                };
+                if !card.matches_named_procedure(module, procedure) {
+                    return false;
+                }
+                card
+            } else {
+                let Some(card) = module.original_logical_declaration_body_units.get(&body) else {
+                    return false;
+                };
+                if !card.matches_procedure(module, procedure) {
+                    return false;
+                }
+                card
             };
-            if !card.matches_procedure(module, procedure) {
-                return false;
-            }
             let Some(words) = binding.original_logical_source_words(tokens, input, registry) else {
                 return false;
             };
@@ -449,6 +491,82 @@ mod tests {
             registry,
             tcl_lexer::LexerConfig::default(),
         )
+    }
+
+    #[test]
+    fn named_logical_body_receipt_keeps_its_actual_header_and_child_scope() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let entry = SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        let source = "proc p {} {set value TEXT; return $value}\n";
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                config,
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        let module = &unit.ir_module;
+        let (&id, procedure) = module.procedures.iter().next().expect("actual named body");
+        let retained = module.retained_source_bindings.as_deref().unwrap();
+        let card = retained
+            .named_logical_bodies
+            .get(&id)
+            .expect("actual named source receipt");
+        assert!(card.matches_named_procedure(module, procedure));
+        assert!(!card.matches_procedure(module, procedure));
+        for statement in &procedure.body.statements {
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            assert!(retained.owns_original_body_tokens(module, id, tokens, context.commands()));
+            let words = tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_source_words(tokens, &input, context.commands())
+                .unwrap();
+            let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("actual Logical child scope");
+            };
+            assert!(std::ptr::eq(
+                advice.logical_source_scope().unwrap().scope_body(),
+                card.scope().scope_body()
+            ));
+        }
+        for mutate in 0..5 {
+            let mut changed = procedure.clone();
+            match mutate {
+                0 => changed.name.push_str("other"),
+                1 => changed.params.push("added".into()),
+                2 => changed.body_source = Some("return OTHER".into()),
+                3 => {
+                    changed.body.namespace_context = Some(Box::new(
+                        super::super::SourceNamespaceKey::authored("::other"),
+                    ))
+                }
+                _ => changed.publication = None,
+            }
+            assert!(!card.matches_named_procedure(module, &changed));
+        }
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        assert!(!card.matches_named_procedure(&missing, procedure));
     }
 
     #[test]

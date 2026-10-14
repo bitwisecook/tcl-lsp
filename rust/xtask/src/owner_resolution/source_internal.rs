@@ -1292,7 +1292,10 @@ impl ConsumerReferences<'_> {
             syn::Expr::MethodCall(call) => {
                 let mut value = self.expression_identity(&call.receiver)?;
                 let name = call.method.to_string();
-                if name == "as_ref" && call.args.is_empty() && value.identity.starts_with("Option<")
+                if matches!(name.as_str(), "as_ref" | "as_mut")
+                    && call.args.is_empty()
+                    && call.turbofish.is_none()
+                    && value.identity.starts_with("Option<")
                 {
                     return Some(value);
                 }
@@ -1417,6 +1420,11 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
     fn visit_type_path(&mut self, ty: &'ast syn::TypePath) {
         if self.row.route == "type"
             && ty.qself.is_none()
+            && ty
+                .path
+                .segments
+                .first()
+                .is_none_or(|part| !self.shadowed.contains(&part.ident.to_string()))
             && self
                 .modules
                 .resolve(&self.row.consumer_module, &ty.path, 0)
@@ -1426,6 +1434,26 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
             self.matched = true;
         }
         visit::visit_type_path(self, ty);
+    }
+    fn visit_expr_struct(&mut self, expression: &'ast syn::ExprStruct) {
+        if self.row.route == "type"
+            && expression.qself.is_none()
+            && super::route_attrs_are_plain(&expression.attrs)
+            && supported_path_arguments(&expression.path)
+            && expression
+                .path
+                .segments
+                .first()
+                .is_none_or(|part| !self.shadowed.contains(&part.ident.to_string()))
+            && self
+                .modules
+                .resolve(&self.row.consumer_module, &expression.path, 0)
+                .as_ref()
+                == Some(&self.target)
+        {
+            self.matched = true;
+        }
+        visit::visit_expr_struct(self, expression);
     }
     fn visit_local(&mut self, local: &'ast syn::Local) {
         if !super::route_attrs_are_plain(&local.attrs) {
@@ -1581,6 +1609,10 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
         self.invalid = true;
     }
     fn visit_stmt(&mut self, statement: &'ast syn::Stmt) {
+        if matches!(statement, syn::Stmt::Item(syn::Item::Use(_))) {
+            // Plain imports are scoped and shadowed before this block is visited.
+            return;
+        }
         if matches!(statement, syn::Stmt::Item(_) | syn::Stmt::Macro(_)) {
             self.invalid = true;
             return;
@@ -1598,6 +1630,22 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
     fn visit_block(&mut self, block: &'ast syn::Block) {
         let previous = self.locals.clone();
         let shadowed = self.shadowed.clone();
+        // Rust imports apply to the whole block, including calls before the use.
+        for statement in &block.stmts {
+            if let syn::Stmt::Item(syn::Item::Use(import)) = statement {
+                let mut bindings = Vec::new();
+                if !super::route_attrs_are_plain(&import.attrs)
+                    || flatten_use(&import.tree, &mut Vec::new(), &mut bindings).is_none()
+                {
+                    self.invalid = true;
+                    continue;
+                }
+                for (name, _) in bindings {
+                    self.locals.remove(&name);
+                    self.shadowed.insert(name);
+                }
+            }
+        }
         visit::visit_block(self, block);
         self.locals = previous;
         self.shadowed = shadowed;
@@ -1932,6 +1980,75 @@ mod tests {
             "parameter-field:parent:binding",
         );
         assert!(!modules.check_row(&row));
+    }
+
+    #[test]
+    fn source_routes_keep_plain_local_imports_scoped_and_preserve_target_shadows() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn capture() {} }";
+        for caller in [
+            "fn consume() { use std::collections::HashSet; super::owner::Ledger::capture(); }",
+            "use super::owner::Ledger; fn consume() { { use other::Ledger; } Ledger::capture(); }",
+        ] {
+            let (modules, row) = fixture(owner, caller, "Ledger::capture", "static");
+            assert!(modules.check_row(&row), "{caller}");
+        }
+        for caller in [
+            "use super::owner::Ledger; fn consume() { Ledger::capture(); use other::Ledger; }",
+            "use super::owner::Ledger; fn consume() { use other::Other as Ledger; Ledger::capture(); }",
+            "fn consume() { use other::*; super::owner::Ledger::capture(); }",
+            "fn consume() { #[cfg(test)] use other::Other; super::owner::Ledger::capture(); }",
+        ] {
+            let (modules, row) = fixture(owner, caller, "Ledger::capture", "static");
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+    }
+
+    #[test]
+    fn source_type_routes_require_explicit_current_struct_constructors() {
+        let owner = "pub(super) struct Ledger { pub(super) current: bool }";
+        let (modules, row) = fixture(
+            owner,
+            "fn consume() { let current = super::owner::Ledger { current: true }; }",
+            "Ledger",
+            "type",
+        );
+        assert!(modules.check_row(&row));
+        for caller in [
+            "type Donated = super::owner::Ledger; fn consume() { let current = Donated { current: true }; }",
+            "use super::owner::Ledger; fn consume() { let current = Ledger { current: true }; use other::Ledger; }",
+            "fn consume() { #[cfg(test)] let current = super::owner::Ledger { current: true }; }",
+            "fn consume() { make!(super::owner::Ledger { current: true }); }",
+            "fn consume() { let current = super::owner::Ledger::<Other> { current: true }; }",
+        ] {
+            let (modules, row) = fixture(owner, caller, "Ledger", "type");
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+    }
+
+    #[test]
+    fn source_routes_follow_only_actual_standard_mutable_option_fields() {
+        let owner =
+            "pub(super) struct Ledger; impl Ledger { pub(super) fn revision(&mut self) {} }";
+        let (modules, row) = fixture(
+            owner,
+            "struct Tokens { binding: Option<super::owner::Ledger> } fn consume(parent: &mut Tokens) { if let Some(binding) = parent.binding.as_mut() { binding.revision(); } }",
+            "Ledger::revision",
+            "parameter-field:parent:binding",
+        );
+        assert!(modules.check_row(&row));
+        for caller in [
+            "struct Fake; impl Fake { fn revision(&mut self) {} } struct Tokens { binding: Option<Fake> } fn consume(parent: &mut Tokens) { if let Some(binding) = parent.binding.as_mut() { binding.revision(); } }",
+            "struct Other<T>(T); impl<T> Other<T> { fn as_mut(&mut self) -> Option<&mut T> { Some(&mut self.0) } } struct Tokens { binding: Other<super::owner::Ledger> } fn consume(parent: &mut Tokens) { if let Some(binding) = parent.binding.as_mut() { binding.revision(); } }",
+            "struct Tokens { binding: Option<super::owner::Ledger> } fn consume(parent: &mut Tokens) { if let Some(binding) = parent.binding.as_mut::<Other>() { binding.revision(); } }",
+        ] {
+            let (modules, row) = fixture(
+                owner,
+                caller,
+                "Ledger::revision",
+                "parameter-field:parent:binding",
+            );
+            assert!(!modules.check_row(&row), "{caller}");
+        }
     }
 
     #[test]

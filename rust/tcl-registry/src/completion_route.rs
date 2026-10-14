@@ -393,6 +393,68 @@ mod tests {
     }
 
     #[test]
+    fn legacy_return_effects_keep_the_actual_availability_surface() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        use crate::side_effects::SideEffectTarget;
+        use crate::world_effect::WorldStateDomain;
+        let registry = CommandRegistry::build_default();
+        let arguments = [Dynamic];
+        let words = crate::InvocationWords::structured(Literal("return"), &arguments);
+        let event_control = |effects: &crate::EffectFootprint| {
+            effects
+                .legacy()
+                .side_effects
+                .iter()
+                .any(|effect| effect.target == SideEffectTarget::EventControl)
+        };
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = InvocationDialect::of_profile(profile);
+            let resolution =
+                registry.resolve_structured_invocation(words, Some(dialect.authoring_query()));
+            let selected = resolution.resolved().unwrap();
+            assert!(!event_control(&selected.effects()));
+            let (effects, transitions) =
+                selected.authored_source_effects_and_state_transitions(dialect);
+            assert!(!event_control(&effects));
+            assert!(transitions.facts().is_empty());
+            assert_eq!(
+                effects
+                    .accesses()
+                    .iter()
+                    .map(|access| access.domain)
+                    .collect::<Vec<_>>(),
+                [
+                    WorldStateDomain::InterpreterResult,
+                    WorldStateDomain::CompletionState
+                ]
+            );
+        }
+        let profile = tcl_dialect::DialectProfile::find("f5-irules").unwrap();
+        let dialect = InvocationDialect::of_profile(profile);
+        let resolution =
+            registry.resolve_structured_invocation(words, Some(dialect.authoring_query()));
+        let selected = resolution.resolved().unwrap();
+        assert!(event_control(&selected.effects()));
+        assert!(event_control(
+            &selected
+                .authored_source_effects_and_state_transitions(dialect)
+                .0
+        ));
+        let resolution = registry.resolve_structured_invocation(words, None);
+        let selected = resolution.resolved().unwrap();
+        let grammar =
+            InvocationDialect::of_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        assert!(event_control(&selected.effects()));
+        assert!(event_control(
+            &selected
+                .authored_source_effects_and_state_transitions(grammar)
+                .0
+        ));
+    }
+
+    #[test]
     fn return_state_envelope_preserves_error_observers_and_dynamic_results() {
         use crate::InvocationWord::{Dynamic, Literal};
         use crate::registry::native_return_state_effect;

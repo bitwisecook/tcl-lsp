@@ -103,6 +103,7 @@ mod native_index_lookup;
 mod native_interpreter_paths;
 mod native_introspection;
 mod native_jim_increment;
+mod native_jim_interpreter_crossing;
 mod native_jim_links;
 pub(crate) mod native_jim_lookup;
 #[cfg(test)]
@@ -6918,7 +6919,14 @@ impl Vm {
                 return self.refuse_host_command("alias producer realm".into());
             }
         }
-        let words = Rc::new(target_words);
+        let (original_jim_prefix, words) = if producer.recipe().is_jim084() && src != target {
+            match self.capture_original_jim_parent_alias_prefix(target, target_words) {
+                Ok((prefix, words)) => (Some(prefix), words),
+                Err(error) => return crate::command::completion_from_cmd_error(self, error),
+            }
+        } else {
+            (None, Rc::new(target_words))
+        };
         let original = match self.native_name_operand_bytes_checked(src_cmd) {
             Ok(original) => original,
             Err(error) => return crate::command::completion_from_cmd_error(self, error),
@@ -6955,14 +6963,19 @@ impl Vm {
                     Command::Alias {
                         words: Rc::clone(&words),
                         publication_name,
-                        registration_name: src_cmd.clone(),
+                        registration_name: recipe
+                            .alias_record_retains_original_registration_name()
+                            .then(|| src_cmd.clone()),
                     }
                 } else {
                     Command::CrossAlias {
                         target,
                         words: Rc::clone(&words),
+                        original_jim_prefix,
                         publication_name,
-                        registration_name: src_cmd.clone(),
+                        registration_name: recipe
+                            .alias_record_retains_original_registration_name()
+                            .then(|| src_cmd.clone()),
                     }
                 };
                 let report = vm
@@ -9036,6 +9049,9 @@ impl Vm {
                 Err(error) => return crate::command::completion_from_cmd_error(self, error),
             }
         };
+        if policy.recipe().is_jim084() {
+            return self.eval_original_jim_child_object(id, &script);
+        }
         let bytes = match self.native_name_operand_bytes_checked(&script) {
             Ok(bytes) => bytes,
             Err(error) => return crate::command::completion_from_cmd_error(self, error),

@@ -1327,7 +1327,10 @@ fn compact_names(
         })
         .collect();
 
+    let references =
+        crate::source_structure::OriginalVariableReferences::capture(source, &analysis);
     let scope_ctx = ScopeCtx {
+        references: references.as_ref(),
         source,
         analysis: &analysis,
         isolated,
@@ -1481,6 +1484,7 @@ fn compact_logical_formals(
 /// rename-barrier / read-modify-write-target sets.
 #[derive(Clone, Copy)]
 struct ScopeCtx<'a> {
+    references: Option<&'a crate::source_structure::OriginalVariableReferences<'a>>,
     source: &'a str,
     analysis: &'a AnalysisResult,
     isolated: bool,
@@ -1495,10 +1499,40 @@ struct ScopeOut<'a> {
     edits: &'a mut Vec<Edit>,
 }
 
+/// Exact name extents within current original reads, plus unchanged bare role
+/// operands. Missing correspondence prevents a partial variable rename.
+fn variable_reference_name_spans(
+    source: &str,
+    geometry: &crate::source_structure::OriginalVariableReferences<'_>,
+    name: &str,
+    references: &[tcl_lexer::Span],
+) -> Option<Vec<tcl_lexer::Span>> {
+    let mut names = Vec::new();
+    for &span in references {
+        if let Some(original) = geometry.reference_at(span.start()) {
+            if original.root != name
+                || (original.token_span != span && original.whole_span != span)
+                || source.get(original.name_span.as_range()) != Some(name)
+            {
+                return None;
+            }
+            names.push(original.name_span);
+        } else if source.get(span.as_range()) == Some(name) {
+            names.push(span);
+        } else {
+            return None;
+        }
+    }
+    names.sort_by_key(|span| (span.start(), span.end()));
+    names.dedup();
+    Some(names)
+}
+
 /// Recursively rename variables (and params) in a scope, mirroring
 /// `_process_scope`.
 fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut ScopeOut<'_>) {
     let ScopeCtx {
+        references,
         source,
         analysis,
         isolated,
@@ -1538,7 +1572,10 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
         var_names.sort();
         for var_name in var_names {
             let var_def = &scope.variables[var_name];
-            if var_name.len() <= 1 || tcl_syntax::naming::is_qualified(var_name.as_bytes()) {
+            if var_name.len() <= 1
+                || var_name.contains('\0')
+                || tcl_syntax::naming::is_qualified(var_name.as_bytes())
+            {
                 continue;
             }
             // A local that aliases a namespace / global cell (`global v`,
@@ -1561,6 +1598,16 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
             if rmw_targets.contains(var_name.as_str()) {
                 continue;
             }
+            let is_param = param_names.contains(var_name.as_str());
+
+            if !is_param && slice(source, var_def.definition_span) != *var_name {
+                continue;
+            }
+            let Some(reference_names) = references.and_then(|geometry| {
+                variable_reference_name_spans(source, geometry, var_name, &var_def.references)
+            }) else {
+                continue;
+            };
             let claimed: FxHashSet<String> = var_map.values().cloned().collect();
             let Some(short) = next_unused_name(&mut var_gen, &existing, &claimed) else {
                 continue;
@@ -1568,39 +1615,14 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
             if short.len() >= var_name.len() {
                 continue;
             }
-            let is_param = param_names.contains(var_name.as_str());
-
-            // Definition site (non-params only — param defs point at
-            // the proc-name token).
             if !is_param {
-                let r = var_def.definition_span;
-                if slice(source, r) == *var_name {
-                    out.edits
-                        .push((r.start() as usize, var_name.len(), short.clone()));
-                }
+                let span = var_def.definition_span;
+                out.edits
+                    .push((span.start() as usize, span.len() as usize, short.clone()));
             }
-            // Reference sites.  A reference is either a `$var` read (skip
-            // the `$`) or a **bare name word** — a re-definition (`set x 2`
-            // twice), a registry `VarRead`/`VarWrite`-role argument
-            // (`unset x`, `lappend x …`, `catch {…} x`).  Bare sites must
-            // be rewritten in lock-step: renaming the declaration and the
-            // `$` reads while leaving `set x 2` / `unset x` spelled with
-            // the old name silently splits one variable into two:
-            // `set v 1;set v 2;return $v` then returns 1.
-            for &reference in &var_def.references {
-                let ref_text = slice(source, reference);
-                if let Some(rest) = ref_text.strip_prefix('$') {
-                    if rest == var_name {
-                        out.edits.push((
-                            reference.start() as usize + 1,
-                            var_name.len(),
-                            short.clone(),
-                        ));
-                    }
-                } else if ref_text == var_name {
-                    out.edits
-                        .push((reference.start() as usize, var_name.len(), short.clone()));
-                }
+            for span in reference_names {
+                out.edits
+                    .push((span.start() as usize, span.len() as usize, short.clone()));
             }
             var_map.insert(var_name.clone(), short);
         }
@@ -3648,12 +3670,13 @@ fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok
             )));
         } else if c == b'$' {
             let start = i;
-            i += 1;
-            while i < n
-                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b':')
-            {
-                i += 1;
+            let Ok(Some(reference)) = tcl_lexer::scan_var_ref(bytes, start, env.config) else {
+                return vec![ExprTok::Other(text.to_owned())];
+            };
+            if reference.next <= start || reference.next > n {
+                return vec![ExprTok::Other(text.to_owned())];
             }
+            i = reference.next;
             out.push(ExprTok::Other(text[start..i].to_owned()));
         } else if c.is_ascii_alphanumeric() || c == b'.' || c == b'_' {
             let start = i;
@@ -3820,6 +3843,19 @@ mod tests {
         );
         assert!(out.contains("$plain"), "{out}");
         assert!(!out.contains("${plain}"), "{out}");
+    }
+
+    #[test]
+    fn expression_minification_preserves_original_array_index_name_data() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(label).analyser_profile();
+            for reference in ["$arr(a + b)", "$arr($key + 1)", "${$literal}", "${}"] {
+                let source = format!("expr {{{reference} + 1}}");
+                let output = min_dialect(&source, profile);
+                assert!(output.contains(reference), "{label}: {output}");
+            }
+        }
     }
 
     /// The **plumb**: minify must take the `${…}` rule from the document's
@@ -4132,6 +4168,44 @@ mod tests {
         assert!(
             !out.contains("{b a}"),
             "default must not be renamed: {out:?}"
+        );
+    }
+
+    #[test]
+    fn compact_variable_reads_keep_original_braced_names_and_current_source() {
+        let source =
+            "proc helper {} {set longVariable VALUE; puts ${longVariable}; puts $longVariable}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let compact = min_compact(source);
+        assert!(compact.contains("set a VALUE"), "{compact}");
+        assert!(!compact.contains("longVariable"), "{compact}");
+        let scope = analysis
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == ScopeKind::Proc)
+            .unwrap();
+        let variable = &scope.variables["longVariable"];
+        let geometry =
+            crate::source_structure::OriginalVariableReferences::capture(source, &analysis)
+                .expect("current source geometry");
+        let spans =
+            variable_reference_name_spans(source, &geometry, "longVariable", &variable.references)
+                .expect("actual configured original reference names");
+        assert_eq!(spans.len(), 2);
+        assert!(
+            spans
+                .iter()
+                .all(|span| source.get(span.as_range()) == Some("longVariable"))
+        );
+        assert!(
+            variable_reference_name_spans(source, &geometry, "donated", &variable.references)
+                .is_none()
+        );
+        let mut stale = analysis.clone();
+        stale.resolved_input = None;
+        assert!(
+            crate::source_structure::OriginalVariableReferences::capture(source, &stale).is_none()
         );
     }
 

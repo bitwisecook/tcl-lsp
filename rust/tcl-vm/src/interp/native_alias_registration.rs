@@ -112,7 +112,10 @@ impl Vm {
                         .into());
                     }
                 };
-                if !registration.is_same_object(&current) {
+                if !registration
+                    .as_ref()
+                    .is_some_and(|original| original.is_same_object(&current))
+                {
                     return Err(ValueError::CommandProtocolUnavailable(
                         "original alias registration header owner",
                     )
@@ -135,7 +138,7 @@ impl Vm {
                         ValueError::CommandProtocolUnavailable("original alias collision policy")
                     })?;
                 let replacement = Value::new_native_string_bytes(token.as_slice());
-                *registration = replacement.clone();
+                *registration = Some(replacement.clone());
                 *report = NameBytes::from(token.as_slice());
                 match live.key {
                     CommandSidecarKey::Hidden(key) => {
@@ -196,10 +199,12 @@ impl Vm {
                     let registration = match self.command_at_sidecar_key(&live.key) {
                         Some(
                             Command::Alias {
-                                registration_name, ..
+                                registration_name: Some(registration_name),
+                                ..
                             }
                             | Command::CrossAlias {
-                                registration_name, ..
+                                registration_name: Some(registration_name),
+                                ..
                             },
                         ) => registration_name,
                         _ => {

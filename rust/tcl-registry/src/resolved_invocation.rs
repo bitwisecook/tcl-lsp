@@ -2430,12 +2430,33 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             EffectFootprint::conservative_unknown_invocation()
         };
         // Selected transitions own command-table mutation and its coverage.
-        footprint.extend(EffectFootprint::from_legacy_with_transition_coverage(
+        footprint.extend(self.legacy_effect_footprint(command_table_mutation, coverage));
+        footprint
+    }
+
+    fn legacy_effect_footprint(
+        &self,
+        command_table_mutation: bool,
+        coverage: &TransitionEffectCoverages,
+    ) -> EffectFootprint {
+        let mut footprint = EffectFootprint::from_legacy_with_transition_coverage(
             command_table_mutation,
             self.semantics.frame_effect,
-            self.semantics.side_effects,
+            &[],
             coverage,
-        ));
+        );
+        for effect in self.semantics.side_effects {
+            if effect.surface.is_none_or(|surface| {
+                tcl_dialect::model::surface_admits(surface, self.dialect.as_ref())
+            }) {
+                footprint.extend(EffectFootprint::from_legacy_with_transition_coverage(
+                    false,
+                    None,
+                    std::slice::from_ref(effect),
+                    coverage,
+                ));
+            }
+        }
         footprint
     }
 
@@ -2517,10 +2538,8 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         } else {
             EffectFootprint::conservative_unknown_invocation()
         };
-        effects.extend(EffectFootprint::from_legacy_with_transition_coverage(
+        effects.extend(self.legacy_effect_footprint(
             transitions.touches_command_bindings(),
-            self.semantics.frame_effect,
-            self.semantics.side_effects,
             &TransitionEffectCoverages::default(),
         ));
         (effects, transitions)

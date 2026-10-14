@@ -184,29 +184,25 @@ pub enum Command {
         words: Rc<Vec<Value>>,
         /// Selected original C alias-record spelling, independent of lookup slots.
         publication_name: tcl_core_types::NameBytes,
-        /// Actual retained registration object, independent of command relocation.
-        registration_name: Value,
+        /// C retains its original registration object; Jim retains no caller name.
+        registration_name: Option<Value>,
     },
     /// Jim's original prefix List header; target lookup retains the caller namespace.
     CallerAlias(Value),
-    /// A cross-interp `interp alias` whose target runs in a DIFFERENT
-    /// interpreter (parent, child, sibling, or any node reachable through the
-    /// shared engine): invoking it switches the engine to `target` and
-    /// evaluates the target words there at its global frame (C's
-    /// `TclAliasObjCmd` → `Tcl_EvalObjv(targetInterp, …)`).  The target interp
-    /// is addressed by stable [`crate::interp::InterpId`], so it can be a
-    /// child, the owning parent, or a sibling reached via the parent, and it
-    /// works whether the current interp is executing at top level or is
-    /// re-entered deeper on the stack.
+    /// C evaluates target words in the target's global frame. Jim retains an
+    /// original parent prefix List and copies child arguments and the result
+    /// across that parent's current evaluation context.
     CrossAlias {
         /// The interpreter the target words run in.
         target: crate::interp::InterpId,
-        /// Target command + fixed prefix arguments.
+        /// C target words, or a neutral snapshot of Jim's original prefix members.
         words: Rc<Vec<Value>>,
+        /// Original parent-owned Jim List; C retains its independent word vector.
+        original_jim_prefix: Option<Rc<Value>>,
         /// Selected child registration report in the source interpreter's realm.
         publication_name: tcl_core_types::NameBytes,
-        /// Actual retained registration object, independent of command relocation.
-        registration_name: Value,
+        /// C retains its original registration object; Jim retains no caller name.
+        registration_name: Option<Value>,
     },
     /// A child interpreter addressable as a command (`$child eval …`): the id
     /// addresses the child in the engine's interp arena. Invoking it dispatches

@@ -40,6 +40,8 @@ pub(crate) use source_scoped_body::original_written_script_body_span;
 mod authored_source_bodies;
 pub use authored_source_bodies::OriginalAuthoredProcedureBody;
 pub(crate) use authored_source_bodies::original_authored_procedure_body;
+mod source_definition;
+pub(crate) use source_definition::original_logical_source_definition_layout;
 mod source_receiver_names;
 pub(crate) use source_receiver_names::{
     SourceReceiverNameOperand, original_source_receiver_name_operand,
