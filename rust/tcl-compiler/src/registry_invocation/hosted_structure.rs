@@ -200,6 +200,22 @@ impl SourceStructuredInvocation {
             }
         }
     }
+    /// Source grammar retains its catalogue purpose independently of the
+    /// original runtime realm. Full input and store correspondence stay mandatory.
+    pub(crate) fn with_original_source_schema<T>(
+        &self,
+        registry: &CommandRegistry,
+        context: InvocationMetadataContext<'_>,
+        original_realm: tcl_dialect::model::InvocationRealm,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        let realm = match self {
+            Self::Hosted(_) => tcl_dialect::model::InvocationRealm::RuleLoader,
+            Self::Logical(_) | Self::NativeSource(_) => original_realm,
+        };
+        self.with_metadata_schema(registry, context, realm, apply)
+    }
+
     pub(crate) fn lowering_hook(&self) -> Option<tcl_registry::hooks::LoweringHookId> {
         match self {
             Self::Logical(selected) => selected.lowering_hook(),
@@ -355,6 +371,17 @@ mod tests {
                     tokens
                 )
                 .is_none()
+            );
+            assert!(
+                selected
+                    .with_original_source_schema(
+                        registry,
+                        metadata,
+                        tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+                        |schema| Some(schema.facts().lowering_hook),
+                    )
+                    .flatten()
+                    .is_some()
             );
             assert!(
                 selected

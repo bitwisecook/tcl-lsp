@@ -1,0 +1,188 @@
+interpreter 9.1.0
+result ordinary OK
+bytecode ordinary {ByteCode 0x5564a0fe7400, refCt 1, epoch 24, interp 0x5564a0f58a10 (epoch 24)
+  Source "if {[catch {set x 1}]} {return FAIL}; return OK"
+  File "/tmp/name-remaining-consumers-20261014/codegen-condition-result/oracles/condition-results.tcl" Line 2
+  Cmds 5, src 47, inst 59, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x5564a0fdcf80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-14, catch 26
+  Commands 5:
+      1: pc 0-52, src 0-35        2: pc 0-29, src 5-19
+      3: pc 5-14, src 12-18        4: pc 36-41, src 24-34
+      5: pc 53-58, src 38-46
+  Command 1: "if {[catch {set x 1}]} {return FAIL}..."
+  Command 2: "catch {set x 1}..."
+    (0) beginCatch 0 
+  Command 3: "set x 1..."
+    (5) push 0 	# "1"
+    (10) storeScalar %v0 	# var "x"
+    (15) push 1 	# "0"
+    (20) swap 
+    (21) jump +7 	# pc 28
+    (26) pushReturnCode 
+    (27) pushResult 
+    (28) endCatch 
+    (29) pop 
+    (30) nop 
+    (31) jumpFalse +16 	# pc 47
+  Command 4: "return FAIL..."
+    (36) push 2 	# "FAIL"
+    (41) done 
+    (42) nop 
+    (43) nop 
+    (44) nop 
+    (45) nop 
+    (46) nop 
+    (47) push 3 	# ""
+    (52) pop 
+  Command 5: "return OK"
+    (53) push 4 	# "OK"
+    (58) done 
+}
+result rooted OK
+bytecode rooted {ByteCode 0x5564a0fe7a00, refCt 1, epoch 24, interp 0x5564a0f58a10 (epoch 24)
+  Source "if {[::catch {set x 1}]} {return FAIL}; return OK"
+  File "/tmp/name-remaining-consumers-20261014/codegen-condition-result/oracles/condition-results.tcl" Line 3
+  Cmds 5, src 49, inst 59, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x5564a0fdd480, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-14, catch 26
+  Commands 5:
+      1: pc 0-52, src 0-37        2: pc 0-29, src 5-21
+      3: pc 5-14, src 14-20        4: pc 36-41, src 26-36
+      5: pc 53-58, src 40-48
+  Command 1: "if {[::catch {set x 1}]} {return FAIL}..."
+  Command 2: "::catch {set x 1}..."
+    (0) beginCatch 0 
+  Command 3: "set x 1..."
+    (5) push 0 	# "1"
+    (10) storeScalar %v0 	# var "x"
+    (15) push 1 	# "0"
+    (20) swap 
+    (21) jump +7 	# pc 28
+    (26) pushReturnCode 
+    (27) pushResult 
+    (28) endCatch 
+    (29) pop 
+    (30) nop 
+    (31) jumpFalse +16 	# pc 47
+  Command 4: "return FAIL..."
+    (36) push 2 	# "FAIL"
+    (41) done 
+    (42) nop 
+    (43) nop 
+    (44) nop 
+    (45) nop 
+    (46) nop 
+    (47) push 3 	# ""
+    (52) pop 
+  Command 5: "return OK"
+    (53) push 4 	# "OK"
+    (58) done 
+}
+result quoted OK
+bytecode quoted ByteCode\ 0x5564a0fe8000,\ refCt\ 1,\ epoch\ 24,\ interp\ 0x5564a0f58a10\ (epoch\ 24)\n\ \ Source\ \"if\ \{\[\\\"catch\\\"\ \{set\ x\ 1\}\]\}\ \{return\ FAIL\}\;\ return\ ...\"\n\ \ File\ \"/tmp/name-remaining-consumers-20261014/codegen-condition-result/oracles/condition-results.tcl\"\ Line\ 4\n\ \ Cmds\ 5,\ src\ 49,\ inst\ 59,\ litObjs\ 5,\ aux\ 0,\ stkDepth\ 2,\ code/src\ 0.00\n\ \ Proc\ 0x5564a0fdd600,\ refCt\ 1,\ args\ 0,\ compiled\ locals\ 1\n\ \ \ \ \ \ slot\ 0,\ scalar,\ \"x\"\n\ \ Exception\ ranges\ 1,\ depth\ 1:\n\ \ \ \ \ \ 0:\ level\ 0,\ catch,\ pc\ 5-14,\ catch\ 26\n\ \ Commands\ 5:\n\ \ \ \ \ \ 1:\ pc\ 0-52,\ src\ 0-37\ \ \ \ \ \ \ \ 2:\ pc\ 0-29,\ src\ 5-21\n\ \ \ \ \ \ 3:\ pc\ 5-14,\ src\ 14-20\ \ \ \ \ \ \ \ 4:\ pc\ 36-41,\ src\ 26-36\n\ \ \ \ \ \ 5:\ pc\ 53-58,\ src\ 40-48\n\ \ Command\ 1:\ \"if\ \{\[\\\"catch\\\"\ \{set\ x\ 1\}\]\}\ \{return\ FAI...\"\n\ \ Command\ 2:\ \"\\\"catch\\\"\ \{set\ x\ ...\"\n\ \ \ \ (0)\ beginCatch\ 0\ \n\ \ Command\ 3:\ \"set\ x\ 1...\"\n\ \ \ \ (5)\ push\ 0\ \t#\ \"1\"\n\ \ \ \ (10)\ storeScalar\ %v0\ \t#\ var\ \"x\"\n\ \ \ \ (15)\ push\ 1\ \t#\ \"0\"\n\ \ \ \ (20)\ swap\ \n\ \ \ \ (21)\ jump\ +7\ \t#\ pc\ 28\n\ \ \ \ (26)\ pushReturnCode\ \n\ \ \ \ (27)\ pushResult\ \n\ \ \ \ (28)\ endCatch\ \n\ \ \ \ (29)\ pop\ \n\ \ \ \ (30)\ nop\ \n\ \ \ \ (31)\ jumpFalse\ +16\ \t#\ pc\ 47\n\ \ Command\ 4:\ \"return\ FAIL...\"\n\ \ \ \ (36)\ push\ 2\ \t#\ \"FAIL\"\n\ \ \ \ (41)\ done\ \n\ \ \ \ (42)\ nop\ \n\ \ \ \ (43)\ nop\ \n\ \ \ \ (44)\ nop\ \n\ \ \ \ (45)\ nop\ \n\ \ \ \ (46)\ nop\ \n\ \ \ \ (47)\ push\ 3\ \t#\ \"\"\n\ \ \ \ (52)\ pop\ \n\ \ Command\ 5:\ \"return\ OK\"\n\ \ \ \ (53)\ push\ 4\ \t#\ \"OK\"\n\ \ \ \ (58)\ done\ \n
+result unrelated OK
+bytecode unrelated {ByteCode 0x5564a0fe8400, refCt 1, epoch 24, interp 0x5564a0f58a10 (epoch 24)
+  Source "if {[set x 0]} {return FAIL}; return OK"
+  File "/tmp/name-remaining-consumers-20261014/codegen-condition-result/oracles/condition-results.tcl" Line 5
+  Cmds 4, src 39, inst 39, litObjs 4, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x5564a0fdd700, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 4:
+      1: pc 0-32, src 0-27        2: pc 0-9, src 5-11
+      3: pc 16-21, src 16-26        4: pc 33-38, src 30-38
+  Command 1: "if {[set x 0]} {return FAIL}..."
+  Command 2: "set x 0..."
+    (0) push 0 	# "0"
+    (5) storeScalar %v0 	# var "x"
+    (10) nop 
+    (11) jumpFalse +16 	# pc 27
+  Command 3: "return FAIL..."
+    (16) push 1 	# "FAIL"
+    (21) done 
+    (22) nop 
+    (23) nop 
+    (24) nop 
+    (25) nop 
+    (26) nop 
+    (27) push 2 	# ""
+    (32) pop 
+  Command 4: "return OK"
+    (33) push 3 	# "OK"
+    (38) done 
+}
+result renamed OK
+bytecode renamed {ByteCode 0x5564a0fe7600, refCt 1, epoch 25, interp 0x5564a0f58a10 (epoch 25)
+  Source "if {[original_catch {set x 1}]} {return FAIL}; return O..."
+  File "/tmp/name-remaining-consumers-20261014/codegen-condition-result/oracles/condition-results.tcl" Line 13
+  Cmds 5, src 56, inst 59, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x5564a0fdd980, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-14, catch 26
+  Commands 5:
+      1: pc 0-52, src 0-44        2: pc 0-29, src 5-28
+      3: pc 5-14, src 21-27        4: pc 36-41, src 33-43
+      5: pc 53-58, src 47-55
+  Command 1: "if {[original_catch {set x 1}]} {return FAIL}..."
+  Command 2: "original_catch {set x 1}..."
+    (0) beginCatch 0 
+  Command 3: "set x 1..."
+    (5) push 0 	# "1"
+    (10) storeScalar %v0 	# var "x"
+    (15) push 1 	# "0"
+    (20) swap 
+    (21) jump +7 	# pc 28
+    (26) pushReturnCode 
+    (27) pushResult 
+    (28) endCatch 
+    (29) pop 
+    (30) nop 
+    (31) jumpFalse +16 	# pc 47
+  Command 4: "return FAIL..."
+    (36) push 2 	# "FAIL"
+    (41) done 
+    (42) nop 
+    (43) nop 
+    (44) nop 
+    (45) nop 
+    (46) nop 
+    (47) push 3 	# ""
+    (52) pop 
+  Command 5: "return OK"
+    (53) push 4 	# "OK"
+    (58) done 
+}
+result shadowed OK
+bytecode shadowed {ByteCode 0x5564a0fe8600, refCt 1, epoch 25, interp 0x5564a0f58a10 (epoch 25)
+  Source "if {[catch {set x 1}]} {return FAIL}; return OK"
+  File "/tmp/name-remaining-consumers-20261014/codegen-condition-result/oracles/condition-results.tcl" Line 15
+  Cmds 4, src 47, inst 63, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x5564a0fddc00, refCt 1, args 0, compiled locals 0
+  Commands 4:
+      1: pc 0-46, src 0-35        2: pc 0-14, src 5-19
+      3: pc 21-35, src 24-34        4: pc 47-61, src 38-46
+  Command 1: "if {[catch {set x 1}]} {return FAIL}..."
+  Command 2: "catch {set x 1}..."
+    (0) push 0 	# "catch"
+    (5) push 1 	# "set x 1"
+    (10) invokeStk 2 
+    (15) nop 
+    (16) jumpFalse +25 	# pc 41
+  Command 3: "return FAIL..."
+    (21) startCommand +15 1 	# next cmd at pc 36, 1 cmds start here
+    (30) push 2 	# "FAIL"
+    (35) done 
+    (36) jump +10 	# pc 46
+    (41) push 3 	# ""
+    (46) pop 
+  Command 4: "return OK"
+    (47) startCommand +15 1 	# next cmd at pc 62, 1 cmds start here
+    (56) push 4 	# "OK"
+    (61) done 
+    (62) done 
+}

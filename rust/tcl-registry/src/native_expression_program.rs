@@ -10,6 +10,26 @@ use tcl_lexer::Span;
 use tcl_syntax::expr::NativeExprNode;
 use tcl_syntax::expr::parser::{CheckedExprParse, ExprParseContext};
 
+/// C compiler instruction for an expression's scalar result conversion slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScalarResultConversion {
+    /// The original 8.4/8.5 compiler attempts numeric conversion.
+    TryNumeric,
+    /// Later compilers retain the slot as a no-op.
+    NoOp,
+}
+
+impl ScalarResultConversion {
+    /// Select the original C compiler protocol; this grants no expression admission.
+    #[must_use]
+    pub const fn for_c_version(version: tcl_dialect::TclVersion) -> Self {
+        match version {
+            tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5 => Self::TryNumeric,
+            _ => Self::NoOp,
+        }
+    }
+}
+
 /// Capture an actual expression evaluator without deriving one from vendor
 /// compatibility or command availability. Function registrations stay separate.
 #[must_use]

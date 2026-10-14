@@ -86,16 +86,8 @@ impl CodegenCtx<'_> {
                     return None;
                 }
             }
-            let converts = matches!(
-                &program.tree,
-                NativeExpressionTree::Parsed(
-                    ExprNode::Literal { .. }
-                        | ExprNode::String { .. }
-                        | ExprNode::Var { .. }
-                        | ExprNode::Command { .. }
-                        | ExprNode::Call { .. }
-                )
-            );
+            let converts = matches!(&program.tree,
+                NativeExpressionTree::Parsed(tree) if tree.needs_numeric_result_conversion());
             let mut tasks = vec![Self::native_expression_task(&program)];
             if converts {
                 tasks.push(Task::Operation(Op::TRY_CVT_TO_NUMERIC, vec![]));

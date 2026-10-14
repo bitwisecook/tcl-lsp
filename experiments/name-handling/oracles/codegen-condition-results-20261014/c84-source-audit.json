@@ -1,0 +1,9 @@
+{
+  "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompExpr.c",
+  "sha256": "c4138e547b833c39d0c6da3bb4042fc7a7052a6146a2e7635aedcd53ac492514",
+  "original_lines": [
+    260,
+    280
+  ],
+  "observation": "Original CompileSubExpr result without operators emits INST_TRY_CVT_TO_NUMERIC; actual8.4 runtime controlsallOK, bytecode disassembly unavailable."
+}

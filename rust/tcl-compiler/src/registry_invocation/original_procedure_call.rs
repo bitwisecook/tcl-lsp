@@ -335,8 +335,8 @@ pub(crate) fn original_logical_procedure_may_dependencies_for_module(
     let binding = tokens.source_binding.as_ref()?;
     let mut held = false;
     let mut pending = Vec::new();
-    for (_, procedure) in module.original_source_procedure_bodies() {
-        if retained.matches_original_procedure(procedure) {
+    for (id, procedure) in module.original_source_procedure_bodies() {
+        if retained.matches_original_procedure_summary(*id, procedure) {
             pending.push(&procedure.body);
         }
     }
@@ -384,17 +384,37 @@ pub(crate) fn original_logical_procedure_may_dependencies_for_module(
     let candidates = head.as_deref().and_then(|head| {
         tcl_syntax::naming::authored_source_command_candidates(scope.namespace_recipe(), &[], head)
     });
+    let cards = positioned.original_logical_procedure_body_cards()?;
     let mut bodies: Vec<_> = module
-        .original_logical_declaration_body_units
-        .iter()
-        .filter_map(|(id, card)| {
-            let procedure = module.body_units.get(id)?;
-            (module.procedure_ids.owns(*id)
-                && card.matches_procedure(module, procedure)
-                && candidates
-                    .as_ref()
-                    .is_none_or(|candidates| candidates.contains(card.summary_coordinate())))
-            .then_some(*id)
+        .original_source_procedure_bodies()
+        .filter_map(|(id, procedure)| {
+            let authentic_purpose = match procedure.body_kind {
+                crate::ir::ProcedureBodyKind::Named => module.procedures.get(id) == Some(procedure),
+                crate::ir::ProcedureBodyKind::OriginalDeclaration => module
+                    .original_logical_declaration_body_units
+                    .get(id)
+                    .is_some_and(|card| card.matches_procedure(module, procedure)),
+                _ => false,
+            };
+            if !authentic_purpose || !retained.matches_original_procedure_summary(*id, procedure) {
+                return None;
+            }
+            cards
+                .iter()
+                .any(|card| {
+                    card.matches_source(&module.source, input)
+                        && procedure.declaration_site.as_ref() == Some(card.site())
+                        && procedure.body_offset == card.scope().scope_body().content_span().start()
+                        && procedure.params_raw == card.parameters_text()
+                        && procedure.params.iter().map(String::as_str).eq(card
+                            .parameters()
+                            .iter()
+                            .map(|parameter| parameter.name.as_str()))
+                        && candidates
+                            .as_ref()
+                            .is_none_or(|candidates| candidates.contains(card.summary_coordinate()))
+                })
+                .then_some(*id)
         })
         .collect();
     bodies.sort_unstable();
@@ -738,8 +758,9 @@ mod logical_may_dependency_tests {
                 .is_none()
             );
             module
-                .body_units
+                .procedures
                 .get_mut(&target_id)
+                .or_else(|| module.body_units.get_mut(&target_id))
                 .unwrap()
                 .qualified_name = "reporting label only".to_owned();
             let dependencies = original_logical_procedure_may_dependencies_for_module(
@@ -749,6 +770,47 @@ mod logical_may_dependency_tests {
             )
             .unwrap();
             assert_eq!(dependencies.bodies, vec![target_id]);
+            let caller_id = *module
+                .original_source_procedure_bodies()
+                .find(|(_, procedure)| procedure.name == "caller")
+                .unwrap()
+                .0;
+            module
+                .procedures
+                .get_mut(&caller_id)
+                .or_else(|| module.body_units.get_mut(&caller_id))
+                .unwrap()
+                .qualified_name = "caller reporting label only".to_owned();
+            let dependencies = original_logical_procedure_may_dependencies_for_module(
+                &tokens,
+                &module,
+                module.resolved_registry(),
+            )
+            .unwrap();
+            assert_eq!(dependencies.bodies, vec![target_id]);
+            assert!(dependencies.unknown_alternatives);
+            for facet in 0..3 {
+                let mut changed = module.clone();
+                let target = changed
+                    .procedures
+                    .get_mut(&target_id)
+                    .or_else(|| changed.body_units.get_mut(&target_id))
+                    .unwrap();
+                match facet {
+                    0 => target.body_kind = crate::ir::ProcedureBodyKind::Event,
+                    1 => target.declaration_site = None,
+                    2 => target.params_raw = "different".to_owned(),
+                    _ => unreachable!(),
+                }
+                let dependencies = original_logical_procedure_may_dependencies_for_module(
+                    &tokens,
+                    &changed,
+                    changed.resolved_registry(),
+                )
+                .unwrap();
+                assert!(!dependencies.bodies.contains(&target_id), "facet {facet}");
+                assert!(dependencies.unknown_alternatives);
+            }
         }
     }
 

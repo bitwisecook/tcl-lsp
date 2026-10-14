@@ -41,7 +41,7 @@ use tcl_lsp_core::refactor::{
     OriginalExactSwitchSource, extract_to_datagroup_with_analysis,
     original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
 };
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::ArgRole;
 
 const DIALECT: &str = "f5-irules";
 
@@ -97,9 +97,10 @@ fn suggest_for_analysis(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
     let Some((_, config)) = tcl_compiler::source_graph::current_analysis(source, analysis) else {
         return Vec::new();
     };
-    let Some(registry) = analysis.resolved_registry() else {
+    let Some(input) = analysis.resolved_input.as_ref() else {
         return Vec::new();
     };
+    let context = input.context_registry();
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
 
@@ -114,8 +115,23 @@ fn suggest_for_analysis(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
         let line = line_index.position_at_utf16(cursor, source).line;
         let mut cand = original_exact_switch_source_at_analysis(source, analysis, cursor)
             .and_then(|original| analyse_switch(&original, line, config));
-        if cand.is_none() && command.texts.first().is_some_and(|head| head == "if") {
-            cand = analyse_if_chain(&command.texts, line, registry, config);
+        if cand.is_none() {
+            let words = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                source, analysis, command,
+            );
+            let plan = words.as_ref().filter(|words| {
+                words.origins().len() == command.texts.len() && words.origins().iter().enumerate().skip(1).all(|(index, origin)| {
+                    matches!(origin, tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) if *written == index)
+                })
+            }).and_then(|words| {
+                words.with_source_schema(&context, |schema| {
+                    (schema.semantics.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::If))
+                        .then(|| schema.clause_plan()).flatten()
+                }).flatten()
+            });
+            if let Some(plan) = plan {
+                cand = analyse_if_chain(&command.texts, line, &plan, config);
+            }
         }
         if let Some(c) = cand.as_mut() {
             c.has_static_extraction =
@@ -410,15 +426,13 @@ fn confidence_for(shape: &str) -> &'static str {
 fn analyse_if_chain(
     texts: &[String],
     line: u32,
-    registry: &CommandRegistry,
+    plan: &tcl_registry::ClausePlan,
     config: LexerConfig,
 ) -> Option<Candidate> {
     if texts.len() < 3 {
         return None;
     }
     let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
-    let resolved = registry.resolve_call("if", &args, None)?;
-    let plan = resolved.clause_plan(&args, None)?;
     if plan.defect.is_some() {
         return None;
     }
@@ -792,5 +806,36 @@ mod original_arm_parser_purpose_tests {
             Some(SetOrReturn::Return)
         ));
         assert!(parse_set_or_return("return ${a{b}", config).is_none());
+    }
+    #[test]
+    fn if_suggestions_use_actual_selected_source_schema_and_refuse_shadowed_heads() {
+        for head in ["if", "::if", "\"if\""] {
+            let source = format!("{head} {{$host eq a || $host eq b}} {{drop}}");
+            let analysis = crate::tools::analyse(&source, "tcl8.6");
+            let found = suggest_for_analysis(&source, &analysis);
+            assert_eq!(found.len(), 1, "{source}");
+            assert_eq!(found[0]["variable"], "host");
+            assert_eq!(found[0]["values"], json!(["a", "b"]));
+            let mut labels = analysis.clone();
+            for invocation in &mut labels.command_invocations {
+                invocation.name = "changed presentation".into();
+            }
+            assert_eq!(suggest_for_analysis(&source, &labels), found);
+            assert!(suggest_for_analysis(&format!("{source} "), &analysis).is_empty());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(suggest_for_analysis(&source, &missing).is_empty());
+        }
+        for source in [
+            "proc if args {return NOOP}; if {$host eq a || $host eq b} {drop}",
+            "rename if original_if; proc if args {return NOOP}; if {$host eq a || $host eq b} {drop}",
+            "{*}{if {$host eq a || $host eq b} {drop}}",
+        ] {
+            let analysis = crate::tools::analyse(source, "tcl8.6");
+            assert!(
+                suggest_for_analysis(source, &analysis).is_empty(),
+                "{source}"
+            );
+        }
     }
 }

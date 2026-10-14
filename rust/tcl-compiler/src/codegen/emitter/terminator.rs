@@ -117,16 +117,25 @@ impl CodegenCtx<'_> {
                 }
             }
             None => {
-                self.emit_expr(cond);
-                // tclsh emits a nop between a simple variable condition
-                // and the conditional jump (placeholder for tryCvtToNumeric).
-                if matches!(cond, ExprNode::Var { .. } | ExprNode::Raw { .. }) {
-                    self.emit(Op::NOP, vec![]);
-                } else if let ExprNode::Command { text, .. } = cond {
-                    let inner = text.trim();
-                    let stripped = inner.strip_prefix('[').unwrap_or(inner);
-                    if stripped.starts_with("catch ") {
-                        self.emit(Op::NOP, vec![]);
+                let numeric = self.emit_expr(cond);
+                if !numeric && cond.needs_numeric_result_conversion() {
+                    use tcl_registry::native_expression_program::ScalarResultConversion;
+                    let conversion = self
+                        .native_hook_dialect()
+                        .and_then(|dialect| {
+                            (dialect.family() == Some(tcl_dialect::model::Family::Tcl))
+                                .then_some(dialect.tcl_version)
+                                .flatten()
+                        })
+                        .map(ScalarResultConversion::for_c_version);
+                    match conversion {
+                        Some(ScalarResultConversion::TryNumeric) => {
+                            self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
+                        }
+                        Some(ScalarResultConversion::NoOp) => {
+                            self.emit(Op::NOP, vec![]);
+                        }
+                        None => self.refuse_native_dependency(),
                     }
                 }
                 if Some(false_target) == next_block {
@@ -667,5 +676,50 @@ mod tests {
 
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::JUMP_TABLE));
+    }
+    #[test]
+    fn scalar_command_conditions_use_result_geometry_without_command_name_classification() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        for version in [
+            tcl_dialect::TclVersion::V8_4,
+            tcl_dialect::TclVersion::V8_5,
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            for source in [
+                "[catch {set x 1}]",
+                "[::catch {set x 1}]",
+                "[\"catch\" {set x 1}]",
+                "[original_catch {set x 1}]",
+                "[set x 0]",
+                "[catch {set x 1}; set x 0]",
+            ] {
+                let mut context = CodegenCtx::new(false, &[], &registry);
+                context.invocation_dialect =
+                    Some(tcl_registry::InvocationDialect::for_version(version));
+                let condition = ExprNode::Command {
+                    text: source.into(),
+                    start: 0,
+                    end: u32::try_from(source.len()).unwrap(),
+                };
+                context.emit_branch(&condition, "true", "false", Some("false"));
+                let branch = context
+                    .instructions
+                    .iter()
+                    .position(|instruction| instruction.op == Op::JUMP_TRUE4)
+                    .unwrap();
+                let expected = if version <= tcl_dialect::TclVersion::V8_5 {
+                    Op::TRY_CVT_TO_NUMERIC
+                } else {
+                    Op::NOP
+                };
+                assert_eq!(
+                    context.instructions[branch - 1].op,
+                    expected,
+                    "{version:?}/{source}"
+                );
+            }
+        }
     }
 }

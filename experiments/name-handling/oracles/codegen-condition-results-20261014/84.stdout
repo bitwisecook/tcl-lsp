@@ -1,0 +1,7 @@
+interpreter 8.4.20
+result ordinary OK
+result rooted OK
+result quoted OK
+result unrelated OK
+result renamed OK
+result shadowed OK

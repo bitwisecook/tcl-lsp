@@ -1073,7 +1073,7 @@ impl Lowerer<'_> {
             .as_ref()
             .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
             .unwrap_or(self.invocation_realm);
-        invocation.with_metadata_schema(self.registry, context, realm, |selected| {
+        invocation.with_original_source_schema(self.registry, context, realm, |selected| {
             Some((
                 *selected.semantics.options.case_list?,
                 !selected.semantics.options.base.is_empty()

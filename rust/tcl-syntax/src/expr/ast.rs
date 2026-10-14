@@ -434,6 +434,21 @@ pub enum ExprNode<Text = String> {
 }
 
 impl<Text> ExprNode<Text> {
+    /// Scalar leaf results need numeric conversion independently of command spelling.
+    /// Opaque fallback text remains conservative; checked Native syntax validates it separately.
+    #[must_use]
+    pub const fn needs_numeric_result_conversion(&self) -> bool {
+        matches!(
+            self,
+            Self::Literal { .. }
+                | Self::String { .. }
+                | Self::Var { .. }
+                | Self::Command { .. }
+                | Self::Call { .. }
+                | Self::Raw { .. }
+        )
+    }
+
     /// Change leaf ownership without changing operators, ordering or offsets.
     /// This projection grants no source parsing or native implementation proof.
     pub fn map_text<Output>(self, mut convert: impl FnMut(Text) -> Output) -> ExprNode<Output> {

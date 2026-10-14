@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T09:43:47Z. The [outstanding audit](outstanding-consumer-audit.md)
+Current bounded snapshot: 2026-10-14T09:57:31Z. The [outstanding audit](outstanding-consumer-audit.md)
 and machine inventory retain original issue and source observations.
 
 The current shared consumers retain complete original source, analysis input,
@@ -117,18 +117,12 @@ obligations with their original assertions. Earlier scoped Native card birth and
 source-advice join improvements remain separate from current SSA/navigation
 consumer gates.
 
-Compiler55/56 retain build-only failures with zero source drift; their actual
-shared token API/test-profile corrections are integrated. Compiler57 builds but
-runs no semantic controls because three new exact selectors missed the nested
-test module; source and assertions are unchanged. The corrected exact paths
-supply Compiler58. The integration-only fifth fixture accessor remains queued.
-MCP52 stops in compilation before nine actual binary selectors, source drift
-zero; its missing scope initializer is corrected. F5 production53 builds and
-seals 32 controls: 9 PASS/23 FAIL (lib 3/6, model 6/25, original golden
-differential FAIL). Its inventory records one new obsolete-agent-cache receipt;
-zero total drift is not claimed. Diagnostic54 is build PASS/2 FAIL/source drift
-zero; temporary diagnostics are removed, and actual producer repairs remain
-required.
+The latest Core70 capture stops in compilation at two test-only context-profile
+accessors: zero semantic controls and zero source drift. The genuine shared
+context profile correction is integrated; fresh Core/server consumer replay
+remains required. F5 production53 builds and seals 32 controls: 9 PASS/23 FAIL
+(lib 3/6, model 6/25, original golden differential FAIL). Its inventory records
+one new obsolete-agent-cache receipt; zero total drift is not claimed.
 
 DB61 builds and executes all ten original controls: 0 PASS/10 FAIL, source drift
 zero and no missing/empty selectors. Whole-file lattice shift regresses from
@@ -152,8 +146,8 @@ differential/model capture is red. Selected descriptor pointer provenance
 refuses authored overrides with absent, true or false translation flags. Fresh
 custom getter controls keep the original pool independently available; their
 authored override now retains the actual selected surface/lifecycle/traits and
-asserts exact selected pointer provenance before refusal. The missing structured
-condition producer remains open.
+asserts exact selected pointer provenance before refusal. The Hosted structured source producer is integrated; its current case-schema
+consumer correction is independently reviewed and integrated; replay is pending.
 The Hosted structured source wrapper is integrated with complete retained analysis
 input and exact original policy/context checks. It supplies guarded If/Switch
 source grammar independently of runtime invocation and Native entry. Current
@@ -234,11 +228,12 @@ conversion, source drift zero and no semantic controls; the representation-only
 conversion is corrected. Compiler67 seals the bounded results above. Source SSA definition metadata and
 first-use Symbol commitments, plus checked original autoload publication, are
 integrated after independent review; actual current Core/server controls remain
-unexecuted. Core68 and Registry69 stop in compilation at a shared unavailable
+unexecuted. Core70 seals a build-only failure at two test-only context profile
+accessors with zero source drift. The actual shared context profile correction
+requires a fresh capture. Core68 and Registry69 stop in compilation at a shared unavailable
 Traits::all API, source drift zero and no semantic controls. The corrected shared
 Option traits projection declines unavailable metadata; no invented flags supply
-source or Normal facts. Core70 is running the original current consumer scope; no result is claimed.
-Fresh consumer replays remain required.
+source or Normal facts. Fresh consumer replays remain required.
 Shared exact Registry registration descriptor and Logical callback candidate
 projections are integrated after independent source review. MCP path source categories
 retain actual Event/Procedure kind separately from rendered labels; the typed
@@ -251,3 +246,12 @@ failures, oracle sources, legal attribution and unanswered F5 questions remain
 retained. No whole-codebase, Native, F5 or PR-ready acceptance is established.
 This temporary coordination directory and its references are removed before
 the merge-ready PR; durable documentation describes current contracts.
+
+The current batch integrates Logical original body-ID inventory repair, Hosted
+case-schema consumption, MCP typed If schema and codegen scalar-result geometry.
+Actual source signature/body kind/publication/declaration site remain ownership
+checks; reporting labels do not select bodies. Sixteen focused producer/codegen
+controls are prepared for Compiler71; no result is available. Logical namespace
+path/import MAY dependencies remain a distinct completeness obligation. Codegen
+retains fifteen real oracle files; C8.4 source audit and Jim observations do not
+claim unavailable bytecode disassembly.

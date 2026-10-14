@@ -48,6 +48,9 @@ pub struct RetainedSourceModuleBindings {
 /// This source signature supplies no entered procedure or native frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OriginalProcedureSource {
+    body_kind: crate::ir::ProcedureBodyKind,
+    publication: Option<crate::signature_scan::scope::SignatureSourceCommand>,
+    declaration_site: Option<super::CommandAllocationSite>,
     name: String,
     qualified_name: String,
     parameters: Vec<String>,
@@ -63,6 +66,9 @@ struct OriginalProcedureSource {
 impl OriginalProcedureSource {
     fn retain(procedure: &Procedure) -> Self {
         Self {
+            body_kind: procedure.body_kind,
+            publication: procedure.publication.clone(),
+            declaration_site: procedure.declaration_site.clone(),
             name: procedure.name.clone(),
             qualified_name: procedure.qualified_name.clone(),
             parameters: procedure.params.clone(),
@@ -172,6 +178,21 @@ impl RetainedSourceModuleBindings {
         self.procedures
             .values()
             .any(|original| original.matches(procedure))
+    }
+
+    /// Exact Module-issued source body for MAY summaries. Reporting labels
+    /// do not change the retained original header, body or statement geometry.
+    pub(crate) fn matches_original_procedure_summary(
+        &self,
+        id: crate::ir::ProcedureId,
+        procedure: &Procedure,
+    ) -> bool {
+        let Some(original) = self.procedures.get(&id) else {
+            return false;
+        };
+        let mut current = OriginalProcedureSource::retain(procedure);
+        current.qualified_name.clone_from(&original.qualified_name);
+        current == *original
     }
 
     /// Authenticate the complete written source carrier under this Module's

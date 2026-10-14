@@ -1,0 +1,55 @@
+{
+  "source": "condition-results.tcl",
+  "source_sha256": "3b8b141f91dc2840a53ccc4e6b26137b1ab260da20348e1a0e3f7558de6a2bdf",
+  "oracle": "Actual C Tcl8.4\u20139.1 + latest Jim; no tcltest used. Exposed C disassembly only when real interpreter provides it; Jim unavailable disassembly does not imply C bytecode shape.",
+  "rows": [
+    {
+      "provider": "84",
+      "exe": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "exe_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit": 0,
+      "stdout_sha256": "605424ea413f06029ad1dfbe7a4c5f61b8f7073ef54298b18eda3382fa955f79",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "85",
+      "exe": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "exe_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit": 0,
+      "stdout_sha256": "12c57fb6ab49f0a682d02b96df80c5032d2b60080d68308fdcad3a64408fa744",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "86",
+      "exe": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "exe_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit": 0,
+      "stdout_sha256": "ca85b3a83b308f023a479cbe4d6b8de57beb24545824e4eb13364c41da0941da",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "90",
+      "exe": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "exe_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit": 0,
+      "stdout_sha256": "494b4735c2f1e31336d224977dff6d1672b00b252e0e3045f01b424e3320bdd1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "91",
+      "exe": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "exe_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit": 0,
+      "stdout_sha256": "f2f73adcd04e30d62badaa6daaeee12fa0e5ab99aab862b61add3eb83c44edfe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "exe": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "exe_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit": 0,
+      "stdout_sha256": "04031a27380170d923d4c1f8692bbf6f622fa0ac76d6ddc3ca009c68ad571225",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}
