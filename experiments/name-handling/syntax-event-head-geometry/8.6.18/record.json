@@ -1,0 +1,50 @@
+{
+  "provider": "8.6.18",
+  "input_sha256": "b2cd0d41ba1bcb7cbbd14fb489edf445475dc7fdf1b1a8f51ab34c804505e3c6",
+  "measurement_utc": "2026-10-14T02:46:00.811009+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-syntax-event-head-geometry-20261014/bundle/experiments/name-handling/syntax-event-head-geometry/input.tcl"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "environment_control": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "TCLLIBPATH": null
+  },
+  "exit_code": 0,
+  "stdout_sha256": "ed7a036a9875c2d01c1703dfc8cca50dea1cbbc76ceeebcc7c4c513fb7f6974e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "dependency_inventory": {
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+    "/usr/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+    "/usr/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+    "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/safe.tcl": "bd70548ea2090135918f2e61a39bfdd6163ec8cef82f400ce220a1edc4bedd6c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tm.tcl": "0b102f22297356a9873a81224962fde4cbd4b59889c54b1d0632695701eb10fe",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/package.tcl": "0227624ef7ab99d60f0aa76e74419c34267a322db36cf945e66ed705525eedc0",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/history.tcl": "e2eb8bdf39732ca48173e61d9ada4f0d095ddaa3ed1fcce21c0a520c75493d8f",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/parray.tcl": "ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/auto.tcl": "67be04b5aa4c0845f8c5143171acf31ad6b3f23eb1a0be98133133e8abc9822b",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/word.tcl": "f18e8ae29aa8ed2be2cbb5568b4243f654f7fb0aa2066e16977863ee1415b9bc",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/dde/pkgIndex.tcl": "c2e7fd1110cf83cf9b8c5dcc823e02955576615dd67d8f912c151ced735c0d8f",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/optparse.tcl": "04f4b2f34d959cff47c6502a137d15ac9dc4f54d4a6e78478f64c8c7e14849a8",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/pkgIndex.tcl": "c6ef00c55362782a3b8c185e84413225dde64cec690fb324158d7028c53c3745",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/shell.tcl": "3e9a139b7d2d768a8b94327feb402c4fc7afeda156e46ab2d22e8c40266142a5",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/platform.tcl": "ec8cca09e045ecc3d61d7aa2a336f4c6366a5bc0e8207feca37eab38fc0cd292",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/pkgIndex.tcl": "e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/http.tcl": "f115d9d2be5886175fe610484eaac8e17d9feb1c71d419af66c6e31b0c215523",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/pkgIndex.tcl": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/http.tcl": "803ca646b09304bc21b79f3c5618ac1359a0bc34a2762d40dea933c23e4f7ae6",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/pkgIndex.tcl": "0345d47af9786eb20eab98519140306b924f32cd7c685d34bc40d3b6f1f6f27e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/msgcat.tcl": "5732951b02b45c3702c2f9ee7c43deabfcfe0aaae893f89bcc59e32bd9444ce3",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/pkgIndex.tcl": "3d391b5c9219666880499e6e5c87edb05e64c5d25fe2c0e66874fb0271f2e3d1",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/reg/pkgIndex.tcl": "5a3a93234a418f3a8e1814dd8e6d95344045a6d3a4e62af6a8fad2c48d2aa1ce"
+  },
+  "dependency_drift": {},
+  "scope": "Original custom when procedure declarations, namespace queries and calls only. No F5 event, native-private allocation or semantic handler identity claim. Dependency inventory includes interpreter, linked inputs and original library script tree; no tcltest package used."
+}

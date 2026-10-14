@@ -1,0 +1,109 @@
+{
+  "files": [
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/8.4.20/record.json",
+      "sha256": "146d1e12e1148cf86217c61513b1885c6cda2554031166f174db9765106b9357",
+      "bytes": 4539
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/8.4.20/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/8.4.20/stdout.bin",
+      "sha256": "d386bd8e0e88adb03e4e234824d604396ec3aa85027db4224dbc2f79deafb590",
+      "bytes": 526
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/8.5.19/record.json",
+      "sha256": "dc186c22d88f8a983a7e2fc9907a02900c9f3c9c59fc6575b1371b66f2b32fee",
+      "bytes": 4661
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/8.5.19/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/8.5.19/stdout.bin",
+      "sha256": "92c13c1b893a7eb4aaee486c293f2bb87269320c7d0bcd19e0e49e3c2e9cdf4e",
+      "bytes": 526
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/8.6.18/record.json",
+      "sha256": "11e4e7e13531d5f38b2b35e5406ef95c6715b2384b23ff9fb85ab62ea9cf3822",
+      "bytes": 4776
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/8.6.18/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/8.6.18/stdout.bin",
+      "sha256": "ed7a036a9875c2d01c1703dfc8cca50dea1cbbc76ceeebcc7c4c513fb7f6974e",
+      "bytes": 526
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/9.0.4/record.json",
+      "sha256": "e4d83da32ec279e195d4cff8ebbca691df64c83666d1d2d44153be4609f05312",
+      "bytes": 5534
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/9.0.4/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/9.0.4/stdout.bin",
+      "sha256": "b875cf1a009969b7e1287009a4e5cb55292f735916872df39ef0efe820b577a7",
+      "bytes": 525
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/9.1.0/record.json",
+      "sha256": "00edde72190b10ffada1a22b7944a45e7de6781622cf17961897624028714d12",
+      "bytes": 5664
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/9.1.0/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/9.1.0/stdout.bin",
+      "sha256": "0d9ac72d68c0b44cf6b43cb0e65a395f93bbd99d321d9840c6b3739955362238",
+      "bytes": 525
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/README.md",
+      "sha256": "1e22bdc783063cf43a93948058befed00a5b7a9003407216b1a53626bfe3d575",
+      "bytes": 987
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/input.tcl",
+      "sha256": "b2cd0d41ba1bcb7cbbd14fb489edf445475dc7fdf1b1a8f51ab34c804505e3c6",
+      "bytes": 481
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/jim/record.json",
+      "sha256": "11f926f8fa8fd786db091f9db66c2aa3c04d5cf9e12d62217eaea2446a6a2445",
+      "bytes": 9784
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/jim/stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/jim/stdout.bin",
+      "sha256": "92d59d363b6a4d6a442a163eb26ecdb222638f8fb1033257b99cdf1b9cfd219b",
+      "bytes": 553
+    },
+    {
+      "path": "experiments/name-handling/syntax-event-head-geometry/records.json",
+      "sha256": "ddf4d263b078799e15c8a81b65919454672d815795a4e53790ac20d4e6122a33",
+      "bytes": 35665
+    }
+  ]
+}

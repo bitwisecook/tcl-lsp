@@ -1,0 +1,14 @@
+{
+  "requested_utc": "2026-10-13T16:03:40.256908+00:00",
+  "pid": 66736,
+  "signal": "SIGTERM",
+  "signal_number": 15,
+  "reason": "Parent-authorised bounded termination: original oracle-program regression remains unfinished at approximately100 percentCPU for several minutes",
+  "completed_controls": [
+    "analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque",
+    "analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads",
+    "analyser::diagnostics::tests::tcltest_import_is_namespace_scoped"
+  ],
+  "unfinished_control": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+  "assertion_failure_observed": false
+}

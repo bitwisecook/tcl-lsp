@@ -1,0 +1,7 @@
+{
+  "patch_sha256": "3f1acea3202f97b535d7e3dad3de98d9b0ff1cbe0926e8aa7a6ce22b43a1d649",
+  "before_sha256": "f98ba9e93ac03265cf3a563f15eb578fa4b52966814299bcd7b9fe8c38c33498",
+  "after_sha256": "56898ceec7b8e62294ba2983aae1732c46cb7fbfef4567d34a42fa473d390ec6",
+  "scope": "Scratch-only SSA downstream legal-empty and literal-dollar preservation. Original typed source roles, config/currency and unavailable refusal remain. Instance-option empty-disable policies excluded.",
+  "validation": "Rustfmt syntax/format and git apply check only; new controls unexecuted."
+}

@@ -30,6 +30,12 @@ their [acceptance scopes](../results/RESULTS.md#shared-namespace-variable-query-
 retain failed and unreached providers separately. Empty namespace addresses are
 measured independently in [namespace-address-purpose](../namespace-address-purpose/README.md).
 
+The [literal/empty read-write name reductions](../results/ssa-empty-read-write-names/README.md)
+retain original C5/Jim increment, loop and dict-with results, including the
+Tcl8.4 unavailable dict rows. Current SSA controls retain actual source-role
+ownership; the separate F5 packet is unanswered. These reductions measure
+name payloads and do not establish native frame or compilation authority.
+
 ## Source evidence
 
 The [maintained corpus manifest](../../../scripts/perf/MANIFEST.toml) pins all

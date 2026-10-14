@@ -773485,8 +773485,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/original-cli-source-symbols.md",
       "problem_statement": "CLI symbols extracted from reporting Scope maps can collapse repeated declarations and opaque byte siblings. A rendered function label cannot select its parameter row or restore declaration ownership.",
       "question": "Does CLI source-symbol reporting consume current original source cards and preserve independent declarations when reporting maps are cleared?",
-      "conclusion": "Native and hosted CLI symbols use the shared current source outline. Independent opaque and repeated declaration rows retain their source extents. Procedure parameters join only by an unambiguous exact source span from the original procedure inventory; labels supply no join. Nested local variables remain outside the global-variable report. Explicit lexical declaration advice retains its separate Scope view. Symbol names and event spelling are presentation, with no command binding, runtime normalization, edit or native execution grant.",
-      "scope": "Current CLI symbols for selected Native, hosted and explicit lexical advice. Fixed assertions distinguish repeated opaque names, changed reporting maps, hosted event cards and stale whole source. No native or Rust execution receipt is attached.",
+      "conclusion": "Logical, Native and hosted CLI symbols use the shared current source outline. Independent opaque and repeated declaration rows retain their source extents. Procedure parameters join only by an unambiguous exact source span from the original procedure inventory; labels supply no join. Nested local variables remain outside the global-variable report. Logical declaration cards retain their shared outline and independently current procedure inventory. Unavailable source/configuration withdraws the report. Symbol names and event spelling are presentation, with no command binding, runtime normalization, edit or native execution grant.",
+      "scope": "Current CLI symbols for selected Native, hosted and explicit lexical advice. Fixed assertions distinguish repeated opaque names, changed reporting maps, hosted event cards, Logical nested declarations and parameter owners, local-variable exclusion, and stale whole source/configuration. No native or Rust execution receipt is attached.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -773567,6 +773567,12 @@
           "selector": "commands::graphs::tests::original_cli_symbols_preserve_repeated_opaque_headers_and_current_source",
           "assertion": "Three genuine repeated/opaque headers retain separate rows and actual parameters after UI maps clear; hosted cards survive and stale source refuses.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-cli/src/commands/graphs.rs",
+          "selector": "commands::graphs::tests::logical_cli_symbols_share_current_outline_and_parameter_owners",
+          "assertion": "Logical nested procedure parameters and namespace/global variable cards use shared source owners; local variables remain excluded and changed source or unavailable configuration refuses the report.",
+          "status": "linked"
         }
       ],
       "owners": [
@@ -773578,7 +773584,7 @@
         {
           "path": "rust/tcl-cli/src/commands/graphs.rs",
           "symbol": "run_symbols",
-          "purpose": "Select original versus independently allowed lexical source reporting."
+          "purpose": "Use the shared independently current source outline and procedure inventory for every selected dialect."
         }
       ],
       "replay": {

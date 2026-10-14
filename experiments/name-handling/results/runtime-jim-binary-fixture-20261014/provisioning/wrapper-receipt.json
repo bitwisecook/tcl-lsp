@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/jim-binary-provisioning/distribution-wrapper-probe.tcl"
+  ],
+  "recorded_at": "2026-10-14T02:50:41.004556+00:00",
+  "provider_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "exit_code": 0,
+  "source_sha256": "8e07164b1fc1eb2037c02a77795f4e4c9bbea9d404274b66316f947e38a73d43",
+  "stdout_sha256": "ee9bf5ef0ff2d350ca0cc48312db3a435f738923f5098d20112a13a795aee868",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "Actual initialized jimsh command inventory and original Binary wrapper text. First unsupported package query attempt remains separately retained. No core-constructor binary grant or runtime acceptance."
+}

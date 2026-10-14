@@ -1,0 +1,34 @@
+[
+  {
+    "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+    "line": 397,
+    "old_authority": "normalized FunctionUnit.name/scope.name string selects per-body type map",
+    "purpose": "Logical variable type hints",
+    "owner": "current CU::function_for_body + source_graph::procedure_body_for_declaration + original declaration body span",
+    "status": "scratch migration apply-check only; not compiled or executed"
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/graphs.rs",
+    "line": 451,
+    "old_authority": "all_procs display name selects callee source sites after body offset check",
+    "purpose": "call graph links across LSP, CLI, MCP, WASM hosts",
+    "owner": "original declaration allocation/actual ProcedureId + invocation_targets_declaration + source_graph body selector",
+    "status": "scratch migration apply-check only; not compiled or executed"
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/graphs.rs",
+    "line": 528,
+    "old_authority": "all_procs display name selects top-level callee then compares body offset",
+    "purpose": "top-level graph call target",
+    "owner": "same original receipt/issued ID path for all source modes",
+    "status": "scratch migration apply-check only; not compiled or executed"
+  },
+  {
+    "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+    "line": 1323,
+    "old_authority": "qualified display selects ProcDef; manual braces/whitespace formal scanner",
+    "purpose": "W214 diagnostic formal-name range",
+    "owner": "original declaration_site + current original_procedure_formals owner",
+    "status": "assigned compiler_finish; no DB-agent edits"
+  }
+]

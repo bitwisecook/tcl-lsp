@@ -1,0 +1,57 @@
+{
+  "provider_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-issues-refresh-20261014/jim-binary-provisioning/distribution-probe.tcl"
+  ],
+  "exit_code": 1,
+  "recorded_at": "2026-10-14T02:50:07.168162+00:00",
+  "source_sha256": "3a1fc1b3d2ba3fd675032edbbdf66673b5c806127a7333963fc1128c3738348f",
+  "stdout_sha256": "fc7b10a752e30017b8a9daf81166c5f5ba99c88206df3a3de4972352a5d45883",
+  "stderr_sha256": "12a680139c902df81e22758a9f7a8e758472d446f6f372351eba3fb268bb25e2",
+  "original_files": [
+    {
+      "path": "LICENSE",
+      "bytes": 2276,
+      "sha256": "419f1146334e57fb258d6c957d1f94d43455ec0d24b1b54c4447e5f61a353950"
+    },
+    {
+      "path": "binary.tcl",
+      "bytes": 6285,
+      "sha256": "4ab254890a9911314244df656851fa317c67fbe702279a38c2f42a8a63925222"
+    },
+    {
+      "path": "jim-pack.c",
+      "bytes": 13406,
+      "sha256": "b37e3915f106076952e2341957b0973eecfe23ad5c41525878a6d5d7a98b505b"
+    },
+    {
+      "path": "jim-regexp.c",
+      "bytes": 20698,
+      "sha256": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd"
+    },
+    {
+      "path": "jimsh.c",
+      "bytes": 6144,
+      "sha256": "a0db99e0d9d562dbbc7ed97813669e6039547548c7e9612a1dc5503b6860668c"
+    },
+    {
+      "path": "_load-static-exts.c",
+      "bytes": 2084,
+      "sha256": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979"
+    },
+    {
+      "path": "jimautoconf.h",
+      "bytes": 3488,
+      "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65"
+    },
+    {
+      "path": "Makefile",
+      "bytes": 6153,
+      "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+    }
+  ],
+  "interpretation": "The authentic jimsh initializes its compiled static extensions; binary.tcl requires pack and regexp. Jim_RegisterCoreCommands alone does not publish binary. Runtime repair explicitly uses its existing selected Jim binary extension installer, without changing core-constructor absence or original comparison rows.",
+  "runtime_acceptance": false
+}

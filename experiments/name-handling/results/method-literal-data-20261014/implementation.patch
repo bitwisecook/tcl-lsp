@@ -1,0 +1,110 @@
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+index 20ba562..aa159af 100644
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -4921,24 +4921,25 @@ impl<'r> Lowerer<'r> {
+             }
+             let mut names = Vec::new();
+             for candidate in &advice.candidates {
+-                let declaration = candidate.with_source_schema(self.registry, context, tokens, |selected| {
+-                    Some(selected.authored_source_descriptors().command.lowering_hook
+-                        == Some(LoweringHookId::Variable))
+-                })?;
+-                if declaration {
+-                    names.extend(candidate.effective.argument_presentations(tokens.argv_texts.get(1..)?)?
+-                        .into_iter().flatten());
+-                }
++                names.extend(candidate.with_source_schema(self.registry, context, tokens, |selected| {
++                    if selected.authored_source_descriptors().command.lowering_hook != Some(LoweringHookId::Variable) {
++                        return Some(Vec::new());
++                    }
++                    let (roles, complete) = selected.argument_roles();
++                    if !complete {
++                        return None;
++                    }
++                    roles.into_iter().filter(|(_, role)| *role == ArgRole::VarWrite)
++                        .map(|(argument, _)| {
++                            let argument = selected.semantics.argument_offset.checked_add(usize::from(argument))?;
++                            Some(selected.words.arguments().get(argument)?.literal()?.to_owned())
++                        }).collect::<Option<Vec<_>>>()
++                })?);
+             }
+             Some(names)
+         });
+         // Unavailable source advice only widens the textual protection inventory.
+-        possible
+-            .unwrap_or_else(|| args.clone())
+-            .iter()
+-            .filter(|name| is_instance_var_name(name))
+-            .map(|name| normalise_var_name(name).to_owned())
+-            .collect()
++        possible.unwrap_or_else(|| args.clone())
+     }
+ 
+     fn resolved_metadata_invocation(
+@@ -10116,7 +10117,51 @@ mod tests {
+         assert!(reads.is_empty());
+         assert_eq!(
+             lowerer.advisory_method_instance_names(&statement),
+-            vec!["local"]
++            vec!["local", "$dynamic"]
++        );
++    }
++
++    #[test]
++    fn method_variable_advice_preserves_literal_names_and_captured_prefix_values() {
++        let registry = reg();
++        let mut lowerer = Lowerer::new(&registry).trace_visible();
++        lowerer.lower("variable {}; variable {$counter}; variable {brace{name}}; variable {-dash}");
++        let names: Vec<_> = lowerer
++            .module
++            .top_level
++            .statements
++            .iter()
++            .flat_map(|statement| lowerer.advisory_method_instance_names(statement))
++            .collect();
++        assert_eq!(names, vec!["", "$counter", "brace{name}", "-dash"]);
++
++        let mut captured = Lowerer::new(&registry).trace_visible();
++        captured.lower("interp alias {} ivar {} variable {$counter}; ivar");
++        let statement = captured.module.top_level.statements.last().unwrap();
++        assert_eq!(
++            captured.advisory_method_instance_names(statement),
++            vec!["$counter"]
++        );
++    }
++
++    #[test]
++    fn unresolved_method_name_protection_keeps_original_source_text_without_reparsing() {
++        let registry = reg();
++        let source = "unresolved {} {$counter} {brace{name}} {a(b)} {-dash} $dynamic";
++        let mut lowerer = Lowerer::new(&registry);
++        lowerer.source_entry_origin = SourceEntryOrigin::Driver;
++        lowerer.metadata_origin = LoweringMetadataOrigin::Supplied;
++        lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
++        let commands =
++            crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config);
++        let statement = lowerer.lower_default(&commands[0], "::");
++        let Statement::Call { args, .. } = &statement else {
++            panic!("generic source fallback");
++        };
++        assert_eq!(lowerer.advisory_method_instance_names(&statement), *args);
++        assert_eq!(
++            args,
++            &vec!["", "$counter", "brace{name}", "a(b)", "-dash", "$dynamic"]
+         );
+     }
+ 
+diff --git a/docs/design/contracts/shared-utility-contracts-rust.md b/docs/design/contracts/shared-utility-contracts-rust.md
+index d6edd7f..60ee9b9 100644
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -49,7 +49,7 @@ audits and inventory-writing modes do not satisfy that route.
+ | Source-owned analysis cache correspondence | `rust/tcl-compiler/src/body_analysis_capsule.rs` | `BodyAnalysisCapsule`; `BodyAnalysisCapsule::retain`; `BodyAnalysisCapsule::body_id`; `BodyLatticeInputs`; `BodyLatticeInputs::retain`; `BodyLatticeInputs::rebind_cached`; `BodyLatticeCommandBindings`; `BodyLatticeCommandBindings::bindings`; `BodySummaryInputs`; `BodySummaryInputs::retain` | genuine compilation, Module issuer, body ID, FunctionUnit and original source/input/configuration own every analysis; exact source and variable relocation or a closed registry-only Logical dependency certificate permit analytical reuse; cached results rebind onto the current owner and retain current proofs; missing/changed dependencies recompute, and analytical equality supplies no Native compiler, callable, frame, object or execution authority | `xtask-owner-resolution` |
+ | Typed event-body connection scope | `rust/tcl-compiler/src/connection_scope.rs` | `EventCell`; `ConnectionScope`; `ConnectionScope::handler_source_names`; `ConnectionScope::observes_cross_event_place`; `build_connection_scope`; `build_connection_scope_with_registry` | actual CompilationUnit/Module-issued handler IDs and independently retained event metadata preserve repeated event labels; resolved cells and supplied worker/interpreter/storage domains remain separate from report unions; written protection labels project only from the matching handler keys and establish no arbitrary event order or current value | `xtask-owner-resolution` |
+ | Declared frame-effect metadata coordinates | `rust/tcl-registry/src/model/declaration.rs`; `rust/tcl-compiler/src/declared_frame_effects.rs`; `rust/tcl-compiler/src/dynamic_names.rs`; `rust/tcl-compiler/src/deferred_writes.rs` | `DocumentCommandSurface::plain_call_frame_effect_descriptor_keys`; `collect_declared_frame_effects`; `declared_frame_effect_for_metadata` | genuine selected document descriptor labels retain exact optional-root metadata coordinates; distinct colliding declarations withdraw assistance and selected registry commands retain precedence; standalone catalogue readers use this owner while original-source and entered Native frame evidence remain independent | `xtask-owner-resolution` |
+-| Selected lowering descriptor transport | `rust/tcl-registry/src/resolved_invocation.rs`; `rust/tcl-compiler/src/registry_invocation.rs`; `rust/tcl-compiler/src/lowering/mod.rs` | `InvocationFacts::descriptor_key`; `ResolvedInvocation::descriptor_key`; `AdmittedNativeCompilerInvocation::descriptor_key` | genuine retained selected facts supply exact metadata labels to admitted and Logical hook selection and generic role reporting; private SelectedLoweringBindingIdentity separates actual admitted Native registration requirements from Logical descriptor metadata and delegates their one-root transport to Syntax; compiler admission, original argv/context/guard and reached handler remain independent; method-variable MAY protection uses actual conditional source-schema declaration shapes and unavailable advice widens textual protection instead of proving absence; explicit body-text shape classification selects exact-first Registry metadata and never issues Native lookup or frame authority | `xtask-owner-resolution` |
++| Selected lowering descriptor transport | `rust/tcl-registry/src/resolved_invocation.rs`; `rust/tcl-compiler/src/registry_invocation.rs`; `rust/tcl-compiler/src/lowering/mod.rs` | `InvocationFacts::descriptor_key`; `ResolvedInvocation::descriptor_key`; `AdmittedNativeCompilerInvocation::descriptor_key` | genuine retained selected facts supply exact metadata labels to admitted and Logical hook selection and generic role reporting; private SelectedLoweringBindingIdentity separates actual admitted Native registration requirements from Logical descriptor metadata and delegates their one-root transport to Syntax; compiler admission, original argv/context/guard and reached handler remain independent; method-variable MAY protection reads exact decoded literal VarWrite operands from the selected source schema, including captured prefixes, empty names and literal sigils/braces; unavailable advice retains separate unparsed source-text protection instead of proving absence; explicit body-text shape classification selects exact-first Registry metadata and never issues Native lookup or frame authority | `xtask-owner-resolution` |
+ | Conditional variable observation names | `rust/tcl-compiler/src/variable_observation_names.rs` | `VariableObservationNameSet`; `VariableProtectionPurpose`; `VariableWriteObservationPurpose`; `module_observation_key`; `variable_name_may_be_observed`; `record_variable_write_name` | explicit textual MAY inventories select module report-key, mixed exact/report or one-root native-lowering protection separately; deferred/global and outer-scope write projections retain their own aliases and array-root policies; decoded literal sigils, braces and empty variable names remain data, unknown inventories protect every name; exact VariableCellKey checks and genuine entered-Native observer guards remain independent, with no interpreted lookup, cell identity, callback-free state, absence or erasure permission | `xtask-owner-resolution` |
+ | APL variable convention | `rust/tcl-bigip/src/apl/variable_names.rs` | `tcl_var_to_apl_name`; `apl_name_to_tcl_var` | pure field convention delegates written root/qualifier geometry to Syntax; rooted and simple roots preserve lone colons while namespace-qualified roots decline; conventional export text is reporting only and supplies no appliance publication, native variable lookup or source-edit authority | `xtask-owner-resolution` |
+ | External script command inventory | `rust/tcl-syntax/src/naming/script_name_query.rs`; `rust/tcl-syntax/src/naming/script_command_inventory.rs`; `rust/tcl-cli/src/commands/spec_probe.rs` | `original_script_name_query_support`; `original_script_command_inventory_support`; `render_script` | real shell observations select query grammar without Native authority; C original simple words retain namespace context and checked root addressing; Jim uses its independent flat table; opaque or ambiguous inventory refuses as a whole; scanned registration literals remain unresolved authoring inputs | `xtask-owner-resolution` |

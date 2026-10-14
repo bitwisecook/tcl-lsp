@@ -23,10 +23,8 @@
 //! (`combine_sources`), analyse it, and
 //! emit a JSON-serialisable graph/symbol shape (or a plain-text summary).
 //!
-//! Native and hosted symbols use the shared independently current original
-//! source outline. Labels are presentation; opaque and repeated declarations
-//! retain separate source rows. Explicit lexical advice keeps its own scope
-//! walker with defining-span order.
+//! Symbols use the shared current source outline and procedure inventory.
+//! Labels are presentation; opaque and repeated declarations keep separate rows.
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -34,7 +32,7 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii, read_input_documents,
     registry_for_dialect, write_text_output,
 };
-use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind, VarDef};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef};
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::graphs;
 
@@ -65,17 +63,13 @@ struct SymbolsPayload {
     symbols: Vec<SymbolEntry>,
 }
 
-/// 1-based source line of a span's start offset.
-fn line_of(line_index: &LineIndex, offset: u32) -> u32 {
-    line_index.position_at(offset).line + 1
-}
-
 /// Project only current source cards; labels never select a declaration.
 fn original_symbol_entries(source: &str, analysis: &AnalysisResult) -> Vec<SymbolEntry> {
     use tcl_lsp_core::document_symbols::{DocumentSymbol, SymbolKind};
     let index = LineIndex::new(source);
-    let procedures =
-        tcl_lsp_core::procedure_symbol::declarations(source, analysis).unwrap_or_default();
+    let Some(procedures) = tcl_lsp_core::procedure_symbol::declarations(source, analysis) else {
+        return Vec::new();
+    };
     fn collect(
         source: &str,
         index: &LineIndex,
@@ -162,66 +156,6 @@ fn detect_event_entries(
         .collect()
 }
 
-/// Recursively collect proc/variable/namespace symbol entries from a scope.
-///
-/// Procs first (source order), then
-/// global/namespace-scope variables, then children — namespace children get
-/// an entry and recurse, proc children only recurse (to surface nested procs).
-fn collect_scope_entries(
-    scope: &Scope,
-    depth: usize,
-    line_index: &LineIndex,
-    out: &mut Vec<SymbolEntry>,
-) {
-    let mut procs: Vec<&ProcDef> = scope.procs.values().collect();
-    procs.sort_by_key(|p| p.name_span.start());
-    for proc in procs {
-        let params = proc.params.iter().map(|p| p.name.clone()).collect();
-        out.push(SymbolEntry {
-            kind: "function",
-            name: proc.name.clone(),
-            line: Some(line_of(line_index, proc.name_span.start())),
-            depth,
-            params: Some(params),
-        });
-    }
-
-    if matches!(scope.kind, ScopeKind::Global | ScopeKind::Namespace) {
-        let mut vars: Vec<&VarDef> = scope.variables.values().collect();
-        vars.sort_by_key(|v| v.definition_span.start());
-        for var in vars {
-            out.push(SymbolEntry {
-                kind: "variable",
-                name: var.name.clone(),
-                line: Some(line_of(line_index, var.definition_span.start())),
-                depth,
-                params: None,
-            });
-        }
-    }
-
-    for child in &scope.children {
-        match child.kind {
-            ScopeKind::Namespace => {
-                if let Some(body) = child.body_span {
-                    out.push(SymbolEntry {
-                        kind: "namespace",
-                        name: child.name.clone(),
-                        line: Some(line_of(line_index, body.start())),
-                        depth,
-                        params: None,
-                    });
-                    collect_scope_entries(child, depth + 1, line_index, out);
-                }
-            }
-            ScopeKind::Proc => {
-                collect_scope_entries(child, depth + 1, line_index, out);
-            }
-            _ => {}
-        }
-    }
-}
-
 /// `tcl symbols` — list every declared symbol (procs, namespaces, variables,
 /// iRules `when` events) across the combined input.
 pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
@@ -231,15 +165,7 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let result = Analyser::new()
         .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name))
         .analyse(&source, dialect.name);
-    let line_index = LineIndex::new(&source);
-
-    let entries = if result.allows_lexical_declaration_advice() {
-        let mut entries = Vec::new();
-        collect_scope_entries(&result.global_scope, 0, &line_index, &mut entries);
-        entries
-    } else {
-        original_symbol_entries(&source, &result)
-    };
+    let entries = original_symbol_entries(&source, &result);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -647,6 +573,44 @@ mod tests {
             ["HTTP_REQUEST"]
         );
     }
+    #[test]
+    fn logical_cli_symbols_share_current_outline_and_parameter_owners() {
+        let source = "set global VALUE\nproc top {first} {set local VALUE; proc nested {inside} {}}\nnamespace eval n {variable x VALUE; proc p {second} {}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let rows = original_symbol_entries(source, &analysis);
+        for (name, parameter) in [("top", "first"), ("nested", "inside"), ("p", "second")] {
+            let row = rows
+                .iter()
+                .find(|row| row.kind == "function" && row.name == name)
+                .unwrap();
+            assert_eq!(
+                row.params.as_deref(),
+                Some([parameter.to_owned()].as_slice())
+            );
+        }
+        assert!(
+            rows.iter()
+                .any(|row| row.kind == "namespace" && row.name == "n")
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row.kind == "variable" && row.name == "global")
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row.kind == "variable" && row.name == "x")
+        );
+        assert!(
+            !rows
+                .iter()
+                .any(|row| row.kind == "variable" && row.name == "local")
+        );
+        assert!(original_symbol_entries(&format!("# changed\n{source}"), &analysis).is_empty());
+        analysis.body_lexer_config = None;
+        assert!(original_symbol_entries(source, &analysis).is_empty());
+    }
+
     #[test]
     fn original_cli_symbols_preserve_repeated_opaque_headers_and_current_source() {
         // Implementation contract: naming.consumer.original-cli-source-symbols

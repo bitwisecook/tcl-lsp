@@ -1,0 +1,204 @@
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -37,11 +37,9 @@
+ //! 5. **Variable definition extraction**: [`defs_of`] extracts variable
+ //!    names defined by an IR statement.
+ //!
+-//! The full SSA rename pass ([`build_ssa`]) and variable-use scanner
+-//! ([`uses_of`]) are now implemented, completing the SSA construction
+-//! pipeline. The rename pass walks the dominator tree, assigns SSA
+-//! versions to variable definitions and uses, and fills in phi-node
+-//! incoming edges.
++//! The SSA rename pass ([`build_ssa`]) and variable-use scanner ([`uses_of`])
++//! walk the dominator tree, assigning SSA versions to definitions and uses
++//! and filling phi-node incoming edges.
+ 
+ use std::collections::{BTreeSet, HashMap, HashSet};
+ 
+@@ -50,7 +48,6 @@
+ 
+ use crate::cfg::{self, BlockId};
+ use crate::ir::{CommandTokens, SourceSite, Statement, WordExpr, WordPart};
+-use crate::naming::normalise_var_name;
+ use crate::var_refs::{VarReferenceScanner, VarScanOptions};
+ use crate::var_resolve::{
+     ContentsOrigin, ResolveContext, VariableCellKey, VariableCellKeyQuery, canonical_variable_key,
+@@ -2627,7 +2624,6 @@
+             })
+             .flatten()
+             .map(std::borrow::Cow::into_owned)
+-            .filter(|name| !name.is_empty())
+             .collect()
+     };
+     defs.extend(
+@@ -2647,8 +2643,7 @@
+                         name.to_owned()
+                     }
+                 })
+-            })
+-            .filter(|n| !n.is_empty()),
++            }),
+     );
+     defs
+ }
+@@ -2702,12 +2697,7 @@
+             if let Ok(names) =
+                 tcl_syntax::word_rules::WordValueRules::from_config(&config).split_list(text)
+             {
+-                defs.extend(
+-                    names
+-                        .into_iter()
+-                        .map(std::borrow::Cow::into_owned)
+-                        .filter(|name| !name.is_empty()),
+-                );
++                defs.extend(names.into_iter().map(std::borrow::Cow::into_owned));
+             }
+         }
+     }
+@@ -3907,7 +3897,7 @@
+         .map(|v| (v, UseClass::Substituted))
+         .chain(by_name.into_iter().map(|v| (v, UseClass::Name)))
+         .chain(quoted.into_iter().map(|v| (v, UseClass::Quoted)))
+-        .filter(|(v, _)| !v.is_empty() && (!defs.contains(v) || reads_own_def.contains(v)))
++        .filter(|(v, _)| !defs.contains(v) || reads_own_def.contains(v))
+         .collect()
+ }
+ 
+@@ -3984,11 +3974,9 @@
+             let Some(name) = crate::registry_invocation::invocation_word(word).literal() else {
+                 continue;
+             };
+-            let name = normalise_var_name(name).to_owned();
+-            if !name.is_empty() {
+-                found.by_name.insert(name.clone());
+-                reads_own_def.insert(name);
+-            }
++            let name = tcl_syntax::naming::normalise_var_name_braced(name, true).to_owned();
++            found.by_name.insert(name.clone());
++            reads_own_def.insert(name);
+         }
+         return;
+     }
+@@ -4008,8 +3996,7 @@
+     {
+         if let Some(name) = args
+             .get(index)
+-            .map(|name| normalise_var_name(name).to_owned())
+-            && !name.is_empty()
++            .map(|name| crate::naming::normalise_var_name(name).to_owned())
+         {
+             found.by_name.insert(name.clone());
+             reads_own_def.insert(name);
+@@ -4288,7 +4275,7 @@
+                           vars_found: &BTreeSet<String>,
+                           rod: &mut BTreeSet<String>| {
+         let norm = scanner.canonical_name_braced(name, braced);
+-        if !norm.is_empty() && vars_found.contains(norm) {
++        if vars_found.contains(norm) {
+             rod.insert(norm.to_owned());
+         }
+     };
+@@ -4353,10 +4340,8 @@
+             } else {
+                 // `incr a` names the cell it mutates; there is no `$a` word.
+                 let norm = scanner.canonical_name_braced(name, *name_braced);
+-                if !norm.is_empty() {
+-                    by_name.insert(norm.to_owned());
+-                    reads_own_def.insert(norm.to_owned());
+-                }
++                by_name.insert(norm.to_owned());
++                reads_own_def.insert(norm.to_owned());
+             }
+             // A braced amount substitutes nothing: `incr x {$n}` reads no
+             // `n` (it raises `expected integer but got "$n"`).
+@@ -6884,6 +6869,15 @@
+         std::sync::Arc<tcl_registry::model::ContextRegistry>,
+         crate::compilation_unit::CompilationUnit,
+     ) {
++        logical_metadata_fixture("info exists selected")
++    }
++
++    fn logical_metadata_fixture(
++        source: &str,
++    ) -> (
++        std::sync::Arc<tcl_registry::model::ContextRegistry>,
++        crate::compilation_unit::CompilationUnit,
++    ) {
+         use std::sync::Arc;
+         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+         let mut registry = baseline
+@@ -6904,7 +6898,7 @@
+         let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(&input)
+             .expect("genuine positive supplied Logical input");
+         let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+-            "info exists selected",
++            source,
+             crate::compilation_unit::UnitBuildOptions {
+                 registry: context.commands(),
+                 defer_top_level: false,
+@@ -8493,6 +8487,65 @@
+         assert!(
+             !reads[1].iter().any(|(name, _)| name == "name"),
+             "{reads:?}"
++        );
++    }
++
++    #[test]
++    fn original_literal_empty_reads_and_mutations_keep_name_data() {
++        // Native cases: experiments/name-handling/results/ssa-empty-read-write-names.
++        let source = "info exists {}; info exists {$name}; incr {}; incr {$counter}; dict with {} {}; dict with {$dict} {}";
++        let (context, unit) = logical_metadata_fixture(source);
++        let registry = context.commands();
++        let function = &unit.top_level;
++        let metadata = function
++            .invocation_metadata_context_for_module(registry, &unit.ir_module)
++            .expect("actual retained Logical source input");
++        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
++        let mut scanner = VarReferenceScanner::with_config(
++            VarScanOptions::default(),
++            function.source_lexer_config(),
++        );
++        let statements = &unit.ir_module.top_level.statements;
++        assert_eq!(statements.len(), 6);
++        for (statement, expected) in statements
++            .iter()
++            .zip(["", "$name", "", "$counter", "", "$dict"])
++        {
++            let reads = uses_of_classified_in_context(statement, &mut scanner, selection);
++            assert!(
++                reads.contains(&(expected.to_owned(), UseClass::Name)),
++                "{expected:?}: {reads:?}"
++            );
++            if let Some(unprefixed) = expected.strip_prefix('$') {
++                assert!(!reads.iter().any(|(name, _)| name == unprefixed));
++            }
++        }
++    }
++
++    #[test]
++    fn original_loop_name_lists_keep_empty_and_dollar_elements() {
++        // Native foreach cases: experiments/name-handling/results/ssa-empty-read-write-names.
++        let source = "foreach {{} {$name}} $values {}";
++        let (context, unit) = logical_metadata_fixture(source);
++        let registry = context.commands();
++        let function = &unit.top_level;
++        let script = &unit.ir_module.top_level;
++        let tokens = script
++            .retained_source_tokens_for_statement(&script.statements[0])
++            .expect("actual original loop words");
++        let metadata = function
++            .invocation_metadata_context_for_module(registry, &unit.ir_module)
++            .expect("actual retained Logical source input");
++        let selected = selected_barrier_defs(
++            SsaInvocationContext::supplied(registry, Some(metadata)),
++            tokens,
++        );
++        assert!(selected.contains(&String::new()), "{selected:?}");
++        assert!(selected.contains(&"$name".to_owned()), "{selected:?}");
++        assert!(!selected.contains(&"name".to_owned()), "{selected:?}");
++        assert!(
++            selected_barrier_defs(SsaInvocationContext::supplied(registry, None), tokens)
++                .is_empty()
+         );
+     }
+ 

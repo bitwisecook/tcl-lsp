@@ -1,0 +1,8 @@
+version 0.84-9-g5bac7c9
+namespace-variable {} 0 {} 0 value 0 value
+namespace-variable {$counter} 0 {} 0 value 0 value
+namespace-variable brace{name} 0 {} 0 value 0 value
+namespace-variable a(b) 0 {} 0 value 0 value
+namespace-variable ::literal 0 {} 0 value 0 value
+namespace-variable -dash 0 {} 0 value 0 value
+method-literal-names 1 {invalid command name "oo::class"}

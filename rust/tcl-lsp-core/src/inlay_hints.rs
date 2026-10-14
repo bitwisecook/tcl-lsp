@@ -29,7 +29,7 @@
 //!
 //! Type hints use a checked [`CompilationUnit`]. Exact original SSA
 //! definitions must match declaration inputs/spans; the explicitly admitted
-//! Logical branch projects per-function types onto analyser scope variables.
+//! Logical branch joins scope declarations to issued bodies before projecting types.
 //! Unknown or overdefined types do not produce annotations.
 //!
 //! Method-call parameter hints inside class bodies are not provided.
@@ -37,6 +37,7 @@
 use rustc_hash::FxHashMap;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::ir::ProcedureId;
 use tcl_compiler::types::{TypeKind, TypeLattice};
 use tcl_lexer::LineIndex;
 use tcl_registry::{CommandRegistry, TclType};
@@ -315,7 +316,7 @@ fn type_display(tl: &TypeLattice) -> Option<String> {
 /// Collect inferred-variable-type hints for exact original SSA definitions.
 /// Selected source inputs and byte cells must match their declaration under
 /// the complete current image/configuration. The explicit lexical-advice
-/// compatibility branch retains its separate reporting-scope projection.
+/// compatibility branch joins scope declarations through the same original body owner.
 fn collect_type_hints(
     source: &str,
     analysis: &AnalysisResult,
@@ -325,14 +326,14 @@ fn collect_type_hints(
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
-    let Some(config) = analysis.body_lexer_config else {
+    let Some((image, config)) = tcl_compiler::source_graph::current_analysis(source, analysis)
+    else {
         return;
     };
+    if cu.ir_module.source != image || cu.ir_module.lexer_config != config {
+        return;
+    }
     if !analysis.allows_lexical_declaration_advice() {
-        let image = tcl_lexer::SourceImage::document(source);
-        if !analysis.matches_original_source_image(&image, config) {
-            return;
-        }
         let mut hints = std::collections::BTreeMap::new();
         for function in cu.functions() {
             let metadata = function.invocation_metadata_context_for_module(registry, &cu.ir_module);
@@ -392,32 +393,34 @@ fn collect_type_hints(
         return;
     }
 
-    // Select each owning scope's type map by its normalised function name
-    // so equally spelled variables in unrelated functions remain separate.
-    let mut by_function: FxHashMap<String, FxHashMap<String, String>> = FxHashMap::default();
-    for fu in cu.functions() {
-        let mut m: FxHashMap<String, String> = FxHashMap::default();
-        for ((name, _ver), tl) in fu.types.iter() {
-            if let Some(display) = type_display(tl) {
-                m.insert(fu.ssa.var_name(*name).to_owned(), display);
+    let types_for = |function: &tcl_compiler::compilation_unit::FunctionUnit| {
+        let mut types = FxHashMap::default();
+        for ((name, _version), lattice) in function.types.iter() {
+            if let Some(display) = type_display(lattice) {
+                types.insert(function.ssa.var_name(*name).to_owned(), display);
             }
         }
-        if !m.is_empty() {
-            by_function.insert(normalise_fn_name(&fu.name), m);
+        types
+    };
+    let mut by_function = FxHashMap::default();
+    for (&body_id, function) in &cu.procedures {
+        if cu
+            .function_for_body(Some(body_id))
+            .is_some_and(|retained| std::ptr::eq(retained, function))
+        {
+            by_function.insert(body_id, types_for(function));
         }
     }
-    if by_function.is_empty() {
+    let Some(top) = cu.function_for_body(None) else {
         return;
-    }
-
-    let empty = FxHashMap::default();
-    let top = by_function
-        .get(&normalise_fn_name(&cu.top_level.name))
-        .unwrap_or(&empty);
+    };
+    let top_types = types_for(top);
     walk_scope_type_hints(
         &analysis.global_scope,
+        analysis,
+        cu,
         &by_function,
-        top,
+        &top_types,
         range,
         source,
         line_index,
@@ -426,13 +429,31 @@ fn collect_type_hints(
     );
 }
 
-/// Normalise a function / scope name to a comparable key: the analyser's proc
-/// scope names are unqualified (`a`) while a `FunctionUnit`'s name is fully
-/// qualified (`::a`), so strip a single leading `::`.
-fn normalise_fn_name(name: &str) -> String {
-    tcl_syntax::naming::unroot_rooted_key(name)
-        .unwrap_or(name)
-        .to_owned()
+/// Match an original scope body to one actual declaration and issued body.
+fn scope_body_id(
+    source: &str,
+    analysis: &AnalysisResult,
+    cu: &CompilationUnit,
+    scope: &Scope,
+) -> Option<ProcedureId> {
+    if scope.kind != ScopeKind::Proc {
+        return None;
+    }
+    let body_span = scope.body_span?;
+    let mut bodies = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| declaration.metadata().body_span == body_span)
+        .filter_map(|declaration| {
+            tcl_compiler::source_graph::procedure_body_for_declaration(
+                source,
+                analysis,
+                &cu.ir_module,
+                declaration,
+            )
+            .map(|(body_id, _)| body_id)
+        });
+    let selected = bodies.next()?;
+    bodies.next().is_none().then_some(selected)
 }
 
 /// Recursively emit type hints for every variable definition in `scope`
@@ -441,7 +462,9 @@ fn normalise_fn_name(name: &str) -> String {
 #[allow(clippy::too_many_arguments)]
 fn walk_scope_type_hints(
     scope: &Scope,
-    by_function: &FxHashMap<String, FxHashMap<String, String>>,
+    analysis: &AnalysisResult,
+    cu: &CompilationUnit,
+    by_function: &FxHashMap<ProcedureId, FxHashMap<String, String>>,
     type_map: &FxHashMap<String, String>,
     range: LspRange,
     source: &str,
@@ -473,20 +496,19 @@ fn walk_scope_type_hints(
     }
     let empty = FxHashMap::default();
     for child in &scope.children {
-        // A proc OR TclOO method body has its own function unit, so switch to
-        // that function's type map (never fall back to the enclosing one, which
-        // would re-introduce the cross-scope bleeding — a method's locals must
-        // not inherit an outer `x`). Namespace / uplevel-0 bodies share the
-        // enclosing function's locals, so they keep `type_map`.
+        // A new local frame needs its own retained body; namespace scopes
+        // keep the current frame's type map.
         let child_map = if matches!(child.kind, ScopeKind::Proc | ScopeKind::Method) {
-            by_function
-                .get(&normalise_fn_name(&child.name))
+            scope_body_id(source, analysis, cu, child)
+                .and_then(|body_id| by_function.get(&body_id))
                 .unwrap_or(&empty)
         } else {
             type_map
         };
         walk_scope_type_hints(
             child,
+            analysis,
+            cu,
             by_function,
             child_map,
             range,
@@ -3039,6 +3061,34 @@ mod retained_hint_context_tests {
             crate::registry_for_dialect("tcl8.6"),
         );
         assert!(!out.iter().any(|hint| hint.label == "int"), "{out:?}");
+    }
+
+    #[test]
+    fn logical_type_hints_keep_repeated_declarations_on_their_original_body_ids() {
+        let source = "proc repeated {} {set value 42}\nproc repeated {} {set value TEXT}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let registry = analysis.resolved_registry().unwrap();
+        let hints = inlay_hints(
+            source,
+            analysis.resolved_profile().unwrap(),
+            whole_document_range(source),
+            Some(&analysis),
+            Some(registry),
+            true,
+            false,
+        );
+        let labels = |line| {
+            hints
+                .iter()
+                .filter(|hint| hint.kind == InlayHintKind::Type && hint.position_line == line)
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert!(labels(0).contains(&": int"), "{hints:?}");
+        assert!(!labels(0).contains(&": str"), "{hints:?}");
+        assert!(labels(1).contains(&": str"), "{hints:?}");
+        assert!(!labels(1).contains(&": int"), "{hints:?}");
     }
 
     #[test]

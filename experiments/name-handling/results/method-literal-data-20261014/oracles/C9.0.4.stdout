@@ -1,0 +1,8 @@
+version 9.0.4
+namespace-variable {} 0 {} 0 value 0 value
+namespace-variable {$counter} 0 {} 0 value 0 value
+namespace-variable brace{name} 0 {} 0 value 0 value
+namespace-variable a(b) 1 {can't define "a(b)": name refers to an element in an array} 0 value 0 value
+namespace-variable ::literal 0 {} 0 value 0 value
+namespace-variable -dash 0 {} 0 value 0 value
+method-literal-names 0 {dollar-value empty-value brace-value}

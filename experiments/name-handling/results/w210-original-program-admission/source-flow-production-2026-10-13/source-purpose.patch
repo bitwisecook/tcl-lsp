@@ -1,0 +1,1024 @@
+--- a/rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+@@ -46,6 +46,55 @@
+     logical_parameters_text: Option<String>,
+     pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
+     pub(super) frame: crate::var_resolve::VariableExecutionFrame,
++}
++
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub(super) struct DeclaredProcedureHeader {
++    pub(super) declaration: CommandAllocationSite,
++    candidate: super::SourceCommandTarget,
++    slot: super::SourceCommandKey,
++    pub(super) namespace: super::SourceNamespaceKey,
++    pub(super) parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
++    pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
++    pub(super) frame: crate::var_resolve::VariableExecutionFrame,
++    written: usize,
++    value: String,
++}
++
++/// Checked original body scope for conditional source diagnostics.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub(super) struct OriginalProcedureReadFlowEntry {
++    pub(super) header: DeclaredProcedureHeader,
++    pub(super) read: OriginalProcedureReadDeclaration,
++    pub(super) snapshot: Arc<super::SourceLookupSnapshot>,
++}
++
++impl OriginalProcedureReadFlowEntry {
++    pub(super) fn owns_source(&self, origin: &Arc<super::SourceOriginId>, offset: u32) -> bool {
++        &self.header.declaration.source == origin
++            && self
++                .read
++                .original_body_span()
++                .is_some_and(|body| offset < body.end())
++            && self
++                .read
++                .owns_original_read(tcl_lexer::Span::new(offset, offset))
++    }
++    pub(super) fn owns_original_procedure(
++        &self,
++        procedure: &crate::ir::Procedure,
++        image: &tcl_lexer::SourceImage,
++    ) -> bool {
++        self.header.declaration.offset == procedure.span.start()
++            && self.read.original_image() == image
++            && self
++                .read
++                .original_body_span()
++                .is_some_and(|span| span.start() == procedure.body_offset)
++            && self.read.original_body_text() == procedure.body_source.as_deref()
++            && self.read.parameters_text() == Some(procedure.params_raw.as_str())
++            && self.read.parameter_names() == procedure.params
++    }
+ }
+ 
+ impl DeclaredProcedureBody {
+@@ -527,6 +576,56 @@
+                     return None;
+                 }
+                 agreed = Some(recipe);
++            }
++        }
++        agreed
++    }
++
++    pub(super) fn original_procedure_read_flow_entry(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++        registry: &tcl_registry::CommandRegistry,
++        input: &crate::analyser::ResolvedAnalysisInput,
++    ) -> Option<OriginalProcedureReadFlowEntry> {
++        let read = self.original_procedure_read_declaration(tokens, registry, input)?;
++        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
++            registry, input,
++        )?;
++        let site = tokens.source_binding.as_ref()?.invocation_site()?;
++        let mut agreed = None;
++        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
++            if row.config != input.lexer_config()
++                || declaration_tokens(site, row)?.words() != tokens.words()
++            {
++                return None;
++            }
++            let advice = super::original_site_operand_layout_advice(
++                site,
++                tokens,
++                &row.snapshot,
++                &row.namespace,
++                row.config,
++            )?;
++            if advice.dialect() != super::source_analysis_entry::source_input_dialect(input) {
++                return None;
++            }
++            for target in advice.targets() {
++                let entry = procedure_read_flow_for_target(
++                    site,
++                    tokens,
++                    row,
++                    target,
++                    &advice,
++                    &OriginalProcedureReadFlowRequest {
++                        registry,
++                        metadata,
++                        read: &read,
++                    },
++                )?;
++                if agreed.as_ref().is_some_and(|previous| previous != &entry) {
++                    return None;
++                }
++                agreed = Some(entry);
+             }
+         }
+         agreed
+@@ -1451,14 +1550,14 @@
+     }
+ }
+ 
+-fn procedure_body_recipe(
++fn procedure_declaration_header(
+     site: &CommandAllocationSite,
+     tokens: &crate::ir::CommandTokens,
+     observation: &DeclarationLayoutObservation,
+     facts: &tcl_registry::InvocationFacts,
+     candidate: &super::SourceCommandTarget,
+     operands: &ProcedureOperands<'_>,
+-) -> Option<DeclaredProcedureBody> {
++) -> Option<DeclaredProcedureHeader> {
+     use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition};
+     let ProcedureOperands {
+         effective,
+@@ -1529,28 +1628,144 @@
+     let EffectiveInvocationWord::Literal(value) = values.get(body_index)? else {
+         return None;
+     };
++    written.checked_sub(1)?;
++    tokens.words().get(*written)?;
++    let frame = declared_procedure_frame(site, &namespace);
++    Some(DeclaredProcedureHeader {
++        declaration: site.clone(),
++        candidate: candidate.clone(),
++        slot: key,
++        namespace,
++        parameters,
++        original_parameters,
++        frame,
++        written: *written,
++        value: value.to_owned(),
++    })
++}
++
++fn procedure_body_recipe(
++    site: &CommandAllocationSite,
++    tokens: &crate::ir::CommandTokens,
++    observation: &DeclarationLayoutObservation,
++    facts: &tcl_registry::InvocationFacts,
++    candidate: &super::SourceCommandTarget,
++    operands: &ProcedureOperands<'_>,
++) -> Option<DeclaredProcedureBody> {
++    let header =
++        procedure_declaration_header(site, tokens, observation, facts, candidate, operands)?;
+     let source = ExecutedScriptSource::from_word(
+         site.clone(),
+-        written.checked_sub(1)?,
+-        tokens.words().get(*written)?,
+-        value,
++        header.written.checked_sub(1)?,
++        tokens.words().get(header.written)?,
++        &header.value,
+         observation.config,
+     );
+     if source.origin != site.source {
+         return None;
+     }
+-    let frame = declared_procedure_frame(site, &namespace);
+     Some(DeclaredProcedureBody {
+-        declaration: site.clone(),
+-        candidate: candidate.clone(),
+-        slot: key,
++        declaration: header.declaration,
++        candidate: header.candidate,
++        slot: header.slot,
+         source,
+-        namespace,
+-        parameters,
++        namespace: header.namespace,
++        parameters: header.parameters,
+         logical_name: None,
+         logical_parameters_text: None,
+-        original_parameters,
+-        frame,
++        original_parameters: header.original_parameters,
++        frame: header.frame,
++    })
++}
++
++struct OriginalProcedureReadFlowRequest<'a> {
++    registry: &'a tcl_registry::CommandRegistry,
++    metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
++    read: &'a OriginalProcedureReadDeclaration,
++}
++
++fn procedure_read_flow_for_target(
++    site: &CommandAllocationSite,
++    tokens: &crate::ir::CommandTokens,
++    row: &DeclarationLayoutObservation,
++    target: &super::SourceCommandTarget,
++    advice: &super::OriginalCompilationLookupAdvice,
++    request: &OriginalProcedureReadFlowRequest<'_>,
++) -> Option<OriginalProcedureReadFlowEntry> {
++    if !target.registry_backed {
++        return None;
++    }
++    let effective = effective_words_for_target(tokens, target)?;
++    let dialect = advice.dialect();
++    let values = effective
++        .words
++        .iter()
++        .map(|word| {
++            effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
++        })
++        .collect::<Vec<_>>();
++    let words = values
++        .iter()
++        .map(EffectiveInvocationWord::as_registry_word)
++        .collect::<Vec<_>>();
++    let RegistryInvocationResolution::Resolved(facts) =
++        crate::registry_invocation::resolve_registry_words_in_realm_with_metadata_context(
++            request.registry,
++            Some(request.metadata),
++            &words,
++            Some(dialect),
++            advice.realm(),
++        )
++        .ok()?
++    else {
++        return None;
++    };
++    let header = procedure_declaration_header(
++        site,
++        tokens,
++        row,
++        &facts,
++        target,
++        &ProcedureOperands {
++            effective: &effective,
++            values: &values,
++            dialect,
++        },
++    )?;
++    if header
++        .parameters
++        .iter()
++        .map(|formal| formal.name.as_str())
++        .collect::<Vec<_>>()
++        != request
++            .read
++            .parameter_names()
++            .iter()
++            .map(String::as_str)
++            .collect::<Vec<_>>()
++    {
++        return None;
++    }
++    let mut state = row.snapshot.state.clone();
++    state.variable_frame = header.frame.clone();
++    state.source_variables = Arc::new(
++        state
++            .source_variables
++            .in_frame(&header.frame)
++            .with_namespace_identity(header.namespace.clone()),
++    );
++    header
++        .original_parameters
++        .as_ref()?
++        .seed_unknown(Arc::make_mut(&mut state.source_variables), request.registry);
++    state.current_source_origin = Some(Arc::clone(&site.source));
++    Some(OriginalProcedureReadFlowEntry {
++        header,
++        read: request.read.clone(),
++        snapshot: Arc::new(super::SourceLookupSnapshot::in_realm(
++            state,
++            row.snapshot.realm,
++        )),
+     })
+ }
+ 
+@@ -1715,7 +1930,7 @@
+         })
+ }
+ 
+-fn retains_successor_layout(
++pub(super) fn retains_successor_layout(
+     site: &CommandAllocationSite,
+     tokens: &crate::ir::CommandTokens,
+     snapshot: &Arc<SourceLookupSnapshot>,
+--- a/rust/tcl-compiler/src/command_binding/declaration_flow.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+@@ -75,9 +75,54 @@
+             .finish_non_exhaustive()
+     }
+ }
++
++#[derive(Debug, Clone, PartialEq, Eq)]
++enum DeclarationFlowFrame {
++    Existing(super::declaration_layout::OriginalDiagnosticFrameEntry),
++    Read(Arc<super::declaration_preview::OriginalProcedureReadFlowEntry>),
++}
++impl DeclarationFlowFrame {
++    fn origin(&self) -> &Arc<super::SourceOriginId> {
++        match self {
++            Self::Existing(entry) => &entry.source().origin,
++            Self::Read(entry) => &entry.header.declaration.source,
++        }
++    }
++    fn owns_read(&self, origin: &Arc<super::SourceOriginId>, span: tcl_lexer::Span) -> bool {
++        match self {
++            Self::Existing(entry) => entry.owns_source(origin, span.start()),
++            Self::Read(entry) => {
++                &entry.header.declaration.source == origin && entry.read.owns_original_read(span)
++            }
++        }
++    }
++    fn owns_original_context(&self, context: &crate::var_resolve::ResolveContext) -> bool {
++        match self {
++            Self::Existing(entry) => entry.owns_original_context(context),
++            Self::Read(entry) => super::SourceCommandBindings::context_owns_frame(
++                context,
++                &entry.header.frame,
++                Some(&entry.header.namespace),
++            ),
++        }
++    }
++    fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
++        match self {
++            Self::Existing(entry) => entry.parameters(),
++            Self::Read(entry) => &entry.header.parameters,
++        }
++    }
++    fn original_formal_topology(&self) -> Option<&super::formal_topology::OriginalFormalTopology> {
++        match self {
++            Self::Existing(entry) => entry.original_formal_topology(),
++            Self::Read(entry) => entry.header.original_parameters.as_ref(),
++        }
++    }
++}
++
+ #[derive(Clone, PartialEq, Eq)]
+ struct DeclarationFlowKey {
+-    entry: Arc<super::declaration_layout::OriginalDiagnosticFrameEntry>,
++    entry: Arc<DeclarationFlowFrame>,
+     config: tcl_lexer::LexerConfig,
+     dialect: tcl_registry::InvocationDialect,
+     registry: tcl_registry::RegistrySemanticKey,
+@@ -174,7 +219,7 @@
+     conditional_caller_alias_prefixes: BTreeSet<u32>,
+     aliases: BTreeSet<String>,
+     stores: BTreeSet<(u32, String)>,
+-    frame: super::declaration_layout::OriginalDiagnosticFrameEntry,
++    frame: DeclarationFlowFrame,
+ }
+ 
+ struct DeclaredOverwrite {
+@@ -213,7 +258,12 @@
+         procedure: &crate::ir::Procedure,
+         image: &tcl_lexer::SourceImage,
+     ) -> bool {
+-        original_procedure_entry_matches(&self.frame, procedure, image)
++        match &self.frame {
++            DeclarationFlowFrame::Existing(frame) => {
++                original_procedure_entry_matches(frame, procedure, image)
++            }
++            DeclarationFlowFrame::Read(entry) => entry.owns_original_procedure(procedure, image),
++        }
+     }
+ 
+     pub(crate) fn owns_invocation(&self, site: &CommandAllocationSite) -> bool {
+@@ -432,7 +482,7 @@
+             return None;
+         }
+         let key = DeclarationFlowKey {
+-            entry: Arc::clone(&first.entry),
++            entry: Arc::new(DeclarationFlowFrame::Existing(first.entry.as_ref().clone())),
+             config,
+             dialect,
+             registry: registry.snapshot().semantic_key(),
+@@ -441,15 +491,17 @@
+             return Some(report);
+         }
+         // Nested source queries must never run under the cache lock.
++        let frame = DeclarationFlowFrame::Existing(first.entry.as_ref().clone());
+         let mut builder = Builder {
+             inventory,
+             registry,
+             config,
+             dialect,
+-            entry: &first.entry,
++            entry: &frame,
+             nodes: vec![Node::default()],
+             jobs: Vec::new(),
+             conditional_overwrites: Vec::new(),
++            read_sites: BTreeSet::new(),
+         };
+         let entry = builder.placeholder();
+         builder.jobs.push(Job {
+@@ -471,6 +523,67 @@
+ }
+ 
+ impl super::SourceCommandBindings {
++    pub(crate) fn original_procedure_read_flow(
++        &self,
++        procedure: &crate::ir::Procedure,
++        image: &tcl_lexer::SourceImage,
++        registry: &tcl_registry::CommandRegistry,
++        input: &crate::analyser::ResolvedAnalysisInput,
++    ) -> Option<Arc<DeclarationFlowReport>> {
++        if !self.matches_original_source_image(image, input.lexer_config()) {
++            return None;
++        }
++        let binding = self.invocation_at_source("", procedure.span.start());
++        let (_, mut tokens) = binding.original_recorded_command()?;
++        tokens.source_binding = Some(binding);
++        let read = Arc::new(self.original_procedure_read_flow_entry(&tokens, registry, input)?);
++        if !read.owns_original_procedure(procedure, image) {
++            return None;
++        }
++        let config = input.lexer_config();
++        let dialect = super::source_analysis_entry::source_input_dialect(input);
++        let inventory = self.current_declaration_flow_inventory();
++        let frame = DeclarationFlowFrame::Read(Arc::clone(&read));
++        let key = DeclarationFlowKey {
++            entry: Arc::new(frame.clone()),
++            config,
++            dialect,
++            registry: registry.snapshot().semantic_key(),
++        };
++        if let Some(report) = inventory.reports.get(&key) {
++            return Some(report);
++        }
++        let body = read.read.original_body_span()?;
++        let source = tcl_lexer::SourceImage::from_bytes(
++            image.bytes().get(body.as_range())?,
++            image.channel(),
++        );
++        let mut builder = Builder {
++            inventory: &inventory,
++            registry,
++            config,
++            dialect,
++            entry: &frame,
++            nodes: vec![Node::default()],
++            jobs: Vec::new(),
++            conditional_overwrites: Vec::new(),
++            read_sites: BTreeSet::new(),
++        };
++        let entry = builder.placeholder();
++        builder.original_script(
++            &source,
++            body.start(),
++            &read.header.declaration.source,
++            tcl_lexer::SourceSegmentationPurpose::NestedScript,
++            entry,
++            Exits::all(0),
++        );
++        while let Some(job) = builder.jobs.pop() {
++            builder.script(&job);
++        }
++        Some(inventory.reports.retain(key, builder.evaluate(entry)))
++    }
++
+     /// Original declaration graph, independent of executable CFG carriers.
+     /// Every returned report validates the declaration allocation, original
+     /// image, body and native formals; it supplies only conditional advice.
+@@ -636,15 +749,22 @@
+     entry: usize,
+     exits: Exits,
+ }
++struct DeclarationSelectionScope<'a> {
++    snapshot: &'a Arc<super::SourceLookupSnapshot>,
++    namespace: &'a super::SourceNamespaceKey,
++    config: tcl_lexer::LexerConfig,
++}
++
+ struct Builder<'a> {
+     inventory: &'a DeclarationFlowInventory,
+     registry: &'a tcl_registry::CommandRegistry,
+     config: tcl_lexer::LexerConfig,
+     dialect: tcl_registry::InvocationDialect,
+-    entry: &'a super::declaration_layout::OriginalDiagnosticFrameEntry,
++    entry: &'a DeclarationFlowFrame,
+     nodes: Vec<Node>,
+     jobs: Vec<Job>,
+     conditional_overwrites: Vec<(usize, DeclaredOverwrite)>,
++    read_sites: BTreeSet<CommandAllocationSite>,
+ }
+ impl Builder<'_> {
+     fn placeholder(&mut self) -> usize {
+@@ -658,40 +778,56 @@
+         self.nodes[id].successors = vec![next];
+     }
+     fn script(&mut self, job: &Job) {
+-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
++        self.original_script(
+             &job.source.text,
+             job.source.base(),
+-            job.purpose.config(self.config),
++            &job.source.origin,
++            job.purpose,
++            job.entry,
++            job.exits,
++        );
++    }
++    fn original_script(
++        &mut self,
++        image: &tcl_lexer::SourceImage,
++        base: u32,
++        origin: &Arc<super::SourceOriginId>,
++        purpose: tcl_lexer::SourceSegmentationPurpose,
++        entry: usize,
++        exits: Exits,
++    ) {
++        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
++            image,
++            base,
++            purpose.config(self.config),
+         ) else {
+-            self.unknown(job.entry, job.exits.normal);
++            self.unknown(entry, exits.normal);
+             return;
+         };
+-        let mut next = job.exits.normal;
++        self.retain_read_sites(image, base, origin, &segments);
++        let mut next = exits.normal;
+         let mut next_original = None;
+         for segment in segments.iter().rev() {
+             if segment.is_partial {
+                 let unavailable = self.placeholder();
+-                self.unknown(unavailable, job.exits.other);
++                self.unknown(unavailable, exits.other);
+                 next = unavailable;
+                 next_original = None;
+                 continue;
+             }
+             let tokens = CommandTokens::from_segmented(
+-                &job.source
+-                    .text
+-                    .source_map()
+-                    .with_base(job.source.base(), 0, 0),
++                &image.source_map().with_base(base, 0, 0),
+                 self.config,
+                 segment,
+             );
+             let id = self.placeholder();
+             let site = CommandAllocationSite {
+-                source: Arc::clone(&job.source.origin),
++                source: Arc::clone(origin),
+                 offset: segment.span.start(),
+             };
+             let exits = Exits {
+                 normal: next,
+-                ..job.exits
++                ..exits
+             };
+             self.command(id, &tokens, &site, exits);
+             if let Some((next_tokens, next_site)) = &next_original {
+@@ -700,7 +836,42 @@
+             next_original = Some((tokens, site));
+             next = id;
+         }
+-        self.nodes[job.entry].successors = vec![next];
++        self.nodes[entry].successors = vec![next];
++    }
++
++    fn retain_read_sites(
++        &mut self,
++        image: &tcl_lexer::SourceImage,
++        base: u32,
++        origin: &Arc<super::SourceOriginId>,
++        segments: &[crate::segmenter::SegmentedCommand],
++    ) {
++        if let DeclarationFlowFrame::Read(read) = self.entry {
++            for segment in segments {
++                if segment.is_partial {
++                    break;
++                }
++                let tokens = super::source_command_tokens_boxed(image, base, self.config, segment);
++                let site = CommandAllocationSite {
++                    source: Arc::clone(origin),
++                    offset: segment.span.start(),
++                };
++                if !read.owns_source(origin, site.offset) {
++                    break;
++                }
++                self.read_sites.insert(site.clone());
++                if !super::declaration_preview::retains_successor_layout(
++                    &site,
++                    &tokens,
++                    &read.snapshot,
++                    &read.header.namespace,
++                    self.config,
++                    self.registry,
++                ) {
++                    break;
++                }
++            }
++        }
+     }
+ 
+     fn retain_conditional_overwrite(
+@@ -768,6 +939,72 @@
+         let target = tokens.words().get(*written)?.source().span;
+         Some((name.clone(), target))
+     }
++    fn selection_scopes(
++        &self,
++        tokens: &CommandTokens,
++        site: &CommandAllocationSite,
++    ) -> Option<Vec<DeclarationSelectionScope<'_>>> {
++        Some(match self.entry {
++            DeclarationFlowFrame::Existing(entry) => {
++                let observations = super::declaration_layout::original_declaration_layouts(
++                    self.inventory.layouts.get(site)?,
++                )?;
++                let mut scopes = Vec::new();
++                for observation in observations {
++                    if observation.entry.as_ref() != entry
++                        || observation.config != self.config
++                        || observation.words.as_ref() != tokens.words()
++                    {
++                        return None;
++                    }
++                    scopes.push(DeclarationSelectionScope {
++                        snapshot: &observation.snapshot,
++                        namespace: &observation.namespace,
++                        config: observation.config,
++                    });
++                }
++                scopes
++            }
++            DeclarationFlowFrame::Read(entry) => {
++                if !self.read_sites.contains(site) || !entry.owns_source(&site.source, site.offset)
++                {
++                    return None;
++                }
++                let source = entry.header.declaration.source.source_image();
++                let text = source.try_text().ok()?;
++                let first = tcl_lexer::word_span_at(text, tokens.words().first()?.source().span);
++                let last = tcl_lexer::word_span_at(text, tokens.words().last()?.source().span);
++                if first.start() != site.offset {
++                    return None;
++                }
++                let image = tcl_lexer::SourceImage::from_bytes(
++                    source
++                        .bytes()
++                        .get(first.start() as usize..last.end() as usize)?,
++                    source.channel(),
++                );
++                let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
++                    &image,
++                    first.start(),
++                    self.config.nested(),
++                )?;
++                let [segment] = segments.as_slice() else {
++                    return None;
++                };
++                let original =
++                    super::source_command_tokens_boxed(&image, first.start(), self.config, segment);
++                if original.words() != tokens.words() {
++                    return None;
++                }
++                vec![DeclarationSelectionScope {
++                    snapshot: &entry.snapshot,
++                    namespace: &entry.header.namespace,
++                    config: self.config,
++                }]
++            }
++        })
++    }
++
+     fn selection(
+         &self,
+         tokens: &CommandTokens,
+@@ -776,23 +1013,15 @@
+         crate::registry_invocation::DeclarationInvocationFlow,
+         Option<super::lifecycle_advice::SourceScopedLifecycleAdvice>,
+     )> {
+-        let observations = super::declaration_layout::original_declaration_layouts(
+-            self.inventory.layouts.get(site)?,
+-        )?;
+         let mut agreed = None;
+-        for observation in observations {
+-            if observation.entry.as_ref() != self.entry
+-                || observation.config != self.config
+-                || observation.words.as_ref() != tokens.words()
+-            {
+-                return None;
+-            }
++        for DeclarationSelectionScope {
++            snapshot,
++            namespace,
++            config,
++        } in self.selection_scopes(tokens, site)?
++        {
+             let advice = super::original_site_operand_layout_advice(
+-                site,
+-                tokens,
+-                &observation.snapshot,
+-                &observation.namespace,
+-                observation.config,
++                site, tokens, snapshot, namespace, config,
+             )?;
+             if advice.dialect() != self.dialect {
+                 return None;
+@@ -813,7 +1042,7 @@
+                     point.dispatch
+                         && point.offset == site.offset
+                         && point.state.current_source_origin.as_ref() == Some(&site.source)
+-                        && point.state.variable_frame == observation.snapshot.state.variable_frame
++                        && point.state.variable_frame == snapshot.state.variable_frame
+                 });
+             let mut points = points.peekable();
+             if points.peek().is_some() {
+@@ -826,11 +1055,12 @@
+                 &advice,
+             )?;
+             let lifecycle = if selected.flow == ScriptBodyFlow::CapturedLifecycle {
+-                Some(advice.scoped_declaration_lifecycle_advice(
+-                    &retained,
+-                    self.registry,
+-                    self.entry,
+-                )?)
++                Some(match self.entry {
++                    DeclarationFlowFrame::Existing(entry) => advice
++                        .scoped_declaration_lifecycle_advice(&retained, self.registry, entry)?,
++                    DeclarationFlowFrame::Read(entry) => advice
++                        .scoped_procedure_read_lifecycle_advice(&retained, self.registry, entry)?,
++                })
+             } else {
+                 None
+             };
+@@ -1419,7 +1649,7 @@
+             }
+             return Some(false);
+         }
+-        if !name.contains("::") && self.entry.owns_source(&site.source, span.start()) {
++        if !name.contains("::") && self.entry.owns_read(&site.source, span) {
+             events.push(Event::AuthoredRead(name.to_owned(), span));
+         }
+         if !self.retained_local_read(site, span, text, name, true) {
+@@ -1669,9 +1899,7 @@
+                         output.push(Event::Unknown);
+                         continue;
+                     };
+-                    if !name.contains("::")
+-                        && self.entry.owns_source(&site.source, read_span.start())
+-                    {
++                    if !name.contains("::") && self.entry.owns_read(&site.source, read_span) {
+                         output.push(Event::AuthoredRead(name.to_owned(), read_span));
+                     }
+                     if self.retained_local_read(site, read_span, original, name, false) {
+@@ -1800,7 +2028,7 @@
+         }
+     }
+     fn evaluate(self, entry: usize) -> DeclarationFlowReport {
+-        let source = Arc::clone(&self.entry.source().origin);
++        let source = Arc::clone(self.entry.origin());
+         let mut report = DeclarationFlowReport {
+             source,
+             reads: BTreeMap::new(),
+@@ -2331,15 +2559,17 @@
+         .unwrap()
+         .next()
+         .unwrap();
++        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
+         let mut builder = Builder {
+             inventory,
+             registry: &registry,
+             config,
+             dialect: tcl_registry::InvocationDialect::of_profile(profile),
+-            entry: &observation.entry,
++            entry: &frame,
+             nodes: Vec::new(),
+             jobs: Vec::new(),
+             conditional_overwrites: Vec::new(),
++            read_sites: BTreeSet::new(),
+         };
+         let (selected, lifecycle) = builder.selection(&tokens, site).unwrap();
+         let lifecycle = lifecycle.unwrap();
+@@ -2383,16 +2613,18 @@
+             .source_variables
+             .invocation_dialect
+             .unwrap();
++        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
+         let selection = |inventory| {
+             let builder = Builder {
+                 inventory,
+                 registry,
+                 config,
+                 dialect,
+-                entry: &observation.entry,
++                entry: &frame,
+                 nodes: Vec::new(),
+                 jobs: Vec::new(),
+                 conditional_overwrites: Vec::new(),
++                read_sites: BTreeSet::new(),
+             };
+             let mut raw = tokens.clone();
+             raw.source_binding = None;
+@@ -2486,11 +2718,14 @@
+             .semantic_key();
+         assert!(inventory.reports.get(&changed).is_none());
+         changed = key.clone();
++        let DeclarationFlowFrame::Existing(original_entry) = key.entry.as_ref() else {
++            panic!("retained original diagnostic frame");
++        };
+         let super::super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
+             source,
+             frame,
+             namespace,
+-        } = key.entry.as_ref()
++        } = original_entry
+         else {
+             panic!("original root entry");
+         };
+@@ -2499,13 +2734,13 @@
+         foreign_source.origin = Arc::new(super::super::SourceOriginId::authored_image(
+             foreign_source.text.clone(),
+         ));
+-        changed.entry = Arc::new(
++        changed.entry = Arc::new(DeclarationFlowFrame::Existing(
+             super::super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
+                 source: foreign_source,
+                 frame: frame.clone(),
+                 namespace: namespace.clone(),
+             },
+-        );
++        ));
+         assert!(inventory.reports.get(&changed).is_none());
+         let clone = bindings.clone();
+         assert!(clone.declaration_flow_cache.0.lock().unwrap().is_none());
+--- a/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs
+@@ -87,6 +87,32 @@
+             &self.site,
+             entry.frame(),
+             &self.namespace,
++        )
++    }
++    pub(super) fn scoped_procedure_read_lifecycle_advice(
++        &self,
++        tokens: &CommandTokens,
++        registry: &tcl_registry::CommandRegistry,
++        entry: &super::declaration_preview::OriginalProcedureReadFlowEntry,
++    ) -> Option<SourceScopedLifecycleAdvice> {
++        if !entry.owns_source(&self.site.source, self.site.offset)
++            || &entry.header.frame != self.frame()
++            || tokens
++                .source_binding
++                .as_ref()
++                .is_some_and(|binding| binding.entered_execution_observer.observed())
++        {
++            return None;
++        }
++        let invocation = crate::registry_invocation::DeclarationLifecycleInvocation::for_layout(
++            registry, tokens, self,
++        )?;
++        SourceScopedLifecycleAdvice::retained(
++            invocation,
++            &self.snapshot.state,
++            &self.site,
++            &entry.header.frame,
++            &entry.header.namespace,
+         )
+     }
+ }
+--- a/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
+@@ -1574,6 +1574,16 @@
+         let original_image = tcl_lexer::SourceImage::document(&self.source);
+         let declared_flow = ir_proc.and_then(|procedure| {
+             function_declaration_flow(fu, procedure, &original_image, &self.profile_registry())
++                .or_else(|| {
++                    self.head_identities
++                        .source_bindings()
++                        .original_procedure_read_flow(
++                            procedure,
++                            &original_image,
++                            &self.profile_registry(),
++                            self.result.resolved_input.as_ref()?,
++                        )
++                })
+         });
+ 
+         // Unknown writers retire physical absence proofs. Declaration advice
+--- a/rust/tcl-compiler/src/script_binds.rs
++++ b/rust/tcl-compiler/src/script_binds.rs
+@@ -693,6 +693,90 @@
+         );
+     }
+ 
++    fn native_read_fixture(
++        source: &str,
++        profile: &'static tcl_dialect::DialectProfile,
++    ) -> (tcl_vm::Vm, crate::analyser::AnalysisResult) {
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            tcl_registry::model::ingress::context_for_profile(profile),
++            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++        );
++        let (owner, captured) =
++            crate::environment_ingress::captured_native_entry_with_owner(profile);
++        let entry = crate::command_binding::SourceAnalysisEntry {
++            metadata_context:
++                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
++                    &input,
++                )),
++            native_entry: Some(std::sync::Arc::new(captured)),
++            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
++            ..Default::default()
++        };
++        let analysis = crate::analyser::Analyser::new()
++            .with_resolved_input(input)
++            .with_source_analysis_entry(std::sync::Arc::new(entry))
++            .analyse(source, profile.name);
++        (owner, analysis)
++    }
++
++    #[test]
++    fn native_read_scope_requires_matching_complete_metadata() {
++        use crate::registry_invocation::OwnedInvocationMetadataContext as Metadata;
++        let source = "proc p {arg} {puts $missing}";
++        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            tcl_registry::model::ingress::context_for_profile(profile),
++            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++        );
++        let foreign_profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
++        let foreign = crate::analyser::ResolvedAnalysisInput::new(
++            foreign_profile,
++            foreign_profile,
++            tcl_registry::model::ingress::context_for_profile(foreign_profile),
++            tcl_lexer::LexerConfig::for_file_grammar(foreign_profile.grammar),
++        );
++        for metadata in [
++            Metadata::Standalone,
++            Metadata::Unavailable,
++            Metadata::Supplied(input.context_registry()),
++            Metadata::for_source_input(Some(&input.for_nested_source())),
++            Metadata::for_source_input(Some(&foreign)),
++        ] {
++            let (_owner, captured) =
++                crate::environment_ingress::captured_native_entry_with_owner(profile);
++            let entry = crate::command_binding::SourceAnalysisEntry {
++                metadata_context: metadata,
++                native_entry: Some(std::sync::Arc::new(captured)),
++                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
++                ..Default::default()
++            };
++            let analysis = crate::analyser::Analyser::new()
++                .with_resolved_input(input.clone())
++                .with_source_analysis_entry(std::sync::Arc::new(entry))
++                .analyse(source, profile.name);
++            let realm = analysis.retained_command_realm().unwrap();
++            let binding = realm.invocation_at_source("", 0);
++            let Some((_, mut tokens)) = binding.original_recorded_command() else {
++                continue;
++            };
++            tokens.source_binding = Some(binding);
++            assert!(
++                realm
++                    .source_bindings_ref()
++                    .original_procedure_read_declaration(
++                        &tokens,
++                        input.context_registry().commands(),
++                        &input
++                    )
++                    .is_none()
++            );
++        }
++    }
++
+     #[test]
+     fn selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate() {
+         // naming.compiler.original-analysis-metadata-context
+@@ -708,16 +792,7 @@
+         ] {
+             let source = format!("proc ::missing::p {{{formals}}} {{puts $missing}}");
+             let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+-            let (_owner, captured) =
+-                crate::environment_ingress::captured_native_entry_with_owner(profile);
+-            let entry = crate::command_binding::SourceAnalysisEntry {
+-                native_entry: Some(std::sync::Arc::new(captured)),
+-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+-                ..Default::default()
+-            };
+-            let analysis = crate::analyser::Analyser::new()
+-                .with_source_analysis_entry(std::sync::Arc::new(entry))
+-                .analyse(&source, dialect);
++            let (_owner, analysis) = native_read_fixture(&source, profile);
+             let input = analysis.resolved_input.as_ref().unwrap();
+             let context = input.context_registry();
+             let realm = analysis.retained_command_realm().unwrap();
+@@ -821,16 +896,7 @@
+ 
+     fn native_read_scope(source: &str, declaration: &str) -> bool {
+         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+-        let (_owner, captured) =
+-            crate::environment_ingress::captured_native_entry_with_owner(profile);
+-        let entry = crate::command_binding::SourceAnalysisEntry {
+-            native_entry: Some(std::sync::Arc::new(captured)),
+-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+-            ..Default::default()
+-        };
+-        let analysis = crate::analyser::Analyser::new()
+-            .with_source_analysis_entry(std::sync::Arc::new(entry))
+-            .analyse(source, profile.name);
++        let (_owner, analysis) = native_read_fixture(source, profile);
+         let input = analysis.resolved_input.as_ref().unwrap();
+         let context = input.context_registry();
+         let realm = analysis.retained_command_realm().unwrap();

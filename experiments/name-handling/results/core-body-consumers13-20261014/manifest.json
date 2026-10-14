@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "before_sha256": "6e33a968bdfc31f0c71a7e0025d0fcc6335da8505bd4c5df956f013784ad61c1",
+      "after_sha256": "24f37bcf62a70715e11e2098a237cd7f8cfac6fb5f265a697559daca17701f7e"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "before_sha256": "2cacaa25913c4c319d717e39b15ad5e930d176da5f0bf9d50ec2976f1f94431f",
+      "after_sha256": "6b0c1b8bab43ffbf7cf8a4834167e0c315cc89d70f7db6961035a1560c54d76c"
+    }
+  ],
+  "patch_sha256": "3377d5672c7bd80a05ebf0c727e9fc20150c5dd8eb0793012a05c49b0703bd13",
+  "scope": "Production Core type/body joins use current Module-issued ProcedureIds plus original declaration allocation/source_graph guards. Call graph invocation/callee-site joins share original receipt path for all source modes; no qualified-name inverse. Actual report labels unchanged. One meaningful repeated-declaration type-hint control added; original tests/assertions untouched.",
+  "validation": "Apply-check only; no Cargo/Main writes. All original source/currentness and source producer controls require parent execution."
+}

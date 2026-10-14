@@ -1,0 +1,40 @@
+{
+  "finished_utc": "2026-10-13T16:03:43.933448+00:00",
+  "exit_code": 101,
+  "seconds": 915.2842391560007,
+  "summaries": [],
+  "changed_sources": {},
+  "running_test_counts": [
+    "35"
+  ],
+  "executed_test_binaries": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-78463101920c36d4",
+      "sha256": "f037c47edc8ca28461d7bacec49a1e8f74c60960ec1623e00492c0f022b2cded",
+      "bytes": 365614912
+    }
+  ],
+  "tested": true,
+  "run_completed": false,
+  "termination": {
+    "requested_utc": "2026-10-13T16:03:40.256908+00:00",
+    "pid": 66736,
+    "signal": "SIGTERM",
+    "signal_number": 15,
+    "reason": "Parent-authorised bounded termination: original oracle-program regression remains unfinished at approximately100 percentCPU for several minutes",
+    "completed_controls": [
+      "analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque",
+      "analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads",
+      "analyser::diagnostics::tests::tcltest_import_is_namespace_scoped"
+    ],
+    "unfinished_control": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+    "assertion_failure_observed": false
+  },
+  "completed_tests": [
+    "analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque",
+    "analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads",
+    "analyser::diagnostics::tests::tcltest_import_is_namespace_scoped"
+  ],
+  "failed_assertion_count_observed": 0,
+  "unfinished_tests_total": null
+}

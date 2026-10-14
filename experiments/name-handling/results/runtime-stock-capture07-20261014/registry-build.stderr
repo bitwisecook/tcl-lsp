@@ -1,0 +1,41 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling zmij v1.0.23
+   Compiling ring v0.17.14
+   Compiling oid-registry v0.8.1
+   Compiling itoa v1.0.18
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling primeorder v0.14.0
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling ecdsa v0.17.0
+   Compiling num-bigint v0.4.8
+   Compiling serde_derive v1.0.229
+   Compiling getrandom v0.2.17
+   Compiling untrusted v0.9.0
+   Compiling der-parser v10.0.0
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling crypto-primes v0.7.2
+   Compiling lazy_static v1.5.1
+   Compiling data-encoding v2.11.1
+   Compiling x509-parser v0.18.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling p384 v0.14.0
+   Compiling p256 v0.14.0
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling base64 v0.23.1
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling ipnet v2.12.2
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-userdirs v0.1.0 (/workspace/tcl-lsp/rust/tcl-userdirs)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+    Finished `test` profile [unoptimized] target(s) in 2m 51s

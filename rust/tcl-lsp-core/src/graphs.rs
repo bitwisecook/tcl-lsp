@@ -432,7 +432,7 @@ fn is_inside_proc(range: Span, ir_module: &IrModule) -> bool {
         .any(|proc| range.start() >= proc.span.start() && range.end() <= proc.span.end())
 }
 
-/// Call-site positions of `callee_qname` within `containing_proc`'s body.
+/// Call-site positions joined to the actual callee and containing body.
 fn find_call_sites_in_scope(
     analysis: &AnalysisResult,
     callee_id: &ProcedureId,
@@ -444,28 +444,17 @@ fn find_call_sites_in_scope(
     let Some(containing_body) = ir_module.procedures.get(containing_proc) else {
         return Vec::new();
     };
-    let Some(callee_body) = ir_module.procedures.get(callee_id) else {
+    let mut declarations = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| {
+            original::compiled_body_id(source, analysis, ir_module, declaration) == Some(*callee_id)
+        });
+    let Some(callee) = declarations.next() else {
         return Vec::new();
     };
-    let callee_qname = callee_body.qualified_name.as_str();
-    let original_callee = if analysis.allows_lexical_declaration_advice() {
-        None
-    } else {
-        let mut declarations = analysis.original_procedure_declarations().filter(|row| {
-            original::compiled_body_id(source, analysis, ir_module, row) == Some(*callee_id)
-        });
-        let Some(first) = declarations.next() else {
-            return Vec::new();
-        };
-        if declarations.next().is_some() {
-            return Vec::new();
-        }
-        Some(first)
-    };
-    let legacy_callee = analysis
-        .allows_lexical_declaration_advice()
-        .then(|| analysis.all_procs.get(callee_qname))
-        .flatten();
+    if declarations.next().is_some() {
+        return Vec::new();
+    }
     let mut sites = Vec::new();
     for inv in &analysis.command_invocations {
         if inv.range.start() < containing_body.span.start()
@@ -473,26 +462,9 @@ fn find_call_sites_in_scope(
         {
             continue;
         }
-        let matches = original_callee.map_or_else(
-            || {
-                legacy_callee.is_some_and(|callee| {
-                    callee.body_span.start() == callee_body.body_offset
-                        && crate::references::invocation_calls_proc(
-                            analysis,
-                            inv,
-                            callee_qname,
-                            callee,
-                            source,
-                        )
-                })
-            },
-            |callee| {
-                crate::original_declaration::invocation_targets_declaration(
-                    source, analysis, inv, callee, true,
-                )
-            },
-        );
-        if !matches {
+        if !crate::original_declaration::invocation_targets_declaration(
+            source, analysis, inv, callee, true,
+        ) {
             continue;
         }
         sites.push(pos_value(line_index, source, inv.range.start()));
@@ -508,36 +480,22 @@ fn resolve_invocation_target(
     source: &str,
     ir_module: &IrModule,
 ) -> Option<ProcedureId> {
-    if !analysis.allows_lexical_declaration_advice() {
-        let mut selected = analysis
-            .original_procedure_declarations()
-            .filter(|row| {
-                crate::original_declaration::invocation_targets_declaration(
-                    source, analysis, inv, row, true,
-                )
-            })
-            .filter_map(|row| original::compiled_body_id(source, analysis, ir_module, row))
-            .filter(|id| proc_ids.contains(id));
-        let first = selected.next()?;
-        return selected.next().is_none().then_some(first);
-    }
-    let mut selected = proc_ids.iter().filter(|id| {
-        let Some(body) = ir_module.procedures.get(id) else {
-            return false;
-        };
-        let Some(proc) = analysis.all_procs.get(&body.qualified_name) else {
-            return false;
-        };
-        proc.body_span.start() == body.body_offset
-            && crate::references::invocation_calls_proc(
+    let mut selected = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| {
+            crate::original_declaration::invocation_targets_declaration(
+                source,
                 analysis,
                 inv,
-                &body.qualified_name,
-                proc,
-                source,
+                declaration,
+                true,
             )
-    });
-    let first = *selected.next()?;
+        })
+        .filter_map(|declaration| {
+            original::compiled_body_id(source, analysis, ir_module, declaration)
+        })
+        .filter(|id| proc_ids.contains(id));
+    let first = selected.next()?;
     selected.next().is_none().then_some(first)
 }
 

@@ -55,7 +55,8 @@ pub struct EventHandler {
 #[must_use]
 pub fn event_handlers(source: &str, config: LexerConfig) -> Vec<EventHandler> {
     event_handlers_with_head_predicate(source, config, |head, _| {
-        head.trim_start_matches("::") == "when"
+        let written = crate::naming::canonical_written_command(head);
+        crate::naming::unroot_rooted_key(&written).unwrap_or(&written) == "when"
     })
 }
 
@@ -277,6 +278,46 @@ mod tests {
             top.iter().map(|h| h.event.as_str()).collect::<Vec<_>>(),
             ["HTTP_REQUEST"]
         );
+    }
+
+    #[test]
+    fn default_head_geometry_matches_original_custom_commands() {
+        let captures = [
+            include_str!(
+                "../../../experiments/name-handling/syntax-event-head-geometry/8.4.20/stdout.bin"
+            ),
+            include_str!(
+                "../../../experiments/name-handling/syntax-event-head-geometry/8.5.19/stdout.bin"
+            ),
+            include_str!(
+                "../../../experiments/name-handling/syntax-event-head-geometry/8.6.18/stdout.bin"
+            ),
+            include_str!(
+                "../../../experiments/name-handling/syntax-event-head-geometry/9.0.4/stdout.bin"
+            ),
+            include_str!(
+                "../../../experiments/name-handling/syntax-event-head-geometry/9.1.0/stdout.bin"
+            ),
+            include_str!(
+                "../../../experiments/name-handling/syntax-event-head-geometry/jim/stdout.bin"
+            ),
+        ];
+        for capture in captures {
+            let mut observed = 0;
+            for row in capture.lines().filter(|row| row.starts_with("GEOMETRY ")) {
+                let columns: Vec<_> = row.split_whitespace().collect();
+                let head = columns[1];
+                let expected = columns[5] == "ROOT";
+                let source = format!("{head} EVENT {{}}");
+                assert_eq!(
+                    event_handlers(&source, irules()).len(),
+                    usize::from(expected),
+                    "original custom command: {row}"
+                );
+                observed += 1;
+            }
+            assert_eq!(observed, 12);
+        }
     }
 
     #[test]

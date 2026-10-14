@@ -1,0 +1,84 @@
+{
+  "source": "probe.tcl",
+  "providers": [
+    {
+      "provider": "c8.4",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 1 {invalid command name \"dict\"}\nempty_dict_with 1 {invalid command name \"dict\"}\nliteral_dollar_foreach 0 VALUE\n",
+      "stderr": ""
+    },
+    {
+      "provider": "c8.5",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
+      "stderr": ""
+    },
+    {
+      "provider": "c8.6",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
+      "stderr": ""
+    },
+    {
+      "provider": "c9.0",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
+      "stderr": ""
+    },
+    {
+      "provider": "c9.1",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
+      "stderr": ""
+    },
+    {
+      "provider": "jim",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "executable_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
+      "stderr": ""
+    }
+  ],
+  "scope": "Original fresh interpreter processes, finite literal-name operations; no tcltest, no Rust frame/cell authority or F5 observation."
+}

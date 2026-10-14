@@ -1,0 +1,8 @@
+puts [list IDENTITY [info patchlevel]]
+puts [list BINARY_PARAMS [info args binary]]
+puts [list BINARY_BODY [info body binary]]
+puts [list PACK [package provide pack]]
+puts [list REGEXP [package provide regexp]]
+puts [list BINARY [package provide binary]]
+puts [list FORMAT [info args {binary format}]]
+puts [list SCAN [info args {binary scan}]]

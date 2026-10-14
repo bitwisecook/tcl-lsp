@@ -1,0 +1,49 @@
+--- a/runtime/rust/tests/native_namespace_command_query.rs
++++ b/runtime/rust/tests/native_namespace_command_query.rs
+@@ -102,6 +102,16 @@
+ }
+ 
+ fn compare_reports(environment: &str, source: &[u8], expected: &[u8], rows: usize) {
++    compare_reports_with_setup(environment, source, expected, rows, |_| {});
++}
++
++fn compare_reports_with_setup(
++    environment: &str,
++    source: &[u8],
++    expected: &[u8],
++    rows: usize,
++    setup: impl FnOnce(&mut Interp),
++) {
+     let host = Rc::new(CaptureHost {
+         native: NativeHost::new(),
+         stdout: RefCell::new(Vec::new()),
+@@ -113,6 +123,7 @@
+         tcl_registry::special_vars::NativeBootstrapInputs::default(),
+     )
+     .unwrap();
++    setup(&mut interp);
+     assert_eq!(
+         interp.eval_str(source),
+         Code::Ok,
+@@ -447,9 +458,18 @@
+ 
+ #[test]
+ fn alias_registration_guest_nul_original_jim() {
+-    compare_reports("jim",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/jim/stdout.bin"), 18);
++    // The original jimsh loads binary.tcl; Jim_CreateInterp alone does not.
++    compare_reports_with_setup(
++        "jim",
++        include_bytes!(
++            "../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"
++        ),
++        include_bytes!(
++            "../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/jim/stdout.bin"
++        ),
++        18,
++        tcl_runtime::cmd_binary::install,
++    );
+ }
+ 
+ #[test]

@@ -1887,8 +1887,8 @@
           "sha256": "a658ffa411c0be3a4eaec6290563afb36347bc02466b10d9fde455409334da12"
         }
       ],
-      "input_purpose": "Actual declaration/body/source identity currently indexed by reporting QName",
-      "shared_owner_api": "Existing original declaration/source/allocation owners; planned retained declaration/body ID",
+      "input_purpose": "Module-issued ProcedureId, original source body/allocation joins, OriginalProcedureSummaryOwners and five-field PreparedCfgContext replace production display-name selection. Public string callee helpers are test compatibility only.",
+      "shared_owner_api": "Module-issued ProcedureId, original source body/allocation joins, OriginalProcedureSummaryOwners and five-field PreparedCfgContext replace production display-name selection. Public string callee helpers are test compatibility only.",
       "required_preconditions": [
         "All bodies survive fallback, no cross-source/span equality, preserve original call selection/ambiguity/currentness"
       ],
@@ -1899,8 +1899,8 @@
       "related_issues": [
         1778
       ],
-      "status": "isolated-primary-ID-slice-authored-uncompiled; additional-joins-pending",
-      "action": "Finite full map migration from codegen-consumers.md + /tmp/codegen-1778-structured-procedure-plan.md; labels remain reporting only.",
+      "status": "main-integrated; current-consumer-execution-pending",
+      "action": "Execute current original summary/global/deferred/upvar controls; genuine upframe/body producers remain active.",
       "owner_report_reference": "lookup_migration",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -1957,6 +1957,36 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Current source inspection plus Root 02:36 tracking and bounded Proofs/DB owner reports; not execution evidence",
+        "site_hashes": [
+          {
+            "path": "rust/tcl-compiler/src/ir.rs",
+            "sha256": "c2672948bf45c89e0225378422f6a89173f720926a0dbf6bd7ad352bdba58d6d"
+          },
+          {
+            "path": "rust/tcl-compiler/src/compilation_unit.rs",
+            "sha256": "c808cce440192de9f0bdb1e39f1947005bc107dcd5ee5e5c32c7c8e1b3c9d446"
+          },
+          {
+            "path": "rust/tcl-compiler/src/interprocedural.rs",
+            "sha256": "0ca176a96777b72e783d219e534078429849b6df32c73b4e70307ec3369084dc"
+          },
+          {
+            "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+            "sha256": "0bc3e5ca91a79a92652a356fce7c4e3bc8b252094d87eaedda8a5dcd8c65b206"
+          },
+          {
+            "path": "rust/tcl-compiler/src/interprocedural/eager.rs",
+            "sha256": "513b6fb0dbf7c5a573d4d0235080a20899c5c54ffbb412b57c913eb7b87cb3c2"
+          },
+          {
+            "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+            "sha256": "88d29c80e1371fba803f2b4e4cfb2d136f5efeb865ff4d0a50631c3887e8188d"
+          }
+        ]
       }
     },
     {
@@ -2000,8 +2030,8 @@
           "sha256": "adc89239dd75a2ff135213e61edd35d363b585ee39afeb5d3cfc373c63bc05a2"
         }
       ],
-      "input_purpose": "Procedure purity/effect/frame indices and declared metadata maps",
-      "shared_owner_api": "Same retained procedure/source ID and exact descriptor-root metadata owner; no bare/root alternative private selector",
+      "input_purpose": "GVN zero-production-caller name APIs retired; deferred/global summaries use original body IDs. DeclaredFrame, metadata and SelfDispatch owners are integrated.",
+      "shared_owner_api": "GVN zero-production-caller name APIs retired; deferred/global summaries use original body IDs. DeclaredFrame, metadata and SelfDispatch owners are integrated.",
       "required_preconditions": [
         "Unknown/dynamic writer widens; actual frame/source selection and folds trust retained"
       ],
@@ -2014,8 +2044,8 @@
         1796,
         2367
       ],
-      "status": "assigned-extra-ID-joins-pending",
-      "action": "Include GVN bare/root set lookup, nqn declared-frame maps and head.strip_prefix procedure/effect joins in full ID migration.",
+      "status": "main-integrated-bounded-owners; residual-ivar-audit-active",
+      "action": "Selected source-schema method ivar MAY names still need literal dollar/empty-name preservation; Proofs owns scratch migration. Execute original purity/frame/effect controls.",
       "owner_report_reference": "lookup_migration",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -2072,6 +2102,36 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Current source inspection plus Root 02:36 tracking and bounded Proofs/DB owner reports; not execution evidence",
+        "site_hashes": [
+          {
+            "path": "rust/tcl-compiler/src/gvn.rs",
+            "sha256": "d946c39d74c5a65d1277316f28848401b34ef911c7f31856252a3e83c5fc5ae7"
+          },
+          {
+            "path": "rust/tcl-compiler/src/gvn.rs",
+            "sha256": "d946c39d74c5a65d1277316f28848401b34ef911c7f31856252a3e83c5fc5ae7"
+          },
+          {
+            "path": "rust/tcl-compiler/src/dynamic_names.rs",
+            "sha256": "fe84491ac3027317854b3e3a95b69a6e9511e43a8842385c88dfb038b695664e"
+          },
+          {
+            "path": "rust/tcl-compiler/src/deferred_writes.rs",
+            "sha256": "fcd5bd189e6177d9d3e5a57914bca6a6c411b9eddfa8bc7f59e8c925e4b6d5dd"
+          },
+          {
+            "path": "rust/tcl-compiler/src/value_transfer.rs",
+            "sha256": "c72382f79602d8cdac7f7e5ff4516eea391306f4c21f5f2437d9a045123d8647"
+          },
+          {
+            "path": "rust/tcl-compiler/src/unit_scope.rs",
+            "sha256": "6161d26e6a6c0f3eaf935064910aaeac3acdddd3b5176f56eb6a146f29afaa70"
+          }
+        ]
       }
     },
     {
@@ -2097,8 +2157,8 @@
           "sha256": "a21e478f047ccc774cb68f72bb50e70cec52c40291e8b9ac4a5789acd08e73ef"
         }
       ],
-      "input_purpose": "Descriptor compatibility and actual compiled-body entry selection",
-      "shared_owner_api": "Typed exact Registry descriptor and admitted body/entry ID; original argv publication owner",
+      "input_purpose": "Actual admitted compiled body/entry IDs remain separate from exact Registry descriptors and original argv publication. All six audited lowering bridges are integrated.",
+      "shared_owner_api": "Actual admitted compiled body/entry IDs remain separate from exact Registry descriptors and original argv publication. All six audited lowering bridges are integrated.",
       "required_preconditions": [
         "Actual original definition head/argv, Native hook/currency/source proof, function/table authority; generic execution is separate"
       ],
@@ -2110,8 +2170,8 @@
         1778,
         2423
       ],
-      "status": "argv-head-positives-scoped-accepted; entry-ID-migration-pending",
-      "action": "Descriptor root adaptation must not select native entry by displayed FQN; follow existing codegen inventory.",
+      "status": "main-integrated-typed-entry-and-six-lowering-bridges; execution-pending",
+      "action": "Execute current backend and original registration/lowering controls; no compilation-only Native acceptance.",
       "owner_report_reference": "lookup_migration",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -2144,6 +2204,24 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Current source inspection plus Root 02:36 tracking and bounded Proofs/DB owner reports; not execution evidence",
+        "site_hashes": [
+          {
+            "path": "rust/tcl-compiler/src/codegen/mod.rs",
+            "sha256": "3e249307a4dff4feaecc4f599cc73504b48aab861b4f6407ca2b4c3e6b43bc22"
+          },
+          {
+            "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+            "sha256": "deafd78c875aac5b3f03d7031c41fc257bcd721af276ac393f6f9dc1c52a8f38"
+          },
+          {
+            "path": "rust/tcl-compiler/src/codegen/wasm/native_emit.rs",
+            "sha256": "40922d52e5c57e6617ed3f23c1d342e0c5801c625c4330cbe6a58cf82665dd5d"
+          }
+        ]
       }
     },
     {
@@ -2640,8 +2718,8 @@
           "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c"
         }
       ],
-      "input_purpose": "Positively Logical source lexical frame/uplevel visibility",
-      "shared_owner_api": "Compiler shared Logical source ScopeSelector/source-frame visibility owner",
+      "input_purpose": "Shared Logical variable scope and original readonly navigation owners are integrated. Namespace whole-word geometry repair is integrated.",
+      "shared_owner_api": "Shared Logical variable scope and original readonly navigation owners are integrated. Namespace whole-word geometry repair is integrated.",
       "required_preconditions": [
         "Native/hosted refuse lexical advice; #0/proc/local/namespace/unknown caller distinctions, full source/config/context currency"
       ],
@@ -2657,8 +2735,8 @@
         2260,
         2414
       ],
-      "status": "main-integrated-source-unexecuted; isolated-coordinate-amendment-was-scratch-only",
-      "action": "One reusable source frame policy consumed by definition/completion/rename; preserve separate Original symbol edit path. Earlier sealed isolated baseline kept old relative qualified_variable_cell_at command namespace. Current main source now delegates this coordinate to logical_variable_scope_advice and refuses unknown relative scope; parent integrated the sixth-control amendment. Five original controls plus sixth amendment control remain unexecuted per latest owner report; source observation does not renew acceptance.",
+      "status": "main-integrated; current-controls-have-failures",
+      "action": "Latest Root report Core21 8pass6fail and originalScope9 4pass5fail; re-execute current namespace repair and genuine upframe/alias-prefix producers. These totals do not certify this individual row.",
       "owner_report_reference": "consumer_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
       "isolated_source_snapshot": {
@@ -2700,7 +2778,29 @@
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
       },
-      "replaced_baseline_consumer": "definition::uplevel_hides_scope removed and replaced by shared eligible_scopes advice in lookup_var_in_logical_scope; current actual source adapter is recorded."
+      "replaced_baseline_consumer": "definition::uplevel_hides_scope removed and replaced by shared eligible_scopes advice in lookup_var_in_logical_scope; current actual source adapter is recorded.",
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Current source inspection plus Root 02:36 tracking and bounded Proofs/DB owner reports; not execution evidence",
+        "site_hashes": [
+          {
+            "path": "rust/tcl-lsp-core/src/definition.rs",
+            "sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2"
+          },
+          {
+            "path": "rust/tcl-lsp-core/src/definition.rs",
+            "sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2"
+          },
+          {
+            "path": "rust/tcl-lsp-core/src/definition.rs",
+            "sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2"
+          },
+          {
+            "path": "rust/tcl-lsp-core/src/definition.rs",
+            "sha256": "9084430d1ac132faab2700fb5b10ccf51203c44ccf593b2e84076b5c7da750a2"
+          }
+        ]
+      }
     },
     {
       "id": "lsp-partial-array",
@@ -2770,8 +2870,8 @@
           "sha256": "2a4c7a3db00d1631269d872bec36216c936ec320a7e3785c95312e8f8c441f99"
         }
       ],
-      "input_purpose": "IR/CFG/summary procedure reporting currently keyed by QName",
-      "shared_owner_api": "Retained declaration/body IDs from Compiler; separate display label in schema",
+      "input_purpose": "Explorer retains scoped issued body IDs and duplicate equal-label rows; Diagram calls join current source and unanimous issued bodies.",
+      "shared_owner_api": "Explorer retains scoped issued body IDs and duplicate equal-label rows; Diagram calls join current source and unanimous issued bodies.",
       "required_preconditions": [
         "Source/analysis/context currency and original selected calls; duplicate names may be displayed but may not overwrite semantic rows"
       ],
@@ -2784,8 +2884,8 @@
       "related_issues": [
         1778
       ],
-      "status": "assigned-ID-schema-planned-unapplied",
-      "action": "Coordinate ID migration schema with WASM explorer and editor compilerExplorerHtml; JSON object labels currently overwrite duplicate rows.",
+      "status": "main-integrated-report-ids-and-diagram-owners; execution-pending",
+      "action": "Execute current source/report/diagram controls; Core graph lexical declaration joins remain separately pending.",
       "owner_report_reference": "lookup_migration",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
       "isolated_source_snapshot": {
@@ -2818,6 +2918,24 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Current source inspection plus Root 02:36 tracking and bounded Proofs/DB owner reports; not execution evidence",
+        "site_hashes": [
+          {
+            "path": "rust/tcl-explorer/src/serialise.rs",
+            "sha256": "07c47791054bb254f855459f2bea778c927d942d0e36a0bc036fcf7646838b60"
+          },
+          {
+            "path": "rust/tcl-explorer/src/serialise.rs",
+            "sha256": "07c47791054bb254f855459f2bea778c927d942d0e36a0bc036fcf7646838b60"
+          },
+          {
+            "path": "rust/tcl-diagram/src/data.rs",
+            "sha256": "90c28522387b7e48ee7015bc58da8910e4ff543ca7a159ee60dce5bb9028b5c2"
+          }
+        ]
       }
     },
     {
@@ -3113,8 +3231,8 @@
           "sha256": "41b5d52cf3dc38c39578cd3dbe38731c63f11282223b6231d0823ad69495b19b"
         }
       ],
-      "input_purpose": "Salsa procedure lattice/taint keys and Logical lightweight class/instance source indices",
-      "shared_owner_api": "Retained Compiler procedure ID + source-specific declaration identity/ambiguity carrier",
+      "input_purpose": "DB memo/cascade/CFG consumers use ProcedureId and genuine CU capsules; exact workspace declaration ingress and CommonAOT actual caller/callee/Module/SSA owners are integrated.",
+      "shared_owner_api": "DB memo/cascade/CFG consumers use ProcedureId and genuine CU capsules; exact workspace declaration ingress and CommonAOT actual caller/callee/Module/SSA owners are integrated.",
       "required_preconditions": [
         "Source/registry/fullcontext/options/memo invalidation, reads_module and rebasing guard; lightweight source index grants no Native token"
       ],
@@ -3125,8 +3243,8 @@
       "related_issues": [
         1778
       ],
-      "status": "logical-class-reports-reviewed; semantic-ID-migration-pending",
-      "action": "Coordinate Compiler IDs across String lattice joins; retain multiple Logical declarations/unknown conflicts rather than first name match.",
+      "status": "main-integrated-body-and-capsule-owners; original-reuse-execution-pending",
+      "action": "Run original cold/edit reuse counts and uncached comparisons without weakening assertions. Capsule04 failed before the certificate on fixture name mode; submitted source-fixtures12 correction has no execution acceptance.",
       "owner_report_reference": "consumer_audit",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -3175,6 +3293,32 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Current source inspection plus Root 02:36 tracking and bounded Proofs/DB owner reports; not execution evidence",
+        "site_hashes": [
+          {
+            "path": "rust/tcl-lsp-db/src/lib.rs",
+            "sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028"
+          },
+          {
+            "path": "rust/tcl-lsp-db/src/lib.rs",
+            "sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028"
+          },
+          {
+            "path": "rust/tcl-lsp-db/src/lib.rs",
+            "sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028"
+          },
+          {
+            "path": "rust/tcl-lsp-db/src/lib.rs",
+            "sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028"
+          },
+          {
+            "path": "rust/tcl-lsp-db/src/lib.rs",
+            "sha256": "6e0113d66699eb97958ca52ffdf2e24cf53946803859c81a1877ce5c61081028"
+          }
+        ]
       }
     },
     {
@@ -3352,8 +3496,8 @@
           "sha256": "b43d94fd8d5b055f1ddd61744f97d9ba8dbd7ee70eedb225807b53230e184dce"
         }
       ],
-      "input_purpose": "Positively selected Original source read/declaration flow local-name eligibility",
-      "shared_owner_api": "Existing original read/name/formal topology owners and Syntax is_qualified classification; no new resolver",
+      "input_purpose": "Original source flow retains full owner/frame correspondence; empty/literal name preservation and source-local policy are integrated in bounded consumers.",
+      "shared_owner_api": "Original source flow retains full owner/frame correspondence; empty/literal name preservation and source-local policy are integrated in bounded consumers.",
       "required_preconditions": [
         "Complete original body/source correspondence and frame authority, actual parameters/aliases, unknown/dynamic writes remain strict; incomplete array syntax cannot become native scalar via a looser predicate"
       ],
@@ -3368,8 +3512,8 @@
         2259,
         2260
       ],
-      "status": "five-shared-guards-applied; scalar-literalstore-purpose-pending",
-      "action": "contains(::)1652/1657/1768/1902/1906 are local qualification guards; contains(open-parenthesis)2396 is a strict scalar eligibility guard. Central source/formal purpose can own them after tracing; do not weaken while fixing correspondence. Current confirmed stall is diagnostic performance, not a new name-owner refusal.",
+      "status": "main-integrated-bounded-name-guards; original-replay-pending",
+      "action": "Execute original #2286 replay and genuine missing-read controls; genuine upframe and Logical prefix carriers remain active.",
       "owner_report_reference": "issues",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -3386,6 +3530,16 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Current source inspection plus Root 02:36 tracking and bounded Proofs/DB owner reports; not execution evidence",
+        "site_hashes": [
+          {
+            "path": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+            "sha256": "f47f1107224120653f0e0d33b8d2bb5b67c2de50a3911a6dc315708aa1285382"
+          }
+        ]
       }
     },
     {
@@ -3577,8 +3731,8 @@
           "sha256": "931f619e3fd62e0952f46e12584245ebb9ba03bf71a9696843ac1f892feebd2e"
         }
       ],
-      "input_purpose": "Authentic live runtime receipt transport versus fresh-instance replay address data",
-      "shared_owner_api": "Already authentic create/delete/current exports; replay publication projection/recipe remains a separate bounded contract",
+      "input_purpose": "Counted actual runtime inventory, original C insertion prerequisites, generations and authentic command receipt transport are integrated.",
+      "shared_owner_api": "Counted actual runtime inventory, original C insertion prerequisites, generations and authentic command receipt transport are integrated.",
       "required_preconditions": [
         "Counted original bytes, actual runtime owner/interpreter/generation currentness; replay may not infer a Native allocation from qualified label or transport old instance token"
       ],
@@ -3595,8 +3749,8 @@
         1778,
         1755
       ],
-      "status": "Main counted inventory/shared checked root bridge applied; actual Runtime/Engine controls scratch authored-unexecuted",
-      "action": "Root integrated bounded11-owner replacement of LIST_COMMANDS with actual visible namespace/generation/byte slot inventory plus producer actual lookup/generation/root-operand equality and counted RuntimeAPI transport. Unicode catalogue whole-refuses opaque or unaddressable rows. Includes visible imports/aliases and replacement generations; no decoded-data Native receipt. Seven genuine controls scratch-only; Runtime3 now use actual selected Native core/NativeHost, exact word transport; C5 original C API callback measured bare x root and relative qualified child::y entered N:/child, root joins miss. Old C84/85 proc publication observations remain separate. Replay callback purpose independently owned.",
+      "status": "main-integrated-counted-inventory-and-insertion-owner; execution-pending",
+      "action": "Runtime75/Registry2 capture07 queued in latest Root report, Engine8/VM21 and original provider comparisons remain. Runtime06 compiled Runtime then stopped before controls at a corrected Compiler token-borrow error; zero source/provider drift is not execution acceptance.",
       "owner_report_reference": "runtime_variables",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -3650,7 +3804,33 @@
       "consumer_plan": "/tmp/name-extension-command-inventory-20261013/consumer-plan.md",
       "active_consumer_owner": "Root Main integration; registry_naming controls scratch; Runtime replay owner independently coordinated",
       "original_CAPI_evidence": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/validation.json",
-      "authored_controls": "/tmp/name-extension-command-inventory-20261013/meaningful-controls-manifest.json"
+      "authored_controls": "/tmp/name-extension-command-inventory-20261013/meaningful-controls-manifest.json",
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Current source inspection plus Root 02:36 tracking and bounded Proofs/DB owner reports; not execution evidence",
+        "site_hashes": [
+          {
+            "path": "rust/tcl-engine-wasm/src/lib.rs",
+            "sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd"
+          },
+          {
+            "path": "rust/tcl-engine-wasm/src/lib.rs",
+            "sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd"
+          },
+          {
+            "path": "rust/tcl-engine-wasm/src/host_call.rs",
+            "sha256": "93aa4994c514d71de0578f720db5e46fe32f67e2d2283221fc71bd46e611f13e"
+          },
+          {
+            "path": "rust/tcl-engine-wasm/src/command_receipts.rs",
+            "sha256": "b534d79173ca7deee9f933621a6a6f894dc860285199696b53248f08634ae7bc"
+          },
+          {
+            "path": "rust/tcl-engine-wasm/src/extension_host.rs",
+            "sha256": "f641b3ef86926fe4ae6b52b33302419727dc76d6df5bf5168f493f17f65b88af"
+          }
+        ]
+      }
     },
     {
       "id": "debugger-snapshot-label-selection",
@@ -3736,6 +3916,161 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      }
+    },
+    {
+      "id": "original-read-purpose-consumers",
+      "implementation_owner": "docs_finish",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/var_refs.rs",
+          "sha256": "134fc333e35581b10de46e64d8cb654a0a073cd8e520b688ce95afa26aa9ef5a"
+        },
+        {
+          "path": "rust/tcl-compiler/src/ssa.rs",
+          "sha256": "f98ba9e93ac03265cf3a563f15eb578fa4b52966814299bcd7b9fe8c38c33498"
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_reads.rs",
+          "sha256": "1ad6d868313ccddfc4dba3981d94d3d7178d93884f1154c9e7db5193e13cdff7"
+        },
+        {
+          "path": "rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs",
+          "sha256": "b4209b4bb72c2d70ff7d734648e0e36e80a2a97ed9492c036aa4d9ad0553b960"
+        }
+      ],
+      "input_purpose": "Original read ownership versus lexical components and explicit standalone MAY assumptions",
+      "shared_owner_api": "VarReferenceScanner::scan_lexical_word/scan_lexical_script; scan_standalone_word/scan_standalone_script; SsaInvocationContext::word_reads",
+      "status": "main-integrated; current-controls-unexecuted",
+      "action": "Default options already lexical. Actual supplied-source SSA cannot inherit standalone catalogue roles from a donated scanner; original selected children own by-name roles independently. Preserve unknown and opaque protections.",
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
+      }
+    },
+    {
+      "id": "retained-terminator-and-index-read-consumers",
+      "implementation_owner": "docs_finish",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/slot_allocation.rs",
+          "sha256": "fdf865b0463e7b08d16e0d9fad3016ab9b68893a6a80865e3c5726578e28eeef"
+        },
+        {
+          "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+          "sha256": "c475d95cd61b25469559f931d2d73358aac876edd0b732f1f5d5a444a8365af3"
+        },
+        {
+          "path": "rust/tcl-compiler/src/var_resolve.rs",
+          "sha256": "bbd202725c1f16e888040c18a1cc1369c61f8f434715cc371fbb4bffd7ab4e86"
+        }
+      ],
+      "input_purpose": "Original SSA terminator/cell reads and retained child-read protection",
+      "shared_owner_api": "place_bridge::terminator_read_places_at; OriginalProcedureSummaryOwners::children; scan_lexical_word",
+      "status": "main-integrated; current-controls-unexecuted",
+      "action": "Execute exact/foreign/unavailable/array-root/standalone controls. Unknown original reads retain all known cells; detached command text never creates a Native receipt or an unobserved cell.",
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
+      }
+    },
+    {
+      "id": "frame-local-variable-policy",
+      "implementation_owner": "docs_finish",
+      "sites": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "sha256": "b4b043c9f4f2795e6bff519f6b1654983e08eda6c3eabe7881d43366b1b0c428"
+        },
+        {
+          "path": "rust/tcl-compiler/src/inlining/frame.rs",
+          "sha256": "2a6c23b2866298b1f25b06d1aa22ed1c1ab304ed85d037db046704854eeb2c46"
+        }
+      ],
+      "input_purpose": "Source-local geometry under actual retained VariableLookupPolicy",
+      "shared_owner_api": "source_variable_name_is_frame_local",
+      "status": "main-integrated; native-finite-probes-observed; compiled-frame-controls-unexecuted",
+      "action": "Empty and literal dollar names remain distinct; retained C versus Jim policy governs relative qualifiers. Native finite C5/Jim observations retained in frame-local-name-geometry; F5 packet unanswered. These observations do not establish whole inlining admission.",
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
+      }
+    },
+    {
+      "id": "ssa-literal-name-projections",
+      "implementation_owner": "docs_finish",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/ssa.rs",
+          "sha256": "f98ba9e93ac03265cf3a563f15eb578fa4b52966814299bcd7b9fe8c38c33498"
+        }
+      ],
+      "input_purpose": "Evaluated literal variable-name payload and retained empty-name role",
+      "shared_owner_api": "normalise_var_name_braced(name,true); retained source roles",
+      "status": "main-integrated; current-controls-unexecuted",
+      "action": "Normal and nested by-name reads preserve dollar sigils; retained role loop preserves empty names. Execute info exists {} and {$name} controls; audit other evaluated-name projections.",
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
+      }
+    },
+    {
+      "id": "core-graph-and-inlay-declaration-joins",
+      "implementation_owner": "db_finish",
+      "sites": [
+        {
+          "path": "rust/tcl-lsp-core/src/graphs.rs",
+          "sha256": "2cacaa25913c4c319d717e39b15ad5e930d176da5f0bf9d50ec2976f1f94431f"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+          "sha256": "6e33a968bdfc31f0c71a7e0025d0fcc6335da8505bd4c5df956f013784ad61c1"
+        }
+      ],
+      "input_purpose": "Lexical-advice type/effect joins to genuine original declarations and issued bodies",
+      "shared_owner_api": "original declaration/source_graph owners and ProcedureId",
+      "status": "scratch-patch-submitted; integration-and-execution-pending",
+      "action": "Core13 patch submitted at /tmp/name-db-body-id-isolated-20261014/core-body-consumers-13: authentic current CU, Scope.body_span declaration grouping and source_graph::procedure_body_for_declaration replace normalized FU/scope and label+offset inverse joins. Existing assertions preserved; added repeated-declaration int/str bleed control. No Main integration or execution acceptance yet.",
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
+      },
+      "owner_report_reference": "/tmp/name-db-body-id-isolated-20261014/core-body-consumers-13/consumer-audit.json"
+    },
+    {
+      "id": "diagnostic-parameter-source-joins",
+      "implementation_owner": "compiler_finish",
+      "sites": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+          "sha256": "969129926906eda5af135f58f519491145d17d82d23a58b862a7ac83ccea96ed"
+        }
+      ],
+      "input_purpose": "Parameter-report source spans from actual original ProcDef/body",
+      "shared_owner_api": "Retained original declaration/formal source owner",
+      "status": "audit-follow-on-assigned; not-main-integrated",
+      "action": "param_name_spans_for still selects by qualified display then manually scans brace/list syntax. Compiler requested follow-on; use original declaration/list spans without changing assertions.",
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
+      }
+    },
+    {
+      "id": "f5-configuration-object-path-consumers",
+      "implementation_owner": "f5_object_names_finish",
+      "sites": [
+        {
+          "path": "rust/tcl-bigip/src/object_names.rs",
+          "sha256": "5efd2fed04a7148fef54b0ce3996e8fa8dc91e0fa78cb60fe6cb98355e75631a"
+        }
+      ],
+      "input_purpose": "Authored F5 configuration object reference path, caller ordering and ambiguity policy",
+      "shared_owner_api": "object_name_candidates; ObjectNamePolicy; first_exact_in_order_or_unique",
+      "status": "main-integrated; bounded-software-comparisons-pass; appliance-questions-unanswered",
+      "action": "Shared caller-specific first/unique/source-order policies cover validator, graph, conversion, reports and topology. No C/Jim/TMM authority follows from software comparisons.",
+      "current_review": {
+        "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+        "basis": "Source inspection and bounded current owner reports, execution state explicitly separate"
       }
     }
   ],
@@ -12495,5 +12830,12 @@
     "The 330 inherited lexical candidates retain explicit semantic-review obligations except bounded assigned cases; no search-absence completion claim.",
     "Isolated implementation worktrees may advance beyond this main-checkout source snapshot; implementation owner must record its own source receipt.",
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
-  ]
+  ],
+  "current_refresh": {
+    "head": "3c2c16c6ea48b039dc47bd414d4fa3c2c47909d9",
+    "tracking_basis": "Root current-state/implementation-ledger updated 2026-10-14 02:36 UTC plus current Proofs/DB reports",
+    "scope": "Only explicitly refreshed actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and prior issue records remain unchanged; no old proof digest is renewed.",
+    "validation": "Latest Root Compiler28 149pass107fail of256, zero authored-source drift; subsequent migrations unexecuted. Runtime06 compiled Runtime then stopped before controls on corrected token borrow. No whole-codebase, Native, F5 or PR-ready acceptance.",
+    "source_write_policy": "Root-authorised documentation-only Main refresh; no Rust, runtime, experiments, scripts, specs, Cargo, Git commit or push by this agent."
+  }
 }

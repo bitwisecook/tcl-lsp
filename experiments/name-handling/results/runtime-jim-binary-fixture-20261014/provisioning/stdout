@@ -1,0 +1,5 @@
+IDENTITY 0.84-9-g5bac7c9
+BINARY_PARAMS {cmd args}
+BINARY_BODY {
+	tailcall "binary $cmd" {*}$args
+}

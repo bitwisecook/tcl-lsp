@@ -1,0 +1,232 @@
+--- /dev/null
++++ b/experiments/name-handling/results/ssa-empty-read-write-names/probe.tcl
+@@ -0,0 +1,9 @@
++proc run {label body} {
++ set code [catch [list uplevel 1 $body] result]
++ puts [list $label $code $result]
++}
++run empty_incr {set {} 4; incr {}; set {}}
++run empty_foreach {foreach {{}} {VALUE} {set saved ${}}; set saved}
++run dollar_dict_with {set {$name} {key VALUE}; dict with {$name} {set saved $key}; set saved}
++run empty_dict_with {set {} {key VALUE}; dict with {} {set saved $key}; set saved}
++run literal_dollar_foreach {foreach {{$name}} {VALUE} {set saved ${$name}}; set saved}
+--- /dev/null
++++ b/experiments/name-handling/results/ssa-empty-read-write-names/results.json
+@@ -0,0 +1,164 @@
++{
++  "source": "probe.tcl",
++  "providers": [
++    {
++      "provider": "c8.4",
++      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
++      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
++      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
++      "argv": [
++        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
++        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
++      ],
++      "exit_code": 0,
++      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 1 {invalid command name \"dict\"}\nempty_dict_with 1 {invalid command name \"dict\"}\nliteral_dollar_foreach 0 VALUE\n",
++      "stderr": "",
++      "identity_query": {
++        "argv": [
++          "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
++        ],
++        "stdin": "puts [info patchlevel]\n",
++        "exit_code": 0,
++        "stdout": "8.4.20\n",
++        "stderr": ""
++      },
++      "original_library_file": {
++        "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
++        "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
++        "scope": "Original provider tree init.tcl identity, no replacement or tcltest driver used."
++      }
++    },
++    {
++      "provider": "c8.5",
++      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
++      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
++      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
++      "argv": [
++        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
++        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
++      ],
++      "exit_code": 0,
++      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
++      "stderr": "",
++      "identity_query": {
++        "argv": [
++          "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
++        ],
++        "stdin": "puts [info patchlevel]\n",
++        "exit_code": 0,
++        "stdout": "8.5.19\n",
++        "stderr": ""
++      },
++      "original_library_file": {
++        "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
++        "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
++        "scope": "Original provider tree init.tcl identity, no replacement or tcltest driver used."
++      }
++    },
++    {
++      "provider": "c8.6",
++      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
++      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
++      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
++      "argv": [
++        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
++        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
++      ],
++      "exit_code": 0,
++      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
++      "stderr": "",
++      "identity_query": {
++        "argv": [
++          "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
++        ],
++        "stdin": "puts [info patchlevel]\n",
++        "exit_code": 0,
++        "stdout": "8.6.18\n",
++        "stderr": ""
++      },
++      "original_library_file": {
++        "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
++        "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
++        "scope": "Original provider tree init.tcl identity, no replacement or tcltest driver used."
++      }
++    },
++    {
++      "provider": "c9.0",
++      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
++      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
++      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
++      "argv": [
++        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
++        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
++      ],
++      "exit_code": 0,
++      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
++      "stderr": "",
++      "identity_query": {
++        "argv": [
++          "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
++        ],
++        "stdin": "puts [info patchlevel]\n",
++        "exit_code": 0,
++        "stdout": "9.0.4\n",
++        "stderr": ""
++      },
++      "original_library_file": {
++        "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
++        "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
++        "scope": "Original provider tree init.tcl identity, no replacement or tcltest driver used."
++      }
++    },
++    {
++      "provider": "c9.1",
++      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
++      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
++      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
++      "argv": [
++        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
++        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
++      ],
++      "exit_code": 0,
++      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
++      "stderr": "",
++      "identity_query": {
++        "argv": [
++          "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
++        ],
++        "stdin": "puts [info patchlevel]\n",
++        "exit_code": 0,
++        "stdout": "9.1.0\n",
++        "stderr": ""
++      },
++      "original_library_file": {
++        "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
++        "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
++        "scope": "Original provider tree init.tcl identity, no replacement or tcltest driver used."
++      }
++    },
++    {
++      "provider": "jim",
++      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
++      "executable_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
++      "source_sha256": "ee8be1266ce332f819b11930f18406a4049b253c673d0df6f54a9988eeeb61de",
++      "argv": [
++        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
++        "/tmp/name-ssa-empty-read-write-20261014/probe.tcl"
++      ],
++      "exit_code": 0,
++      "stdout": "empty_incr 0 5\nempty_foreach 0 VALUE\ndollar_dict_with 0 VALUE\nempty_dict_with 0 VALUE\nliteral_dollar_foreach 0 VALUE\n",
++      "stderr": "",
++      "identity_query": {
++        "argv": [
++          "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh"
++        ],
++        "stdin": "puts [info patchlevel]\n",
++        "exit_code": 0,
++        "stdout": "0.84-9-g5bac7c9\n",
++        "stderr": ""
++      },
++      "provider_source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03"
++    }
++  ],
++  "scope": "Original fresh interpreter processes, finite literal-name operations; no tcltest, no Rust frame/cell authority or F5 observation."
++}
+--- /dev/null
++++ b/experiments/name-handling/results/ssa-empty-read-write-names/README.md
+@@ -0,0 +1,17 @@
++# Literal and empty variable names in read/write operations
++
++[probe.tcl](probe.tcl) executes five finite name cases in fresh original C Tcl8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 and Jim processes. [results.json](results.json) preserves exact source/executable hashes, provider identity queries, original C init.tcl identities, argv, stdout, stderr and process exit codes. The checked Jim source revision is retained in the results. No Tcltest or replacement init.tcl is used.
++
++| Source case | C8.4 | C8.5–9.1 | Jim |
++| --- | --- | --- | --- |
++| Set/increment the empty name |5|5|5|
++| Bind/read the empty loop name |VALUE|VALUE|VALUE|
++| dict with a literal dollar name |Command unavailable|VALUE|VALUE|
++| dict with the empty name |Command unavailable|VALUE|VALUE|
++| Bind/read a literal dollar loop name |VALUE|VALUE|VALUE|
++
++The Tcl8.4 dict rows preserve `invalid command name "dict"`; they are not successful dict observations. All interpreter processes exit0 with empty stderr because the source captures each operation's result. Each case's catch status remains explicit.
++
++These reductions answer legal variable-name payload questions. They motivate current SSA classified-read, read-before-write and selected LoopVarList controls in rust/tcl-compiler/src/ssa.rs; the current source and patch identities are recorded independently by implementation validation. Actual source roles, full input/configuration, current Registry/Module ownership and ambiguity/refusal controls remain necessary. The results do not establish Rust cell allocation, frame ownership, Native compilation, whole inlining eligibility or F5 behaviour.
++
++The independently retained [frame-local observations](../frame-local-name-geometry/README.md) include unbound literal dollar and empty-name controls plus C/Jim qualification policy. The [F5 operation packet](../../f5/questions/ssa-empty-read-write-names.md) is unanswered and requires genuine TMM context and versioned same-branch answers.
+--- /dev/null
++++ b/experiments/name-handling/f5/questions/ssa-empty-read-write-names.md
+@@ -0,0 +1,15 @@
++# F5 literal and empty variable read/write names
++
++Status: unanswered. C/Jim observations are not F5/TMM observations. Return actual answers on the same `work` branch under experiments/name-handling/f5/answers/ssa-empty-read-write-names/. Do not replace an unavailable iRule operation with tmsh or a Linux tclsh result.
++
++Run the unchanged [finite source](../../results/ssa-empty-read-write-names/probe.tcl) in an isolated supported TMM/iRule context through the actual platform harness. Its procedure helper uses uplevel only to keep each captured operation in the supplied scope. If that helper, command or declaration is unsupported, retain the complete setup/refusal output and the unreached cases. A separately adapted iRule must retain its full actual source and context; it is a different input.
++
++Questions:
++
++1. Can set/incr access the empty variable name, and does the captured result equal5?
++2. Does foreach with a literal empty name bind the value read by ${}?
++3. Does dict with preserve the literal dollar name {$name}, and separately the empty name?
++4. Does foreach preserve the literal dollar name {$name}, distinct from name?
++5. Does any answer differ between supported event/procedure contexts or interpreted versus compiled iRule entry? Measure only contexts actually available; do not infer an absent one.
++
++Preserve appliance product/version/build, actual interpreter/context/channel/event, harness revision, full source bytes and SHA256, exact invocation, compile/setup status, per-case catch status/result, complete stdout/logs/stderr and cleanup outcome. Keep unsupported, unavailable and unreached stages distinct. Record allocation/trace/generation facts only when the harness actually exposes them. No Native compilation/frame/cell conclusion follows from a name result alone.
+--- a/experiments/name-handling/patterns/README.md
++++ b/experiments/name-handling/patterns/README.md
+@@ -29,6 +29,12 @@
+ their [acceptance scopes](../results/RESULTS.md#shared-namespace-variable-query-consumers)
+ retain failed and unreached providers separately. Empty namespace addresses are
+ measured independently in [namespace-address-purpose](../namespace-address-purpose/README.md).
++
++The [literal/empty read-write name reductions](../results/ssa-empty-read-write-names/README.md)
++retain original C5/Jim increment, loop and dict-with results, including the
++Tcl8.4 unavailable dict rows. Current SSA controls retain actual source-role
++ownership; the separate F5 packet is unanswered. These reductions measure
++name payloads and do not establish native frame or compilation authority.
+ 
+ ## Source evidence
+ 

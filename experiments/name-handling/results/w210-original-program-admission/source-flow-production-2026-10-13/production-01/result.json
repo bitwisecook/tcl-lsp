@@ -1,0 +1,11 @@
+{
+  "finished_utc": "2026-10-13T15:38:54.279992+00:00",
+  "exit_code": 101,
+  "seconds": 56.5105857210001,
+  "summaries": [],
+  "changed_sources": {},
+  "running_test_counts": [],
+  "executed_test_binary": null,
+  "tested": false,
+  "source_snapshot_scope": "34,621 inventoried Rust/runtime/data fixture paths; root workspace Cargo identities captured separately after Cargo began"
+}

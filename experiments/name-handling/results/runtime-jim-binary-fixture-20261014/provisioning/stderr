@@ -1,0 +1,4 @@
+/tmp/name-issues-refresh-20261014/jim-binary-provisioning/distribution-probe.tcl:4: Error: package "pack" was already provided
+Traceback (most recent call last):
+  File "/tmp/name-issues-refresh-20261014/jim-binary-provisioning/distribution-probe.tcl", line 4
+    package provide pack

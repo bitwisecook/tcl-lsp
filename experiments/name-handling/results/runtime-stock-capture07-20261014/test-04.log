@@ -1,0 +1,6 @@
+
+running 1 test
+test engine_abi::command_replay::tests::jim_replay_retains_counted_holder_and_refuses_unavailable_creation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2146 filtered out; finished in 2.19s
+

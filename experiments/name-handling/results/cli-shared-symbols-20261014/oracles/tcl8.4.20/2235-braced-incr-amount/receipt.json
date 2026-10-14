@@ -1,0 +1,14 @@
+{
+  "provider": "tcl8.4.20",
+  "case": "2235-braced-incr-amount",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/name-issues-refresh-20261014/oracles/tcl8.4.20/2235-braced-incr-amount/source.tcl"
+  ],
+  "started_at": "2026-10-14T00:36:53.186841+00:00",
+  "exit_code": 0,
+  "source_sha256": "cf73c40260e39faaee7ffa845c4c3fb0b1bed5262fe795fad2fbaaa64d31dea2",
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "stdout_sha256": "85417929949750458921b9db9c49857473dcf74d67392fca498e6e994b39984b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -4921,24 +4921,25 @@ impl<'r> Lowerer<'r> {
             }
             let mut names = Vec::new();
             for candidate in &advice.candidates {
-                let declaration = candidate.with_source_schema(self.registry, context, tokens, |selected| {
-                    Some(selected.authored_source_descriptors().command.lowering_hook
-                        == Some(LoweringHookId::Variable))
-                })?;
-                if declaration {
-                    names.extend(candidate.effective.argument_presentations(tokens.argv_texts.get(1..)?)?
-                        .into_iter().flatten());
-                }
+                names.extend(candidate.with_source_schema(self.registry, context, tokens, |selected| {
+                    if selected.authored_source_descriptors().command.lowering_hook != Some(LoweringHookId::Variable) {
+                        return Some(Vec::new());
+                    }
+                    let (roles, complete) = selected.argument_roles();
+                    if !complete {
+                        return None;
+                    }
+                    roles.into_iter().filter(|(_, role)| *role == ArgRole::VarWrite)
+                        .map(|(argument, _)| {
+                            let argument = selected.semantics.argument_offset.checked_add(usize::from(argument))?;
+                            Some(selected.words.arguments().get(argument)?.literal()?.to_owned())
+                        }).collect::<Option<Vec<_>>>()
+                })?);
             }
             Some(names)
         });
         // Unavailable source advice only widens the textual protection inventory.
-        possible
-            .unwrap_or_else(|| args.clone())
-            .iter()
-            .filter(|name| is_instance_var_name(name))
-            .map(|name| normalise_var_name(name).to_owned())
-            .collect()
+        possible.unwrap_or_else(|| args.clone())
     }
 
     fn resolved_metadata_invocation(
@@ -10116,7 +10117,51 @@ mod tests {
         assert!(reads.is_empty());
         assert_eq!(
             lowerer.advisory_method_instance_names(&statement),
-            vec!["local"]
+            vec!["local", "$dynamic"]
+        );
+    }
+
+    #[test]
+    fn method_variable_advice_preserves_literal_names_and_captured_prefix_values() {
+        let registry = reg();
+        let mut lowerer = Lowerer::new(&registry).trace_visible();
+        lowerer.lower("variable {}; variable {$counter}; variable {brace{name}}; variable {-dash}");
+        let names: Vec<_> = lowerer
+            .module
+            .top_level
+            .statements
+            .iter()
+            .flat_map(|statement| lowerer.advisory_method_instance_names(statement))
+            .collect();
+        assert_eq!(names, vec!["", "$counter", "brace{name}", "-dash"]);
+
+        let mut captured = Lowerer::new(&registry).trace_visible();
+        captured.lower("interp alias {} ivar {} variable {$counter}; ivar");
+        let statement = captured.module.top_level.statements.last().unwrap();
+        assert_eq!(
+            captured.advisory_method_instance_names(statement),
+            vec!["$counter"]
+        );
+    }
+
+    #[test]
+    fn unresolved_method_name_protection_keeps_original_source_text_without_reparsing() {
+        let registry = reg();
+        let source = "unresolved {} {$counter} {brace{name}} {a(b)} {-dash} $dynamic";
+        let mut lowerer = Lowerer::new(&registry);
+        lowerer.source_entry_origin = SourceEntryOrigin::Driver;
+        lowerer.metadata_origin = LoweringMetadataOrigin::Supplied;
+        lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
+        let commands =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config);
+        let statement = lowerer.lower_default(&commands[0], "::");
+        let Statement::Call { args, .. } = &statement else {
+            panic!("generic source fallback");
+        };
+        assert_eq!(lowerer.advisory_method_instance_names(&statement), *args);
+        assert_eq!(
+            args,
+            &vec!["", "$counter", "brace{name}", "a(b)", "-dash", "$dynamic"]
         );
     }
 
