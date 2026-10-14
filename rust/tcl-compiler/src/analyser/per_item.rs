@@ -1349,27 +1349,29 @@ impl Analyser {
 
     fn replay_body_global_reads(
         &mut self,
-        global_reads: Vec<(String, tcl_lexer::Span)>,
+        global_reads: Vec<CapturedBodyGlobalRead>,
         body_start: u32,
         delta: u32,
     ) {
-        for (name, span) in global_reads {
-            let base = crate::naming::normalise_var_name(&name);
-            // `name` preserves any `arr(idx)` element the read carried.
-            let element = crate::naming::split_array_name(&name)
-                .1
-                .filter(|e| !e.is_empty())
-                .map(ToString::to_string);
-            if let Some(var) = self.result.global_scope.variables.get_mut(base)
+        for read in global_reads {
+            if let Some(var) = self.result.global_scope.variables.get_mut(&read.base_name)
                 && var.definition_span.start() < body_start
             {
-                var.push_reference(shift(span, delta));
-                if let Some(e) = element {
-                    var.array_indices.insert(e);
+                var.push_reference(shift(read.span, delta));
+                if let Some(element) = read.element {
+                    var.array_indices.insert(element);
                 }
             }
         }
     }
+}
+
+/// The original read owner selects name grammar before isolated-body replay.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct CapturedBodyGlobalRead {
+    pub(super) base_name: String,
+    pub(super) element: Option<String>,
+    pub(super) span: tcl_lexer::Span,
 }
 
 /// The facts produced by analysing one proc body in isolation.  Cloneable +
@@ -1391,7 +1393,7 @@ pub struct BodyFragment {
     cmd_sites: Vec<super::state::CmdCommandSite>,
     /// Qualified (`::`/`static::`) reads that missed the isolated body's empty
     /// enclosing global scope; replayed on the shell's real globals at graft.
-    global_reads: Vec<(String, tcl_lexer::Span)>,
+    global_reads: Vec<CapturedBodyGlobalRead>,
     /// Definitions the isolated body wrote **into its own root scope** — the
     /// fixed, frame-independent cells an `upvar` `otherVar` word names
     /// (`upvar ::tk::FocusGrab($i) data`, `upvar #0 counter c`).  The graft
@@ -2449,7 +2451,8 @@ fn seed_isolated_formal_bindings(a: &mut Analyser, db: &DeferredBody, proc_path:
     // Class instance variables — visible in every method body (skip ones that a
     // formal parameter already shadows, matching `walk_method_body`).
     for var in &db.seeded_variables {
-        let base = crate::naming::normalise_var_name(var);
+        let base =
+            tcl_syntax::naming::split_element_ref(var).map_or(var.as_str(), |(root, _)| root);
         if base.is_empty() || db.params.iter().any(|p| p.name == base) {
             continue;
         }
@@ -3090,8 +3093,88 @@ mod tests {
     }
 
     #[test]
+    fn isolated_global_reads_retain_selected_literal_name_and_element_data() {
+        let source = "set {::$literal} VALUE; set {::arr($literal)} ARRAY; set {::arr()} EMPTY_INDEX; set {::} EMPTY; proc read_names {} {puts ${::$literal}; puts ${::arr($literal)}; puts ${::arr()}; puts ${::}}";
+        let mut shell = Analyser::new();
+        let commands = shell.per_item_setup(source, "tcl8.6");
+        shell.defer_proc_bodies = true;
+        shell.walk_commands_top_level(&commands, false);
+        shell.defer_proc_bodies = false;
+        assert_eq!(shell.deferred_bodies.len(), 1);
+        let body = shell.deferred_bodies.pop().unwrap();
+        let fragment = analyse_proc_body_isolated(
+            &body,
+            "tcl8.6",
+            &std::collections::HashSet::<String>::new(),
+            super::super::state::NonAsciiMode::Off,
+            None,
+            None,
+        );
+        let scalar = fragment
+            .global_reads
+            .iter()
+            .find(|read| read.base_name == "::$literal")
+            .expect("original scalar source read");
+        assert!(scalar.element.is_none());
+        let element = fragment
+            .global_reads
+            .iter()
+            .find(|read| read.base_name == "::arr")
+            .expect("original array source read");
+        assert_eq!(element.element.as_deref(), Some("$literal"));
+        assert!(
+            fragment
+                .global_reads
+                .iter()
+                .all(|read| read.base_name != "::literal")
+        );
+        let empty = fragment
+            .global_reads
+            .iter()
+            .find(|read| read.base_name == "::")
+            .expect("original absolute empty-name source read");
+        assert!(empty.element.is_none());
+        let empty_element = fragment
+            .global_reads
+            .iter()
+            .find(|read| read.base_name == "::arr" && read.element.as_deref() == Some(""))
+            .expect("original empty-index array source read");
+        assert_eq!(empty_element.element.as_deref(), Some(""));
+        eq(source);
+    }
+
+    #[test]
     fn top_level_global_read_in_body() {
         eq("set g 1\nproc r {} { puts $::g }\nputs $g\n");
+    }
+
+    #[test]
+    fn isolated_method_seed_names_keep_literal_sigils_from_the_original_class() {
+        let source = "oo::class create C {variable {$literal} {${braced}}; method m {} {}}";
+        let mut shell = Analyser::new();
+        let commands = shell.per_item_setup(source, "tcl8.6");
+        shell.defer_proc_bodies = true;
+        shell.walk_commands_top_level(&commands, false);
+        shell.defer_proc_bodies = false;
+        assert_eq!(shell.deferred_bodies.len(), 1);
+        let body = shell.deferred_bodies.pop().unwrap();
+        assert!(body.is_method);
+        assert!(body.seeded_variables.contains(&"$literal".to_owned()));
+        assert!(body.seeded_variables.contains(&"${braced}".to_owned()));
+        let fragment = analyse_proc_body_isolated(
+            &body,
+            "tcl8.6",
+            &std::collections::HashSet::<String>::new(),
+            super::super::state::NonAsciiMode::Off,
+            None,
+            None,
+        );
+        assert!(fragment.proc_scope.variables.contains_key("$literal"));
+        assert!(fragment.proc_scope.variables.contains_key("${braced}"));
+        assert!(
+            !fragment.proc_scope.variables.contains_key("literal")
+                && !fragment.proc_scope.variables.contains_key("braced")
+        );
     }
 
     #[test]

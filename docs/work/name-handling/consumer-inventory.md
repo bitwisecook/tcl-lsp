@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T14:11:31Z on `work`.
+Current bounded snapshot: 2026-10-14T14:28:00Z on `work`.
 
 Shared command, variable, body and source owners are integrated across compiler/CFG,
 summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
@@ -218,3 +218,5 @@ protected evidence/provider digests. Comments explain only current how/why. This
 temporary tracking directory and its references are removed before the merge-ready
 PR. All required formatting, generation, proof, consumer, cache and provider gates
 must pass; no complete cache, Native, F5 or PR-ready acceptance is claimed.
+
+Current15:28 BST receipt: Runtime99 seals95/99 with zero source/provider/compiled-input/artifact drift. All four new Jim name controls and native automatic corpus pass; four retained bootstrap/foreign/error-stack/import controls fail. Runtime and VM issuer repairs remain active. New OO, isolated seed/global read and empty-index/alias consumers are integrated, with oracle-supported controls awaiting replay. Compiler101 is an explicitly temporary cfg(test) immutable stage capture; tracing files are excluded from commits and cannot establish production acceptance. Next tracking15:43 BST; hourly16:13 BST.

@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_error::tests::native_jim_error_keeps_raw_stack_trace_and_does_not_publish_c_globals ... 
+thread 'cmd_error::tests::native_jim_error_keeps_raw_stack_trace_and_does_not_publish_c_globals' (373634) panicked at src/cmd_error.rs:961:9:
+assertion `left == right` failed: eval "set ::errorCode KEEP; set ::errorInfo KEEP; catch {error BOOM {P file 3}} result options; list $result [dict get $options -errorinfo] [dict get $options -errorcode] $::errorCode $::errorInfo"
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_error::tests::native_jim_error_keeps_raw_stack_trace_and_does_not_publish_c_globals
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2154 filtered out; finished in 3.46s
+

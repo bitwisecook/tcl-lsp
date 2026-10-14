@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_jim_lookup::tests::foreign_jim_lookup_receipts_refuse_without_mutating_the_original ... 
+thread 'interp::native_jim_lookup::tests::foreign_jim_lookup_receipts_refuse_without_mutating_the_original' (373574) panicked at src/interp/native_jim_lookup.rs:1069:14:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("original Jim command hash key")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_jim_lookup::tests::foreign_jim_lookup_receipts_refuse_without_mutating_the_original
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2154 filtered out; finished in 3.46s
+

@@ -6436,7 +6436,7 @@ mod configured_receiver_completion_tests {
             let items = variable_completions(source, 1, 8, &analysis, "a", '{');
             let item = items
                 .iter()
-                .find(|item| item.label == "${alpha}")
+                .find(|item| item.insert_text == "${alpha}")
                 .expect("actual Logical declared candidate");
             let edit = item.text_edit.as_ref().unwrap();
             assert_eq!(edit.start_char, 5, "{environment}");

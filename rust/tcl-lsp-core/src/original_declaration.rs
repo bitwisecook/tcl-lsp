@@ -575,6 +575,39 @@ impl OriginalDeclarationIdentity {
             owned
         })
     }
+    /// Compatibility presentation key from the already selected original slot.
+    /// It supplies no lookup, invocation or editing identity.
+    pub(crate) fn reporting_key(&self, analysis: &AnalysisResult) -> Option<String> {
+        let slot = match self.role {
+            OriginalDeclarationRole::Procedure => self.procedure_metadata(analysis)?.name().slot(),
+            OriginalDeclarationRole::Document => return None,
+            _ => self.class_metadata(analysis)?.name().slot(),
+        };
+        let owner = tcl_syntax::native_string::resident_name_label(
+            &tcl_syntax::naming::native_command_full_name_bytes(slot),
+        );
+        Some(match self.role {
+            OriginalDeclarationRole::Procedure | OriginalDeclarationRole::Class => owner,
+            OriginalDeclarationRole::Method(side) => tcl_compiler::analyser::class_member_key(
+                &owner,
+                &self.label(),
+                side == MemberSide::ClassObject,
+            ),
+            OriginalDeclarationRole::Property(_) => {
+                tcl_compiler::analyser::class_property_key(&owner, &self.label())
+            }
+            OriginalDeclarationRole::Special(_, kind) => match kind {
+                tcl_registry::definer::DefinitionSpecialMemberKind::Constructor => {
+                    tcl_compiler::analyser::class_constructor_key(&owner)
+                }
+                tcl_registry::definer::DefinitionSpecialMemberKind::Destructor => {
+                    tcl_compiler::analyser::class_destructor_key(&owner)
+                }
+            },
+            OriginalDeclarationRole::Document => return None,
+        })
+    }
+
     /// Render only after identity selection; opaque units remain distinguishable.
     #[must_use]
     pub fn label(&self) -> String {

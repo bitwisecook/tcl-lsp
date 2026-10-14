@@ -2460,7 +2460,6 @@ impl Analyser {
         // An `$arr(idx)` read records the element index on the array var.
         let element = crate::naming::split_array_name_braced(name, braced_literal)
             .1
-            .filter(|e| !e.is_empty())
             .map(ToString::to_string);
 
         if self.result.allows_lexical_declaration_advice() {
@@ -2508,12 +2507,11 @@ impl Analyser {
                     var.array_indices.insert(e);
                 }
             } else if let Some(captured) = self.capture_global_reads.as_mut() {
-                // Isolated per-item body: the enclosing global scope is empty
-                // here, so a qualified read that would resolve against it in a
-                // whole-file analyse is captured for the aggregator to replay on
-                // the shell's real global scope.  `name` (not `base_owned`)
-                // preserves any `arr(idx)` element for the replay.
-                captured.push((name.to_string(), read_span));
+                captured.push(super::per_item::CapturedBodyGlobalRead {
+                    base_name: base_owned,
+                    element,
+                    span: read_span,
+                });
             }
         } else if !base_owned.contains("::")
             && self.result.ns_var_global_fallback()

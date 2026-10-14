@@ -165,6 +165,9 @@ fn collect_var_decl_spans(
     grammar: &DefinitionBodyGrammar,
     cmds: &[crate::segmenter::SegmentedCommand],
     known: &[String],
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> std::collections::HashMap<String, Span> {
     let mut out: std::collections::HashMap<String, Span> = std::collections::HashMap::new();
     if known.is_empty() {
@@ -180,7 +183,7 @@ fn collect_var_decl_spans(
         // the class fold gives it, so the span map and `ClassDef::variables`
         // cannot disagree.  Gating additionally on `known_set` below means a
         // stray non-declaration match cannot leak.
-        let Some(statement) = MemberStatement::read(grammar, &cmd.texts, &cmd.argv, None) else {
+        let Some(statement) = MemberStatement::read(grammar, &cmd.texts, &cmd.argv, dialect) else {
             continue;
         };
         if !declares_variables(statement.member)
@@ -188,12 +191,37 @@ fn collect_var_decl_spans(
         {
             continue;
         }
-        // The words after the member keyword are the declared names
-        // (`variable a b c`).
-        for (text, tok) in statement.args().iter().zip(statement.arg_tokens()) {
-            let base = crate::naming::normalise_var_name(text);
+        let groups = tcl_lexer::group_commands_bytes(&cmd.all_tokens, image.bytes(), config);
+        let [group] = groups.as_slice() else {
+            continue;
+        };
+        if group.words.len() != cmd.argv.len() || group.words.iter().any(|word| word.expand) {
+            continue;
+        }
+        let args = cmd.args().iter().map(String::as_str).collect::<Vec<_>>();
+        for argument in
+            grammar.member_arg_indices_for_role_in(cmd.name(), &args, dialect, ArgRole::VarWrite)
+        {
+            let ordinal = argument + 1;
+            let Some((group, tok)) = group.words.get(ordinal).zip(cmd.argv.get(ordinal)) else {
+                continue;
+            };
+            let Ok(word) =
+                tcl_lexer::NativeWord::from_group(image.clone(), config, &cmd.all_tokens, group)
+            else {
+                continue;
+            };
+            let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(&word)
+            else {
+                continue;
+            };
+            let Ok(name) = String::from_utf8(value) else {
+                continue;
+            };
+            let base = tcl_syntax::naming::split_element_ref(&name)
+                .map_or(name.as_str(), |(root, _)| root);
             if known_set.contains(base) {
-                out.entry(base.to_string()).or_insert(tok.span);
+                out.entry(base.to_owned()).or_insert(tok.span);
             }
         }
     }
@@ -1181,7 +1209,21 @@ impl Analyser {
         // declaration name-token span, so the per-method seeding below anchors
         // the object variable's definition at the declaration rather than the
         // whole method body.
-        let var_decl_spans = collect_var_decl_spans(grammar, &cmds, &class_variables);
+        let generation = self.analysis_context();
+        let var_decl_spans = self
+            .head_identities
+            .original_source_image()
+            .filter(|image| image.bytes() == self.source.as_bytes())
+            .map_or_else(std::collections::HashMap::new, |image| {
+                collect_var_decl_spans(
+                    grammar,
+                    &cmds,
+                    &class_variables,
+                    image,
+                    self.file_lexer_config().nested(),
+                    Some(generation.context().authoring_query()),
+                )
+            });
         // `TclOO` method bodies resolve bare commands globally (object-ns
         // semantics — see `Scope::oo_global_resolution`); snit / itcl
         // members resolve in the type / class namespace.
@@ -1502,7 +1544,8 @@ impl Analyser {
         init_path.push(init_idx);
         let body_start = mb.body_tok.span.start();
         for var in class_variables {
-            let base = crate::naming::normalise_var_name(var);
+            let base =
+                tcl_syntax::naming::split_element_ref(var).map_or(var.as_str(), |(root, _)| root);
             if base.is_empty() {
                 continue;
             }
@@ -1516,7 +1559,11 @@ impl Analyser {
         }
         let seeded: std::collections::HashSet<String> = class_variables
             .iter()
-            .map(|v| crate::naming::normalise_var_name(v).to_string())
+            .map(|v| {
+                tcl_syntax::naming::split_element_ref(v)
+                    .map_or(v.as_str(), |(root, _)| root)
+                    .to_owned()
+            })
             .collect();
         self.analyse_body(&mb.body_text, mb.body_tok, &init_path);
         // Whatever the walk itself recorded in this scope — no second,
@@ -1703,7 +1750,8 @@ impl Analyser {
         // to a zero-width span at the body start — harmless, never destructive.
         let body_start = mb.body_tok.span.start();
         for var in class_variables {
-            let base = crate::naming::normalise_var_name(var);
+            let base =
+                tcl_syntax::naming::split_element_ref(var).map_or(var.as_str(), |(root, _)| root);
             if base.is_empty() || mb.params.iter().any(|p| p.name == base) {
                 continue;
             }
@@ -5052,6 +5100,35 @@ snit::type {C\uD800} {}";
         assert_eq!(cd.methods.len(), 0);
         assert_eq!(cd.superclasses, [] as [std::string::String; 0]);
         assert_eq!(cd.mixins, [] as [std::string::String; 0]);
+    }
+
+    #[test]
+    fn variable_declaration_spans_use_selected_original_literal_name_operands() {
+        let source =
+            "variable {$literal} {${braced}} {}; variable $computed; variable {*}{shifted}";
+        let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let image = tcl_lexer::SourceImage::document(source);
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let known = [
+            "$literal",
+            "${braced}",
+            "",
+            "computed",
+            "$computed",
+            "shifted",
+        ]
+        .map(str::to_owned);
+        let spans = collect_var_decl_spans(tcloo(), &commands, &known, &image, config, None);
+        for name in ["$literal", "${braced}", ""] {
+            assert!(spans.contains_key(name), "{name:?}: {spans:?}");
+        }
+        assert!(!spans.contains_key("literal") && !spans.contains_key("braced"));
+        assert!(
+            !spans.contains_key("computed")
+                && !spans.contains_key("$computed")
+                && !spans.contains_key("shifted")
+        );
     }
 
     #[test]

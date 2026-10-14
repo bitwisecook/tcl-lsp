@@ -1,0 +1,41 @@
+{
+  "started_utc": "2026-10-14T14:21:37.143366+00:00",
+  "label": "compiler-diagnostic100",
+  "package": "tcl-compiler",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014",
+  "source_paths": 34710,
+  "plan": {
+    "exact": [
+      "ssa::original_analysis_definition_selector_tests::original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner",
+      "ssa::original_analysis_definition_selector_tests::readonly_source_reads_withhold_unrepresented_contents_versions",
+      "ssa::original_analysis_definition_selector_tests::original_analysis_word_geometry_keeps_current_input_vector_and_owner",
+      "ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_certificate_refuses_genuine_dependency_and_owner_changes",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+      "interprocedural::tests::standalone_empty_alias_declaration_and_mutation_have_distinct_write_effects",
+      "interprocedural::tests::literal_empty_global_alias_mutations_remain_visible",
+      "interprocedural::tests::nominal_global_alias_coverage_keeps_empty_data_separate_from_unknown_names",
+      "interprocedural::tests::an_alias_at_the_current_or_global_frame_is_a_global_alias",
+      "interprocedural::tests::global_alias_write_counts_as_writes_global",
+      "interprocedural::tests::non_aliased_local_write_is_not_writes_global",
+      "analyser::oo::tests::variable_declaration_spans_use_selected_original_literal_name_operands",
+      "analyser::oo::tests::variable_subcommand_records_class_variables",
+      "analyser::per_item::tests::isolated_method_seed_names_keep_literal_sigils_from_the_original_class",
+      "analyser::per_item::tests::oo_class_with_method",
+      "analyser::per_item::tests::multi_method_class_byte_identical",
+      "ssa::original_authored_analysis_definition_selector_tests::authored_source_definition_owner_requires_current_module_body_and_standalone_purpose",
+      "ssa::original_authored_analysis_definition_selector_tests::authored_source_definitions_select_exact_represented_versions",
+      "ssa::original_authored_analysis_definition_selector_tests::authored_body_tokens_keep_the_actual_original_header_attachment",
+      "analyser::per_item::tests::isolated_global_reads_retain_selected_literal_name_and_element_data",
+      "analyser::per_item::tests::top_level_global_read_in_body",
+      "analyser::per_item::tests::namespace_and_top_level_code"
+    ],
+    "temporary_diagnostics": true,
+    "scope": "Actual original SSA producer/refusal controls with cfg(test) observed-stage logging only; original assertions unchanged, no semantic or admission edits."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "9fe22bc7550a4b8c4bee854cb9da1f83e0c5d659f276de0a6fd3f277173b7113",
+  "source_channel": "temporary cfg(test) stage diagnostics"
+}

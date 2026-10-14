@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T14:11:31Z on `work`.
+Current bounded snapshot: 2026-10-14T14:28:00Z on `work`.
 
 Shared command, variable, body and source owners are integrated across compiler/CFG,
 summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
@@ -162,3 +162,5 @@ from actual appliance runs in the same branch; C/Jim and software tests do not
 establish F5 behaviour. Preserve original sources, raw results, failures, legal
 attribution and provenance. Remove this temporary directory and its references
 before the merge-ready PR; durable documentation describes current contracts.
+
+Current15:28 BST receipt: Runtime99 seals95/99 with zero source/provider/compiled-input/artifact drift. All four new Jim name controls and native automatic corpus pass; four retained bootstrap/foreign/error-stack/import controls fail. Runtime and VM issuer repairs remain active. New OO, isolated seed/global read and empty-index/alias consumers are integrated, with oracle-supported controls awaiting replay. Compiler101 is an explicitly temporary cfg(test) immutable stage capture; tracing files are excluded from commits and cannot establish production acceptance. Next tracking15:43 BST; hourly16:13 BST.

@@ -1122,7 +1122,7 @@ pub struct Analyser {
     /// a body's `$::g` read lands as a reference on the real enclosing `::g`
     /// def — one of the divergences the per-item path must reproduce.  `None` on
     /// the whole-file `analyse` path (reads resolve against the populated scope).
-    pub(super) capture_global_reads: Option<Vec<(String, tcl_lexer::Span)>>,
+    pub(super) capture_global_reads: Option<Vec<super::per_item::CapturedBodyGlobalRead>>,
     /// The write-side twin of [`Self::capture_global_reads`].  When `Some`,
     /// an isolated proc-body analysis (the per-item path) records every
     /// variable the body defines **directly in the global scope** — a body

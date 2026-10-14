@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_error::tests::jim_automatic_stack_uses_evaluation_receipts_before_unwinding ... 
+thread 'cmd_error::tests::jim_automatic_stack_uses_evaluation_receipts_before_unwinding' (373616) panicked at src/cmd_error.rs:961:9:
+assertion `left == right` failed: eval "catch {error BOOM} r o; dict get $o -errorinfo"
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_error::tests::jim_automatic_stack_uses_evaluation_receipts_before_unwinding
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2154 filtered out; finished in 3.31s
+

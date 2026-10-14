@@ -1,0 +1,7 @@
+before 0
+code 0 result VALUE
+after 1
+value VALUE
+sigil_code 0 result ORIGINAL+VALUE
+sigil_value ORIGINAL+VALUE
+bare_exists 0

@@ -30,7 +30,6 @@ use tcl_registry::value_transfer::ExactValue;
 
 use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::ir::ProcedureId;
-use crate::naming::normalise_var_name;
 use crate::side_effects::EffectRegion;
 
 mod completion;
@@ -2521,15 +2520,18 @@ fn scan_call_statement(
         .registry
         .frame_effect(command)
         .filter(|effect| effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs);
-    match global_alias_names(command, args, alias_pairs, ctx.registry) {
+    let alias_names = if ctx.source_input.is_some() || tokens.is_some() || ctx.declared.is_some() {
+        Some(GlobalAliasNameCoverage {
+            names: HashSet::new(),
+            unknown: true,
+        })
+    } else {
+        global_alias_names(command, args, ctx.registry)
+    };
+    match alias_names {
         Some(alias_names) => {
-            if alias_names.contains("") {
-                // Dynamic / unbounded alias target — conservative.
-                facts.writes_global = true;
-            }
-            facts
-                .global_aliases
-                .extend(alias_names.into_iter().filter(|n| !n.is_empty()));
+            facts.writes_global |= alias_names.unknown;
+            facts.global_aliases.extend(alias_names.names);
         }
         None => {
             // A non-declaration command that writes a `::`-qualified
@@ -2537,7 +2539,7 @@ fn scan_call_statement(
             // `dict set ::cfg ...`) mutates caller-visible state.
             if defs
                 .iter()
-                .any(|n| !n.is_empty() && (n.starts_with("::") || facts.global_aliases.contains(n)))
+                .any(|n| n.starts_with("::") || facts.global_aliases.contains(n))
             {
                 facts.writes_global = true;
             }
@@ -3459,48 +3461,96 @@ fn is_global_or_namespace(name: &str) -> bool {
     name.starts_with("::") || name.contains("::")
 }
 
-/// Local names a scope-aliasing call binds to global / namespace scope:
-/// the `VarWrite` operands of a scope alias the registry declares into the
-/// global namespace or the current one (`global`, `variable`), or the local
-/// of each pair of an alias-pair call whose level selects the global frame
-/// (`upvar #0`) or the current one (`upvar 0`), where the other variable is
-/// in practice a qualified, computed or namespace-declared name. Returns
-/// `None` for any other call. An empty string (`""`) in the set is a sentinel
-/// for a dynamic / unbounded declaration (`global $x`), which the caller must
-/// treat as a global write.
+#[derive(Default)]
+struct GlobalAliasNameCoverage {
+    names: HashSet<String>,
+    unknown: bool,
+}
+
+/// Explicit standalone alias candidates; uncertainty is separate from legal empty data.
 fn global_alias_names(
     command: &str,
     args: &[String],
-    alias_pairs: Option<tcl_registry::frame_effect::FrameEffectSpec>,
     registry: &tcl_registry::CommandRegistry,
-) -> Option<HashSet<String>> {
-    use tcl_registry::value_transfer::AliasFrame;
-    let words: Vec<&str> = args.iter().map(String::as_str).collect();
-    let locals: Vec<&String> = match registry.alias_frame(command, &words, None) {
-        Some(AliasFrame::Global | AliasFrame::Namespace) => registry
-            .arg_indices_for_role(command, &words, tcl_registry::ArgRole::VarWrite)
-            .into_iter()
-            .filter_map(|index| args.get(index))
-            .collect(),
-        Some(_) => return None,
-        None => {
-            let (level, pairs) = alias_pairs?.resolve_in(args, registry);
-            if !(level.is_global_frame() || level.is_current_frame()) {
-                return None;
-            }
-            pairs.iter().skip(1).step_by(2).collect()
-        }
+) -> Option<GlobalAliasNameCoverage> {
+    use tcl_registry::state_transition::{
+        CallerFrameSelection, StateTransition, VariableAliasTarget,
     };
-    Some(
-        locals
-            .into_iter()
-            .map(|raw| match raw.trim_start().as_bytes().first() {
-                // Dynamic alias target — can't bound the name set.
-                Some(b'$' | b'[') => String::new(),
-                _ => normalise_var_name(raw).to_owned(),
-            })
-            .collect(),
-    )
+    use tcl_registry::{InvocationWord, InvocationWords};
+    let arguments = args
+        .iter()
+        .map(|name| {
+            if crate::dynamic_names::names_a_dynamic_variable(name) || name.contains('\0') {
+                InvocationWord::Dynamic
+            } else {
+                InvocationWord::Literal(name)
+            }
+        })
+        .collect::<Vec<_>>();
+    let schema = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(command), &arguments)
+                .with_profile(registry.profile()),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let transitions = schema.state_transitions();
+    let mut coverage = GlobalAliasNameCoverage::default();
+    let mut selected = false;
+    for fact in transitions.facts() {
+        let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+            continue;
+        };
+        let visible = match &alias.target {
+            VariableAliasTarget::Global { .. }
+            | VariableAliasTarget::CurrentNamespace { .. }
+            | VariableAliasTarget::Namespace { .. } => true,
+            VariableAliasTarget::CallerSelectedFrame { frame, .. } => match frame {
+                CallerFrameSelection::DefaultCaller => false,
+                CallerFrameSelection::Explicit(level) => match level.literal() {
+                    Some(level) => {
+                        let level = schema.words.arguments().dialect().map_or_else(
+                            || tcl_registry::frame_effect::FrameLevel::parse(level),
+                            |dialect| {
+                                tcl_registry::frame_effect::FrameLevel::parse_for_dialect(
+                                    level, dialect,
+                                )
+                            },
+                        );
+                        match level {
+                            Some(level) if level.is_global_frame() || level.is_current_frame() => {
+                                true
+                            }
+                            Some(tcl_registry::frame_effect::FrameLevel::Dynamic) | None => {
+                                coverage.unknown = true;
+                                true
+                            }
+                            Some(_) => false,
+                        }
+                    }
+                    None => {
+                        coverage.unknown = true;
+                        true
+                    }
+                },
+            },
+        };
+        if !visible {
+            continue;
+        }
+        selected = true;
+        match alias.local.literal() {
+            Some(name) => {
+                coverage.names.insert(
+                    tcl_syntax::naming::split_element_ref(name)
+                        .map_or(name, |(root, _)| root)
+                        .to_owned(),
+                );
+            }
+            None => coverage.unknown = true,
+        }
+    }
+    selected.then_some(coverage)
 }
 
 /// Walk an expression AST and record call-graph edges (and Body
@@ -5591,6 +5641,83 @@ mod tests {
     /// namespace-declared name (`upvar 0 $token state`), which reaches a
     /// namespace cell from this frame. Its level is read as a `FrameLevel`,
     /// so every spelling of the global frame and of this one counts.
+    #[test]
+    fn standalone_empty_alias_declaration_and_mutation_have_distinct_write_effects() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let known = HashSet::new();
+        let params = HashSet::new();
+        let module = crate::ir::Module::default();
+        let ctx = ScanCtx {
+            known: &known,
+            registry: &registry,
+            dialect: None,
+            params: &params,
+            object_types: ObjectTypeMap::none().candidates,
+            identities: crate::realm::CommandBindingRealm::none(),
+            declared: None,
+            positioned_substitutions: false,
+            source_input: None,
+            source_procedures: &module.procedures,
+            source_module: &module,
+            current_tokens: None,
+        };
+        let mut facts = LocalFacts::default();
+        scan_call_statement("global", &["".into()], &["".into()], None, ctx, &mut facts);
+        assert!(facts.global_aliases.contains(""));
+        assert!(
+            !facts.writes_global,
+            "declaring the literal empty alias is not a value write"
+        );
+        scan_call_statement(
+            "append",
+            &["".into(), "VALUE".into()],
+            &["".into()],
+            None,
+            ctx,
+            &mut facts,
+        );
+        assert!(
+            facts.writes_global,
+            "mutation reaches the retained literal empty alias"
+        );
+    }
+
+    #[test]
+    fn literal_empty_global_alias_mutations_remain_visible() {
+        let analysis = build("proc ::f {} {global {}; append {} VALUE}");
+        assert!(
+            fixture_proc(&analysis, "::f")
+                .expect("authentic standalone declaration")
+                .writes_global
+        );
+    }
+
+    #[test]
+    fn nominal_global_alias_coverage_keeps_empty_data_separate_from_unknown_names() {
+        let registry = CommandRegistry::build_default();
+        let coverage =
+            global_alias_names("global", &["".into(), "array(key)".into()], &registry).unwrap();
+        assert!(coverage.names.contains("") && coverage.names.contains("array"));
+        assert!(!coverage.unknown);
+        let coverage = global_alias_names("global", &["$computed".into()], &registry).unwrap();
+        assert!(coverage.names.is_empty() && coverage.unknown);
+        let coverage = global_alias_names(
+            "upvar",
+            &["#0".into(), "source".into(), "".into()],
+            &registry,
+        )
+        .unwrap();
+        assert!(coverage.names.contains("") && !coverage.unknown);
+        assert!(
+            global_alias_names(
+                "upvar",
+                &["1".into(), "source".into(), "local".into()],
+                &registry
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn an_alias_at_the_current_or_global_frame_is_a_global_alias() {
         for src in [

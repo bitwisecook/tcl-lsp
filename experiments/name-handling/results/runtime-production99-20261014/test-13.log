@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_namespace::tests::retained_import_origin_chain_ignores_a_recreated_same_fqn_command ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2154 filtered out; finished in 1.59s
+

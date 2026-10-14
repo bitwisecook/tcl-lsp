@@ -370,10 +370,23 @@ pub fn reference_count_title(count: usize) -> String {
     }
 }
 
-/// Match compatibility lens keys using the same analyser recipes as emission.
+/// Match emitted labels and compatibility keys from current declaration records.
 /// This presentation query grants no original declaration or invocation identity.
 #[must_use]
 pub fn lens_qname_exists(analysis: &AnalysisResult, qname: &str) -> bool {
+    if !analysis.allows_lexical_declaration_advice() {
+        return analysis
+            .retained_command_realm()
+            .and_then(|realm| realm.original_source_image())
+            .and_then(|image| image.try_text().ok())
+            .and_then(|source| crate::original_declaration::declarations("", source, analysis))
+            .is_some_and(|identities| {
+                identities.iter().any(|identity| {
+                    identity.label() == qname
+                        || identity.reporting_key(analysis).as_deref() == Some(qname)
+                })
+            });
+    }
     if analysis.all_procs.contains_key(qname) || analysis.all_classes.contains_key(qname) {
         return true;
     }
@@ -1718,6 +1731,21 @@ mod tests {
         assert!(!lens_qname_exists(&analysis, "::nope"));
         assert!(!lens_qname_exists(&analysis, "::Bar::method::nope"));
         assert!(!lens_qname_exists(&analysis, "::NoSuchClass::method::m"));
+    }
+
+    #[test]
+    fn original_lens_reporting_keys_keep_owner_currency_and_ignore_display_maps() {
+        let source = "namespace eval N {proc helper {} {}}\n";
+        let mut analysis = analyse(source);
+        assert!(lens_qname_exists(&analysis, "helper"));
+        assert!(lens_qname_exists(&analysis, "::N::helper"));
+        assert!(!lens_qname_exists(&analysis, "::helper"));
+        analysis.all_procs.clear();
+        assert!(lens_qname_exists(&analysis, "helper"));
+        assert!(lens_qname_exists(&analysis, "::N::helper"));
+        analysis.resolved_input = None;
+        assert!(!lens_qname_exists(&analysis, "helper"));
+        assert!(!lens_qname_exists(&analysis, "::N::helper"));
     }
 
     #[test]
