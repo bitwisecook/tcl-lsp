@@ -1,0 +1,1720 @@
+
+running 1 test
+test rust_translator_matches_golden_fixture ... 
+thread 'rust_translator_matches_golden_fixture' (291148) panicked at rust/f5-xc/tests/differential.rs:108:5:
+27 of 38 parity cases diverged:
+
+case `dedup_pools` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/a\"} {\n        pool shared_pool\n    } else {\n        pool shared_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(2),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: shared_pool"),
+            String("Origin pool: shared_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("shared_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(3),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `switch_path_glob` diverged:
+  source: "when HTTP_REQUEST {\n    switch -glob [HTTP::path] {\n        \"/api/*\" { pool api_pool }\n        \"/static/*\" { pool static_pool }\n        default { pool default_pool }\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(3),
+            "origin_pools": Number(3),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "coverage_pct": (
+        Number(100.0),
+        Number(0.0),
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC100"),
+            String("XC101"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: api_pool"),
+            String("Origin pool: default_pool"),
+            String("Origin pool: static_pool"),
+            String("XC L7 routes with path matching"),
+        ],
+        Array [
+            String("Command or operands have no current static source owner"),
+        ],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC100"),
+            String("XC101"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("api_pool"),
+            String("default_pool"),
+            String("static_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(4),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(1),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `switch_host` diverged:
+  source: "when HTTP_REQUEST {\n    switch [HTTP::host] {\n        \"api.example.com\" { pool api_pool }\n        \"www.example.com\" { pool web_pool }\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(2),
+            "origin_pools": Number(2),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "coverage_pct": (
+        Number(100.0),
+        Number(0.0),
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC101"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: api_pool"),
+            String("Origin pool: web_pool"),
+            String("XC L7 routes with host matching"),
+        ],
+        Array [
+            String("Command or operands have no current static source owner"),
+        ],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC101"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("api_pool"),
+            String("web_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(3),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(1),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `switch_method` diverged:
+  source: "when HTTP_REQUEST {\n    switch [HTTP::method] {\n        \"GET\" { pool read_pool }\n        \"POST\" { pool write_pool }\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(2),
+            "origin_pools": Number(2),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "coverage_pct": (
+        Number(100.0),
+        Number(0.0),
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: read_pool"),
+            String("Origin pool: write_pool"),
+            String("XC service policy rules with method matching"),
+        ],
+        Array [
+            String("Command or operands have no current static source owner"),
+        ],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("read_pool"),
+            String("write_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(3),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(1),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `switch_dynamic` diverged:
+  source: "when HTTP_REQUEST {\n    switch [HTTP::header value \"X-Route\"] {\n        \"a\" { pool a_pool }\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "coverage_pct": (
+        Number(75.0),
+        Number(0.0),
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC200"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: a_pool"),
+            String("Switch on dynamic value — needs manual XC config — Cannot statically determine match criteria"),
+        ],
+        Array [
+            String("Command or operands have no current static source owner"),
+        ],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC200"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("a_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(1),
+            "partial": Number(1),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(1),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_path_exact` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/login\"} {\n        pool login_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: login_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("login_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_path_starts_with` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] starts_with \"/api\"} {\n        pool api_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: api_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("api_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_host_method_and` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"api.example.com\" && [HTTP::method] eq \"POST\"} {\n        pool api_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: api_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("api_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_or_branches` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/a\" || [HTTP::path] eq \"/b\"} {\n        pool ab_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(2),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: ab_pool"),
+            String("Origin pool: ab_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("ab_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(3),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_header_match` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::header value \"X-Foo\"] eq \"bar\"} {\n        pool foo_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: foo_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("foo_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_header_exists` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::header exists \"X-Api-Key\"]} {\n        pool api_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: api_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("api_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_cookie_match` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::cookie \"session\"] eq \"abc\"} {\n        pool sess_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: sess_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("sess_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_query_contains` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::query] contains \"debug=1\"} {\n        pool debug_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: debug_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("debug_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_negated_method` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::method] ne \"GET\"} {\n        pool nonget_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: nonget_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("nonget_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `if_unmappable` diverged:
+  source: "when HTTP_REQUEST {\n    if {[clientside] && rand() > 0.5} {\n        pool x_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "coverage_pct": (
+        Number(75.0),
+        Number(100.0),
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC203"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Conditional logic — review manually for XC match criteria — Complex condition could not be automatically mapped"),
+            String("Origin pool: x_pool"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC203"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("x_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(1),
+            "partial": Number(1),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `redirect` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/old\"} {\n        HTTP::redirect \"https://new.example.com\"\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC101"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("XC redirect route"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC101"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `respond_deny` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] starts_with \"/admin\"} {\n        HTTP::respond 403 content \"Forbidden\"\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(1),
+            "service_policy_rules": Number(1),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC102"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("XC service policy deny rule (403)"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC102"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `respond_200` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/health\"} {\n        HTTP::respond 200 content \"OK\"\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC101"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("XC direct response route (200)"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC101"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `class_match` diverged:
+  source: "when HTTP_REQUEST {\n    if {[class match [HTTP::path] equals url_allowlist]} {\n        pool allow_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "coverage_pct": (
+        Number(75.0),
+        Number(100.0),
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC203"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Conditional logic — review manually for XC match criteria — Complex condition could not be automatically mapped"),
+            String("Origin pool: allow_pool"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC203"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("allow_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(1),
+            "partial": Number(1),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `asm_disable` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] starts_with \"/api\"} {\n        ASM::disable\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(1),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC102"),
+            String("XC106"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("XC WAF exclusion rule (disable App Firewall)"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC102"),
+            String("XC106"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `loop_foreach` diverged:
+  source: "when HTTP_REQUEST {\n    foreach h [HTTP::header names] {\n        log local0. $h\n    }\n}"
+  diffs (expected vs actual): {
+    "diag_codes": (
+        Array [
+            String("XC300"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "diag_messages": (
+        Array [
+            String("Loop construct — no XC equivalent — XC policies are declarative, not procedural. Consider App Stack for iterative logic."),
+        ],
+        Array [
+            String("Command or operands have no current static source owner"),
+        ],
+    ),
+    "item_codes": (
+        Array [
+            String("XC300"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+}
+
+case `eval_barrier` diverged:
+  source: "when HTTP_REQUEST {\n    eval $dynamic_code\n}"
+  diffs (expected vs actual): {
+    "diag_codes": (
+        Array [
+            String("XC300"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+    "diag_messages": (
+        Array [
+            String("Dynamic construct — cannot be statically translated — 'eval' creates dynamic behaviour with no XC equivalent. Consider App Stack for this logic."),
+        ],
+        Array [
+            String("Command or operands have no current static source owner"),
+        ],
+    ),
+    "item_codes": (
+        Array [
+            String("XC300"),
+        ],
+        Array [
+            String("XC203"),
+        ],
+    ),
+}
+
+case `string_tolower_wrapper` diverged:
+  source: "when HTTP_REQUEST {\n    if {[string tolower [HTTP::path]] eq \"/api\"} {\n        pool api_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: api_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("api_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `nested_switch_in_if` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"api.example.com\"} {\n        switch -glob [HTTP::path] {\n            \"/v1/*\" { pool v1_pool }\n            \"/v2/*\" { pool v2_pool }\n        }\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(2),
+            "origin_pools": Number(2),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC101"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: v1_pool"),
+            String("Origin pool: v2_pool"),
+            String("XC L7 routes with path matching"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC100"),
+            String("XC101"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("v1_pool"),
+            String("v2_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(4),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `ends_with_path` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] ends_with \".jpg\"} {\n        pool img_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: img_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("img_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `matches_glob_path` diverged:
+  source: "when HTTP_REQUEST {\n    if {[HTTP::path] matches_glob \"/api/*/v2\"} {\n        pool g_pool\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(1),
+            "origin_pools": Number(1),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("Origin pool: g_pool"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC100"),
+            String("XC102"),
+        ],
+        Array [],
+    ),
+    "origin_pool_names": (
+        Array [
+            String("g_pool"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+
+case `ip_class_match` diverged:
+  source: "when HTTP_REQUEST {\n    if {[class match [IP::client_addr] equals trusted_ips]} {\n        ASM::disable\n    }\n}"
+  diffs (expected vs actual): {
+    "counts": (
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(1),
+        },
+        Object {
+            "routes": Number(0),
+            "origin_pools": Number(0),
+            "service_policies": Number(0),
+            "service_policy_rules": Number(0),
+            "header_actions": Number(0),
+            "waf_exclusion_rules": Number(0),
+        },
+    ),
+    "diag_codes": (
+        Array [
+            String("XC102"),
+            String("XC106"),
+        ],
+        Array [],
+    ),
+    "diag_messages": (
+        Array [
+            String("XC WAF exclusion rule (disable App Firewall)"),
+            String("XC service policy rule with match criteria"),
+        ],
+        Array [],
+    ),
+    "item_codes": (
+        Array [
+            String("XC102"),
+            String("XC106"),
+        ],
+        Array [],
+    ),
+    "statuses": (
+        Object {
+            "translated": Number(2),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+        Object {
+            "translated": Number(0),
+            "partial": Number(0),
+            "untranslatable": Number(0),
+            "advisory": Number(0),
+        },
+    ),
+}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    rust_translator_matches_golden_fixture
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 21.78s
+

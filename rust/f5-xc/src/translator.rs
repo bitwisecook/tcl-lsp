@@ -23,16 +23,22 @@
 //! XC-native equivalents (routes, service policies, header actions, origin
 //! pools).
 
-use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, SwitchMode};
-use tcl_compiler::lowering::lower_to_ir_with_config;
-use tcl_compiler::registry_invocation::source_structure::original_single_source_command_substitution;
+use tcl_compiler::registry_invocation::source_structure::{
+    OriginalRegistryWords, original_single_source_command_substitution,
+};
 use tcl_core_types::DiagCode;
-use tcl_lexer::{NativeWord, SourceImage, Span, native_script_words_in};
+#[cfg(test)]
+use tcl_lexer::SourceImage;
+use tcl_lexer::{NativeWord, Span, native_script_words_in};
 use tcl_registry::CommandRegistry;
 use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp, expr_text};
+#[cfg(test)]
 use tcl_syntax::expr::parse_expr;
 
 use crate::mapping::{
@@ -73,6 +79,7 @@ struct EnclosingContext {
 // Low-level helpers
 
 /// Original words from one complete source command under the translation grammar.
+#[cfg(test)]
 fn original_command_words(text: &str) -> Option<Vec<NativeWord>> {
     let config = tcl_lexer::LexerConfig::from_grammar(
         tcl_registry::model::resolve_environment("f5-irules").grammar(),
@@ -98,6 +105,7 @@ fn original_command_words(text: &str) -> Option<Vec<NativeWord>> {
     Some(words)
 }
 
+#[cfg(test)]
 fn original_literal_value(word: &NativeWord) -> Option<String> {
     String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
         word,
@@ -107,14 +115,17 @@ fn original_literal_value(word: &NativeWord) -> Option<String> {
 
 /// Scalar getter advice requires a complete zero-argument command or a sole
 /// executable getter operand of a case conversion. Literal brackets are data.
+#[cfg(test)]
 fn is_http_getter(text: &str) -> Option<String> {
     scalar_getter(text).filter(|name| name.starts_with("HTTP::"))
 }
 
+#[cfg(test)]
 fn scalar_getter(text: &str) -> Option<String> {
     scalar_getter_words(original_command_words(text)?)
 }
 
+#[cfg(test)]
 fn scalar_getter_words(mut words: Vec<NativeWord>) -> Option<String> {
     loop {
         let command = original_literal_value(words.first()?)?;
@@ -135,6 +146,7 @@ fn scalar_getter_words(mut words: Vec<NativeWord>) -> Option<String> {
     }
 }
 
+#[cfg(test)]
 fn scalar_getter_operand(word: &NativeWord) -> Option<String> {
     scalar_getter_words(
         original_single_source_command_substitution(word)?
@@ -146,6 +158,7 @@ fn scalar_getter_operand(word: &NativeWord) -> Option<String> {
 
 /// Literal fields and sole executable command operands retain shared geometry.
 /// Dynamic values and expanded words cannot supply static translation facts.
+#[cfg(test)]
 fn parse_command_parts(text: &str) -> Vec<String> {
     let Some(words) = original_command_words(text) else {
         return Vec::new();
@@ -169,8 +182,8 @@ fn parse_command_parts(text: &str) -> Vec<String> {
 }
 
 /// Classify what a switch subject switches on.
-fn switch_subject_kind(subject: &str) -> Option<&'static str> {
-    let cmd = is_http_getter(subject)?;
+fn switch_subject_kind(command: Option<String>) -> Option<&'static str> {
+    let cmd = command?;
     if is_http_path_command(&cmd) {
         Some("path")
     } else if cmd == "HTTP::host" {
@@ -323,14 +336,6 @@ fn glob_to_regex(pattern: &str) -> String {
     parts
 }
 
-/// Extract raw text from an `ExprNode::Command` node.
-fn expr_command_text(node: &ExprNode) -> Option<&str> {
-    match node {
-        ExprNode::Command { text, .. } => Some(text),
-        _ => None,
-    }
-}
-
 /// Strip surrounding double quotes from `text` (only `"…"`; braced strings
 /// are left untouched).
 fn strip_dquotes(text: &str) -> &str {
@@ -356,22 +361,6 @@ fn expr_string_value(node: &ExprNode) -> Option<String> {
             Some(strip_dquotes(trimmed).to_owned())
         }
         _ => None,
-    }
-}
-
-/// Normalise an `if` / loop condition to the iRules-parsed expression.
-///
-/// The lowering parses structured-command conditions dialect-agnostically
-/// (`parse_expr(arg, None)`), so an iRules-specific operator
-/// (`starts_with` / `ends_with` / `contains` / `matches_glob`) leaves the
-/// whole condition as an [`ExprNode::Raw`]. Conditions must be parsed under
-/// the iRules grammar to recover their structure, so re-parse any `Raw`
-/// fallback under `f5-irules`; an already-structured node is returned
-/// untouched.
-fn normalize_condition(node: &ExprNode) -> Cow<'_, ExprNode> {
-    match node {
-        ExprNode::Raw { text } => Cow::Owned(parse_expr(text, Some("f5-irules"))),
-        other => Cow::Borrowed(other),
     }
 }
 
@@ -411,25 +400,28 @@ fn decompose_or_condition<'a>(node: &'a ExprNode, out: &mut Vec<&'a ExprNode>) {
 
 // Condition extraction helpers
 
-/// Helper: pull `(command_text, string_value)` out of a binary node where
-/// either operand may be the command/string (the `left or right` pattern
-/// for symmetric equality).
+/// Pull the original command node and a literal value from either operand.
 fn binary_cmd_and_str<'a>(
     left: &'a ExprNode,
     right: &'a ExprNode,
-) -> (Option<&'a str>, Option<String>) {
-    let cmd = expr_command_text(left).or_else(|| expr_command_text(right));
+) -> (Option<&'a ExprNode>, Option<String>) {
+    let cmd = [left, right]
+        .into_iter()
+        .find(|node| matches!(node, ExprNode::Command { .. }));
     let val = expr_string_value(right).or_else(|| expr_string_value(left));
     (cmd, val)
 }
 
-fn condition_to_method_match(node: &ExprNode) -> Option<XCMethodMatch> {
+fn condition_to_method_match(
+    node: &ExprNode,
+    advice: &SourceExpressionAdvice<'_>,
+) -> Option<XCMethodMatch> {
     let (inner, negated) = unwrap_negation(node);
     if let ExprNode::Binary { op, left, right } = inner {
         if EQUALITY_OPS.contains(op) {
             let (cmd, val) = binary_cmd_and_str(left, right);
             if let (Some(c), Some(v)) = (cmd, val) {
-                if is_http_getter(c).as_deref() == Some("HTTP::method") {
+                if advice.http_getter(c).as_deref() == Some("HTTP::method") {
                     return Some(XCMethodMatch {
                         methods: vec![v.to_uppercase()],
                         invert: negated,
@@ -439,7 +431,7 @@ fn condition_to_method_match(node: &ExprNode) -> Option<XCMethodMatch> {
         } else if NEGATED_EQUALITY_OPS.contains(op) {
             let (cmd, val) = binary_cmd_and_str(left, right);
             if let (Some(c), Some(v)) = (cmd, val) {
-                if is_http_getter(c).as_deref() == Some("HTTP::method") {
+                if advice.http_getter(c).as_deref() == Some("HTTP::method") {
                     return Some(XCMethodMatch {
                         methods: vec![v.to_uppercase()],
                         invert: !negated,
@@ -451,20 +443,26 @@ fn condition_to_method_match(node: &ExprNode) -> Option<XCMethodMatch> {
     None
 }
 
-fn condition_to_path_match(node: &ExprNode) -> Option<XCPathMatch> {
+fn condition_to_path_match(
+    node: &ExprNode,
+    advice: &SourceExpressionAdvice<'_>,
+) -> Option<XCPathMatch> {
     let (inner, negated) = unwrap_negation(node);
     let ExprNode::Binary { op, left, right } = inner else {
         return None;
     };
     let getter_is_path = |n: &ExprNode| {
-        expr_command_text(n)
-            .and_then(is_http_getter)
+        advice
+            .http_getter(n)
             .is_some_and(|c| is_http_path_command(&c))
     };
     if EQUALITY_OPS.contains(op) {
         let (cmd, val) = binary_cmd_and_str(left, right);
         if let (Some(c), Some(v)) = (cmd, val) {
-            if is_http_getter(c).is_some_and(|g| is_http_path_command(&g)) {
+            if advice
+                .http_getter(c)
+                .is_some_and(|g| is_http_path_command(&g))
+            {
                 return Some(XCPathMatch {
                     match_type: "exact".to_owned(),
                     value: v,
@@ -499,17 +497,18 @@ fn condition_to_path_match(node: &ExprNode) -> Option<XCPathMatch> {
     }
 }
 
-fn condition_to_host_match(node: &ExprNode) -> Option<XCHostMatch> {
+fn condition_to_host_match(
+    node: &ExprNode,
+    advice: &SourceExpressionAdvice<'_>,
+) -> Option<XCHostMatch> {
     let ExprNode::Binary { op, left, right } = node else {
         return None;
     };
-    let getter_is_host = |n: &ExprNode| {
-        expr_command_text(n).and_then(is_http_getter).as_deref() == Some("HTTP::host")
-    };
+    let getter_is_host = |n: &ExprNode| advice.http_getter(n).as_deref() == Some("HTTP::host");
     if EQUALITY_OPS.contains(op) {
         let (cmd, val) = binary_cmd_and_str(left, right);
         if let (Some(c), Some(v)) = (cmd, val) {
-            if is_http_getter(c).as_deref() == Some("HTTP::host") {
+            if advice.http_getter(c).as_deref() == Some("HTTP::host") {
                 return Some(XCHostMatch {
                     match_type: "exact".to_owned(),
                     value: v,
@@ -535,11 +534,8 @@ fn condition_to_host_match(node: &ExprNode) -> Option<XCHostMatch> {
 
 /// Parse `[HTTP::header value "name"]` or `[HTTP::header "name"]` → header
 /// name.
-fn parse_header_getter(node: &ExprNode) -> Option<String> {
-    let ExprNode::Command { text, .. } = node else {
-        return None;
-    };
-    let parts = parse_command_parts(text);
+fn parse_header_getter(node: &ExprNode, advice: &SourceExpressionAdvice<'_>) -> Option<String> {
+    let parts = advice.parts(node)?;
     if parts.len() < 2 || parts[0] != "HTTP::header" {
         return None;
     }
@@ -556,8 +552,8 @@ fn parse_header_getter(node: &ExprNode) -> Option<String> {
 }
 
 /// Parse `[HTTP::header exists "name"]` → header name.
-fn parse_header_exists(text: &str) -> Option<String> {
-    let parts = parse_command_parts(text);
+fn parse_header_exists(node: &ExprNode, advice: &SourceExpressionAdvice<'_>) -> Option<String> {
+    let parts = advice.parts(node)?;
     if parts.len() >= 3 && parts[0] == "HTTP::header" && parts[1] == "exists" {
         Some(parts[2].clone())
     } else {
@@ -565,11 +561,15 @@ fn parse_header_exists(text: &str) -> Option<String> {
     }
 }
 
-fn condition_to_header_match(node: &ExprNode) -> Option<XCHeaderMatch> {
+fn condition_to_header_match(
+    node: &ExprNode,
+    advice: &SourceExpressionAdvice<'_>,
+) -> Option<XCHeaderMatch> {
     let (inner, negated) = unwrap_negation(node);
     match inner {
         ExprNode::Binary { op, left, right } if EQUALITY_OPS.contains(op) => {
-            let hdr = parse_header_getter(left).or_else(|| parse_header_getter(right));
+            let hdr =
+                parse_header_getter(left, advice).or_else(|| parse_header_getter(right, advice));
             let val = expr_string_value(right).or_else(|| expr_string_value(left));
             if let (Some(h), Some(v)) = (hdr, val) {
                 return Some(XCHeaderMatch {
@@ -582,7 +582,8 @@ fn condition_to_header_match(node: &ExprNode) -> Option<XCHeaderMatch> {
             None
         }
         ExprNode::Binary { op, left, right } if NEGATED_EQUALITY_OPS.contains(op) => {
-            let hdr = parse_header_getter(left).or_else(|| parse_header_getter(right));
+            let hdr =
+                parse_header_getter(left, advice).or_else(|| parse_header_getter(right, advice));
             let val = expr_string_value(right).or_else(|| expr_string_value(left));
             if let (Some(h), Some(v)) = (hdr, val) {
                 return Some(XCHeaderMatch {
@@ -599,7 +600,7 @@ fn condition_to_header_match(node: &ExprNode) -> Option<XCHeaderMatch> {
             left,
             right,
         } => {
-            let hdr = parse_header_getter(left);
+            let hdr = parse_header_getter(left, advice);
             let val = expr_string_value(right);
             if let (Some(h), Some(v)) = (hdr, val) {
                 return Some(XCHeaderMatch {
@@ -616,7 +617,7 @@ fn condition_to_header_match(node: &ExprNode) -> Option<XCHeaderMatch> {
             left,
             right,
         } => {
-            let hdr = parse_header_getter(left);
+            let hdr = parse_header_getter(left, advice);
             let val = expr_string_value(right);
             if let (Some(h), Some(v)) = (hdr, val) {
                 return Some(XCHeaderMatch {
@@ -628,8 +629,8 @@ fn condition_to_header_match(node: &ExprNode) -> Option<XCHeaderMatch> {
             }
             None
         }
-        ExprNode::Command { text, .. } => {
-            let exists_name = parse_header_exists(text)?;
+        ExprNode::Command { .. } => {
+            let exists_name = parse_header_exists(inner, advice)?;
             Some(XCHeaderMatch {
                 name: exists_name,
                 match_type: "presence".to_owned(),
@@ -643,11 +644,8 @@ fn condition_to_header_match(node: &ExprNode) -> Option<XCHeaderMatch> {
 
 /// Parse `[HTTP::cookie "name"]` / `[HTTP::cookie value "name"]` → cookie
 /// name.
-fn parse_cookie_getter(node: &ExprNode) -> Option<String> {
-    let ExprNode::Command { text, .. } = node else {
-        return None;
-    };
-    let parts = parse_command_parts(text);
+fn parse_cookie_getter(node: &ExprNode, advice: &SourceExpressionAdvice<'_>) -> Option<String> {
+    let parts = advice.parts(node)?;
     if parts.len() < 2 || parts[0] != "HTTP::cookie" {
         return None;
     }
@@ -660,8 +658,8 @@ fn parse_cookie_getter(node: &ExprNode) -> Option<String> {
     None
 }
 
-fn parse_cookie_exists(text: &str) -> Option<String> {
-    let parts = parse_command_parts(text);
+fn parse_cookie_exists(node: &ExprNode, advice: &SourceExpressionAdvice<'_>) -> Option<String> {
+    let parts = advice.parts(node)?;
     if parts.len() >= 3 && parts[0] == "HTTP::cookie" && parts[1] == "exists" {
         Some(parts[2].clone())
     } else {
@@ -669,11 +667,15 @@ fn parse_cookie_exists(text: &str) -> Option<String> {
     }
 }
 
-fn condition_to_cookie_match(node: &ExprNode) -> Option<XCCookieMatch> {
+fn condition_to_cookie_match(
+    node: &ExprNode,
+    advice: &SourceExpressionAdvice<'_>,
+) -> Option<XCCookieMatch> {
     let (inner, negated) = unwrap_negation(node);
     match inner {
         ExprNode::Binary { op, left, right } if EQUALITY_OPS.contains(op) => {
-            let cookie = parse_cookie_getter(left).or_else(|| parse_cookie_getter(right));
+            let cookie =
+                parse_cookie_getter(left, advice).or_else(|| parse_cookie_getter(right, advice));
             let val = expr_string_value(right).or_else(|| expr_string_value(left));
             if let (Some(c), Some(v)) = (cookie, val) {
                 return Some(XCCookieMatch {
@@ -690,7 +692,7 @@ fn condition_to_cookie_match(node: &ExprNode) -> Option<XCCookieMatch> {
             left,
             right,
         } => {
-            let cookie = parse_cookie_getter(left);
+            let cookie = parse_cookie_getter(left, advice);
             let val = expr_string_value(right);
             if let (Some(c), Some(v)) = (cookie, val) {
                 return Some(XCCookieMatch {
@@ -707,7 +709,7 @@ fn condition_to_cookie_match(node: &ExprNode) -> Option<XCCookieMatch> {
             left,
             right,
         } => {
-            let cookie = parse_cookie_getter(left);
+            let cookie = parse_cookie_getter(left, advice);
             let val = expr_string_value(right);
             if let (Some(c), Some(v)) = (cookie, val) {
                 return Some(XCCookieMatch {
@@ -719,8 +721,8 @@ fn condition_to_cookie_match(node: &ExprNode) -> Option<XCCookieMatch> {
             }
             None
         }
-        ExprNode::Command { text, .. } => {
-            let exists_name = parse_cookie_exists(text)?;
+        ExprNode::Command { .. } => {
+            let exists_name = parse_cookie_exists(inner, advice)?;
             Some(XCCookieMatch {
                 name: exists_name,
                 match_type: "presence".to_owned(),
@@ -732,17 +734,18 @@ fn condition_to_cookie_match(node: &ExprNode) -> Option<XCCookieMatch> {
     }
 }
 
-fn condition_to_query_match(node: &ExprNode) -> Option<XCQueryMatch> {
+fn condition_to_query_match(
+    node: &ExprNode,
+    advice: &SourceExpressionAdvice<'_>,
+) -> Option<XCQueryMatch> {
     let ExprNode::Binary { op, left, right } = node else {
         return None;
     };
-    let getter_is_query = |n: &ExprNode| {
-        expr_command_text(n).and_then(is_http_getter).as_deref() == Some("HTTP::query")
-    };
+    let getter_is_query = |n: &ExprNode| advice.http_getter(n).as_deref() == Some("HTTP::query");
     if EQUALITY_OPS.contains(op) {
         let (cmd, val) = binary_cmd_and_str(left, right);
         if let (Some(c), Some(v)) = (cmd, val) {
-            if is_http_getter(c).as_deref() == Some("HTTP::query") {
+            if advice.http_getter(c).as_deref() == Some("HTTP::query") {
                 return Some(XCQueryMatch {
                     match_type: "exact".to_owned(),
                     value: v,
@@ -768,7 +771,7 @@ fn condition_to_query_match(node: &ExprNode) -> Option<XCQueryMatch> {
     }
 }
 
-fn condition_to_direct_ip(node: &ExprNode) -> Option<String> {
+fn condition_to_direct_ip(node: &ExprNode, advice: &SourceExpressionAdvice<'_>) -> Option<String> {
     let ExprNode::Binary { op, left, right } = node else {
         return None;
     };
@@ -777,56 +780,59 @@ fn condition_to_direct_ip(node: &ExprNode) -> Option<String> {
     }
     let (cmd, val) = binary_cmd_and_str(left, right);
     let cmd_text = cmd?;
-    if scalar_getter(cmd_text).as_deref() == Some("IP::client_addr") {
+    if advice.scalar(cmd_text).as_deref() == Some("IP::client_addr") {
         return val;
     }
     None
 }
 
-fn condition_to_ip_prefix_set(node: &ExprNode) -> Option<String> {
-    let ExprNode::Command { text, .. } = node else {
-        return None;
-    };
-    let parts = parse_command_parts(text);
-    if parts.len() == 5
-        && parts[0] == "class"
-        && parts[1] == "match"
-        && original_command_words(text)
-            .and_then(|words| scalar_getter_operand(words.get(2)?))
+fn condition_to_ip_prefix_set(
+    node: &ExprNode,
+    advice: &SourceExpressionAdvice<'_>,
+) -> Option<String> {
+    let selected = advice.command(node)?;
+    if selected.command() != "class"
+        || selected.arguments().len() != 4
+        || selected.arguments()[0].literal_bytes()? != b"match"
+        || advice
+            .scalar_operand(selected.original_argument_word(1)?)
             .as_deref()
-            == Some("IP::client_addr")
+            != Some("IP::client_addr")
     {
-        return parts.last().cloned();
+        return None;
     }
-    None
+    std::str::from_utf8(selected.arguments()[3].literal_bytes()?)
+        .ok()
+        .map(str::to_owned)
 }
 
-fn condition_to_class_match_method(node: &ExprNode) -> Option<XCMethodMatch> {
-    let ExprNode::Command { text, .. } = node else {
-        return None;
-    };
-    let parts = parse_command_parts(text);
-    if parts.len() == 5
-        && parts[0] == "class"
-        && parts[1] == "match"
-        && original_command_words(text)
-            .and_then(|words| scalar_getter_operand(words.get(2)?))
+fn condition_to_class_match_method(
+    node: &ExprNode,
+    advice: &SourceExpressionAdvice<'_>,
+) -> Option<XCMethodMatch> {
+    let selected = advice.command(node)?;
+    if selected.command() != "class"
+        || selected.arguments().len() != 4
+        || selected.arguments()[0].literal_bytes()? != b"match"
+        || advice
+            .scalar_operand(selected.original_argument_word(1)?)
             .as_deref()
-            == Some("HTTP::method")
+            != Some("HTTP::method")
     {
-        // Data-group name is last part — cannot resolve statically. Return a
-        // placeholder match indicating method matching.
-        return Some(XCMethodMatch {
-            methods: Vec::new(),
-            invert: false,
-        });
+        return None;
     }
-    None
+    Some(XCMethodMatch {
+        methods: Vec::new(),
+        invert: false,
+    })
 }
 
 /// Extract all recognisable match criteria from a list of AND
 /// sub-conditions.
-fn extract_all_matches(subconditions: &[&ExprNode]) -> EnclosingContext {
+fn extract_all_matches(
+    subconditions: &[&ExprNode],
+    advice: &SourceExpressionAdvice<'_>,
+) -> EnclosingContext {
     let mut path: Option<XCPathMatch> = None;
     let mut host: Option<XCHostMatch> = None;
     let mut method: Option<XCMethodMatch> = None;
@@ -838,50 +844,50 @@ fn extract_all_matches(subconditions: &[&ExprNode]) -> EnclosingContext {
 
     for sub in subconditions {
         if path.is_none() {
-            path = condition_to_path_match(sub);
+            path = condition_to_path_match(sub, advice);
             if path.is_some() {
                 continue;
             }
         }
         if host.is_none() {
-            host = condition_to_host_match(sub);
+            host = condition_to_host_match(sub, advice);
             if host.is_some() {
                 continue;
             }
         }
         if method.is_none() {
-            method = condition_to_method_match(sub);
+            method = condition_to_method_match(sub, advice);
             if method.is_some() {
                 continue;
             }
         }
         if method.is_none() {
-            method = condition_to_class_match_method(sub);
+            method = condition_to_class_match_method(sub, advice);
             if method.is_some() {
                 continue;
             }
         }
         if ip_prefix_set.is_none() {
-            ip_prefix_set = condition_to_ip_prefix_set(sub);
+            ip_prefix_set = condition_to_ip_prefix_set(sub, advice);
             if ip_prefix_set.is_some() {
                 continue;
             }
         }
-        if let Some(hdr) = condition_to_header_match(sub) {
+        if let Some(hdr) = condition_to_header_match(sub, advice) {
             headers.push(hdr);
             continue;
         }
-        if let Some(cookie) = condition_to_cookie_match(sub) {
+        if let Some(cookie) = condition_to_cookie_match(sub, advice) {
             cookies.push(cookie);
             continue;
         }
         if query.is_none() {
-            query = condition_to_query_match(sub);
+            query = condition_to_query_match(sub, advice);
             if query.is_some() {
                 continue;
             }
         }
-        if let Some(ip) = condition_to_direct_ip(sub) {
+        if let Some(ip) = condition_to_direct_ip(sub, advice) {
             ips.push(ip);
         }
     }
@@ -944,7 +950,11 @@ fn enclosing_has_matches(enc: &EnclosingContext) -> bool {
 // Translation state
 
 /// Mutable accumulator for translation results.
-struct TranslationContext {
+struct TranslationContext<'a> {
+    source: &'a str,
+    registry: &'a CommandRegistry,
+    analysis: &'a AnalysisResult,
+    module: &'a Module,
     routes: Vec<XCRoute>,
     policy_rules: Vec<XCServicePolicyRule>,
     origin_pools: BTreeMap<String, XCOriginPool>,
@@ -956,9 +966,18 @@ struct TranslationContext {
     current_event: String,
 }
 
-impl TranslationContext {
-    fn new() -> Self {
+impl<'a> TranslationContext<'a> {
+    fn new(
+        source: &'a str,
+        analysis: &'a AnalysisResult,
+        module: &'a Module,
+        registry: &'a CommandRegistry,
+    ) -> Self {
         Self {
+            source,
+            registry,
+            analysis,
+            module,
             routes: Vec::new(),
             policy_rules: Vec::new(),
             origin_pools: BTreeMap::new(),
@@ -999,11 +1018,176 @@ impl TranslationContext {
     }
 }
 
+fn source_xc_advice_allowed(words: &OriginalRegistryWords, analysis: &AnalysisResult) -> bool {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    words
+        .with_source_schema(&input.context_registry(), |schema| {
+            let descriptor = schema.authored_source_descriptors().command;
+            matches!(
+                tcl_registry::registry::spec_pack_of(descriptor),
+                Some("irules" | "tcl")
+            ) && descriptor.xc_translatable != Some(false)
+        })
+        .is_some_and(|allowed| allowed)
+}
+
+struct SourceExpressionAdvice<'a> {
+    source: &'a str,
+    analysis: &'a AnalysisResult,
+    module: &'a Module,
+    registry: &'a CommandRegistry,
+    base: Option<u32>,
+}
+
+impl<'a> SourceExpressionAdvice<'a> {
+    fn new(context: &TranslationContext<'a>, base: Option<u32>) -> Self {
+        Self {
+            source: context.source,
+            analysis: context.analysis,
+            module: context.module,
+            registry: context.registry,
+            base,
+        }
+    }
+
+    fn original_operand(&self, span: Span) -> Option<NativeWord> {
+        let mut plan =
+            native_script_words_in(self.module.source.clone(), span, self.module.lexer_config)
+                .ok()?;
+        if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+            return None;
+        }
+        let mut words = plan.commands.pop()?.words;
+        if words.len() != 1 || words[0].span() != span || words[0].group().expand {
+            return None;
+        }
+        words.pop()
+    }
+
+    fn expression_operand(&self, node: &ExprNode) -> Option<NativeWord> {
+        let ExprNode::Command { text, start, end } = node else {
+            return None;
+        };
+        let base = self.base?;
+        if start > end {
+            return None;
+        }
+        let span = Span::new(base.checked_add(*start)?, base.checked_add(*end)?);
+        (self.source.get(span.as_range())? == text).then_some(())?;
+        self.original_operand(span)
+    }
+
+    fn command_for_operand(&self, operand: &NativeWord) -> Option<OriginalRegistryWords> {
+        let selected = tcl_compiler::source_graph::registry_words_for_original_substitution(
+            self.source,
+            self.analysis,
+            self.module,
+            operand,
+            self.registry,
+        )?;
+        source_xc_advice_allowed(&selected, self.analysis).then_some(selected)
+    }
+
+    fn command(&self, node: &ExprNode) -> Option<OriginalRegistryWords> {
+        self.command_for_operand(&self.expression_operand(node)?)
+    }
+
+    fn parts(&self, node: &ExprNode) -> Option<Vec<String>> {
+        let selected = self.command(node)?;
+        let mut parts = vec![selected.command().to_owned()];
+        for argument in selected.arguments() {
+            parts.push(
+                std::str::from_utf8(argument.literal_bytes()?)
+                    .ok()?
+                    .to_owned(),
+            );
+        }
+        Some(parts)
+    }
+
+    fn scalar_operand(&self, operand: &NativeWord) -> Option<String> {
+        let mut selected = self.command_for_operand(operand)?;
+        loop {
+            if selected.arguments().is_empty() {
+                return Some(selected.command().to_owned());
+            }
+            if selected.command() != "string" || selected.arguments().len() != 2 {
+                return None;
+            }
+            let subcommand = selected.arguments()[0].literal_bytes()?;
+            if !matches!(subcommand, b"tolower" | b"toupper") {
+                return None;
+            }
+            selected = self.command_for_operand(selected.original_argument_word(1)?)?;
+        }
+    }
+
+    fn scalar(&self, node: &ExprNode) -> Option<String> {
+        self.scalar_operand(&self.expression_operand(node)?)
+    }
+
+    fn command_owners_available(&self, node: &ExprNode) -> bool {
+        let mut nodes = vec![node];
+        while let Some(node) = nodes.pop() {
+            match node {
+                ExprNode::Command { .. } => {
+                    let Some(operand) = self.expression_operand(node) else {
+                        return false;
+                    };
+                    let mut operands = vec![operand];
+                    while let Some(operand) = operands.pop() {
+                        if self.command_for_operand(&operand).is_none() {
+                            return false;
+                        }
+                        let Some(original) = original_single_source_command_substitution(&operand)
+                        else {
+                            return false;
+                        };
+                        for word in &original.command().words {
+                            for part in word.executable_parts().all_parts() {
+                                if matches!(part.part, tcl_lexer::ExecutablePart::Command { .. }) {
+                                    let Some(child) = self.original_operand(part.span) else {
+                                        return false;
+                                    };
+                                    operands.push(child);
+                                }
+                            }
+                        }
+                    }
+                }
+                ExprNode::Binary { left, right, .. } => {
+                    nodes.extend([left.as_ref(), right.as_ref()])
+                }
+                ExprNode::Unary { operand, .. } => nodes.push(operand),
+                ExprNode::Ternary {
+                    condition,
+                    true_branch,
+                    false_branch,
+                } => nodes.extend([
+                    condition.as_ref(),
+                    true_branch.as_ref(),
+                    false_branch.as_ref(),
+                ]),
+                ExprNode::Call { args, .. } => nodes.extend(args),
+                _ => {}
+            }
+        }
+        true
+    }
+
+    fn http_getter(&self, node: &ExprNode) -> Option<String> {
+        self.scalar(node)
+            .filter(|command| command.starts_with("HTTP::"))
+    }
+}
+
 // IR walking
 
 fn walk_script(
     script: &Script,
-    ctx: &mut TranslationContext,
+    ctx: &mut TranslationContext<'_>,
     registry: &CommandRegistry,
     depth: u32,
     enclosing: &EnclosingContext,
@@ -1017,7 +1201,7 @@ fn walk_script(
 #[allow(clippy::too_many_lines)]
 fn walk_statement(
     stmt: &Statement,
-    ctx: &mut TranslationContext,
+    ctx: &mut TranslationContext<'_>,
     registry: &CommandRegistry,
     depth: u32,
     enclosing: &EnclosingContext,
@@ -1029,6 +1213,8 @@ fn walk_statement(
     match stmt {
         Statement::Switch {
             subject,
+            subject_span,
+            subject_braced,
             arms,
             default_body,
             span,
@@ -1036,6 +1222,14 @@ fn walk_statement(
             nocase,
             ..
         } => walk_switch(
+            switch_subject_kind(
+                (!subject_braced)
+                    .then(|| {
+                        let advice = SourceExpressionAdvice::new(ctx, None);
+                        advice.scalar_operand(&advice.original_operand(*subject_span)?)
+                    })
+                    .flatten(),
+            ),
             subject,
             arms,
             default_body.as_ref(),
@@ -1053,16 +1247,33 @@ fn walk_statement(
             span,
             ..
         } => {
+            if clauses.iter().any(|clause| {
+                !SourceExpressionAdvice::new(ctx, clause.condition_base)
+                    .command_owners_available(&clause.condition)
+            }) {
+                ctx.items.push(TranslationItem {
+                    status: TranslateStatus::Untranslatable,
+                    kind: XCConstructKind::Note,
+                    irule_command: "if".to_owned(),
+                    irule_range: Some(*span),
+                    xc_description: "Condition commands have no current original source owner"
+                        .to_owned(),
+                    note: String::new(),
+                    diagnostic_code: DiagCode::Xc203,
+                });
+                return;
+            }
             let mut any_matched = false;
             for clause in clauses {
-                let cond = normalize_condition(&clause.condition);
+                let cond = &clause.condition;
+                let advice = SourceExpressionAdvice::new(ctx, clause.condition_base);
                 let mut or_branches: Vec<&ExprNode> = Vec::new();
-                decompose_or_condition(cond.as_ref(), &mut or_branches);
+                decompose_or_condition(cond, &mut or_branches);
                 if or_branches.len() > 1 {
                     for branch in or_branches {
                         let mut and_subs: Vec<&ExprNode> = Vec::new();
                         decompose_and_condition(branch, &mut and_subs);
-                        let matches = extract_all_matches(&and_subs);
+                        let matches = extract_all_matches(&and_subs, &advice);
                         let merged = merge_enclosing(enclosing, &matches);
                         if enclosing_has_matches(&matches) {
                             any_matched = true;
@@ -1071,8 +1282,8 @@ fn walk_statement(
                     }
                 } else {
                     let mut and_subs: Vec<&ExprNode> = Vec::new();
-                    decompose_and_condition(cond.as_ref(), &mut and_subs);
-                    let matches = extract_all_matches(&and_subs);
+                    decompose_and_condition(cond, &mut and_subs);
+                    let matches = extract_all_matches(&and_subs, &advice);
                     let merged = merge_enclosing(enclosing, &matches);
                     if enclosing_has_matches(&matches) {
                         any_matched = true;
@@ -1101,10 +1312,9 @@ fn walk_statement(
                     diagnostic_code: DiagCode::Xc102,
                 });
             } else {
-                let cond_text = clauses.first().map_or_else(
-                    || "?".to_owned(),
-                    |c| expr_text(normalize_condition(&c.condition).as_ref()),
-                );
+                let cond_text = clauses
+                    .first()
+                    .map_or_else(|| "?".to_owned(), |c| expr_text(&c.condition));
                 ctx.items.push(TranslationItem {
                     status: TranslateStatus::Partial,
                     kind: XCConstructKind::ServicePolicyRule,
@@ -1119,10 +1329,54 @@ fn walk_statement(
         }
         Statement::Call {
             command,
-            args,
             span,
+            tokens,
             ..
-        } => walk_call(command, args, *span, ctx, registry, enclosing),
+        } => {
+            let selected = tokens.as_ref().and_then(|tokens| {
+                tcl_compiler::source_graph::registry_words_for_original_call(
+                    ctx.source,
+                    ctx.analysis,
+                    ctx.module,
+                    tokens,
+                    registry,
+                )
+            });
+            let static_arguments: Option<Vec<String>> = selected.as_ref().and_then(|words| {
+                words
+                    .arguments()
+                    .iter()
+                    .map(|argument| {
+                        std::str::from_utf8(argument.literal_bytes()?)
+                            .ok()
+                            .map(str::to_owned)
+                    })
+                    .collect()
+            });
+            if let (Some(selected), Some(arguments)) = (selected, static_arguments)
+                && source_xc_advice_allowed(&selected, ctx.analysis)
+            {
+                walk_call(
+                    selected.command(),
+                    &arguments,
+                    *span,
+                    ctx,
+                    registry,
+                    enclosing,
+                );
+            } else {
+                ctx.items.push(TranslationItem {
+                    status: TranslateStatus::Untranslatable,
+                    kind: XCConstructKind::Note,
+                    irule_command: command.clone(),
+                    irule_range: Some(*span),
+                    xc_description: "Command or operands have no current static source owner"
+                        .to_owned(),
+                    note: String::new(),
+                    diagnostic_code: DiagCode::Xc203,
+                });
+            }
+        }
         Statement::Barrier { command, span, .. } => {
             ctx.items.push(TranslationItem {
                 status: TranslateStatus::Untranslatable,
@@ -1203,7 +1457,7 @@ fn walk_switch_arms(
     spec: SwitchArmSpec,
     arms: &[SwitchArm],
     default_body: Option<&Script>,
-    ctx: &mut TranslationContext,
+    ctx: &mut TranslationContext<'_>,
     registry: &CommandRegistry,
     depth: u32,
     enclosing: &EnclosingContext,
@@ -1249,18 +1503,18 @@ fn walk_switch_arms(
 // positionally through the recursive IR walk; a struct would just re-wrap it.
 #[allow(clippy::too_many_arguments)]
 fn walk_switch(
+    kind: Option<&'static str>,
     subject: &str,
     arms: &[SwitchArm],
     default_body: Option<&Script>,
     mode: SwitchMode,
     nocase: bool,
     span: Span,
-    ctx: &mut TranslationContext,
+    ctx: &mut TranslationContext<'_>,
     registry: &CommandRegistry,
     depth: u32,
     enclosing: &EnclosingContext,
 ) {
-    let kind = switch_subject_kind(subject);
     match kind {
         Some("path") => {
             let spec = SwitchArmSpec {
@@ -1362,7 +1616,7 @@ fn walk_call(
     command: &str,
     args: &[String],
     span: Span,
-    ctx: &mut TranslationContext,
+    ctx: &mut TranslationContext<'_>,
     registry: &CommandRegistry,
     enclosing: &EnclosingContext,
 ) {
@@ -1593,6 +1847,45 @@ fn irules_registry() -> &'static CommandRegistry {
         .commands()
 }
 
+fn translation_source(
+    source: &str,
+    registry: &CommandRegistry,
+) -> (Arc<CompilationUnit>, AnalysisResult) {
+    let environment = tcl_registry::model::resolve_environment("f5-irules");
+    let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+    let availability = Arc::new(
+        environment
+            .default_context_registry()
+            .with_command_store(registry.snapshot().shared_registry()),
+    );
+    let input = ResolvedAnalysisInput::new(
+        environment.analyser_profile(),
+        environment.unit_profile(),
+        availability,
+        config,
+    );
+    let mut analyser = Analyser::new().with_resolved_input(input);
+    let input = analyser
+        .prepare_analysis_input("f5-irules")
+        .expect("explicit registry context is available");
+    let unit = Arc::new(CompilationUnit::build_with_analysis_input(
+        source,
+        UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(environment.unit_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        None,
+        &input,
+    ));
+    analyser.set_cu_override(Arc::clone(&unit));
+    let analysis = analyser.analyse(source, "f5-irules");
+    (unit, analysis)
+}
+
 /// Translate an iRule to F5 XC configuration. Analyses the iRule source,
 /// walks the IR, and returns an [`XCTranslationResult`] with routes,
 /// service policies, origin pools, header actions, and a coverage report.
@@ -1608,22 +1901,16 @@ pub fn translate_irule_with_registry(
     source: &str,
     registry: &CommandRegistry,
 ) -> XCTranslationResult {
-    // Lower under the iRules dialect so the iRules expr operators
-    // (`starts_with` / `ends_with` / `contains` / `matches_glob` / …) parse
-    // as the corresponding `BinOp`s rather than falling back to `Raw`.
-    let config = tcl_lexer::LexerConfig::from_grammar(
-        tcl_registry::model::resolve_environment("f5-irules").grammar(),
-    );
-    let module: Module = lower_to_ir_with_config(source, registry, config);
-
-    let mut ctx = TranslationContext::new();
+    let (unit, analysis) = translation_source(source, registry);
+    let module = &unit.ir_module;
+    let mut ctx = TranslationContext::new(source, &analysis, module, registry);
 
     // Original event ownership selects handlers; display names only order output.
     let mut event_procs = Vec::new();
     let mut regular_procs = Vec::new();
     for (id, procedure) in module.procedures.iter() {
         if let Some(event) =
-            tcl_compiler::source_graph::event_body_for_procedure(&module, id, procedure, registry)
+            tcl_compiler::source_graph::event_body_for_procedure(module, id, procedure, registry)
         {
             event_procs.push((id, procedure, event));
         } else {
@@ -1762,6 +2049,46 @@ fn round_1dp(x: f64) -> f64 {
 #[cfg(test)]
 mod original_getter_geometry_tests {
     use super::*;
+    fn condition_to_ip_prefix_set(node: &ExprNode) -> Option<String> {
+        let ExprNode::Command { text, .. } = node else {
+            return None;
+        };
+        let parts = parse_command_parts(text);
+        if parts.len() == 5
+            && parts[0] == "class"
+            && parts[1] == "match"
+            && original_command_words(text)
+                .and_then(|words| scalar_getter_operand(words.get(2)?))
+                .as_deref()
+                == Some("IP::client_addr")
+        {
+            return parts.last().cloned();
+        }
+        None
+    }
+
+    fn condition_to_class_match_method(node: &ExprNode) -> Option<XCMethodMatch> {
+        let ExprNode::Command { text, .. } = node else {
+            return None;
+        };
+        let parts = parse_command_parts(text);
+        if parts.len() == 5
+            && parts[0] == "class"
+            && parts[1] == "match"
+            && original_command_words(text)
+                .and_then(|words| scalar_getter_operand(words.get(2)?))
+                .as_deref()
+                == Some("HTTP::method")
+        {
+            // Data-group name is last part — cannot resolve statically. Return a
+            // placeholder match indicating method matching.
+            return Some(XCMethodMatch {
+                methods: Vec::new(),
+                invert: false,
+            });
+        }
+        None
+    }
 
     #[test]
     fn scalar_getter_advice_matches_original_command_word_geometry() {
@@ -1820,5 +2147,230 @@ mod original_getter_geometry_tests {
             condition_to_class_match_method(&node("[class match {[HTTP::method]} equals methods]"))
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_call_owner_tests {
+    use super::*;
+
+    #[test]
+    fn translated_actions_use_original_source_owners_and_decline_shadowed_heads() {
+        let available = translate_irule("when HTTP_REQUEST {pool real_pool}");
+        assert!(
+            available
+                .origin_pools
+                .iter()
+                .any(|pool| pool.name == "real_pool")
+        );
+        let shadowed =
+            translate_irule("proc pool args {return}; when HTTP_REQUEST {pool fake_pool}");
+        assert!(
+            !shadowed
+                .origin_pools
+                .iter()
+                .any(|pool| pool.name == "fake_pool")
+        );
+        let dynamic = translate_irule("when HTTP_REQUEST {pool $selected_pool}");
+        assert!(dynamic.origin_pools.is_empty());
+        let quoted = translate_irule("when HTTP_REQUEST {{pool} {literal pool}}");
+        assert!(
+            quoted
+                .origin_pools
+                .iter()
+                .any(|pool| pool.name == "literal pool")
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_expression_owner_tests {
+    use super::*;
+
+    fn first_clause(module: &Module) -> &tcl_compiler::ir::IfClause {
+        module
+            .procedures
+            .values()
+            .flat_map(|procedure| &procedure.body.statements)
+            .find_map(|statement| match statement {
+                Statement::If { clauses, .. } => clauses.first(),
+                _ => None,
+            })
+            .expect("original fixture condition")
+    }
+
+    #[test]
+    fn getter_source_advice_retains_original_positions_input_and_module() {
+        let source = r#"when HTTP_REQUEST {if {[HTTP::path] eq "/a"} {pool route}}"#;
+        let registry = irules_registry();
+        let (unit, analysis) = translation_source(source, registry);
+        let clause = first_clause(&unit.ir_module);
+        let context = TranslationContext::new(source, &analysis, &unit.ir_module, registry);
+        let advice = SourceExpressionAdvice::new(&context, clause.condition_base);
+        assert_eq!(
+            condition_to_path_match(&clause.condition, &advice)
+                .unwrap()
+                .value,
+            "/a"
+        );
+        let unavailable = SourceExpressionAdvice::new(&context, None);
+        assert!(condition_to_path_match(&clause.condition, &unavailable).is_none());
+        let stale = TranslationContext::new(
+            "when HTTP_REQUEST {if {[HTTP::path] eq \"/changed\"} {pool route}}",
+            &analysis,
+            &unit.ir_module,
+            registry,
+        );
+        assert!(
+            condition_to_path_match(
+                &clause.condition,
+                &SourceExpressionAdvice::new(&stale, clause.condition_base)
+            )
+            .is_none()
+        );
+        let mut missing = unit.ir_module.clone();
+        missing.retained_source_bindings = None;
+        let missing_context = TranslationContext::new(source, &analysis, &missing, registry);
+        assert!(
+            condition_to_path_match(
+                &clause.condition,
+                &SourceExpressionAdvice::new(&missing_context, clause.condition_base)
+            )
+            .is_none()
+        );
+        let mut changed_config = unit.ir_module.clone();
+        changed_config.lexer_config.strict_quoting = !changed_config.lexer_config.strict_quoting;
+        let changed_context = TranslationContext::new(source, &analysis, &changed_config, registry);
+        assert!(
+            condition_to_path_match(
+                &clause.condition,
+                &SourceExpressionAdvice::new(&changed_context, clause.condition_base)
+            )
+            .is_none()
+        );
+        let mut report_changed = unit.ir_module.clone();
+        for procedure in report_changed.procedures.values_mut() {
+            procedure.qualified_name = "counterfactual".into();
+        }
+        let report_context = TranslationContext::new(source, &analysis, &report_changed, registry);
+        assert_eq!(
+            condition_to_path_match(
+                &clause.condition,
+                &SourceExpressionAdvice::new(&report_context, clause.condition_base)
+            )
+            .unwrap()
+            .value,
+            "/a"
+        );
+        let foreign_registry =
+            tcl_registry::model::resolve_environment("tcl8.6").default_context_registry();
+        let foreign = TranslationContext::new(
+            source,
+            &analysis,
+            &unit.ir_module,
+            foreign_registry.commands(),
+        );
+        assert!(
+            condition_to_path_match(
+                &clause.condition,
+                &SourceExpressionAdvice::new(&foreign, clause.condition_base)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn replaced_getters_and_literal_switch_brackets_issue_no_getter_route() {
+        let replaced = translate_irule(
+            r#"proc HTTP::path {} {return /fake}; when HTTP_REQUEST {if {[HTTP::path] eq "/a"} {pool route}}"#,
+        );
+        assert!(replaced.routes.is_empty());
+        let literal =
+            translate_irule(r#"when HTTP_REQUEST {switch {[HTTP::path]} {"/a" {pool route}}}"#);
+        assert!(
+            literal
+                .routes
+                .iter()
+                .all(|route| route.path_match.is_none())
+        );
+        let nested = translate_irule(
+            r#"when HTTP_REQUEST {if {[string tolower [HTTP::path]] eq "/a"} {pool route}}"#,
+        );
+        assert!(nested.routes.iter().any(|route| {
+            route
+                .path_match
+                .as_ref()
+                .is_some_and(|path| path.value == "/a")
+        }));
+    }
+}
+
+#[cfg(test)]
+mod supplied_source_registry_tests {
+    use super::*;
+
+    #[test]
+    fn supplied_registry_source_availability_cannot_borrow_shipped_translation() {
+        let mut registry =
+            irules_registry().project_for_profile(tcl_dialect::DialectProfile::irules());
+        registry.insert(tcl_registry::CommandSpec {
+            name: "pool",
+            xc_translatable: Some(false),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let source = "when HTTP_REQUEST {pool retained_custom_pool}";
+        let (unit, analysis) = translation_source(source, &registry);
+        assert_eq!(
+            unit.ir_module
+                .registry_snapshot
+                .as_ref()
+                .unwrap()
+                .semantic_key(),
+            registry.snapshot().semantic_key()
+        );
+        assert_eq!(
+            analysis
+                .resolved_registry()
+                .unwrap()
+                .snapshot()
+                .semantic_key(),
+            registry.snapshot().semantic_key()
+        );
+        let result = translate_irule_with_registry(source, &registry);
+        assert!(result.origin_pools.is_empty());
+        assert!(result.routes.is_empty());
+        assert!(!result.items.is_empty());
+        for override_flag in [None, Some(true)] {
+            let mut custom =
+                irules_registry().project_for_profile(tcl_dialect::DialectProfile::irules());
+            custom.insert(tcl_registry::CommandSpec {
+                name: "pool",
+                xc_translatable: override_flag,
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+            let result = translate_irule_with_registry(source, &custom);
+            assert!(result.origin_pools.is_empty());
+            assert!(result.routes.is_empty());
+        }
+        let getter_source = r#"when HTTP_REQUEST {if {[HTTP::path] eq "/a"} {pool p}}"#;
+        let shipped = irules_registry().project_for_profile(tcl_dialect::DialectProfile::irules());
+        let original = translate_irule_with_registry(getter_source, &shipped);
+        assert_eq!(original.routes.len(), 1);
+        assert_eq!(original.origin_pools.len(), 1);
+        for override_flag in [None, Some(true), Some(false)] {
+            let mut custom =
+                irules_registry().project_for_profile(tcl_dialect::DialectProfile::irules());
+            custom.insert(tcl_registry::CommandSpec {
+                name: "HTTP::path",
+                xc_translatable: override_flag,
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+            let result = translate_irule_with_registry(getter_source, &custom);
+            assert!(
+                result.routes.is_empty(),
+                "custom getter flag {override_flag:?}"
+            );
+            assert!(!result.items.is_empty());
+        }
     }
 }

@@ -378,6 +378,114 @@ mod tests {
     }
 
     #[test]
+    fn protected_frame_bodies_use_actual_logical_scope_and_reject_unknown_callers() {
+        for (level, expected) in [
+            ("#0", Some("::")),
+            ("0", Some("::N")),
+            ("1", None),
+            ("$level", None),
+        ] {
+            let module = module(&format!(
+                "proc ::N::p {{}} {{catch {{uplevel {level} {{set x VALUE}}}}}}"
+            ));
+            let registry = module.resolved_registry();
+            let procedure = module.original_source_procedure_bodies().next().unwrap().1;
+            let parent = procedure
+                .body
+                .retained_source_tokens_for_statement(&procedure.body.statements[0])
+                .unwrap();
+            let children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(&module, registry, parent).unwrap();
+            let tokens = &children[0];
+            let selected =
+                super::original_logical_frame_invocation_for_module(&module, registry, tokens)
+                    .unwrap();
+            let body = selected.source_body(&module, registry, tokens, 1);
+            assert_eq!(body.is_some(), expected.is_some(), "level {level}");
+            if let Some(body) = body {
+                assert_eq!(
+                    body.namespace_context
+                        .as_deref()
+                        .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+                        .as_deref(),
+                    expected
+                );
+                assert!(body.executed_source.is_none());
+                assert!(body.native_compilation_failure.is_none());
+                assert!(
+                    body.namespace_context
+                        .as_deref()
+                        .unwrap()
+                        .native_context()
+                        .is_none()
+                );
+            }
+            let mut missing = module.clone();
+            missing.source_metadata_input = None;
+            assert!(
+                selected
+                    .source_body(&missing, registry, tokens, 1)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_frame_body_namespace_refuses_authentic_sibling_body_donation() {
+        let module =
+            module("proc ::N::p {} {catch {uplevel #0 {set x GLOBAL}; uplevel 0 {set x CURRENT}}}");
+        let registry = module.resolved_registry();
+        let procedure = module.original_source_procedure_bodies().next().unwrap().1;
+        let parent = procedure
+            .body
+            .retained_source_tokens_for_statement(&procedure.body.statements[0])
+            .unwrap();
+        let children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(&module, registry, parent).unwrap();
+        assert_eq!(children.len(), 2);
+        let first =
+            super::original_logical_body_geometry_for_module(&module, registry, &children[0], 1)
+                .unwrap();
+        let second =
+            super::original_logical_body_geometry_for_module(&module, registry, &children[1], 1)
+                .unwrap();
+        assert!(
+            crate::command_binding::original_logical_frame_body_namespace_for_module(
+                &module,
+                registry,
+                &children[0],
+                &first
+            )
+            .is_some()
+        );
+        assert!(
+            crate::command_binding::original_logical_frame_body_namespace_for_module(
+                &module,
+                registry,
+                &children[1],
+                &second
+            )
+            .is_some()
+        );
+        assert!(
+            crate::command_binding::original_logical_frame_body_namespace_for_module(
+                &module,
+                registry,
+                &children[0],
+                &second
+            )
+            .is_none()
+        );
+        assert!(
+            crate::command_binding::original_logical_frame_body_namespace_for_module(
+                &module,
+                registry,
+                &children[1],
+                &first
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
     fn original_logical_body_keeps_actual_parent_and_declines_unknown_caller_scope() {
         for (level, expected) in [("#0", true), ("0", true), ("1", false), ("$level", false)] {
             let module = module(&format!(

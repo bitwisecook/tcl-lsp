@@ -1,0 +1,165 @@
+{
+  "started_utc": "2026-10-14T07:24:32.172467+00:00",
+  "label": "Original F5 XC model and differential controls with shared current source call and expression owners",
+  "source_paths": 87716,
+  "plan": {
+    "package": "f5-xc",
+    "execution": "Parent single capture lease, source before/after closure and watchdog required; listing/zero-match is never pass.",
+    "lib_new": [
+      {
+        "index": 1,
+        "selector": "translator::original_getter_geometry_tests::scalar_getter_advice_matches_original_command_word_geometry"
+      },
+      {
+        "index": 2,
+        "selector": "translator::original_getter_geometry_tests::class_match_advice_reads_the_original_operand_instead_of_substrings"
+      },
+      {
+        "index": 3,
+        "selector": "translator::original_call_owner_tests::translated_actions_use_original_source_owners_and_decline_shadowed_heads"
+      },
+      {
+        "index": 4,
+        "selector": "translator::original_expression_owner_tests::getter_source_advice_retains_original_positions_input_and_module"
+      },
+      {
+        "index": 5,
+        "selector": "translator::original_expression_owner_tests::replaced_getters_and_literal_switch_brackets_issue_no_getter_route"
+      },
+      {
+        "index": 6,
+        "selector": "translator::supplied_source_registry_tests::supplied_registry_source_availability_cannot_borrow_shipped_translation"
+      }
+    ],
+    "integration_original": [
+      {
+        "package": "f5-xc",
+        "binary_kind": "integration",
+        "binary": "model",
+        "source_path": "rust/f5-xc/tests/model.rs",
+        "source_sha256": "be6bdc1b2bf188b2b7a4e50835e36a156743995df35c8b805c954697d44c3f08",
+        "tests": [
+          {
+            "index": 1,
+            "selector": "simple_pool_builds_route_and_pool"
+          },
+          {
+            "index": 2,
+            "selector": "pools_are_deduplicated_but_routes_are_not"
+          },
+          {
+            "index": 3,
+            "selector": "switch_path_glob_yields_prefix_matches"
+          },
+          {
+            "index": 4,
+            "selector": "starts_with_path_is_prefix_match"
+          },
+          {
+            "index": 5,
+            "selector": "a_prefix_is_translated_only_from_fixed_text"
+          },
+          {
+            "index": 6,
+            "selector": "header_insert_records_request_action"
+          },
+          {
+            "index": 7,
+            "selector": "event_shaped_procedure_names_do_not_select_response_event_semantics"
+          },
+          {
+            "index": 8,
+            "selector": "header_in_response_event_targets_response"
+          },
+          {
+            "index": 9,
+            "selector": "redirect_builds_redirect_route"
+          },
+          {
+            "index": 10,
+            "selector": "respond_403_builds_deny_policy_rule"
+          },
+          {
+            "index": 11,
+            "selector": "asm_disable_builds_waf_exclusion"
+          },
+          {
+            "index": 12,
+            "selector": "untranslatable_event_is_flagged"
+          },
+          {
+            "index": 13,
+            "selector": "empty_rule_is_full_coverage"
+          },
+          {
+            "index": 14,
+            "selector": "else_body_keeps_enclosing_criteria"
+          },
+          {
+            "index": 15,
+            "selector": "switch_regexp_path_is_regex_not_prefix"
+          },
+          {
+            "index": 16,
+            "selector": "switch_exact_path_with_star_is_literal"
+          },
+          {
+            "index": 17,
+            "selector": "switch_glob_host_is_regex"
+          },
+          {
+            "index": 18,
+            "selector": "switch_nocase_glob_host_is_case_insensitive_regex"
+          },
+          {
+            "index": 19,
+            "selector": "switch_fallthrough_arm_routes_all_patterns"
+          },
+          {
+            "index": 20,
+            "selector": "switch_fallthrough_into_default_routes_pattern_and_catch_all"
+          },
+          {
+            "index": 21,
+            "selector": "terraform_simple_route_emits_host_and_method"
+          },
+          {
+            "index": 22,
+            "selector": "terraform_pool_name_with_slashes_is_sanitised"
+          },
+          {
+            "index": 23,
+            "selector": "terraform_redirect_route_emits_host"
+          },
+          {
+            "index": 24,
+            "selector": "json_redirect_route_emits_host"
+          },
+          {
+            "index": 25,
+            "selector": "json_simple_route_emits_method"
+          }
+        ]
+      },
+      {
+        "package": "f5-xc",
+        "binary_kind": "integration",
+        "binary": "differential",
+        "source_path": "rust/f5-xc/tests/differential.rs",
+        "source_sha256": "b1a0adab0a84d1bc9d6bfb9739f863d41c49db3862244ff5e639f2dd5ad6a563",
+        "tests": [
+          {
+            "index": 1,
+            "selector": "rust_translator_matches_golden_fixture"
+          }
+        ]
+      }
+    ],
+    "assertions": "All original production model/differential assertions unchanged."
+  },
+  "plan_sha256": "529c53fafb353894a2694a2e78d98a2c21ebb39dd3fe60119e50b8cf8adb4dce",
+  "runner_sha256": "2499f668f9a9d1f82533b4e6f12b58cbae88ce71f4a908ba253b2059dc8b44ef",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014"
+}

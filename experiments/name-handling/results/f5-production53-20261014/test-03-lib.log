@@ -1,0 +1,6 @@
+
+running 1 test
+test translator::original_call_owner_tests::translated_actions_use_original_source_owners_and_decline_shadowed_heads ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 1.07s
+

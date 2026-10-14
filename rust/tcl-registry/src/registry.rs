@@ -1715,7 +1715,7 @@ fn authored_groups() -> [(&'static str, &'static [CommandSpec]); 14] {
 /// author's cursor. Provenance for those is the pack file, which the loader
 /// reports; this deliberately does not guess one.
 #[must_use]
-pub fn spec_pack_of(spec: &'static CommandSpec) -> Option<&'static str> {
+pub fn spec_pack_of(spec: &CommandSpec) -> Option<&'static str> {
     spec_pack_by_identity()
         .get(&(std::ptr::from_ref(spec) as usize))
         .copied()

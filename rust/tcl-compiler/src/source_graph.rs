@@ -288,6 +288,52 @@ pub fn registry_words_for_original_call(
     )
 }
 
+/// Original Registry source schema for one authentic complete command operand.
+/// The current Module, full input and selected source occurrence remain owners;
+/// lexical brackets alone supply no descriptor, Native dispatch or completion.
+#[must_use]
+pub fn registry_words_for_original_substitution(
+    source: &str,
+    analysis: &AnalysisResult,
+    module: &Module,
+    operand: &tcl_lexer::NativeWord,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
+    let (image, config) = current_analysis(source, analysis)?;
+    if module.source != image
+        || module.lexer_config != config
+        || operand.image() != &image
+        || operand.config() != config
+        || module.source_metadata_input.as_ref() != analysis.resolved_input.as_ref()
+        || !module
+            .registry_snapshot
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.semantic_key() == registry.snapshot().semantic_key())
+        || !module
+            .retained_source_bindings
+            .as_ref()?
+            .matches_module(module, registry)
+    {
+        return None;
+    }
+    let original =
+        crate::registry_invocation::source_structure::original_single_source_command_substitution(
+            operand,
+        )?;
+    let head = original.command().words.first()?;
+    let selected = crate::registry_invocation::source_structure::source_registry_words_at(
+        source,
+        analysis,
+        head.span().start(),
+    )?;
+    let input = analysis.resolved_input.as_ref()?;
+    (selected.head_source()?.word()? == head
+        && selected.matches_source(&image, config)
+        && selected.matches_registry(registry)
+        && selected.context() == Some(input.context_registry().context()))
+    .then_some(selected)
+}
+
 fn module_matches_original_call(
     source: &str,
     analysis: &AnalysisResult,

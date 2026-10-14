@@ -1,0 +1,15 @@
+
+running 1 test
+test lowering::tests::local_body_literal_quiet_logical_source_retains_factory_names_and_bodies ... 
+thread 'lowering::tests::local_body_literal_quiet_logical_source_retains_factory_names_and_bodies' (287096) panicked at rust/tcl-compiler/src/lowering/mod.rs:10381:14:
+genuine quiet Logical source retains the original child
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    lowering::tests::local_body_literal_quiet_logical_source_retains_factory_names_and_bodies
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 0.22s
+

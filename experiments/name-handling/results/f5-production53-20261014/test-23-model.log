@@ -1,0 +1,15 @@
+
+running 1 test
+test switch_glob_host_is_regex ... 
+thread 'switch_glob_host_is_regex' (291130) panicked at rust/f5-xc/tests/model.rs:249:54:
+wild_pool route
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    switch_glob_host_is_regex
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.40s
+

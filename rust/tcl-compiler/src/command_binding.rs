@@ -180,6 +180,7 @@ pub(crate) use origin_inventory::OriginalInvocationSourcePurpose;
 mod retained_body_inventory;
 pub(crate) use retained_body_inventory::RetainedSourceBodyInventory;
 mod original_body_namespace;
+pub(crate) use original_body_namespace::original_logical_frame_body_namespace_for_module;
 #[cfg(test)]
 mod original_restoration_obligation_tests;
 #[cfg(test)]
@@ -1314,7 +1315,7 @@ impl SourceInvocationBinding {
         let context = input.borrowed_context_registry();
         let image = advice.site().source.source_image();
         let config = input.lexer_config();
-        if !std::ptr::eq(registry, context.commands().as_ref())
+        if registry.snapshot().semantic_key() != context.commands().snapshot().semantic_key()
             || advice.logical_source_input() != Some(input)
             || !advice.matches_source(image, config)
             || !advice.matches_context(context)

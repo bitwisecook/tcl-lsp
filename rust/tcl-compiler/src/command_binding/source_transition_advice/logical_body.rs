@@ -270,6 +270,7 @@ impl LogicalBodyWalk<'_, '_> {
         let key = graph.publication_key(name_input.bytes(), AdvicePublicationPurpose::Define)?;
         let mut advice = self.context.schema_advice(invocation, graph, schema)?;
         advice.logical_body = parent.map(|parent| Arc::clone(parent.body_arc()));
+        advice.logical_scope = parent.cloned();
         if schema.semantics.body_interpreter.resolve_with(|ordinal| {
             std::str::from_utf8(advice.arguments().get(ordinal)?.value.as_deref()?).ok()
         }) != tcl_registry::world_effect::InterpreterScope::Current
@@ -346,6 +347,7 @@ impl LogicalBodyWalk<'_, '_> {
             .logical_namespace_scope(graph, invocation, schema)?;
         let mut advice = self.context.schema_advice(invocation, graph, schema)?;
         advice.logical_body = parent.map(|parent| Arc::clone(parent.body_arc()));
+        advice.logical_scope = parent.cloned();
         let bodies = self.bodies(&advice)?;
         if bodies.len() != 1 {
             return None;
@@ -654,6 +656,7 @@ impl LogicalBodyWalk<'_, '_> {
         let (scope, depth) = parent;
         let mut advice = self.context.schema_advice(invocation, graph, schema)?;
         advice.logical_body = Some(Arc::clone(scope.body_arc()));
+        advice.logical_scope = Some(Arc::clone(scope));
         advice
             .obligations
             .push(SourceCommandTransitionObligation::DeferredLogicalBodyApplicability);

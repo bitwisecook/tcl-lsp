@@ -545,9 +545,14 @@ C Tcl, Jim and F5 can differ; expectations carry that axis explicitly.
 F5 XC getter advice consumes complete original words with the selected source
 grammar. `original_single_source_command_substitution` supplies executable child
 geometry; literal bracket text remains data. Shared static word values supply
-authored command and argument text. Source descriptor applicability and current
-original source sites remain separate from geometry, and neither grants F5/TMM
-execution.
+authored command and argument text. Current F5 XC consumers retain one source/analysis/Module and the actual supplied
+Registry generation. `registry_words_for_original_call` and
+`registry_words_for_original_substitution` select original source descriptors;
+conditional availability remains with the selected schema. Expression positions
+come from the original condition base and command-leaf offsets; switch subjects
+retain their original span and braced form. Missing coordinates or owners cannot
+be repaired by searching equal text. Source metadata grants no F5/TMM execution,
+successful completion or effect equivalence.
 Upstream C Tcl `tcltest` cases and Jim's equivalent suite are valid evidence
 when executed on the identified real reference interpreter. A `tcltest` run
 uses that version's original `tcltest.tcl` and `init.tcl`, with its matching

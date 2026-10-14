@@ -1,0 +1,15 @@
+
+running 1 test
+test event_shaped_procedure_names_do_not_select_response_event_semantics ... 
+thread 'event_shaped_procedure_names_do_not_select_response_event_semantics' (291033) panicked at rust/f5-xc/tests/model.rs:124:10:
+ordinary procedure action
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    event_shaped_procedure_names_do_not_select_response_event_semantics
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.42s
+

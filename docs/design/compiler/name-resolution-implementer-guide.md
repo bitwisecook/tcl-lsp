@@ -1301,6 +1301,10 @@ Authored procedure layout comes from `ResolvedInvocation::authored_source_proced
 
 `SourceCommandBindings::original_logical_procedure_declaration(tokens, registry, input)` issues a conditional declaration from the complete positive Logical input and unanimous original declaration observations. It checks source geometry, lexer configuration, command store, retained namespace and selected source descriptor. Its `LogicalProcedureDeclaration` supplies the authored name/key, strict shared formals, original parameter text and original deferred body. Captured alias operands retain their effective positions; an original body must retain its actual written word. Lowerer consumes this source recipe for procedure/body inventory while preserving generic runtime dispatch.
 
+`source_structure::original_logical_registry_words_for_module` joins conditional source words to the complete current Module. It checks the original image, configuration, input, Registry store, retained source tape and whole argv. A present reached/compiler/declaration layout owner keeps its existing reader or refusal. Only an independently retained Logical source owner supplies deferred words when those layout owners are absent. Branch joins retain this advice only when both complete receipts agree. Global/Upvar and expression consumers use the source MAY roles; strict invocation metadata and Normal transfers remain separate.
+
+`original_logical_frame_invocation_for_module` retains these source words separately from a reached invocation. Frame literals preserve empty and dollar-bearing data, while parameter and body projections retain actual written origins. Missing or changed Module input and stronger Native/Hosted purposes refuse. Current/root child scope comes from its independently retained original body owner; an unknown caller frame supplies no namespace or entered body. The [original procedure analysis contract](original-procedure-analysis.md) describes issued body inventory, readonly declaration cards and prepared CFG/cache joins.
+
 `OriginalCompilationLookupAdvice::closed_logical_source_lookup` checks the independently retained Logical command world. Missing targets, unknown or absent alternatives, opaque mutations and missing namespace/input remain terminal. An unknown physical variable frame does not supply or retract this separate source command layout. The query grants no physical frame, native lookup, normal completion or execution effects.
 
 Quiet Logical rename and alias continuations use their exact original source vector, selected Registry transition, retained source table, occupancy checks and observer guards. Registry abrupt-edge commit classifications remain unchanged. The conditional authored continuation is not a native successful-completion certificate.
@@ -6734,6 +6738,8 @@ while changed complete source withdraws assistance. The [hosted consumer
 contract](../analysis/name-resolution-proofs/vendor-original-source-declaration-consumers.md)
 supplies no measured appliance build, Native lookup, runtime cell/class or edit
 permission.
+
+`OriginalHostedProcedureBody` retains an actual RootScript/Global RuleLoader declaration, complete source/input/Registry, whole original words, formal/body geometry, every declaration alternative and its Lowerer-issued Script. `source_graph::hosted_procedure_body_for_procedure` requires the actual current Module-issued body row and card before matching a supplied procedure. `hosted_procedure_body_for_function` additionally requires the same body ID, current function metadata and the exact held card Arc. Reporting labels do not select either join. Changed/missing/foreign owners and unsupported qualified declaration coordinates refuse; event, Native publication, physical frame and editing permissions remain independent.
 
 ### Own-object method source ownership
 

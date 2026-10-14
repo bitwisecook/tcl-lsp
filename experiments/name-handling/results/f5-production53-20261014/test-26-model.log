@@ -1,0 +1,15 @@
+
+running 1 test
+test switch_fallthrough_into_default_routes_pattern_and_catch_all ... 
+thread 'switch_fallthrough_into_default_routes_pattern_and_catch_all' (291136) panicked at rust/f5-xc/tests/model.rs:305:5:
+fall-through pattern into default lost its /old route: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    switch_fallthrough_into_default_routes_pattern_and_catch_all
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.41s
+

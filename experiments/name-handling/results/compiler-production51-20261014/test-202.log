@@ -1,0 +1,15 @@
+
+running 1 test
+test ir::tests::original_logical_declaration_cards_cover_missing_namespace_without_publication ... 
+thread 'ir::tests::original_logical_declaration_cards_cover_missing_namespace_without_publication' (287076) panicked at rust/tcl-compiler/src/ir.rs:3415:14:
+actual readonly source card
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ir::tests::original_logical_declaration_cards_cover_missing_namespace_without_publication
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 0.14s
+

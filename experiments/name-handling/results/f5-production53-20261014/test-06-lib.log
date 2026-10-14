@@ -1,0 +1,15 @@
+
+running 1 test
+test translator::supplied_source_registry_tests::supplied_registry_source_availability_cannot_borrow_shipped_translation ... 
+thread 'translator::supplied_source_registry_tests::supplied_registry_source_availability_cannot_borrow_shipped_translation' (291019) panicked at rust/f5-xc/src/translator.rs:2340:9:
+assertion failed: result.origin_pools.is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    translator::supplied_source_registry_tests::supplied_registry_source_availability_cannot_borrow_shipped_translation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.36s
+

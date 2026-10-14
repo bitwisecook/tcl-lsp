@@ -1,0 +1,17 @@
+
+running 1 test
+test respond_403_builds_deny_policy_rule ... 
+thread 'respond_403_builds_deny_policy_rule' (291091) panicked at rust/f5-xc/tests/model.rs:161:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    respond_403_builds_deny_policy_rule
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.35s
+

@@ -1,0 +1,15 @@
+
+running 1 test
+test analyser::diagnostics::tests::w214_repeated_publication_does_not_count_as_three_protocol_peers ... 
+thread 'analyser::diagnostics::tests::w214_repeated_publication_does_not_count_as_three_protocol_peers' (286439) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11537:5:
+one repeated publication does not establish three peers: [Diagnostic { subject: None, code: W307, span: Span { start: 152, end: 156 }, message: "Non-literal command name — cannot statically analyse", severity: Warning, fixes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::w214_repeated_publication_does_not_count_as_three_protocol_peers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 0.63s
+

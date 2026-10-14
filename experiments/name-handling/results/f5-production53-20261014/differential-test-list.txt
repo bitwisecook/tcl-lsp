@@ -1,0 +1,3 @@
+rust_translator_matches_golden_fixture: test
+
+1 test, 0 benchmarks

@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::original_missing_command::tests::original_missing_mutated_slot_requires_current_complete_source ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 0.44s
+

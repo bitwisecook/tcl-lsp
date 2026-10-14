@@ -1,0 +1,17 @@
+
+running 1 test
+test a_prefix_is_translated_only_from_fixed_text ... 
+thread 'a_prefix_is_translated_only_from_fixed_text' (291029) panicked at rust/f5-xc/tests/model.rs:99:5:
+assertion `left == right` failed
+  left: None
+ right: Some("/api")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    a_prefix_is_translated_only_from_fixed_text
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.65s
+

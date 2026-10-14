@@ -1,0 +1,17 @@
+
+running 1 test
+test switch_path_glob_yields_prefix_matches ... 
+thread 'switch_path_glob_yields_prefix_matches' (291025) panicked at rust/f5-xc/tests/model.rs:62:5:
+assertion `left == right` failed
+  left: 0
+ right: 3
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    switch_path_glob_yields_prefix_matches
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.44s
+

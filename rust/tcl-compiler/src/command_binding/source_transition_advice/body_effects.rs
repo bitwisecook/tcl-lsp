@@ -1111,6 +1111,9 @@ impl BodyWalk<'_, '_> {
         let retained_producer = if let Some(body) = &self.source_body {
             let mut advice = self.context.schema_advice(invocation, graph, schema)?;
             Self::retain_source_body(self.context.policy, &mut advice, body);
+            if matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
+                advice.logical_scope = self.logical_scope.clone();
+            }
             Some(advice)
         } else {
             None
@@ -1136,6 +1139,9 @@ impl BodyWalk<'_, '_> {
         }
         let mut advice = self.context.schema_advice(invocation, graph, schema)?;
         Self::retain_source_body(self.context.policy, &mut advice, body);
+        if matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
+            advice.logical_scope = self.logical_scope.clone();
+        }
         if let Some(previous) = tape.advice.get(&advice.site.offset) {
             if previous != &advice {
                 tape.advice.remove(&advice.site.offset);

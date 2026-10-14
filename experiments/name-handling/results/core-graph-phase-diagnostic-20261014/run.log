@@ -1,0 +1,42 @@
+
+running 1 test
+test graphs::tests::deeply_nested_namespaces_survive_symbol_graph ... ANALYSER_PHASE bytes=1936 stage=initial ms=0
+ANALYSER_PHASE bytes=1936 stage=realm-start ms=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=1936 stage=initial ms=35 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=1936 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=1936 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=1936 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=1936 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=1936 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=1936 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=1936 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=1936 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=1936 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=1936 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+
+thread 'graphs::tests::deeply_nested_namespaces_survive_symbol_graph' (287491) has overflowed its stack
+fatal runtime error: stack overflow, aborting

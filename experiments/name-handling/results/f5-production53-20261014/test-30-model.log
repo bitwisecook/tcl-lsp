@@ -1,0 +1,15 @@
+
+running 1 test
+test json_redirect_route_emits_host ... 
+thread 'json_redirect_route_emits_host' (291144) panicked at rust/f5-xc/tests/model.rs:412:10:
+routes array
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    json_redirect_route_emits_host
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.37s
+

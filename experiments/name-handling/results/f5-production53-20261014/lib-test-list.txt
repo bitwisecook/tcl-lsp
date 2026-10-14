@@ -1,0 +1,30 @@
+diagnostics::tests::a_diagnostic_converts_to_a_finding_with_its_byte_span: test
+diagnostics::tests::emitted_codes_are_catalogued: test
+names::tests::a_name_without_a_leading_letter_still_becomes_valid: test
+names::tests::a_partition_qualified_path_keeps_its_partition: test
+names::tests::a_very_long_path_is_truncated_to_a_valid_label: test
+names::tests::an_already_valid_name_is_untouched: test
+names::tests::names_that_fold_alike_stay_distinct: test
+names::tests::the_description_names_the_source_object: test
+names::tests::the_same_pool_in_two_partitions_stays_two_objects: test
+report::tests::both_carries_terraform_and_json: test
+report::tests::both_stays_terraform_and_json_only: test
+report::tests::console_document_names_are_valid_xc_names: test
+report::tests::console_format_carries_neither_other_rendering: test
+report::tests::console_objects_are_one_pasteable_document_each: test
+report::tests::items_are_status_tagged_and_counted: test
+report::tests::single_format_omits_the_other_rendering: test
+report::tests::unknown_format_argument_falls_back_to_both: test
+terraform::ident_tests::deterministic: test
+terraform::ident_tests::distinct_names_that_sanitise_alike_stay_distinct: test
+terraform::ident_tests::leading_digit_is_prefixed: test
+terraform::ident_tests::slashed_name_is_sanitised_to_valid_identifier: test
+terraform::ident_tests::valid_identifier_passes_through_unchanged: test
+translator::original_call_owner_tests::translated_actions_use_original_source_owners_and_decline_shadowed_heads: test
+translator::original_expression_owner_tests::getter_source_advice_retains_original_positions_input_and_module: test
+translator::original_expression_owner_tests::replaced_getters_and_literal_switch_brackets_issue_no_getter_route: test
+translator::original_getter_geometry_tests::class_match_advice_reads_the_original_operand_instead_of_substrings: test
+translator::original_getter_geometry_tests::scalar_getter_advice_matches_original_command_word_geometry: test
+translator::supplied_source_registry_tests::supplied_registry_source_availability_cannot_borrow_shipped_translation: test
+
+28 tests, 0 benchmarks

@@ -1,0 +1,15 @@
+
+running 1 test
+test registry_invocation::logical_frame::tests::protected_source_frame_arguments_keep_actual_values_without_invocation_entry ... 
+thread 'registry_invocation::logical_frame::tests::protected_source_frame_arguments_keep_actual_values_without_invocation_entry' (287126) panicked at rust/tcl-compiler/src/registry_invocation/logical_frame.rs:348:141:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::logical_frame::tests::protected_source_frame_arguments_keep_actual_values_without_invocation_entry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 0.23s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::original_missing_command::tests::source_absence_does_not_turn_external_or_dynamic_heads_into_rebound_slots ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 1.57s
+

@@ -1,0 +1,17 @@
+
+running 1 test
+test deferred_writes::tests::a_quoted_callback_and_a_built_command_prefix_are_read ... 
+thread 'deferred_writes::tests::a_quoted_callback_and_a_built_command_prefix_are_read' (287019) panicked at rust/tcl-compiler/src/deferred_writes.rs:1224:13:
+assertion `left == right` failed: after 100 [list set done 1]
+  left: []
+ right: ["done"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_quoted_callback_and_a_built_command_prefix_are_read
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 0.31s
+

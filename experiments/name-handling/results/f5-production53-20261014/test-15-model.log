@@ -1,0 +1,15 @@
+
+running 1 test
+test redirect_builds_redirect_route ... 
+thread 'redirect_builds_redirect_route' (291089) panicked at rust/f5-xc/tests/model.rs:151:10:
+a redirect route
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    redirect_builds_redirect_route
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.36s
+

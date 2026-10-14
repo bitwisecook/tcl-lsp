@@ -1,0 +1,42 @@
+
+running 1 test
+test terraform_simple_route_emits_host_and_method ... 
+thread 'terraform_simple_route_emits_host_and_method' (291138) panicked at rust/f5-xc/tests/model.rs:323:5:
+TF missing host block:
+# iRule → F5 XC Translation
+# Coverage: 100.0%
+# Translated: 0  |  Partial: 0  |  Untranslatable: 0
+
+
+terraform {
+  required_providers {
+    volterra = {
+      source  = "volterraedge/volterra"
+      version = ">= 0.11.47"
+    }
+  }
+}
+
+
+resource "volterra_http_loadbalancer" "lb" {
+  name      = "lb"
+  namespace = "ns"
+
+  # TODO: Configure domains and advertise policy
+  domains = ["example.com"]  # TODO: Set actual domains
+
+  http {
+    dns_volterra_managed = false
+  }
+}
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    terraform_simple_route_emits_host_and_method
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.39s
+

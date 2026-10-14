@@ -1,0 +1,15 @@
+
+running 1 test
+test ssa::tests::quiet_logical_scalar_mutation_withdraws_prior_literal_contents ... 
+thread 'ssa::tests::quiet_logical_scalar_mutation_withdraws_prior_literal_contents' (287221) panicked at rust/tcl-compiler/src/ssa.rs:8752:14:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::tests::quiet_logical_scalar_mutation_withdraws_prior_literal_contents
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 0.49s
+

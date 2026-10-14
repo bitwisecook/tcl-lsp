@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T07:11:43Z. The [outstanding audit](outstanding-consumer-audit.md)
+Current bounded snapshot: 2026-10-14T07:27:37Z. The [outstanding audit](outstanding-consumer-audit.md)
 and machine inventory retain original issue and source observations.
 
 The current shared consumers retain complete original source, analysis input,
@@ -107,16 +107,19 @@ complete original receipts agree; nested children retain their recorded source
 owner. Strict invocation metadata, Normal transfers and Native entry remain
 independent.
 
-Compiler51 is running 337 exact selectors; no aggregate is available. Compiler49 and Compiler50
-stopped in compilation before semantic controls with zero source drift. The Arc
-pointer correction and an owner-local test fixture constructor are integrated;
-the latter preserves the original hand CFG and assertions without exposing
-private production fields. The latest sealed compiler semantic
-capture is Compiler43: build PASS, 322 controls, 208 PASS/114 FAIL, zero source
-drift and no missing/empty selectors. Its 311 common Compiler40 controls gain
-one and regress one: literal empty/dollar reads improve; original nested-write
-projection fails. New event owner controls fail in that older capture and must
-be replayed against the integrated declaration cards.
+Compiler51 builds and seals 337 exact controls: 216 PASS/121 FAIL, zero source
+drift and no missing/empty selectors. Its 322 common Compiler43 controls gain
+three and regress one. Original nested-write projection, literal uplevel caller
+writes and unknown-caller literal hazards improve; retained array-root member
+liveness regresses. The three new Logical carrier controls fail at the shared
+top-level catch child producer before their later consumer assertions. Their
+sources and assertions remain unchanged; no carrier acceptance follows. The
+current/root source-scope repair and exact parent-body donation guard are
+integrated after this frozen capture and require fresh replay. MCP52 stops in compilation before the actual binary's nine selectors: zero
+semantic controls and source drift zero. Its missing source-scope initializer
+is corrected. F5 production53 is running six new lib controls, 25 original model
+controls and the original differential selector; no aggregate is available. Compiler49/50
+build-only failures remain retained with zero source drift.
 
 DB48 builds and executes all ten original controls: 1 PASS/9 FAIL, source drift
 zero and no missing/empty selectors. Whole-file lattice shift passes; the
@@ -134,7 +137,10 @@ The F5 XC call/expression migration completes independent source review.
 Canonical descriptors come from the actual supplied Registry and original
 call, condition offsets or switch operand span. Missing/stale/foreign ownership,
 literal bracket text and unavailable translation descriptors decline advice.
-Integration and the original differential/model controls remain pending.
+The v4 implementation and current contract are integrated; the original
+differential/model capture is running. Selected descriptor pointer provenance
+refuses authored overrides with absent, true or false translation flags. Fresh
+custom getter controls keep the original pool independently available.
 Appliance questions remain unanswered; software and C/Jim observations do not
 establish Native F5 dispatch or execution.
 
@@ -146,6 +152,8 @@ Thirteen initial and sixteen additional private source routes are integrated.
 Fifty-four lexical candidates are actual public trait members checked by the
 existing declaration gate; 149 candidates retain route/shape review obligations.
 Private helpers cannot become public solely to satisfy documentation checks.
+The Logical advice retainer records its actual Option.as_mut()/if-let issuer
+route; this receiver shape remains unsupported by the current source gate.
 
 The last strict proof audit reports 1,959 structural errors across 2,606 questions;
 narrow owner-description corrections are integrated, and a fresh audit remains
@@ -154,9 +162,10 @@ are preserved. Changed-source evidence is not renewed by documentation edits.
 The link/index mirror checks 3,259 Markdown files and 126,064 local links with
 zero broken links or unindexed design/KCS entries; actual Rust KCS, diagnostic
 tag and audience checks remain required. Original qualified Hosted-name
-refusals and O124 source-edit applicability remain explicit. The Native
-source-only declaration-body producer remains unavailable; Logical or Hosted
-cards cannot fill its missing ownership.
+refusals and O124 source-edit applicability remain explicit. The separate Native-name source-only declaration body producer passes
+independent source review and is queued for integration/replay. Its original
+header/read-flow owner cannot borrow Logical or Hosted cards or supply an
+installed allocation, publication, callable body or entered frame.
 
 The 52 workspace members, 11 excluded packages and inherited 330 lexical LSP
 rows still require complete surface reconciliation. Original experiments,

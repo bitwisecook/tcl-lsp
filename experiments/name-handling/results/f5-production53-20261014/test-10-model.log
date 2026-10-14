@@ -1,0 +1,15 @@
+
+running 1 test
+test starts_with_path_is_prefix_match ... 
+thread 'starts_with_path_is_prefix_match' (291027) panicked at rust/f5-xc/tests/model.rs:79:10:
+a route with a path match
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    starts_with_path_is_prefix_match
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.35s
+

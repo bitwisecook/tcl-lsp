@@ -1,0 +1,42 @@
+
+running 1 test
+test terraform_redirect_route_emits_host ... 
+thread 'terraform_redirect_route_emits_host' (291142) panicked at rust/f5-xc/tests/model.rs:392:5:
+no redirect route:
+# iRule → F5 XC Translation
+# Coverage: 100.0%
+# Translated: 0  |  Partial: 0  |  Untranslatable: 0
+
+
+terraform {
+  required_providers {
+    volterra = {
+      source  = "volterraedge/volterra"
+      version = ">= 0.11.47"
+    }
+  }
+}
+
+
+resource "volterra_http_loadbalancer" "lb" {
+  name      = "lb"
+  namespace = "ns"
+
+  # TODO: Configure domains and advertise policy
+  domains = ["example.com"]  # TODO: Set actual domains
+
+  http {
+    dns_volterra_managed = false
+  }
+}
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    terraform_redirect_route_emits_host
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.44s
+

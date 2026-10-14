@@ -1,0 +1,16 @@
+
+running 1 test
+test translator::original_expression_owner_tests::replaced_getters_and_literal_switch_brackets_issue_no_getter_route ... 
+thread 'translator::original_expression_owner_tests::replaced_getters_and_literal_switch_brackets_issue_no_getter_route' (291017) panicked at rust/f5-xc/src/translator.rs:2299:9:
+assertion failed: nested.routes.iter().any(|route|
+        { route.path_match.as_ref().is_some_and(|path| path.value == "/a") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    translator::original_expression_owner_tests::replaced_getters_and_literal_switch_brackets_issue_no_getter_route
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 27 filtered out; finished in 1.06s
+

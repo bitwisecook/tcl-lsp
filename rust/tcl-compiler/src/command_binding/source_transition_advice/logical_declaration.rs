@@ -87,6 +87,7 @@ impl crate::command_binding::SourceCommandBindings {
             uncertain_operations: Vec::new(),
             logical_input: Some(input.clone()),
             declaration: Some(declaration),
+            logical_scope: None,
             logical_body: None,
             c_source_body: None,
             c_source_namespace: None,

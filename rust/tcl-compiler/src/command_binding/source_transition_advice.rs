@@ -399,6 +399,7 @@ pub struct OriginalSourceCommandTransitionAdvice {
     logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
     declaration: Option<Arc<[super::declaration_layout::DeclarationLayoutObservation]>>,
     logical_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+    logical_scope: Option<Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>>,
     c_source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
     c_source_namespace: Option<ByteNamespacePath>,
     c_source_path: Option<Vec<ByteNamespacePath>>,
@@ -470,6 +471,13 @@ impl OriginalSourceCommandTransitionAdvice {
                 .original
                 .iter()
                 .all(|word| word.image() == image && word.config() == config)
+            && self.logical_scope.as_ref().is_none_or(|scope| {
+                self.logical_input
+                    .as_ref()
+                    .is_some_and(|input| scope.matches_input(input))
+                    && scope.owns_words(&self.original)
+                    && scope.body().matches_source(image, config)
+            })
             && self.logical_body.as_ref().is_none_or(|body| {
                 body.matches_source(image, config)
                     && self.original.iter().all(|word| {
@@ -548,6 +556,11 @@ impl OriginalSourceCommandTransitionAdvice {
                 .logical_input
                 .as_ref()
                 .is_none_or(|input| std::ptr::eq(Arc::as_ptr(&input.context_registry()), context))
+    }
+    pub(crate) fn logical_source_scope(
+        &self,
+    ) -> Option<&Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>> {
+        self.logical_scope.as_ref()
     }
     /// Authentic parent Logical source body for this conditional header.
     /// Its geometry supplies no runtime procedure/frame or Native input.
@@ -1902,6 +1915,7 @@ impl AdviceInvocationContext<'_> {
             uncertain_operations: graph.uncertain_operations.clone(),
             declaration: None,
             logical_body: None,
+            logical_scope: None,
             c_source_body: None,
             c_source_namespace,
             c_source_path,

@@ -1,0 +1,6 @@
+
+running 1 test
+test deferred_writes::tests::a_callback_the_scan_cannot_read_may_write_any_variable ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 2.29s
+

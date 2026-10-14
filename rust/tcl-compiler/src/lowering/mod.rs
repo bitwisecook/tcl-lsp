@@ -1927,12 +1927,12 @@ impl<'r> Lowerer<'r> {
         }
         let retained = module.retained_source_bindings.as_deref()?;
         let positioned = retained.positioned_for_module(module, registry)?;
-        let binding = parent.source_binding.as_ref()?;
-        binding.original_invocation_metadata_for_module(parent, module, registry)?;
         let body = crate::registry_invocation::original_logical_body_geometry_for_module(
             module, registry, parent, argument,
         )?;
-        let namespace = binding.original_logical_frame_body_namespace(registry, input, parent)?;
+        let namespace = crate::command_binding::original_logical_frame_body_namespace_for_module(
+            module, registry, parent, &body,
+        )?;
         let source = module.source.try_text().ok()?;
         let text = source.get(body.content_span().as_range())?;
         let mut lowerer = Self::with_config(registry, module.lexer_config)

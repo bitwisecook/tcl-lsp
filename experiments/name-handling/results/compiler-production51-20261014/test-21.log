@@ -1,0 +1,17 @@
+
+running 1 test
+test cfg_builder::global_write_info::tests::alias_created_in_namespaced_proc_is_global_in_source_interpreter ... 
+thread 'cfg_builder::global_write_info::tests::alias_created_in_namespaced_proc_is_global_in_source_interpreter' (286471) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1448:9:
+assertion `left == right` failed: authored fixture summary "::p" must identify one body
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::alias_created_in_namespaced_proc_is_global_in_source_interpreter
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9718 filtered out; finished in 0.27s
+
