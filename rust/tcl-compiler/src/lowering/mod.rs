@@ -209,6 +209,7 @@ fn resolved_top_level_priority(
 #[derive(Clone, Copy)]
 struct DefinerCall {
     definition_scope: Option<crate::ir::ProcedureId>,
+    descriptor: tcl_registry::CanonicalCommandDescriptorKey<'static>,
     /// The definer's member grammar (registry data).
     grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
     /// Full-argv index of the class / type / object-handle word.
@@ -298,6 +299,7 @@ impl Lowerer<'_> {
             let name_idx = name_arg.checked_add(1)?;
             (name_idx < tokens.argv.len()).then_some(DefinerCall {
                 definition_scope: None,
+                descriptor: selected.descriptor_key(),
                 grammar,
                 name_idx,
                 body_idx,
@@ -2788,6 +2790,27 @@ impl<'r> Lowerer<'r> {
         let mut tokens = CommandTokens::from_segmented(&self.word_space.map(), self.config, seg);
         if self.readonly_authored_body {
             if let Some(scope) = &self.authored_source_scope {
+                let mut scalar = None;
+                if let Some(bindings) = &self.source_bindings {
+                    let mut declared = tokens.clone();
+                    bindings.stamp_original_tokens(&mut declared);
+                    let original = declared.clone();
+                    let retained = declared.source_binding.as_mut().and_then(|binding| {
+                        binding.retain_original_authored_scalar_body_scope(
+                            std::sync::Arc::clone(scope),
+                            &original,
+                        )
+                    });
+                    if retained.is_some()
+                        && crate::registry_invocation::original_authored_scalar_invocation(
+                            &declared,
+                            self.registry,
+                        )
+                        .is_some()
+                    {
+                        scalar = Some(declared);
+                    }
+                }
                 let original = tokens.clone();
                 let _ = tokens
                     .source_binding
@@ -2796,6 +2819,9 @@ impl<'r> Lowerer<'r> {
                         std::sync::Arc::clone(scope),
                         &original,
                     );
+                if let Some(declared) = scalar {
+                    tokens = declared;
+                }
             }
         } else if let Some(bindings) = &self.source_bindings {
             bindings.stamp_original_tokens(&mut tokens);
@@ -5601,7 +5627,14 @@ impl<'r> Lowerer<'r> {
         namespace: &str,
     ) {
         let call = DefinerCall {
-            definition_scope: Some(self.module.procedure_ids.allocate()),
+            definition_scope: Some(self.module.retain_definition_script_source(
+                definer,
+                call.body_idx,
+                body_content_offset,
+                call.grammar,
+                call.descriptor,
+                self.registry,
+            )),
             ..call
         };
         let texts = &definer.argv_texts;

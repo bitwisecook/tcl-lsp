@@ -3111,6 +3111,7 @@ impl CompilationUnit {
                 plain_command_dispatch: false,
                 top_level: crate::ir::Script::new(),
                 procedure_ids: crate::ir::ProcedureIdIssuer::default(),
+                original_definition_scripts: std::collections::BTreeMap::new(),
                 procedures: crate::ir::ProcedureInventory::default(),
                 methods: crate::ir::MethodInventory::default(),
                 body_units: crate::ir::ProcedureInventory::default(),

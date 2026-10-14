@@ -119,7 +119,7 @@ pub(crate) fn original_authored_scalar_invocation(
     registry: &CommandRegistry,
 ) -> Option<AuthoredSourceInvocation> {
     let binding = tokens.source_binding.as_ref()?;
-    let scope = binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
+    let scope = binding.original_authored_scalar_body_scope(tokens, registry)?;
     let words = scope.original_words(tokens, registry)?;
     if words.iter().any(|word| word.group().expand) {
         return None;

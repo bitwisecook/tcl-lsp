@@ -114,13 +114,11 @@ use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::{CommandTokens, Statement, WordExpr, WordPart};
 use crate::irules_checks::CodeFix;
-use crate::naming::normalise_var_name;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::value_shapes::{
-    is_pure_var_ref, parse_command_substitution_with_config,
-    parse_command_substitution_with_spans_and_config,
+    parse_command_substitution_with_config, parse_command_substitution_with_spans_and_config,
 };
 use tcl_dialect::model::SurfaceQuery;
 
@@ -528,6 +526,7 @@ fn source_colour(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
+    receiver: Option<(&WordExpr, tcl_lexer::LexerConfig)>,
 ) -> Option<TaintLattice> {
     let dialect = dialect_to_point(dialect);
     let direct = tcl_registry::taint::taint_source_colour(registry, command, args, dialect);
@@ -539,6 +538,7 @@ fn source_colour(
             dialect,
             instance_classes,
             source_position,
+            receiver,
         )
     })?;
     Some(TaintLattice {
@@ -566,8 +566,9 @@ fn instance_taint_source_colour(
     dialect: Option<SurfaceQuery<'_>>,
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
+    receiver: Option<(&WordExpr, tcl_lexer::LexerConfig)>,
 ) -> Option<tcl_registry::TaintColour> {
-    let class = unique_instance_class(command, instance_classes, source_position)?;
+    let class = unique_instance_class(receiver, instance_classes, source_position)?;
     registry
         .resolve_instance_invocation(class, command, args, dialect)
         .filter(|invocation| {
@@ -586,13 +587,25 @@ fn instance_taint_source_colour(
 /// Shared by source-return and linked-variable instance semantics so both
 /// abstain identically on an untyped or widened receiver.
 pub(crate) fn unique_instance_class<'a>(
-    command: &str,
+    receiver: Option<(&WordExpr, tcl_lexer::LexerConfig)>,
     instance_classes: Option<&'a LocalInstanceClasses>,
     source_position: Option<u32>,
 ) -> Option<&'a str> {
-    let key = normalise_var_name(command);
+    let (word, config) = receiver?;
+    if matches!(word, WordExpr::Expand { .. }) {
+        return None;
+    }
+    let key = static_word_expr_value(
+        word,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    )
+    .or_else(|| original_scalar_reference_name(word, config).map(str::to_owned))?;
+    if key.contains('\0') {
+        return None;
+    }
     let position = source_position?;
-    let classes = instance_classes?.at.get(&position)?.get(key)?;
+    let classes = instance_classes?.at.get(&position)?.get(&key)?;
     if classes.len() != 1 {
         return None;
     }
@@ -602,22 +615,26 @@ pub(crate) fn unique_instance_class<'a>(
 /// Whether a registry-typed instance call exposes `variable` to external
 /// input through one of its class/factory options.
 fn instance_taints_var_write(
-    registry: &CommandRegistry,
+    ctx: TaintCtx<'_>,
     command: &str,
     args: &[&str],
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    instance_classes: Option<&LocalInstanceClasses>,
-    source_position: Option<u32>,
     variable: &str,
 ) -> bool {
     if args.is_empty() {
         return false;
     }
-    let Some(class) = unique_instance_class(command, instance_classes, source_position) else {
+    let receiver = ctx
+        .source_tokens
+        .and_then(|tokens| tokens.words().first())
+        .map(|word| (word, ctx.source.config));
+    let Some(class) = unique_instance_class(receiver, ctx.instance_classes, ctx.source_position)
+    else {
         return false;
     };
-    let dialect = dialect_to_point(dialect);
-    let Some(invocation) = registry.resolve_instance_invocation(class, command, args, dialect)
+    let dialect = dialect_to_point(ctx.dialect);
+    let Some(invocation) = ctx
+        .registry
+        .resolve_instance_invocation(class, command, args, dialect)
     else {
         return false;
     };
@@ -625,7 +642,7 @@ fn instance_taints_var_write(
         .semantics
         .traits
         .contains(Traits::CONFIGURES_INSTANCE_OPTIONS)
-        && tcl_registry::taint::taints_var_write(registry, class, &args[1..], dialect, variable)
+        && tcl_registry::taint::taints_var_write(ctx.registry, class, &args[1..], dialect, variable)
 }
 
 /// Build the local receiver → class facts needed by object-method taint
@@ -1643,6 +1660,10 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
             ctx.dialect,
             ctx.instance_classes,
             ctx.source_position,
+            nested
+                .as_ref()
+                .and_then(|tokens| tokens.words().first())
+                .map(|word| (word, ctx.source.config)),
         )
     {
         return t;
@@ -1863,15 +1884,8 @@ fn call_definition_taint<S: std::hash::BuildHasher>(
         &arg_refs,
         dialect_to_point(ctx.dialect),
         defined_name,
-    ) || instance_taints_var_write(
-        ctx.registry,
-        command,
-        &arg_refs,
-        ctx.dialect,
-        ctx.instance_classes,
-        ctx.source_position,
-        defined_name,
-    ) {
+    ) || instance_taints_var_write(ctx, command, &arg_refs, defined_name)
+    {
         return TaintLattice::tainted();
     }
     if interproc_call_taints_global(command, defined_name, ctx) {
@@ -1887,6 +1901,9 @@ fn call_definition_taint<S: std::hash::BuildHasher>(
         ctx.dialect,
         ctx.instance_classes,
         ctx.source_position,
+        ctx.source_tokens
+            .and_then(|tokens| tokens.words().first())
+            .map(|word| (word, ctx.source.config)),
     ) {
         return t;
     }
@@ -2616,7 +2633,7 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
     }
     // This standalone entry selects the complete grammar from its supplied dialect.
     let config = tcl_lexer::LexerConfig::for_profile(dialect);
-    let guard_map = compute_branch_guard_map(cfg, registry);
+    let guard_map = compute_branch_guard_map(cfg, registry, config);
 
     let mut warnings: Vec<TaintWarning> = Vec::new();
     for bn in cfg_order(cfg) {
@@ -2820,8 +2837,8 @@ fn is_normalised_def(name: &str, ver: u32, ssa: &SsaFunction) -> bool {
 fn compute_branch_guard_map(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
 ) -> HashMap<BlockId, HashSet<String>> {
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let mut guarded: HashMap<BlockId, HashSet<String>> = HashMap::new();
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
@@ -2887,28 +2904,30 @@ fn extract_guard_var(
 /// Parse `[string match|first|equal … $var]` and return the path
 /// variable it bounds-checks.
 fn guard_var_from_string_command(text: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
-    let (command, args) = parse_command_substitution_with_config(text.trim(), config)?;
+    let (command, args) = parse_command_substitution_with_spans_and_config(text, config)?;
     if command != "string" || args.is_empty() {
         return None;
     }
-    match args[0].as_str() {
-        "match" if args.len() >= 3 => extract_var_name(args.last().unwrap()),
-        "first" if args.len() >= 3 => extract_var_name(&args[2]),
+    let name =
+        |argument: &(String, Span)| extract_var_name(text.get(argument.1.as_range())?, config);
+    match args[0].0.as_str() {
+        "match" if args.len() >= 3 => name(args.last()?),
+        "first" if args.len() >= 3 => name(&args[2]),
         "equal" => {
             let mut skip_next = false;
-            for arg in &args[1..] {
+            for argument in &args[1..] {
                 if skip_next {
                     skip_next = false;
                     continue;
                 }
-                if arg == "-length" {
+                if argument.0 == "-length" {
                     skip_next = true;
                     continue;
                 }
-                if arg.starts_with('-') {
+                if argument.0.starts_with('-') {
                     continue;
                 }
-                if let Some(name) = extract_var_name(arg) {
+                if let Some(name) = name(argument) {
                     return Some(name);
                 }
             }
@@ -2918,20 +2937,9 @@ fn guard_var_from_string_command(text: &str, config: tcl_lexer::LexerConfig) -> 
     }
 }
 
-/// Extract a variable name from a `$name` / `${name}` word (identifier
-/// chars only — no `::` qualification).
-fn extract_var_name(arg: &str) -> Option<String> {
-    let text = arg.trim();
-    if let Some(inner) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        return Some(inner.to_owned());
-    }
-    if let Some(name) = text.strip_prefix('$')
-        && !name.is_empty()
-        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-    {
-        return Some(name.to_owned());
-    }
-    None
+fn extract_var_name(arg: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let original = crate::value_shapes::value_word_with_config(arg, config)?;
+    original_scalar_reference_name(&original, config).map(str::to_owned)
 }
 
 /// True when block `id` executes a block-terminating command
@@ -3053,7 +3061,7 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     // `$var` words (already covered by the named-variable loop above).
     if emitted.is_empty() {
         for arg in call_args {
-            if is_pure_var_ref(arg.trim()) {
+            if reference_root_with_config(arg.trim(), ctx.source.config).is_some() {
                 continue;
             }
             let t = word_taint(arg, uses, taints, ctx);
@@ -3113,6 +3121,8 @@ fn irule3002_name_position_safe(
     args: &[String],
     var_name: &str,
     lat: TaintLattice,
+    original: Option<&WordExpr>,
+    config: tcl_lexer::LexerConfig,
 ) -> bool {
     if !lat.colours.contains(TaintColour::HEADER_TOKEN_SAFE) {
         return false;
@@ -3135,8 +3145,14 @@ fn irule3002_name_position_safe(
         return false;
     }
     let Some(arg) = args.get(1) else { return false };
-    let stripped = arg.trim();
-    is_pure_var_ref(stripped) && normalise_var_name(stripped) == var_name
+    let Some(original) = original else {
+        return false;
+    };
+    let Some((reference, _)) = original.sole_variable_substitution() else {
+        return false;
+    };
+    // The current operand must still correspond to the call's argument data.
+    reference == arg.trim() && reference_root_with_config(reference, config) == Some(var_name)
 }
 
 /// Conservatively force every taint value touching a module-traced variable
@@ -3498,13 +3514,17 @@ fn callback_taint_inputs_at_call(
     index: usize,
     dialect: Option<SurfaceQuery<'_>>,
     instance_classes: &LocalInstanceClasses,
-    source_position: u32,
+    receiver: Option<(&WordExpr, tcl_lexer::LexerConfig, u32)>,
 ) -> &'static [tcl_registry::CallbackTaintInput] {
     let direct = registry.callback_taint_inputs(command, args, index, dialect);
     if !direct.is_empty() {
         return direct;
     }
-    let Some(class) = unique_instance_class(command, Some(instance_classes), Some(source_position))
+    let Some((word, config, position)) = receiver else {
+        return &[];
+    };
+    let Some(class) =
+        unique_instance_class(Some((word, config)), Some(instance_classes), Some(position))
     else {
         return &[];
     };
@@ -3624,7 +3644,9 @@ fn taint_callback_substitution_report(
                                 index,
                                 dialect_to_point(dialect),
                                 &instance_classes,
-                                stmt.span().start(),
+                                tokens
+                                    .and_then(|tokens| tokens.words().first())
+                                    .map(|word| (word, source.config, stmt.span().start())),
                             )
                         })
                     } else {
@@ -4753,7 +4775,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
         warnings,
         source,
         context.registry,
-        context.grammar(),
+        (context.source.config, context.grammar()),
     ) {
         return;
     }
@@ -4847,7 +4869,15 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     let resolved_heads =
         resolve_taint_command_heads(written_command, stmt, tokens, command_head_ctx);
     if resolved_heads.is_empty() {
-        emit_dynamic_command_head_warning(written_command, tokens, ssa_stmt, taints, warnings, ssa);
+        emit_dynamic_command_head_warning(
+            tokens
+                .and_then(|tokens| tokens.word_exprs.first())
+                .map(|head| (head, context.source.config)),
+            ssa_stmt,
+            taints,
+            warnings,
+            ssa,
+        );
         return;
     }
     emit_sink_candidates(
@@ -5184,17 +5214,21 @@ fn static_word_expr_value(
 /// even when no finite constant target can be proven. This also covers the
 /// canonical IR produced when a static `eval` body reduces to a dynamic head.
 fn emit_dynamic_command_head_warning<S: std::hash::BuildHasher>(
-    written_command: &str,
-    tokens: Option<&CommandTokens>,
+    original: Option<(&WordExpr, tcl_lexer::LexerConfig)>,
     statement: &SsaStatement,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     warnings: &mut Vec<TaintWarning>,
     ssa: &SsaFunction,
 ) {
-    if !is_pure_var_ref(written_command) {
+    let Some((word, config)) = original else {
         return;
-    }
-    let name = normalise_var_name(written_command);
+    };
+    let Some((reference, _)) = word.sole_variable_substitution() else {
+        return;
+    };
+    let Some(name) = reference_root_with_config(reference, config) else {
+        return;
+    };
     let Some(symbol) = ssa.var_symbol(name) else {
         return;
     };
@@ -5208,10 +5242,7 @@ fn emit_dynamic_command_head_warning<S: std::hash::BuildHasher>(
     {
         return;
     }
-    let span = tokens
-        .and_then(|tokens| tokens.argv.first())
-        .copied()
-        .unwrap_or_else(|| statement.statement.span());
+    let span = word.source().span;
     warnings.push(TaintWarning {
         span,
         variable: name.to_owned(),
@@ -5749,7 +5780,7 @@ fn emit_expr_statement_warnings<S: std::hash::BuildHasher>(
     warnings: &mut Vec<TaintWarning>,
     source: crate::ssa::SsaSourceView<'_>,
     registry: &CommandRegistry,
-    grammar: tcl_dialect::LexerGrammar,
+    (config, grammar): (tcl_lexer::LexerConfig, tcl_dialect::LexerGrammar),
 ) -> bool {
     let stmt = &ssa_stmt.statement;
     let (Statement::AssignExpr {
@@ -5775,7 +5806,14 @@ fn emit_expr_statement_warnings<S: std::hash::BuildHasher>(
         let version = *ssa_stmt.uses.get(&sym)?;
         Some(CoercionTaint::represented(sym, version, taints))
     };
-    emit_expr_coercion_warnings(expr, *expr_base, stmt.span(), resolve, warnings, grammar);
+    emit_expr_coercion_warnings(
+        expr,
+        *expr_base,
+        stmt.span(),
+        resolve,
+        warnings,
+        (config, grammar),
+    );
     true
 }
 
@@ -5919,14 +5957,6 @@ fn resolve_taint_command_heads(
     if let Some(binding) = tokens.and_then(|tokens| tokens.source_binding.as_ref()) {
         return retained_static_taint_head(binding).into_iter().collect();
     }
-    if !is_pure_var_ref(written_command) {
-        return vec![StaticCommandHead {
-            command: written_command.to_owned(),
-            prepended_args: Vec::new(),
-            consumed_source_args: 0,
-            expanded: false,
-        }];
-    }
     let Some(ctx) = ctx else {
         return vec![StaticCommandHead {
             command: written_command.to_owned(),
@@ -5935,7 +5965,24 @@ fn resolve_taint_command_heads(
             expanded: false,
         }];
     };
-    let var_name = normalise_var_name(written_command);
+    let Some(actual_tokens) = tokens.or_else(|| stmt.tokens()) else {
+        return Vec::new();
+    };
+    let config = ctx.fu.source_lexer_config();
+    if let Some(head) = static_command_head(
+        actual_tokens,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    ) {
+        return vec![head];
+    }
+    let Some(var_name) = actual_tokens
+        .word_exprs
+        .first()
+        .and_then(|word| original_scalar_reference_name(word, config))
+    else {
+        return Vec::new();
+    };
     if ctx.module_traces.has_dynamic_variable_trace
         || ctx.module_traces.traced_variables.contains(var_name)
     {
@@ -6114,6 +6161,27 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     }
 }
 
+fn original_scalar_reference_name(word: &WordExpr, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    let (reference, _) = word.sole_variable_substitution()?;
+    let variable = tcl_lexer::word_parts::whole_var_ref(reference.as_bytes(), config).ok()??;
+    if variable.index.is_some()
+        || tcl_syntax::naming::split_element_ref_bytes(variable.name).is_some()
+    {
+        return None;
+    }
+    std::str::from_utf8(variable.name)
+        .ok()
+        .filter(|name| !name.contains('\0'))
+}
+
+fn reference_root_with_config(reference: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    let root =
+        tcl_syntax::naming::variable_reference_root_bytes(reference.as_bytes(), config).ok()??;
+    std::str::from_utf8(root)
+        .ok()
+        .filter(|name| !name.contains('\0'))
+}
+
 /// Taint of an original operand read. A missing SSA use remains an unknown
 /// value only when the retained word identifies that exact variable read.
 /// This projection creates no SSA symbol or variable-presence proof.
@@ -6134,7 +6202,8 @@ fn operand_read_taint<S: std::hash::BuildHasher>(
         return Some(var_taint(name, env.uses, env.taints, env.ssa));
     }
     let (reference, _) = original?.sole_variable_substitution()?;
-    (normalise_var_name(reference) == name).then_some(TaintLattice::tainted())
+    (reference_root_with_config(reference, env.source.config) == Some(name))
+        .then_some(TaintLattice::tainted())
 }
 
 fn original_sink_argument<'a>(call: &SinkCall<'a>, index: usize) -> Option<&'a WordExpr> {
@@ -6166,7 +6235,8 @@ impl HostedSourceRead<'_> {
         taints: &HashMap<ValueKey, TaintLattice, S>,
     ) -> Option<TaintLattice> {
         let (reference, site) = original.sole_variable_substitution()?;
-        if normalise_var_name(reference) != name
+        let config = self.metadata.shape().original_words().first()?.config();
+        if reference_root_with_config(reference, config) != Some(name)
             || !self
                 .metadata
                 .shape()
@@ -6373,42 +6443,23 @@ const fn binop_coerces(op: crate::expr_ast::BinOp) -> bool {
     )
 }
 
-/// Whether `text` is one whole variable reference and nothing else — the one
-/// [`ExprNode::Raw`] shape whose operator structure is fully known.
-///
-/// Decided by reconstruction rather than by re-parsing: `names` is what the
-/// grammar-aware scan already found in `text`, so if the single name it found
-/// spells the whole of `text` back, there is nothing else in there. Anything
-/// the scan and the source disagree about — a release-dependent `${…}` close,
-/// trailing text, a second reference, an operator — fails to reconstruct and
-/// keeps the conservative reading.
-///
-/// An array element (`$a(k)`, `${a(k)}`) reconstructs too. The scan reports
-/// the array's name without the index, so the index is matched as a trailing
-/// `(…)` group; it is still one reference to one element, and an index that
-/// substitutes anything of its own contributes a second name and fails the
-/// single-name test.
-fn holds_one_whole_var_ref(text: &str, names: &HashSet<String>) -> bool {
-    if names.len() != 1 {
-        return false;
-    }
-    let Some(name) = names.iter().next() else {
+/// A complete reference under the current lexer configuration whose name
+/// agrees with the expression's variable inventory.
+fn holds_one_whole_var_ref(
+    text: &str,
+    names: &HashSet<String>,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
+    let Ok(Some(root)) = tcl_syntax::naming::variable_reference_root_bytes(text.as_bytes(), config)
+    else {
         return false;
     };
-    let whole_or_element =
-        |tail: &str| tail.is_empty() || (tail.starts_with('(') && tail.ends_with(')'));
-    let Some(rest) = text.strip_prefix('$') else {
-        return false;
-    };
-    let bare = rest
-        .strip_prefix(name.as_str())
-        .is_some_and(whole_or_element);
-    let braced = rest
-        .strip_prefix('{')
-        .and_then(|inner| inner.strip_suffix('}'))
-        .and_then(|inner| inner.strip_prefix(name.as_str()))
-        .is_some_and(whole_or_element);
-    bare || braced
+    !root.contains(&0)
+        && names.len() == 1
+        && names
+            .iter()
+            .next()
+            .is_some_and(|name| name.as_bytes() == root)
 }
 
 /// Collect every `Var` occurrence of `expr` that sits in a position where
@@ -6455,7 +6506,7 @@ fn collect_coercion_operands(
     in_context: bool,
     out: &mut Vec<CoercionOperand>,
     depth: u32,
-    grammar: tcl_dialect::LexerGrammar,
+    (config, grammar): (tcl_lexer::LexerConfig, tcl_dialect::LexerGrammar),
 ) {
     // Native-stack safety net: this walks the `ExprNode` tree,
     // one native frame per level. Past the cap, stop descending — a collector
@@ -6469,7 +6520,7 @@ fn collect_coercion_operands(
         ExprNode::Var {
             name, start, end, ..
         } => {
-            if in_context && !name.is_empty() {
+            if in_context {
                 out.push(CoercionOperand {
                     name: name.clone(),
                     variable: Some(expr.clone()),
@@ -6483,29 +6534,29 @@ fn collect_coercion_operands(
         | ExprNode::Command { .. } => {}
         ExprNode::Binary { op, left, right } => {
             let child_ctx = binop_coerces(*op);
-            collect_coercion_operands(left, child_ctx, out, depth + 1, grammar);
-            collect_coercion_operands(right, child_ctx, out, depth + 1, grammar);
+            collect_coercion_operands(left, child_ctx, out, depth + 1, (config, grammar));
+            collect_coercion_operands(right, child_ctx, out, depth + 1, (config, grammar));
         }
         ExprNode::Unary { operand, .. } => {
-            collect_coercion_operands(operand, true, out, depth + 1, grammar);
+            collect_coercion_operands(operand, true, out, depth + 1, (config, grammar));
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            collect_coercion_operands(condition, true, out, depth + 1, grammar);
-            collect_coercion_operands(true_branch, in_context, out, depth + 1, grammar);
-            collect_coercion_operands(false_branch, in_context, out, depth + 1, grammar);
+            collect_coercion_operands(condition, true, out, depth + 1, (config, grammar));
+            collect_coercion_operands(true_branch, in_context, out, depth + 1, (config, grammar));
+            collect_coercion_operands(false_branch, in_context, out, depth + 1, (config, grammar));
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                collect_coercion_operands(arg, true, out, depth + 1, grammar);
+                collect_coercion_operands(arg, true, out, depth + 1, (config, grammar));
             }
         }
         ExprNode::Raw { text } => {
             let names = (ExprNode::Raw { text: text.clone() }).vars_with_grammar(grammar);
-            if !in_context && holds_one_whole_var_ref(text, &names) {
+            if !in_context && holds_one_whole_var_ref(text, &names, config) {
                 return;
             }
             for name in names {
@@ -6606,10 +6657,10 @@ fn emit_expr_coercion_warnings(
     fallback_span: Span,
     resolve: impl Fn(&CoercionOperand) -> Option<CoercionTaint>,
     warnings: &mut Vec<TaintWarning>,
-    grammar: tcl_dialect::LexerGrammar,
+    (config, grammar): (tcl_lexer::LexerConfig, tcl_dialect::LexerGrammar),
 ) {
     let mut hits = Vec::new();
-    collect_coercion_operands(expr, true, &mut hits, 0, grammar);
+    collect_coercion_operands(expr, true, &mut hits, 0, (config, grammar));
     let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
     for hit in hits {
         let Some(read) = resolve(&hit) else {
@@ -6814,11 +6865,14 @@ fn emit_branch_condition_warnings<S: std::hash::BuildHasher>(
         *fallback_span,
         resolve,
         warnings,
-        ctx.source.config.grammar_over(
-            ctx.dialect
-                .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
-                    profile.grammar
-                }),
+        (
+            ctx.source.config,
+            ctx.source.config.grammar_over(
+                ctx.dialect
+                    .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+                        profile.grammar
+                    }),
+            ),
         ),
     );
     emit_branch_condition_nested_command_warnings(condition, ctx, *fallback_span, warnings);
@@ -7540,7 +7594,9 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         if let Some((reference, _)) =
             original_sink_argument(call, index).and_then(WordExpr::sole_variable_substitution)
         {
-            names.insert(normalise_var_name(reference));
+            if let Some(name) = reference_root_with_config(reference, call.source.config) {
+                names.insert(name);
+            }
         }
     }
     for name in names {
@@ -7548,7 +7604,9 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
             .filter_map(|index| original_sink_argument(call, index))
             .find(|word| {
                 word.sole_variable_substitution()
-                    .is_some_and(|(reference, _)| normalise_var_name(reference) == name)
+                    .is_some_and(|(reference, _)| {
+                        reference_root_with_config(reference, call.source.config) == Some(name)
+                    })
             });
         let Some(t) = operand_read_taint(env, name, original) else {
             continue;
@@ -7597,7 +7655,15 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
             }
         }
         if code == DiagCode::Irule3002
-            && irule3002_name_position_safe(call.registry, call.command, call.args, name, t)
+            && irule3002_name_position_safe(
+                call.registry,
+                call.command,
+                call.args,
+                name,
+                t,
+                original_sink_argument(call, 1),
+                call.source.config,
+            )
         {
             continue;
         }
@@ -7958,14 +8024,9 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
 /// can't accidentally emit IRULE3101 errors against user-defined
 /// commands that happen to be named `HTTP::uri` / `HTTP::path`.
 ///
-/// Three cases per constraint:
-///
-/// 1. **Literal** (not `$`-prefixed, no `[`) — check the prefix directly.
-/// 2. **Pure var-ref** — a value the lattice proves at the call (`values`)
-///    is checked as a literal is (#2055: `set p /a; HTTP::path $p` is
-///    clean); otherwise look up the SSA-resolved taint colour and suppress
-///    when `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED` is set.
-/// 3. **Dynamic expression** (interpolation, command sub) — always warn.
+/// Original literal operands are checked under their word configuration.
+/// A whole scalar read can use only the value or colour represented at that
+/// statement; missing geometry or contents cannot mitigate a dynamic operand.
 /// Explicit standalone utility; retained Module/FU callers use
 /// [`find_setter_constraint_warnings_for_module_function`].
 #[must_use]
@@ -7986,6 +8047,7 @@ pub fn find_setter_constraint_warnings<
     if !is_irules_dialect(dialect) {
         return out;
     }
+    let standalone_config = TaintSourceContext::standalone(registry, dialect).config;
     let safe_path_colours =
         TaintColour::PATH_PREFIXED | TaintColour::PATH_NORMALISED | TaintColour::PATH_BOUNDED;
 
@@ -8010,7 +8072,19 @@ pub fn find_setter_constraint_warnings<
                 let Some(arg_val) = args.get(constraint.arg_index as usize) else {
                     continue;
                 };
-                let stripped = arg_val.trim();
+                let original = ssa_stmt
+                    .statement
+                    .tokens()
+                    .and_then(|tokens| tokens.word_exprs.get(constraint.arg_index as usize + 1));
+                let config = match ssa_stmt.statement.tokens().and_then(|tokens| {
+                    tokens
+                        .source_binding
+                        .as_ref()
+                        .map(|binding| (tokens, binding))
+                }) {
+                    Some((tokens, binding)) => binding.original_lexer_config_for_tokens(tokens),
+                    None => Some(standalone_config),
+                };
                 let warn = |variable: String| TaintWarning {
                     span,
                     variable,
@@ -8021,41 +8095,53 @@ pub fn find_setter_constraint_warnings<
                     fixes: Vec::new(),
                 };
 
-                // Literal: neither `$` nor `[`.
-                if !stripped.starts_with('$') && !stripped.contains('[') {
-                    if !stripped.starts_with(constraint.required_prefix) {
+                let Some(config) = config else {
+                    out.push(warn(String::new()));
+                    continue;
+                };
+                let Some(original) = original.filter(|word| word.legacy_text() == *arg_val) else {
+                    // Independent IR without original word geometry cannot
+                    // turn source-looking bytes into a represented read.
+                    if arg_val.contains(['$', '['])
+                        || !arg_val.starts_with(constraint.required_prefix)
+                    {
+                        out.push(warn(String::new()));
+                    }
+                    continue;
+                };
+                if let Some(literal) = static_word_expr_value(
+                    original,
+                    config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                ) {
+                    if !literal.starts_with(constraint.required_prefix) {
                         out.push(warn(String::new()));
                     }
                     continue;
                 }
 
-                // Pure variable reference: check SSA-resolved taint colour.
-                if is_pure_var_ref(stripped) {
-                    let var_name = normalise_var_name(stripped);
-                    let sym = ssa.var_symbol(var_name);
-                    let ver = sym
-                        .and_then(|s| ssa_stmt.uses.get(&s))
-                        .copied()
-                        .unwrap_or(0);
-                    let proven =
-                        sym.and_then(|s| values?.get(&(s, ver)))
-                            .and_then(|value| match value {
-                                crate::analyses::LatticeValue::Const(c) => {
-                                    crate::value_transfer::const_text(c)
-                                }
-                                _ => None,
-                            });
+                if let Some(var_name) = original_scalar_reference_name(original, config) {
+                    let represented = ssa.var_symbol(var_name).and_then(|symbol| {
+                        ssa_stmt.uses.get(&symbol).map(|version| (symbol, *version))
+                    });
+                    let proven = represented
+                        .and_then(|key| values?.get(&key))
+                        .and_then(|value| match value {
+                            crate::analyses::LatticeValue::Const(c) => {
+                                crate::value_transfer::const_text(c)
+                            }
+                            _ => None,
+                        });
                     if let Some(proven) = proven {
                         if !proven.starts_with(constraint.required_prefix) {
                             out.push(warn(var_name.to_owned()));
                         }
                         continue;
                     }
-                    let t = sym
-                        .and_then(|s| taints.get(&(s, ver)))
-                        .copied()
-                        .unwrap_or(TaintLattice::clean());
-                    if t.is_tainted() && t.colours.intersects(safe_path_colours) {
+                    let taint = represented.and_then(|key| taints.get(&key)).copied();
+                    if taint.is_some_and(|value| {
+                        value.is_tainted() && value.colours.intersects(safe_path_colours)
+                    }) {
                         continue;
                     }
                     out.push(warn(var_name.to_owned()));
@@ -8078,6 +8164,73 @@ mod tests {
     use super::*;
     use crate::sccp::SccpResult;
     use tcl_dialect::model::{Family, SurfaceLayer};
+
+    #[test]
+    fn original_instance_receiver_names_preserve_head_kind_and_actual_grammar() {
+        let classes = LocalInstanceClasses {
+            at: HashMap::from([(
+                42,
+                HashMap::from([
+                    ("$literal".into(), HashSet::from(["LiteralClass".into()])),
+                    ("${literal}".into(), HashSet::from(["BraceClass".into()])),
+                    ("literal".into(), HashSet::from(["ReferenceClass".into()])),
+                    ("".into(), HashSet::from(["EmptyClass".into()])),
+                    ("arr".into(), HashSet::from(["ScalarClass".into()])),
+                    ("arr(key)".into(), HashSet::from(["CommandClass".into()])),
+                    ("a{b}c".into(), HashSet::from(["NestedClass".into()])),
+                ]),
+            )]),
+        };
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+            for (source, expected) in [
+                ("{$literal}", "LiteralClass"),
+                ("{${literal}}", "BraceClass"),
+                ("$literal", "ReferenceClass"),
+                ("${$literal}", "LiteralClass"),
+                ("{}", "EmptyClass"),
+                ("${}", "EmptyClass"),
+                ("arr(key)", "CommandClass"),
+            ] {
+                let word = crate::value_shapes::value_word_with_config(source, config).unwrap();
+                assert_eq!(
+                    unique_instance_class(Some((&word, config)), Some(&classes), Some(42)),
+                    Some(expected),
+                    "{label}: {source}"
+                );
+                assert!(
+                    unique_instance_class(Some((&word, config)), Some(&classes), Some(43))
+                        .is_none()
+                );
+            }
+            for source in [
+                "$arr(key)",
+                "${arr(key)}",
+                "prefix$literal",
+                "[pick]",
+                "{*}{literal}",
+                "${nul\0name}",
+            ] {
+                let word = crate::value_shapes::value_word_with_config(source, config).unwrap();
+                assert!(
+                    unique_instance_class(Some((&word, config)), Some(&classes), Some(42))
+                        .is_none(),
+                    "{label}: {source}"
+                );
+            }
+            let nested = crate::value_shapes::value_word_with_config("${a{b}c}", config).unwrap();
+            assert_eq!(
+                unique_instance_class(Some((&nested, config)), Some(&classes), Some(42)),
+                if label == "tcl9.1" {
+                    Some("NestedClass")
+                } else {
+                    None
+                }
+            );
+        }
+        assert!(unique_instance_class(None, Some(&classes), Some(42)).is_none());
+    }
 
     #[test]
     fn configured_word_taint_keeps_literal_reference_names_and_index_reads() {
@@ -8202,6 +8355,56 @@ mod tests {
             var_taint("represented", &HashMap::new(), &taints, &unit.top_level.ssa).is_tainted()
         );
         assert!(unit.top_level.ssa.var_symbol("unrepresented").is_none());
+    }
+
+    #[test]
+    fn original_operand_reference_names_keep_data_and_current_grammar_without_ssa_grants() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let source = TaintSourceContext::standalone(registry, registry.profile());
+            let cfg = crate::cfg::Function::new("model", "entry");
+            let ssa = SsaFunction::trivial("model", cfg.entry, cfg.block_names().to_vec());
+            let uses = HashMap::new();
+            let taints = HashMap::<ValueKey, TaintLattice>::new();
+            let env = TaintScan {
+                uses: &uses,
+                taints: &taints,
+                ssa: &ssa,
+                quoted_uses: None,
+                source_read: None,
+                source,
+            };
+            for (reference, name) in [
+                ("${$literal}", "$literal"),
+                ("${}", ""),
+                ("${arr($literal)}", "arr"),
+            ] {
+                let word =
+                    crate::value_shapes::value_word_with_config(reference, source.config).unwrap();
+                assert!(
+                    operand_read_taint(&env, name, Some(&word))
+                        .is_some_and(TaintLattice::is_tainted)
+                );
+                assert!(operand_read_taint(&env, "donated", Some(&word)).is_none());
+                assert!(ssa.var_symbol(name).is_none());
+            }
+            assert_eq!(
+                reference_root_with_config("${a{b}c}", source.config),
+                if label == "tcl9.1" {
+                    Some("a{b}c")
+                } else {
+                    None
+                }
+            );
+            for unavailable in [
+                "prefix${literal}",
+                r"\$literal",
+                "${literal",
+                "${literal\0tail}",
+            ] {
+                assert!(reference_root_with_config(unavailable, source.config).is_none());
+            }
+        }
     }
 
     #[test]
@@ -9289,6 +9492,70 @@ mod tests {
         let _ = expr_command_taint(&node, &uses, &taints, ctx, 0);
     }
 
+    #[test]
+    fn raw_coercion_references_use_current_grammar_and_keep_empty_name_data() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let source = TaintSourceContext::standalone(registry, registry.profile());
+            let grammar = source
+                .config
+                .grammar_over(registry.profile().unwrap().grammar);
+            for (text, name) in [
+                ("${$literal}", "$literal"),
+                ("${}", ""),
+                ("$arr(key)", "arr"),
+            ] {
+                let names = HashSet::from([name.to_owned()]);
+                assert!(holds_one_whole_var_ref(text, &names, source.config));
+                assert!(!holds_one_whole_var_ref(
+                    text,
+                    &HashSet::from(["donated".to_owned()]),
+                    source.config
+                ));
+                let mut hits = Vec::new();
+                collect_coercion_operands(
+                    &ExprNode::Raw {
+                        text: text.to_owned(),
+                    },
+                    false,
+                    &mut hits,
+                    0,
+                    (source.config, grammar),
+                );
+                assert!(hits.is_empty(), "{label}: {text}");
+            }
+            let names = HashSet::from(["a{b}c".to_owned()]);
+            assert_eq!(
+                holds_one_whole_var_ref("${a{b}c}", &names, source.config),
+                label == "tcl9.1"
+            );
+            for text in ["prefix$x", "$x + 1", "${x", r"\$x", "${x\0tail}"] {
+                assert!(!holds_one_whole_var_ref(
+                    text,
+                    &HashSet::from(["x".to_owned()]),
+                    source.config
+                ));
+            }
+            let mut hits = Vec::new();
+            collect_coercion_operands(
+                &ExprNode::Var {
+                    text: "${}".into(),
+                    name: String::new(),
+                    start: 0,
+                    end: 2,
+                },
+                true,
+                &mut hits,
+                0,
+                (source.config, grammar),
+            );
+            assert_eq!(hits.len(), 1);
+            assert!(hits[0].name.is_empty());
+            assert!(hits[0].variable.is_some());
+            assert_eq!(hits[0].rel_span, Some((0, 3)));
+        }
+    }
+
     /// `extract_guard_var` and `collect_coercion_operands` each recurse once
     /// per `ExprNode` level, so both need a depth cap. 3000-deep trees are
     /// past the crash range and past `MAX_EXPR_NODE_DEPTH` (256); the
@@ -9315,7 +9582,10 @@ mod tests {
             true,
             &mut out,
             0,
-            tcl_dialect::LexerGrammar::default(),
+            (
+                tcl_lexer::LexerConfig::default(),
+                tcl_dialect::LexerGrammar::default(),
+            ),
         );
     }
 
@@ -9945,6 +10215,42 @@ mod tests {
     }
 
     #[test]
+    fn standalone_guard_names_follow_original_operand_kind_and_supplied_config() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+            for (source, expected) in [
+                ("[string match SAFE ${$literal}]", Some("$literal")),
+                ("[string match SAFE ${}]", Some("")),
+                ("[string match SAFE {$literal}]", None),
+                ("[string match SAFE {${literal}}]", None),
+                (
+                    "[string first SAFE ${qualified::literal}]",
+                    Some("qualified::literal"),
+                ),
+                ("[string first SAFE $arr(key)]", None),
+                ("[string equal SAFE ${arr(key)}]", None),
+                ("[string equal SAFE prefix$x]", None),
+                ("[string match SAFE {*}$x]", None),
+            ] {
+                assert_eq!(
+                    guard_var_from_string_command(source, config).as_deref(),
+                    expected,
+                    "{label}: {source}"
+                );
+            }
+            assert_eq!(
+                guard_var_from_string_command("[string match SAFE ${a{b}c}]", config).as_deref(),
+                if label == "tcl9.1" {
+                    Some("a{b}c")
+                } else {
+                    None
+                }
+            );
+        }
+    }
+
+    #[test]
     fn w313_helpers_parse_vars_and_guards() {
         assert!(arg_var_names("$p", tcl_dialect::BracedVarStyle::default()).contains("p"));
         assert!(
@@ -9953,8 +10259,14 @@ mod tests {
         assert!(
             arg_var_names("${dir}/$file", tcl_dialect::BracedVarStyle::default()).contains("file")
         );
-        assert_eq!(extract_var_name("$p").as_deref(), Some("p"));
-        assert_eq!(extract_var_name("${p}").as_deref(), Some("p"));
+        assert_eq!(
+            extract_var_name("$p", tcl_lexer::LexerConfig::default()).as_deref(),
+            Some("p")
+        );
+        assert_eq!(
+            extract_var_name("${p}", tcl_lexer::LexerConfig::default()).as_deref(),
+            Some("p")
+        );
         assert_eq!(
             guard_var_from_string_command(
                 "[string match \"$base/*\" $p]",
@@ -11063,9 +11375,115 @@ mod tests {
     }
 
     #[test]
+    fn original_scalar_reference_consumers_keep_literal_words_and_current_closers() {
+        for label in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(label).commands();
+            let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+            for (spelling, expected) in [
+                ("${$literal}", Some("$literal")),
+                ("${}", Some("")),
+                ("{$literal}", None),
+                ("{${literal}}", None),
+                ("$arr(key)", None),
+                ("${arr(key)}", None),
+                ("prefix$x", None),
+                (r"\$x", None),
+            ] {
+                let word = crate::value_shapes::value_word_with_config(spelling, config).unwrap();
+                assert_eq!(
+                    original_scalar_reference_name(&word, config),
+                    expected,
+                    "{label}: {spelling}"
+                );
+            }
+            let cfg = crate::cfg::Function::new("model", "entry");
+            let mut ssa = SsaFunction::trivial("model", cfg.entry, cfg.block_names().to_vec());
+            let symbol = ssa.intern_var("$literal");
+            let statement = ssa_stmt(
+                Statement::Incr {
+                    span: Span::new(0, 0),
+                    name: "$literal".into(),
+                    name_braced: true,
+                    amount: None,
+                    amount_braced: false,
+                    safe_on_uninit: false,
+                },
+                HashMap::from([(symbol, 1)]),
+                HashMap::new(),
+            );
+            let taints = HashMap::from([((symbol, 1), TaintLattice::tainted())]);
+            for (spelling, expected) in [("${$literal}", 1), ("{$literal}", 0)] {
+                let word = crate::value_shapes::value_word_with_config(spelling, config).unwrap();
+                let mut warnings = Vec::new();
+                emit_dynamic_command_head_warning(
+                    Some((&word, config)),
+                    &statement,
+                    &taints,
+                    &mut warnings,
+                    &ssa,
+                );
+                assert_eq!(warnings.len(), expected, "{label}: {spelling}");
+                if let Some(warning) = warnings.first() {
+                    assert_eq!(warning.variable, "$literal");
+                }
+            }
+            let mut warnings = Vec::new();
+            emit_dynamic_command_head_warning(None, &statement, &taints, &mut warnings, &ssa);
+            assert!(warnings.is_empty());
+            let word = crate::value_shapes::value_word_with_config("${a{b}c}", config).unwrap();
+            assert_eq!(
+                original_scalar_reference_name(&word, config),
+                if label == "tcl9.1" {
+                    Some("a{b}c")
+                } else {
+                    None
+                }
+            );
+        }
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+        let lat = TaintLattice::tainted().with(TaintColour::HEADER_TOKEN_SAFE);
+        for (spelling, name, expected) in [
+            ("${$literal}", "$literal", true),
+            ("${}", "", true),
+            ("{$literal}", "literal", false),
+        ] {
+            let args = vec![
+                "insert".to_owned(),
+                spelling.to_owned(),
+                "$value".to_owned(),
+            ];
+            let word = crate::value_shapes::value_word_with_config(spelling, config).unwrap();
+            assert_eq!(
+                irule3002_name_position_safe(
+                    registry,
+                    "HTTP::header",
+                    &args,
+                    name,
+                    lat,
+                    Some(&word),
+                    config
+                ),
+                expected
+            );
+            assert!(!irule3002_name_position_safe(
+                registry,
+                "HTTP::header",
+                &args,
+                name,
+                lat,
+                None,
+                config
+            ));
+        }
+    }
+
+    #[test]
     fn irule3002_header_token_safe_name_position_suppresses() {
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let args = vec!["insert".to_owned(), "$name".to_owned(), "$value".to_owned()];
+        let config = TaintSourceContext::standalone(registry, registry.profile()).config;
+        let name_word = crate::value_shapes::value_word_with_config(&args[1], config).unwrap();
         let lat = TaintLattice::tainted().with(TaintColour::HEADER_TOKEN_SAFE);
         // Var `name` occupies arg-index 1 (name position) → suppressed.
         assert!(irule3002_name_position_safe(
@@ -11073,7 +11491,9 @@ mod tests {
             "HTTP::header",
             &args,
             "name",
-            lat
+            lat,
+            Some(&name_word),
+            config,
         ));
         // Var `value` occupies arg-index 2 (value position) → not suppressed.
         assert!(!irule3002_name_position_safe(
@@ -11081,7 +11501,9 @@ mod tests {
             "HTTP::header",
             &args,
             "value",
-            lat
+            lat,
+            Some(&name_word),
+            config,
         ));
         // Without HEADER_TOKEN_SAFE colour: never suppressed, even at name position.
         let plain = TaintLattice::tainted();
@@ -11090,7 +11512,9 @@ mod tests {
             "HTTP::header",
             &args,
             "name",
-            plain
+            plain,
+            Some(&name_word),
+            config,
         ));
         // Wrong subcommand: not suppressed.
         let rm_args = vec!["remove".to_owned(), "$name".to_owned()];
@@ -11099,7 +11523,9 @@ mod tests {
             "HTTP::header",
             &rm_args,
             "name",
-            lat
+            lat,
+            Some(&name_word),
+            config,
         ));
     }
 
@@ -12320,7 +12746,7 @@ mod tests {
         );
     }
 
-    /// Full substitution inventory includes index children; token-only scans do not.
+    /// Shared substitution inventories preserve name and lexical boundaries.
     mod arg_var_names_vs_vars_in_word {
         use super::*;
 

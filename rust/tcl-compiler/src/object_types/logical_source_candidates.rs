@@ -52,6 +52,33 @@ impl PartialEq for LogicalSourceCandidateOwner {
     }
 }
 
+pub(super) struct LogicalCandidateReport<'a> {
+    pub(super) instance_variables: &'a HashMap<ObjectFactOwner, HashSet<String>>,
+    pub(super) frames: &'a HashSet<BodyFrameId>,
+    pub(super) original_classes: &'a HashSet<ObjectFactOwner>,
+}
+
+impl LogicalSourceCandidateOwner {
+    pub(super) fn report_parts<'a>(
+        &'a self,
+        facts: &ObjectHandleFacts,
+        image: &SourceImage,
+        input: &ResolvedAnalysisInput,
+        registry: &RegistrySemanticKey,
+    ) -> Option<LogicalCandidateReport<'a>> {
+        (self.image == *image
+            && self.input == *input
+            && self.registry == *registry
+            && self.scopes == facts.owner_spans
+            && self.classes == facts.by_scope)
+            .then_some(LogicalCandidateReport {
+                instance_variables: &self.instance_variables,
+                frames: &self.frames,
+                original_classes: &self.original_classes,
+            })
+    }
+}
+
 /// Scoped possible receiver classes. Contents versions remain unioned and
 /// unknown alternatives remain possible; this is no runtime read or dispatch proof.
 pub struct LogicalSourceReceiverClassCandidates<'a> {
@@ -127,7 +154,7 @@ impl ObjectHandleFacts {
                                 && (module.methods.contains_key(id)
                                     || module.body_units.contains_key(id))
                                 && function
-                                    .invocation_metadata_context_for_module(module, registry)
+                                    .invocation_metadata_context_for_module(registry, module)
                                     .is_some()
                         })
                         .map(BodyFrameId::Body)
@@ -410,5 +437,39 @@ mod tests {
                     .is_none()
             );
         }
+    }
+    #[test]
+    fn report_equality_keeps_supplementary_candidate_scope_maps() {
+        let a = Analyser::new().analyse("set counter VALUE", "tcl8.6");
+        let b = Analyser::new().analyse("set counter VALUE", "tcl8.6");
+        assert!(a.object_handle_facts.logical_source_candidates.is_some());
+        assert!(a == b);
+        let mut names = b.clone();
+        let owner = Arc::make_mut(
+            names
+                .object_handle_facts
+                .logical_source_candidates
+                .as_mut()
+                .unwrap(),
+        );
+        let frame = *owner.frames.iter().next().unwrap();
+        owner
+            .instance_variables
+            .entry(ObjectFactOwner::Frame(frame))
+            .or_default()
+            .insert("$literal".to_owned());
+        assert!(names != a);
+        assert!(names == names.clone());
+        let mut frames = b.clone();
+        let owner = Arc::make_mut(
+            frames
+                .object_handle_facts
+                .logical_source_candidates
+                .as_mut()
+                .unwrap(),
+        );
+        owner.frames.clear();
+        assert!(frames != a);
+        assert!(frames == frames.clone());
     }
 }

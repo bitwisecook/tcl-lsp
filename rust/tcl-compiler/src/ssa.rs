@@ -1145,8 +1145,11 @@ fn owns_original_authored_analysis_tokens(
         return false;
     }
     if binding.has_original_authored_source_body_name_role_owner() {
-        let Some(scope) =
-            binding.original_authored_source_body_scope_for_name_roles(original, registry)
+        let Some(scope) = binding
+            .original_authored_scalar_body_scope(original, registry)
+            .or_else(|| {
+                binding.original_authored_source_body_scope_for_name_roles(original, registry)
+            })
         else {
             return false;
         };
@@ -1180,8 +1183,11 @@ fn original_authored_definition_operands(
         return None;
     }
     let roles = if binding.has_original_authored_source_body_name_role_owner() {
-        let scope =
-            binding.original_authored_source_body_scope_for_name_roles(original, registry)?;
+        let scope = binding
+            .original_authored_scalar_body_scope(original, registry)
+            .or_else(|| {
+                binding.original_authored_source_body_scope_for_name_roles(original, registry)
+            })?;
         scope.matches_module(module).then_some(())?;
         let body = function.body_id?;
         module
@@ -6275,8 +6281,21 @@ pub(crate) fn enrich_instance_option_defs_with_initial(
             if args.is_empty() {
                 continue;
             }
+            let Some(config) = metadata
+                .source_analysis_input()
+                .map(crate::analyser::ResolvedAnalysisInput::lexer_config)
+                .or_else(|| {
+                    tokens
+                        .source_binding
+                        .as_ref()?
+                        .original_lexer_config_for_tokens(tokens)
+                })
+            else {
+                continue;
+            };
+            let receiver = tokens.words().first().map(|word| (word, config));
             let Some(class) =
-                crate::taint::unique_instance_class(command, Some(&classes), Some(span.start()))
+                crate::taint::unique_instance_class(receiver, Some(&classes), Some(span.start()))
             else {
                 continue;
             };

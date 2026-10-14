@@ -407,10 +407,14 @@ impl Lowerer<'_> {
                             )??
                     }
                     SourcePurpose::AuthoredDeclaration => {
-                        let scope = binding.original_authored_source_body_scope_for_name_roles(
-                            &original,
-                            lowerer.registry,
-                        )?;
+                        let scope = binding
+                            .original_authored_scalar_body_scope(&original, lowerer.registry)
+                            .or_else(|| {
+                                binding.original_authored_source_body_scope_for_name_roles(
+                                    &original,
+                                    lowerer.registry,
+                                )
+                            })?;
                         scope.matches_module(&lowerer.module).then_some(())?;
                         scope.with_source_schema(
                             &original,

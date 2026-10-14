@@ -35,6 +35,8 @@ pub use tcl_registry::value_transfer::HandlerMatch;
 use crate::expr_ast::ExprNode;
 use crate::segmenter::SegmentedCommand;
 
+mod definition_script;
+pub use definition_script::OriginalDefinitionScriptSource;
 mod method_identity;
 pub use method_identity::{MethodCoordinate, MethodInventory};
 mod procedure_identity;
@@ -2846,6 +2848,9 @@ pub struct Module {
     pub procedures: ProcedureInventory,
     /// Shared body-ID owner for declarations and analysis-only units.
     pub procedure_ids: ProcedureIdIssuer,
+    /// Issued definition-script source coordinates, independent of runtime frames.
+    pub original_definition_scripts:
+        std::collections::BTreeMap<ProcedureId, std::sync::Arc<OriginalDefinitionScriptSource>>,
     /// Sealed actual event-declaration bodies. Internal procedure labels do
     /// not create an event frame or select a hosted execution context.
     pub irules_event_bodies:

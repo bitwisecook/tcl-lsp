@@ -512,6 +512,7 @@ impl Analyser {
     ) {
         let mut facts = crate::object_types::object_handle_facts(cu, registry);
         facts.retain_logical_source_candidates(&self.result, cu, registry);
+        facts.retain_report_source(&self.result, cu, registry);
         self.result.object_handle_facts = facts;
     }
 

@@ -220,6 +220,7 @@ impl PhysicalObjectTypeReadEvidence {
 /// | [`Self::global_object_cells`] | `::`-qualified name | all versions and documents may disagree | labelled cross-document assistance |
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ObjectHandleFacts {
+    report_source: Option<std::sync::Arc<report_comparison::ObjectReportSource>>,
     logical_source_candidates:
         Option<std::sync::Arc<logical_source_candidates::LogicalSourceCandidateOwner>>,
     /// The scope-blind union — **verbatim** what [`object_handle_classes`]
@@ -270,6 +271,7 @@ pub struct ObjectHandleFacts {
 }
 
 mod logical_source_candidates;
+mod report_comparison;
 pub use logical_source_candidates::LogicalSourceReceiverClassCandidates;
 
 impl ObjectHandleFacts {

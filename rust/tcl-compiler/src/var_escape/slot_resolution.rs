@@ -60,7 +60,7 @@ use crate::var_escape::types::ProcEscapeSummary;
 pub const LOCALS_ARRAY_CAP: usize = 16;
 
 /// Scalar destination data and its independent original Normal correspondence.
-/// Missing source evidence cannot borrow the standalone IR compatibility lane.
+/// Missing source evidence cannot borrow the standalone IR compatibility purpose.
 fn typed_local_slot_name<'a>(
     script: &Script,
     statement: &'a Statement,

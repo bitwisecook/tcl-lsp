@@ -2382,7 +2382,7 @@ impl ScopedBodyRegion {
 /// Holds the full field set the analyser can produce. Fields that
 /// no emitter populates default to empty / `None` — they're carried
 /// in the shape so a consumer can serialise the complete result.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct AnalysisResult {
     /// The requested command generation is unavailable. No source walk was
     /// performed; an empty diagnostic set therefore does not indicate success.
@@ -2872,6 +2872,193 @@ pub struct AnalysisResult {
     /// Session library-version overrides used for this analysis. Downstream
     /// providers use the same keyed BIG-IP/tool floors as diagnostics.
     pub library_versions: tcl_dialect::LibraryVersionOverrides,
+}
+
+// Reports compare original source coordinates; retained consumer ownership stays exact.
+impl PartialEq for AnalysisResult {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            analysis_context_unavailable,
+            command_realm,
+            original_command_world,
+            lexical_declaration_advice,
+            resolved_input,
+            original_vendor_source_names,
+            original_vendor_variable_advice,
+            original_vendor_variable_bodies,
+            global_scope,
+            all_procs,
+            original_procedure_metadata,
+            original_vendor_procedure_metadata,
+            original_vendor_class_metadata,
+            original_symbol_metadata,
+            original_vendor_symbol_metadata,
+            proc_declaration_sites,
+            superseded_procs,
+            all_classes,
+            logical_procedure_declarations,
+            logical_class_declarations,
+            original_class_metadata,
+            original_class_configuration_metadata,
+            original_object_configuration_metadata,
+            superseded_classes,
+            class_body_spans,
+            all_variables,
+            all_defined_symbols,
+            diagnostics,
+            command_invocations,
+            package_requires,
+            package_provides,
+            package_ifneededs,
+            package_prefer_latest,
+            has_dynamic_providers,
+            source_targets,
+            path_constant_assignments,
+            command_aliases,
+            alias_offsets,
+            renamed_commands,
+            rename_offsets,
+            ensemble_subcommand_targets,
+            prefixless_ensembles,
+            namespace_imports,
+            namespace_forgets,
+            original_namespace_patterns,
+            destroyed_commands,
+            namespace_exports,
+            original_namespace_exports,
+            original_namespace_export_unknowns,
+            namespace_paths,
+            namespace_path_computed,
+            auto_path_entries,
+            qualified_var_refs,
+            original_variable_symbols,
+            original_variable_write_advice,
+            original_variable_symbol_conflicts,
+            original_variable_roots,
+            original_variable_alias_sites,
+            original_variable_name_unknowns,
+            original_variable_alias_obligations,
+            original_variable_alias_operands,
+            original_variable_alias_source_operands,
+            original_variable_alias_receipts,
+            namespace_refs,
+            namespace_name_unknowns,
+            dynamic_variable_names,
+            namespace_overrides,
+            stub_commands,
+            stub_expr_defs,
+            regex_patterns,
+            suppressed_lines,
+            unknown_proc_info,
+            instance_classes,
+            object_handle_facts,
+            created_instance_commands,
+            instance_command_bindings,
+            ambiguous_instance_names,
+            object_methods,
+            object_member_state,
+            unresolved_command_sites,
+            scoped_command_regions,
+            original_scoped_bodies,
+            original_conditional_registry_metadata,
+            scoped_sibling_defs,
+            hierarchy_cache,
+            dialect,
+            body_lexer_config,
+            library_versions,
+        } = self;
+        analysis_context_unavailable == &other.analysis_context_unavailable
+            && command_realm == &other.command_realm
+            && original_command_world == &other.original_command_world
+            && lexical_declaration_advice == &other.lexical_declaration_advice
+            && resolved_input == &other.resolved_input
+            && original_vendor_source_names == &other.original_vendor_source_names
+            && original_vendor_variable_advice == &other.original_vendor_variable_advice
+            && original_vendor_variable_bodies == &other.original_vendor_variable_bodies
+            && global_scope == &other.global_scope
+            && all_procs == &other.all_procs
+            && original_procedure_metadata == &other.original_procedure_metadata
+            && original_vendor_procedure_metadata == &other.original_vendor_procedure_metadata
+            && original_vendor_class_metadata == &other.original_vendor_class_metadata
+            && original_symbol_metadata == &other.original_symbol_metadata
+            && original_vendor_symbol_metadata == &other.original_vendor_symbol_metadata
+            && proc_declaration_sites == &other.proc_declaration_sites
+            && superseded_procs == &other.superseded_procs
+            && all_classes == &other.all_classes
+            && logical_procedure_declarations == &other.logical_procedure_declarations
+            && logical_class_declarations == &other.logical_class_declarations
+            && original_class_metadata == &other.original_class_metadata
+            && original_class_configuration_metadata == &other.original_class_configuration_metadata
+            && original_object_configuration_metadata
+                == &other.original_object_configuration_metadata
+            && superseded_classes == &other.superseded_classes
+            && class_body_spans == &other.class_body_spans
+            && all_variables == &other.all_variables
+            && all_defined_symbols == &other.all_defined_symbols
+            && diagnostics == &other.diagnostics
+            && command_invocations == &other.command_invocations
+            && package_requires == &other.package_requires
+            && package_provides == &other.package_provides
+            && package_ifneededs == &other.package_ifneededs
+            && package_prefer_latest == &other.package_prefer_latest
+            && has_dynamic_providers == &other.has_dynamic_providers
+            && source_targets == &other.source_targets
+            && path_constant_assignments == &other.path_constant_assignments
+            && command_aliases == &other.command_aliases
+            && alias_offsets == &other.alias_offsets
+            && renamed_commands == &other.renamed_commands
+            && rename_offsets == &other.rename_offsets
+            && ensemble_subcommand_targets == &other.ensemble_subcommand_targets
+            && prefixless_ensembles == &other.prefixless_ensembles
+            && namespace_imports == &other.namespace_imports
+            && namespace_forgets == &other.namespace_forgets
+            && original_namespace_patterns == &other.original_namespace_patterns
+            && destroyed_commands == &other.destroyed_commands
+            && namespace_exports == &other.namespace_exports
+            && original_namespace_exports == &other.original_namespace_exports
+            && original_namespace_export_unknowns == &other.original_namespace_export_unknowns
+            && namespace_paths == &other.namespace_paths
+            && namespace_path_computed == &other.namespace_path_computed
+            && auto_path_entries == &other.auto_path_entries
+            && qualified_var_refs == &other.qualified_var_refs
+            && original_variable_symbols == &other.original_variable_symbols
+            && original_variable_write_advice == &other.original_variable_write_advice
+            && original_variable_symbol_conflicts == &other.original_variable_symbol_conflicts
+            && original_variable_roots == &other.original_variable_roots
+            && original_variable_alias_sites == &other.original_variable_alias_sites
+            && original_variable_name_unknowns == &other.original_variable_name_unknowns
+            && original_variable_alias_obligations == &other.original_variable_alias_obligations
+            && original_variable_alias_operands == &other.original_variable_alias_operands
+            && original_variable_alias_source_operands
+                == &other.original_variable_alias_source_operands
+            && original_variable_alias_receipts == &other.original_variable_alias_receipts
+            && namespace_refs == &other.namespace_refs
+            && namespace_name_unknowns == &other.namespace_name_unknowns
+            && dynamic_variable_names == &other.dynamic_variable_names
+            && namespace_overrides == &other.namespace_overrides
+            && stub_commands == &other.stub_commands
+            && stub_expr_defs == &other.stub_expr_defs
+            && regex_patterns == &other.regex_patterns
+            && suppressed_lines == &other.suppressed_lines
+            && unknown_proc_info == &other.unknown_proc_info
+            && instance_classes == &other.instance_classes
+            && object_handle_facts.analysis_report_eq(&other.object_handle_facts)
+            && created_instance_commands == &other.created_instance_commands
+            && instance_command_bindings == &other.instance_command_bindings
+            && ambiguous_instance_names == &other.ambiguous_instance_names
+            && object_methods == &other.object_methods
+            && object_member_state == &other.object_member_state
+            && unresolved_command_sites == &other.unresolved_command_sites
+            && scoped_command_regions == &other.scoped_command_regions
+            && original_scoped_bodies == &other.original_scoped_bodies
+            && original_conditional_registry_metadata
+                == &other.original_conditional_registry_metadata
+            && scoped_sibling_defs == &other.scoped_sibling_defs
+            && hierarchy_cache == &other.hierarchy_cache
+            && dialect == &other.dialect
+            && body_lexer_config == &other.body_lexer_config
+            && library_versions == &other.library_versions
+    }
 }
 
 impl AnalysisResult {

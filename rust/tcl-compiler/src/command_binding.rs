@@ -1346,6 +1346,48 @@ impl SourceInvocationBinding {
         Some(())
     }
 
+    pub(crate) fn retain_original_authored_scalar_body_scope(
+        &mut self,
+        scope: Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<()> {
+        let advice = self.original_authored_declaration_scalar_layout(tokens, scope.registry())?;
+        scope.original_words(tokens, scope.registry())?;
+        if advice.namespace() != scope.namespace()
+            || self
+                .original_analysis_owner
+                .as_ref()
+                .zip(scope.original_analysis_attachment())
+                .is_none_or(|(actual, original)| !Arc::ptr_eq(actual, original))
+        {
+            return None;
+        }
+        self.original_authored_source_body_scope = Some(scope);
+        Some(())
+    }
+
+    /// Held scalar body syntax under its independent Standalone declaration lookup.
+    /// Other source layouts retain their terminal role/control readers.
+    pub(crate) fn original_authored_scalar_body_scope(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&crate::registry_invocation::OriginalAuthoredSourceBodyScope> {
+        if tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
+        let scope = self.original_authored_source_body_scope.as_deref()?;
+        let advice = self.original_authored_declaration_scalar_layout(tokens, registry)?;
+        scope.original_words(tokens, registry)?;
+        (advice.namespace() == scope.namespace()
+            && self
+                .original_analysis_owner
+                .as_ref()
+                .zip(scope.original_analysis_attachment())
+                .is_some_and(|(actual, original)| Arc::ptr_eq(actual, original)))
+        .then_some(scope)
+    }
+
     pub(crate) fn has_original_authored_source_body_name_role_owner(&self) -> bool {
         self.original_authored_source_body_scope.is_some()
     }
