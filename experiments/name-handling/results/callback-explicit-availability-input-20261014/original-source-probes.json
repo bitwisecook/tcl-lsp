@@ -1,0 +1,15 @@
+{
+  "sources": [
+    "proc cb {} {}; scale .s -command cb",
+    "proc cb {x y} {}; math::calculus::integral 0 1 100 cb",
+    "proc cb {x} {}; smtp::sendmessage $t -tlspolicy cb",
+    "proc cb {x} {}; tcl::chan::halfpipe -write-command cb",
+    "proc cb {} {}; mime::getbody $t -command cb",
+    "proc cb {x y} {}; struct::graph g; g walk root -command cb",
+    "proc cb {x y} {}; struct::tree t; t walkproc root cb",
+    "package require smtp; proc cb {x} {}; smtp::sendmessage $t -tlspolicy ::cb",
+    "package require mime; proc cb {} {}; mime::getbody $t -command ::cb",
+    "package require struct::graph; proc cb {x y} {}; struct::graph g; g walk root -command ::cb",
+    "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb"
+  ]
+}

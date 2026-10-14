@@ -1,0 +1,47 @@
+{
+  "captured_at": "2026-10-14T21:48:09.161065+00:00",
+  "providers": [
+    {
+      "version": "8.4.20",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "original_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "exit": 0
+    },
+    {
+      "version": "8.5.19",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "original_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "exit": 0
+    },
+    {
+      "version": "8.6.18",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "original_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "exit": 0
+    },
+    {
+      "version": "9.0.4",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "original_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "exit": 0
+    },
+    {
+      "version": "9.1.0",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "original_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "exit": 0
+    }
+  ],
+  "probe_sha256": "28d7e9ff2235bc2da97504a44f7bbf9b3691eff6d713f56daa53436ed10466c2",
+  "scope": "Actual original C hidden -global variable-frame selection: C84 TclObjInvokeGlobal redirects varFramePtr to NULL; C85+ TclObjInvokeNamespace pushes a real non-procedure namespace frame. No tcltest or implementation acceptance."
+}

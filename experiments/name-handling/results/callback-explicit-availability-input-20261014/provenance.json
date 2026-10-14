@@ -1,0 +1,28 @@
+{
+  "original_fixture_git_origin": {
+    "commit_prefix": "9d4f72634",
+    "date": "2026-10-10T07:31:20+00:00",
+    "path": "rust/tcl-lsp-db/src/lib.rs",
+    "selector": "tests::callback_arity_unavailable_package_descriptors_do_not_select_local_headers",
+    "verification": "Root-only git log -S read; fixture predates callback94 option-position repair."
+  },
+  "ordinary_original_observation": {
+    "capture": "experiments/name-handling/results/db-production186-20261014",
+    "log": "test-19.log.gz",
+    "log_sha256": "c8dd17064d7dec52e629959da94338ef14a90ac2f19e0d029e0bee5012c6c7e0",
+    "exit_code": 101,
+    "source_drift": []
+  },
+  "input_difference": {
+    "same": "original source strings; C9 analyser/unit profile; actual C9 lexer configuration; exact Arc CommandRegistry",
+    "positive": "actual tcl9.0 ContextRegistry availability",
+    "negative": "actual f5-iapps AmbientPlusRequire ContextRegistry availability reassembled over same C9 command store; no package runtime is executed",
+    "entry_point": "project_callback_diagnostics_for_analysis",
+    "project": "empty; genuine local canonical headers only"
+  },
+  "validation": {
+    "rustfmt": "passed scratch Rust file edition2024 skip_children",
+    "cargo": "not executed; root only",
+    "F5": "no interpreter or BIG-IP execution claim"
+  }
+}

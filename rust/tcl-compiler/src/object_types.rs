@@ -383,6 +383,23 @@ pub fn object_handle_classes(
         .any_scope
 }
 
+/// Original Logical source candidates under the actual analysis and Module.
+/// These scope unions retain unknown contents and grant no runtime identity,
+/// physical read, completed store, Native entry or executable transformation.
+#[must_use]
+pub fn logical_source_object_handle_classes(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    analysis: &crate::analyser::AnalysisResult,
+) -> Option<HashMap<String, HashSet<String>>> {
+    logical_source_candidates::logical_source_unit_input(analysis, cu, registry)?;
+    Some(
+        build_facts_gated(cu, registry, FactMode::AnyScopeOnly, true, Some(analysis))
+            .0
+            .any_scope,
+    )
+}
+
 /// [`object_handle_classes`] **without** the empty-seed fast path — the
 /// unconditional propagation walk.
 ///
@@ -2288,6 +2305,43 @@ mod tests {
     }
 
     #[test]
+    fn logical_object_class_unions_require_current_analysis_and_module_inputs() {
+        let source = "oo::class create C {method m {} {}}\nset object [C new]\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = analysis.resolved_registry().unwrap();
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            input,
+        );
+        let classes = logical_source_object_handle_classes(&unit, registry, &analysis).unwrap();
+        assert!(
+            classes
+                .get("object")
+                .is_some_and(|classes| classes.contains("::C"))
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        assert!(logical_source_object_handle_classes(&missing, registry, &analysis).is_none());
+        let mut changed = unit.clone();
+        changed.source.push(' ');
+        assert!(logical_source_object_handle_classes(&changed, registry, &analysis).is_none());
+        let foreign = crate::analyser::Analyser::new().analyse("oo::class create D {}", "tcl");
+        assert!(logical_source_object_handle_classes(&unit, registry, &foreign).is_none());
+        let other = tcl_registry::model::ingress::static_context_for("jim");
+        assert!(logical_source_object_handle_classes(&unit, other.commands(), &analysis).is_none());
+    }
+
+    #[test]
     fn logical_constructor_candidates_require_the_actual_source_input_and_vector() {
         let source = "oo::class create C {method m {} {}}\nset object [C new]\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
@@ -3619,7 +3673,7 @@ mod tests {
                 .0,
         );
         assert!(returning_procs(&unit).is_empty());
-        let current = returning_proc_candidates(&unit, registry);
+        let current = returning_proc_candidates(&unit, registry, None);
         assert_eq!(
             current
                 .get(
@@ -3670,7 +3724,7 @@ mod tests {
             None,
         ] {
             unit.ir_module.source_metadata_input = withheld;
-            assert!(returning_proc_candidates(&unit, registry).is_empty());
+            assert!(returning_proc_candidates(&unit, registry, None).is_empty());
             assert_eq!(
                 unit.ir_module
                     .procedures

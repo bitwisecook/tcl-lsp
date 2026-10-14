@@ -45,11 +45,13 @@ mod original_value_facts;
 pub(crate) use original_value_facts::DiagnosticValueFacts;
 pub use original_value_facts::{
     ExistenceFrame, ExistenceMetadataInputs, ExpressionAnalysis, ExpressionEvaluationPoint,
-    SemanticValueFacts, SemanticValueProjection, ValueFactInputs, evaluate_branch, evaluate_def,
-    evaluate_def_with_folds, execution_value_facts, existence_constant_branches,
+    SemanticValueFacts, SemanticValueProjection, ValueFactInputs, evaluate_branch,
+    execution_value_facts, existence_constant_branches,
     existence_constant_branches_with_metadata_context, existence_constant_branches_with_ssa,
     existence_constant_branches_with_ssa_with_metadata_context, semantic_value_facts,
 };
+#[cfg(test)]
+use original_value_facts::{evaluate_fixture_def, evaluate_fixture_def_with_folds};
 
 // Public aliases
 
@@ -605,7 +607,7 @@ impl SccpResult {
 ///
 /// - Phi handling uses the incoming versions for each *executable*
 ///   predecessor, joining them onto the phi's SSA value.
-/// - Statement handling uses [`evaluate_def`] below, which folds
+/// - Statement handling uses [`evaluate_defs_under`], which folds
 ///   [`Statement::AssignConst`] and [`Statement::AssignExpr`] via
 ///   the expression evaluator. Other statement kinds and
 ///   [`Statement::Barrier`] widen their defs to `Overdefined`.
@@ -4477,22 +4479,6 @@ fn record_condition_preserves(
 /// cell update, a synthetic loop header, or a command substitution, and a
 /// conservative `Overdefined` fallback for everything else.
 ///
-/// Holds no whole-module command view, so no resolved command answers: there
-/// is no evidence that `[llength …]` or `incr` still means the builtin
-/// rather than a user `proc` of that name. A caller with the fact uses
-/// [`evaluate_def_with_folds`]; a run over a unit's own registry goes
-/// through [`sccp_with_builtin_folds`].
-
-/// [`evaluate_def`] with an optional registry builtin-fold context: when
-/// `folds` is supplied, an `AssignValue` command-substitution RHS
-/// additionally consults the registry `const_fold` engine — see
-/// [`BuiltinFoldInputs`] — and every resolved head answers to the
-/// whole-module trust fact. `None` is byte-identical to [`evaluate_def`].
-///
-/// A statement that defines several variables (`regexp … a b`) answers
-/// for the first one its command names; the solver itself reads every
-/// definition's own value.
-
 /// What one statement's evaluation leaves in its definitions: the one
 /// value a typed statement computes, which every definition takes, or a
 /// call's value per definition, from its ordered stores.
@@ -4585,11 +4571,7 @@ impl DefValues {
     }
 }
 
-/// [`evaluate_def_with_folds`] under one run's driver, for every
-/// definition of the statement: it is dispatched by its typed shape, and
-/// every command-specific answer comes from the registry's declaration for
-/// the resolved invocation (`docs/design/compiler/value-transfers.md`). No
-/// command is recognised by its spelling here.
+/// Resolve each typed definition through the run's actual Registry driver.
 fn evaluate_defs_under<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
@@ -5037,12 +5019,12 @@ mod tests {
         CommandRegistry::build_default()
     }
 
-    /// [`evaluate_def_with_folds`] under a module that mutates no command
+    /// [`evaluate_fixture_def_with_folds`] under a module that mutates no command
     /// binding — the stance the shared per-unit lattice takes for an
     /// untouched file ([`FoldTrust::ObservedBindings`] over
     /// [`crate::command_binding::ModuleCommandMutations`]'s `Default`).
     ///
-    /// Plain [`evaluate_def`] holds no whole-module command view at all and
+    /// Plain [`evaluate_fixture_def`] holds no whole-module command view at all and
     /// therefore folds no builtin command substitution, so a fold-arm test
     /// has to state the trust fact it folds under.
     fn evaluate_pristine<S: std::hash::BuildHasher>(
@@ -5051,7 +5033,7 @@ mod tests {
         ssa: &SsaFunction,
         policy: FoldPolicy,
     ) -> LatticeValue {
-        evaluate_def_with_folds(
+        evaluate_fixture_def_with_folds(
             stmt,
             values,
             ssa,
@@ -5066,6 +5048,7 @@ mod tests {
                 trust: FoldTrust::ObservedBindings,
                 proven_pure_parameters: false,
             }),
+            tcl_lexer::LexerConfig::default(),
         )
     }
 
@@ -6342,12 +6325,24 @@ mod tests {
         let mut ssa = bare_ssa();
         let s_int = assign_const_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&s_int, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &s_int,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(42))
         );
         let s_str = assign_const_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&s_str, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &s_str,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
@@ -6399,7 +6394,13 @@ mod tests {
         values.insert((a, 1), LatticeValue::Const(ConstValue::Int(2)));
 
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt_ssa,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(5))
         );
     }
@@ -6461,13 +6462,25 @@ mod tests {
         let irules =
             FoldPolicy::for_profile(Some(true), Some(tcl_dialect::DialectProfile::irules()));
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, irules),
+            evaluate_fixture_def(
+                &stmt_ssa,
+                &values,
+                &ssa,
+                irules,
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(1)),
             "`$s contains \"cd\"` with $s = abcde must fold to 1 under an iRules policy"
         );
         // TN: without the dialect fact the fold is declined, not guessed.
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt_ssa,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined,
             "a dialect-blind policy must decline the word-operator fold"
         );
@@ -6594,7 +6607,7 @@ mod tests {
         );
     }
 
-    // evaluate_def for Incr.
+    // evaluate_fixture_def for Incr.
 
     fn incr_stmt(
         ssa: &mut SsaFunction,
@@ -6707,7 +6720,13 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined
         );
         assert_eq!(
@@ -7006,12 +7025,13 @@ mod tests {
             let folds = folds_for(dialect);
             let mut values = HashMap::new();
             values.insert((x, 1), base);
-            evaluate_def_with_folds(
+            evaluate_fixture_def_with_folds(
                 &stmt,
                 &values,
                 &ssa,
                 FoldPolicy::from_registry(folds.registry),
                 Some(folds),
+                tcl_lexer::LexerConfig::default(),
             )
         };
         let zero = || LatticeValue::Const(ConstValue::String("010".into()));
@@ -7136,12 +7156,13 @@ mod tests {
         let stmt = assign_value_stmt(&mut ssa, "s", "[string range abcdefghijkl 010 end]", 1);
         let under = |dialect: &str| {
             let folds = folds_for(dialect);
-            evaluate_def_with_folds(
+            evaluate_fixture_def_with_folds(
                 &stmt,
                 &HashMap::new(),
                 &ssa,
                 FoldPolicy::from_registry(folds.registry),
                 Some(folds),
+                tcl_lexer::LexerConfig::default(),
             )
         };
         assert_eq!(
@@ -7562,7 +7583,13 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
@@ -7572,7 +7599,13 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(42))
         );
     }
@@ -7586,7 +7619,13 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(7))
         );
     }
@@ -7638,7 +7677,7 @@ mod tests {
         registry: &CommandRegistry,
         mutations: &crate::command_binding::ModuleCommandMutations,
     ) -> LatticeValue {
-        evaluate_def_with_folds(
+        evaluate_fixture_def_with_folds(
             stmt,
             &HashMap::new(),
             ssa,
@@ -7653,6 +7692,7 @@ mod tests {
                 trust: FoldTrust::WholeModule,
                 proven_pure_parameters: false,
             }),
+            tcl_lexer::LexerConfig::default(),
         )
     }
 
@@ -7714,7 +7754,7 @@ mod tests {
         registry: &CommandRegistry,
         mutations: &crate::command_binding::ModuleCommandMutations,
     ) -> LatticeValue {
-        evaluate_def_with_folds(
+        evaluate_fixture_def_with_folds(
             stmt,
             &HashMap::new(),
             ssa,
@@ -7729,6 +7769,7 @@ mod tests {
                 trust: FoldTrust::ObservedBindings,
                 proven_pure_parameters: false,
             }),
+            tcl_lexer::LexerConfig::default(),
         )
     }
 
@@ -7900,12 +7941,13 @@ p
         let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"\u{1D11E}\"]", 1);
         let fold = |dialect: &str| {
             let folds = folds_for(dialect);
-            evaluate_def_with_folds(
+            evaluate_fixture_def_with_folds(
                 &stmt,
                 &HashMap::new(),
                 &ssa,
                 FoldPolicy::from_registry(folds.registry),
                 Some(folds),
+                tcl_lexer::LexerConfig::default(),
             )
         };
         assert_eq!(fold("tcl9.0"), LatticeValue::Const(ConstValue::Int(1)));
@@ -7973,7 +8015,13 @@ p
             LatticeValue::Const(ConstValue::String("beta".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined
         );
     }

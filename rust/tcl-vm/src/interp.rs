@@ -9978,13 +9978,19 @@ impl Vm {
         if self.is_safe() {
             return err("not allowed to invoke hidden commands from safe interpreter");
         }
-        let i = match crate::command::skip_hidden_options(self, rest) {
-            Ok(i) => i,
+        let selected = match crate::command::hidden_invocation_options(self, rest) {
+            Ok(selected) => selected,
             Err(completion) => return completion,
         };
+        let i = selected.command_index;
         match rest.get(i) {
             Some(cmd) => self
-                .invoke_hidden_value_by_id(id, cmd, &rest[i + 1..])
+                .invoke_hidden_value_by_id_in_namespace(
+                    id,
+                    cmd,
+                    &rest[i + 1..],
+                    selected.namespace.as_deref(),
+                )
                 .unwrap_or_else(|| self.child_interpreter_not_found(name)),
             None => self.child_wrong_arguments(
                 name,
@@ -10064,16 +10070,105 @@ impl Vm {
         self.invoke_hidden_value_by_id(id, &Value::string(cmd), args)
     }
 
+    #[cfg(test)]
     pub(crate) fn invoke_hidden_value_by_id(
         &mut self,
         id: InterpId,
         cmd: &Value,
         args: &[Value],
     ) -> Option<Completion<Value>> {
+        self.invoke_hidden_value_by_id_in_namespace(id, cmd, args, None)
+    }
+
+    pub(crate) fn invoke_hidden_value_by_id_in_namespace(
+        &mut self,
+        id: InterpId,
+        cmd: &Value,
+        args: &[Value],
+        namespace: Option<&[u8]>,
+    ) -> Option<Completion<Value>> {
         if !self.interp_alive(id) {
             return None;
         }
-        Some(self.in_interp(id, |vm| vm.invoke_own_hidden_value(cmd, args)))
+        Some(self.in_interp(id, |vm| match namespace {
+            Some(namespace) => vm.invoke_own_hidden_in_namespace(cmd, args, namespace),
+            None => vm.invoke_own_hidden_value(cmd, args),
+        }))
+    }
+
+    fn invoke_own_hidden_in_namespace(
+        &mut self,
+        cmd: &Value,
+        args: &[Value],
+        original_namespace: &[u8],
+    ) -> Completion<Value> {
+        let operation = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(operation) => operation,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
+        };
+        let target = native_operation_currency::SavedExecutionTarget::capture(self);
+        let Some(grammar) = self
+            .native_invocation_dialect()
+            .native_name_protocol()
+            .and_then(|protocol| protocol.hidden_invocation_grammar().ok())
+        else {
+            return self
+                .refuse_host_command("original hidden-invocation frame policy unavailable".into());
+        };
+        let address = match self.namespace_address_from_native_bytes(ROOT_NS, original_namespace) {
+            Ok(NativeNamespaceAddress::C { path, .. }) => path,
+            Ok(NativeNamespaceAddress::Jim { .. }) | Err(_) => {
+                return self.refuse_host_command(
+                    "original hidden-invocation namespace address unavailable".into(),
+                );
+            }
+        };
+        if let Err(error) = operation.check(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
+        if grammar.uses_global_variable_frame() && !address.is_empty() {
+            return self.refuse_host_command(
+                "original hidden-invocation global namespace purpose unavailable".into(),
+            );
+        }
+        self.declare_namespace_path_with_origin(address.clone(), true);
+        let namespace = self.definition_namespace_token_at_path(&address, true);
+        if !self.native_namespace_token_has_owner(namespace) {
+            return self.refuse_host_command(
+                "original hidden-invocation namespace token unavailable".into(),
+            );
+        }
+        let frame_depth = self.frames.len();
+        let global_variable_frame = grammar.uses_global_variable_frame();
+        let restored = if global_variable_frame {
+            if namespace != ROOT_NS {
+                return self.refuse_host_command(
+                    "original hidden-invocation global frame purpose unavailable".into(),
+                );
+            }
+            match self.select_execution_frame_checked(0) {
+                Ok(restored) => restored,
+                Err(error) => return crate::command::completion_from_cmd_error(self, error),
+            }
+        } else {
+            self.push_ns_eval_token_frame(namespace, Vec::new());
+            None
+        };
+        let reached = self.invoke_own_hidden_value(cmd, args);
+        match target.in_original(self, |vm| {
+            if global_variable_frame {
+                vm.restore_execution_frame(restored);
+            } else {
+                vm.drain_call_frames_to(frame_depth);
+            }
+            reached
+        }) {
+            Ok(completion) => completion,
+            Err(first) => crate::command::completion_from_cmd_error(
+                self,
+                tcl_cmd_core::CmdError::from_execution_refusal(first),
+            ),
+        }
     }
 
     /// Counted ensemble map construction from an actual entered namespace.
@@ -32491,5 +32586,148 @@ mod original_host_publication_tests {
             assert_eq!(slot.simple.as_bytes(), b"rooted");
             vm.pop_ns();
         }
+    }
+}
+
+#[cfg(test)]
+mod native_hidden_namespace_context_tests {
+    use super::*;
+
+    #[test]
+    fn hidden_global_frame_levels_match_original_c_releases() {
+        let source = r#"
+interp hide {} info hiddenInfo
+proc observe {} {
+    list [interp invokehidden {} -global hiddenInfo level] [interp invokehidden {} hiddenInfo level]
+}
+list [observe] [interp invokehidden {} -global hiddenInfo level]
+"#;
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let completion = vm.eval_source(source).unwrap();
+            assert_eq!(completion.code, Code::Ok);
+            assert_eq!(
+                completion.result.string_bytes().as_ref(),
+                if version == tcl_dialect::TclVersion::V8_4 {
+                    b"{0 1} 0".as_slice()
+                } else {
+                    b"{2 1} 1".as_slice()
+                },
+            );
+            assert_eq!(vm.current_level(), 0);
+            assert_eq!(vm.current_ns_id(), ROOT_NS);
+        }
+    }
+
+    #[test]
+    fn hidden_namespace_context_matches_original_child_and_current_inputs() {
+        let source = r#"
+interp create kid
+kid eval {interp hide {} set hiddenSet}
+set out [list [kid invokehidden -namespace chosen hiddenSet item CHILD]]
+lappend out [kid invokehidden hiddenSet ::chosen::item] [kid eval {info exists ::item}]
+lappend out [kid invokehidden -namespace chosen -global hiddenSet globalItem GLOBAL]
+lappend out [kid invokehidden hiddenSet ::globalItem]
+lappend out [kid invokehidden -global -namespace :literal: hiddenSet item COLON]
+lappend out [kid invokehidden -namespace :literal: hiddenSet item]
+lappend out [kid invokehidden -namespace {} hiddenSet emptyItem EMPTY]
+lappend out [kid invokehidden hiddenSet ::emptyItem] [kid eval {namespace current}]
+interp hide {} namespace hiddenNamespace
+lappend out [interp invokehidden {} hiddenNamespace eval outer {
+    interp invokehidden {} -namespace chosen hiddenNamespace current
+}]
+set out
+"#;
+        for version in tcl_dialect::TclVersion::ALL {
+            if version == tcl_dialect::TclVersion::V8_4 {
+                continue;
+            }
+            let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let completion = vm.eval_source(source).unwrap();
+            assert_eq!(completion.code, Code::Ok);
+            assert_eq!(
+                completion.result.string_bytes().as_ref(),
+                b"CHILD CHILD 0 GLOBAL GLOBAL COLON COLON EMPTY EMPTY :: ::chosen",
+            );
+            assert_eq!(vm.current_level(), 0);
+            assert_eq!(vm.current_ns_id(), ROOT_NS);
+        }
+    }
+
+    #[test]
+    fn hidden_namespace_context_keeps_the_original_dying_namespace_token() {
+        let source = r#"
+set ::observations {}
+proc during {name1 name2 operation} {
+    foreach script {
+        {interp invokehidden {} -namespace retiring hiddenNamespace current}
+        {interp invokehidden {} hiddenNamespace exists retiring}
+        {interp invokehidden {} hiddenNamespace eval retiring {}}
+    } {
+        set code [catch {uplevel #0 $script} value]
+        lappend ::observations [list $code $value]
+    }
+}
+namespace eval retiring {
+    variable sentinel HELD
+    trace add variable sentinel unset ::during
+}
+interp hide {} namespace hiddenNamespace
+set deleted [catch {interp invokehidden {} hiddenNamespace delete retiring} message]
+list $deleted $message $::observations [interp invokehidden {} hiddenNamespace exists retiring]
+"#;
+        for version in tcl_dialect::TclVersion::ALL {
+            if version == tcl_dialect::TclVersion::V8_4 {
+                continue;
+            }
+            let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let completion = vm.eval_source(source).unwrap();
+            assert_eq!(completion.code, Code::Ok);
+            assert_eq!(
+                completion.result.string_bytes().as_ref(),
+                br#"0 {} {{0 ::retiring} {0 0} {1 {can't create namespace "retiring": already exists}}} 0"#,
+            );
+            assert_eq!(vm.current_level(), 0);
+            assert_eq!(vm.current_ns_id(), ROOT_NS);
+        }
+    }
+
+    thread_local! {
+        static FIRST: RefCell<Option<tcl_runtime_api::NativeExecutionError>> = const { RefCell::new(None) };
+    }
+
+    fn refuse_in_hidden_namespace(vm: &mut Vm, _: &[Value]) -> Completion<Value> {
+        let completion = vm.refuse_host_command("first hidden namespace worker".to_owned());
+        FIRST.with(|first| *first.borrow_mut() = vm.execution_refusal.clone());
+        completion
+    }
+
+    #[test]
+    fn hidden_namespace_host_refusal_restores_the_original_frame_and_first_cause() {
+        let profile = crate::environment::profile_for_dialect("tcl8.6");
+        let mut vm = crate::native_fixture::core(profile);
+        vm.register_command_in_slot(
+            CommandSlot {
+                namespace: ROOT_NS,
+                simple: NameBytes::from(b"refuse"),
+            },
+            Command::Builtin(refuse_in_hidden_namespace),
+        );
+        vm.hide_command_bytes(b"refuse", b"held").unwrap();
+        let caller = vm.activate_namespace_operand(b"Caller").unwrap();
+        vm.push_ns_eval_token_frame(caller, Vec::new());
+        let original = Value::new_native_string_bytes(b"held".as_slice());
+        let receiver = vm.cur_interp();
+        let completion = vm
+            .invoke_hidden_value_by_id_in_namespace(receiver, &original, &[], Some(b"Chosen"))
+            .unwrap();
+        assert_eq!(completion.code, Code::Error);
+        let first = FIRST.with(|first| first.borrow().clone()).unwrap();
+        assert_eq!(vm.execution_refusal, Some(first));
+        assert_eq!(vm.current_level(), 1);
+        assert_eq!(vm.current_ns_id(), caller);
     }
 }

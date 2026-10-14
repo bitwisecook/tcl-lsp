@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::namespace_address::tests::hidden_global_address_keeps_a_dying_token_through_its_original_callback ... 
+thread 'interp::namespace_address::tests::hidden_global_address_keeps_a_dying_token_through_its_original_callback' (486199) panicked at src/interp/namespace_address.rs:217:13:
+assertion `left == right` failed
+  left: [48, 32, 123, 125, 32, 123, 123, 48, 32, 58, 58, 114, 101, 116, 105, 114, 105, 110, 103, 125, 32, 123, 48, 32, 48, 125, 32, 123, 49, 32, 123, 99, 97, 110, 39, 116, 32, 99, 114, 101, 97, 116, 101, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 34, 58, 58, 114, 101, 116, 105, 114, 105, 110, 103, 34, 58, 32, 97, 108, 114, 101, 97, 100, 121, 32, 101, 120, 105, 115, 116, 115, 125, 125, 125, 32, 48]
+ right: [48, 32, 123, 125, 32, 123, 123, 48, 32, 58, 58, 114, 101, 116, 105, 114, 105, 110, 103, 125, 32, 123, 48, 32, 48, 125, 32, 123, 49, 32, 123, 99, 97, 110, 39, 116, 32, 99, 114, 101, 97, 116, 101, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 34, 114, 101, 116, 105, 114, 105, 110, 103, 34, 58, 32, 97, 108, 114, 101, 97, 100, 121, 32, 101, 120, 105, 115, 116, 115, 125, 125, 125, 32, 48]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::namespace_address::tests::hidden_global_address_keeps_a_dying_token_through_its_original_callback
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2173 filtered out; finished in 0.94s
+

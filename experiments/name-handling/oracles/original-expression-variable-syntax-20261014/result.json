@@ -1,0 +1,96 @@
+{
+  "captured_utc": "2026-10-14T22:04:40.050894+00:00",
+  "scope": "Original C and latest Jim expression variable syntax/storage observations; no tcltest used, no F5 claim, no compiler acceptance claim.",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "executable_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "exit_code": 0,
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-original-expression-variable-syntax-oracles-20261014/probe.tcl"
+      ],
+      "stdout": "braced-combined 8\nseparate-index 8\nbraced-sigil 12\nbraced-empty 14\nunmatched-paren 18\n",
+      "stderr": ""
+    },
+    {
+      "provider": "8.5.19",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "executable_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "exit_code": 0,
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-original-expression-variable-syntax-oracles-20261014/probe.tcl"
+      ],
+      "stdout": "braced-combined 8\nseparate-index 8\nbraced-sigil 12\nbraced-empty 14\nunmatched-paren 18\n",
+      "stderr": ""
+    },
+    {
+      "provider": "8.6.18",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "executable_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "exit_code": 0,
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-original-expression-variable-syntax-oracles-20261014/probe.tcl"
+      ],
+      "stdout": "braced-combined 8\nseparate-index 8\nbraced-sigil 12\nbraced-empty 14\nunmatched-paren 18\n",
+      "stderr": ""
+    },
+    {
+      "provider": "9.0.4",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "executable_sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "exit_code": 0,
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-original-expression-variable-syntax-oracles-20261014/probe.tcl"
+      ],
+      "stdout": "braced-combined 8\nseparate-index 8\nbraced-sigil 12\nbraced-empty 14\nunmatched-paren 18\n",
+      "stderr": ""
+    },
+    {
+      "provider": "9.1.0",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "executable_sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "exit_code": 0,
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-original-expression-variable-syntax-oracles-20261014/probe.tcl"
+      ],
+      "stdout": "braced-combined 8\nseparate-index 8\nbraced-sigil 12\nbraced-empty 14\nunmatched-paren 18\n",
+      "stderr": ""
+    },
+    {
+      "provider": "jim-latest",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "executable_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "executable_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "original_init": null,
+      "init_sha256": null,
+      "exit_code": 0,
+      "command": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-original-expression-variable-syntax-oracles-20261014/probe.tcl"
+      ],
+      "stdout": "braced-combined 8\nseparate-index 8\nbraced-sigil 12\nbraced-empty 14\nunmatched-paren 18\n",
+      "stderr": ""
+    }
+  ]
+}

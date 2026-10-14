@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::namespace_address::tests::global_address_keeps_selected_extent_and_ignores_the_callers_namespace ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2173 filtered out; finished in 6.17s
+

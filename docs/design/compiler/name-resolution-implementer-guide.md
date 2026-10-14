@@ -127,6 +127,22 @@ expression markers retain runtime scanning under the actual configuration.
 values use exact literal emission so their bytes never enter substitution
 again. None of these representation queries resolves a name or proves a read.
 
+For a source-backed literal argument, use
+`original_literal_argument_data_for_module` with the current Module, Registry
+and original command tokens. The immutable `original_literal_argument_data`
+variant retains source/whole-vector grammar without claiming current Module
+correspondence. Both decode the actual original word; neither grants dispatch,
+Native entry, a variable cell or a completed store. Completed names use
+`CellReference::from_name_data`, preserving empty, sigil and literal element
+bytes without interpreting them as source; this symbolic vocabulary may retain
+NUL while Native cell admission separately refuses it. Catch/Try destinations
+consume this completed-name route. Codegen retains its independent
+operation, trace, dispatch and storage guards.
+
+`is_static_variable_source_word` is an unquoted source construction policy for
+a fixed ASCII identifier subset. Use it only when emitting that representation;
+it does not classify all accepted Tcl names or parse variable references.
+
 ## Project source values and APL conventions at their owners
 
 Analyser value consumers use the retained original word or executable component
@@ -692,6 +708,18 @@ inventory grants no method execution, visibility or result proof.
 For example, a retained stable `set x value` can establish the normal write to `x` even when an unselected engine's compiler protocol is unknown. That does not prove when the native compiler validates `set`, whether earlier commands execute on a syntax error, or that codegen may emit a store opcode. An unknown `return`, `try`, or expression protocol cannot acquire those broader guarantees through handler identity.
 
 ## Resolve dynamic command names at their actual invocation
+
+Original hidden-command options use
+`NativeNameProtocol::hidden_invocation_grammar` and that table's returned
+ordinal meanings. Keep the original native-index/getter and safe-interpreter
+order at each adapter. Runtime -namespace addresses start from the actual
+global namespace token and selected native naming protocol. This is namespace
+geometry only. `uses_global_variable_frame` selects the C8.4 existing global variable
+frame; later C selects a non-procedure namespace frame for explicit context.
+Runtime and VM keep their actual frame selectors, original interpreter target
+and mandatory cleanup separate from this pure policy. Grammar supplies
+neither a target command nor an entered frame.
+
 
 Prefer the executed lookup carried by the source owner before considering
 advisory values or diagnostic usage heuristics. For another candidate word,
@@ -1799,6 +1827,14 @@ A pending successful return with level one can produce this procedure's normal
 result; level two cannot. Consumers retaining catch, namespace, `uplevel` or
 procedure boundaries use the full `ReturnCompletionRoute` and settle it at the
 actual boundary rather than flattening every return into a normal result.
+
+`original_native_source_conditional_completion` supplies only conditional
+analysis topology for the exact original Native source schema. It requires full
+input/Registry/lexer correspondence, literal unexpanded argv and accepted arity;
+an independent declaration/compiler layout must have closed source coverage.
+A retained Native owner refusal is terminal. Missing, foreign or dynamic input
+remains unavailable. The CFG reader keeps Logical source routing, reached
+handler completion, Normal values and codegen continuations independent.
 
 For a direct completion query, use
 `value_transfer::completion::decode_return_words_in` with the selected
@@ -9949,6 +9985,13 @@ Missing, foreign or mismatched context supplies no factory advice. A possible
 result remains a possible result; it cannot donate a completed store, live
 object, current class or entered command.
 
+Receiver syntax uses `original_source_receiver_name_operand` on the actual
+original word. Literal names and scalar references remain distinct; inert
+braces, arrays and compound words cannot donate a scalar read.
+`OriginalReceiverBodyContext` instead retains genuine entered provider,
+activation/formal frame and source state. Lexical class labels and method
+declaration previews cannot issue that context.
+
 Object-class source candidates use the shared MAY assignment and original
 factory-schema queries only with positively retained Logical metadata. Factory
 schemas retain the current source, Registry, context and original arguments;
@@ -9959,6 +10002,14 @@ scoped Logical candidate query. Alias propagation requires one genuine original
 variable substitution under its selected scalar grammar; inert braced data,
 compound words and arrays cannot supply that read. Strict physical reads and
 Normal procedure results keep their separate maps and proofs.
+
+Semantic tokens use `logical_source_object_handle_classes` with the actual
+analysis, CompilationUnit and Registry for Logical object-class unions. It
+shares `logical_source_unit_input` with retained candidate admission: complete
+source, input, Module, lexer, command-store and entry checks remain together.
+Unavailable ownership returns unavailable rather than a successful empty map.
+The generic Native reader remains separate; nominal unions retain unknown
+contents and cannot supply a physical read, runtime class or edit permission.
 
 The regexp/scan no-match diagnostic selects its layout from genuine original
 Registry words and typed conditional output operands. Captured alias arguments

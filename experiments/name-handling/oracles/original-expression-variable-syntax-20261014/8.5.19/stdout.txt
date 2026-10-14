@@ -1,0 +1,5 @@
+braced-combined 8
+separate-index 8
+braced-sigil 12
+braced-empty 14
+unmatched-paren 18

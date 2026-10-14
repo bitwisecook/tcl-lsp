@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_alias::tests::child_shorthand_visibility_ops_are_leak_free ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2173 filtered out; finished in 1.86s
+

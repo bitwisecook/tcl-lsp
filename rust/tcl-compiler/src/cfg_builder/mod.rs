@@ -4126,6 +4126,13 @@ impl CfgCommandClasses {
         let metadata = self
             .metadata_context()?
             .filter(|context| context.source_analysis_input().is_some())?;
+        if let Some(route) =
+            crate::registry_invocation::original_native_source_conditional_completion(
+                registry, metadata, tokens,
+            )
+        {
+            return Some(route);
+        }
         let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
             registry, metadata, tokens,
         )?;

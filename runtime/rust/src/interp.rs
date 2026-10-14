@@ -79,6 +79,7 @@ pub(crate) mod namespace_address;
 mod native_ensemble_objects;
 mod native_error_variables;
 mod native_execution_constants;
+mod native_hidden_invocation;
 mod native_index_lookup;
 mod native_jim_increment;
 mod native_jim_links;
@@ -6059,12 +6060,8 @@ impl Interp {
         self.current_ns.get()
     }
 
-    /// Set the current namespace context directly, with no frame push and no
-    /// restore-on-return of its own — the caller saves/restores
-    /// [`Self::current_ns`] around whatever it runs. Used by `interp
-    /// invokehidden`'s `-global`/`-namespace` evaluation-context switch,
-    /// which invokes one command rather than evaluating a script body, so it
-    /// needs no `namespace eval`-style frame.
+    /// Set the current namespace without changing the selected variable frame.
+    /// The caller owns frame selection and namespace restoration.
     pub(crate) fn set_current_ns(&self, ns: NsId) {
         self.current_ns.set(ns);
     }

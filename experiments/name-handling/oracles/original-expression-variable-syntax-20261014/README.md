@@ -1,0 +1,1 @@
+Original expression variable reads in C Tcl8.4–9.1 and current Jim all pass. Both braced combined name `${a(k)}` and explicit `$a($k)` read the same existing array element; lexical index absence does not establish physical scalar lookup. Literal sigil, empty and unmatched-parenthesis name cases are retained. No tcltest used, no compiler/Native admission inferred.

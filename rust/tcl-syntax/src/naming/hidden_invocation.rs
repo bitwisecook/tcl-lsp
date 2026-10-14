@@ -38,6 +38,7 @@ pub struct NativeHiddenInvocationGrammar {
     names: &'static [&'static str],
     byte_names: &'static [&'static [u8]],
     options: &'static [NativeHiddenInvocationOption],
+    global_variable_frame: bool,
 }
 
 impl NativeHiddenInvocationGrammar {
@@ -51,6 +52,13 @@ impl NativeHiddenInvocationGrammar {
     #[must_use]
     pub const fn byte_names(self) -> &'static [&'static [u8]] {
         self.byte_names
+    }
+
+    /// C8.4 redirects the existing global variable frame; later C pushes a
+    /// non-procedure namespace frame for an explicit context.
+    #[must_use]
+    pub const fn uses_global_variable_frame(self) -> bool {
+        self.global_variable_frame
     }
 
     /// Meaning of an ordinal returned by this exact selected table.
@@ -74,11 +82,13 @@ impl NativeNameProtocol {
                 names: &["-global", "--"],
                 byte_names: &[b"-global", b"--"],
                 options: &[Global, End],
+                global_variable_frame: true,
             }),
             Self::C(_) => Ok(NativeHiddenInvocationGrammar {
                 names: &["-global", "-namespace", "--"],
                 byte_names: &[b"-global", b"-namespace", b"--"],
                 options: &[Global, Namespace, End],
+                global_variable_frame: false,
             }),
             Self::Jim084 => Err(NameProjectionUnavailable::PurposeNotModelled),
         }
@@ -101,6 +111,10 @@ mod tests {
             } else {
                 &[("-global", Global), ("-namespace", Namespace), ("--", End)]
             };
+            assert_eq!(
+                grammar.uses_global_variable_frame(),
+                version == TclVersion::V8_4,
+            );
             assert_eq!(grammar.names().len(), expected.len());
             assert_eq!(grammar.byte_names().len(), expected.len());
             for (index, (name, option)) in expected.iter().enumerate() {

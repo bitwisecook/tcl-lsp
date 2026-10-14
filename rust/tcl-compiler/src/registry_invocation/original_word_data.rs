@@ -84,7 +84,8 @@ mod tests {
         let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
             .with_resolved_analysis_input(input);
         lowerer.lower(source);
-        (context, lowerer.finish_module(source))
+        let module = lowerer.finish_module(source);
+        (context, module)
     }
 
     fn tokens(module: &Module) -> &CommandTokens {

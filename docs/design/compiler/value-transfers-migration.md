@@ -686,7 +686,7 @@ contract's budget section.
 
 ## File-path anchors
 
-- `rust/tcl-compiler/src/sccp.rs` — `evaluate_defs_under`, `evaluate_def_with_folds`, `evaluate_branch`, `enumerate_loops`, `catch_body_answer`
+- `rust/tcl-compiler/src/sccp.rs` — `execution_value_facts`, `semantic_value_facts`, `evaluate_defs_under`, `evaluate_def_dispatch` through the retained `LatticeDriver`, `evaluate_branch`, `enumerate_loops`, `catch_body_answer`
 - `rust/tcl-compiler/src/optimiser/propagation.rs`, `branch_folding.rs`, `structure_elimination.rs`, `elimination.rs`, `chain_fold.rs`, `end_offset.rs`, `manager.rs` — the consumers
 - `rust/tcl-compiler/src/static_loops.rs`, `intervals.rs`, `interval_bounds.rs`, `type_infer.rs`, `unit_scope.rs`, `interprocedural.rs` — the analyses § *What each analysis reads* describes
 - `rust/tcl-compiler/src/analyser/handlers.rs`, `commands.rs`, `bounds_checks.rs`, `irules_event_checks.rs`, `param_traits.rs`, `diagnostics/dataflow.rs`, `diagnostics/var_command.rs`, `diagnostics/helpers.rs` — the analyser's dataflow sites

@@ -1,0 +1,11 @@
+bad option "-namespace": must be -global or --
+    while executing
+"interp invokehidden {} -namespace chosen hiddenSet item NAMESPACE"
+    (procedure "observe" line 3)
+    invoked from within
+"observe"
+    invoked from within
+"list [observe] [interp invokehidden {} hiddenSet ::chosen::item]"
+    invoked from within
+"puts [list [observe] [interp invokehidden {} hiddenSet ::chosen::item]]"
+    (file "/tmp/name-invokehidden-context-original-20261014/proc-local-store/probe.tcl" line 6)

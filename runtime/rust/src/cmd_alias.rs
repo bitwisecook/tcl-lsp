@@ -1153,13 +1153,7 @@ fn invokehidden_in_original(
         };
         let saved_ns = c.current_ns();
         let code = match ns_name.as_ref() {
-            Some(name) => match c.ensure_global_namespace_address(name) {
-                Ok(target) => {
-                    c.set_current_ns(target);
-                    c.invoke_hidden(&cmd, &hidden_argv)
-                }
-                Err(error) => c.report_cmd_error(error),
-            },
+            Some(name) => c.invoke_hidden_in_namespace(name, &cmd, &hidden_argv),
             None => c.invoke_hidden(&cmd, &hidden_argv),
         };
         let result = scope.currency().ensure_current_or_refuse().and_then(|()| {
@@ -1669,6 +1663,7 @@ pub(crate) fn child_alias_handle_original(
         if owner.host_refusal_pending() {
             return interp.transport_host_refusal_from(&owner);
         }
+        drop(scope);
         interp.set_result_bytes(b"");
         return Code::Ok;
     }
@@ -1683,6 +1678,7 @@ pub(crate) fn child_alias_handle_original(
         if owner.host_refusal_pending() {
             return interp.transport_host_refusal_from(&owner);
         }
+        drop(scope);
         return match query {
             Ok(Some(query)) => {
                 interp.set_result(query.as_ptr());
@@ -1754,6 +1750,7 @@ pub(crate) fn child_alias_handle_original(
             return interp.report_cmd_error(error);
         }
     }
+    drop(scope);
     if recipe.child_alias_returns_original_registration_name() {
         if recipe == tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4) {
             interp.set_result(argv[2]);
@@ -2104,6 +2101,45 @@ mod tests {
 
     // Native proof: naming.alias.original-child-interpreter-publication
     // docs/design/analysis/name-resolution-proofs/alias-original-child-interpreter-publication.md
+    #[test]
+    fn jim_child_alias_result_is_born_in_the_actual_parent_allocator() {
+        use crate::interp::native_operation_currency::NativeOperationScope;
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jim"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(interp.eval_str(b"set child [interp]"), Code::Ok);
+        let child = interp.result_bytes();
+        let _parent_scope = NativeOperationScope::enter(&interp).unwrap();
+        let owned = [child.as_slice(), b"alias", b"::A::a", b"list", b"VALUE"]
+            .map(|bytes| crate::obj::Owned::fresh(crate::obj::new_string_bytes(bytes)));
+        let argv = owned
+            .iter()
+            .map(crate::obj::Owned::as_ptr)
+            .collect::<Vec<_>>();
+        let arguments = OriginalArguments::enter(&interp, &argv).unwrap();
+        assert_eq!(
+            super::child_alias_handle_original(&mut interp, &child, &argv, &arguments),
+            Code::Ok,
+        );
+        let parent = interp.native_jim_object_context().unwrap();
+        let receiver = interp.children.borrow().get(&child).unwrap().clone();
+        let receiver_context = receiver.native_jim_object_context().unwrap();
+        let result = interp.result_obj();
+        crate::obj::validate_jim_allocator(result, &parent.allocation_pool()).unwrap();
+        assert!(
+            crate::obj::validate_jim_allocator(result, &receiver_context.allocation_pool(),)
+                .is_err()
+        );
+        crate::native_source::bind_context(result, &parent).unwrap();
+        assert!(crate::native_source::bind_context(result, &receiver_context).is_err());
+        assert!(interp.result_bytes().is_empty());
+        assert!(!interp.host_refusal_pending());
+        assert!(!receiver.host_refusal_pending());
+    }
+
     #[test]
     fn child_alias_publication_matches_original_supported_provider_apis() {
         let source = include_bytes!(

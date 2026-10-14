@@ -1,0 +1,27 @@
+    #[test]
+    fn callback_arity_unavailable_package_descriptors_do_not_select_local_headers() {
+        // naming.database.original-project-callback-projection
+        // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
+        for source in [
+            "proc cb {} {}; scale .s -command cb",
+            "proc cb {x y} {}; math::calculus::integral 0 1 100 cb",
+            "proc cb {x} {}; smtp::sendmessage $t -tlspolicy cb",
+            "proc cb {x} {}; tcl::chan::halfpipe -write-command cb",
+            "proc cb {} {}; mime::getbody $t -command cb",
+            "proc cb {x y} {}; struct::graph g; g walk root -command cb",
+            "proc cb {x y} {}; struct::tree t; t walkproc root cb",
+            "package require smtp; proc cb {x} {}; smtp::sendmessage $t -tlspolicy ::cb",
+            "package require mime; proc cb {} {}; mime::getbody $t -command ::cb",
+            "package require struct::graph; proc cb {x y} {}; struct::graph g; g walk root -command ::cb",
+            "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb",
+        ] {
+            let diagnostics = callback_arity_codes(source);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003"),
+                "{source}: {diagnostics:?}"
+            );
+        }
+    }
+

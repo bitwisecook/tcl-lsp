@@ -1346,12 +1346,16 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
     }
 }
 
-/// Consume `interp invokehidden`'s leading options from `tail`, returning the
-/// index of the command word. Mirrors C's loop: a word not starting with `-`
-/// ends the scan, `-namespace` swallows the following word, and `--` ends it.
-/// `-namespace`/`-global` select the invocation namespace, which this engine
-/// does not model.
-pub(crate) fn skip_hidden_options(vm: &mut Vm, tail: &[Value]) -> Result<usize, Completion<Value>> {
+pub(crate) struct HiddenInvocationOptions {
+    pub(crate) command_index: usize,
+    pub(crate) namespace: Option<Vec<u8>>,
+}
+
+/// Retain original option reads and the last selected global namespace operand.
+pub(crate) fn hidden_invocation_options(
+    vm: &mut Vm,
+    tail: &[Value],
+) -> Result<HiddenInvocationOptions, Completion<Value>> {
     use tcl_syntax::naming::NativeHiddenInvocationOption;
     let grammar = vm
         .native_invocation_dialect()
@@ -1362,6 +1366,7 @@ pub(crate) fn skip_hidden_options(vm: &mut Vm, tail: &[Value]) -> Result<usize, 
         })?;
     let options = tcl_cmd_core::prefix::OptionTable::abbreviating("option", grammar.names());
     let mut i = 0;
+    let mut namespace = None;
     while i < tail.len() {
         let word = match vm.native_name_operand_bytes_checked(&tail[i]) {
             Ok(bytes) => bytes,
@@ -1383,16 +1388,32 @@ pub(crate) fn skip_hidden_options(vm: &mut Vm, tail: &[Value]) -> Result<usize, 
                 if i == tail.len() {
                     break;
                 }
+                namespace = Some(
+                    vm.native_name_operand_bytes_checked(&tail[i])
+                        .map_err(|error| completion_from_cmd_error(vm, error))?
+                        .to_vec(),
+                );
                 i += 1;
             }
             NativeHiddenInvocationOption::End => {
                 i += 1;
                 break;
             }
-            NativeHiddenInvocationOption::Global => i += 1,
+            NativeHiddenInvocationOption::Global => {
+                namespace = Some(b"::".to_vec());
+                i += 1;
+            }
         }
     }
-    Ok(i)
+    Ok(HiddenInvocationOptions {
+        command_index: i,
+        namespace,
+    })
+}
+
+#[cfg(test)]
+fn skip_hidden_options(vm: &mut Vm, tail: &[Value]) -> Result<usize, Completion<Value>> {
+    hidden_invocation_options(vm, tail).map(|selected| selected.command_index)
 }
 
 /// `interp invokehidden path ?-namespace ns? ?-global? ?--? cmd ?arg ...?` —
@@ -1409,10 +1430,11 @@ fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if vm.is_safe() {
         return err("not allowed to invoke hidden commands from safe interpreter");
     }
-    let i = match skip_hidden_options(vm, tail) {
-        Ok(i) => i,
+    let selected = match hidden_invocation_options(vm, tail) {
+        Ok(selected) => selected,
         Err(completion) => return completion,
     };
+    let i = selected.command_index;
     let Some(cmd) = tail.get(i) else {
         return native_wrong_arguments_message(vm, usage);
     };
@@ -1420,8 +1442,13 @@ fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         Ok(id) => id,
         Err(error) => return error,
     };
-    vm.invoke_hidden_value_by_id(id, cmd, &tail[i + 1..])
-        .unwrap_or_else(|| vm.interpreter_path_missing(path))
+    vm.invoke_hidden_value_by_id_in_namespace(
+        id,
+        cmd,
+        &tail[i + 1..],
+        selected.namespace.as_deref(),
+    )
+    .unwrap_or_else(|| vm.interpreter_path_missing(path))
 }
 
 /// Resolve an `interp`-family subcommand word through the shared owner:

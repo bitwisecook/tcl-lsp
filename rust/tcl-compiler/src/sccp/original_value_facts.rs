@@ -526,7 +526,12 @@ fn solve_value_facts(
     // SSA still uses the conservative whole-function exposure summary.
     let escaping = compatibility_escaping(cfg, ssa, trace, extra_escaping);
     let required_math_invocations = MathDependencies::for_parameters(purpose, param_constants);
+    let reference_config =
+        crate::value_transfer::LatticeDriver::new(trace, folds, policy, &escaping)
+            .with_cfg_metadata(&cfg.metadata_context)
+            .source_reference_lexer_config();
     let store_inputs = StoreInputs {
+        reference_config,
         math_dependencies: Some(&required_math_invocations),
         cfg: Some(cfg),
         escaping: &escaping,
@@ -890,6 +895,7 @@ struct StatementInputs<'a> {
 /// Returns `true` if any lattice value changed. Used by [`execution_value_facts`].
 /// Store proof inputs shared by every SCCP entry point.
 struct StoreInputs<'a> {
+    reference_config: Option<tcl_lexer::LexerConfig>,
     math_dependencies: Option<&'a MathDependencies>,
     cfg: Option<&'a CfgFunction>,
     escaping: &'a HashSet<String>,
@@ -986,6 +992,7 @@ fn sccp_process_statements(
 ) -> bool {
     let StatementInputs { store, clobbers } = inputs;
     let StoreInputs {
+        reference_config,
         math_dependencies,
         cfg,
         escaping,
@@ -1093,14 +1100,28 @@ fn sccp_process_statements(
                         join(
                             &prev,
                             &evaluate_def_with_math(
-                                stmt_ssa, &*values, lookup, policy, folds, math,
+                                stmt_ssa,
+                                &*values,
+                                lookup,
+                                policy,
+                                folds,
+                                math,
+                                reference_config,
                             ),
                         )
                     }
                     None => LatticeValue::Overdefined,
                 }
             } else {
-                evaluate_def_with_math(stmt_ssa, &*values, lookup, policy, folds, math)
+                evaluate_def_with_math(
+                    stmt_ssa,
+                    &*values,
+                    lookup,
+                    policy,
+                    folds,
+                    math,
+                    reference_config,
+                )
             };
             if set_value(values, (var, *ver), &val) {
                 changed = true;
@@ -1979,44 +2000,35 @@ pub fn existence_constant_branches_with_metadata_context(
     out
 }
 
-/// Evaluate the lattice value produced by an SSA statement's
-/// defs.
-///
-/// Focused subset: constant-assignment, expression-assignment via
-/// the expression evaluator, and a conservative `Overdefined` fallback
-/// for everything else.
-///
-/// Holds no whole-module command view, so it folds **no** builtin command
-/// substitution: there is no evidence that `[llength …]` still means the
-/// builtin rather than a user `proc` of that name. A caller with the fact
-/// uses [`evaluate_def_with_folds`].
-#[must_use]
-pub fn evaluate_def<'a, S: std::hash::BuildHasher>(
+#[cfg(test)]
+pub(super) fn evaluate_fixture_def<'a, S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
     ssa: impl Into<SsaSourceView<'a>>,
     policy: FoldPolicy,
+    config: tcl_lexer::LexerConfig,
 ) -> LatticeValue {
-    let ssa = ssa.into();
-    evaluate_def_with_folds(stmt_ssa, values, ssa, policy, None)
+    evaluate_fixture_def_with_folds(stmt_ssa, values, ssa, policy, None, config)
 }
 
-/// [`evaluate_def`] with an optional registry builtin-fold context: when
-/// `folds` is supplied, an `AssignValue` command-substitution
-/// RHS additionally consults the registry `const_fold` engine — see
-/// [`BuiltinFoldInputs`]. Pass a [`SsaSourceView::at_statement`] for production
-/// evaluation so source aliases resolve at this operation. A borrowed SSA
-/// function retains only the unique whole-function compatibility projection.
-/// `None` is byte-identical to [`evaluate_def`].
-#[must_use]
-pub fn evaluate_def_with_folds<'a, S: std::hash::BuildHasher>(
+#[cfg(test)]
+pub(super) fn evaluate_fixture_def_with_folds<'a, S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
     ssa: impl Into<SsaSourceView<'a>>,
     policy: FoldPolicy,
     folds: Option<BuiltinFoldInputs<'_>>,
+    config: tcl_lexer::LexerConfig,
 ) -> LatticeValue {
-    evaluate_def_with_math(stmt_ssa, values, ssa.into(), policy, folds, None)
+    evaluate_def_with_math(
+        stmt_ssa,
+        values,
+        ssa.into(),
+        policy,
+        folds,
+        None,
+        Some(config),
+    )
 }
 
 #[derive(Default)]
@@ -2407,6 +2419,7 @@ fn evaluate_def_with_math<S: std::hash::BuildHasher>(
     policy: FoldPolicy,
     folds: Option<BuiltinFoldInputs<'_>>,
     math: Option<MathFoldContext<'_>>,
+    reference_config: Option<tcl_lexer::LexerConfig>,
 ) -> LatticeValue {
     match &stmt_ssa.statement {
         Statement::AssignConst { value, .. } => LatticeValue::Const(parse_literal_value(value)),
@@ -2425,7 +2438,15 @@ fn evaluate_def_with_math<S: std::hash::BuildHasher>(
             // const-fold engine) recognises.
             fold_retained_assignment_expression(stmt_ssa, values, ssa, policy, folds, math)
                 .unwrap_or_else(|| {
-                    fold_assign_value(value, &stmt_ssa.uses, values, ssa, policy, folds)
+                    fold_assign_value(
+                        value,
+                        &stmt_ssa.uses,
+                        values,
+                        ssa,
+                        policy,
+                        folds,
+                        reference_config,
+                    )
                 })
         }
         Statement::Call {
@@ -2435,7 +2456,15 @@ fn evaluate_def_with_math<S: std::hash::BuildHasher>(
             tokens,
             ..
         } if single_iteration_binding(command, args, defs, tokens.as_ref()) => {
-            fold_iteration_value(&args[0], stmt_ssa, values, ssa, policy, folds)
+            fold_iteration_value(
+                &args[0],
+                stmt_ssa,
+                values,
+                ssa,
+                policy,
+                folds,
+                reference_config,
+            )
         }
         Statement::Call {
             tokens: Some(tokens),
@@ -2472,9 +2501,13 @@ fn evaluate_def_with_math<S: std::hash::BuildHasher>(
                     let trimmed = text.trim();
                     if let Ok(v) = trimmed.parse::<i64>() {
                         v
-                    } else if let Some(amount) =
-                        resolve_simple_var_ref(trimmed, &stmt_ssa.uses, values, ssa)
-                    {
+                    } else if let Some(amount) = resolve_simple_var_ref(
+                        trimmed,
+                        &stmt_ssa.uses,
+                        values,
+                        ssa,
+                        reference_config,
+                    ) {
                         match amount {
                             LatticeValue::Const(ConstValue::Int(i)) => i,
                             LatticeValue::Unknown => return LatticeValue::Unknown,
@@ -2672,6 +2705,7 @@ fn fold_iteration_value<S: std::hash::BuildHasher>(
     source: SsaSourceView<'_>,
     policy: FoldPolicy,
     folds: Option<BuiltinFoldInputs<'_>>,
+    reference_config: Option<tcl_lexer::LexerConfig>,
 ) -> LatticeValue {
     // `foreach v LIST` / `lmap v LIST` folds the
     // iteration variable to the CONSTSET of elements when
@@ -2688,6 +2722,7 @@ fn fold_iteration_value<S: std::hash::BuildHasher>(
                 values,
                 source,
                 policy.word_rules,
+                reference_config,
             )
         })
         .or_else(|| {
@@ -2696,8 +2731,15 @@ fn fold_iteration_value<S: std::hash::BuildHasher>(
             let arg = argument.trim();
             if arg.starts_with('[')
                 && arg.ends_with(']')
-                && let Some(LatticeValue::Const(ConstValue::String(s))) =
-                    try_fold_cmd_subst(arg, &statement.uses, values, source, policy, folds)
+                && let Some(LatticeValue::Const(ConstValue::String(s))) = try_fold_cmd_subst(
+                    arg,
+                    &statement.uses,
+                    values,
+                    source,
+                    policy,
+                    folds,
+                    reference_config,
+                )
             {
                 return Some(split_list_values(&s, policy.word_rules));
             }
@@ -2777,6 +2819,7 @@ fn fold_normal_store_value<S: std::hash::BuildHasher>(
         source,
         policy,
         folds,
+        Some(inputs.source_metadata_input?.lexer_config()),
     ))
 }
 
@@ -2821,21 +2864,10 @@ fn resolve_simple_var_ref<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHa
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: impl Into<SsaSourceView<'a>>,
+    reference_config: Option<tcl_lexer::LexerConfig>,
 ) -> Option<LatticeValue> {
     let ssa = ssa.into();
-    let name = if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        name
-    } else {
-        let name = text.strip_prefix('$')?;
-        if name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
-        {
-            name
-        } else {
-            return None;
-        }
-    };
+    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(text, reference_config?)?;
     let key = source_read_key(name, uses, ssa)?;
     Some(values.get(&key).cloned().unwrap_or(LatticeValue::Unknown))
 }
@@ -3280,6 +3312,7 @@ pub fn resolve_foreach_list_via_lattice<'a, S1, S2>(
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: impl Into<SsaSourceView<'a>>,
     rules: tcl_syntax::word_rules::WordValueRules,
+    reference_config: Option<tcl_lexer::LexerConfig>,
 ) -> Option<Vec<String>>
 where
     S1: std::hash::BuildHasher,
@@ -3287,22 +3320,8 @@ where
 {
     let ssa = ssa.into();
     let stripped = list_text.trim();
-    let name = if let Some(name) = stripped
-        .strip_prefix("${")
-        .and_then(|s| s.strip_suffix('}'))
-    {
-        name
-    } else {
-        let name = stripped.strip_prefix('$')?;
-        if name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
-        {
-            name
-        } else {
-            return None;
-        }
-    };
+    let name =
+        tcl_syntax::naming::whole_scalar_variable_reference_name(stripped, reference_config?)?;
     let sym = ssa.symbol(name)?;
     let ver = uses.get(&sym).copied()?;
     match values.get(&(sym, ver))? {
@@ -3333,6 +3352,7 @@ fn fold_assign_value<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>
     ssa: impl Into<SsaSourceView<'a>>,
     policy: FoldPolicy,
     folds: Option<BuiltinFoldInputs<'_>>,
+    reference_config: Option<tcl_lexer::LexerConfig>,
 ) -> LatticeValue {
     let ssa = ssa.into();
     let stripped = value.trim();
@@ -3401,12 +3421,14 @@ fn fold_assign_value<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>
         });
     }
     // Legacy tokenless callers retain the unique-binding compatibility view.
-    if let Some(resolved) = resolve_simple_var_ref(stripped, uses, values, ssa) {
+    if let Some(resolved) = resolve_simple_var_ref(stripped, uses, values, ssa, reference_config) {
         return resolved;
     }
     // Command substitution.
     if stripped.starts_with('[') && stripped.ends_with(']') {
-        if let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa, policy, folds) {
+        if let Some(lv) =
+            try_fold_cmd_subst(stripped, uses, values, ssa, policy, folds, reference_config)
+        {
             return lv;
         }
         // Registry const-fold fallback: the fold's `$var`
@@ -3483,23 +3505,13 @@ fn resolve_const_string<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHash
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: impl Into<SsaSourceView<'a>>,
     policy: FoldPolicy,
+    reference_config: Option<tcl_lexer::LexerConfig>,
 ) -> Option<String> {
     let ssa = ssa.into();
     let arg = arg.trim();
-    if let Some(rest) = arg.strip_prefix('$') {
-        // `$name` or `${name}` — reject compound refs (array element,
-        // nested substitution, multiple words).
-        let name = rest
-            .strip_prefix('{')
-            .and_then(|r| r.strip_suffix('}'))
-            .unwrap_or(rest);
-        if name.is_empty()
-            || name.contains(|c: char| {
-                c.is_whitespace() || c == '(' || c == '[' || c == '$' || c == '"'
-            })
-        {
-            return None;
-        }
+    if arg.starts_with('$') {
+        let name =
+            tcl_syntax::naming::whole_scalar_variable_reference_name(arg, reference_config?)?;
         let key = source_read_key(name, uses, ssa)?;
         return match values.get(&key)? {
             LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
@@ -3530,6 +3542,7 @@ fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
     ssa: impl Into<SsaSourceView<'a>>,
     policy: FoldPolicy,
     folds: Option<BuiltinFoldInputs<'_>>,
+    reference_config: Option<tcl_lexer::LexerConfig>,
 ) -> Option<LatticeValue> {
     let ssa = ssa.into();
     // Each arm below *is* a builtin's semantics, so it may only run while
@@ -3596,9 +3609,14 @@ fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
             let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
         }
-        if let Some(items) =
-            resolve_foreach_list_via_lattice(arg, uses, values, ssa, policy.word_rules)
-        {
+        if let Some(items) = resolve_foreach_list_via_lattice(
+            arg,
+            uses,
+            values,
+            ssa,
+            policy.word_rules,
+            reference_config,
+        ) {
             let n = i64::try_from(items.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
         }
@@ -3614,7 +3632,8 @@ fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
             let (sub, sub_rest) = split_head(after_cmd.trim());
             if sub == "length"
                 && let Some(raw) = sub_rest
-                && let Some(s) = resolve_const_string(raw.trim(), uses, values, ssa, policy)
+                && let Some(s) =
+                    resolve_const_string(raw.trim(), uses, values, ssa, policy, reference_config)
             {
                 // `string length` counts UTF-16 code units on Tcl 8 and
                 // Unicode scalars on Tcl 9, so the fold uses the selected
@@ -4393,12 +4412,12 @@ mod tests {
         CommandRegistry::build_default()
     }
 
-    /// [`evaluate_def_with_folds`] under a module that mutates no command
+    /// [`evaluate_fixture_def_with_folds`] under a module that mutates no command
     /// binding — the stance the shared per-unit lattice takes for an
     /// untouched file ([`FoldTrust::ObservedBindings`] over
     /// [`crate::command_binding::ModuleCommandMutations`]'s `Default`).
     ///
-    /// Plain [`evaluate_def`] holds no whole-module command view at all and
+    /// Plain [`evaluate_fixture_def`] holds no whole-module command view at all and
     /// therefore folds no builtin command substitution, so a fold-arm test
     /// has to state the trust fact it folds under.
     fn evaluate_pristine<S: std::hash::BuildHasher>(
@@ -4407,7 +4426,7 @@ mod tests {
         ssa: &SsaFunction,
         policy: FoldPolicy,
     ) -> LatticeValue {
-        evaluate_def_with_folds(
+        evaluate_fixture_def_with_folds(
             stmt,
             values,
             ssa,
@@ -4422,6 +4441,7 @@ mod tests {
                 trust: FoldTrust::ObservedBindings,
                 proven_pure_parameters: false,
             }),
+            tcl_lexer::LexerConfig::default(),
         )
     }
 
@@ -5037,6 +5057,7 @@ mod tests {
             StatementInputs {
                 clobbers: None,
                 store: &StoreInputs {
+                    reference_config: Some(tcl_lexer::LexerConfig::default()),
                     math_dependencies: None,
                     cfg: None,
                     escaping: &escaping,
@@ -5219,12 +5240,24 @@ mod tests {
         let mut ssa = bare_ssa();
         let s_int = assign_const_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&s_int, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &s_int,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(42))
         );
         let s_str = assign_const_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&s_str, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &s_str,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
@@ -5311,19 +5344,31 @@ mod tests {
         let irules =
             FoldPolicy::for_profile(Some(true), Some(tcl_dialect::DialectProfile::irules()));
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, irules),
+            evaluate_fixture_def(
+                &stmt_ssa,
+                &values,
+                &ssa,
+                irules,
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(1)),
             "`$s contains \"cd\"` with $s = abcde must fold to 1 under an iRules policy"
         );
         // TN: without the dialect fact the fold is declined, not guessed.
         assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt_ssa,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined,
             "a dialect-blind policy must decline the word-operator fold"
         );
     }
 
-    // evaluate_def for Incr.
+    // evaluate_fixture_def for Incr.
 
     fn incr_stmt(
         ssa: &mut SsaFunction,
@@ -5364,7 +5409,13 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(6))
         );
     }
@@ -5377,7 +5428,13 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(3)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(13))
         );
     }
@@ -5390,7 +5447,13 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(10)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(8))
         );
     }
@@ -5407,7 +5470,13 @@ mod tests {
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(6)));
         values.insert((y, 1), LatticeValue::Const(ConstValue::Int(4)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(10))
         );
     }
@@ -5419,7 +5488,13 @@ mod tests {
         let values = HashMap::new();
         // No entry for x@1 → base is Unknown → result Unknown.
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Unknown
         );
     }
@@ -5432,7 +5507,13 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Overdefined);
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined
         );
     }
@@ -5445,9 +5526,131 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined
         );
+    }
+
+    #[test]
+    fn original_value_reference_consumers_require_grammar_and_scalar_shape() {
+        // Original inputs: experiments/name-handling/oracles/whole-variable-reference-shapes-20261014.
+        let mut ssa = bare_ssa();
+        let mut uses = HashMap::new();
+        let mut values = HashMap::new();
+        for name in ["a", "a:b", "café", "", "scalar(open", "arr(key)", "a{b}c"] {
+            let symbol = ssa.intern_var(name);
+            uses.insert(symbol, 1);
+            values.insert(
+                (symbol, 1),
+                LatticeValue::Const(ConstValue::String("one two".into())),
+            );
+        }
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = tcl_lexer::LexerConfig::for_dialect(profile);
+            let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+            for text in ["$a", "${}", "${scalar(open}"] {
+                assert!(
+                    resolve_simple_var_ref(text, &uses, &values, &ssa, Some(config)).is_some(),
+                    "{profile}: {text}"
+                );
+                assert_eq!(
+                    resolve_foreach_list_via_lattice(
+                        text,
+                        &uses,
+                        &values,
+                        &ssa,
+                        rules,
+                        Some(config)
+                    ),
+                    Some(vec!["one".into(), "two".into()]),
+                    "{profile}: {text}"
+                );
+                assert_eq!(
+                    resolve_const_string(
+                        text,
+                        &uses,
+                        &values,
+                        &ssa,
+                        FoldPolicy::default(),
+                        Some(config)
+                    ),
+                    Some("one two".into()),
+                    "{profile}: {text}"
+                );
+                assert_eq!(
+                    resolve_simple_var_ref(text, &uses, &values, &ssa, None),
+                    None
+                );
+                assert_eq!(
+                    resolve_foreach_list_via_lattice(text, &uses, &values, &ssa, rules, None),
+                    None
+                );
+                assert_eq!(
+                    resolve_const_string(text, &uses, &values, &ssa, FoldPolicy::default(), None),
+                    None
+                );
+            }
+            for text in ["$a:b", "$arr(key)", "${arr(key)}", "$a$b"] {
+                assert_eq!(
+                    resolve_simple_var_ref(text, &uses, &values, &ssa, Some(config)),
+                    None,
+                    "{profile}: {text}"
+                );
+                assert_eq!(
+                    resolve_foreach_list_via_lattice(
+                        text,
+                        &uses,
+                        &values,
+                        &ssa,
+                        rules,
+                        Some(config)
+                    ),
+                    None,
+                    "{profile}: {text}"
+                );
+                assert_eq!(
+                    resolve_const_string(
+                        text,
+                        &uses,
+                        &values,
+                        &ssa,
+                        FoldPolicy::default(),
+                        Some(config)
+                    ),
+                    None,
+                    "{profile}: {text}"
+                );
+            }
+            assert_eq!(
+                resolve_simple_var_ref("$café", &uses, &values, &ssa, Some(config)).is_some(),
+                profile == "jim"
+            );
+            assert_eq!(
+                resolve_simple_var_ref("${a{b}c}", &uses, &values, &ssa, Some(config)).is_some(),
+                matches!(profile, "tcl9.0" | "tcl9.1")
+            );
+            assert_eq!(
+                resolve_simple_var_ref("$a", &HashMap::new(), &values, &ssa, Some(config)),
+                None
+            );
+            assert_eq!(
+                resolve_foreach_list_via_lattice(
+                    "$a",
+                    &HashMap::new(),
+                    &values,
+                    &ssa,
+                    rules,
+                    Some(config)
+                ),
+                None
+            );
+        }
     }
 
     #[test]
@@ -5459,15 +5662,45 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
         assert_eq!(
-            resolve_simple_var_ref("$x", &uses, &values, &ssa),
+            resolve_simple_var_ref(
+                "$x",
+                &uses,
+                &values,
+                &ssa,
+                Some(tcl_lexer::LexerConfig::default())
+            ),
             Some(LatticeValue::Const(ConstValue::Int(7)))
         );
         assert_eq!(
-            resolve_simple_var_ref("${x}", &uses, &values, &ssa),
+            resolve_simple_var_ref(
+                "${x}",
+                &uses,
+                &values,
+                &ssa,
+                Some(tcl_lexer::LexerConfig::default())
+            ),
             Some(LatticeValue::Const(ConstValue::Int(7)))
         );
-        assert_eq!(resolve_simple_var_ref("$y", &uses, &values, &ssa), None);
-        assert_eq!(resolve_simple_var_ref("plain", &uses, &values, &ssa), None);
+        assert_eq!(
+            resolve_simple_var_ref(
+                "$y",
+                &uses,
+                &values,
+                &ssa,
+                Some(tcl_lexer::LexerConfig::default())
+            ),
+            None
+        );
+        assert_eq!(
+            resolve_simple_var_ref(
+                "plain",
+                &uses,
+                &values,
+                &ssa,
+                Some(tcl_lexer::LexerConfig::default())
+            ),
+            None
+        );
     }
 
     // Foreach constset extraction.
@@ -5592,7 +5825,13 @@ mod tests {
         // `foreach v {1 2 3}`'s outer `{…}` is already stripped.
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "1 2 3", 1);
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_fixture_def(
+            &stmt,
+            &HashMap::new(),
+            &ssa,
+            FoldPolicy::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         match result {
             LatticeValue::ConstSet(ref vs) => {
                 assert_eq!(vs.len(), 3);
@@ -5627,7 +5866,13 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "only", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::String("only".into()))
         );
     }
@@ -5641,7 +5886,13 @@ mod tests {
         // {"a", "b}"} instead of the two list elements.
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "{a b} {c d}", 1);
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_fixture_def(
+            &stmt,
+            &HashMap::new(),
+            &ssa,
+            FoldPolicy::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         match result {
             LatticeValue::ConstSet(ref vs) => {
                 assert_eq!(vs.len(), 2);
@@ -5664,7 +5915,13 @@ mod tests {
             (lst, 1),
             LatticeValue::Const(ConstValue::String("a b c".into())),
         );
-        let result = evaluate_def(&stmt, &values, &ssa, FoldPolicy::default());
+        let result = evaluate_fixture_def(
+            &stmt,
+            &values,
+            &ssa,
+            FoldPolicy::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         match result {
             LatticeValue::ConstSet(ref vs) => assert_eq!(vs.len(), 3),
             other => panic!("expected ConstSet, got {other:?}"),
@@ -5678,7 +5935,13 @@ mod tests {
         let lst = ssa.intern_var("lst");
         stmt.uses.insert(lst, 1);
         // Empty lattice — var not bound.
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_fixture_def(
+            &stmt,
+            &HashMap::new(),
+            &ssa,
+            FoldPolicy::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
@@ -5691,7 +5954,13 @@ mod tests {
             panic!();
         };
         defs.push("w".into());
-        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        let result = evaluate_fixture_def(
+            &stmt,
+            &HashMap::new(),
+            &ssa,
+            FoldPolicy::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
@@ -5723,7 +5992,13 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "hello", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
     }
@@ -5733,7 +6008,13 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "42", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(42))
         );
     }
@@ -5747,7 +6028,13 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Const(ConstValue::Int(7))
         );
     }
@@ -5799,7 +6086,7 @@ mod tests {
         registry: &CommandRegistry,
         mutations: &crate::command_binding::ModuleCommandMutations,
     ) -> LatticeValue {
-        evaluate_def_with_folds(
+        evaluate_fixture_def_with_folds(
             stmt,
             &HashMap::new(),
             ssa,
@@ -5814,6 +6101,7 @@ mod tests {
                 trust: FoldTrust::WholeModule,
                 proven_pure_parameters: false,
             }),
+            tcl_lexer::LexerConfig::default(),
         )
     }
 
@@ -5875,7 +6163,7 @@ mod tests {
         registry: &CommandRegistry,
         mutations: &crate::command_binding::ModuleCommandMutations,
     ) -> LatticeValue {
-        evaluate_def_with_folds(
+        evaluate_fixture_def_with_folds(
             stmt,
             &HashMap::new(),
             ssa,
@@ -5890,6 +6178,7 @@ mod tests {
                 trust: FoldTrust::ObservedBindings,
                 proven_pure_parameters: false,
             }),
+            tcl_lexer::LexerConfig::default(),
         )
     }
 
@@ -6148,7 +6437,13 @@ p
             LatticeValue::Const(ConstValue::String("beta".into())),
         );
         assert_eq!(
-            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined
         );
     }
@@ -6299,7 +6594,13 @@ p
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "[nonexistent_fold args]", 1);
         assert_eq!(
-            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            evaluate_fixture_def(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::default(),
+                tcl_lexer::LexerConfig::default()
+            ),
             LatticeValue::Overdefined
         );
     }

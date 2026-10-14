@@ -3044,7 +3044,7 @@ unit-level lattice evaluates.
 - `rust/tcl-registry/src/hooks.rs`, `return_type.rs` — `ReturnTypeHookId` and the intrep-guaranteeing return-type algorithms
 - `rust/tcl-registry/src/literal_validation.rs` — `LiteralArgumentValidator`, the validation pattern
 - `rust/tcl-registry/src/bpf_op.rs`, `commands/bpf/loop_.rs` — `BpfOpSpec`, the BPF descriptor
-- `rust/tcl-compiler/src/sccp.rs` — the transfer function, `evaluate_def_with_folds`, `evaluate_branch`, `ExistenceRun`, `existence_refinements`, `enumerate_loops`, `start_state`, `catch_body_answer`, `parse_literal_value`, `TraceInputs`
+- `rust/tcl-compiler/src/sccp.rs` — the purpose-aware solver projections `execution_value_facts` / `semantic_value_facts`, typed `evaluate_defs_under` / `evaluate_def_dispatch` and their `LatticeDriver`, `evaluate_branch`, `ExistenceRun`, `existence_refinements`, `enumerate_loops`, `start_state`, `catch_body_answer`, `parse_literal_value`, `TraceInputs`
 - `rust/tcl-compiler/src/const_subst.rs` — `ConstSubstCtx`, `ResolvedConstSubst` and its `command_bindings`
 - `rust/tcl-compiler/src/analyses.rs` — `LatticeValue`, `ConstValue`, `MAX_CONSTSET_SIZE`
 - `rust/tcl-compiler/src/command_binding.rs` — `ModuleCommandMutations`, `CommandTrustSnapshot`, binding validity

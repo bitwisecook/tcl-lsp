@@ -9911,6 +9911,51 @@ p\uD801 ordinary";
     fn callback_arity_unavailable_package_descriptors_do_not_select_local_headers() {
         // naming.database.original-project-callback-projection
         // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
+        let available = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let commands = Arc::clone(available.commands());
+        let available = Arc::new(available.with_command_store(Arc::clone(&commands)));
+        let unavailable = Arc::new(
+            tcl_registry::model::ingress::static_context_for("f5-iapps")
+                .with_command_store(Arc::clone(&commands)),
+        );
+        assert!(Arc::ptr_eq(available.commands(), unavailable.commands()));
+        for command in [
+            "smtp::sendmessage",
+            "mime::getbody",
+            "struct::graph",
+            "struct::tree",
+        ] {
+            assert!(
+                available
+                    .context()
+                    .resolve_spec(&commands, command)
+                    .is_some()
+            );
+            assert!(
+                unavailable
+                    .context()
+                    .resolve_spec(&commands, command)
+                    .is_none()
+            );
+        }
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let input = |context| {
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config)
+        };
+        let analyse = |source: &str, context| {
+            tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input(context))
+                .analyse(source, "tcl9.0")
+        };
+        let db = TclDatabase::default();
+        let project = Project::new(&db, Vec::new());
+        let diagnostics_for = |source: &str, analysis: &AnalysisResult| {
+            project_callback_diagnostics_for_analysis(&db, project, source, analysis, |_| false)
+                .into_iter()
+                .map(|diagnostic| (diagnostic.code.as_str().to_owned(), diagnostic.message))
+                .collect::<Vec<_>>()
+        };
         for source in [
             "proc cb {} {}; scale .s -command cb",
             "proc cb {x y} {}; math::calculus::integral 0 1 100 cb",
@@ -9924,12 +9969,103 @@ p\uD801 ordinary";
             "package require struct::graph; proc cb {x y} {}; struct::graph g; g walk root -command ::cb",
             "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb",
         ] {
-            let diagnostics = callback_arity_codes(source);
+            let analysis = analyse(source, Arc::clone(&unavailable));
+            let supplied = input(Arc::clone(&unavailable));
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&supplied));
+            assert!(
+                analysis
+                    .retained_command_realm()
+                    .unwrap()
+                    .matches_resolved_analysis_input(&supplied)
+            );
+            assert!(
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                )
+            );
+            assert!(
+                analysis
+                    .original_procedure_declarations()
+                    .any(|declaration| declaration.metadata().qualified_name == "::cb")
+            );
+            let control_source = format!(
+                "proc availability_control {{x}} {{}}; lsort -command ::availability_control {{2 1}}; {source}"
+            );
+            let control = analyse(&control_source, Arc::clone(&unavailable));
+            assert!(control.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&control_source),
+                config
+            ));
+            let control_diagnostics = project_callback_diagnostics_for_analysis(
+                &db,
+                project,
+                &control_source,
+                &control,
+                |_| false,
+            );
+            assert!(
+                control_diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code == DiagCode::E003
+                        && diagnostic.callback_source_arity().is_some_and(|subject| {
+                            subject.prefix().name_input().bytes() == b"::availability_control"
+                                && subject.source_lookup().is_some()
+                        })
+                }),
+                "{control_source}"
+            );
+            let diagnostics = diagnostics_for(source, &analysis);
             assert!(
                 !diagnostics
                     .iter()
                     .any(|(code, _)| code == "E002" || code == "E003"),
                 "{source}: {diagnostics:?}"
+            );
+        }
+        for source in [
+            "package require smtp; proc cb {x} {}; smtp::sendmessage $t -tlspolicy ::cb",
+            "package require mime; proc cb {} {}; mime::getbody $t -command ::cb",
+            "package require struct::graph; proc cb {x y} {}; struct::graph g; g walk root -command ::cb",
+            "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb",
+        ] {
+            let analysis = analyse(source, Arc::clone(&available));
+            let diagnostics = diagnostics_for(source, &analysis);
+            assert!(
+                diagnostics.iter().any(|(code, _)| code == "E003"),
+                "{source}: {diagnostics:?}"
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(
+                !diagnostics_for(source, &missing)
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003")
+            );
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = Some(input(Arc::clone(&unavailable)));
+            assert!(
+                !diagnostics_for(source, &foreign)
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003")
+            );
+            let foreign_store = Arc::new(available.with_command_store(Arc::new(
+                tcl_registry::CommandRegistry::build_default().project_for_profile(profile),
+            )));
+            assert!(
+                foreign_store.commands().snapshot().semantic_key()
+                    != commands.snapshot().semantic_key()
+            );
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = Some(input(foreign_store));
+            assert!(
+                !diagnostics_for(source, &foreign)
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003")
+            );
+            assert!(
+                !diagnostics_for(&format!("{source}\nputs OTHER"), &analysis)
+                    .iter()
+                    .any(|(code, _)| code == "E002" || code == "E003")
             );
         }
     }

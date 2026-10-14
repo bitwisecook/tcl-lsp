@@ -796,6 +796,67 @@ pub(crate) fn original_logical_operation_invocation_with_metadata_context(
         .or_else(|| original_declared_structured_invocation(registry, context, tokens))
 }
 
+/// Conditional completion of the exact original Native source schema.
+/// This supplies analysis topology only, without a reached handler or Normal result.
+pub(crate) fn original_native_source_conditional_completion(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<tcl_registry::completion_route::InvocationCompletionRoute> {
+    let input = context.source_analysis_input()?;
+    if input.has_logical_source_name_context()
+        || input.has_hosted_source_name_context()
+        || !context.matches_registry(registry)
+        || tokens.synthetic.is_some()
+    {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let context = binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    if config.normalized() != input.lexer_config().normalized() {
+        return None;
+    }
+    if binding.has_original_native_source_command() {
+        let words = binding.original_native_source_words(tokens, input, registry)?;
+        let dialect = words.dialect()?;
+        let arguments = words
+            .arguments()
+            .iter()
+            .map(|word| {
+                word.literal_bytes()
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    .map(tcl_registry::InvocationWord::Literal)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return words.with_source_schema(input.borrowed_context_registry(), |schema| {
+            (schema.facts().arity_accepts_frozen_arguments() == Some(true)).then_some(())?;
+            registry.invocation_completion_route(
+                schema.descriptor_key().label(),
+                tcl_registry::InvocationArguments::structured(&arguments).with_dialect(dialect),
+                Some(context.context().authoring_query()),
+            )
+        })?;
+    }
+    let advice = binding
+        .declaration_operand_layout_advice(tokens)
+        .or_else(|| binding.original_compilation_lookup_advice(tokens))?;
+    if advice.has_unclosed_source_coverage() {
+        return None;
+    }
+    let selected = resolve_original_source_layout(registry, Some(context), tokens, &advice)?;
+    selected.dialect?;
+    if selected.facts.arity_accepts_frozen_arguments() != Some(true)
+        || selected
+            .evaluated_words
+            .iter()
+            .any(|word| word.literal_bytes().is_none())
+    {
+        return None;
+    }
+    Some(selected.completion_route(registry))
+}
+
 /// Conditional variable destinations and aliases of the exact Logical source.
 /// This is a readonly MAY footprint, without Native entry or completed stores.
 pub(crate) fn original_logical_variable_footprint_with_metadata_context(

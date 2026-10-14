@@ -8892,7 +8892,7 @@ mod tests {
                 .source_reference_lexer_config(),
             None
         );
-        let unprofiled = CommandRegistry::default();
+        let unprofiled = CommandRegistry::build_default();
         let absent = LatticeDriver::new(
             TraceInputs {
                 source_metadata_input: None,

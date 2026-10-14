@@ -1,0 +1,1 @@
+Seven production test artifacts compile; authored source drift zero. Zero tests execute in this build receipt. The preceding189 test-only API errors are repaired without assertion changes. Semantic and full Native/provider validation remain separate.

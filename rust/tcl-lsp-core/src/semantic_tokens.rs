@@ -4806,13 +4806,20 @@ fn collect_entries(
         FxHashSet::default()
     };
 
-    // Object-handle → class provenance (`set chart [ticklecharts::chart new]`
-    // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
-    // options through the registry.  Empty without a
-    // `CompilationUnit` or when the document creates no tracked object handles.
-    let mut object_classes: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
-        tcl_compiler::object_types::object_handle_classes(cu, registry)
-    });
+    // Source candidates retain the same complete analysis/Module inputs as
+    // their shared producer. Native lookup retains its independent reader.
+    let mut object_classes: ObjectClassMap = if lexical {
+        cu.and_then(|cu| {
+            tcl_compiler::object_types::logical_source_object_handle_classes(
+                cu, registry, analysis?,
+            )
+        })
+        .unwrap_or_default()
+    } else {
+        cu.map_or_else(ObjectClassMap::default, |cu| {
+            tcl_compiler::object_types::object_handle_classes(cu, registry)
+        })
+    };
 
     // Logical object classification shares this compatibility handle map.
     // Native source roles never recover receiver identity from its labels.
@@ -10774,6 +10781,33 @@ mod configured_semantic_receiver_tests {
         for line in [3, 4, 5, 9] {
             assert!(!lines.contains(&line), "{line}: {lines:?}");
         }
+    }
+
+    #[test]
+    fn logical_method_colours_use_the_current_source_object_candidate_producer() {
+        let source = "oo::class create C {method m {} {}}\nset object [C new]\n$object m";
+        let analysis = analyse(source, tcl_lexer::LexerConfig::default(), false);
+        let registry = analysis.resolved_registry().unwrap();
+        let unit = crate::original_invocation::source_compilation_unit(source, &analysis, registry)
+            .unwrap();
+        let colours = |unit: &CompilationUnit| {
+            super::tests::decode_semantic(&full_with_cu_and_analysis(
+                source,
+                analysis.resolved_profile().unwrap(),
+                registry,
+                Some(unit),
+                Some(&analysis),
+            ))
+            .into_iter()
+            .any(|(line, _, _, kind, _)| line == 2 && kind == TokenKind::Method as u32)
+        };
+        assert!(colours(&unit));
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        assert!(!colours(&missing));
+        let mut changed = unit.clone();
+        changed.source.push(' ');
+        assert!(!colours(&changed));
     }
 
     #[test]

@@ -1,0 +1,511 @@
+{
+  "started": {
+    "utc": "2026-10-14T22:18:19.424987+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "xtask",
+      "-p",
+      "tcl-syntax",
+      "-p",
+      "bpf-tcl-ir",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "--bin",
+      "xtask"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "Production affected-consumer preflight after all temporary diagnostic source restoration and reviewed current shared reference, semantic-token, conditional completion and hidden-invocation consumer migrations. Seven test artifacts only, zero tests executed here. Authored source subset only, not full Native/provider closure."
+  },
+  "finished_utc": "2026-10-14T22:23:04.909615+00:00",
+  "exit_code": 101,
+  "seconds": 285.4844641309901,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [
+    {
+      "rendered": "error[E0061]: this function takes 3 arguments but 2 arguments were supplied\n    --> rust/tcl-compiler/src/object_types.rs:3676:23\n     |\n3676 |         let current = returning_proc_candidates(&unit, registry);\n     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^----------------- argument #3 of type `std::option::Option<&analyser::types::AnalysisResult>` is missing\n     |\nnote: function defined here\n    --> rust/tcl-compiler/src/object_types.rs:1059:4\n     |\n1059 | fn returning_proc_candidates<'a>(\n     |    ^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n1062 |     source_analysis: Option<&crate::analyser::AnalysisResult>,\n     |     ---------------------------------------------------------\nhelp: provide the argument\n     |\n3676 |         let current = returning_proc_candidates(&unit, registry, /* Option<&AnalysisResult> */);\n     |                                                                +++++++++++++++++++++++++++++++\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "function defined here",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 43836,
+              "byte_start": 43779,
+              "column_end": 62,
+              "column_start": 5,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/object_types.rs",
+              "is_primary": false,
+              "label": "",
+              "line_end": 1062,
+              "line_start": 1062,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 62,
+                  "highlight_start": 5,
+                  "text": "    source_analysis: Option<&crate::analyser::AnalysisResult>,"
+                }
+              ]
+            },
+            {
+              "byte_end": 43708,
+              "byte_start": 43683,
+              "column_end": 29,
+              "column_start": 4,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/object_types.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 1059,
+              "line_start": 1059,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 29,
+                  "highlight_start": 4,
+                  "text": "fn returning_proc_candidates<'a>("
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "provide the argument",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 149672,
+              "byte_start": 149655,
+              "column_end": 65,
+              "column_start": 48,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/object_types.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 3676,
+              "line_start": 3676,
+              "suggested_replacement": "(&unit, registry, /* Option<&AnalysisResult> */)",
+              "suggestion_applicability": "HasPlaceholders",
+              "text": [
+                {
+                  "highlight_end": 65,
+                  "highlight_start": 48,
+                  "text": "        let current = returning_proc_candidates(&unit, registry);"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "this function takes 3 arguments but 2 arguments were supplied",
+      "spans": [
+        {
+          "byte_end": 149672,
+          "byte_start": 149655,
+          "column_end": 65,
+          "column_start": 48,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types.rs",
+          "is_primary": false,
+          "label": "argument #3 of type `std::option::Option<&analyser::types::AnalysisResult>` is missing",
+          "line_end": 3676,
+          "line_start": 3676,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 65,
+              "highlight_start": 48,
+              "text": "        let current = returning_proc_candidates(&unit, registry);"
+            }
+          ]
+        },
+        {
+          "byte_end": 149655,
+          "byte_start": 149630,
+          "column_end": 48,
+          "column_start": 23,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 3676,
+          "line_start": 3676,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 48,
+              "highlight_start": 23,
+              "text": "        let current = returning_proc_candidates(&unit, registry);"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0061",
+        "explanation": "An invalid number of arguments was passed when calling a function.\n\nErroneous code example:\n\n```compile_fail,E0061\nfn f(u: i32) {}\n\nf(); // error!\n```\n\nThe number of arguments passed to a function must match the number of arguments\nspecified in the function signature.\n\nFor example, a function like:\n\n```\nfn f(a: u16, b: &str) {}\n```\n\nMust always be called with exactly two arguments, e.g., `f(2, \"test\")`.\n\nNote that Rust does not have a notion of optional function arguments or\nvariadic functions (except for its C-FFI).\n"
+      }
+    },
+    {
+      "rendered": "error[E0061]: this function takes 3 arguments but 2 arguments were supplied\n    --> rust/tcl-compiler/src/object_types.rs:3727:21\n     |\n3727 |             assert!(returning_proc_candidates(&unit, registry).is_empty());\n     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^----------------- argument #3 of type `std::option::Option<&analyser::types::AnalysisResult>` is missing\n     |\nnote: function defined here\n    --> rust/tcl-compiler/src/object_types.rs:1059:4\n     |\n1059 | fn returning_proc_candidates<'a>(\n     |    ^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n1062 |     source_analysis: Option<&crate::analyser::AnalysisResult>,\n     |     ---------------------------------------------------------\nhelp: provide the argument\n     |\n3727 |             assert!(returning_proc_candidates(&unit, registry, /* Option<&AnalysisResult> */).is_empty());\n     |                                                              +++++++++++++++++++++++++++++++\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "function defined here",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 43836,
+              "byte_start": 43779,
+              "column_end": 62,
+              "column_start": 5,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/object_types.rs",
+              "is_primary": false,
+              "label": "",
+              "line_end": 1062,
+              "line_start": 1062,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 62,
+                  "highlight_start": 5,
+                  "text": "    source_analysis: Option<&crate::analyser::AnalysisResult>,"
+                }
+              ]
+            },
+            {
+              "byte_end": 43708,
+              "byte_start": 43683,
+              "column_end": 29,
+              "column_start": 4,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/object_types.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 1059,
+              "line_start": 1059,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 29,
+                  "highlight_start": 4,
+                  "text": "fn returning_proc_candidates<'a>("
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "provide the argument",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 151447,
+              "byte_start": 151430,
+              "column_end": 63,
+              "column_start": 46,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/object_types.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 3727,
+              "line_start": 3727,
+              "suggested_replacement": "(&unit, registry, /* Option<&AnalysisResult> */)",
+              "suggestion_applicability": "HasPlaceholders",
+              "text": [
+                {
+                  "highlight_end": 63,
+                  "highlight_start": 46,
+                  "text": "            assert!(returning_proc_candidates(&unit, registry).is_empty());"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "this function takes 3 arguments but 2 arguments were supplied",
+      "spans": [
+        {
+          "byte_end": 151447,
+          "byte_start": 151430,
+          "column_end": 63,
+          "column_start": 46,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types.rs",
+          "is_primary": false,
+          "label": "argument #3 of type `std::option::Option<&analyser::types::AnalysisResult>` is missing",
+          "line_end": 3727,
+          "line_start": 3727,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 63,
+              "highlight_start": 46,
+              "text": "            assert!(returning_proc_candidates(&unit, registry).is_empty());"
+            }
+          ]
+        },
+        {
+          "byte_end": 151430,
+          "byte_start": 151405,
+          "column_end": 46,
+          "column_start": 21,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 3727,
+          "line_start": 3727,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 46,
+              "highlight_start": 21,
+              "text": "            assert!(returning_proc_candidates(&unit, registry).is_empty());"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0061",
+        "explanation": "An invalid number of arguments was passed when calling a function.\n\nErroneous code example:\n\n```compile_fail,E0061\nfn f(u: i32) {}\n\nf(); // error!\n```\n\nThe number of arguments passed to a function must match the number of arguments\nspecified in the function signature.\n\nFor example, a function like:\n\n```\nfn f(a: u16, b: &str) {}\n```\n\nMust always be called with exactly two arguments, e.g., `f(2, \"test\")`.\n\nNote that Rust does not have a notion of optional function arguments or\nvariadic functions (except for its C-FFI).\n"
+      }
+    },
+    {
+      "rendered": "error[E0599]: no associated function or constant named `default` found for struct `tcl_registry::CommandRegistry` in the current scope\n    --> rust/tcl-compiler/src/value_transfer.rs:8895:43\n     |\n8895 |         let unprofiled = CommandRegistry::default();\n     |                                           ^^^^^^^ associated function or constant not found in `tcl_registry::CommandRegistry`\n     |\nnote: if you're trying to build a new `tcl_registry::CommandRegistry`, consider using `tcl_registry::CommandRegistry::build_default` which returns `tcl_registry::CommandRegistry`\n    --> rust/tcl-registry/src/registry.rs:1894:5\n     |\n1894 |     pub fn build_default() -> Self {\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nhelp: there is an associated function `build_default` with a similar name\n     |\n8895 |         let unprofiled = CommandRegistry::build_default();\n     |                                           ++++++\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "if you're trying to build a new `tcl_registry::CommandRegistry`, consider using `tcl_registry::CommandRegistry::build_default` which returns `tcl_registry::CommandRegistry`",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 77507,
+              "byte_start": 77477,
+              "column_end": 35,
+              "column_start": 5,
+              "expansion": null,
+              "file_name": "rust/tcl-registry/src/registry.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 1894,
+              "line_start": 1894,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 35,
+                  "highlight_start": 5,
+                  "text": "    pub fn build_default() -> Self {"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "there is an associated function `build_default` with a similar name",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 366427,
+              "byte_start": 366420,
+              "column_end": 50,
+              "column_start": 43,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/value_transfer.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 8895,
+              "line_start": 8895,
+              "suggested_replacement": "build_default",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 50,
+                  "highlight_start": 43,
+                  "text": "        let unprofiled = CommandRegistry::default();"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "no associated function or constant named `default` found for struct `tcl_registry::CommandRegistry` in the current scope",
+      "spans": [
+        {
+          "byte_end": 366427,
+          "byte_start": 366420,
+          "column_end": 50,
+          "column_start": 43,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/value_transfer.rs",
+          "is_primary": true,
+          "label": "associated function or constant not found in `tcl_registry::CommandRegistry`",
+          "line_end": 8895,
+          "line_start": 8895,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 50,
+              "highlight_start": 43,
+              "text": "        let unprofiled = CommandRegistry::default();"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0599",
+        "explanation": "This error occurs when a method is used on a type which doesn't implement it:\n\nErroneous code example:\n\n```compile_fail,E0599\nstruct Mouth;\n\nlet x = Mouth;\nx.chocolate(); // error: no method named `chocolate` found for type `Mouth`\n               //        in the current scope\n```\n\nIn this case, you need to implement the `chocolate` method to fix the error:\n\n```\nstruct Mouth;\n\nimpl Mouth {\n    fn chocolate(&self) { // We implement the `chocolate` method here.\n        println!(\"Hmmm! I love chocolate!\");\n    }\n}\n\nlet x = Mouth;\nx.chocolate(); // ok!\n```\n"
+      }
+    },
+    {
+      "rendered": "error[E0505]: cannot move out of `context` because it is borrowed\n  --> rust/tcl-compiler/src/registry_invocation/original_word_data.rs:87:10\n   |\n74 |         let context =\n   |             ------- binding `context` declared here\n...\n84 |         let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)\n   |                                                                 ------- borrow of `context` occurs here\n...\n87 |         (context, lowerer.finish_module(source))\n   |          ^^^^^^^  ------- borrow later used here\n   |          |\n   |          move out of `context` occurs here\n\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "error",
+      "message": "cannot move out of `context` because it is borrowed",
+      "spans": [
+        {
+          "byte_end": 3410,
+          "byte_start": 3403,
+          "column_end": 17,
+          "column_start": 10,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/registry_invocation/original_word_data.rs",
+          "is_primary": true,
+          "label": "move out of `context` occurs here",
+          "line_end": 87,
+          "line_start": 87,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 17,
+              "highlight_start": 10,
+              "text": "        (context, lowerer.finish_module(source))"
+            }
+          ]
+        },
+        {
+          "byte_end": 3292,
+          "byte_start": 3285,
+          "column_end": 72,
+          "column_start": 65,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/registry_invocation/original_word_data.rs",
+          "is_primary": false,
+          "label": "borrow of `context` occurs here",
+          "line_end": 84,
+          "line_start": 84,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 72,
+              "highlight_start": 65,
+              "text": "        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)"
+            }
+          ]
+        },
+        {
+          "byte_end": 2791,
+          "byte_start": 2784,
+          "column_end": 20,
+          "column_start": 13,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/registry_invocation/original_word_data.rs",
+          "is_primary": false,
+          "label": "binding `context` declared here",
+          "line_end": 74,
+          "line_start": 74,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 20,
+              "highlight_start": 13,
+              "text": "        let context ="
+            }
+          ]
+        },
+        {
+          "byte_end": 3419,
+          "byte_start": 3412,
+          "column_end": 26,
+          "column_start": 19,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/registry_invocation/original_word_data.rs",
+          "is_primary": false,
+          "label": "borrow later used here",
+          "line_end": 87,
+          "line_start": 87,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 26,
+              "highlight_start": 19,
+              "text": "        (context, lowerer.finish_module(source))"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0505",
+        "explanation": "A value was moved out while it was still borrowed.\n\nErroneous code example:\n\n```compile_fail,E0505\nstruct Value {}\n\nfn borrow(val: &Value) {}\n\nfn eat(val: Value) {}\n\nfn main() {\n    let x = Value{};\n    let _ref_to_val: &Value = &x;\n    eat(x);\n    borrow(_ref_to_val);\n}\n```\n\nHere, the function `eat` takes ownership of `x`. However,\n`x` cannot be moved because the borrow to `_ref_to_val`\nneeds to last till the function `borrow`.\nTo fix that you can do a few different things:\n\n* Try to avoid moving the variable.\n* Release borrow before move.\n* Implement the `Copy` trait on the type.\n\nExamples:\n\n```\nstruct Value {}\n\nfn borrow(val: &Value) {}\n\nfn eat(val: &Value) {}\n\nfn main() {\n    let x = Value{};\n\n    let ref_to_val: &Value = &x;\n    eat(&x); // pass by reference, if it's possible\n    borrow(ref_to_val);\n}\n```\n\nOr:\n\n```\nstruct Value {}\n\nfn borrow(val: &Value) {}\n\nfn eat(val: Value) {}\n\nfn main() {\n    let x = Value{};\n\n    let ref_to_val: &Value = &x;\n    borrow(ref_to_val);\n    // ref_to_val is no longer used.\n    eat(x);\n}\n```\n\nOr:\n\n```\n#[derive(Clone, Copy)] // implement Copy trait\nstruct Value {}\n\nfn borrow(val: &Value) {}\n\nfn eat(val: Value) {}\n\nfn main() {\n    let x = Value{};\n    let ref_to_val: &Value = &x;\n    eat(x); // it will be copied here.\n    borrow(ref_to_val);\n}\n```\n\nFor more information on Rust's ownership system, take a look at the\n[References & Borrowing][references-and-borrowing] section of the Book.\n\n[references-and-borrowing]: https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html\n"
+      }
+    }
+  ],
+  "test_artifacts": [
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-21137d634222e84e",
+      "sha256": "d2d1dbdb3b90c46cf2cd6df60093abde8bf2870e7c4dae3382ec2e97a350e6fc"
+    }
+  ]
+}

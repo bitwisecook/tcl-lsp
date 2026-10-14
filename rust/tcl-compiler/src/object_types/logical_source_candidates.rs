@@ -124,6 +124,44 @@ fn definition_receiver_is_current(
     })
 }
 
+pub(super) fn logical_source_unit_input<'a>(
+    analysis: &'a AnalysisResult,
+    unit: &CompilationUnit,
+    registry: &CommandRegistry,
+) -> Option<(
+    &'a ResolvedAnalysisInput,
+    &'a Arc<crate::realm::CommandBindingRealm>,
+    &'a SourceImage,
+)> {
+    let input = analysis.resolved_input.as_ref()?;
+    let realm = analysis.retained_command_realm_arc()?;
+    let image = realm.original_source_image()?;
+    let module = &unit.ir_module;
+    if !analysis.allows_retained_logical_declaration_advice()
+        || !input.has_logical_source_name_context()
+        || !realm.matches_resolved_analysis_input(input)
+        || image.try_text().ok() != Some(unit.source.as_str())
+        || &module.source != image
+        || module.source_metadata_input.as_ref() != Some(input)
+        || module.native_lexer_config() != input.lexer_config()
+        || module.source_entry.native_entry.is_some()
+        || module.source_entry.unknown_entry
+        || module
+            .retained_source_bindings
+            .as_ref()
+            .is_none_or(|held| !held.matches_module(module, registry))
+        || registry.snapshot().semantic_key()
+            != input
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+    {
+        return None;
+    }
+    Some((input, realm, image))
+}
+
 impl ObjectHandleFacts {
     pub(crate) fn retain_logical_source_candidates(
         &mut self,
@@ -132,38 +170,11 @@ impl ObjectHandleFacts {
         registry: &CommandRegistry,
     ) {
         self.logical_source_candidates = None;
-        let Some(input) = analysis.resolved_input.as_ref() else {
-            return;
-        };
-        let Some(realm) = analysis.retained_command_realm_arc() else {
-            return;
-        };
-        let Some(image) = realm.original_source_image() else {
+        let Some((input, realm, image)) = logical_source_unit_input(analysis, unit, registry)
+        else {
             return;
         };
         let module = &unit.ir_module;
-        if !analysis.allows_retained_logical_declaration_advice()
-            || !input.has_logical_source_name_context()
-            || !realm.matches_resolved_analysis_input(input)
-            || image.try_text().ok() != Some(unit.source.as_str())
-            || &module.source != image
-            || module.source_metadata_input.as_ref() != Some(input)
-            || module.native_lexer_config() != input.lexer_config()
-            || module.source_entry.native_entry.is_some()
-            || module.source_entry.unknown_entry
-            || module
-                .retained_source_bindings
-                .as_ref()
-                .is_none_or(|held| !held.matches_module(module, registry))
-            || registry.snapshot().semantic_key()
-                != input
-                    .borrowed_context_registry()
-                    .commands()
-                    .snapshot()
-                    .semantic_key()
-        {
-            return;
-        }
         let frames = unit
             .all_body_function_units()
             .filter_map(|function| {
