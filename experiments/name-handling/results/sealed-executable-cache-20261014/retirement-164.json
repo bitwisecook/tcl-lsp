@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-14T20:39:41.104481+00:00",
+  "scope": "Only sealed VM159 and Source158/CLI163 executable caches retired to make space; retained source, build/test logs, result hashes, dependency metadata, providers and libraries unchanged. No capture active.",
+  "executables": [
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+      "bytes": 233380648,
+      "sha256": "2a9e9904c77c7809613de750dcb734f94fb879302d11cded0d1fa036b8f77762"
+    },
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/xtask-943d0c5a54718e28",
+      "bytes": 243961200,
+      "sha256": "4045c3b07dbbba77d77a76578f5bebb61dc825c6436d2d11215eec17e7237f3f"
+    },
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+      "bytes": 128845464,
+      "sha256": "8350f85aa2e331cb07662dfe35e72bdcc43da61c7692cc4db99b55d0c9eac745"
+    },
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/cross_interp_alias_e2e-e54172b0a2068070",
+      "bytes": 111408912,
+      "sha256": "d868abb68f1093e7fa61972b16c09942e7fdfcc9272a7813d99f4bd12faa4b96"
+    },
+    {
+      "path": "target/name-runtime-stock-capture-20261014/debug/deps/native_compilation_conformance-b226288777165932",
+      "bytes": 112021624,
+      "sha256": "b6a5f369df31af6995fb6ae4fff2702ea4e5205b40410cbb472f6d0607ac4fa2"
+    }
+  ]
+}

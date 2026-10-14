@@ -10775,8 +10775,11 @@ Native receiver, method dispatch or editing permission.
 `original_authored_scalar_invocation` joins the genuine Standalone declaration
 layout and current source-body scope for bounded Set/Return grammar. It requires
 the unchanged vector/store, matching namespace/descriptor/roles and Local source
-model without execution, aliases or traces. Typed source lowering does not mint a
-cell, SSA version or Normal result. Native children instead use
+model without execution, aliases or traces. A retained lookup policy remains
+authoritative. If the genuine source scope has no selected policy,
+`source_variable_name_is_frame_local_for_all_policies` requires local geometry
+under both C and Jim policies; it does not choose a runtime policy or frame.
+Typed source lowering does not mint a cell, SSA version or Normal result. Native children instead use
 `original_native_source_syntax_offset` for held tape/input/attachment/vector
 geometry; unknown handler schema remains unknown after a syntax offset is known.
 

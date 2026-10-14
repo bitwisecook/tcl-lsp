@@ -77,6 +77,24 @@ impl AuthoredSourceStructuredInvocation {
     pub(crate) fn facts(&self) -> &InvocationFacts {
         &self.invocation.facts
     }
+    pub(crate) fn direct_written_arguments(&self) -> bool {
+        self.invocation.effective.origins.len() == self.invocation.effective.words.len()
+            && self.invocation.effective.origins.len()
+                == self
+                    .invocation
+                    .arguments
+                    .len()
+                    .checked_add(1)
+                    .unwrap_or(usize::MAX)
+            && self
+                .invocation
+                .effective
+                .origins
+                .iter()
+                .enumerate()
+                .skip(1)
+                .all(|(index, origin)| *origin == super::InvocationWordOrigin::Written(index))
+    }
     pub(crate) fn argument_literal(&self, argument: usize) -> Option<String> {
         self.invocation.argument_literal(argument)
     }

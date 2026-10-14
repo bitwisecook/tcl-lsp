@@ -8517,8 +8517,8 @@ _original_unknown $cmd $args";
         //   info class methods ::L1  ->            ;  [L1 new] m -> unknown method
         //   oo::class create L2 { method m {} {…}; unexport m; export m }
         //   info class methods ::L2  -> m          ;  [L2 new] m -> 1
-        // Every spelling that writes the sets is covered: unwrapped (which had
-        // the same double-entry bug before this change) and `private`-scoped.
+        // Both unwrapped and `private`-scoped writers must leave each name
+        // in exactly the set selected by its last explicit visibility operation.
         for (body, last, want_vis) in [
             ("export m\nunexport m", "unexports", "unexported"),
             ("unexport m\nexport m", "exports", "public"),

@@ -1475,7 +1475,7 @@ pub struct ClassDef {
     pub qualified_name: String,
     /// Source span of the name token.
     pub name_span: Span,
-    /// Source span of the class body (braces excluded).
+    /// Class body span retained by its declaration producer.
     pub body_span: Span,
     /// Metaclass — one of ``"oo::class"`` / ``"oo::configurable"``
     /// / ``"oo::abstract"`` / ``"oo::singleton"``.  Defaults to

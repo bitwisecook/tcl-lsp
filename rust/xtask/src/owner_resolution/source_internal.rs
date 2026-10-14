@@ -477,7 +477,7 @@ impl CrateModules {
             return false;
         };
         if candidates.next().is_some()
-            || !super::type_attrs_are_plain(&item.attrs)
+            || !source_type_attrs_preserve_routes(&item.attrs)
             || !supported_generics(&item.generics)
             || item.variants.iter().any(|variant| {
                 !source_attrs_preserve_routes(&variant.attrs)
@@ -506,16 +506,18 @@ impl CrateModules {
     }
 
     fn check_row(&self, row: &Row) -> bool {
-        if !matches!(row.route.as_str(), "static" | "type" | "self")
-            && ![
-                "parameter:",
-                "producer:",
-                "field:self.",
-                "producer-field:",
-                "parameter-field:",
-            ]
-            .iter()
-            .any(|prefix| row.route.starts_with(prefix))
+        if !matches!(
+            row.route.as_str(),
+            "static" | "type" | "signature-type" | "self"
+        ) && ![
+            "parameter:",
+            "producer:",
+            "field:self.",
+            "producer-field:",
+            "parameter-field:",
+        ]
+        .iter()
+        .any(|prefix| row.route.starts_with(prefix))
         {
             return false;
         }
@@ -531,7 +533,7 @@ impl CrateModules {
         {
             return false;
         }
-        if !matches!(row.route.as_str(), "static" | "type")
+        if !matches!(row.route.as_str(), "static" | "type" | "signature-type")
             && owner
                 .signature
                 .is_none_or(|signature| signature.receiver().is_none())
@@ -601,6 +603,30 @@ impl CrateModules {
             }
             None => format!("{}::{}", row.module, row.entry),
         };
+        if row.route == "signature-type" {
+            if owner.signature.is_some()
+                || owner.owner_type.is_some()
+                || signature.inputs.iter().any(|argument| match argument {
+                    syn::FnArg::Typed(argument) => !super::route_attrs_are_plain(&argument.attrs),
+                    syn::FnArg::Receiver(argument) => {
+                        !super::route_attrs_are_plain(&argument.attrs)
+                    }
+                })
+            {
+                return false;
+            }
+            // This route records only an explicit declaration type occurrence.
+            // Function body syntax supplies no value/receiver coverage here.
+            let mut references = EnumFieldTypeReferences {
+                modules: self,
+                module: &row.consumer_module,
+                target,
+                matched: false,
+                invalid: false,
+            };
+            references.visit_signature(signature);
+            return references.matched && !references.invalid;
+        }
         let mut calls = ConsumerReferences {
             modules: self,
             row,
@@ -608,6 +634,7 @@ impl CrateModules {
             consumer,
             locals: BTreeMap::new(),
             shadowed: BTreeSet::new(),
+            type_import_shadows: BTreeSet::new(),
             matched: false,
             invalid: false,
         };
@@ -701,6 +728,15 @@ fn source_attrs_preserve_routes(attributes: &[syn::Attribute]) -> bool {
     })
 }
 
+fn source_type_attrs_preserve_routes(attributes: &[syn::Attribute]) -> bool {
+    attributes.iter().all(|attribute| {
+        super::type_attrs_are_plain(std::slice::from_ref(attribute))
+            || ["allow", "warn", "deny", "forbid", "expect"]
+                .iter()
+                .any(|name| attribute.path().is_ident(name))
+    })
+}
+
 fn supported_path_arguments(path: &syn::Path) -> bool {
     path.segments
         .iter()
@@ -745,7 +781,7 @@ fn declaration<'a>(file: &'a syn::File, entry: &str) -> Option<Declaration<'a>> 
             syn::Item::Struct(item)
                 if owner.is_none()
                     && item.ident == name
-                    && super::type_attrs_are_plain(&item.attrs)
+                    && source_type_attrs_preserve_routes(&item.attrs)
                     && supported_generics(&item.generics) =>
             {
                 found.push(Declaration {
@@ -759,7 +795,7 @@ fn declaration<'a>(file: &'a syn::File, entry: &str) -> Option<Declaration<'a>> 
             syn::Item::Enum(item)
                 if owner.is_none()
                     && item.ident == name
-                    && super::type_attrs_are_plain(&item.attrs)
+                    && source_type_attrs_preserve_routes(&item.attrs)
                     && supported_generics(&item.generics) =>
             {
                 found.push(Declaration {
@@ -936,7 +972,7 @@ impl<'ast> Visit<'ast> for EnumFieldTypeReferences<'_> {
     }
 
     fn visit_type(&mut self, ty: &'ast syn::Type) {
-        if matches!(ty, syn::Type::Verbatim(_)) {
+        if matches!(ty, syn::Type::Macro(_) | syn::Type::Verbatim(_)) {
             self.invalid = true;
             return;
         }
@@ -966,11 +1002,58 @@ struct ConsumerReferences<'a> {
     consumer: Declaration<'a>,
     locals: BTreeMap<String, TypedReference>,
     shadowed: BTreeSet<String>,
+    type_import_shadows: BTreeSet<String>,
     matched: bool,
     invalid: bool,
 }
 
 impl ConsumerReferences<'_> {
+    fn parameter_origin_is_shadowed(&self, value: &TypedReference) -> bool {
+        let name = value.origin.strip_prefix("parameter:").or_else(|| {
+            value
+                .origin
+                .strip_prefix("parameter-field:")?
+                .split_once(':')
+                .map(|(name, _)| name)
+        });
+        let Some(name) = name else {
+            return false;
+        };
+        let Some(signature) = self.consumer.signature else {
+            return true;
+        };
+        let Some(parameter) = signature.inputs.iter().find_map(|argument| match argument {
+            syn::FnArg::Typed(parameter) if matches!(parameter.pat.as_ref(), syn::Pat::Ident(binding) if binding.ident == name) => Some(parameter),
+            _ => None,
+        }) else { return true; };
+        struct ShadowedType<'a> {
+            names: &'a BTreeSet<String>,
+            found: bool,
+        }
+        impl<'ast> Visit<'ast> for ShadowedType<'_> {
+            fn visit_type_path(&mut self, ty: &'ast syn::TypePath) {
+                if ty.path.leading_colon.is_none()
+                    && ty
+                        .path
+                        .segments
+                        .first()
+                        .is_some_and(|segment| self.names.contains(&segment.ident.to_string()))
+                {
+                    self.found = true;
+                }
+                visit::visit_type_path(self, ty);
+            }
+        }
+        // A body import cannot donate a nominal type spelling to the bounded
+        // parameter proof. Qualified declaration paths retain their own origin.
+        let mut query = ShadowedType {
+            names: &self.type_import_shadows,
+            found: false,
+        };
+        query.visit_type(&parameter.ty);
+        query.found
+    }
+
     fn clear_pattern(&mut self, pattern: &syn::Pat) {
         let Some(names) = pattern_bindings(pattern) else {
             self.invalid = true;
@@ -1130,7 +1213,7 @@ impl ConsumerReferences<'_> {
             return;
         };
         if enums.next().is_some()
-            || !super::type_attrs_are_plain(&item.attrs)
+            || !source_type_attrs_preserve_routes(&item.attrs)
             || !supported_generics(&item.generics)
             || !accessible(&item.vis, module, &self.row.consumer_module)
             || item.variants.iter().any(|variant| {
@@ -1295,7 +1378,7 @@ impl ConsumerReferences<'_> {
             .filter_map(|item| match item {
                 syn::Item::Struct(item)
                     if item.ident == owner
-                        && super::type_attrs_are_plain(&item.attrs)
+                        && source_type_attrs_preserve_routes(&item.attrs)
                         && supported_generics(&item.generics) =>
                 {
                     Some(item)
@@ -1348,10 +1431,10 @@ impl ConsumerReferences<'_> {
                     .and_then(|ty| self.modules.resolve(&self.row.consumer_module, ty, 0))?,
                 origin: "self".into(),
             }),
-            syn::Expr::Path(path) => self
-                .locals
-                .get(&path.path.get_ident()?.to_string())
-                .cloned(),
+            syn::Expr::Path(path) => {
+                let value = self.locals.get(&path.path.get_ident()?.to_string())?;
+                (!self.parameter_origin_is_shadowed(value)).then(|| value.clone())
+            }
             syn::Expr::Reference(expression) => self.expression_identity(&expression.expr),
             syn::Expr::Paren(expression) => self.expression_identity(&expression.expr),
             syn::Expr::Try(expression) => {
@@ -1734,6 +1817,7 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
     fn visit_block(&mut self, block: &'ast syn::Block) {
         let previous = self.locals.clone();
         let shadowed = self.shadowed.clone();
+        let type_import_shadows = self.type_import_shadows.clone();
         // Rust imports apply to the whole block, including calls before the use.
         for statement in &block.stmts {
             if let syn::Stmt::Item(syn::Item::Use(import)) = statement {
@@ -1746,6 +1830,7 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
                 }
                 for (name, _) in bindings {
                     self.locals.remove(&name);
+                    self.type_import_shadows.insert(name.clone());
                     self.shadowed.insert(name);
                 }
             }
@@ -1753,6 +1838,7 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
         visit::visit_block(self, block);
         self.locals = previous;
         self.shadowed = shadowed;
+        self.type_import_shadows = type_import_shadows;
     }
     fn visit_expr_macro(&mut self, _expression: &'ast syn::ExprMacro) {}
 }
@@ -2103,6 +2189,80 @@ mod tests {
             "fn consume() { #[cfg(test)] use other::Other; super::owner::Ledger::capture(); }",
         ] {
             let (modules, row) = fixture(owner, caller, "Ledger::capture", "static");
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+    }
+
+    #[test]
+    fn parameter_origins_refuse_body_type_shadows_and_restore_enclosing_scope() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn revision(&self) {} }";
+        for caller in [
+            "use super::owner::Ledger; fn consume(ledger: &Ledger) { ledger.revision(); use fake::Ledger; }",
+            "use super::owner::Ledger; fn consume(ledger: &Ledger) { use fake::Other as Ledger; let alias = ledger; alias.revision(); }",
+            "use super::owner::Ledger; fn consume(ledger: &Ledger) { let alias = ledger; { use fake::Ledger; alias.revision(); } }",
+            "use super::owner::Ledger; fn consume(ledger: &Option<Ledger>) { use fake::Ledger; let Some(current) = ledger.as_ref() else { return; }; current.revision(); }",
+        ] {
+            let (modules, row) = fixture(owner, caller, "Ledger::revision", "parameter:ledger");
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+        for caller in [
+            "fn consume(ledger: &super::owner::Ledger) { use fake::Ledger; ledger.revision(); }",
+            "use super::owner::Ledger; fn consume(ledger: &Ledger) { use fake::Other; ledger.revision(); }",
+            "use super::owner::Ledger; fn consume(ledger: &Ledger) { { use fake::Ledger; } ledger.revision(); }",
+        ] {
+            let (modules, row) = fixture(owner, caller, "Ledger::revision", "parameter:ledger");
+            assert!(modules.check_row(&row), "{caller}");
+        }
+    }
+
+    #[test]
+    fn source_type_declarations_keep_passive_lints_and_refuse_availability_attributes() {
+        let caller = "use super::owner::Ledger; fn consume(ledger: &Ledger) { ledger.revision(); }";
+        for attribute in [
+            "#[allow(dead_code)]",
+            "#[warn(clippy::all)]",
+            "#[deny(unused)]",
+            "#[forbid(unsafe_code)]",
+            "#[expect(dead_code)]",
+        ] {
+            let owner = format!(
+                "{attribute} pub(super) struct Ledger; impl Ledger {{ pub(super) fn revision(&self) {{}} }}"
+            );
+            let (modules, row) = fixture(&owner, caller, "Ledger::revision", "parameter:ledger");
+            assert!(modules.check_row(&row), "{attribute}");
+        }
+        for attribute in [
+            "#[cfg(any())]",
+            "#[cfg_attr(any(), derive(Clone))]",
+            "#[unknown]",
+        ] {
+            let owner = format!(
+                "{attribute} pub(super) struct Ledger; impl Ledger {{ pub(super) fn revision(&self) {{}} }}"
+            );
+            let (modules, row) = fixture(&owner, caller, "Ledger::revision", "parameter:ledger");
+            assert!(!modules.check_row(&row), "{attribute}");
+        }
+    }
+
+    #[test]
+    fn signature_type_routes_count_only_explicit_supported_declaration_types() {
+        let owner = "pub(super) enum Ledger { Fixed }";
+        let caller =
+            "use super::owner::Ledger; fn consume(selected: Ledger) { diagnostic!(selected); }";
+        let (modules, mut row) = fixture(owner, caller, "Ledger", "signature-type");
+        assert!(modules.check_row(&row));
+        row.route = "type".into();
+        assert!(!modules.check_row(&row));
+        for caller in [
+            "fn consume() { let selected = super::owner::Ledger::Fixed; }",
+            "use super::owner::Ledger; fn consume<T>(selected: Ledger) {}",
+            "use super::owner::Ledger; fn consume(selected: Ledger<Other>) {}",
+            "use super::owner::Ledger; #[cfg(any())] fn consume(selected: Ledger) {}",
+            "use super::owner::Ledger; fn consume(#[cfg(any())] selected: Ledger) {}",
+            "use super::owner::Ledger; fn consume(selected: Ledger, other: hidden!()) {}",
+            "type Alias = super::owner::Ledger; fn consume(selected: Alias) {}",
+        ] {
+            let (modules, row) = fixture(owner, caller, "Ledger", "signature-type");
             assert!(!modules.check_row(&row), "{caller}");
         }
     }

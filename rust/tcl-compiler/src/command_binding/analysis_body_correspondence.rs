@@ -463,9 +463,11 @@ fn original_registry_dependency(
             tokens,
         )?;
     assistance.unanimous_command_words()?;
+    let source_dialect = advice.dialect()?;
     for shape in &mut assistance.candidates {
         shape.with_source_schema(registry, metadata, tokens, |schema| {
-            let effects = schema.effects();
+            let (effects, transitions) =
+                schema.authored_source_effects_and_state_transitions(source_dialect);
             use tcl_registry::world_effect::{CallbackKinds, WorldStateDomain};
             let callbacks = effects.callback().kinds;
             let trace_free = !proof.variable_context.dynamic_traces
@@ -476,7 +478,7 @@ fn original_registry_dependency(
                 || (callbacks == CallbackKinds::TRACE && trace_free))
                 && schema.semantics.body_execution.is_none()
                 && schema.semantics.frame_effect.is_none()
-                && schema.state_transitions().facts().is_empty()
+                && transitions.facts().is_empty()
                 && effects.accesses().iter().all(|access| {
                     matches!(
                         access.domain,
@@ -671,9 +673,11 @@ fn original_native_source_registry_dependency(
             tokens,
         )?;
     assistance.unanimous_command_words()?;
+    let source_dialect = advice.dialect()?;
     for shape in &mut assistance.candidates {
         shape.with_source_schema(registry, metadata, tokens, |schema| {
-            let effects = schema.effects();
+            let (effects, transitions) =
+                schema.authored_source_effects_and_state_transitions(source_dialect);
             use tcl_registry::world_effect::{CallbackKinds, WorldStateDomain};
             let callbacks = effects.callback().kinds;
             let trace_inventory_empty = proof.variable_context.traced.is_empty()
@@ -683,7 +687,7 @@ fn original_native_source_registry_dependency(
                 || (callbacks == CallbackKinds::TRACE && trace_inventory_empty))
                 && schema.semantics.body_execution.is_none()
                 && schema.semantics.frame_effect.is_none()
-                && schema.state_transitions().facts().is_empty()
+                && transitions.facts().is_empty()
                 && effects.accesses().iter().all(|access| {
                     matches!(
                         access.domain,

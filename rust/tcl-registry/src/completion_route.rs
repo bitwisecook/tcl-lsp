@@ -433,8 +433,7 @@ mod tests {
         }
         let profile = tcl_dialect::DialectProfile::find("f5-irules").unwrap();
         let dialect = InvocationDialect::of_profile(profile);
-        let resolution =
-            registry.resolve_structured_invocation(words, dialect.authoring_query());
+        let resolution = registry.resolve_structured_invocation(words, dialect.authoring_query());
         let selected = resolution.resolved().unwrap();
         assert!(event_control(&selected.effects()));
         assert!(event_control(

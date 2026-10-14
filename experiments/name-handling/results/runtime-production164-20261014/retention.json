@@ -1,0 +1,19 @@
+{
+  "scope": "Build-only capture: runtime/query build passed; registry build failed at four fixture Option API calls. Zero selectors executed. All three recorded drift maps empty; no semantic acceptance.",
+  "files": {
+    "provider-02.log": "a6f4b501edb89edfd9c3d39fe8622b4002d09c89ffa9dddbd912b43d218acd25",
+    "source-after.json.gz": "5704916d754edd0fbbd0418368cd5e124ef774122f8e8d1b7a4bc2630d137825",
+    "provider-06.log": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+    "provider-01.log": "605a46dde2308e1d42534bf7daa2edfa0e8991247476b5bb10d585da0a1555bb",
+    "result.json": "3ca923ebfe8c17cee054592dfe7e75868f0500530a81e0c5f7fe47f755980186",
+    "provider-05.log": "33ed691c70b778a9d19254f9cca164eb431b864e7fd956268935705de7ca1772",
+    "provider-04.log": "55213411fe291737a1c2011557164f5e3e363928ad5c1e0d1c48ca0b387538ff",
+    "capture.py": "f5aba9d4fc6f6bf3963b11514f9fd623211229c99b77f79bcf5a6ae3fd968211",
+    "provider-03.log": "2a1737c1d55dc7ace51c4736ef98feec5c32c999f2b862b3372afb4732a0b08d",
+    "selected-plan.json": "92cc8c7b1e1b937d2a0a462ec552273505542c39cb8a49b8043f465740a97d50",
+    "source-before.json.gz": "d7b61120ee387d058da8acae1053161db46d90f6e757bf2bbeec949bde92f56d",
+    "start.json": "03915a1405498a7932f5d873b209b65eba4bd2256fc3fe8c61776ff37d4f0735",
+    "registry-build.jsonl": "e6532c8e9f762932cc38dfa347a18a020083f9a7078f75b65e41e1d17d641c85",
+    "runtime-build.jsonl": "664e92812fe395e5882a2c9568e9a2c029e2ab1cfb654e33ea03171f849344ce"
+  }
+}

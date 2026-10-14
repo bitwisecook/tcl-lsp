@@ -198,6 +198,47 @@ impl RetainedSourceModuleBindings {
         current == *original
     }
 
+    /// Conditional Logical declaration coordinate under this exact issued body.
+    /// This source slot supplies no Native publication or entered invocation.
+    pub(crate) fn original_logical_source_slot_for_body(
+        &self,
+        module: &Module,
+        body: crate::ir::ProcedureId,
+        registry: &CommandRegistry,
+    ) -> Option<super::SourceCommandKey> {
+        if !module.procedure_ids.owns(body) {
+            return None;
+        }
+        let positioned = self.positioned_for_module(module, registry)?;
+        let input = module.source_metadata_input.as_ref()?;
+        input.has_logical_source_name_context().then_some(())?;
+        let (_, procedure) = module
+            .original_source_procedure_bodies()
+            .find(|(id, _)| **id == body)?;
+        self.matches_original_procedure_summary(body, procedure)
+            .then_some(())?;
+        let original_slot = |id, procedure: &Procedure| {
+            let site = procedure.declaration_site.as_ref()?;
+            Arc::ptr_eq(&site.source, positioned.root_origin.as_ref()?).then_some(())?;
+            if let Some(card) = module.original_logical_declaration_body_units.get(&id) {
+                card.matches_procedure(module, procedure).then_some(())?;
+                Some(super::SourceCommandKey::authored(
+                    tcl_syntax::naming::authored_source_command_spelling(
+                        card.summary_coordinate(),
+                    )?,
+                ))
+            } else {
+                positioned.original_logical_procedure_source_slot(procedure, registry, input)
+            }
+        };
+        let slot = original_slot(body, procedure)?;
+        let count = module
+            .original_source_procedure_bodies()
+            .filter(|(id, candidate)| original_slot(**id, candidate).as_ref() == Some(&slot))
+            .count();
+        (count == 1).then_some(slot)
+    }
+
     pub(crate) fn owns_original_analysis_attachment(
         &self,
         tokens: &crate::ir::CommandTokens,
@@ -449,6 +490,109 @@ mod tests {
             registry,
             tcl_lexer::LexerConfig::default(),
         )
+    }
+
+    #[test]
+    fn logical_source_slot_uses_the_issued_current_declaration_without_native_publication() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "proc absent::a {x} {return $x}\nproc absent::b {} {return OK}\n";
+        let build = || {
+            crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: context.commands(),
+                    config,
+                    dialect: Some(profile),
+                    defer_top_level: false,
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            )
+        };
+        let unit = build();
+        let module = &unit.ir_module;
+        let retained = module.retained_source_bindings.as_deref().unwrap();
+        let (&id, procedure) = module
+            .original_source_procedure_bodies()
+            .find(|(_, procedure)| procedure.name == "absent::a")
+            .expect("actual original declaration a");
+        assert!(procedure.publication.is_none());
+        let slot = retained
+            .original_logical_source_slot_for_body(module, id, context.commands())
+            .expect("genuine conditional Logical source slot");
+        assert_eq!(slot.authored_spelling(), Some("::absent::a"));
+        assert!(
+            module
+                .original_logical_declaration_body_units
+                .contains_key(&id)
+        );
+        let mut report = module.clone();
+        report.body_units.get_mut(&id).unwrap().qualified_name = "report-only".into();
+        assert_eq!(
+            retained.original_logical_source_slot_for_body(&report, id, context.commands()),
+            Some(slot)
+        );
+        for mutate in 0..5 {
+            let mut changed = module.clone();
+            let procedure = changed.body_units.get_mut(&id).unwrap();
+            match mutate {
+                0 => procedure.name = "b".into(),
+                1 => procedure.params.push("extra".into()),
+                2 => procedure.body_source = Some("return OTHER".into()),
+                3 => procedure.declaration_site = None,
+                _ => procedure.body_kind = crate::ir::ProcedureBodyKind::Named,
+            }
+            assert!(
+                retained
+                    .original_logical_source_slot_for_body(&changed, id, context.commands())
+                    .is_none()
+            );
+        }
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            retained
+                .original_logical_source_slot_for_body(&missing, id, context.commands())
+                .is_none()
+        );
+        let foreign = build();
+        let (&foreign_id, _) = foreign
+            .ir_module
+            .original_source_procedure_bodies()
+            .next()
+            .unwrap();
+        let foreign_procedure = foreign.ir_module.body_units.get(&foreign_id).unwrap();
+        let mut foreign_origin = module.clone();
+        foreign_origin
+            .body_units
+            .get_mut(&id)
+            .unwrap()
+            .declaration_site
+            .as_mut()
+            .unwrap()
+            .source = Arc::clone(&foreign_procedure.declaration_site.as_ref().unwrap().source);
+        assert!(
+            retained
+                .original_logical_source_slot_for_body(&foreign_origin, id, context.commands())
+                .is_none()
+        );
+        assert!(!module.procedure_ids.owns(foreign_id));
+        assert!(
+            retained
+                .original_logical_source_slot_for_body(module, foreign_id, context.commands())
+                .is_none()
+        );
     }
 
     #[test]

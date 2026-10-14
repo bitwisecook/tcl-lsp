@@ -3058,6 +3058,8 @@ fn build_unit_with_keys_and_input<'db>(
     // top — without re-deriving the offset-0 body/context.
     let mut lattice_keys: HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>> =
         HashMap::new();
+    let mut returned_candidates: HashMap<tcl_compiler::ir::ProcedureId, FunctionUnit> =
+        HashMap::new();
     let mut lattice_memo = |req: &LatticeRequest<'_>| -> FunctionUnit {
         let context = *context.get_or_insert_with(|| {
             let mut upvar: Vec<(tcl_compiler::ir::ProcedureId, UpvarInfo)> = req
@@ -3129,6 +3131,7 @@ fn build_unit_with_keys_and_input<'db>(
                 .and_then(|unit| unit.restored_source_proofs(&proofs));
             if let Some(unit) = unit {
                 lattice_keys.insert(req.body_id, key);
+                returned_candidates.insert(req.body_id, unit.clone());
                 return unit;
             }
         }
@@ -3154,6 +3157,7 @@ fn build_unit_with_keys_and_input<'db>(
                 );
                 if let Some(unit) = inputs.rebind_cached(key.body(db), &function_lattice(db, key)) {
                     lattice_keys.insert(req.body_id, key);
+                    returned_candidates.insert(req.body_id, unit.clone());
                     return unit;
                 }
             }
@@ -3179,7 +3183,9 @@ fn build_unit_with_keys_and_input<'db>(
                 req.command_trust.agrees_with_untouched_bindings()
             );
         }
-        (*function_lattice(db, key)).clone()
+        let unit = (*function_lattice(db, key)).clone();
+        returned_candidates.insert(req.body_id, unit.clone());
+        unit
     };
     // Isolated-body and readonly source-syntax caches have separate request
     // owners. Each admitted hit must restore its positioned carriers against
@@ -3216,9 +3222,14 @@ fn build_unit_with_keys_and_input<'db>(
             input,
         )
     };
-    lattice_keys.retain(|id, key| {
-        cu.accepts_original_procedure_lattice(*id, &function_lattice(db, *key), registry)
+    // Validate the candidate returned after current source restoration, rather
+    // than its cached donor. Rejected callbacks cannot seed downstream memos.
+    lattice_keys.retain(|id, _| {
+        returned_candidates.get(id).is_some_and(|candidate| {
+            cu.accepts_original_procedure_lattice(*id, candidate, registry)
+        })
     });
+    drop(returned_candidates);
     // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
     // The whole-module summary is still rebuilt here (it is the memo's input);
     // only unchanged procedures' `propagate_taints` is skipped.

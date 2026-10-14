@@ -171,6 +171,16 @@ impl OriginalDefinitionScriptSource {
                 .all(|word| word.image() == &module.source && word.config() == self.config)
     }
 
+    pub(crate) fn matches_source_input(
+        &self,
+        image: &SourceImage,
+        input: &ResolvedAnalysisInput,
+    ) -> bool {
+        &self.image == image
+            && &self.input == input
+            && self.config.nested() == input.lexer_config().nested()
+    }
+
     /// Whole original definer words; selection and execution are separate.
     #[must_use]
     pub fn original_words(&self) -> &[NativeWord] {
@@ -216,6 +226,35 @@ impl Module {
                 .insert(id, std::sync::Arc::new(source));
         }
         id
+    }
+
+    pub(crate) fn original_class_definition_body_source(
+        &self,
+        class: &crate::analyser::ClassDef,
+        registry: &CommandRegistry,
+    ) -> Option<OriginalDefinitionScriptSource> {
+        let mut selected = self.original_definition_scripts.keys().filter_map(|id| {
+            let source = self.original_definition_script_source(*id, registry)?;
+            if source.body_word().tokens().first()?.span != class.body_span {
+                return None;
+            }
+            let layout = crate::registry_invocation::original_logical_source_definition_layout(
+                registry,
+                self.source_metadata_input.as_ref()?,
+                &source.tokens,
+            )?;
+            if layout.per_object
+                || layout.body_word != source.body
+                || layout.descriptor != source.descriptor
+                || !std::ptr::eq(layout.grammar, source.grammar)
+                || source.words.get(layout.name_word)?.tokens().first()?.span != class.name_span
+            {
+                return None;
+            }
+            Some(source)
+        });
+        let source = selected.next()?;
+        selected.next().is_none().then(|| source.clone())
     }
 
     /// Reborrow an actually issued current original definition-script coordinate.
@@ -271,6 +310,41 @@ mod tests {
             input,
         )
         .ir_module
+    }
+
+    #[test]
+    fn class_body_source_joins_original_name_and_body_to_the_issued_definition() {
+        let source = "oo::class create C {method m {} {return VALUE}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let module = original_module(source);
+        let registry = analysis.resolved_registry().unwrap();
+        let class = &analysis.all_classes["::C"];
+        assert!(
+            module
+                .original_class_definition_body_source(class, registry)
+                .is_some()
+        );
+        let mut changed = class.clone();
+        changed.name_span = Span::new(0, 1);
+        assert!(
+            module
+                .original_class_definition_body_source(&changed, registry)
+                .is_none()
+        );
+        let mut changed = class.clone();
+        changed.body_span = Span::new(0, 1);
+        assert!(
+            module
+                .original_class_definition_body_source(&changed, registry)
+                .is_none()
+        );
+        let mut changed = module.clone();
+        changed.source_metadata_input = None;
+        assert!(
+            changed
+                .original_class_definition_body_source(class, registry)
+                .is_none()
+        );
     }
 
     #[test]

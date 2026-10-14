@@ -30,6 +30,7 @@ pub struct LogicalSourceClassDeclaration {
     image: SourceImage,
     input: ResolvedAnalysisInput,
     class: Arc<ClassDef>,
+    body_word: Option<tcl_lexer::NativeWord>,
 }
 
 /// One exact side and declaration in the retained Logical class snapshot.
@@ -77,6 +78,7 @@ impl LogicalSourceClassDeclaration {
             image,
             input,
             class: Arc::new(class.clone()),
+            body_word: None,
         })
     }
 
@@ -95,6 +97,22 @@ impl LogicalSourceClassDeclaration {
             .qualified_name
             .clone_from(&self.class.qualified_name);
         current == *self.class
+    }
+
+    /// Original body selected by the actual definition-script source factory.
+    /// It supplies syntax without class allocation, member execution or editing.
+    #[must_use]
+    pub fn original_body_word(
+        &self,
+        image: &SourceImage,
+        input: &ResolvedAnalysisInput,
+    ) -> Option<&tcl_lexer::NativeWord> {
+        if image != &self.image || input != &self.input {
+            return None;
+        }
+        let word = self.body_word.as_ref()?;
+        (word.image() == image && word.config().nested() == input.lexer_config().nested())
+            .then_some(word)
     }
 
     /// Exact retained member metadata on the selected source side.
@@ -122,6 +140,30 @@ impl LogicalSourceClassDeclaration {
 }
 
 impl AnalysisResult {
+    pub(crate) fn retain_logical_class_body_sources(
+        &mut self,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        let sources = self
+            .logical_class_declarations
+            .iter()
+            .map(|declaration| {
+                let class = self
+                    .all_classes
+                    .values()
+                    .find(|class| declaration.matches(self, class))?;
+                let source = module.original_class_definition_body_source(class, registry)?;
+                source
+                    .matches_source_input(&declaration.image, &declaration.input)
+                    .then(|| source.body_word().clone())
+            })
+            .collect::<Vec<_>>();
+        for (declaration, source) in self.logical_class_declarations.iter_mut().zip(sources) {
+            declaration.body_word = source;
+        }
+    }
+
     /// A current selected member and genuine whole name word supply insertion data.
     /// Computed/generated names without a static original operand remain unavailable.
     #[must_use]
@@ -179,6 +221,61 @@ impl AnalysisResult {
 mod tests {
     use super::*;
     use crate::analyser::Analyser;
+
+    #[test]
+    fn logical_class_body_word_comes_from_the_actual_definition_script_factory() {
+        let source = "oo::class create C {method m {arg} {return $arg}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let class = &analysis.all_classes["::C"];
+        let declaration = analysis.logical_source_class_declaration(class).unwrap();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let image = SourceImage::document(source);
+        let word = declaration
+            .original_body_word(&image, input)
+            .expect("actual issued definition body source");
+        assert_eq!(
+            source.get(word.content_span().unwrap().as_range()),
+            Some("method m {arg} {return $arg}")
+        );
+        assert!(
+            declaration
+                .original_body_word(&SourceImage::document("changed"), input)
+                .is_none()
+        );
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::C")
+            .unwrap()
+            .methods
+            .get_mut("m")
+            .unwrap()
+            .params
+            .clear();
+        assert!(
+            changed
+                .logical_source_class_declaration(&changed.all_classes["::C"])
+                .is_none()
+        );
+        let empty_source = "oo::class create Empty {}";
+        let empty = Analyser::new().analyse(empty_source, "tcl");
+        let declaration = empty
+            .logical_source_class_declaration(&empty.all_classes["::Empty"])
+            .unwrap();
+        let word = declaration
+            .original_body_word(
+                &SourceImage::document(empty_source),
+                empty.resolved_input.as_ref().unwrap(),
+            )
+            .expect("empty original class body");
+        assert!(word.content_span().unwrap().is_empty());
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            native
+                .logical_source_class_declaration(&native.all_classes["::C"])
+                .is_none()
+        );
+    }
 
     #[test]
     fn logical_member_insertions_keep_literal_name_data_and_current_side_owner() {

@@ -3967,18 +3967,8 @@ impl<'r> Lowerer<'r> {
         let args_borrow = seg.args();
         let proc_name_initial = &args_borrow[0];
 
-        // Empty-simple-name procs (`proc ::ns:: {args} {body}`).
-        // Tcl 9 lets a trailing `::` register a command named `""` inside
-        // the target namespace (`TclGetNamespaceForQualName` returns
-        // `simpleName=""` rather than NULL for trailing colons on
-        // cmd/var lookups — tclNamesp.c:2493).  Our static
-        // `normalise_qualified_name` strips the trailing colons
-        // (`"a::".split("::")` filters the empty trailing element),
-        // so an AOT-lifted empty-name proc would register under the
-        // namespace name itself — a different command than the
-        // runtime lookup needs.  Route the whole shape through the
-        // runtime `proc` builtin via `Statement::Barrier`.  Carries
-        // namespace-old-1.27 / 2.1 / 2.2 and namespace-14.11.
+        // Empty simple names need runtime publication; preserve the original
+        // invocation instead of registering a lifted procedure.
         if proc_name_initial.ends_with("::") {
             return Statement::Barrier {
                 span: seg.span,

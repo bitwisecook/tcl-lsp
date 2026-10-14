@@ -17,8 +17,12 @@ The C8.4 empty-formal error includes the procedure name, unlike the other
 captured processes.
 
 The shared `source_variable_name_is_frame_local` consumes the independently
-selected source variable-lookup policy. Original Logical inlining controls
-check empty and dollar-name binding before eligibility. These observations
+selected source variable-lookup policy. For an independently owned Authored
+source scope without a selected policy,
+`source_variable_name_is_frame_local_for_all_policies` uses the intersection of
+the C and Jim geometry predicates; it does not select a runtime policy.
+Original Logical inlining controls check empty and dollar-name binding before
+eligibility. These observations
 establish no Native allocation identity, compiler opcode, activation, rewrite
 or inlining equivalence. F5/TMM behavior is unobserved.
 

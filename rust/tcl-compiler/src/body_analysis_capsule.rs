@@ -519,7 +519,7 @@ impl From<crate::ir::Script> for BodyLatticeInputs {
 }
 
 impl BodyLatticeInputs {
-    /// Authenticate original Module allocation, declaration, body, grammar and lookup dependencies.
+    /// Retain an authentic current body and independently available neutral correspondence.
     #[must_use]
     pub fn retain(
         request: &crate::compilation_unit::LatticeRequest<'_>,
@@ -537,6 +537,18 @@ impl BodyLatticeInputs {
             .original_native_declaration_body_units
             .get(&request.body_id)
             .filter(|card| card.matches_procedure(module, procedure));
+        let logical_card = module
+            .original_logical_declaration_body_units
+            .get(&request.body_id)
+            .filter(|card| card.matches_procedure(module, procedure));
+        let actual_input = module.source_metadata_input.as_ref()?;
+        let supplied_input = request.source_metadata_input?;
+        if (supplied_input != actual_input && supplied_input != &actual_input.for_nested_source())
+            || request.lexer_config.nested().normalized()
+                != supplied_input.lexer_config().nested().normalized()
+        {
+            return None;
+        }
         let retained = module.retained_source_bindings.as_ref()?;
         retained.positioned_for_module(module, registry)?;
         let mut original = procedure.body.clone();
@@ -545,7 +557,9 @@ impl BodyLatticeInputs {
             || !module
                 .original_source_procedure_bodies()
                 .any(|(id, owned)| *id == request.body_id && std::ptr::eq(owned, procedure))
-            || (procedure.body_kind != crate::ir::ProcedureBodyKind::Named && native_card.is_none())
+            || (procedure.body_kind != crate::ir::ProcedureBodyKind::Named
+                && native_card.is_none()
+                && logical_card.is_none())
             || procedure.qualified_name != request.qname
             || procedure.params != request.params
             || procedure.span.start() != request.original_body_offset
@@ -554,6 +568,11 @@ impl BodyLatticeInputs {
             || &original != request.body
         {
             return None;
+        }
+        if logical_card.is_some() {
+            retained.original_logical_source_slot_for_body(module, request.body_id, registry)?;
+            // Authentic conditional source does not imply neutral memo closure.
+            return Some(Self::from(request.body.clone()));
         }
         let declaration = NeutralDeclaration {
             publication: if native_card.is_some() {
@@ -596,9 +615,20 @@ impl BodyLatticeInputs {
                     registry,
                 )?
         } else {
-            request
+            match request
                 .command_bindings
-                .prepare_analytical_body_correspondence(request.body, scope, registry)?
+                .prepare_analytical_body_correspondence(request.body, scope, registry)
+            {
+                Some(correspondence) => correspondence,
+                None => {
+                    retained.original_logical_source_slot_for_body(
+                        module,
+                        request.body_id,
+                        registry,
+                    )?;
+                    return Some(Self::from(request.body.clone()));
+                }
+            }
         };
         Some(Self {
             body: request.body.clone(),
@@ -1031,6 +1061,90 @@ mod native_source_lattice_tests {
             Some(req.body),
             crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         )
+    }
+
+    #[test]
+    fn logical_declared_body_retains_raw_inputs_without_certifying_neutral_reuse() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let foreign_context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let foreign_input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&foreign_context),
+            config,
+        );
+        let mut visited = 0;
+        let mut memo = |request: &LatticeRequest<'_>| {
+            visited += 1;
+            assert!(
+                request
+                    .module
+                    .original_logical_declaration_body_units
+                    .contains_key(&request.body_id)
+            );
+            let retained = BodyLatticeInputs::retain(request, context.commands())
+                .expect("authentic current Logical declaration body");
+            assert_eq!(retained.body(), request.body);
+            assert!(retained.certificate.is_none());
+            assert!(retained.command_bindings().is_none());
+            assert!(retained.certified_native_source_body_id().is_none());
+            let missing = LatticeRequest {
+                source_metadata_input: None,
+                ..*request
+            };
+            assert!(BodyLatticeInputs::retain(&missing, context.commands()).is_none());
+            let foreign = LatticeRequest {
+                source_metadata_input: Some(&foreign_input),
+                ..*request
+            };
+            assert!(BodyLatticeInputs::retain(&foreign, context.commands()).is_none());
+            let mut changed = request.module.clone();
+            changed
+                .body_units
+                .get_mut(&request.body_id)
+                .unwrap()
+                .params
+                .push("extra".into());
+            let changed = LatticeRequest {
+                module: &changed,
+                ..*request
+            };
+            assert!(BodyLatticeInputs::retain(&changed, context.commands()).is_none());
+            build_current(request, context.commands())
+        };
+        let no_isolated_body =
+            |_: &str, _: &str| -> crate::ir::Script { panic!("source-only body") };
+        let unit = CompilationUnit::build_memoized_with_analysis_input(
+            "proc absent::logical {x} {return $x}\n",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                config,
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &mut memo,
+            &no_isolated_body,
+            None,
+            &input,
+        );
+        drop(memo);
+        assert_eq!(visited, 1);
+        assert_eq!(
+            unit.ir_module.original_logical_declaration_body_units.len(),
+            1
+        );
     }
 
     #[test]

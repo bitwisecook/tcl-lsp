@@ -1027,8 +1027,8 @@ fn sccp_process_statements(
             // the absolute global one — so it can reassign any name
             // visible there, exactly like an opaque barrier. Reproduced
             // against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n 99};
-            // puts [expr {$n + 1}]` prints `100`; before this widening,
-            // the optimiser proposed folding to the stale `6`.
+            // puts [expr {$n + 1}]` prints `100`. The value before
+            // `uplevel` cannot justify folding that later expression.
             let keys: Vec<ValueKey> = if ssa.point_contexts.is_none() {
                 values.keys().copied().collect()
             } else {
@@ -6031,9 +6031,8 @@ mod tests {
     /// command lattice, so its unnameable rename subject reaches the optimiser
     /// through `mutation_projection` or not at all (#2168).
     ///
-    /// Measured end to end before this was joined: the program below prints
-    /// **99**, and `tcl optimise` rewrote it into one printing **3** on tclsh
-    /// 8.6.18 and 9.0.4.
+    /// The renamed implementation returns **99** on tclsh 8.6.18 and 9.0.4;
+    /// retaining the stock `llength` result **3** would change its result.
     #[test]
     fn an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts() {
         let reg = registry();

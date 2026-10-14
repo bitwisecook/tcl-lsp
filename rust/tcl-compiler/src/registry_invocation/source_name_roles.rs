@@ -57,6 +57,7 @@ pub(crate) struct SourceNameRoleInventory {
     unknown_residual: bool,
     roles: Vec<(usize, tcl_registry::ArgRole)>,
     roles_complete: bool,
+    direct_written_arguments: bool,
     config: tcl_lexer::LexerConfig,
 }
 impl SourceNameRoleInventory {
@@ -92,6 +93,9 @@ impl SourceNameRoleInventory {
     pub(crate) fn roles_complete(&self) -> bool {
         self.roles_complete
     }
+    pub(crate) fn direct_written_arguments(&self) -> bool {
+        self.direct_written_arguments
+    }
     pub(crate) fn has_unknown_residual(&self) -> bool {
         self.unknown_residual
     }
@@ -101,6 +105,21 @@ impl SourceNameRoleInventory {
         unknown_residual: bool,
         config: tcl_lexer::LexerConfig,
     ) -> Self {
+        let direct_written_arguments = invocation.effective.origins.len()
+            == invocation.effective.words.len()
+            && invocation.effective.origins.len()
+                == invocation
+                    .arguments
+                    .len()
+                    .checked_add(1)
+                    .unwrap_or(usize::MAX)
+            && invocation
+                .effective
+                .origins
+                .iter()
+                .enumerate()
+                .skip(1)
+                .all(|(index, origin)| *origin == super::InvocationWordOrigin::Written(index));
         let values = (0..invocation.arguments.len())
             .map(|argument| invocation.argument_literal(argument))
             .collect();
@@ -122,6 +141,7 @@ impl SourceNameRoleInventory {
             unknown_residual: unknown_residual || !roles_complete,
             roles,
             roles_complete,
+            direct_written_arguments,
             config,
         }
     }
@@ -198,6 +218,7 @@ pub(crate) fn standalone_written_source_name_roles(
         values: values.into_iter().skip(1).collect(),
         roles,
         roles_complete,
+        direct_written_arguments: true,
         config,
         unknown_residual: !roles_complete,
     })
@@ -245,6 +266,7 @@ pub(crate) fn original_source_name_roles(
             unknown_residual: true,
             roles,
             roles_complete: true,
+            direct_written_arguments: true,
             config: binding
                 .original_authored_source_body_scope_for_name_roles(tokens, registry)?
                 .config(),
@@ -310,6 +332,7 @@ pub(crate) fn original_source_name_roles(
             .map(|&(ordinal, role)| (source.facts().argument_offset + usize::from(ordinal), role))
             .collect(),
         roles_complete: source.facts().arg_roles_complete,
+        direct_written_arguments: source.direct_written_arguments(),
         config: source.config(),
     })
 }
@@ -341,6 +364,7 @@ pub(crate) fn original_authored_substitution_name_roles(
             values,
             roles,
             roles_complete,
+            direct_written_arguments: true,
             config: words.first()?.config(),
             unknown_residual: true,
         })
@@ -375,6 +399,7 @@ fn from_authored_body_scope(
             values,
             roles,
             roles_complete,
+            direct_written_arguments: true,
             config: scope.config(),
             unknown_residual: true,
         })
@@ -422,6 +447,14 @@ fn from_source_words(
         unknown_residual,
         roles,
         roles_complete,
+        direct_written_arguments: words.origins().len()
+            == words.arguments().len().checked_add(1).unwrap_or(usize::MAX)
+            && words
+                .origins()
+                .iter()
+                .enumerate()
+                .skip(1)
+                .all(|(index, origin)| *origin == super::InvocationWordOrigin::Written(index)),
         config: input.lexer_config(),
     })
 }

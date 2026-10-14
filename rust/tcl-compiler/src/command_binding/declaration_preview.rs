@@ -515,6 +515,22 @@ impl SourceCommandBindings {
         registry: &tcl_registry::CommandRegistry,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<LogicalProcedureDeclaration> {
+        let site = tokens.source_binding.as_ref()?.invocation_site()?;
+        let declaration = self.original_logical_procedure_declaration_at(site, registry, input)?;
+        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
+            if declaration_tokens(site, row)?.words() != tokens.words() {
+                return None;
+            }
+        }
+        Some(declaration)
+    }
+
+    fn original_logical_procedure_declaration_at(
+        &self,
+        site: &CommandAllocationSite,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<LogicalProcedureDeclaration> {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         if !input.has_logical_source_name_context()
@@ -524,14 +540,13 @@ impl SourceCommandBindings {
                 .snapshot()
                 .semantic_key()
                 != registry.snapshot().semantic_key()
+            || !self.matches_original_source_image(site.source.source_image(), input.lexer_config())
         {
             return None;
         }
-        let site = tokens.source_binding.as_ref()?.invocation_site()?;
         for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
             if row.config != input.lexer_config()
                 || row.snapshot.state.logical_source_name_advice_input() != Some(input)
-                || declaration_tokens(site, row)?.words() != tokens.words()
             {
                 return None;
             }
@@ -541,6 +556,25 @@ impl SourceCommandBindings {
         body.original_parameters
             .is_none()
             .then_some(LogicalProcedureDeclaration { body })
+    }
+
+    pub(super) fn original_logical_procedure_source_slot(
+        &self,
+        procedure: &crate::ir::Procedure,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<super::SourceCommandKey> {
+        let declaration = self.original_logical_procedure_declaration_at(
+            procedure.declaration_site.as_ref()?,
+            registry,
+            input,
+        )?;
+        (declaration.name() == Some(procedure.name.as_str())
+            && declaration.body.matches_original_procedure_source(
+                procedure,
+                self.root_origin.as_ref()?.source_image(),
+            ))
+        .then_some(declaration.body.slot)
     }
 
     /// Selected original header grammar for conditional diagnostic advice.

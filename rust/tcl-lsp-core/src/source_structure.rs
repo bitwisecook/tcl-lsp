@@ -921,8 +921,14 @@ fn declared_bodies(
                 bodies.push(body);
             }
         }
-        for span in analysis.all_classes.values().map(|row| row.body_span) {
-            if let Some(body) = declared_body(image, span, config) {
+        for class in analysis.all_classes.values() {
+            let Some(word) = analysis
+                .logical_source_class_declaration(class)
+                .and_then(|declaration| declaration.original_body_word(image, input))
+            else {
+                continue;
+            };
+            if let Some(body) = word_body(word) {
                 bodies.push(body);
             }
         }

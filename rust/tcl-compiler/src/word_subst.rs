@@ -161,6 +161,187 @@ struct LiftedCallCollection {
     incomplete: bool,
 }
 
+/// Original syntax regions that may contribute memo-summary dependencies.
+/// The caller still owns current Module/target selection and every residual.
+pub(crate) struct OriginalSourceDependencyRegions {
+    pub(crate) substitutions: Vec<Span>,
+    pub(crate) scripts: Vec<Span>,
+    pub(crate) unknown: bool,
+}
+
+/// Original complete words and selected source roles distinguish evaluated
+/// syntax from bracket text in data. No invocation or frame is admitted.
+pub(crate) fn original_source_dependency_regions(
+    tokens: &CommandTokens,
+    words: &[tcl_lexer::NativeWord],
+    registry: &tcl_registry::CommandRegistry,
+    profile: Option<&tcl_dialect::DialectProfile>,
+) -> Option<OriginalSourceDependencyRegions> {
+    if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+        return None;
+    }
+    let first = words.first()?;
+    let image = first.image();
+    let config = first.config();
+    let original = crate::registry_invocation::original_native_compiler_words(
+        image,
+        tokens.words(),
+        first.span().start(),
+        config,
+    )?;
+    (original == words).then_some(())?;
+    let mut out = OriginalSourceDependencyRegions {
+        substitutions: Vec::new(),
+        scripts: Vec::new(),
+        unknown: false,
+    };
+    let mut expressions = Vec::new();
+    for word in words {
+        dependency_parts(word.executable_parts(), &mut expressions, &mut out);
+    }
+    let selected = crate::registry_invocation::original_source_name_roles(registry, tokens);
+    if words.iter().any(|word| word.group().expand)
+        || selected
+            .as_ref()
+            .is_some_and(|selected| !selected.direct_written_arguments())
+    {
+        out.unknown = true;
+        return Some(out);
+    }
+    if let Some(selected) = selected.as_ref() {
+        out.unknown |= !selected.roles_complete()
+            && words
+                .iter()
+                .skip(1)
+                .any(|word| word.bytes().contains(&b'['));
+        if selected
+            .facts()
+            .traits
+            .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+        {
+            out.unknown = true;
+        }
+        for &(argument, role) in selected.roles() {
+            if !role.carries_script() && role != tcl_registry::ArgRole::CommandPrefix {
+                continue;
+            }
+            let word = words.get(argument.checked_add(1)?)?;
+            let content = word.content_span().ok()?;
+            let original = image.bytes().get(content.as_range())?;
+            let unchanged = tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                .is_some_and(|value| value.as_slice() == original);
+            if !unchanged || word.group().expand {
+                out.unknown = true;
+                continue;
+            }
+            if !original.contains(&b'[') {
+                continue;
+            }
+            out.unknown |= selected.has_unknown_residual();
+            match role {
+                tcl_registry::ArgRole::Expr => expressions.push(content),
+                tcl_registry::ArgRole::Body
+                    if selected.facts().body_kind == tcl_registry::BodyKind::Plain
+                        && selected.facts().body_interpreter
+                            == tcl_registry::BodyInterpreter::Current =>
+                {
+                    out.scripts.push(content)
+                }
+                _ => out.unknown = true,
+            }
+        }
+    } else {
+        out.unknown |= words
+            .iter()
+            .skip(1)
+            .any(|word| word.bytes().contains(&b'['));
+    }
+    collect_original_expression_dependency_regions(image, config, profile, expressions, &mut out)?;
+    Some(out)
+}
+
+fn collect_original_expression_dependency_regions(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    profile: Option<&tcl_dialect::DialectProfile>,
+    mut expressions: Vec<Span>,
+    out: &mut OriginalSourceDependencyRegions,
+) -> Option<()> {
+    expressions.retain(|span| {
+        image
+            .bytes()
+            .get(span.as_range())
+            .is_some_and(|bytes| bytes.contains(&b'['))
+    });
+    let mut depth = 0;
+    while !expressions.is_empty() {
+        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+            out.unknown = true;
+            break;
+        }
+        let Some(profile) = profile else {
+            out.unknown = true;
+            break;
+        };
+        let mut nested = Vec::new();
+        for span in expressions {
+            let expression = image.bytes().get(span.as_range())?;
+            let (tokens, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
+                expression,
+                &config.grammar_over(profile.grammar),
+                profile.expr_grammar_base,
+                profile.f5_core_expr_grammar(),
+            );
+            out.unknown |= unknown;
+            let Some(terms) = tcl_lexer::expression_terms(expression, &tokens, config) else {
+                out.unknown = true;
+                continue;
+            };
+            for term in terms {
+                let relative = match term.kind {
+                    tcl_lexer::ExprTermKind::Variable
+                    | tcl_lexer::ExprTermKind::IndexedVariable
+                    | tcl_lexer::ExprTermKind::Command => term.source,
+                    tcl_lexer::ExprTermKind::EscapedString => term.value,
+                    tcl_lexer::ExprTermKind::Number
+                    | tcl_lexer::ExprTermKind::Boolean
+                    | tcl_lexer::ExprTermKind::String => continue,
+                };
+                let part = Span::new(
+                    span.start().checked_add(relative.start)?,
+                    span.start().checked_add(relative.end)?,
+                );
+                let arena = tcl_lexer::ExecutablePartArena::decompose(
+                    image.clone(),
+                    part,
+                    tcl_lexer::word_parts::SubstFlags::default(),
+                    config,
+                )
+                .ok()?;
+                dependency_parts(&arena, &mut nested, out);
+            }
+        }
+        expressions = nested;
+        depth += 1;
+    }
+    Some(())
+}
+
+fn dependency_parts(
+    arena: &tcl_lexer::ExecutablePartArena,
+    expressions: &mut Vec<Span>,
+    out: &mut OriginalSourceDependencyRegions,
+) {
+    for part in arena.all_parts() {
+        match part.part {
+            tcl_lexer::ExecutablePart::Command { body } => out.substitutions.push(body),
+            tcl_lexer::ExecutablePart::Expression { expression } => expressions.push(expression),
+            tcl_lexer::ExecutablePart::ParseError(_) => out.unknown = true,
+            tcl_lexer::ExecutablePart::Text(_) | tcl_lexer::ExecutablePart::Variable { .. } => {}
+        }
+    }
+}
+
 /// Complete original substitution inventory for effect consumers. A truncated
 /// or unsupported word walk must not establish absence of name effects.
 pub(crate) fn checked_lifted_calls(
@@ -329,6 +510,7 @@ pub(crate) fn checked_authored_source_substitution_words(
                 &image,
                 &roles,
                 traits,
+                OriginalExpressionInventoryPurpose::AuthoredCandidates,
                 &mut collected,
             )?;
         }
@@ -569,6 +751,7 @@ fn collect_original_expression_calls(
             advice.site(),
             &roles,
             traits,
+            context.input()?.analyser_profile(),
             collected,
         );
     }
@@ -613,7 +796,13 @@ fn collect_original_expression_calls(
                 Some((words.written_argument_roles(), schema.semantics.traits))
             })??;
         return collect_original_braced_expression_calls(
-            tokens, config, site, &roles, traits, collected,
+            tokens,
+            config,
+            site,
+            &roles,
+            traits,
+            input.analyser_profile(),
+            collected,
         );
     }
     let OriginalLiftedCallContext::Metadata(metadata) = context else {
@@ -719,7 +908,22 @@ fn collect_original_expression_calls(
         }
         return (!has_braced_commands).then_some(());
     };
-    collect_original_braced_expression_calls(tokens, config, site, &roles, traits, collected)
+    collect_original_braced_expression_calls(
+        tokens,
+        config,
+        site,
+        &roles,
+        traits,
+        metadata.source_analysis_input()?.analyser_profile(),
+        collected,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum OriginalExpressionInventoryPurpose<'a> {
+    Configured(&'a tcl_dialect::DialectProfile),
+    // The inputless source caller retains an unconditional unknown residual.
+    AuthoredCandidates,
 }
 
 fn collect_original_braced_expression_calls(
@@ -728,6 +932,7 @@ fn collect_original_braced_expression_calls(
     site: &crate::command_binding::CommandAllocationSite,
     roles: &[(usize, tcl_registry::ArgRole)],
     traits: tcl_registry::Traits,
+    profile: &tcl_dialect::DialectProfile,
     collected: &mut LiftedCallCollection,
 ) -> Option<()> {
     collect_original_braced_expression_calls_in_image(
@@ -736,6 +941,7 @@ fn collect_original_braced_expression_calls(
         site.source.source_image(),
         roles,
         traits,
+        OriginalExpressionInventoryPurpose::Configured(profile),
         collected,
     )
 }
@@ -746,6 +952,7 @@ fn collect_original_braced_expression_calls_in_image(
     image: &tcl_lexer::SourceImage,
     roles: &[(usize, tcl_registry::ArgRole)],
     traits: tcl_registry::Traits,
+    purpose: OriginalExpressionInventoryPurpose<'_>,
     collected: &mut LiftedCallCollection,
 ) -> Option<()> {
     let has_braced_commands = tokens
@@ -770,7 +977,40 @@ fn collect_original_braced_expression_calls_in_image(
         {
             return None;
         }
-        collect_surface_text_with_surface(text, Some(base), config, None, 0, collected);
+        match purpose {
+            OriginalExpressionInventoryPurpose::AuthoredCandidates => {
+                collect_surface_text_with_surface(text, Some(base), config, None, 0, collected);
+            }
+            OriginalExpressionInventoryPurpose::Configured(profile) => {
+                let mut regions = OriginalSourceDependencyRegions {
+                    substitutions: Vec::new(),
+                    scripts: Vec::new(),
+                    unknown: false,
+                };
+                collect_original_expression_dependency_regions(
+                    image,
+                    config,
+                    Some(profile),
+                    vec![Span::new(base, u32::try_from(end).ok()?)],
+                    &mut regions,
+                )?;
+                if regions.unknown {
+                    return None;
+                }
+                for body in regions.substitutions {
+                    let span = Span::new(body.start().checked_sub(1)?, body.end().checked_add(1)?);
+                    let spelling = image.try_text().ok()?.get(span.as_range())?;
+                    push_substitution(
+                        spelling,
+                        &SourceSite::source(span),
+                        config,
+                        None,
+                        0,
+                        collected,
+                    );
+                }
+            }
+        }
     }
     Some(())
 }
@@ -1771,6 +2011,199 @@ mod tests {
         let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, segment);
         bindings.stamp_original_tokens(&mut tokens);
         tokens
+    }
+
+    #[test]
+    fn original_dependency_regions_refuse_captured_and_expanded_role_ordinals() {
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let source = "interp alias {} calculate {} expr {[dict size DATA]}; calculate";
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+            .with_resolved_analysis_input(input.clone());
+        let module = lowerer.lower(source);
+        let script = &module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap();
+        let roles = crate::registry_invocation::original_source_name_roles(registry, tokens)
+            .expect("actual selected alias source roles");
+        assert!(!roles.direct_written_arguments());
+        let plan = tcl_lexer::native_script_words_in(
+            module.source.clone(),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let words = &plan.commands.last().unwrap().words;
+        let inventory = original_source_dependency_regions(
+            tokens,
+            words,
+            registry,
+            Some(input.analyser_profile()),
+        )
+        .unwrap();
+        assert!(inventory.unknown);
+        assert!(inventory.substitutions.is_empty() && inventory.scripts.is_empty());
+        for source in ["expr {*}{[dict size DATA]}", "expr {*}$arguments"] {
+            let tokens = original_logical_tokens(source, &input);
+            let image = tcl_lexer::SourceImage::document(source);
+            let plan = tcl_lexer::native_script_words_in(
+                image,
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(
+                plan.commands[0]
+                    .words
+                    .iter()
+                    .any(|word| word.group().expand)
+            );
+            assert!(
+                original_source_dependency_regions(
+                    &tokens,
+                    &plan.commands[0].words,
+                    registry,
+                    Some(input.analyser_profile())
+                )
+                .unwrap()
+                .unknown
+            );
+        }
+    }
+
+    #[test]
+    fn original_expression_substitutions_keep_braced_string_operands_inert() {
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        for (source, expected) in [
+            ("expr {{[literal]} eq {[also_literal]}}", 0),
+            ("expr {[info exists value] + 1}", 1),
+            ("expr {\"[info exists value]\" eq {literal}}", 1),
+        ] {
+            let tokens = original_logical_tokens(source, &input);
+            let calls = checked_original_lifted_calls_with_metadata_context(
+                &tokens, config, registry, metadata,
+            )
+            .expect("actual original configured expression inventory");
+            assert_eq!(calls.len(), expected, "{source}");
+            let mut changed = tokens.clone();
+            changed.argv_texts[1].push_str(" changed");
+            assert!(
+                checked_original_lifted_calls_with_metadata_context(
+                    &changed, config, registry, metadata
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn original_dependency_regions_keep_index_children_and_expression_data_purpose() {
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl").unwrap();
+        let config = input.lexer_config();
+        let registry = input.borrowed_context_registry().commands();
+        for (source, expected) in [
+            ("puts {[literal]}", vec![]),
+            ("puts $array([selected])", vec!["selected"]),
+            ("puts [first; second]", vec!["first; second"]),
+            ("expr {{[literal]} eq {[also_literal]}}", vec![]),
+            (
+                "expr {[selected] + $array([index])}",
+                vec!["selected", "index"],
+            ),
+            ("expr {\"[selected]\" eq {literal}}", vec!["selected"]),
+        ] {
+            let image = tcl_lexer::SourceImage::document(source);
+            let plan = tcl_lexer::native_script_words_in(
+                image.clone(),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let tokens = original_logical_tokens(source, &input);
+            let inventory = original_source_dependency_regions(
+                &tokens,
+                &plan.commands[0].words,
+                registry,
+                Some(input.analyser_profile()),
+            )
+            .unwrap();
+            let mut actual = inventory
+                .substitutions
+                .iter()
+                .map(|span| source.get(span.as_range()).unwrap())
+                .collect::<Vec<_>>();
+            actual.sort();
+            let mut expected = expected;
+            expected.sort();
+            assert_eq!(actual, expected, "{source}");
+            let mut changed = tokens.clone();
+            changed.argv_texts[0].push_str(" changed");
+            assert!(
+                original_source_dependency_regions(
+                    &changed,
+                    &plan.commands[0].words,
+                    registry,
+                    Some(input.analyser_profile())
+                )
+                .is_none()
+            );
+        }
+        let source = "apply {{} {puts [selected]}}";
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let tokens = original_logical_tokens(source, &input);
+        assert!(
+            original_source_dependency_regions(
+                &tokens,
+                &plan.commands[0].words,
+                registry,
+                Some(input.analyser_profile())
+            )
+            .unwrap()
+            .unknown
+        );
+        let source = "expr {[selected]}";
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let tokens = original_logical_tokens(source, &input);
+        assert!(
+            original_source_dependency_regions(&tokens, &plan.commands[0].words, registry, None)
+                .unwrap()
+                .unknown
+        );
+        let mut missing = tokens;
+        missing.source_binding = None;
+        assert!(
+            original_source_dependency_regions(
+                &missing,
+                &plan.commands[0].words,
+                registry,
+                Some(input.analyser_profile())
+            )
+            .unwrap()
+            .unknown
+        );
     }
 
     #[test]

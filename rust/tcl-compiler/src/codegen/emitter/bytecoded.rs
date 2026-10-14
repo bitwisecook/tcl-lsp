@@ -1457,12 +1457,10 @@ fn global_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-/// Whether `arg` is a literal `upvar` level: an optional `#` followed by
-/// digits (`1`, `0`, `#0`) — the form that lets `upvar` push it as a literal
-/// rather than evaluating it.
+#[cfg(test)]
 fn is_upvar_level(arg: &str) -> bool {
-    let digits = arg.strip_prefix('#').unwrap_or(arg);
-    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+    tcl_registry::frame_effect::FrameLevel::parse(arg)
+        .is_some_and(|level| !matches!(level, tcl_registry::frame_effect::FrameLevel::Dynamic))
 }
 
 /// `upvar ?level? otherVar localVar ...` — link each caller variable to a
@@ -1470,21 +1468,13 @@ fn is_upvar_level(arg: &str) -> bool {
 ///
 ///   push <level>; (push other; upvar %slot)…; pop; push ""; pop
 ///
-/// The level (an explicit literal `#?N`, else the default `"1"`) is pushed
-/// once and reused by each `upvar`; the trailing `pop` discards it. `other`
+/// The selected original level, or default `"1"`, is pushed once and reused
+/// by each `upvar`; the trailing `pop` discards it. `other`
 /// may be any word (pushed through the interpolating path); each `local`
 /// must be a simple proc-local name. A dynamic level, a malformed pair
 /// count, a qualified/dynamic local, or top-level context fall back.
 fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if !ctx.compiles_locals() || args.len() < 2 {
-        return false;
-    }
-    let (level, pairs): (&str, &[String]) = if is_upvar_level(&args[0]) {
-        (&args[0], &args[1..])
-    } else {
-        ("1", args)
-    };
-    if pairs.is_empty() || pairs.len() % 2 != 0 {
         return false;
     }
     if ctx.invocation_tokens.is_some() {
@@ -1500,8 +1490,10 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         let Some(original) = original else {
             return false;
         };
-        let offset = args.len() - pairs.len();
-        let names = (0..pairs.len())
+        let Some(offset) = ctx.original_upvar_level_width(args.len()) else {
+            return false;
+        };
+        let names = (0..args.len() - offset)
             .step_by(2)
             .map(|index| literal_link_local_name(original.get(offset + index + 1)?.clone()))
             .collect::<Option<Vec<_>>>();
@@ -1515,7 +1507,11 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         let Some(slots) = slots else {
             return false;
         };
-        ctx.push_lit(level);
+        if offset == 1 {
+            ctx.emit_word_arg(0, &args[0]);
+        } else {
+            ctx.push_lit("1");
+        }
         for (index, slot) in slots.into_iter().enumerate() {
             let other = offset + index * 2;
             ctx.emit_word_arg(other, &args[other]);
@@ -1526,6 +1522,22 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         ctx.emit(Op::POP, vec![]);
         return true;
     }
+    let Some(version) = ctx
+        .native_hook_dialect()
+        .and_then(|dialect| dialect.tcl_version)
+    else {
+        return false;
+    };
+    let Ok(offset) =
+        tcl_registry::native_compilation::original_upvar_level_width(&args[0], args.len(), version)
+    else {
+        return false;
+    };
+    let (level, pairs) = if offset == 1 {
+        (args[0].as_str(), &args[1..])
+    } else {
+        ("1", args)
+    };
     // Every `local` (the odd-indexed words) must be a simple compiled *scalar*
     // local. The `other` side may legally be an element (`upvar 0 arr(k) v`).
     for pair in pairs.as_chunks::<2>().0 {
@@ -2465,6 +2477,29 @@ mod tests {
         assert!(!is_upvar_level("foo"));
         assert!(!is_upvar_level("#"));
         assert!(!is_upvar_level("$n"));
+    }
+
+    #[test]
+    fn standalone_upvar_uses_the_shared_compiler_probe_before_emission() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        assert!(upvar_cmd(
+            &mut ctx,
+            &["+0".into(), "other".into(), "local".into()]
+        ));
+        assert_eq!(ctx.literals.entries()[0], "+0");
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::UPVAR)
+        );
+        let mut unavailable = CodegenCtx::new(true, &[], &registry);
+        assert!(!upvar_cmd(
+            &mut unavailable,
+            &["12".into(), "other".into(), "local".into()]
+        ));
+        assert!(unavailable.instructions.is_empty());
+        assert!(unavailable.lvt.is_empty());
     }
 
     #[test]

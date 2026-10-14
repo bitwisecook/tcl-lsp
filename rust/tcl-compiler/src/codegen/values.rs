@@ -943,6 +943,37 @@ impl CodegenCtx<'_> {
         .ok()
     }
 
+    /// Select only the original compiler's leading frame-level operand.
+    /// Captured prefixes and expansions have no direct written layout here.
+    pub(super) fn original_upvar_level_width(&self, argument_count: usize) -> Option<usize> {
+        let original = self.original_compiler_words()?;
+        let written = self.original_hook_argument(0)?;
+        let first = written.checked_add(1)?;
+        if first.checked_add(argument_count)? != original.words.len()
+            || (0..argument_count).any(|argument| {
+                self.original_hook_argument(argument) != written.checked_add(argument)
+            })
+            || original.words.iter().any(|word| word.group().expand)
+        {
+            return None;
+        }
+        let words = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+            &original.words,
+            original.protocol,
+        )
+        .ok()?;
+        let leading = words.literal(first)?;
+        if leading.contains(&0) {
+            return None;
+        }
+        tcl_registry::native_compilation::original_upvar_level_width(
+            std::str::from_utf8(leading).ok()?,
+            argument_count,
+            original.version,
+        )
+        .ok()
+    }
+
     /// A literal scalar operand alone can use a compiler local slot. Source
     /// array and computed words retain their own stack evaluation. Hand-built
     /// authoring contexts keep their distinct checked compatibility projection.
@@ -2030,6 +2061,38 @@ mod tests {
             assert!(ctx.original_variable_operand(&changed.words()[1]).is_none());
             ctx.source_string_protocol = None;
             assert!(ctx.original_variable_operand(&tokens.words()[1]).is_none());
+        }
+    }
+
+    #[test]
+    fn original_upvar_level_layout_uses_current_compiler_words_and_release() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        for (source, count, expected) in [
+            ("upvar {+0} other local", 3, Some(1)),
+            ("upvar other local", 2, Some(0)),
+            ("upvar 0 other local extra", 4, None),
+            ("upvar $level other local", 3, None),
+            ("upvar {0\0suffix} other local", 3, None),
+        ] {
+            let image = tcl_lexer::SourceImage::native(source.as_bytes());
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let tokens = increment_tokens(&image, config);
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.source = image;
+            ctx.native_entry = Some(&entry);
+            ctx.source_string_protocol = entry.source_string_protocol;
+            ctx.invocation_tokens = Some(Box::new(tokens));
+            assert_eq!(
+                ctx.original_upvar_level_width(count),
+                expected,
+                "{source:?}"
+            );
+            ctx.native_hook_layout = Some(("captured".to_owned(), 1));
+            assert!(ctx.original_upvar_level_width(count).is_none());
+            assert!(ctx.instructions.is_empty());
+            assert!(ctx.lvt.is_empty());
         }
     }
 

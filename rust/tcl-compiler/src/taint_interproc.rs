@@ -1062,41 +1062,98 @@ pub fn command_subst_callees(
         return known.iter().copied().collect();
     };
     let config = module.lexer_config.nested();
-    for (open, _) in body.match_indices('[') {
-        let Some(end) = tcl_lexer::command_substitution_end(body, open) else {
+    let profile = module
+        .source_metadata_input
+        .as_ref()
+        .map(crate::analyser::ResolvedAnalysisInput::analyser_profile)
+        .or(module.dialect_profile);
+    let Some(end) = base
+        .checked_add(body.len())
+        .and_then(|end| u32::try_from(end).ok())
+    else {
+        return known.iter().copied().collect();
+    };
+    let Ok(start) = u32::try_from(base) else {
+        return known.iter().copied().collect();
+    };
+    let mut pending = vec![(tcl_lexer::Span::new(start, end), false, 0)];
+    let mut seen = HashSet::new();
+    while let Some((span, substitution, depth)) = pending.pop() {
+        if !seen.insert((span, substitution)) {
+            continue;
+        }
+        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+            dependencies.extend(known.iter().copied());
+            continue;
+        }
+        let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
+            module.source.clone(),
+            span,
+            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        ) else {
             dependencies.extend(known.iter().copied());
             continue;
         };
-        let start = base + open + 1;
-        let finish = base + end - 1;
-        let Some(inner) = cu.source.get(start..finish) else {
+        if plan.fatal_tail.is_some() {
             dependencies.extend(known.iter().copied());
-            continue;
-        };
-        let Ok(offset) = u32::try_from(start) else {
-            dependencies.extend(known.iter().copied());
-            continue;
-        };
-        let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(inner, offset, config);
-        let map = SourceMap::new(inner).with_base(offset, 0, 0);
-        for command in commands {
-            if command.is_partial {
+        }
+        for command in plan.commands {
+            let Some(inner) = cu.source.get(command.span.as_range()) else {
+                dependencies.extend(known.iter().copied());
+                continue;
+            };
+            let offset = command.span.start();
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(inner, offset, config);
+            let [segment] = commands.as_slice() else {
+                dependencies.extend(known.iter().copied());
+                continue;
+            };
+            if segment.is_partial {
                 dependencies.extend(known.iter().copied());
                 continue;
             }
-            let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, &command);
+            let map = SourceMap::new(inner).with_base(offset, 0, 0);
+            let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, segment);
             bindings.stamp_original_tokens(&mut tokens);
-            let ids = original_head(&tokens).and_then(|head| {
-                crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
-                    &tokens, &head, module, registry,
-                )
-            });
-            if let Some(selected) = ids {
-                dependencies.extend(selected.bodies.into_iter().filter(|id| known.contains(id)));
-                if selected.unknown_alternatives {
+            if substitution {
+                let ids = original_head(&tokens).and_then(|head| {
+                    crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
+                        &tokens, &head, module, registry,
+                    )
+                });
+                if let Some(selected) = ids {
+                    dependencies
+                        .extend(selected.bodies.into_iter().filter(|id| known.contains(id)));
+                    if selected.unknown_alternatives {
+                        dependencies.extend(known.iter().copied());
+                    }
+                } else {
                     dependencies.extend(known.iter().copied());
                 }
+            }
+            if let Some(regions) = crate::word_subst::original_source_dependency_regions(
+                &tokens,
+                &command.words,
+                registry,
+                profile,
+            ) {
+                if regions.unknown {
+                    dependencies.extend(known.iter().copied());
+                }
+                pending.extend(
+                    regions
+                        .substitutions
+                        .into_iter()
+                        .map(|span| (span, true, depth + 1)),
+                );
+                pending.extend(
+                    regions
+                        .scripts
+                        .into_iter()
+                        .map(|span| (span, substitution, depth + 1)),
+                );
             } else {
                 dependencies.extend(known.iter().copied());
             }
@@ -1830,6 +1887,31 @@ mod tests {
         assert!(
             command_subst_callees_with_config("return []", "::ns::caller", &known, config)
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn summary_dependencies_keep_original_bracket_data_inert() {
+        let known = HashSet::from(["::foo".to_owned(), "::unused".to_owned()]);
+        let config =
+            tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
+        assert!(
+            command_subst_callees_with_config(
+                "while {$value} {incr value}",
+                "::caller",
+                &known,
+                config,
+            )
+            .is_empty()
+        );
+        assert!(
+            command_subst_callees_with_config(
+                "puts {[foo]}; return {[unused]}",
+                "::caller",
+                &known,
+                config,
+            )
+            .is_empty()
         );
     }
 
