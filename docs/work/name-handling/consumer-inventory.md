@@ -113,12 +113,14 @@ retain unknown coverage. Native source children retain their actual issuing birt
 tape and complete input; equality and parent/currentness refusals remain strict.
 These implementation migrations do not grant Native callable publication,
 entered frames, successful reads or editing permission. The Authored control
-bridge is under review and not integrated; Hosted case-clause production remains
-under review for its actual source configuration without an invented dialect.
+bridge and Hosted case-clause producer complete source review but are not integrated in this snapshot; actual post-integration controls
+remain required.
 
 Compiler81 builds but executes zero controls because an old word_subst module
-selector is missing. Corrected82 and focused83 run against the same retained
-source/ELF; no result is available. Diagnostic79 builds, seals two failed original producer/read
+selector is missing. Corrected82 remains running against the same retained
+source/ELF. Focused83 seals twelve controls at6 PASS/6 FAIL, with zero source
+drift and no empty selectors. Diagnostic79 builds, seals two failed original
+producer/read
 controls with zero source drift, and times out the unchanged #2286 control after
 180 seconds. Temporary instrumentation is accurately labelled and retired from
 production. Core80 stops during compilation at two test-only Registry profile
@@ -127,8 +129,9 @@ selector paths are corrected; fresh Core execution is required.
 
 The latest completed Compiler75 scope is 95 controls: 54 PASS/41 FAIL, build PASS
 and zero source drift. All six focused taint controls, Shimmer and dynamic escape
-pass. Two eval/up-frame controls remain red. Tcltest alias setup retains all
-forty cases, with missing/undefined sharing controls passing. Original namespace
+pass. Both original eval/up-frame failures are repaired and pass in focused83;
+the other Compiler75 failures still require their current replay. Tcltest alias
+setup retains all forty cases, with missing/undefined sharing controls passing. Original namespace
 import remains 0 versus 1 and C8.4 #2286 remains 1 versus 2, W210 at bytes160–167.
 Four original depth-budget controls abort. The broader Compiler67 scope is
 599 controls: 442 PASS/157 FAIL, all original542 retained with35 gains and3 escape
@@ -164,3 +167,11 @@ eval/up-frame regressions pass. Native complete-input and expansion refusal
 controls pass. Native positive child, three certificate controls and original
 SSA read/definition producers fail. Corrected82 remains running; these bounded
 results do not close Native or the complete consumer union.
+
+Current Runtime audit rows26 and29 already use shared owners: rename destination
+selection consumes the captured C protocol projection or original Jim input/key,
+and namespace import consumes shared import_metadata_in with actual command
+generation and optional direct ensemble token. Reporting FQNs supply no identity.
+OO definitionnamespace remains a concrete original object-namespace lookup
+migration; fixed authored ::oo::Helpers support is a separate path. These source
+audit dispositions do not renew runtime execution acceptance.
