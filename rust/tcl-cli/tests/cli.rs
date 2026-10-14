@@ -1904,6 +1904,20 @@ fn highlight_writes_a_tab_as_a_tab_under_a_redirected_stdout() {
         ansi.contains("\"a    b\""),
         "the tab stop counts source columns, not escape codes: {ansi:?}"
     );
+
+    // `a\<TAB>{b}` is one word in every Tcl from 8.4 to 9.1: expanding the
+    // tab before lexing would split off a braced `{b}` word.
+    let escaped = scratch.write("escaped.tcl", "set x a\\\t{b}\n");
+    let ansi = String::from_utf8(run_tcl(&[
+        "highlight",
+        "--colour",
+        escaped.to_str().expect("utf-8 path"),
+    ]))
+    .unwrap();
+    assert!(
+        ansi.contains("a\\    {b}"),
+        "the escaped tab stays inside the word: {ansi:?}"
+    );
 }
 
 /// `tcl opt` applies only the rewrites the document's policy shows (issue

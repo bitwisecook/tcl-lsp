@@ -18,9 +18,8 @@
 
 //! The `highlight` verb — emit ANSI- or HTML-highlighted source.
 //!
-//! Tabs expand only for the ANSI rendering, and before the escape codes go in
-//! so the tab stops count source columns; plain text and HTML keep the
-//! source's tabs verbatim.
+//! Tabs expand only for the ANSI rendering, after highlighting so the lexer
+//! sees the source's own tabs; plain text and HTML keep them verbatim.
 
 use tcl_cli_support::{
     OutputTarget, combine_sources, combined_effective_dialect, expand_tabs, highlight_ansi,
@@ -42,7 +41,7 @@ pub fn run_highlight(input: &InputArgs, format: &str, colour: &ColourArgs) -> an
     let out = if format == "html" {
         highlight_html(&source, dialect)
     } else if resolve_use_colour(colour.colour, colour.no_colour, &target) {
-        highlight_ansi(&expand_tabs(&source, DEFAULT_TAB_WIDTH), dialect)
+        expand_tabs(&highlight_ansi(&source, dialect), DEFAULT_TAB_WIDTH)
     } else {
         source
     };
