@@ -861,21 +861,32 @@ impl Scan<'_> {
     }
 
     fn note_name(out: &mut DeferredWrites, name: &str) {
-        let name = name.strip_prefix("::").unwrap_or(name);
-        if name.is_empty() {
-            return;
-        }
-        out.names.insert(name.to_owned());
-        let base = crate::sccp::place_base(name);
-        if base != name {
-            out.names.insert(base.to_owned());
-        }
+        crate::variable_observation_names::record_variable_write_name(
+            &mut out.names,
+            name,
+            crate::variable_observation_names::VariableWriteObservationPurpose::DeferredGlobal,
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deferred_write_names_preserve_empty_literal_and_array_protection() {
+        let mut writes = DeferredWrites::default();
+        for name in ["", "$counter", "::n::array(key)"] {
+            Scan::note_name(&mut writes, name);
+        }
+        assert!(writes.names.contains(""));
+        assert!(writes.names.contains("$counter"));
+        assert!(!writes.names.contains("counter"));
+        assert!(writes.names.contains("n::array(key)"));
+        assert!(writes.names.contains("n::array"));
+        assert!(!writes.names.contains("array"));
+        assert!(!writes.any);
+    }
 
     #[test]
     fn ordinary_native_dispatch_keeps_deferred_effects_unknown() {

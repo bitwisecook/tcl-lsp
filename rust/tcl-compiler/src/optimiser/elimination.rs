@@ -421,9 +421,14 @@ impl<'a> RaiseProof<'a> {
             || self.scope_aliases.contains(base)
             || self.fu.cfg.alias_observed_vars.contains(name)
             || self.fu.cfg.alias_observed_vars.contains(base)
-            || self
-                .module_traced
-                .is_some_and(|t| t.contains(base.trim_start_matches("::")))
+            || self.module_traced.is_some_and(|t| {
+                crate::variable_observation_names::variable_name_may_be_observed(
+                    t,
+                    base,
+                    false,
+                    crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
+                )
+            })
     }
 
     /// Whether the statement at `idx` of `block`, whose def is `def`, can be
@@ -1153,8 +1158,14 @@ fn dead_store_name_observed(
         written.kind == crate::place::PlaceKind::UpvarAlias
             || written.kind == crate::place::PlaceKind::InstanceVar
             || (!is_top_level && written.ns != crate::place::LOCAL_NS)
-    }) || module_traced.is_some_and(|names| names.contains(base.trim_start_matches("::")))
-        || var.starts_with("::")
+    }) || module_traced.is_some_and(|names| {
+        crate::variable_observation_names::variable_name_may_be_observed(
+            names,
+            base,
+            false,
+            crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
+        )
+    }) || var.starts_with("::")
         || ctx.cross_event_vars.contains(var)
         || ctx.cross_event_vars.contains(base)
 }

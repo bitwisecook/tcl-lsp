@@ -1,0 +1,42 @@
+{
+  "patch_sha256": "a1a6f639f22926e139404b4363776b21f5c00ff5c220f69c603f67d0d58bf7fc",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+      "before_sha256": "b72a2fb29ddf6ba90dd0f6734d7a87fa86d14081dbd6a4e3535f800348d699e7",
+      "after_sha256": "af97f037dbc2e8ce6bea17e046c944a33b4bfa273705606246c0834b0d0d2cda"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "6c80a3b2399bddaf14225ca34e622bca9b0bd4160a0420dce9d34a35e16367e6",
+      "after_sha256": "dced9b91798c76ffcbd9b8f73bd72d2c09a01e9b6d052afd3bb0ae23a41d8f3e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "288f1e08f341ecab64e77450b8b83dec6bf89ab5db37d66aac63d1f934282400",
+      "after_sha256": "ce0cdfee4c80bcfee7bc98aa24c1d3d7ccaedb99c654df6a191b5fb63b87ce83"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "before_sha256": "47bf063e1c0cd79cf877d4bf8690953e80ff8f473447a53dda4a818db3be55c6",
+      "after_sha256": "e7758c807dd739247bc5e7bbc231289f85f7a1287e9e2d36f080948c47ee0535"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "before_sha256": "b51006f18bb4db58731aedcbc51d7176a13a5bbf52d2122d0d4c27e6263eb029",
+      "after_sha256": "03e0563ca16831ffec733af29838354781e9f47237abd666cc83947bd51db91c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "before_sha256": "c9574009809fd2d0e8d2c8b9fd1f9ee1c867cbddda10cddc38809ee67b845cad",
+      "after_sha256": "4bc17f67e1407094ea0cd9c5bfde5cc8ba70cb890341cdb3b7e9560acbce1b17"
+    }
+  ],
+  "rust_status": "unexecuted; rustfmt passed; no Cargo",
+  "controls": [
+    "registry_invocation::source_structure::tests::logical_source_issuer_probe_preserves_actual_write_and_body_consumers",
+    "command_binding::original_name_value::tests::logical_receiver_word_geometry_and_write_card_keep_exact_source_currency"
+  ],
+  "trace_env": "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1",
+  "scope": "Temporary cfg(test) stage traces plus actual namespace positive/stale/config control. Genuine retained vectors only in the fixture; shared source_registry_words_at is exercised without fixture suffix recapture. Production predicates unchanged. Additional body-walk stage traces cover actual nested proc/uplevel issuer paths, which differ from top-level retain_original_invocation. Deferred LogicalBodyWalk words/operand header/selection/schema traces cover the actual SCOPED proc path."
+}

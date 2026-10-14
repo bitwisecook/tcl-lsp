@@ -50,6 +50,27 @@ source image/configuration, Registry/context and any actually selected target.
 Source-only catalogue rows cannot establish reached runtime applicability or
 current stores. Consumers must keep their independent execution/frame proofs.
 
+
+`original_variable_name_role_words` selects read/name roles through the actual
+analysis and `source_registry_words`. It requires the retained whole source,
+channel, configuration, availability context, original receiver and word
+correspondence. Effective argument roles project only onto their genuine
+written operands; captured prefix values do not borrow call-site geometry.
+The original word supplies its content span, while its independently known
+literal value supplies the name. Literal `$` content and the empty name remain
+valid names. Dynamic or opaque values and changed/foreign source inputs decline.
+These are readonly source references, without execution or edit authority.
+
+`VarReferenceScanner::scan_lexical_word` traverses shared original variable/index
+components under the caller's lexer configuration. A written command head
+cannot supply a receiver's roles. Actual source role consumers use the retained
+invocation owner. `scan_standalone_word` explicitly applies detached catalogue
+assumptions as protective liveness advice; it proves no selected binding,
+completed read, Native frame or source applicability. Lexical and standalone
+cache entries remain separate, with the exact Registry semantic identity in
+standalone keys. Supplied source consumers must not replace missing ownership
+with a standalone query.
+
 `Module::retain_procedure`, `retain_method` and `retain_body_unit` issue shared `ProcedureId`
 values. Module clones retain existing IDs and share issuance state; separately
 built modules cannot join equal ordinals. Inventories retain every body,

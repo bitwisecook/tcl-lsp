@@ -22,8 +22,7 @@
 /// skipping empty segments. `"::"` yields `[]`, `"::foo::bar"`
 /// yields `["foo", "bar"]`. This is the canonical
 /// [`crate::naming::qualifier_segments_owned`] split (colon runs are a
-/// single separator), shared with the interprocedural pass's
-/// `namespace_parts_from_proc` so the two cannot drift.
+/// single separator).
 #[must_use]
 pub fn namespace_parts(namespace: &str) -> Vec<String> {
     crate::naming::qualifier_segments_owned(namespace)

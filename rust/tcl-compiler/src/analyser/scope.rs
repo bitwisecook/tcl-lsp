@@ -1307,29 +1307,48 @@ impl Analyser {
         if let Some(registry) = self.registry.as_deref() {
             let mut extra: Vec<VarReadSite> = Vec::new();
             let lexer_config = self.file_lexer_config();
-            let cmd_name = cmd.texts.first().map_or("", String::as_str);
-            let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
-            let expr_idx: std::collections::HashSet<usize> = registry
-                .arg_indices_for_role(cmd_name, &post, tcl_registry::ArgRole::Expr)
+            let expr_idx: std::collections::HashSet<usize> =
+                crate::registry_invocation::source_structure::source_registry_words(
+                    &self.source,
+                    &self.result,
+                    cmd,
+                )
+                .map(|selected| selected.written_argument_roles())
+                .unwrap_or_default()
                 .into_iter()
+                .filter_map(|(index, role)| (role == tcl_registry::ArgRole::Expr).then_some(index))
                 .collect();
             // Top-level command-substitution tokens.
             for tok in &cmd.all_tokens {
                 if tok.kind == tcl_lexer::TokenType::Cmd {
-                    collect_cmd_subst_reads(&self.source, *tok, registry, lexer_config, &mut extra);
+                    collect_cmd_subst_reads(
+                        &self.source,
+                        &self.result,
+                        *tok,
+                        registry,
+                        lexer_config,
+                        &mut extra,
+                    );
                 }
             }
             // Braced expr arguments.
             for (i, arg) in cmd.argv.iter().enumerate().skip(1) {
                 if arg.kind == tcl_lexer::TokenType::Str && expr_idx.contains(&(i - 1)) {
-                    collect_expr_reads(&self.source, *arg, registry, lexer_config, &mut extra);
+                    collect_expr_reads(
+                        &self.source,
+                        &self.result,
+                        *arg,
+                        registry,
+                        lexer_config,
+                        &mut extra,
+                    );
                 }
             }
             // Registry `VarRead`-role name words of this command itself
             // (`info exists m`, `array get m`) — a use site of `m` exactly as
             // `$m` is, and one the `$`-token walk above cannot see because
             // there is no `$` to see.
-            collect_name_role_reads(cmd, registry, &mut extra);
+            collect_name_role_reads(&self.source, &self.result, cmd, &mut extra);
             for site in extra {
                 self.record_var_read_braced_in_origin(
                     &site.name,
@@ -2437,9 +2456,6 @@ impl Analyser {
         substitution: bool,
     ) {
         let base_name = crate::naming::normalise_var_name_braced(name, braced_literal);
-        if base_name.is_empty() {
-            return;
-        }
         self.record_qualified_var_ref(base_name, read_span, scope_path, substitution, false);
         // An `$arr(idx)` read records the element index on the array var.
         let element = crate::naming::split_array_name_braced(name, braced_literal)
@@ -3766,7 +3782,7 @@ impl VarReadSite {
 /// **reads** — the `m` of `info exists m` / `array get m` / `[set m]`, and
 /// the literal `$n` of `[set {$n}]`.
 ///
-/// Registry-driven via [`crate::var_refs::variable_name_role_words`], so no
+/// Original source roles from [`crate::var_refs::original_variable_name_role_words`], so no
 /// command is named here: any spec declaring an [`ArgRole::VarRead`] position
 /// contributes its use sites to `VarDef::references`, which is what
 /// Find References / document-highlight / the minifier's rename pass consume.
@@ -3775,11 +3791,12 @@ impl VarReadSite {
 ///
 /// [`ArgRole::VarRead`]: tcl_registry::ArgRole::VarRead
 fn collect_name_role_reads(
+    source: &str,
+    analysis: &crate::analyser::AnalysisResult,
     cmd: &crate::segmenter::SegmentedCommand,
-    registry: &tcl_registry::CommandRegistry,
     out: &mut Vec<VarReadSite>,
 ) {
-    for w in crate::var_refs::variable_name_role_words(cmd, registry) {
+    for w in crate::var_refs::original_variable_name_role_words(source, analysis, cmd) {
         if w.role != tcl_registry::ArgRole::VarRead {
             continue;
         }
@@ -3798,6 +3815,7 @@ fn collect_name_role_reads(
 /// (proc / namespace / oo) introduce a new scope and are skipped.
 fn collect_cmd_subst_reads(
     source: &str,
+    analysis: &crate::analyser::AnalysisResult,
     cmd_tok: Token,
     registry: &tcl_registry::CommandRegistry,
     lexer_config: tcl_lexer::LexerConfig,
@@ -3811,7 +3829,7 @@ fn collect_cmd_subst_reads(
         base,
         lexer_config.nested(),
     ) {
-        collect_script_command_reads(source, &cmd, registry, lexer_config, out);
+        collect_script_command_reads(source, analysis, &cmd, registry, lexer_config, out);
     }
 }
 
@@ -3820,6 +3838,7 @@ fn collect_cmd_subst_reads(
 /// substitutions / expr args / plain bodies.
 fn collect_script_command_reads(
     source: &str,
+    analysis: &crate::analyser::AnalysisResult,
     cmd: &crate::segmenter::SegmentedCommand,
     registry: &tcl_registry::CommandRegistry,
     lexer_config: tcl_lexer::LexerConfig,
@@ -3832,33 +3851,41 @@ fn collect_script_command_reads(
                 out.push(VarReadSite::substituted(name, tok.span));
             }
         } else if tok.kind == tcl_lexer::TokenType::Cmd {
-            collect_cmd_subst_reads(source, *tok, registry, lexer_config, out);
+            collect_cmd_subst_reads(source, analysis, *tok, registry, lexer_config, out);
         }
     }
     // The substituted command's own `VarRead`-role name words — `puts [set
     // m]` and `puts [info exists m]` read `m`, which nothing else here sees.
-    collect_name_role_reads(cmd, registry, out);
-    let cmd_name = cmd.texts.first().map_or("", String::as_str);
-    let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
-    let expr_idx: std::collections::HashSet<usize> = registry
-        .arg_indices_for_role(cmd_name, &post, tcl_registry::ArgRole::Expr)
-        .into_iter()
+    collect_name_role_reads(source, analysis, cmd, out);
+    let selected =
+        crate::registry_invocation::source_structure::source_registry_words(source, analysis, cmd);
+    let roles = selected
+        .as_ref()
+        .map(|selected| selected.written_argument_roles())
+        .unwrap_or_default();
+    let expr_idx: std::collections::HashSet<_> = roles
+        .iter()
+        .filter_map(|(index, role)| (*role == tcl_registry::ArgRole::Expr).then_some(*index))
         .collect();
-    let body_idx: std::collections::HashSet<usize> = registry
-        .arg_indices_for_role(cmd_name, &post, tcl_registry::ArgRole::Body)
-        .into_iter()
+    let body_idx: std::collections::HashSet<_> = roles
+        .iter()
+        .filter_map(|(index, role)| (*role == tcl_registry::ArgRole::Body).then_some(*index))
         .collect();
-    let structural = registry
-        .get(cmd_name)
-        .is_some_and(|s| s.body_kind == tcl_registry::BodyKind::Structural);
+    let plain_body = analysis.resolved_input.as_ref().and_then(|input| {
+        selected
+            .as_ref()?
+            .with_source_schema(&input.context_registry(), |invocation| {
+                invocation.semantics.body_kind != tcl_registry::BodyKind::Structural
+            })
+    }) == Some(true);
     for (i, arg) in cmd.argv.iter().enumerate().skip(1) {
         if arg.kind != tcl_lexer::TokenType::Str {
             continue;
         }
         let pidx = i - 1;
         if expr_idx.contains(&pidx) {
-            collect_expr_reads(source, *arg, registry, lexer_config, out);
-        } else if body_idx.contains(&pidx) && !structural {
+            collect_expr_reads(source, analysis, *arg, registry, lexer_config, out);
+        } else if body_idx.contains(&pidx) && plain_body {
             // Plain body inside a substitution — same scope, and the
             // main walk never reached it.
             if let Some((inner, base)) = inner_of(source, *arg) {
@@ -3867,7 +3894,14 @@ fn collect_script_command_reads(
                     base,
                     lexer_config.nested(),
                 ) {
-                    collect_script_command_reads(source, &sub, registry, lexer_config, out);
+                    collect_script_command_reads(
+                        source,
+                        analysis,
+                        &sub,
+                        registry,
+                        lexer_config,
+                        out,
+                    );
                 }
             }
         }
@@ -3879,6 +3913,7 @@ fn collect_script_command_reads(
 /// expression.
 fn collect_expr_reads(
     source: &str,
+    analysis: &crate::analyser::AnalysisResult,
     expr_tok: Token,
     registry: &tcl_registry::CommandRegistry,
     lexer_config: tcl_lexer::LexerConfig,
@@ -3902,6 +3937,7 @@ fn collect_expr_reads(
             tcl_lexer::TokenType::Cmd => {
                 collect_cmd_subst_reads(
                     source,
+                    analysis,
                     Token::new(tcl_lexer::TokenType::Cmd, abs),
                     registry,
                     lexer_config,

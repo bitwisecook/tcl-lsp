@@ -72,7 +72,7 @@
 //! - **Namespace-scoped proc shadowing a builtin** — a call whose bare or
 //!   canonical name is shadowed, from its own namespace, by a user `proc` of
 //!   the same name is not misclassified as the builtin sink/source; see
-//!   [`shadowed_builtin_names`].
+//!   [`shadowed_builtin_names_for_module_function`].
 //! - **Variable-trace-altered taint** — `trace add variable` / `trace
 //!   variable` conservatively forces a traced name to fully tainted
 //!   everywhere in the module, since a runtime handler can rewrite the
@@ -114,7 +114,7 @@ use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::{CommandTokens, Statement, WordExpr, WordPart};
 use crate::irules_checks::CodeFix;
-use crate::naming::{normalise_qualified_name, normalise_var_name};
+use crate::naming::normalise_var_name;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
@@ -3182,9 +3182,7 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             &fu.ssa,
             module_traces,
         );
-        let Some(shadowed) =
-            shadowed_builtin_names_for_module_function(fu, &cu.ir_module, registry)
-        else {
+        let Some(shadowed) = shadowed_builtin_names_for_module_function(fu, cu, registry) else {
             continue;
         };
         out.extend(find_taint_warnings_for_function_with_identities(
@@ -4081,31 +4079,10 @@ fn callback_replay_tainted_word(
     out
 }
 
-/// Bare registry command names shadowed, for a call inside `namespace`, by a
-/// user proc of the same name.
-///
-/// Tcl resolves an unqualified command name in the *current* namespace,
-/// falling back to the global namespace when not found there — a lookup
-/// that always terminates at global, so a plain top-level `proc puts {args}
-/// {…}` shadows every bare `puts` call in the *whole* module, while `proc
-/// ::myns::puts {args} {…}` shadows it only for calls made from `::myns`
-/// itself. Either way the call dispatches to the user's own proc, not the
-/// output-sink builtin, even though the registry still has a `puts` entry.
-///
-/// Matches the same simplified, current-namespace-or-global qualification
-/// the rest of the compiler already uses for `rename` / `interp alias`
-/// resolution (`crate::alias::resolve_alias`) rather than walking the full
-/// namespace ancestor chain — a proc sitting in an *intermediate* ancestor
-/// namespace (neither the caller's own namespace nor global) is not
-/// recognised as shadowing, matching that existing precedent's own gap.
-///
-/// `proc_qnames` is every procedure's fully-qualified name in the module
-/// (`CompilationUnit::procedures` keys); a name only counts as shadowing
-/// when it sits *directly* in `namespace` or in the global namespace
-/// (`{namespace}::{bare}` / `::{bare}`) — a proc in a nested child namespace
-/// does not shadow its parent's calls, and vice versa.
+/// Constructed publication labels used by the isolated lookup fixtures.
+#[cfg(test)]
 #[must_use]
-pub fn shadowed_builtin_names<'a>(
+fn shadowed_builtin_names<'a>(
     namespace: &str,
     proc_qnames: impl Iterator<Item = &'a str>,
     registry: &CommandRegistry,
@@ -4118,7 +4095,7 @@ pub fn shadowed_builtin_names<'a>(
         (!bare.is_empty() && !bare.contains("::")).then_some(bare)
     }
 
-    let ns_norm = normalise_qualified_name(namespace);
+    let ns_norm = crate::naming::normalise_qualified_name(namespace);
     let own_prefix = if ns_norm == "::" {
         "::".to_owned()
     } else {
@@ -4142,14 +4119,21 @@ pub fn shadowed_builtin_names<'a>(
     out
 }
 
-/// Source shadowing for one actual retained body, without interpreting its display.
-/// Unknown namespace or publication geometry refuses this projection.
+/// Source shadowing from a body retained by this actual compilation unit.
+/// Unknown namespace, publication or issuer ownership refuses the projection.
 #[must_use]
 pub fn shadowed_builtin_names_for_module_function(
     function: &crate::compilation_unit::FunctionUnit,
-    module: &crate::ir::Module,
+    unit: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
 ) -> Option<HashSet<String>> {
+    if !unit
+        .all_body_function_units()
+        .any(|owned| std::ptr::eq(owned, function))
+    {
+        return None;
+    }
+    let module = &unit.ir_module;
     use crate::command_binding::SourceNamespaceKey;
     fn path(context: &SourceNamespaceKey) -> Option<tcl_core_types::ByteNamespacePath> {
         context.exact_native_path().cloned().or_else(|| {
@@ -4160,6 +4144,7 @@ pub fn shadowed_builtin_names_for_module_function(
         })
     }
     let namespace = if let Some(id) = function.body_id {
+        module.procedure_ids.owns(id).then_some(())?;
         if let Some(procedure) = module
             .procedures
             .get(&id)
@@ -4177,15 +4162,19 @@ pub fn shadowed_builtin_names_for_module_function(
         } else {
             return None;
         }
-    } else if let Some(context) = module.top_level_namespace_context.as_ref() {
-        path(context)?
-    } else if module.source_entry.metadata_context.is_standalone() {
-        tcl_core_types::ByteNamespacePath::root()
     } else {
-        return None;
+        std::ptr::eq(function, &unit.top_level).then_some(())?;
+        if let Some(context) = module.top_level_namespace_context.as_ref() {
+            path(context)?
+        } else if module.source_entry.metadata_context.is_standalone() {
+            tcl_core_types::ByteNamespacePath::root()
+        } else {
+            return None;
+        }
     };
     let mut shadowed = HashSet::new();
-    for procedure in module.procedures.values() {
+    for (id, procedure) in &module.procedures {
+        module.procedure_ids.owns(*id).then_some(())?;
         let slot = procedure.publication.as_ref()?.slot();
         if slot.namespace == namespace || slot.namespace.is_root() {
             let tail = slot.simple.try_utf8().ok()?;
@@ -4211,7 +4200,7 @@ pub fn shadowed_builtin_names_for_module_function(
 /// other warning kinds (setter-constraint / uri-split / path-concat /
 /// destructive-file) are not emitted here yet.
 ///
-/// `shadowed_builtins` (see [`shadowed_builtin_names`]) lists the bare
+/// `shadowed_builtins` (see [`shadowed_builtin_names_for_module_function`]) lists the bare
 /// command names that resolve to a user proc rather than the registry
 /// builtin from this function's namespace — those are skipped by the
 /// registry-driven sink/source/pattern checks below.
@@ -11914,6 +11903,56 @@ mod tests {
     /// `namespace_shadowed_builtin_taint` below.
     mod shadowed_builtin_names_tests {
         use super::*;
+
+        #[test]
+        fn retained_body_scope_ignores_display_and_refuses_detached_units() {
+            let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let mut unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                "namespace eval ns {proc puts {args} {}; proc run {value} {puts $value}}",
+                &registry,
+                false,
+                profile,
+            );
+            let id = crate::test_body_identity::fixture_id(&unit.procedures, "::ns::run");
+            let function = unit.procedures.get_mut(&id).unwrap();
+            function.name = "::counterfactual::run".to_owned();
+            assert_eq!(
+                shadowed_builtin_names_for_module_function(
+                    unit.procedures.get(&id).unwrap(),
+                    &unit,
+                    &registry
+                ),
+                Some(HashSet::from(["puts".to_owned()]))
+            );
+            let detached_top = unit.top_level.clone();
+            assert!(
+                shadowed_builtin_names_for_module_function(&detached_top, &unit, &registry)
+                    .is_none()
+            );
+            let detached_body = unit.procedures.get(&id).unwrap().clone();
+            assert!(
+                shadowed_builtin_names_for_module_function(&detached_body, &unit, &registry)
+                    .is_none()
+            );
+            let foreign_unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                "proc foreign {} {}",
+                &registry,
+                false,
+                profile,
+            );
+            let foreign =
+                crate::test_body_identity::fixture_id(&foreign_unit.procedures, "::foreign");
+            unit.procedures.get_mut(&id).unwrap().body_id = Some(foreign);
+            assert!(
+                shadowed_builtin_names_for_module_function(
+                    unit.procedures.get(&id).unwrap(),
+                    &unit,
+                    &registry
+                )
+                .is_none()
+            );
+        }
 
         #[test]
         fn namespace_scoped_proc_shadows_only_its_own_namespace() {

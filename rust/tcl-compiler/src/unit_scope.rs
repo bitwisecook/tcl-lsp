@@ -1993,27 +1993,8 @@ pub(crate) fn build_extra_call_site_scan_contexts(
 /// arguments (`catch { … }`, a literal `uplevel { … }`, `apply {{…} {…}}`, a
 /// non-exact `switch` arm, …) via [`record_call_site_evidence`].
 ///
-/// Each call site is resolved to its callee via
-/// [`crate::interprocedural::resolve_internal_call`] — Tcl's real,
-/// existence-checked, namespace-relative resolution order, evaluated in the
-/// *calling* function's own namespace, not the global one. This is the same
-/// resolver the analyser and optimiser use for identical same-file call
-/// resolution; a bespoke or partial resolver here could disagree with them
-/// on which callee a bare name reaches.
-///
-/// The namespace context matters because a call site this scan fails to
-/// resolve doesn't just go uncounted — it *vanishes* from
-/// [`params_constants_from_native_call_sites`]'s "every caller passes the same
-/// literal" evidence, which can flip an absence of contradicting evidence
-/// into a false positive. A proc declared inside a `namespace eval` block
-/// recurses into itself by its bare (unqualified) name; a resolver that only
-/// tries global-qualified spellings of the command word
-/// so it could never match the proc's namespaced qualified name, and the
-/// recursive self-call — whose argument necessarily varies call to call —
-/// was silently dropped. Only the one external, fully-qualified caller's
-/// literal remained, so the loop/recursion-varying parameter was seeded as
-/// that one constant and folded a genuinely alternating condition (`$count &
-/// 1`) to a fixed boolean.
+/// Original call allocations join the Module's issued body coordinates.
+/// Unknown dispatch remains in the caller evidence and withdraws parameter seeds.
 pub(crate) fn collect_call_site_constants(
     cfg_module: &CfgModule,
     extra_callers: &[ExtraCallSiteScanContext],
@@ -2041,11 +2022,6 @@ pub(crate) fn collect_call_site_constants(
     // so it merges and slices correctly across files.
     let reach = unenumerable_reach(procedures, Traits::empty(), &known);
     let unresolved_handler = unresolved_command_handler(registry, &known);
-    // The top level has no qualified name of its own; `"::top"` (the same
-    // pseudo-qname `FunctionUnit::build_full` uses for it) resolves to the
-    // global namespace via `resolve_internal_call`'s "drop the last
-    // segment" rule, matching a bare top-level call's real resolution
-    // scope.
     let round = |previous: &CallSiteEvidence| {
         let ctx = CallSiteScanCtx {
             known: &known,

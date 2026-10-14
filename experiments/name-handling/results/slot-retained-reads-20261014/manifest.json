@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/slot_allocation.rs",
+      "before_sha256": "1faefdba844539fd7c01d6d58891bf4e00ead9fdd04e968c85f8dba268463cda",
+      "after_sha256": "40a544cb1707eeafdf351fb2db241966f31460e0699a1c5602c4c48c4fdbc10b"
+    }
+  ],
+  "patch_sha256": "e707ec75c7f3c7ed4e0e8f009f70f8c4d454260afa205e57b7f3aea353f01ed6",
+  "checks": "Scratch rustfmt parse/format PASS; no Cargo/Main edits. Compiled acceptance pending.",
+  "contract": "Slot and scalar liveness consume retained place_bridge::terminator_read_places_at and issued SSA symbols; unknown reads retain all known cells; detached explicit standalone path consumes shared def_use lexical forms, no Native binding grants.",
+  "test_controls": "Four fixed actual CU/SSA controls: original read vs unrelated cell, foreign Registry + unavailable point, array root keeps both members, explicit standalone nested command preserves read. Unexecuted."
+}

@@ -1,0 +1,113 @@
+diff --git a/runtime/rust/src/engine.rs b/runtime/rust/src/engine.rs
+index 8a20c397c..6b2756b77 100644
+--- a/runtime/rust/src/engine.rs
++++ b/runtime/rust/src/engine.rs
+@@ -2032,7 +2032,8 @@ mod original_active_host_deletion_tests {
+                 Err(EngineError::execution_failure(self.0.clone()))
+             }
+         }
+-        let mut engine = engine("tcl8.6");
++        let mut engine = RuntimeEngine::new();
++        engine.set_release("tcl8.6").unwrap();
+         let cause = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                 "actual Runtime Engine typed callback cause",
+diff --git a/runtime/rust/src/engine_abi/value_carriers.rs b/runtime/rust/src/engine_abi/value_carriers.rs
+index 4cace5471..5ffeffdc3 100644
+--- a/runtime/rust/src/engine_abi/value_carriers.rs
++++ b/runtime/rust/src/engine_abi/value_carriers.rs
+@@ -454,7 +454,7 @@ mod tests {
+             )
+             .is_some());
+         let completion = interp.eval_completion(b"completion").unwrap();
+-        assert_eq!(completion.code, Code::Error);
++        assert_eq!(completion.code, tcl_core_types::Code::Error);
+         assert_eq!(completion.result, b"ERR\0\xff");
+         assert_eq!(interp.error_code_bytes_checked().unwrap(), b"HOST OPAQUE");
+         assert!(completion
+diff --git a/runtime/rust/src/interp/stock_ensembles/publication_tests.rs b/runtime/rust/src/interp/stock_ensembles/publication_tests.rs
+index e0b61d02c..de301d488 100644
+--- a/runtime/rust/src/interp/stock_ensembles/publication_tests.rs
++++ b/runtime/rust/src/interp/stock_ensembles/publication_tests.rs
+@@ -340,7 +340,19 @@ fn selected_jim_scripted_root_keeps_actual_helper_generations_on_reinstallation(
+             let registrations = interpreter.stock_ensembles.borrow();
+             let installed = &registrations.families[&family];
+             assert!(installed.scripted);
+-            (installed.generation, installed.scripted_helpers.clone())
++            let helpers: Vec<_> = installed
++                .scripted_helpers
++                .iter()
++                .map(|helper| {
++                    (
++                        helper.declared.namespace,
++                        helper.declared.simple.clone(),
++                        helper.declared.slot.clone(),
++                        helper.generation,
++                    )
++                })
++                .collect();
++            (installed.generation, helpers)
+         };
+         assert_eq!(helpers.len(), 2);
+         interpreter.install_stock_scripted_binary(ingress, &[noop, noop]);
+@@ -348,13 +360,30 @@ fn selected_jim_scripted_root_keeps_actual_helper_generations_on_reinstallation(
+         let installed = &registrations.families[&family];
+         assert!(installed.scripted);
+         assert_ne!(installed.generation, old);
+-        assert_eq!(installed.scripted_helpers, helpers);
++        let current_helpers: Vec<_> = installed
++            .scripted_helpers
++            .iter()
++            .map(|helper| {
++                (
++                    helper.declared.namespace,
++                    helper.declared.simple.clone(),
++                    helper.declared.slot.clone(),
++                    helper.generation,
++                )
++            })
++            .collect();
++        assert_eq!(current_helpers, helpers);
+         assert_eq!(
+             interpreter.resolve_cmd_token(ingress.name.as_bytes()),
+             Some(installed.generation)
+         );
+-        for (name, generation) in &helpers {
+-            assert_eq!(interpreter.resolve_cmd_token(name), Some(*generation));
++        for (namespace, simple, _, generation) in &helpers {
++            assert_eq!(
++                interpreter
++                    .namespaces()
++                    .command_generation(*namespace, simple.as_bytes()),
++                Some(*generation)
++            );
+         }
+         assert!(interpreter.native_execution_refusal().is_none());
+         assert!(matches!(
+diff --git a/runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs b/runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs
+index a8b86b823..7f64e3b7a 100644
+--- a/runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs
++++ b/runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs
+@@ -205,7 +205,7 @@ fn original_compiled_word_cat_checks_after_genuine_component_retirement_before_r
+             }
+             let prior = fixture::string(b"PRIOR");
+             actual.set_result(prior.as_ptr());
+-            let scope =
++            let _scope =
+                 crate::interp::native_operation_currency::NativeOperationScope::enter(&actual)
+                     .unwrap();
+             FREES.set(0);
+diff --git a/runtime/rust/src/list.rs b/runtime/rust/src/list.rs
+index f5ec2df32..7bd63f02a 100644
+--- a/runtime/rust/src/list.rs
++++ b/runtime/rust/src/list.rs
+@@ -53,9 +53,6 @@ pub(crate) use native_list_storage::{
+     native_list_command_range, native_list_command_range_using, native_list_range_using,
+ };
+ 
+-#[cfg(test)]
+-pub(crate) use native_list_storage::native_list_range;
+-
+ struct NativeListElements(
+     Vec<*mut TclObj>,
+     Cell<bool>,

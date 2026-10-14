@@ -613,8 +613,7 @@ fn try_fold_chain_at(
             // through its callback, so it ends this source chain.
             Some(other)
                 if write_var(&other) != var
-                    && !protected.contains(write_var(&other))
-                    && !protected.contains(write_var(&other).trim_start_matches("::")) =>
+                    && !crate::variable_observation_names::variable_name_may_be_observed(protected, write_var(&other), false, crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection) =>
             {
                 j += 1;
             }
@@ -626,8 +625,12 @@ fn try_fold_chain_at(
     // `populate_variable_trace_facts`), so a `::`-qualified chain target is
     // checked under that canonical spelling too.
     if writes.len() < 2
-        || protected.contains(&var)
-        || protected.contains(var.trim_start_matches("::"))
+        || crate::variable_observation_names::variable_name_may_be_observed(
+            protected,
+            &var,
+            false,
+            crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection,
+        )
     {
         return None;
     }

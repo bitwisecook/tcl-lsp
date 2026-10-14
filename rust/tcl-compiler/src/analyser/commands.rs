@@ -1837,9 +1837,7 @@ impl Analyser {
             // recursion never mis-reads the parameter list as a command.
             Hook::Apply => {
                 let original = self.original_interp_apply_body(cmd_tok, arg_tokens, scope_path);
-                self.handle_apply_command_with_source_namespace(
-                    args, arg_tokens, scope_path, original,
-                )
+                self.handle_apply_command_with_source_namespace(args, arg_tokens, original)
             }
 
             // Void families: run the handler(s), then fall through to

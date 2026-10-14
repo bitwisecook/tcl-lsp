@@ -1648,9 +1648,18 @@ impl<'a> CfgBuilder<'a> {
                 reads.push(r);
             }
         }
-        let beside = self.read_beside_writes(&embedded_extras, |scanner| {
-            crate::ir_helpers::statement_substituted_reads(stmt, &embedded, scanner, self.registry)
-        });
+        let beside = self.read_beside_writes(
+            &embedded_extras,
+            self.original_tokens_for_statement(stmt),
+            |scanner| {
+                crate::ir_helpers::statement_substituted_reads(
+                    stmt,
+                    &embedded,
+                    scanner,
+                    self.registry,
+                )
+            },
+        );
         for name in beside.into_iter().chain(self.protected_writes(&embedded)) {
             if !reads.contains(&name) {
                 reads.push(name);
@@ -1699,6 +1708,7 @@ impl<'a> CfgBuilder<'a> {
     fn read_beside_writes(
         &self,
         written: &[String],
+        tokens: Option<&CommandTokens>,
         host_reads: impl FnOnce(&mut VarReferenceScanner) -> BTreeSet<String>,
     ) -> Vec<String> {
         if written.is_empty() {
@@ -1706,18 +1716,78 @@ impl<'a> CfgBuilder<'a> {
         }
         let mut scanner = VarReferenceScanner::with_config(
             VarScanOptions {
-                include_var_read_roles: true,
+                include_var_read_roles: false,
                 recurse_cmd_substitutions: true,
                 include_reads_before_write: false,
                 element_qualified: true,
             },
             self.config,
         );
-        let base = |name: &str| normalise_var_name(name).trim_start_matches("::").to_owned();
-        let read: BTreeSet<String> = host_reads(&mut scanner)
+        let base = |name: &str| {
+            crate::variable_observation_names::module_observation_key(
+                tcl_syntax::naming::normalise_var_name_braced(name, true),
+            )
+            .to_owned()
+        };
+        let mut read: BTreeSet<String> = host_reads(&mut scanner)
             .iter()
             .map(|name| base(name))
             .collect();
+        let Some(children) = tokens.and_then(|tokens| {
+            self.procedure_summary_owners
+                .children(tokens, self.registry)
+        }) else {
+            return written.to_vec();
+        };
+        for child in &children {
+            let Some(binding) = child.source_binding.as_ref() else {
+                return written.to_vec();
+            };
+            let metadata = match self.procedure_summary_owners.module(self.registry) {
+                Some(module) => {
+                    binding.original_invocation_metadata_for_module(child, module, self.registry)
+                }
+                None => binding
+                    .original_source_metadata_for_advice(child, self.registry)
+                    .ok()
+                    .flatten(),
+            };
+            let Some(metadata) = metadata else {
+                return written.to_vec();
+            };
+            let Some(roles) =
+                crate::registry_invocation::possible_variable_name_operands_with_metadata_context(
+                    self.registry,
+                    Some(metadata),
+                    child,
+                )
+            else {
+                return written.to_vec();
+            };
+            if roles.unknown_residual()
+                || roles
+                    .unresolved_roles()
+                    .any(|role| role == tcl_registry::ArgRole::VarRead)
+            {
+                return written.to_vec();
+            }
+            for (role, word) in roles.operands() {
+                if role != tcl_registry::ArgRole::VarRead {
+                    continue;
+                }
+                match word {
+                    crate::registry_invocation::EffectiveInvocationWord::Literal(name) => {
+                        read.insert(base(name));
+                    }
+                    crate::registry_invocation::EffectiveInvocationWord::ArrayElementName {
+                        root,
+                    } => {
+                        read.insert(base(root));
+                    }
+                    _ => return written.to_vec(),
+                }
+            }
+        }
         written
             .iter()
             .filter(|name| read.contains(&base(name)))
@@ -1866,7 +1936,7 @@ impl<'a> CfgBuilder<'a> {
         // dynamic read's effect on dead-store elimination is already owned by
         // `dynamic_names.reads`, which abstains for the whole function.
         let mut reads = writes.read_names;
-        let beside = self.read_beside_writes(&defs, |scanner| {
+        let beside = self.read_beside_writes(&defs, self.original_tokens_at(span), |scanner| {
             crate::ir_helpers::condition_substituted_reads(
                 condition,
                 &embedded,
@@ -7707,6 +7777,52 @@ mod tests {
             .command_binding_sites
             .extend(module.top_level.command_binding_sites.iter().cloned());
         assert!(builder.direct_upvar_effects(&call).opaque_arguments);
+    }
+
+    #[test]
+    fn read_beside_writes_uses_original_roles_and_preserves_refusals() {
+        for (source, expected) in [
+            ("puts [set x 2] [info exists x]", vec!["x".to_owned()]),
+            ("puts [set x 2]", Vec::new()),
+        ] {
+            let module = lower_module(source);
+            let registry = module.resolved_registry();
+            let prepared = prepare_cfg_context_bundle(&module, registry);
+            let builder = CfgBuilder::new_with_classes(
+                false,
+                prepared.context.0.clone(),
+                prepared.context.1.clone(),
+                prepared.context.2.clone(),
+                prepared.context.3.clone(),
+                registry,
+                prepared.command_classes.clone(),
+            )
+            .with_procedure_summary_owners(prepared.context.4.clone());
+            let statement = module.top_level.statements.last().unwrap();
+            let tokens = module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let written = vec!["x".to_owned(), "unrelated".to_owned()];
+            let reads = builder.read_beside_writes(&written, Some(tokens), |scanner| {
+                scanner.scan_lexical_word("", registry)
+            });
+            assert_eq!(reads, expected, "{source}");
+            assert_eq!(
+                builder.read_beside_writes(&written, None, |scanner| {
+                    scanner.scan_lexical_word("", registry)
+                }),
+                written
+            );
+            let mut changed = tokens.clone();
+            changed.source_binding = None;
+            assert_eq!(
+                builder.read_beside_writes(&written, Some(&changed), |scanner| {
+                    scanner.scan_lexical_word("", registry)
+                }),
+                written
+            );
+        }
     }
 
     #[test]

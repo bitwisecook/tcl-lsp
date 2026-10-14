@@ -1,0 +1,6 @@
+version 8.5.19
+names empty-value sigil-value brace-value
+trace {} 0 1 {}
+trace {$counter} 0 1 {}
+trace brace{name} 0 1 {}
+trace ::left::x 0 1 {}

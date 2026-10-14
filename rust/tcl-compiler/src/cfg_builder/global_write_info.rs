@@ -985,12 +985,11 @@ fn collect_write_targets(
 /// definition of `::hits` alone leaves the caller's `hits` forwarding a
 /// stale constant across the call.
 fn insert_outer_name(names: &mut BTreeSet<String>, name: &str) {
-    if let Some(relative) = name.strip_prefix("::")
-        && !relative.is_empty()
-    {
-        names.insert(relative.to_owned());
-    }
-    names.insert(name.to_owned());
+    crate::variable_observation_names::record_variable_write_name(
+        names,
+        name,
+        crate::variable_observation_names::VariableWriteObservationPurpose::OuterScope,
+    );
 }
 
 /// The variable name(s) `stmt` itself directly writes — its own `name`

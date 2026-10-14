@@ -454,7 +454,7 @@ mod tests {
             )
             .is_some());
         let completion = interp.eval_completion(b"completion").unwrap();
-        assert_eq!(completion.code, Code::Error);
+        assert_eq!(completion.code, tcl_core_types::Code::Error);
         assert_eq!(completion.result, b"ERR\0\xff");
         assert_eq!(interp.error_code_bytes_checked().unwrap(), b"HOST OPAQUE");
         assert!(completion

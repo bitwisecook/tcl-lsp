@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "8f15f4838717575d02ac82a94c62de75e692a19e209e1016560ceeed4eaf63f1",
+      "after_sha256": "a79cf82bcff773f59170f4b3b12a9e14e55b8ea9b5c82f94652acd4da8e3c058"
+    },
+    {
+      "path": "rust/tcl-compiler/src/var_refs.rs",
+      "before_sha256": "4eac9bae04a535628963569bd4b258832704ee421f280aa5bcf43beae7d30394",
+      "after_sha256": "50dc2f940f960e627c9debf2b104eff4a3e85125e5f4ded4d593c15057f77722"
+    }
+  ],
+  "patch_sha256": "dde7a10379e60971d6639b26b7fd9da89f34fc906aece5b584c7f84bc4160185",
+  "scope": "Originalsource+actualAnalysisResult ownerquery selectsreadonlyroles/formedliteralvalues/originalspans; completeimage/config/realm/fullinputguardretained. Role/body/exprcollectionusesactualselectedschema. Lexicalandexplicitstandalonecachequeriesseparate; legalempty/sigilnameskept. NoNative/execution/editgrant. Rustfmt only; noCargo."
+}

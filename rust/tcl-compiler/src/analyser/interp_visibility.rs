@@ -1651,7 +1651,6 @@ impl Analyser {
             self.handle_apply_command_with_source_namespace(
                 &segment.texts[2..],
                 &segment.argv[2..],
-                scope_path,
                 original,
             );
         }

@@ -1,0 +1,482 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -1307,29 +1307,46 @@
+         if let Some(registry) = self.registry.as_deref() {
+             let mut extra: Vec<VarReadSite> = Vec::new();
+             let lexer_config = self.file_lexer_config();
+-            let cmd_name = cmd.texts.first().map_or("", String::as_str);
+-            let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+-            let expr_idx: std::collections::HashSet<usize> = registry
+-                .arg_indices_for_role(cmd_name, &post, tcl_registry::ArgRole::Expr)
+-                .into_iter()
+-                .collect();
++            let expr_idx: std::collections::HashSet<usize> =
++                crate::registry_invocation::source_registry_words(&self.source, &self.result, cmd)
++                    .map(|selected| selected.written_argument_roles())
++                    .unwrap_or_default()
++                    .into_iter()
++                    .filter_map(|(index, role)| {
++                        (role == tcl_registry::ArgRole::Expr).then_some(index)
++                    })
++                    .collect();
+             // Top-level command-substitution tokens.
+             for tok in &cmd.all_tokens {
+                 if tok.kind == tcl_lexer::TokenType::Cmd {
+-                    collect_cmd_subst_reads(&self.source, *tok, registry, lexer_config, &mut extra);
++                    collect_cmd_subst_reads(
++                        &self.source,
++                        &self.result,
++                        *tok,
++                        registry,
++                        lexer_config,
++                        &mut extra,
++                    );
+                 }
+             }
+             // Braced expr arguments.
+             for (i, arg) in cmd.argv.iter().enumerate().skip(1) {
+                 if arg.kind == tcl_lexer::TokenType::Str && expr_idx.contains(&(i - 1)) {
+-                    collect_expr_reads(&self.source, *arg, registry, lexer_config, &mut extra);
++                    collect_expr_reads(
++                        &self.source,
++                        &self.result,
++                        *arg,
++                        registry,
++                        lexer_config,
++                        &mut extra,
++                    );
+                 }
+             }
+             // Registry `VarRead`-role name words of this command itself
+             // (`info exists m`, `array get m`) — a use site of `m` exactly as
+             // `$m` is, and one the `$`-token walk above cannot see because
+             // there is no `$` to see.
+-            collect_name_role_reads(cmd, registry, &mut extra);
++            collect_name_role_reads(&self.source, &self.result, cmd, &mut extra);
+             for site in extra {
+                 self.record_var_read_braced_in_origin(
+                     &site.name,
+@@ -2437,9 +2454,6 @@
+         substitution: bool,
+     ) {
+         let base_name = crate::naming::normalise_var_name_braced(name, braced_literal);
+-        if base_name.is_empty() {
+-            return;
+-        }
+         self.record_qualified_var_ref(base_name, read_span, scope_path, substitution, false);
+         // An `$arr(idx)` read records the element index on the array var.
+         let element = crate::naming::split_array_name_braced(name, braced_literal)
+@@ -3766,7 +3780,7 @@
+ /// **reads** — the `m` of `info exists m` / `array get m` / `[set m]`, and
+ /// the literal `$n` of `[set {$n}]`.
+ ///
+-/// Registry-driven via [`crate::var_refs::variable_name_role_words`], so no
++/// Original source roles from [`crate::var_refs::original_variable_name_role_words`], so no
+ /// command is named here: any spec declaring an [`ArgRole::VarRead`] position
+ /// contributes its use sites to `VarDef::references`, which is what
+ /// Find References / document-highlight / the minifier's rename pass consume.
+@@ -3775,11 +3789,12 @@
+ ///
+ /// [`ArgRole::VarRead`]: tcl_registry::ArgRole::VarRead
+ fn collect_name_role_reads(
++    source: &str,
++    analysis: &crate::analyser::AnalysisResult,
+     cmd: &crate::segmenter::SegmentedCommand,
+-    registry: &tcl_registry::CommandRegistry,
+     out: &mut Vec<VarReadSite>,
+ ) {
+-    for w in crate::var_refs::variable_name_role_words(cmd, registry) {
++    for w in crate::var_refs::original_variable_name_role_words(source, analysis, cmd) {
+         if w.role != tcl_registry::ArgRole::VarRead {
+             continue;
+         }
+@@ -3798,6 +3813,7 @@
+ /// (proc / namespace / oo) introduce a new scope and are skipped.
+ fn collect_cmd_subst_reads(
+     source: &str,
++    analysis: &crate::analyser::AnalysisResult,
+     cmd_tok: Token,
+     registry: &tcl_registry::CommandRegistry,
+     lexer_config: tcl_lexer::LexerConfig,
+@@ -3811,7 +3827,7 @@
+         base,
+         lexer_config.nested(),
+     ) {
+-        collect_script_command_reads(source, &cmd, registry, lexer_config, out);
++        collect_script_command_reads(source, analysis, &cmd, registry, lexer_config, out);
+     }
+ }
+ 
+@@ -3820,6 +3836,7 @@
+ /// substitutions / expr args / plain bodies.
+ fn collect_script_command_reads(
+     source: &str,
++    analysis: &crate::analyser::AnalysisResult,
+     cmd: &crate::segmenter::SegmentedCommand,
+     registry: &tcl_registry::CommandRegistry,
+     lexer_config: tcl_lexer::LexerConfig,
+@@ -3832,33 +3849,40 @@
+                 out.push(VarReadSite::substituted(name, tok.span));
+             }
+         } else if tok.kind == tcl_lexer::TokenType::Cmd {
+-            collect_cmd_subst_reads(source, *tok, registry, lexer_config, out);
++            collect_cmd_subst_reads(source, analysis, *tok, registry, lexer_config, out);
+         }
+     }
+     // The substituted command's own `VarRead`-role name words — `puts [set
+     // m]` and `puts [info exists m]` read `m`, which nothing else here sees.
+-    collect_name_role_reads(cmd, registry, out);
+-    let cmd_name = cmd.texts.first().map_or("", String::as_str);
+-    let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+-    let expr_idx: std::collections::HashSet<usize> = registry
+-        .arg_indices_for_role(cmd_name, &post, tcl_registry::ArgRole::Expr)
+-        .into_iter()
++    collect_name_role_reads(source, analysis, cmd, out);
++    let selected = crate::registry_invocation::source_registry_words(source, analysis, cmd);
++    let roles = selected
++        .as_ref()
++        .map(|selected| selected.written_argument_roles())
++        .unwrap_or_default();
++    let expr_idx: std::collections::HashSet<_> = roles
++        .iter()
++        .filter_map(|(index, role)| (*role == tcl_registry::ArgRole::Expr).then_some(*index))
+         .collect();
+-    let body_idx: std::collections::HashSet<usize> = registry
+-        .arg_indices_for_role(cmd_name, &post, tcl_registry::ArgRole::Body)
+-        .into_iter()
++    let body_idx: std::collections::HashSet<_> = roles
++        .iter()
++        .filter_map(|(index, role)| (*role == tcl_registry::ArgRole::Body).then_some(*index))
+         .collect();
+-    let structural = registry
+-        .get(cmd_name)
+-        .is_some_and(|s| s.body_kind == tcl_registry::BodyKind::Structural);
++    let plain_body = analysis.resolved_input.as_ref().and_then(|input| {
++        selected
++            .as_ref()?
++            .with_source_schema(&input.context_registry(), |invocation| {
++                invocation.semantics.body_kind != tcl_registry::BodyKind::Structural
++            })
++    }) == Some(true);
+     for (i, arg) in cmd.argv.iter().enumerate().skip(1) {
+         if arg.kind != tcl_lexer::TokenType::Str {
+             continue;
+         }
+         let pidx = i - 1;
+         if expr_idx.contains(&pidx) {
+-            collect_expr_reads(source, *arg, registry, lexer_config, out);
+-        } else if body_idx.contains(&pidx) && !structural {
++            collect_expr_reads(source, analysis, *arg, registry, lexer_config, out);
++        } else if body_idx.contains(&pidx) && plain_body {
+             // Plain body inside a substitution — same scope, and the
+             // main walk never reached it.
+             if let Some((inner, base)) = inner_of(source, *arg) {
+@@ -3867,7 +3891,14 @@
+                     base,
+                     lexer_config.nested(),
+                 ) {
+-                    collect_script_command_reads(source, &sub, registry, lexer_config, out);
++                    collect_script_command_reads(
++                        source,
++                        analysis,
++                        &sub,
++                        registry,
++                        lexer_config,
++                        out,
++                    );
+                 }
+             }
+         }
+@@ -3879,6 +3910,7 @@
+ /// expression.
+ fn collect_expr_reads(
+     source: &str,
++    analysis: &crate::analyser::AnalysisResult,
+     expr_tok: Token,
+     registry: &tcl_registry::CommandRegistry,
+     lexer_config: tcl_lexer::LexerConfig,
+@@ -3902,6 +3934,7 @@
+             tcl_lexer::TokenType::Cmd => {
+                 collect_cmd_subst_reads(
+                     source,
++                    analysis,
+                     Token::new(tcl_lexer::TokenType::Cmd, abs),
+                     registry,
+                     lexer_config,
+--- a/rust/tcl-compiler/src/var_refs.rs
++++ b/rust/tcl-compiler/src/var_refs.rs
+@@ -41,17 +41,12 @@
+ /// and how it is spelled.
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub struct NameRoleWord {
+-    /// The word's text as written, delimiters already stripped by the
+-    /// segmenter — `m`, `arr(k)`, or, for a brace-quoted word, its content
+-    /// verbatim (`[set {$n}]` gives `$n`).  Raw so a consumer that needs the
+-    /// array element (`crate::naming::split_array_name_braced`) still has it;
+-    /// [`Self::base_name`] is the canonical cell name.
++    /// Literal name value, separate from its original source geometry.
+     pub word: String,
+     /// The word's own source span, i.e. what a reference / highlight /
+     /// rename provider points at.
+     pub span: Span,
+-    /// The word is a single brace-quoted token, so Tcl substitutes nothing
+-    /// inside it and its content is the name verbatim.
++    /// The name text is already literal; preserve substitution sigils in it.
+     pub braced_literal: bool,
+     /// Which naming role the registry gave the word.
+     pub role: ArgRole,
+@@ -86,6 +81,7 @@
+ /// token scan sees. A brace-quoted word is *not* computed — braces suppress
+ /// substitution, so `{$n}` is the literal name `$n`.
+ #[must_use]
++#[cfg(test)]
+ pub fn variable_name_role_words(
+     cmd: &SegmentedCommand,
+     registry: &CommandRegistry,
+@@ -110,9 +106,6 @@
+             if !braced_literal && crate::naming::is_dynamic_word(text) {
+                 continue;
+             }
+-            if crate::naming::normalise_var_name_braced(text, braced_literal).is_empty() {
+-                continue;
+-            }
+             out.push(NameRoleWord {
+                 word: text.clone(),
+                 span: tok.span,
+@@ -127,12 +120,63 @@
+     out
+ }
+ 
++/// Readonly name words selected by the retained complete original invocation.
++#[must_use]
++pub fn original_variable_name_role_words(
++    source: &str,
++    analysis: &crate::analyser::AnalysisResult,
++    command: &SegmentedCommand,
++) -> Vec<NameRoleWord> {
++    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
++    let Some(selected) =
++        crate::registry_invocation::source_registry_words(source, analysis, command)
++    else {
++        return Vec::new();
++    };
++    let mut out = Vec::new();
++    for &(argument, role) in selected.roles().unwrap_or(&[]) {
++        if !role.names_variable() {
++            continue;
++        }
++        let Some(InvocationWordOrigin::Written(written)) = selected.origins().get(argument + 1)
++        else {
++            continue;
++        };
++        let Some(original) = selected.original_argument_word(argument) else {
++            continue;
++        };
++        let value = match selected.arguments().get(argument) {
++            Some(EffectiveInvocationWord::Literal(value)) => value.as_str(),
++            Some(EffectiveInvocationWord::ByteLiteral(value)) => {
++                let Ok(value) = std::str::from_utf8(value) else {
++                    continue;
++                };
++                value
++            }
++            _ => continue,
++        };
++        let Ok(span) = original.content_span() else {
++            continue;
++        };
++        out.push(NameRoleWord {
++            word: value.to_owned(),
++            span,
++            braced_literal: true,
++            role,
++            word_index: *written,
++        });
++    }
++    out.sort_by_key(|word| word.span.start());
++    out.dedup_by(|left, right| left.span == right.span);
++    out
++}
++
+ /// Options controlling what a [`VarReferenceScanner`] looks for.
+ #[allow(clippy::struct_excessive_bools)] // option flags, not a state machine
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub struct VarScanOptions {
+-    /// When `true`, also collect variable names passed as
+-    /// `ArgRole::VarRead` arguments to known commands.
++    /// Include explicitly standalone catalogue read-role assumptions.
++    /// Source-bound roles come from the retained original invocation.
+     pub include_var_read_roles: bool,
+     /// When `true`, recurse into `[…]` command substitutions.
+     pub recurse_cmd_substitutions: bool,
+@@ -187,7 +231,13 @@
+ 
+ /// LRU key: the scanned text, the mode it was scanned in (`quoted_body` — see
+ /// [`scan_tokens`]), and the exact local lexical policy.
+-type CacheKey = (String, bool, LexerConfig);
++type CacheKey = (
++    String,
++    bool,
++    LexerConfig,
++    bool,
++    Option<tcl_registry::registry::RegistrySemanticKey>,
++);
+ 
+ impl VarReferenceScanner {
+     /// Create a new scanner with the given options and default cache size.
+@@ -278,6 +328,24 @@
+         self.scan_cached(text, registry, true)
+     }
+ 
++    /// Source syntax alone; command heads grant no receiver read roles.
++    pub fn scan_lexical_word(
++        &mut self,
++        text: &str,
++        registry: &CommandRegistry,
++    ) -> BTreeSet<String> {
++        self.scan_cached_roles(text, registry, true, false)
++    }
++
++    /// Detached catalogue assumptions may protect stores but prove no binding.
++    pub fn scan_standalone_word(
++        &mut self,
++        text: &str,
++        registry: &CommandRegistry,
++    ) -> BTreeSet<String> {
++        self.scan_cached_roles(text, registry, true, true)
++    }
++
+     /// Scan a Tcl script for variable references (LRU-cached).
+     ///
+     /// `source` is a genuine script body (an `eval`/`catch`/`uplevel` body,
+@@ -295,7 +363,28 @@
+         registry: &CommandRegistry,
+         quoted_body: bool,
+     ) -> BTreeSet<String> {
+-        let key: CacheKey = (source.to_owned(), quoted_body, self.config);
++        self.scan_cached_roles(
++            source,
++            registry,
++            quoted_body,
++            self.options.include_var_read_roles,
++        )
++    }
++
++    fn scan_cached_roles(
++        &mut self,
++        source: &str,
++        registry: &CommandRegistry,
++        quoted_body: bool,
++        standalone_roles: bool,
++    ) -> BTreeSet<String> {
++        let key: CacheKey = (
++            source.to_owned(),
++            quoted_body,
++            self.config,
++            standalone_roles,
++            standalone_roles.then(|| registry.snapshot().semantic_key()),
++        );
+ 
+         // Check cache.
+         if let Some(cached) = self.cache.get(&key) {
+@@ -306,7 +395,11 @@
+             return result;
+         }
+ 
+-        let result = scan_tokens(source, registry, self.options, quoted_body, self.config);
++        let options = VarScanOptions {
++            include_var_read_roles: standalone_roles,
++            ..self.options
++        };
++        let result = scan_tokens(source, registry, options, quoted_body, self.config);
+ 
+         // Insert into cache.
+         self.cache.insert(key.clone(), result.clone());
+@@ -503,7 +596,7 @@
+     }
+ 
+     if options.include_var_read_roles {
+-        let role_vars = scan_var_read_role_names(
++        let role_vars = scan_standalone_var_read_role_names(
+             source,
+             registry,
+             options.include_reads_before_write,
+@@ -521,7 +614,7 @@
+ /// This is a standalone function (not cached) that tokenises a script,
+ /// segments it into commands, and queries the registry for which argument
+ /// positions hold variable-read references.
+-fn scan_var_read_role_names(
++fn scan_standalone_var_read_role_names(
+     source: &str,
+     registry: &CommandRegistry,
+     include_rmw: bool,
+@@ -759,6 +852,60 @@
+     }
+ 
+     #[test]
++    fn source_name_roles_preserve_literal_sigils_and_empty_names() {
++        let source = "set {$n} VALUE\nset {$n}\nset {} EMPTY\nset {}\n";
++        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
++        let commands = crate::segmenter::segment_commands_with_offset_and_config(
++            source,
++            0,
++            analysis.body_lexer_config.unwrap(),
++        );
++        let named = original_variable_name_role_words(source, &analysis, &commands[1]);
++        assert!(named.iter().any(|word| word.role == ArgRole::VarRead
++            && word.word == "$n"
++            && word.base_name() == "$n"));
++        let empty = original_variable_name_role_words(source, &analysis, &commands[3]);
++        assert!(
++            empty
++                .iter()
++                .any(|word| word.role == ArgRole::VarRead && word.word.is_empty())
++        );
++        assert!(
++            original_variable_name_role_words("set changed VALUE\n", &analysis, &commands[1])
++                .is_empty()
++        );
++    }
++
++    #[test]
++    fn a_source_replacement_does_not_inherit_builtin_variable_read_roles() {
++        let source = "proc set {args} {return LITERAL}\nset k\n";
++        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
++        let command = crate::segmenter::segment_commands_with_offset_and_config(
++            source,
++            0,
++            analysis.body_lexer_config.unwrap(),
++        )
++        .pop()
++        .unwrap();
++        assert!(original_variable_name_role_words(source, &analysis, &command).is_empty());
++    }
++
++    #[test]
++    fn lexical_and_standalone_role_results_have_distinct_cache_entries() {
++        let registry = default_registry();
++        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
++        assert_eq!(
++            scanner.scan_standalone_word("[set {}]", &registry),
++            BTreeSet::from([String::new()])
++        );
++        assert!(scanner.scan_lexical_word("[set {}]", &registry).is_empty());
++        assert_eq!(
++            scanner.scan_standalone_word("[set {}]", &registry),
++            BTreeSet::from([String::new()])
++        );
++    }
++
++    #[test]
+     fn original_array_index_components_include_nested_variable_reads() {
+         let registry = default_registry();
+         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+@@ -1081,6 +1228,8 @@
+                 "$a".to_owned(),
+                 true,
+                 LexerConfig::default().nested().normalized(),
++                false,
++                None,
+             )),
+             "oldest entry should be evicted"
+         );

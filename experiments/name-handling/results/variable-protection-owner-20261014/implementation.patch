@@ -1,0 +1,552 @@
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -44,6 +44,7 @@
+ | Original source value components | `rust/tcl-syntax/src/word_rules.rs`; `rust/tcl-compiler/src/const_subst.rs` | `original_word_unicode_value_with_variables`; `ConstSubstCtx::fold_original_source_substitution` | original document word, full lexer configuration, grouping and executable-part arena remain together; callbacks receive genuine variable components, unsupported command/index/value cases decline, and conditional readonly values supply no Native cell, observer absence, executable erasure or editable reference | `xtask-owner-resolution` |
+ | Source-owned analysis cache correspondence | `rust/tcl-compiler/src/body_analysis_capsule.rs` | `BodyAnalysisCapsule`; `BodyAnalysisCapsule::retain`; `BodyAnalysisCapsule::body_id`; `BodyLatticeInputs`; `BodyLatticeInputs::retain`; `BodyLatticeInputs::rebind_cached`; `BodyLatticeCommandBindings`; `BodyLatticeCommandBindings::bindings`; `BodySummaryInputs`; `BodySummaryInputs::retain` | genuine compilation, Module issuer, body ID, FunctionUnit and original source/input/configuration own every analysis; exact source and variable relocation or a closed registry-only Logical dependency certificate permit analytical reuse; cached results rebind onto the current owner and retain current proofs; missing/changed dependencies recompute, and analytical equality supplies no Native compiler, callable, frame, object or execution authority | `xtask-owner-resolution` |
+ | Typed event-body connection scope | `rust/tcl-compiler/src/connection_scope.rs` | `EventCell`; `ConnectionScope`; `ConnectionScope::handler_source_names`; `ConnectionScope::observes_cross_event_place`; `build_connection_scope`; `build_connection_scope_with_registry` | actual CompilationUnit/Module-issued handler IDs and independently retained event metadata preserve repeated event labels; resolved cells and supplied worker/interpreter/storage domains remain separate from report unions; written protection labels project only from the matching handler keys and establish no arbitrary event order or current value | `xtask-owner-resolution` |
++| Conditional variable observation names | `rust/tcl-compiler/src/variable_observation_names.rs` | `VariableObservationNameSet`; `VariableProtectionPurpose`; `VariableWriteObservationPurpose`; `module_observation_key`; `variable_name_may_be_observed`; `record_variable_write_name` | explicit textual MAY inventories select module report-key, mixed exact/report or one-root native-lowering protection separately; deferred/global and outer-scope write projections retain their own aliases and array-root policies; decoded literal sigils, braces and empty variable names remain data, unknown inventories protect every name; exact VariableCellKey checks and genuine entered-Native observer guards remain independent, with no interpreted lookup, cell identity, callback-free state, absence or erasure permission | `xtask-owner-resolution` |
+ | APL variable convention | `rust/tcl-bigip/src/apl/variable_names.rs` | `tcl_var_to_apl_name`; `apl_name_to_tcl_var` | pure field convention delegates written root/qualifier geometry to Syntax; rooted and simple roots preserve lone colons while namespace-qualified roots decline; conventional export text is reporting only and supplies no appliance publication, native variable lookup or source-edit authority | `xtask-owner-resolution` |
+ | External script command inventory | `rust/tcl-syntax/src/naming/script_name_query.rs`; `rust/tcl-syntax/src/naming/script_command_inventory.rs`; `rust/tcl-cli/src/commands/spec_probe.rs` | `original_script_name_query_support`; `original_script_command_inventory_support`; `render_script` | real shell observations select query grammar without Native authority; C original simple words retain namespace context and checked root addressing; Jim uses its independent flat table; opaque or ambiguous inventory refuses as a whole; scanned registration literals remain unresolved authoring inputs | `xtask-owner-resolution` |
+ | Original alias registration lifetime | `rust/tcl-syntax/src/naming/native.rs`; `rust/tcl-registry/src/native_alias_registration.rs`; `rust/tcl-vm/src/interp/native_alias_registration.rs`; `runtime/rust/src/interp/native_alias_registration.rs` | `NativeNameProjection::{alias_registration_key,alias_registration_replacement_key}`; `NativeAliasRegistrationTable` | C query, target, deletion and inventory retain actual backend tokens across relocation; C8.4 replacement and later-C unique tokens have separate publication policies; physical entry order retains the original registration objects; callbacks validate original input and current generations; Jim uses its independent command-object policy | `xtask-owner-resolution` |
+--- a/rust/tcl-compiler/src/analyser/bounds_checks.rs
++++ b/rust/tcl-compiler/src/analyser/bounds_checks.rs
+@@ -304,7 +304,9 @@
+                 .names
+                 .iter()
+                 .chain(&module.traced_variables)
+-                .map(|name| name.trim_start_matches("::").to_owned())
++                .map(|name| {
++                    crate::variable_observation_names::module_observation_key(name).to_owned()
++                })
+                 .collect(),
+             any: module.deferred_writes.any || module.has_dynamic_variable_trace,
+         }
+@@ -313,7 +315,12 @@
+     /// Whether a callback script or a variable trace of the module may write
+     /// `var`.
+     pub(crate) fn may_write(&self, var: &str) -> bool {
+-        self.any || self.names.contains(var.trim_start_matches("::"))
++        crate::variable_observation_names::variable_name_may_be_observed(
++            &self.names,
++            var,
++            self.any,
++            crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
++        )
+     }
+ }
+ 
+--- a/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
+@@ -985,12 +985,11 @@
+ /// definition of `::hits` alone leaves the caller's `hits` forwarding a
+ /// stale constant across the call.
+ fn insert_outer_name(names: &mut BTreeSet<String>, name: &str) {
+-    if let Some(relative) = name.strip_prefix("::")
+-        && !relative.is_empty()
+-    {
+-        names.insert(relative.to_owned());
+-    }
+-    names.insert(name.to_owned());
++    crate::variable_observation_names::record_variable_write_name(
++        names,
++        name,
++        crate::variable_observation_names::VariableWriteObservationPurpose::OuterScope,
++    );
+ }
+ 
+ /// The variable name(s) `stmt` itself directly writes — its own `name`
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -1713,7 +1713,10 @@
+             },
+             self.config,
+         );
+-        let base = |name: &str| normalise_var_name(name).trim_start_matches("::").to_owned();
++        let base = |name: &str| {
++            crate::variable_observation_names::module_observation_key(normalise_var_name(name))
++                .to_owned()
++        };
+         let read: BTreeSet<String> = host_reads(&mut scanner)
+             .iter()
+             .map(|name| base(name))
+--- a/rust/tcl-compiler/src/deferred_writes.rs
++++ b/rust/tcl-compiler/src/deferred_writes.rs
+@@ -861,21 +861,32 @@
+     }
+ 
+     fn note_name(out: &mut DeferredWrites, name: &str) {
+-        let name = name.strip_prefix("::").unwrap_or(name);
+-        if name.is_empty() {
+-            return;
+-        }
+-        out.names.insert(name.to_owned());
+-        let base = crate::sccp::place_base(name);
+-        if base != name {
+-            out.names.insert(base.to_owned());
+-        }
++        crate::variable_observation_names::record_variable_write_name(
++            &mut out.names,
++            name,
++            crate::variable_observation_names::VariableWriteObservationPurpose::DeferredGlobal,
++        );
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++
++    #[test]
++    fn deferred_write_names_preserve_empty_literal_and_array_protection() {
++        let mut writes = DeferredWrites::default();
++        for name in ["", "$counter", "::n::array(key)"] {
++            Scan::note_name(&mut writes, name);
++        }
++        assert!(writes.names.contains(""));
++        assert!(writes.names.contains("$counter"));
++        assert!(!writes.names.contains("counter"));
++        assert!(writes.names.contains("n::array(key)"));
++        assert!(writes.names.contains("n::array"));
++        assert!(!writes.names.contains("array"));
++        assert!(!writes.any);
++    }
+ 
+     #[test]
+     fn ordinary_native_dispatch_keeps_deferred_effects_unknown() {
+--- a/rust/tcl-compiler/src/lib.rs
++++ b/rust/tcl-compiler/src/lib.rs
+@@ -205,6 +205,7 @@
+ pub mod var_resolve;
+ pub mod var_scoping;
+ pub mod variable_bindings;
++pub mod variable_observation_names;
+ pub mod word_expr;
+ pub mod word_subst;
+ pub mod world_state_ssa;
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -7053,12 +7053,8 @@
+         return;
+     };
+     if let Some(target) = subject.literal() {
+-        let canonical = crate::naming::normalise_var_name(&format!("${target}"))
+-            .trim_start_matches("::")
+-            .to_owned();
+-        if !canonical.is_empty() {
+-            module.traced_variables.insert(canonical);
+-        }
++        let name = crate::variable_observation_names::module_observation_key(target);
++        module.traced_variables.insert(name.to_owned());
+     } else {
+         module.has_dynamic_variable_trace = true;
+     }
+@@ -9854,6 +9850,17 @@
+     }
+ 
+     // trace add/remove/variable/vdelete module-fact population
++
++    #[test]
++    fn trace_target_names_keep_empty_and_literal_sigil_data() {
++        let registry = reg();
++        let empty = lower_to_ir("trace add variable {} write callback", &registry);
++        assert!(empty.traced_variables.contains(""));
++        assert!(!empty.traced_variables.contains("$"));
++        let literal = lower_to_ir("trace add variable {$counter} write callback", &registry);
++        assert!(literal.traced_variables.contains("$counter"));
++        assert!(!literal.traced_variables.contains("counter"));
++    }
+ 
+     #[test]
+     fn trace_add_variable_literal_recorded() {
+--- a/rust/tcl-compiler/src/native_lowering/elide.rs
++++ b/rust/tcl-compiler/src/native_lowering/elide.rs
+@@ -142,12 +142,12 @@
+             return BarrierDecision::Kept(BarrierKept::TraceLedgerUnknown);
+         }
+         let base = place.base();
+-        let traced = self.traced.contains(base)
+-            || self
+-                .traced
+-                .contains(base.strip_prefix("::").unwrap_or(base))
+-            || self.traced.contains(&format!("::{base}"))
+-            || matches!(place, CellPlace::Element { .. } if self.traced.contains(&place.spelling()));
++        let traced = crate::variable_observation_names::variable_name_may_be_observed(
++            self.traced,
++            base,
++            false,
++            crate::variable_observation_names::VariableProtectionPurpose::NativeLoweringLedger,
++        ) || matches!(place, CellPlace::Element { .. } if self.traced.contains(&place.spelling()));
+         if traced {
+             BarrierDecision::Kept(BarrierKept::VariableTraced)
+         } else {
+@@ -307,6 +307,42 @@
+     }
+ 
+     #[test]
++    fn trace_ledger_keeps_literal_namespace_array_and_unknown_protection() {
++        let traced: BTreeSet<String> = ["n::x", ":x", "", "$x", "array(key)", "whole"]
++            .into_iter()
++            .map(str::to_owned)
++            .collect();
++        let ledger = TraceLedger::new(&traced, false, enabled());
++        for name in ["n::x", "::n::x", ":x", "", "$x"] {
++            assert_eq!(
++                ledger.decide(&named(name)),
++                BarrierDecision::Kept(BarrierKept::VariableTraced)
++            );
++        }
++        assert_eq!(
++            ledger.decide(&named("other::x")),
++            BarrierDecision::Elided(BarrierElision::NoTraceReachesCell)
++        );
++        let element = CellPlace::Element {
++            name: "array".to_owned(),
++            key: "key".to_owned(),
++        };
++        assert_eq!(
++            ledger.decide(&element),
++            BarrierDecision::Kept(BarrierKept::VariableTraced)
++        );
++        let unknown = TraceLedger::new(&traced, true, enabled());
++        assert_eq!(
++            unknown.decide(&named("other::x")),
++            BarrierDecision::Kept(BarrierKept::TraceLedgerUnknown)
++        );
++        assert_eq!(
++            unknown.incr_guard(&named("other::x")),
++            IncrGuard::RuntimeTraceBit
++        );
++    }
++
++    #[test]
+     fn the_ledger_decides_by_name_and_dynamic_targets() {
+         let traced: BTreeSet<String> = ["a".to_owned()].into_iter().collect();
+         let ledger = TraceLedger::new(&traced, false, enabled());
+--- a/rust/tcl-compiler/src/optimiser/chain_fold.rs
++++ b/rust/tcl-compiler/src/optimiser/chain_fold.rs
+@@ -613,8 +613,7 @@
+             // through its callback, so it ends this source chain.
+             Some(other)
+                 if write_var(&other) != var
+-                    && !protected.contains(write_var(&other))
+-                    && !protected.contains(write_var(&other).trim_start_matches("::")) =>
++                    && !crate::variable_observation_names::variable_name_may_be_observed(protected, write_var(&other), false, crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection) =>
+             {
+                 j += 1;
+             }
+@@ -626,8 +625,12 @@
+     // `populate_variable_trace_facts`), so a `::`-qualified chain target is
+     // checked under that canonical spelling too.
+     if writes.len() < 2
+-        || protected.contains(&var)
+-        || protected.contains(var.trim_start_matches("::"))
++        || crate::variable_observation_names::variable_name_may_be_observed(
++            protected,
++            &var,
++            false,
++            crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection,
++        )
+     {
+         return None;
+     }
+--- a/rust/tcl-compiler/src/optimiser/elimination.rs
++++ b/rust/tcl-compiler/src/optimiser/elimination.rs
+@@ -421,9 +421,14 @@
+             || self.scope_aliases.contains(base)
+             || self.fu.cfg.alias_observed_vars.contains(name)
+             || self.fu.cfg.alias_observed_vars.contains(base)
+-            || self
+-                .module_traced
+-                .is_some_and(|t| t.contains(base.trim_start_matches("::")))
++            || self.module_traced.is_some_and(|t| {
++                crate::variable_observation_names::variable_name_may_be_observed(
++                    t,
++                    base,
++                    false,
++                    crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
++                )
++            })
+     }
+ 
+     /// Whether the statement at `idx` of `block`, whose def is `def`, can be
+@@ -1153,8 +1158,14 @@
+         written.kind == crate::place::PlaceKind::UpvarAlias
+             || written.kind == crate::place::PlaceKind::InstanceVar
+             || (!is_top_level && written.ns != crate::place::LOCAL_NS)
+-    }) || module_traced.is_some_and(|names| names.contains(base.trim_start_matches("::")))
+-        || var.starts_with("::")
++    }) || module_traced.is_some_and(|names| {
++        crate::variable_observation_names::variable_name_may_be_observed(
++            names,
++            base,
++            false,
++            crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
++        )
++    }) || var.starts_with("::")
+         || ctx.cross_event_vars.contains(var)
+         || ctx.cross_event_vars.contains(base)
+ }
+--- a/rust/tcl-compiler/src/optimiser/manager.rs
++++ b/rust/tcl-compiler/src/optimiser/manager.rs
+@@ -586,7 +586,12 @@
+     if var.starts_with("::")
+         || super::elimination::store_is_seen_elsewhere(fu, chain, scope_aliases)
+         || rmw_hidden.contains(var)
+-        || traced.contains(var.trim_start_matches("::"))
++        || crate::variable_observation_names::variable_name_may_be_observed(
++            traced,
++            var,
++            false,
++            crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
++        )
+     {
+         return None;
+     }
+--- a/rust/tcl-compiler/src/sccp.rs
++++ b/rust/tcl-compiler/src/sccp.rs
+@@ -3282,9 +3282,7 @@
+ /// The variable that holds the place `name`: the array for an element
+ /// `base(key)`, the name itself otherwise.
+ pub(crate) fn place_base(name: &str) -> &str {
+-    name.split_once('(')
+-        .filter(|_| name.ends_with(')'))
+-        .map_or(name, |(base, _)| base)
++    tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base)
+ }
+ 
+ /// Per handler block, the region its exception edges leave from: every
+--- /dev/null
++++ b/rust/tcl-compiler/src/variable_observation_names.rs
+@@ -0,0 +1,232 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Textual MAY protection, separate from resolved cells and Native observer state.
++
++use std::collections::{BTreeSet, HashSet};
++use std::hash::BuildHasher;
++
++/// Readonly literal report-name membership, independent of storage ordering.
++/// This interface supplies no interpreted lookup or variable-cell identity.
++pub trait VariableObservationNameSet {
++    /// Whether this text inventory contains the exact supplied report.
++    fn contains_name(&self, name: &str) -> bool;
++}
++
++impl VariableObservationNameSet for BTreeSet<String> {
++    fn contains_name(&self, name: &str) -> bool {
++        self.contains(name)
++    }
++}
++
++impl<S: BuildHasher> VariableObservationNameSet for HashSet<String, S> {
++    fn contains_name(&self, name: &str) -> bool {
++        self.contains(name)
++    }
++}
++
++/// The independently selected text policy of an observation inventory.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum VariableProtectionPurpose {
++    /// Module trace/deferred inventories store root-marker-free report keys.
++    ModuleObservation,
++    /// Mixed source guards retain exact keys as well as module report keys.
++    MixedSourceProtection,
++    /// A native-lowering ledger retains exact, one-root and rooted text aliases.
++    /// Entered Native observers and unknown ledgers remain independent.
++    NativeLoweringLedger,
++}
++
++/// The text aliases retained by a conditional write-summary producer.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum VariableWriteObservationPurpose {
++    /// Global callback writes retain one-root-free names and array roots.
++    DeferredGlobal,
++    /// Outer-frame summaries retain the original and one-root-free spelling.
++    OuterScope,
++}
++
++/// A module observation key, never an interpreted name or resolved cell.
++/// Literal sigils, braces, interior colon runs and a remaining lone colon stay data.
++#[must_use]
++pub fn module_observation_key(mut name: &str) -> &str {
++    while let Some(unrooted) = tcl_syntax::naming::unroot_rooted_key(name) {
++        name = unrooted;
++    }
++    name
++}
++
++/// Whether this caller's text inventory may protect `name`.
++/// Unknown input protects every name; a false result grants no Native absence,
++/// callback-free state, body entry, physical identity or store erasure.
++#[must_use]
++pub fn variable_name_may_be_observed(
++    names: &impl VariableObservationNameSet,
++    name: &str,
++    unknown: bool,
++    purpose: VariableProtectionPurpose,
++) -> bool {
++    if unknown {
++        return true;
++    }
++    match purpose {
++        VariableProtectionPurpose::ModuleObservation => {
++            names.contains_name(module_observation_key(name))
++        }
++        VariableProtectionPurpose::MixedSourceProtection => {
++            names.contains_name(name) || names.contains_name(module_observation_key(name))
++        }
++        VariableProtectionPurpose::NativeLoweringLedger => {
++            names.contains_name(name)
++                || tcl_syntax::naming::unroot_rooted_key(name)
++                    .is_some_and(|unrooted| names.contains_name(unrooted))
++                || names.contains_name(&tcl_syntax::naming::root_unrooted_key(name))
++        }
++    }
++}
++
++/// Retain possible write names under the producer's explicit text purpose.
++/// The empty variable name remains possible; report aliases do not identify cells.
++pub fn record_variable_write_name(
++    names: &mut BTreeSet<String>,
++    name: &str,
++    purpose: VariableWriteObservationPurpose,
++) {
++    let unrooted = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
++    match purpose {
++        VariableWriteObservationPurpose::DeferredGlobal => {
++            names.insert(unrooted.to_owned());
++            if let Some((array, _)) = tcl_syntax::naming::split_element_ref(unrooted) {
++                names.insert(array.to_owned());
++            }
++        }
++        VariableWriteObservationPurpose::OuterScope => {
++            if unrooted != name && !unrooted.is_empty() {
++                names.insert(unrooted.to_owned());
++            }
++            names.insert(name.to_owned());
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn names(values: &[&str]) -> BTreeSet<String> {
++        values.iter().map(|name| (*name).to_owned()).collect()
++    }
++
++    #[test]
++    fn module_protection_keeps_namespace_and_literal_name_data() {
++        let protected = names(&["n::x", ":x", "$x", "", "{x}"]);
++        for name in ["::n::x", "::::n::x", ":::x", "$x", "", "{x}"] {
++            assert!(
++                variable_name_may_be_observed(
++                    &protected,
++                    name,
++                    false,
++                    VariableProtectionPurpose::ModuleObservation
++                ),
++                "{name:?}"
++            );
++        }
++        for name in ["::other::x", "x", "${x}", "n:::x"] {
++            assert!(
++                !variable_name_may_be_observed(
++                    &protected,
++                    name,
++                    false,
++                    VariableProtectionPurpose::ModuleObservation
++                ),
++                "{name:?}"
++            );
++        }
++    }
++
++    #[test]
++    fn native_lowering_ledger_does_not_borrow_module_root_pair_policy() {
++        let protected = names(&["x", "::n::x"]);
++        for name in ["x", "::x", "n::x", "::n::x"] {
++            assert!(variable_name_may_be_observed(
++                &protected,
++                name,
++                false,
++                VariableProtectionPurpose::NativeLoweringLedger
++            ));
++        }
++        assert!(!variable_name_may_be_observed(
++            &protected,
++            "::::x",
++            false,
++            VariableProtectionPurpose::NativeLoweringLedger
++        ));
++        assert!(variable_name_may_be_observed(
++            &protected,
++            "::::x",
++            false,
++            VariableProtectionPurpose::ModuleObservation
++        ));
++    }
++
++    #[test]
++    fn deferred_array_and_empty_writes_remain_possible_without_reference_decoration() {
++        let mut deferred = BTreeSet::new();
++        for name in ["::arr(key)", ":::x", "", "$x", "arr(open"] {
++            record_variable_write_name(
++                &mut deferred,
++                name,
++                VariableWriteObservationPurpose::DeferredGlobal,
++            );
++        }
++        assert_eq!(
++            deferred,
++            names(&["arr(key)", "arr", ":x", "", "$x", "arr(open"])
++        );
++        assert!(!deferred.contains("x"));
++        let mut outer = BTreeSet::new();
++        record_variable_write_name(
++            &mut outer,
++            "::n::arr(key)",
++            VariableWriteObservationPurpose::OuterScope,
++        );
++        assert_eq!(outer, names(&["::n::arr(key)", "n::arr(key)"]));
++        assert!(!outer.contains("n::arr"));
++    }
++
++    #[test]
++    fn equal_text_reports_and_unknown_state_supply_no_cell_identity() {
++        let protected = names(&["x"]);
++        use crate::command_binding::SourceNamespaceKey;
++        use crate::var_resolve::{VariableCellKey, VariableCellSet};
++        let left = VariableCellKey::Namespace {
++            identity: SourceNamespaceKey::authored("::left"),
++            simple: tcl_core_types::NameBytes::from("x"),
++        };
++        let right = VariableCellKey::Namespace {
++            identity: SourceNamespaceKey::authored("::right"),
++            simple: tcl_core_types::NameBytes::from("x"),
++        };
++        let mut cells = VariableCellSet::default();
++        cells.insert(left.clone());
++        assert_ne!(left, right);
++        assert!(cells.contains(&left));
++        assert!(!cells.contains(&right));
++        // The shared source label protects both reports without merging cells.
++        assert!(variable_name_may_be_observed(
++            &protected,
++            "x",
++            false,
++            VariableProtectionPurpose::ModuleObservation
++        ));
++        for name in ["::left::x", "::right::x", "other(key)", "", "$x"] {
++            assert!(variable_name_may_be_observed(
++                &BTreeSet::new(),
++                name,
++                true,
++                VariableProtectionPurpose::ModuleObservation
++            ));
++        }
++    }
++}

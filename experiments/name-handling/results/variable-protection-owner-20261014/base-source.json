@@ -1,0 +1,14 @@
+{
+  "rust/tcl-compiler/src/lib.rs": "878d42aeac1063f564e36097e8ae3a48f8ffcfde8a23f0421cce9f0221292cd9",
+  "rust/tcl-compiler/src/native_lowering/elide.rs": "64b4d63a0b915efa9c6b28b7596548b4b59d9177d38a25de7f825dc4b5fe6c54",
+  "rust/tcl-compiler/src/optimiser/elimination.rs": "7b5221bf2eb2bf359f1dbd280014e415ca12ee279378eaea9ed67098f5df5848",
+  "rust/tcl-compiler/src/optimiser/manager.rs": "96bcabe4117b9d3fa816d7483477403405aeb45cb7e99a48c06baaa05d03172d",
+  "rust/tcl-compiler/src/optimiser/chain_fold.rs": "37d28f1e1afcf2a981099b668be459eff67356cf084c63f068b370bfd328532a",
+  "rust/tcl-compiler/src/analyser/bounds_checks.rs": "b4ba61fc9fd3ff30f424f656c8c11b1ba635d0096cd7926c36b73e709d652d96",
+  "rust/tcl-compiler/src/cfg_builder/global_write_info.rs": "0e2cf7a6bc5733e36cb593c28b7df2fac26efc811eb15c2e4b936c34f8107edf",
+  "rust/tcl-compiler/src/deferred_writes.rs": "37aae3d246a0d52eb68137a672213d2accb6331b19bc53956d38c29dcf56fa54",
+  "rust/tcl-compiler/src/lowering/mod.rs": "12989e1909c9c7fc3b9a010eee907c7ab3287375bee319da2c9a88d5b84821cf",
+  "rust/tcl-compiler/src/cfg_builder/mod.rs": "c7819376b6a474ea9b82a3f5624331f289d4cd88c5cad2dbe31bccb26cdf6a7b",
+  "rust/tcl-compiler/src/sccp.rs": "dcfe308390534e20b86601ea9895fddccf5c5679ff0717fc2f1ed3b38e912249",
+  "docs/design/contracts/shared-utility-contracts-rust.md": "0dafc6e50a55a05f4e9227e16bd5ba116d4152f76e3a191aa7fbb967bf0699bf"
+}

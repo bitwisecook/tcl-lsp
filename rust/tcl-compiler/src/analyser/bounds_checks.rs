@@ -304,7 +304,9 @@ impl ModuleUnseenWrites {
                 .names
                 .iter()
                 .chain(&module.traced_variables)
-                .map(|name| name.trim_start_matches("::").to_owned())
+                .map(|name| {
+                    crate::variable_observation_names::module_observation_key(name).to_owned()
+                })
                 .collect(),
             any: module.deferred_writes.any || module.has_dynamic_variable_trace,
         }
@@ -313,7 +315,12 @@ impl ModuleUnseenWrites {
     /// Whether a callback script or a variable trace of the module may write
     /// `var`.
     pub(crate) fn may_write(&self, var: &str) -> bool {
-        self.any || self.names.contains(var.trim_start_matches("::"))
+        crate::variable_observation_names::variable_name_may_be_observed(
+            &self.names,
+            var,
+            self.any,
+            crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
+        )
     }
 }
 

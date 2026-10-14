@@ -142,12 +142,12 @@ impl<'a> TraceLedger<'a> {
             return BarrierDecision::Kept(BarrierKept::TraceLedgerUnknown);
         }
         let base = place.base();
-        let traced = self.traced.contains(base)
-            || self
-                .traced
-                .contains(base.strip_prefix("::").unwrap_or(base))
-            || self.traced.contains(&format!("::{base}"))
-            || matches!(place, CellPlace::Element { .. } if self.traced.contains(&place.spelling()));
+        let traced = crate::variable_observation_names::variable_name_may_be_observed(
+            self.traced,
+            base,
+            false,
+            crate::variable_observation_names::VariableProtectionPurpose::NativeLoweringLedger,
+        ) || matches!(place, CellPlace::Element { .. } if self.traced.contains(&place.spelling()));
         if traced {
             BarrierDecision::Kept(BarrierKept::VariableTraced)
         } else {
@@ -304,6 +304,42 @@ mod tests {
             BarrierDecision::Kept(BarrierKept::PassDisabled)
         );
         assert_eq!(ledger.incr_guard(&named("a")), IncrGuard::RuntimeOnly);
+    }
+
+    #[test]
+    fn trace_ledger_keeps_literal_namespace_array_and_unknown_protection() {
+        let traced: BTreeSet<String> = ["n::x", ":x", "", "$x", "array(key)", "whole"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let ledger = TraceLedger::new(&traced, false, enabled());
+        for name in ["n::x", "::n::x", ":x", "", "$x"] {
+            assert_eq!(
+                ledger.decide(&named(name)),
+                BarrierDecision::Kept(BarrierKept::VariableTraced)
+            );
+        }
+        assert_eq!(
+            ledger.decide(&named("other::x")),
+            BarrierDecision::Elided(BarrierElision::NoTraceReachesCell)
+        );
+        let element = CellPlace::Element {
+            name: "array".to_owned(),
+            key: "key".to_owned(),
+        };
+        assert_eq!(
+            ledger.decide(&element),
+            BarrierDecision::Kept(BarrierKept::VariableTraced)
+        );
+        let unknown = TraceLedger::new(&traced, true, enabled());
+        assert_eq!(
+            unknown.decide(&named("other::x")),
+            BarrierDecision::Kept(BarrierKept::TraceLedgerUnknown)
+        );
+        assert_eq!(
+            unknown.incr_guard(&named("other::x")),
+            IncrGuard::RuntimeTraceBit
+        );
     }
 
     #[test]

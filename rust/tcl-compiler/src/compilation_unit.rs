@@ -6142,11 +6142,8 @@ namespace eval ::b { proc x {p2 extra} { set q $p2 } }
             );
         }
 
-        /// FN regression: a call reached only via a `namespace import` alias
-        /// is a real caller with a differing argument, but
-        /// `resolve_internal_call` alone only tries the caller's own
-        /// namespace and the global one — it doesn't know about imports, so
-        /// the call site would vanish from the evidence.
+        /// Imported calls retain the original implementation allocation and
+        /// contribute their differing arguments to the shared caller evidence.
         #[test]
         fn call_site_via_namespace_import_alias_is_not_missed() {
             let reg = registry();

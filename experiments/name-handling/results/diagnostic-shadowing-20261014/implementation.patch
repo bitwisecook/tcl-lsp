@@ -1,0 +1,344 @@
+--- a/rust/tcl-compiler/src/compiler_checks.rs
++++ b/rust/tcl-compiler/src/compiler_checks.rs
+@@ -533,11 +533,6 @@
+     // per-function `fu.taints` for the warning families so a tainted argument
+     // flowing into a callee parameter and then a sink is reported (cross-proc
+     // entry-taint).
+-    let proc_qnames: std::collections::HashSet<&str> = cu
+-        .procedures
+-        .values()
+-        .map(|body| body.name.as_str())
+-        .collect();
+     // `trace add variable` / `trace variable` lets a runtime callback rewrite
+     // a variable's value in ways static analysis can't see; a name traced
+     // anywhere in the module is conservatively treated as tainted everywhere
+@@ -556,22 +551,20 @@
+             &fu.ssa,
+             module_traces,
+         );
+-        // A namespace-scoped proc of the same name shadows a builtin for
+-        // every call made from that namespace (`proc ::myns::puts {...}`
+-        // shadows `puts` inside `::myns`) — see `taint::shadowed_builtin_names`.
+-        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
+-        let shadowed =
+-            crate::taint::shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
+-        for w in find_taint_warnings_for_module_function(
+-            fu,
+-            &taints,
+-            &fu.sccp.executable_blocks,
+-            registry,
+-            &cu.ir_module,
+-            &shadowed,
+-            module_traces,
+-        ) {
+-            out.push(shift(fu, Diagnostic::from_taint(&w)));
++        if let Some(shadowed) =
++            crate::taint::shadowed_builtin_names_for_module_function(fu, cu, registry)
++        {
++            for warning in find_taint_warnings_for_module_function(
++                fu,
++                &taints,
++                &fu.sccp.executable_blocks,
++                registry,
++                &cu.ir_module,
++                &shadowed,
++                module_traces,
++            ) {
++                out.push(shift(fu, Diagnostic::from_taint(&warning)));
++            }
+         }
+         // Conditional setter metadata follows the actual source owner.
+         for w in find_setter_constraint_warnings_for_module_function(
+--- a/rust/tcl-compiler/src/taint.rs
++++ b/rust/tcl-compiler/src/taint.rs
+@@ -72,7 +72,7 @@
+ //! - **Namespace-scoped proc shadowing a builtin** — a call whose bare or
+ //!   canonical name is shadowed, from its own namespace, by a user `proc` of
+ //!   the same name is not misclassified as the builtin sink/source; see
+-//!   [`shadowed_builtin_names`].
++//!   [`shadowed_builtin_names_for_module_function`].
+ //! - **Variable-trace-altered taint** — `trace add variable` / `trace
+ //!   variable` conservatively forces a traced name to fully tainted
+ //!   everywhere in the module, since a runtime handler can rewrite the
+@@ -3182,9 +3182,7 @@
+             &fu.ssa,
+             module_traces,
+         );
+-        let Some(shadowed) =
+-            shadowed_builtin_names_for_module_function(fu, &cu.ir_module, registry)
+-        else {
++        let Some(shadowed) = shadowed_builtin_names_for_module_function(fu, cu, registry) else {
+             continue;
+         };
+         out.extend(find_taint_warnings_for_function_with_identities(
+@@ -4081,31 +4079,10 @@
+     out
+ }
+ 
+-/// Bare registry command names shadowed, for a call inside `namespace`, by a
+-/// user proc of the same name.
+-///
+-/// Tcl resolves an unqualified command name in the *current* namespace,
+-/// falling back to the global namespace when not found there — a lookup
+-/// that always terminates at global, so a plain top-level `proc puts {args}
+-/// {…}` shadows every bare `puts` call in the *whole* module, while `proc
+-/// ::myns::puts {args} {…}` shadows it only for calls made from `::myns`
+-/// itself. Either way the call dispatches to the user's own proc, not the
+-/// output-sink builtin, even though the registry still has a `puts` entry.
+-///
+-/// Matches the same simplified, current-namespace-or-global qualification
+-/// the rest of the compiler already uses for `rename` / `interp alias`
+-/// resolution (`crate::alias::resolve_alias`) rather than walking the full
+-/// namespace ancestor chain — a proc sitting in an *intermediate* ancestor
+-/// namespace (neither the caller's own namespace nor global) is not
+-/// recognised as shadowing, matching that existing precedent's own gap.
+-///
+-/// `proc_qnames` is every procedure's fully-qualified name in the module
+-/// (`CompilationUnit::procedures` keys); a name only counts as shadowing
+-/// when it sits *directly* in `namespace` or in the global namespace
+-/// (`{namespace}::{bare}` / `::{bare}`) — a proc in a nested child namespace
+-/// does not shadow its parent's calls, and vice versa.
++/// Constructed publication labels used by the isolated lookup fixtures.
++#[cfg(test)]
+ #[must_use]
+-pub fn shadowed_builtin_names<'a>(
++fn shadowed_builtin_names<'a>(
+     namespace: &str,
+     proc_qnames: impl Iterator<Item = &'a str>,
+     registry: &CommandRegistry,
+@@ -4147,9 +4124,16 @@
+ #[must_use]
+ pub fn shadowed_builtin_names_for_module_function(
+     function: &crate::compilation_unit::FunctionUnit,
+-    module: &crate::ir::Module,
++    unit: &crate::compilation_unit::CompilationUnit,
+     registry: &CommandRegistry,
+ ) -> Option<HashSet<String>> {
++    if !unit
++        .all_body_function_units()
++        .any(|owned| std::ptr::eq(owned, function))
++    {
++        return None;
++    }
++    let module = &unit.ir_module;
+     use crate::command_binding::SourceNamespaceKey;
+     fn path(context: &SourceNamespaceKey) -> Option<tcl_core_types::ByteNamespacePath> {
+         context.exact_native_path().cloned().or_else(|| {
+@@ -4160,6 +4144,7 @@
+         })
+     }
+     let namespace = if let Some(id) = function.body_id {
++        module.procedure_ids.owns(id).then_some(())?;
+         if let Some(procedure) = module
+             .procedures
+             .get(&id)
+@@ -4177,15 +4162,19 @@
+         } else {
+             return None;
+         }
+-    } else if let Some(context) = module.top_level_namespace_context.as_ref() {
+-        path(context)?
+-    } else if module.source_entry.metadata_context.is_standalone() {
+-        tcl_core_types::ByteNamespacePath::root()
+     } else {
+-        return None;
++        std::ptr::eq(function, &unit.top_level).then_some(())?;
++        if let Some(context) = module.top_level_namespace_context.as_ref() {
++            path(context)?
++        } else if module.source_entry.metadata_context.is_standalone() {
++            tcl_core_types::ByteNamespacePath::root()
++        } else {
++            return None;
++        }
+     };
+     let mut shadowed = HashSet::new();
+-    for procedure in module.procedures.values() {
++    for (id, procedure) in &module.procedures {
++        module.procedure_ids.owns(*id).then_some(())?;
+         let slot = procedure.publication.as_ref()?.slot();
+         if slot.namespace == namespace || slot.namespace.is_root() {
+             let tail = slot.simple.try_utf8().ok()?;
+@@ -4211,7 +4200,7 @@
+ /// other warning kinds (setter-constraint / uri-split / path-concat /
+ /// destructive-file) are not emitted here yet.
+ ///
+-/// `shadowed_builtins` (see [`shadowed_builtin_names`]) lists the bare
++/// `shadowed_builtins` (see [`shadowed_builtin_names_for_module_function`]) lists the bare
+ /// command names that resolve to a user proc rather than the registry
+ /// builtin from this function's namespace — those are skipped by the
+ /// registry-driven sink/source/pattern checks below.
+@@ -11916,6 +11905,56 @@
+         use super::*;
+ 
+         #[test]
++        fn retained_body_scope_ignores_display_and_refuses_detached_units() {
++            let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
++            let registry = CommandRegistry::build_default().project_for_profile(profile);
++            let mut unit = crate::compilation_unit::CompilationUnit::build_for_profile(
++                "namespace eval ns {proc puts {args} {}; proc run {value} {puts $value}}",
++                &registry,
++                false,
++                profile,
++            );
++            let id = crate::test_body_identity::fixture_id(&unit.procedures, "::ns::run");
++            let function = unit.procedures.get_mut(&id).unwrap();
++            function.name = "::counterfactual::run".to_owned();
++            assert_eq!(
++                shadowed_builtin_names_for_module_function(
++                    unit.procedures.get(&id).unwrap(),
++                    &unit,
++                    &registry
++                ),
++                Some(HashSet::from(["puts".to_owned()]))
++            );
++            let detached_top = unit.top_level.clone();
++            assert!(
++                shadowed_builtin_names_for_module_function(&detached_top, &unit, &registry)
++                    .is_none()
++            );
++            let detached_body = unit.procedures.get(&id).unwrap().clone();
++            assert!(
++                shadowed_builtin_names_for_module_function(&detached_body, &unit, &registry)
++                    .is_none()
++            );
++            let foreign_unit = crate::compilation_unit::CompilationUnit::build_for_profile(
++                "proc foreign {} {}",
++                &registry,
++                false,
++                profile,
++            );
++            let foreign =
++                crate::test_body_identity::fixture_id(&foreign_unit.procedures, "::foreign");
++            unit.procedures.get_mut(&id).unwrap().body_id = Some(foreign);
++            assert!(
++                shadowed_builtin_names_for_module_function(
++                    unit.procedures.get(&id).unwrap(),
++                    &unit,
++                    &registry
++                )
++                .is_none()
++            );
++        }
++
++        #[test]
+         fn namespace_scoped_proc_shadows_only_its_own_namespace() {
+             let registry = CommandRegistry::build_default();
+             let procs = ["::myns::puts", "::myns::helper"];
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -613,11 +613,8 @@
+ 
+ /// Predicate-backed String candidate reporting through the shared lookup order.
+ /// This path-free projection supplies no original body or implementation identity.
+-pub(crate) fn resolve_internal_call_with<F>(
+-    command: &str,
+-    caller_qname: &str,
+-    exists: F,
+-) -> Option<String>
++#[cfg(test)]
++fn resolve_internal_call_with<F>(command: &str, caller_qname: &str, exists: F) -> Option<String>
+ where
+     F: FnMut(&str) -> bool,
+ {
+@@ -640,7 +637,8 @@
+ /// directly; a relative name tries the caller's namespace first, then global,
+ /// and never walks intermediate ancestor namespaces.
+ #[must_use]
+-pub fn resolve_internal_call<S: std::hash::BuildHasher>(
++#[cfg(test)]
++fn resolve_internal_call<S: std::hash::BuildHasher>(
+     command: &str,
+     caller_qname: &str,
+     known: &HashSet<String, S>,
+@@ -652,7 +650,8 @@
+ /// handles the common case where the caller has no special
+ /// aliasing information.
+ #[must_use]
+-pub fn resolve_call_target<S: std::hash::BuildHasher>(
++#[cfg(test)]
++fn resolve_call_target<S: std::hash::BuildHasher>(
+     command: &str,
+     _args: &[String],
+     caller_qname: &str,
+@@ -692,7 +691,8 @@
+ /// [`crate::naming::qualifier_segments_owned`] (colon runs are a single
+ /// separator, so `::a:::b::p` yields `["a", "b"]`).
+ #[must_use]
+-pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
++#[cfg(test)]
++fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
+     let mut parts = crate::naming::qualifier_segments_owned(qname);
+     parts.pop();
+     parts
+--- a/rust/tcl-compiler/src/unit_scope.rs
++++ b/rust/tcl-compiler/src/unit_scope.rs
+@@ -1993,27 +1993,8 @@
+ /// arguments (`catch { … }`, a literal `uplevel { … }`, `apply {{…} {…}}`, a
+ /// non-exact `switch` arm, …) via [`record_call_site_evidence`].
+ ///
+-/// Each call site is resolved to its callee via
+-/// [`crate::interprocedural::resolve_internal_call`] — Tcl's real,
+-/// existence-checked, namespace-relative resolution order, evaluated in the
+-/// *calling* function's own namespace, not the global one. This is the same
+-/// resolver the analyser and optimiser use for identical same-file call
+-/// resolution; a bespoke or partial resolver here could disagree with them
+-/// on which callee a bare name reaches.
+-///
+-/// The namespace context matters because a call site this scan fails to
+-/// resolve doesn't just go uncounted — it *vanishes* from
+-/// [`params_constants_from_native_call_sites`]'s "every caller passes the same
+-/// literal" evidence, which can flip an absence of contradicting evidence
+-/// into a false positive. A proc declared inside a `namespace eval` block
+-/// recurses into itself by its bare (unqualified) name; a resolver that only
+-/// tries global-qualified spellings of the command word
+-/// so it could never match the proc's namespaced qualified name, and the
+-/// recursive self-call — whose argument necessarily varies call to call —
+-/// was silently dropped. Only the one external, fully-qualified caller's
+-/// literal remained, so the loop/recursion-varying parameter was seeded as
+-/// that one constant and folded a genuinely alternating condition (`$count &
+-/// 1`) to a fixed boolean.
++/// Original call allocations join the Module's issued body coordinates.
++/// Unknown dispatch remains in the caller evidence and withdraws parameter seeds.
+ pub(crate) fn collect_call_site_constants(
+     cfg_module: &CfgModule,
+     extra_callers: &[ExtraCallSiteScanContext],
+@@ -2041,11 +2022,6 @@
+     // so it merges and slices correctly across files.
+     let reach = unenumerable_reach(procedures, Traits::empty(), &known);
+     let unresolved_handler = unresolved_command_handler(registry, &known);
+-    // The top level has no qualified name of its own; `"::top"` (the same
+-    // pseudo-qname `FunctionUnit::build_full` uses for it) resolves to the
+-    // global namespace via `resolve_internal_call`'s "drop the last
+-    // segment" rule, matching a bare top-level call's real resolution
+-    // scope.
+     let round = |previous: &CallSiteEvidence| {
+         let ctx = CallSiteScanCtx {
+             known: &known,
+--- a/rust/tcl-compiler/src/optimiser/helpers/naming.rs
++++ b/rust/tcl-compiler/src/optimiser/helpers/naming.rs
+@@ -22,8 +22,7 @@
+ /// skipping empty segments. `"::"` yields `[]`, `"::foo::bar"`
+ /// yields `["foo", "bar"]`. This is the canonical
+ /// [`crate::naming::qualifier_segments_owned`] split (colon runs are a
+-/// single separator), shared with the interprocedural pass's
+-/// `namespace_parts_from_proc` so the two cannot drift.
++/// single separator).
+ #[must_use]
+ pub fn namespace_parts(namespace: &str) -> Vec<String> {
+     crate::naming::qualifier_segments_owned(namespace)
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -6142,11 +6142,8 @@
+             );
+         }
+ 
+-        /// FN regression: a call reached only via a `namespace import` alias
+-        /// is a real caller with a differing argument, but
+-        /// `resolve_internal_call` alone only tries the caller's own
+-        /// namespace and the global one — it doesn't know about imports, so
+-        /// the call site would vanish from the evidence.
++        /// Imported calls retain the original implementation allocation and
++        /// contribute their differing arguments to the shared caller evidence.
+         #[test]
+         fn call_site_via_namespace_import_alias_is_not_missed() {
+             let reg = registry();

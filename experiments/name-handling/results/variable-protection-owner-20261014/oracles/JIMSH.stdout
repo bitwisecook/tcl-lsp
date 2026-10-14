@@ -1,0 +1,6 @@
+version 0.84-9-g5bac7c9
+names empty-value sigil-value brace-value
+trace {} 1 0 {invalid command name "trace"}
+trace {$counter} 1 0 {invalid command name "trace"}
+trace brace{name} 1 0 {invalid command name "trace"}
+trace ::left::x 1 0 {invalid command name "trace"}

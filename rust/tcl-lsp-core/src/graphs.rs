@@ -810,8 +810,8 @@ fn call_graph_for_input(
 struct TaintWarnCtx<'a> {
     /// The analysis dialect's command registry.
     registry: &'a CommandRegistry,
-    /// Original module source owner for conditional sink metadata.
-    module: &'a IrModule,
+    /// Actual compilation-unit owner for body and conditional sink metadata.
+    unit: &'a CompilationUnit,
     /// The dialect string (drives iRules-only warning families + octal reads).
     dialect: &'static tcl_dialect::DialectProfile,
     /// Whole-module variable-trace facts.
@@ -840,11 +840,12 @@ fn collect_taint_warnings(
 ) {
     let TaintWarnCtx {
         registry,
-        module,
+        unit,
         dialect,
         module_traces,
         line_index,
     } = ctx;
+    let module = &unit.ir_module;
     let profile = dialect;
     let mut push = |code: &str, span: Span, message: &str, variable: &str, sink: &str| {
         out.push(json!({
@@ -857,11 +858,6 @@ fn collect_taint_warnings(
         }));
     };
 
-    let Some(shadowed) =
-        tcl_compiler::taint::shadowed_builtin_names_for_module_function(fu, module, registry)
-    else {
-        return;
-    };
     // `trace add variable` / `trace variable` lets a runtime callback rewrite
     // a variable in ways static analysis can't see — a traced name is
     // conservatively treated as tainted everywhere in the module — see
@@ -870,23 +866,28 @@ fn collect_taint_warnings(
         tcl_compiler::taint::apply_module_variable_traces(taints.clone(), &fu.ssa, module_traces);
     let taints = &taints;
 
-    // 1. Sink injection (T100 / T101 / T102 families).
-    for w in find_taint_warnings_for_module_function(
-        fu,
-        taints,
-        &fu.sccp.executable_blocks,
-        registry,
-        module,
-        &shadowed,
-        module_traces,
-    ) {
-        push(
-            w.code.as_str(),
-            w.span,
-            &w.message,
-            &w.variable,
-            &w.sink_command,
-        );
+    // Sink advice requires the actual retained body and publication scope.
+    if let Some(shadowed) =
+        tcl_compiler::taint::shadowed_builtin_names_for_module_function(fu, unit, registry)
+    {
+        // 1. Sink injection (T100 / T101 / T102 families).
+        for w in find_taint_warnings_for_module_function(
+            fu,
+            taints,
+            &fu.sccp.executable_blocks,
+            registry,
+            module,
+            &shadowed,
+            module_traces,
+        ) {
+            push(
+                w.code.as_str(),
+                w.span,
+                &w.message,
+                &w.variable,
+                &w.sink_command,
+            );
+        }
     }
 
     // Conditional setter rows follow the retained Module/FU metadata.
@@ -1048,7 +1049,7 @@ fn dataflow_graph_for_input(
     };
     let taint_ctx = TaintWarnCtx {
         registry,
-        module: &cu.ir_module,
+        unit: &cu,
         dialect,
         module_traces,
         line_index: &line_index,

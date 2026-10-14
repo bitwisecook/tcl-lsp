@@ -2032,7 +2032,8 @@ mod original_active_host_deletion_tests {
                 Err(EngineError::execution_failure(self.0.clone()))
             }
         }
-        let mut engine = engine("tcl8.6");
+        let mut engine = RuntimeEngine::new();
+        engine.set_release("tcl8.6").unwrap();
         let cause = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                 "actual Runtime Engine typed callback cause",

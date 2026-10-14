@@ -3463,16 +3463,15 @@ impl Analyser {
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
-        scope_path: &[usize],
+        _scope_path: &[usize],
     ) -> bool {
-        self.handle_apply_command_with_source_namespace(args, arg_tokens, scope_path, None)
+        self.handle_apply_command_with_source_namespace(args, arg_tokens, None)
     }
 
     pub(super) fn handle_apply_command_with_source_namespace(
         &mut self,
         args: &[String],
         arg_tokens: &[Token],
-        scope_path: &[usize],
         original: Option<super::interp_visibility::OriginalInterpreterLambdaBody>,
     ) -> bool {
         // A literal braced lambda parses directly; a dynamic one (`apply

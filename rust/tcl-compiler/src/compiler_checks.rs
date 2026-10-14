@@ -533,11 +533,6 @@ pub fn push_taint_and_module_checks(
     // per-function `fu.taints` for the warning families so a tainted argument
     // flowing into a callee parameter and then a sink is reported (cross-proc
     // entry-taint).
-    let proc_qnames: std::collections::HashSet<&str> = cu
-        .procedures
-        .values()
-        .map(|body| body.name.as_str())
-        .collect();
     // `trace add variable` / `trace variable` lets a runtime callback rewrite
     // a variable's value in ways static analysis can't see; a name traced
     // anywhere in the module is conservatively treated as tainted everywhere
@@ -556,22 +551,20 @@ pub fn push_taint_and_module_checks(
             &fu.ssa,
             module_traces,
         );
-        // A namespace-scoped proc of the same name shadows a builtin for
-        // every call made from that namespace (`proc ::myns::puts {...}`
-        // shadows `puts` inside `::myns`) — see `taint::shadowed_builtin_names`.
-        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
-        let shadowed =
-            crate::taint::shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
-        for w in find_taint_warnings_for_module_function(
-            fu,
-            &taints,
-            &fu.sccp.executable_blocks,
-            registry,
-            &cu.ir_module,
-            &shadowed,
-            module_traces,
-        ) {
-            out.push(shift(fu, Diagnostic::from_taint(&w)));
+        if let Some(shadowed) =
+            crate::taint::shadowed_builtin_names_for_module_function(fu, cu, registry)
+        {
+            for warning in find_taint_warnings_for_module_function(
+                fu,
+                &taints,
+                &fu.sccp.executable_blocks,
+                registry,
+                &cu.ir_module,
+                &shadowed,
+                module_traces,
+            ) {
+                out.push(shift(fu, Diagnostic::from_taint(&warning)));
+            }
         }
         // Conditional setter metadata follows the actual source owner.
         for w in find_setter_constraint_warnings_for_module_function(

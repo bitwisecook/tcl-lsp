@@ -3282,9 +3282,7 @@ impl BodyTouch {
 /// The variable that holds the place `name`: the array for an element
 /// `base(key)`, the name itself otherwise.
 pub(crate) fn place_base(name: &str) -> &str {
-    name.split_once('(')
-        .filter(|_| name.ends_with(')'))
-        .map_or(name, |(base, _)| base)
+    tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base)
 }
 
 /// Per handler block, the region its exception edges leave from: every

@@ -3954,17 +3954,20 @@ fn has_subst(text: &str) -> bool {
 ///
 /// Returns the bound read-places sorted by `(ns, name)` (deterministic).
 fn inner_read_places(text: &str, ctx: &ResolveContext, registry: &CommandRegistry) -> Vec<Place> {
-    // Read-roles + cmd-sub recursion so `a([idx])` and `a($ns::i)` are covered.
-    let mut scanner = VarReferenceScanner::for_registry(
+    let config = ctx.invocation_dialect.map_or_else(
+        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+    );
+    let mut scanner = VarReferenceScanner::with_config(
         VarScanOptions {
-            include_var_read_roles: true,
+            include_var_read_roles: false,
             recurse_cmd_substitutions: true,
             include_reads_before_write: false,
             element_qualified: true,
         },
-        registry,
+        config,
     );
-    let names = scanner.scan_word(text, registry);
+    let names = scanner.scan_lexical_word(text, registry);
     let mut places: Vec<Place> = names
         .iter()
         .map(|name| {
@@ -3977,6 +3980,10 @@ fn inner_read_places(text: &str, ctx: &ResolveContext, registry: &CommandRegistr
             )
         })
         .collect();
+    if !crate::var_refs::command_subst_texts_with_config(text, config).is_empty() {
+        // Detached index text cannot select a command's by-name read operands.
+        places.push(place::unknown_top());
+    }
     places.sort_by(|a, b| (&a.ns, &a.name).cmp(&(&b.ns, &b.name)));
     places
 }
@@ -5478,6 +5485,20 @@ mod tests {
         assert_eq!(p.kind, PlaceKind::ArrayElem);
         assert_eq!(p.name, "a");
         assert_eq!(places_read_to_form(&p), vec![scalar("i", LOCAL_NS, false)]);
+    }
+
+    #[test]
+    fn detached_index_command_keeps_an_unknown_read_without_a_named_cell() {
+        let bound = resolve_place("a([set named])", &ctx(), false, &registry());
+        let reads = places_read_to_form(&bound);
+        assert!(reads.iter().any(|read| read.kind == PlaceKind::Unknown));
+        assert!(!reads.iter().any(|read| read.name == "named"));
+        assert!(
+            reads
+                .iter()
+                .filter(|read| read.kind == PlaceKind::Unknown)
+                .all(|read| read.cell.is_none())
+        );
     }
 
     #[test]

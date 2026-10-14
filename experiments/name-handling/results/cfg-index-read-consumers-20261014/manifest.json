@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/var_resolve.rs",
+      "before_sha256": "058329f4c758713e41f8f5a41fc8b651d2d4bbc827d5ad9fc3e58962c4cc46fe",
+      "after_sha256": "9eee6bcf5679f001883e89c9e11f674c76304d5eff3a26437a43baa645edecef"
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "before_sha256": "32b4881190aaf1f0cc24bd858ec617f4f9ddddeb7a2a3f33f8d373e087ef81cd",
+      "after_sha256": "60f21174ef281648a12dcab1f04611699f33bb46b6ec7214ae4ceba37df73ef0"
+    }
+  ],
+  "patch_sha256": "ee9ea57f60e35555029aa22109f919cba9ed59b90ed8a6df03580a5aac1e84bb",
+  "dependencies": "Issues original-source-role-reader.patch scan_lexical_word API. Existing variable_observation_names owner and OriginalProcedureSummaryOwners preserved.",
+  "acceptance": "Scratch rustfmt parse/format PASS; compiled tests unexecuted; no Main/Cargo.",
+  "tests": [
+    "detached_index_command_keeps_an_unknown_read_without_a_named_cell",
+    "read_beside_writes_uses_original_roles_and_preserves_refusals"
+  ]
+}

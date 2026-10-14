@@ -340,7 +340,19 @@ fn selected_jim_scripted_root_keeps_actual_helper_generations_on_reinstallation(
             let registrations = interpreter.stock_ensembles.borrow();
             let installed = &registrations.families[&family];
             assert!(installed.scripted);
-            (installed.generation, installed.scripted_helpers.clone())
+            let helpers: Vec<_> = installed
+                .scripted_helpers
+                .iter()
+                .map(|helper| {
+                    (
+                        helper.declared.namespace,
+                        helper.declared.simple.clone(),
+                        helper.declared.slot.clone(),
+                        helper.generation,
+                    )
+                })
+                .collect();
+            (installed.generation, helpers)
         };
         assert_eq!(helpers.len(), 2);
         interpreter.install_stock_scripted_binary(ingress, &[noop, noop]);
@@ -348,13 +360,30 @@ fn selected_jim_scripted_root_keeps_actual_helper_generations_on_reinstallation(
         let installed = &registrations.families[&family];
         assert!(installed.scripted);
         assert_ne!(installed.generation, old);
-        assert_eq!(installed.scripted_helpers, helpers);
+        let current_helpers: Vec<_> = installed
+            .scripted_helpers
+            .iter()
+            .map(|helper| {
+                (
+                    helper.declared.namespace,
+                    helper.declared.simple.clone(),
+                    helper.declared.slot.clone(),
+                    helper.generation,
+                )
+            })
+            .collect();
+        assert_eq!(current_helpers, helpers);
         assert_eq!(
             interpreter.resolve_cmd_token(ingress.name.as_bytes()),
             Some(installed.generation)
         );
-        for (name, generation) in &helpers {
-            assert_eq!(interpreter.resolve_cmd_token(name), Some(*generation));
+        for (namespace, simple, _, generation) in &helpers {
+            assert_eq!(
+                interpreter
+                    .namespaces()
+                    .command_generation(*namespace, simple.as_bytes()),
+                Some(*generation)
+            );
         }
         assert!(interpreter.native_execution_refusal().is_none());
         assert!(matches!(

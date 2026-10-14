@@ -1,0 +1,15 @@
+{
+  "baseline": "/tmp/name-main-core-production21-20261014",
+  "observed": "build passed, 14 selected controls: 8 pass / 6 fail; zero authored source drift",
+  "remaining": {
+    "03": "First two OO method controls passed. Third nested proc under uplevel#0 fails: definition [] instead of line3.",
+    "04": "Namespace later write coordinate None instead of ::N::x.",
+    "05": "uplevel0 relative-qualified namespace read None instead of ::N::Target::x.",
+    "06": "uplevel#0 selected read references [] rather than original read extent.",
+    "08": "uplevel#0 root definition [] instead of line0.",
+    "12": "Alias-prefix reference root None instead of value."
+  },
+  "controls": "manifest-complete.json",
+  "implementation_status": "No production predicate changes made in this diagnostic. Main untouched. Cargo not run. Temporary cfg(test) tracing requires removal after capture.",
+  "next": "Capture two unchanged positive/negative selectors with TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1. Repair measured earliest refusal only; retain all original Core assertions and Native/current-source guards."
+}

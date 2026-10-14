@@ -1,0 +1,95 @@
+{
+  "scope": "Original interpreter observations for literal variable names and observer-target grammar only. No compiler source/cell/Native-entry permission or F5 answer follows.",
+  "rows": [
+    {
+      "provider": "TCL_LSP_TCLSH84",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "arguments": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-variable-protection-owner-20261014/oracles/literal-observer-targets.tcl"
+      ],
+      "input_channel": "Original Tcl source file",
+      "exit_code": 0,
+      "seconds": 0.005425691604614258,
+      "changed_inputs": {},
+      "input_scope": "Probe, selected interpreter executable, selected adjacent Tcl shared libraries and complete original matching library tree when present; unrecorded system dynamic dependencies are not a complete host closure. No tcltest was invoked.",
+      "stdout": "TCLSH84.stdout",
+      "stderr": "TCLSH84.stderr"
+    },
+    {
+      "provider": "TCL_LSP_TCLSH85",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "arguments": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-variable-protection-owner-20261014/oracles/literal-observer-targets.tcl"
+      ],
+      "input_channel": "Original Tcl source file",
+      "exit_code": 0,
+      "seconds": 0.011883974075317383,
+      "changed_inputs": {},
+      "input_scope": "Probe, selected interpreter executable, selected adjacent Tcl shared libraries and complete original matching library tree when present; unrecorded system dynamic dependencies are not a complete host closure. No tcltest was invoked.",
+      "stdout": "TCLSH85.stdout",
+      "stderr": "TCLSH85.stderr"
+    },
+    {
+      "provider": "TCL_LSP_TCLSH86",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "arguments": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-variable-protection-owner-20261014/oracles/literal-observer-targets.tcl"
+      ],
+      "input_channel": "Original Tcl source file",
+      "exit_code": 0,
+      "seconds": 0.013428211212158203,
+      "changed_inputs": {},
+      "input_scope": "Probe, selected interpreter executable, selected adjacent Tcl shared libraries and complete original matching library tree when present; unrecorded system dynamic dependencies are not a complete host closure. No tcltest was invoked.",
+      "stdout": "TCLSH86.stdout",
+      "stderr": "TCLSH86.stderr"
+    },
+    {
+      "provider": "TCL_LSP_TCLSH90",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "arguments": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-variable-protection-owner-20261014/oracles/literal-observer-targets.tcl"
+      ],
+      "input_channel": "Original Tcl source file",
+      "exit_code": 0,
+      "seconds": 0.021358489990234375,
+      "changed_inputs": {},
+      "input_scope": "Probe, selected interpreter executable, selected adjacent Tcl shared libraries and complete original matching library tree when present; unrecorded system dynamic dependencies are not a complete host closure. No tcltest was invoked.",
+      "stdout": "TCLSH90.stdout",
+      "stderr": "TCLSH90.stderr"
+    },
+    {
+      "provider": "TCL_LSP_TCLSH91",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "arguments": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-variable-protection-owner-20261014/oracles/literal-observer-targets.tcl"
+      ],
+      "input_channel": "Original Tcl source file",
+      "exit_code": 0,
+      "seconds": 0.019619464874267578,
+      "changed_inputs": {},
+      "input_scope": "Probe, selected interpreter executable, selected adjacent Tcl shared libraries and complete original matching library tree when present; unrecorded system dynamic dependencies are not a complete host closure. No tcltest was invoked.",
+      "stdout": "TCLSH91.stdout",
+      "stderr": "TCLSH91.stderr"
+    },
+    {
+      "provider": "TCL_LSP_JIMSH",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "arguments": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-variable-protection-owner-20261014/oracles/literal-observer-targets.tcl"
+      ],
+      "input_channel": "Original Tcl source file",
+      "exit_code": 0,
+      "seconds": 0.0039746761322021484,
+      "changed_inputs": {},
+      "input_scope": "Probe, selected interpreter executable, selected adjacent Tcl shared libraries and complete original matching library tree when present; unrecorded system dynamic dependencies are not a complete host closure. No tcltest was invoked.",
+      "stdout": "JIMSH.stdout",
+      "stderr": "JIMSH.stderr"
+    }
+  ]
+}

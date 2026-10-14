@@ -613,11 +613,8 @@ pub fn collect_positioned_opaque_callee_name_args(
 
 /// Predicate-backed String candidate reporting through the shared lookup order.
 /// This path-free projection supplies no original body or implementation identity.
-pub(crate) fn resolve_internal_call_with<F>(
-    command: &str,
-    caller_qname: &str,
-    exists: F,
-) -> Option<String>
+#[cfg(test)]
+fn resolve_internal_call_with<F>(command: &str, caller_qname: &str, exists: F) -> Option<String>
 where
     F: FnMut(&str) -> bool,
 {
@@ -640,7 +637,8 @@ where
 /// directly; a relative name tries the caller's namespace first, then global,
 /// and never walks intermediate ancestor namespaces.
 #[must_use]
-pub fn resolve_internal_call<S: std::hash::BuildHasher>(
+#[cfg(test)]
+fn resolve_internal_call<S: std::hash::BuildHasher>(
     command: &str,
     caller_qname: &str,
     known: &HashSet<String, S>,
@@ -652,7 +650,8 @@ pub fn resolve_internal_call<S: std::hash::BuildHasher>(
 /// handles the common case where the caller has no special
 /// aliasing information.
 #[must_use]
-pub fn resolve_call_target<S: std::hash::BuildHasher>(
+#[cfg(test)]
+fn resolve_call_target<S: std::hash::BuildHasher>(
     command: &str,
     _args: &[String],
     caller_qname: &str,
@@ -692,7 +691,8 @@ pub(crate) fn command_prefix_literal_head(
 /// [`crate::naming::qualifier_segments_owned`] (colon runs are a single
 /// separator, so `::a:::b::p` yields `["a", "b"]`).
 #[must_use]
-pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
+#[cfg(test)]
+fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
     let mut parts = crate::naming::qualifier_segments_owned(qname);
     parts.pop();
     parts

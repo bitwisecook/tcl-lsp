@@ -1,0 +1,552 @@
+--- a/rust/tcl-compiler/src/command_binding/source_read_scope.rs
++++ b/rust/tcl-compiler/src/command_binding/source_read_scope.rs
+@@ -186,6 +186,28 @@
+         return false;
+     };
+     for target in &binding.targets {
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            let target_descriptor = context
++                .context()
++                .resolve_spec(context.commands(), &target.command)
++                .is_some_and(|selected| std::ptr::eq(selected, descriptor));
++            let actual_prefix = target
++                .prepended
++                .iter()
++                .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
++                .collect::<Option<Vec<_>>>();
++            let inputs = target.original_prepended_name_inputs();
++            eprintln!(
++                "ISSUER_TARGET offset={} command={:?} registry={} descriptor={target_descriptor} prefix={} retained_inputs={:?} expected_prefix={}",
++                advice.site().offset,
++                target.command,
++                target.registry_backed,
++                actual_prefix.as_deref() == Some(prefix.as_slice()),
++                inputs.map(|inputs| inputs.len()),
++                prefix.len()
++            );
++        }
+         if !target.registry_backed
+             || !context
+                 .context()
+@@ -216,6 +238,13 @@
+                     let Some(captured) = word.input.as_ref() else {
+                         return true;
+                     };
++                    #[cfg(test)]
++                    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++                        match captured {
++                            crate::command_binding::SourceAdviceNameInput::Native(original) => eprintln!("ISSUER_CAPTURE offset={} kind=Native same={}", advice.site().offset, original == input),
++                            crate::command_binding::SourceAdviceNameInput::Logical(original) => eprintln!("ISSUER_CAPTURE offset={} kind=Logical authority={:?} original_key={} bytes={} word={} image={} config={} span={} group={} tokens={}", advice.site().offset, input.policy().authority(), input.original_word_key().is_some(), input.bytes() == original.bytes(), input.original_word_key().is_some_and(|key| key.original_word() == original.original_word()), input.original_word_key().is_some_and(|key| key.original_word().image() == original.original_word().image()), input.original_word_key().is_some_and(|key| key.original_word().config() == original.original_word().config()), input.original_word_key().is_some_and(|key| key.original_word().span() == original.original_word().span()), input.original_word_key().is_some_and(|key| key.original_word().group() == original.original_word().group()), input.original_word_key().is_some_and(|key| key.original_word().tokens() == original.original_word().tokens())),
++                        }
++                    }
+                     match captured {
+                         crate::command_binding::SourceAdviceNameInput::Native(original) => {
+                             original != input
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -1865,12 +1865,30 @@
+     ) -> Option<()> {
+         tape.represented
+             .insert(invocation.words.first()?.span().start());
+-        let Some(written) = original_words(&invocation.words, self.policy) else {
++        let written = original_words(&invocation.words, self.policy);
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_TAPE stage=words offset={} selected={}",
++                invocation.words.first()?.span().start(),
++                written.is_some()
++            );
++        }
++        let Some(written) = written else {
+             graph.widen(&invocation.words);
+             return Some(());
+         };
+         self.retain_original_operand_constructor_calls(tape, graph, &invocation.words, None);
+-        if self.retain_original_source_receiver(tape, graph, &invocation.words, &written) {
++        let receiver =
++            self.retain_original_source_receiver(tape, graph, &invocation.words, &written);
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_TAPE stage=receiver offset={} selected={receiver}",
++                invocation.words[0].span().start()
++            );
++        }
++        if receiver {
+             return Some(());
+         }
+         let handle = self.before_operand_handle_binding(graph, &invocation.words, &written);
+@@ -1895,8 +1913,15 @@
+             .then(|| graph.resolve(&head))
+             .flatten();
+         let original_barrier = graph.blocks_registry_source(&head);
+-        let Some(operand_barrier) = self.inspect_operand_effects(graph, &invocation.words, tape)
+-        else {
++        let operand_barrier = self.inspect_operand_effects(graph, &invocation.words, tape);
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_TAPE stage=operand_effects offset={} selected={operand_barrier:?}",
++                invocation.words.first()?.span().start()
++            );
++        }
++        let Some(operand_barrier) = operand_barrier else {
+             graph.widen(&invocation.words);
+             return Some(());
+         };
+@@ -1904,10 +1929,42 @@
+             tape.registry_barriers
+                 .insert(invocation.words.first()?.span().start());
+         }
+-        if self.retain_source_header_relations(graph, tape, &invocation.words, &head) {
++        let header = self.retain_source_header_relations(graph, tape, &invocation.words, &head);
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_TAPE stage=header offset={} selected={header}",
++                invocation.words.first()?.span().start()
++            );
++        }
++        if header {
+             return Some(());
+         }
+         let selected = original_selection.or_else(|| graph.resolve(&head));
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            let cell = graph
++                .lookup_head_key(head.bytes())
++                .and_then(|key| graph.cells.get(&key))
++                .map(|cell| match cell {
++                    AdviceCell::Descriptor(_, _) => "descriptor",
++                    AdviceCell::Alias { .. } => "alias",
++                    AdviceCell::Shadowed => "shadowed",
++                    AdviceCell::Deleted => "deleted",
++                    AdviceCell::CreatedInterpreter(_) => "interpreter",
++                    AdviceCell::RegisteredInstance(_) => "registered",
++                    AdviceCell::SourceClass(_) => "class",
++                    AdviceCell::ClassInstance(_) => "instance",
++                    AdviceCell::SourceProcedure(_) => "procedure",
++                    AdviceCell::Declared(_) => "declared",
++                });
++            eprintln!(
++                "ISSUER_TAPE stage=selection offset={} head={:?} cell={cell:?} selected={} barrier={original_barrier}",
++                invocation.words[0].span().start(),
++                head.bytes(),
++                selected.is_some()
++            );
++        }
+         let Some((command, mut arguments, lineage)) = selected else {
+             graph.widen(&invocation.words);
+             return Some(());
+@@ -1931,6 +1988,14 @@
+                 .with_dialect(self.dialect),
+                 tcl_dialect::model::InvocationRealm::RuleLoader,
+             );
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_TAPE stage=schema offset={} command={command:?} selected={}",
++                invocation.words[0].span().start(),
++                resolution.resolved().is_some()
++            );
++        }
+         let Some(schema) = resolution.resolved() else {
+             graph.widen(&invocation.words);
+             return Some(());
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -3022,6 +3022,92 @@
+ 
+     use super::*;
+ 
++    #[test]
++    fn logical_source_issuer_probe_preserves_actual_write_and_body_consumers() {
++        let fixtures: &[(&str, &[&str])] = &[
++            (
++                "namespace eval N {variable x FIRST; set x AGAIN; puts $x}\n",
++                &["set x AGAIN"],
++            ),
++            (
++                "set x ROOT\nnamespace eval N {\n variable x NAMESPACE\n proc p {} {\n  set x PROCEDURE\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n  uplevel 1 {puts $x}\n }\n}\n",
++                &["uplevel #0", "uplevel 0", "uplevel 1"],
++            ),
++            (
++                "interp alias {} branch {} if 1\nbranch {puts $value}",
++                &["branch {puts"],
++            ),
++        ];
++        let mut failures = Vec::new();
++        for &(source, needles) in fixtures {
++            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
++            let input = analysis.resolved_input.as_ref().unwrap();
++            let realm = analysis.retained_command_realm().unwrap();
++            let image = tcl_lexer::SourceImage::document(source);
++            eprintln!(
++                "ISSUER_FIXTURE source={source:?} cards={:?}",
++                analysis
++                    .original_variable_write_advice
++                    .iter()
++                    .map(|card| card.span())
++                    .collect::<Vec<_>>()
++            );
++            for &needle in needles {
++                let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
++                let segment = realm
++                    .invocation_at_source("", offset)
++                    .original_recorded_command()
++                    .map(|(segment, _)| segment)
++                    .or_else(|| realm.original_source_catalogue_segment_at(input, offset));
++                let words = source_registry_words_at(source, &analysis, offset);
++                let schema = words.as_ref().and_then(|words| {
++                    words.with_source_schema(input.borrowed_context_registry(), |schema| {
++                        let (roles, complete) = schema.authored_source_argument_roles();
++                        (roles, complete)
++                    })
++                });
++                let bodies = words.as_ref().map(|words| {
++                    words
++                        .source_script_bodies(input.borrowed_context_registry())
++                        .iter()
++                        .map(|body| body.content_span())
++                        .collect::<Vec<_>>()
++                });
++                eprintln!(
++                    "ISSUER_CALL needle={needle:?} offset={offset} source_words={} schema={schema:?} bodies={bodies:?}",
++                    words.is_some()
++                );
++                if needle.starts_with("set ") {
++                    let Some(segment) = segment.as_ref() else {
++                        failures.push(format!("missing retained source vector: {needle}"));
++                        continue;
++                    };
++                    let token = segment.argv.get(1).unwrap();
++                    let original = realm.original_written_word_at_span_in_source(
++                        &image,
++                        token.span,
++                        input.lexer_config(),
++                    );
++                    let card = analysis
++                        .original_variable_write_advice
++                        .iter()
++                        .any(|card| card.span() == token.span);
++                    eprintln!(
++                        "ISSUER_WRITE span={:?} original_word={} card={card}",
++                        token.span,
++                        original.is_some()
++                    );
++                    if !card {
++                        failures.push(format!("missing write card: {needle}"));
++                    }
++                } else if bodies.as_ref().is_none_or(|bodies| bodies.is_empty()) {
++                    failures.push(format!("missing body: {needle}"));
++                }
++            }
++        }
++        assert!(failures.is_empty(), "{failures:?}");
++    }
++
+     fn original_selector_analysis(source: &str) -> crate::analyser::AnalysisResult {
+         let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+         let profile = environment.analyser_profile();
+--- a/rust/tcl-compiler/src/command_binding/original_name_value.rs
++++ b/rust/tcl-compiler/src/command_binding/original_name_value.rs
+@@ -1766,6 +1766,119 @@
+     }
+ 
+     #[test]
++    fn logical_receiver_word_geometry_and_write_card_keep_exact_source_currency() {
++        let source = "namespace eval N {variable x FIRST; set x AGAIN; puts $x}\n";
++        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
++        let realm = analysis.retained_command_realm().unwrap();
++        let input = analysis.resolved_input.as_ref().unwrap();
++        let image = tcl_lexer::SourceImage::document(source);
++        let config = analysis.body_lexer_config.unwrap();
++        let head = u32::try_from(source.find("set x AGAIN").unwrap()).unwrap();
++        let span = tcl_lexer::Span::new(head + 4, head + 5);
++        let binding = realm.invocation_at_source("", head);
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "RECEIVER_GEOMETRY entered={} written={} compiler={} rows={} geometry={}",
++                binding.lookup_state.is_some(),
++                binding.original_written_words.is_some(),
++                binding.original_compiler_words.is_some(),
++                binding
++                    .declaration_layout_observations
++                    .as_ref()
++                    .map_or(0, |rows| rows.len()),
++                binding
++                    .original_logical_source_geometry_words(input)
++                    .is_some()
++            );
++            if let Some(rows) = binding.declaration_layout_observations.as_deref() {
++                for row in rows {
++                    let owner = row
++                        .snapshot
++                        .state
++                        .baseline
++                        .metadata_context
++                        .source_analysis_input();
++                    let metadata = owner.and_then(|owner| {
++                        row.snapshot
++                            .state
++                            .baseline
++                            .metadata_context
++                            .metadata_context_for_source(
++                                input.borrowed_context_registry().commands(),
++                                row.config,
++                                Some(owner.unit_profile()),
++                            )
++                    });
++                    let purpose = metadata.and_then(|metadata| {
++                        row.snapshot.state.retained_original_source_purpose(
++                            metadata,
++                            input.borrowed_context_registry().commands(),
++                        )
++                    });
++                    eprintln!(
++                        "RECEIVER_ROW issuer={:?} owns={} image={} config={} nested_config={} input={} nested_input={} purpose={purpose:?}",
++                        row.issuer,
++                        row.entry
++                            .owns_source(&binding.invocation_site().unwrap().source, head),
++                        row.snapshot.state.current_source_origin.as_ref()
++                            == Some(&binding.invocation_site().unwrap().source),
++                        row.config == config,
++                        row.config == config.nested(),
++                        owner == Some(input),
++                        owner == Some(&input.for_nested_source())
++                    );
++                }
++            }
++        }
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            for card in &analysis.original_variable_write_advice {
++                if card.span() == span {
++                    eprintln!(
++                        "RECEIVER_CARD context={} input_matches={} coordinate={:?}",
++                        card.matches_context(input.borrowed_context_registry()),
++                        analysis.logical_original_word_input_matches_source(
++                            &image,
++                            config,
++                            span,
++                            card.original_name_input()
++                        ),
++                        analysis
++                            .logical_variable_scope_advice(&image, config, span.start())
++                            .and_then(|scope| scope.namespace_variable_coordinate("x"))
++                    );
++                }
++            }
++        }
++        let original = realm
++            .original_written_word_at_span_in_source(&image, span, config)
++            .unwrap();
++        assert_eq!(original.1, head);
++        assert_eq!(&image.bytes()[original.0.span().as_range()], b"x");
++        assert!(
++            analysis
++                .original_variable_write_advice
++                .iter()
++                .any(|card| card.span() == span)
++        );
++        assert!(
++            realm
++                .original_written_word_at_span_in_source(
++                    &tcl_lexer::SourceImage::document(&source.replace("AGAIN", "OTHER")),
++                    span,
++                    config
++                )
++                .is_none()
++        );
++        let mut changed = config;
++        changed.strict_quoting = !changed.strict_quoting;
++        assert!(
++            realm
++                .original_written_word_at_span_in_source(&image, span, changed)
++                .is_none()
++        );
++    }
++
++    #[test]
+     fn logical_recorded_name_operands_use_the_checked_source_purpose() {
+         let source = "proc f {value} {return $value}\n";
+         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -758,7 +758,15 @@
+         native: &NativeScriptCommandWords,
+         depth: usize,
+     ) -> Option<()> {
+-        self.mark_child_header(native)?;
++        let header = self.mark_child_header(native);
++        #[cfg(test)]
++        trace_body_inventory(
++            "command.header",
++            native.words.first().map(|word| word.span().start()),
++            header.is_some(),
++            native.words.len(),
++        );
++        header?;
+         if let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body)
+             && matches!(self.context.policy, AdviceNamingPolicy::Logical(_))
+             && self.context.retain_original_body_constructor_calls(
+@@ -778,8 +786,24 @@
+             let written = original_words(&native.words, self.context.policy)?;
+             graph.resolve(written.first()?.input.as_ref()?)
+         });
+-        self.substitutions(graph, &native.words, depth)?;
+-        let Some(written) = original_words(&native.words, self.context.policy) else {
++        let substitutions = self.substitutions(graph, &native.words, depth);
++        #[cfg(test)]
++        trace_body_inventory(
++            "command.substitutions",
++            native.words.first().map(|word| word.span().start()),
++            substitutions.is_some(),
++            native.words.len(),
++        );
++        substitutions?;
++        let written = original_words(&native.words, self.context.policy);
++        #[cfg(test)]
++        trace_body_inventory(
++            "command.words",
++            native.words.first().map(|word| word.span().start()),
++            written.is_some(),
++            native.words.len(),
++        );
++        let Some(written) = written else {
+             graph.record_uncertainty(&native.words);
+             return Some(());
+         };
+@@ -791,9 +815,33 @@
+             graph.record_uncertainty(&native.words);
+             return Some(());
+         };
+-        let Some((command, mut arguments, lineage)) =
+-            original_selection.or_else(|| graph.resolve(&head))
+-        else {
++        let selected = original_selection.or_else(|| graph.resolve(&head));
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            let key = graph.lookup_head_key(head.bytes());
++            let cell = key
++                .as_ref()
++                .and_then(|key| graph.cells.get(key))
++                .map(|cell| match cell {
++                    AdviceCell::Descriptor(_, _) => "descriptor",
++                    AdviceCell::Alias { .. } => "alias",
++                    AdviceCell::Shadowed => "shadowed",
++                    AdviceCell::Deleted => "deleted",
++                    AdviceCell::SourceProcedure(_) => "source_procedure",
++                    AdviceCell::Declared(_) => "declared",
++                    _ => "other",
++                });
++            eprintln!(
++                "ISSUER_BODY stage=selection offset={} head={:?} cell={cell:?} selected={} inventory={} source_body={} catalogue={}",
++                native.words.first()?.span().start(),
++                head.bytes(),
++                selected.is_some(),
++                self.inventory.is_some(),
++                self.source_body.is_some(),
++                self.catalogue_body.is_some()
++            );
++        }
++        let Some((command, mut arguments, lineage)) = selected else {
+             graph.record_uncertainty(&native.words);
+             return Some(());
+         };
+@@ -814,6 +862,14 @@
+                 .with_dialect(self.context.dialect),
+                 tcl_dialect::model::InvocationRealm::RuleLoader,
+             );
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_BODY stage=schema offset={} command={command:?} selected={}",
++                native.words.first()?.span().start(),
++                resolution.resolved().is_some()
++            );
++        }
+         let Some(schema) = resolution.resolved() else {
+             graph.record_uncertainty(&native.words);
+             return Some(());
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+@@ -329,7 +329,16 @@
+     ) -> Option<()> {
+         let native = &command.words;
+         tape.represented.insert(native.first()?.span().start());
+-        let Some(written) = original_words(native, self.context.policy) else {
++        let written = original_words(native, self.context.policy);
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_LOGICAL stage=words offset={} selected={}",
++                native.first()?.span().start(),
++                written.is_some()
++            );
++        }
++        let Some(written) = written else {
+             graph.widen(native);
+             return Some(());
+         };
+@@ -382,10 +391,40 @@
+             .then(|| graph.resolve(&head))
+             .flatten();
+         let operand_barrier =
+-            self.retain_deferred_operand_header(tape, graph, native, &head, (scope, depth))?;
+-        let Some((selected, mut arguments, lineage)) =
+-            original_selection.or_else(|| graph.resolve(&head))
+-        else {
++            self.retain_deferred_operand_header(tape, graph, native, &head, (scope, depth));
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_LOGICAL stage=operand_header offset={} selected={operand_barrier:?}",
++                native.first()?.span().start()
++            );
++        }
++        let operand_barrier = operand_barrier?;
++        let selection = original_selection.or_else(|| graph.resolve(&head));
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            let key = graph.lookup_head_key(head.bytes());
++            let cell = key
++                .as_ref()
++                .and_then(|key| graph.cells.get(key))
++                .map(|cell| match cell {
++                    super::AdviceCell::Descriptor(_, _) => "descriptor",
++                    super::AdviceCell::Alias { .. } => "alias",
++                    super::AdviceCell::Shadowed => "shadowed",
++                    super::AdviceCell::Deleted => "deleted",
++                    super::AdviceCell::SourceProcedure(_) => "source_procedure",
++                    super::AdviceCell::Declared(_) => "declared",
++                    _ => "other",
++                });
++            eprintln!(
++                "ISSUER_LOGICAL stage=selection offset={} head={:?} cell={cell:?} selected={} blocked={}",
++                native.first()?.span().start(),
++                head.bytes(),
++                selection.is_some(),
++                graph.blocks_registry_source(&head)
++            );
++        }
++        let Some((selected, mut arguments, lineage)) = selection else {
+             graph.widen(native);
+             return Some(());
+         };
+@@ -406,6 +445,14 @@
+                 .with_dialect(self.context.dialect),
+                 tcl_dialect::model::InvocationRealm::RuleLoader,
+             );
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            eprintln!(
++                "ISSUER_LOGICAL stage=schema offset={} command={selected:?} selected={}",
++                native.first()?.span().start(),
++                resolution.resolved().is_some()
++            );
++        }
+         let Some(schema) = resolution.resolved() else {
+             graph.widen(native);
+             return Some(());

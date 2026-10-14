@@ -205,7 +205,7 @@ fn original_compiled_word_cat_checks_after_genuine_component_retirement_before_r
             }
             let prior = fixture::string(b"PRIOR");
             actual.set_result(prior.as_ptr());
-            let scope =
+            let _scope =
                 crate::interp::native_operation_currency::NativeOperationScope::enter(&actual)
                     .unwrap();
             FREES.set(0);

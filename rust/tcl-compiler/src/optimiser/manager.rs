@@ -586,7 +586,12 @@ fn couple_const_dead_store_chain(
     if var.starts_with("::")
         || super::elimination::store_is_seen_elsewhere(fu, chain, scope_aliases)
         || rmw_hidden.contains(var)
-        || traced.contains(var.trim_start_matches("::"))
+        || crate::variable_observation_names::variable_name_may_be_observed(
+            *traced,
+            var,
+            false,
+            crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
+        )
     {
         return None;
     }

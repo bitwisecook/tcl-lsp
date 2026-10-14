@@ -4634,13 +4634,8 @@ impl<'r> Lowerer<'r> {
                 body_offset,
                 body_offset + u32::try_from(body_length).unwrap_or(u32::MAX),
             );
-            // Prefix the body unit's qualified name with the namespace the
-            // lambda actually runs in, exactly as `lower_namespace_eval` does
-            // — a bare command word inside the body resolves against
-            // `body_ns`, never the caller's own namespace, and
-            // `interprocedural::resolve_internal_call` reads that off the
-            // qname. `join_namespace` normalises the global case back to the
-            // plain `apply` marker. tclsh8.6/9.0-confirmed: inside
+            // The body retains its own lambda namespace; the label is a display.
+            // tclsh8.6/9.0-confirmed: inside
             // `::foo::runIt`, `apply {{x} { helper $x } ::foo} b` calls
             // `::foo::helper`, not `::helper`.
             self.register_body_unit(&join_namespace(&body_ns, "apply"), params, span, body, true);
@@ -4835,12 +4830,8 @@ impl<'r> Lowerer<'r> {
             body_offset,
             body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
         );
-        // Prefix the body unit's own qualified name with `child_ns` (not just
-        // the bare "namespace-eval" marker): a bare command inside this body
-        // resolves against `child_ns`, never the caller's own namespace, so
-        // the body unit's qname must encode that for
-        // `interprocedural::resolve_internal_call` to get it right (see
-        // `register_body_unit`'s doc). tclsh8.6-confirmed:
+        // Original body context selects the child namespace; labels do not.
+        // tclsh8.6-confirmed:
         // `namespace eval ::foo { helper }` calls `::foo::helper` even when
         // nested inside an unrelated proc, never a same-named proc in the
         // caller's own namespace.
@@ -7011,12 +7002,8 @@ fn record_possible_variable_trace(transition: &tcl_registry::TraceTransition, mo
         return;
     };
     if let Some(target) = subject.literal() {
-        let canonical = crate::naming::normalise_var_name(&format!("${target}"))
-            .trim_start_matches("::")
-            .to_owned();
-        if !canonical.is_empty() {
-            module.traced_variables.insert(canonical);
-        }
+        let name = crate::variable_observation_names::module_observation_key(target);
+        module.traced_variables.insert(name.to_owned());
     } else {
         module.has_dynamic_variable_trace = true;
     }
@@ -9812,6 +9799,17 @@ mod tests {
     }
 
     // trace add/remove/variable/vdelete module-fact population
+
+    #[test]
+    fn trace_target_names_keep_empty_and_literal_sigil_data() {
+        let registry = reg();
+        let empty = lower_to_ir("trace add variable {} write callback", &registry);
+        assert!(empty.traced_variables.contains(""));
+        assert!(!empty.traced_variables.contains("$"));
+        let literal = lower_to_ir("trace add variable {$counter} write callback", &registry);
+        assert!(literal.traced_variables.contains("$counter"));
+        assert!(!literal.traced_variables.contains("counter"));
+    }
 
     #[test]
     fn trace_add_variable_literal_recorded() {

@@ -1,0 +1,32 @@
+{
+  "files": [
+    {
+      "path": "runtime/rust/src/engine.rs",
+      "before_sha256": "e250348c85e0889770f71ee1c463e47c982350095f9c66c61f540a1ba208802a",
+      "after_sha256": "7a7d760ac2f6e3ab467f9d0d707fb28ccba4247c78799b7cf7a8141c732ce0ab"
+    },
+    {
+      "path": "runtime/rust/src/engine_abi/value_carriers.rs",
+      "before_sha256": "ab7c813e50c45076e4656aedacdd12c4ba666bca202ac2496914fc55b58701aa",
+      "after_sha256": "da4b4ba0864316c53c0ec306c16a0ac7823b3eeb7d525c9f22e250a5ff274e0a"
+    },
+    {
+      "path": "runtime/rust/src/interp/stock_ensembles/publication_tests.rs",
+      "before_sha256": "705cd84b225240fcec2373e58cfafa03fbaef1afb7be479c2dd07245e207de0f",
+      "after_sha256": "63a9d76bcb461dfd74f446970a011bd9471a34f2ff5376ba01f6f73a1e00c32f"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs",
+      "before_sha256": "e3b150f40f5f04fcfd3e9b48843ad6a26deb8c8d9fc7fb70b8fc35b4197987bb",
+      "after_sha256": "29ff85112866a8d72b927899ec73ed880bb3841cbf6827300d9df3e966b99c73"
+    },
+    {
+      "path": "runtime/rust/src/list.rs",
+      "before_sha256": "dc2db13eabb66936f1db27c84bf86a68215ed15f039223c0c6e2916b8e4684a1",
+      "after_sha256": "29d0e92f0a6c1fc385748540fb4d261305a848f0133cc695ed18f1a92a26cb70"
+    }
+  ],
+  "patch_sha256": "58efea92c3039702ea6708ffcbd4792e5a88b54fab0803b71fb1908181d8aefe",
+  "scope": "cfg(test) only: actual RuntimeEngine factory; matching core completion Code; exact full scripted helper field snapshots and physical slot generation assertions; RAII guard retained under underscore name; unused test reexport removed. No production trait changes. Original assertions retained in equivalent typed form.",
+  "validation": "Apply-check only; no Cargo/Main writes."
+}
