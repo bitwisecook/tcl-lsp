@@ -11171,7 +11171,16 @@ impl Vm {
     /// (`TclPtrSetVarIdx`, `tclVar.c` 9.0.4:1913 — value in at :2023-2032,
     /// traces at :2040-2046, `cleanup:` at :2070; same shape in 8.6.16). A
     /// cell the write created therefore survives too.
+    ///
+    /// A name that spells an array element writes the element, creating the
+    /// array, as `Tcl_ObjSetVar2` reads a name with no element word: every
+    /// command that stores into a variable it is named (`catch`, `foreach`,
+    /// `lassign`, `scan`, …) takes `a(k)` so.
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        if let Some((base, key)) = elem_ref(name) {
+            let (base, key) = (base.to_owned(), key.to_owned());
+            return self.set_array_elem(&base, &key, value);
+        }
         self.confine_store(name, self.current_level())?;
         self.validate_var_parent(name)?;
         if self

@@ -571,3 +571,70 @@ fn vectors_match_real_tclsh() {
         eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
     }
 }
+
+/// A command that stores into a variable it is named reads `a(k)` as an
+/// array element and creates the array (`Tcl_ObjSetVar2` with no element
+/// word): `catch`'s result and options variables at the top level, in a
+/// namespace and a proc, through `upvar` and a computed key, and `foreach`
+/// and `scan` dispatched at run time. A store into an element of a scalar
+/// fails, with 8.4 and 8.5's own `catch` message. Measured on tclsh 8.4.20,
+/// 8.5.19, 8.6.18, 9.0.4 and 9.1.0, each script on stdin.
+const ELEMENT_TARGETS: &str = r#"proc a1 {} { catch {set x 1} a(x); set a(x) }
+proc a2 {b} { catch $b a(x); set a(x) }
+proc a3 {} { set k y; upvar #0 h arr; catch {error boom} arr($k); set ::h(y) }
+proc a4 {} { set a 5; list [catch {catch {set x 1} a(x)} m] $m }
+catch {set x 1} t(x)
+namespace eval ns { catch {set x 2} v(x) }
+set c foreach; $c f(1) {3} {}
+set c scan; $c 4 %d s(1)
+puts "[a1] [a2 {set x 2}] [a3] [list $t(x) $ns::v(x) $f(1) $s(1)]"
+puts [a4]
+if {$tcl_version >= 8.5} {
+    proc o1 {} { catch {error boom} a(r) a(o); list $a(r) [dict get $a(o) -code] }
+    proc o2 {} { set a 5; list [catch {catch {set x 1} r a(o)} m] $m }
+    puts "[o1] [o2]"
+}
+"#;
+
+const ELEMENT_TARGETS_84: &str = "1 2 boom 1 2 3 4\n\
+    1 {couldn't save command result in variable}";
+
+const ELEMENT_TARGETS_85: &str = "1 2 boom 1 2 3 4\n\
+    1 {couldn't save command result in variable}\n\
+    boom 1 1 {couldn't save return options in variable}";
+
+const ELEMENT_TARGETS_86: &str = "1 2 boom 1 2 3 4\n\
+    1 {can't set \"a(x)\": variable isn't array}\n\
+    boom 1 1 {can't set \"a(o)\": variable isn't array}";
+
+const ELEMENT_TARGET_WANTS: &[(TclVersion, &str)] = &[
+    (TclVersion::V8_4, ELEMENT_TARGETS_84),
+    (TclVersion::V8_5, ELEMENT_TARGETS_85),
+    (TclVersion::V8_6, ELEMENT_TARGETS_86),
+    (TclVersion::V9_0, ELEMENT_TARGETS_86),
+    (TclVersion::V9_1, ELEMENT_TARGETS_86),
+];
+
+#[test]
+fn a_named_variable_that_spells_an_element_stores_the_element() {
+    for &(release, want) in ELEMENT_TARGET_WANTS {
+        assert_eq!(vm_output(ELEMENT_TARGETS, release), want, "[{release:?}]");
+    }
+}
+
+#[test]
+fn element_target_vectors_match_each_tclsh() {
+    for &(release, want) in ELEMENT_TARGET_WANTS {
+        let Some(tclsh) = tcl_test_support::witness_tclsh(release) else {
+            continue;
+        };
+        let out = tcl_test_support::run_script(&tclsh.path, ELEMENT_TARGETS.as_bytes())
+            .expect("run tclsh")
+            .stdout;
+        assert_eq!(
+            String::from_utf8_lossy(&out).trim(),
+            want,
+            "[tclsh {release:?}]"
+        );
+    }
+}

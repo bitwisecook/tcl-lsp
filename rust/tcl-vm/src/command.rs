@@ -2211,20 +2211,31 @@ impl Vm {
             (einfo, ecode)
         });
         let _ = self.take_error_info();
+        // 8.4 and 8.5 replace a failed store's message with their own.
         if let Some(r) = resvar
             && let Err(e) = self.set_var(&r.to_str(), comp.result.clone())
         {
-            return e;
+            return self.catch_store_failed(e, "couldn't save command result in variable");
         }
         if let Some(o) = optvar
             && let Err(e) = self.set_var(&o.to_str(), opts)
         {
-            return e;
+            return self.catch_store_failed(e, "couldn't save return options in variable");
         }
         if let Some((einfo, ecode)) = &error_meta {
             self.publish_error(einfo, ecode);
         }
         ok(Value::int(comp.code.as_int()))
+    }
+
+    /// The error `catch` raises when it cannot store into its result or
+    /// options variable: the store's own up to 8.5's replacement `message`.
+    fn catch_store_failed(&self, failed: Completion<Value>, message: &str) -> Completion<Value> {
+        if self.runtime_version() < tcl_dialect::TclVersion::V8_6 {
+            err(message)
+        } else {
+            failed
+        }
     }
 
     /// The options dict a *compiled* catch range records when it absorbs
