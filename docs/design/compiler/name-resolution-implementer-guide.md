@@ -4051,6 +4051,17 @@ unproved.
 
 ### Original method reference sets
 
+Editor method-site syntax comes from `source_structure::original_method_site_at`
+through `definition::original_instance_method_at_cursor`. The current source,
+full input and actual lexer configuration select the innermost complete command
+and its original head/static selector; physical comments, non-selector positions,
+expansions, computed selectors and malformed tails decline. Sole variable and command-substitution receivers retain their actual bare or
+quoted source structure. Empty literal receiver/selector data stays literal;
+its availability for actual dispatch remains a separate consumer obligation.
+Definition, hover, references and rename still require their own receiver,
+visibility, source-provider and complete edit owners. Syntax cannot establish
+method dispatch, an object allocation, Normal completion or editing permission.
+
 `receiver_identity::method_at_command` selects a retained temporal method entry
 using the actual command realm, written head, evaluated selector and post-argv
 receiver proof. It retains the original declaring class separately from the
@@ -6890,9 +6901,15 @@ supplies no runtime reflection, selected handler, name, cell, frame or broader
 edit equivalence.
 
 Native scalar compaction consumes the separately issued
-`AnalysisResult::original_scalar_body_alpha_rename` receipt. Its bounded source
-contains one surviving procedure, one required scalar formal and one selected
-whole-object return. `scalar_alpha_compaction` checks the exact declaration,
+`AnalysisResult::original_fixed_scalar_body_alpha_rename` receipt. Its bounded
+source contains one surviving procedure, complete required fixed-scalar formal
+topology and one selected whole-object return. The selected field and same-frame
+symbol must agree on the original name, and the proposed tail must satisfy the
+actual parameter recipe without colliding with another formal. The independent
+`original_scalar_body_alpha_rename` query retains its singleton restriction.
+Neither query admits defaults, rest/caller-link formals, local stores, multiple
+body commands/procedures, reflection or alias insertion.
+`scalar_alpha_compaction` checks the exact declaration,
 complete image/configuration, Registry semantic key and proposed native tail,
 then separately calls `original_variable_rename_edits` for complete original
 formal/list-child and lexical-root coverage. It introduces neither a store nor
