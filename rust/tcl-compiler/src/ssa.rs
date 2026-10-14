@@ -7623,18 +7623,18 @@ impl<'a> RenameWalk<'a> {
 /// and use.
 #[must_use]
 pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunction {
-    build_ssa_with_config(
-        func,
-        registry,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    )
+    let config = func.metadata_context.source_analysis_input().map_or_else(
+        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        crate::analyser::ResolvedAnalysisInput::lexer_config,
+    );
+    build_ssa_with_config(func, registry, config)
 }
 
 /// Build SSA under the exact lexer configuration that produced `func`.
 ///
-/// Unlike [`build_ssa`], this entry preserves environment-only grammar axes
-/// (notably `JimTcl`, which deliberately has no catalogue profile) and host
-/// overrides through phi placement, renaming, and terminator-read interning.
+/// An explicit configuration also supplies environment-only grammar axes for
+/// standalone CFGs, which retain no complete source input. Supplied CFGs keep
+/// their original metadata checks when an explicit configuration differs.
 #[must_use]
 pub fn build_ssa_with_config(
     func: &cfg::Function,
@@ -14429,5 +14429,52 @@ mod original_authored_analysis_definition_selector_tests {
         malformed.top_level.source_config.strict_quoting =
             !malformed.top_level.source_config.strict_quoting;
         assert!(original_analysis_definition_at_unit(&malformed, span, &registry).is_none());
+    }
+}
+
+#[cfg(test)]
+mod retained_host_grammar_tests {
+    use super::*;
+
+    #[test]
+    fn public_ssa_reborrows_the_supplied_host_grammar_for_return_reads() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let registry = context.commands();
+        let config = tcl_lexer::LexerConfig::for_dialect("jim");
+        assert_ne!(
+            config.normalized(),
+            tcl_lexer::LexerConfig::for_profile(registry.profile()).normalized()
+        );
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        let source = "return $($::value)";
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                config,
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let cfg = &unit.top_level.cfg;
+        assert_eq!(cfg.metadata_context.source_analysis_input(), Some(&input));
+        assert!(cfg.blocks.values().any(|block| matches!(
+            &block.terminator,
+            Some(Terminator::Return { value: Some(value), .. }) if value == "$($::value)"
+        )));
+        let explicit = build_ssa_with_config(cfg, registry, config);
+        assert!(
+            explicit
+                .point_symbols
+                .values()
+                .any(|symbols| symbols.contains_key("::value"))
+        );
+        assert_eq!(build_ssa(cfg, registry), explicit);
     }
 }

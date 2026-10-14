@@ -1,0 +1,466 @@
+warning: function `word_char_bounds` is never used
+    --> rust/tcl-lsp-core/src/hover.rs:2651:15
+     |
+2651 | pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usize)> {
+     |               ^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `frame_shifted_regions_within` is never used
+   --> rust/tcl-lsp-core/src/refactor/mod.rs:815:19
+    |
+294 | impl<'a> FrameWalk<'a> {
+    | ---------------------- method in this implementation
+...
+815 |     pub(crate) fn frame_shifted_regions_within(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-lsp-core` (lib) generated 2 warnings
+warning: function `read_double` is never used
+   --> runtime/rust/src/bignum.rs:311:15
+    |
+311 | pub(crate) fn read_double(obj: *mut TclObj) -> Option<f64> {
+    |               ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `materialise_selected_array` is never used
+   --> runtime/rust/src/frame.rs:648:8
+    |
+587 | impl CellContents {
+    | ----------------- method in this implementation
+...
+648 |     fn materialise_selected_array(&mut self, root: Option<&[u8]>) -> Result<(), VarError> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+    --> runtime/rust/src/frame.rs:1083:19
+     |
+ 748 | impl VarTable {
+     | ------------- methods in this implementation
+...
+1083 |     pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
+     |                   ^^^^^^^^^^^^^^^^^
+...
+1111 |     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+     |                   ^^^^^^^^^^^^^
+...
+1116 |     pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+     |                   ^^^^^^^^^^^^^^^^^^^
+...
+1278 |     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
+     |                   ^^^^^^
+...
+1401 |     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+     |                   ^^^^^^^^^^^
+...
+1483 |     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
+     |                   ^^^^^^^^
+...
+1539 |     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
+     |                   ^^^^^^^^^^^
+
+warning: method `remove_dictionary_element` is never used
+   --> runtime/rust/src/frame/container.rs:149:19
+    |
+ 15 | impl VarTable {
+    | ------------- method in this implementation
+...
+149 |     pub(super) fn remove_dictionary_element(&mut self, name: &[u8], key: &[u8]) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `remove` is never used
+  --> runtime/rust/src/frame/native_element_entry.rs:68:19
+   |
+31 | impl NativeElementEntries {
+   | ------------------------- method in this implementation
+...
+68 |     pub(super) fn remove(&mut self, key: &[u8]) {
+   |                   ^^^^^^
+
+warning: method `new_binding` is never used
+   --> runtime/rust/src/frame/native_element_entry.rs:296:19
+    |
+222 | impl NativeElementAliasEntry {
+    | ---------------------------- method in this implementation
+...
+296 |     pub(crate) fn new_binding(&self) -> Rc<Self> {
+    |                   ^^^^^^^^^^^
+
+warning: method `retain_element_alias` is never used
+   --> runtime/rust/src/frame/native_element_entry.rs:452:19
+    |
+440 | impl super::RetainedArrayCell {
+    | ----------------------------- method in this implementation
+...
+452 |     pub(crate) fn retain_element_alias(&self, key: &[u8]) -> Option<Rc<NativeElementAliasEntry>> {
+    |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `retire_native_entry` and `retire_jim_key` are never used
+   --> runtime/rust/src/frame/native_variable_names.rs:92:19
+    |
+ 14 | impl VarTable {
+    | ------------- methods in this implementation
+...
+ 92 |     pub(super) fn retire_native_entry(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+112 |     pub(super) fn retire_jim_key(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^
+
+warning: method `retain_original_compiled_alias` is never used
+   --> runtime/rust/src/frame/native_variable_names.rs:247:19
+    |
+154 | impl FrameStack {
+    | --------------- method in this implementation
+...
+247 |     pub(crate) fn retain_original_compiled_alias(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `attested_identities`, `install_alias`, `define_proc_storage`, and `on_command_replaced` are never used
+    --> runtime/rust/src/interp.rs:3381:8
+     |
+1897 | impl Interp {
+     | ----------- methods in this implementation
+...
+3381 |     fn attested_identities(
+     |        ^^^^^^^^^^^^^^^^^^^
+...
+3919 |     pub(crate) fn install_alias(
+     |                   ^^^^^^^^^^^^^
+...
+4695 |     pub(crate) fn define_proc_storage(
+     |                   ^^^^^^^^^^^^^^^^^^^
+...
+5588 |     fn on_command_replaced(&mut self, fqn: &[u8]) {
+     |        ^^^^^^^^^^^^^^^^^^^
+
+warning: field `original` is never read
+  --> runtime/rust/src/interp/native_error_variables.rs:22:5
+   |
+21 | struct NativeErrorObjectRetirement {
+   |        --------------------------- field in this struct
+22 |     original: obj::NativeObjectLifetime,
+   |     ^^^^^^^^
+
+warning: methods `retain_native_error_option`, `update_native_error_info`, and `native_private_error_object` are never used
+    --> runtime/rust/src/interp/native_error_variables.rs:638:19
+     |
+  71 | impl Interp {
+     | ----------- methods in this implementation
+...
+ 638 |     pub(crate) fn retain_native_error_option(&self, info: bool, original: *mut obj::TclObj) {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+ 892 |     pub(crate) fn update_native_error_info(&mut self) {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+1197 |     pub(crate) fn native_private_error_object(&self, info: bool) -> Option<obj::Owned> {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `enter_engine_evaluation` is never used
+   --> runtime/rust/src/interp/native_operation_currency.rs:317:19
+    |
+229 | impl NativeOperationScope {
+    | ------------------------- associated function in this implementation
+...
+317 |     pub(crate) fn enter_engine_evaluation(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `link_original_compiled_namespace_variable` is never used
+    --> runtime/rust/src/interp/native_variable_names.rs:1016:19
+     |
+ 105 | impl Interp {
+     | ----------- method in this implementation
+...
+1016 |     pub(crate) fn link_original_compiled_namespace_variable(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_original_checked` is never used
+   --> runtime/rust/src/interp/native_error_headers.rs:131:19
+    |
+ 19 | impl NativeReturnOptions {
+    | ------------------------ associated function in this implementation
+...
+131 |     pub(super) fn from_original_checked(
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `process_original_c_return_options` is never used
+   --> runtime/rust/src/interp/native_return_instruction.rs:330:19
+    |
+ 12 | impl Interp {
+    | ----------- method in this implementation
+...
+330 |     pub(crate) fn process_original_c_return_options(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `concatenate_native_lists` is never used
+    --> runtime/rust/src/list.rs:1286:15
+     |
+1286 | pub(crate) fn concatenate_native_lists(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `replace_elements_native_checked` is never used
+    --> runtime/rust/src/list.rs:1523:15
+     |
+1523 | pub(crate) fn replace_elements_native_checked(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `publish_rename_destination` is never used
+    --> runtime/rust/src/namespace.rs:2308:19
+     |
+ 526 | impl Namespaces {
+     | --------------- method in this implementation
+...
+2308 |     pub(crate) fn publish_rename_destination(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `install_native_command_name_cache` is never used
+    --> runtime/rust/src/obj.rs:1974:15
+     |
+1974 | pub(crate) fn install_native_command_name_cache(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `prime_native_command_name_cache` is never used
+    --> runtime/rust/src/obj.rs:2020:15
+     |
+2020 | pub(crate) fn prime_native_command_name_cache(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `install_unresolved_native_command_name_cache` is never used
+    --> runtime/rust/src/obj.rs:2062:15
+     |
+2062 | pub(crate) fn install_unresolved_native_command_name_cache(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `dispatch_prebuilt_argv` is never used
+   --> runtime/rust/src/state_traits.rs:854:15
+    |
+854 | pub(crate) fn dispatch_prebuilt_argv(
+    |               ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `native_wide_int` is never used
+   --> runtime/rust/src/typed_value.rs:743:15
+    |
+743 | pub(crate) fn native_wide_int(
+    |               ^^^^^^^^^^^^^^^
+
+warning: function `native_double` is never used
+   --> runtime/rust/src/typed_value.rs:754:15
+    |
+754 | pub(crate) fn native_double(
+    |               ^^^^^^^^^^^^^
+
+warning: function `original_indexed_link_target` is never used
+    --> runtime/rust/src/vars.rs:1026:15
+     |
+1026 | pub(crate) fn original_indexed_link_target(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `finish` is never used
+    --> runtime/rust/src/vars.rs:3289:19
+     |
+3288 | impl OriginalArrayMemberPreparation {
+     | ----------------------------------- method in this implementation
+3289 |     pub(crate) fn finish(
+     |                   ^^^^^^
+
+warning: `tcl-runtime` (lib) generated 27 warnings
+   Compiling xtask v0.1.0 (/workspace/tcl-lsp/rust/xtask)
+warning: associated function `load` is never used
+   --> rust/xtask/src/owner_resolution/source_internal.rs:158:8
+    |
+157 | impl CrateModules {
+    | ----------------- associated function in this implementation
+158 |     fn load(root: &Path, crate_root: &Path, required: [&str; 2]) -> Result<Self, String> {
+    |        ^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `xtask` (bin "xtask") generated 1 warning
+    Finished `dev` profile [unoptimized] target(s) in 7.29s
+     Running `target/name-runtime-stock-capture-20261014/debug/xtask owner-resolution`
+owner-resolution: contract drift detected:
+  - owner `Logical object-fact report correspondence` entry point `ObjectHandleFacts::analysis_report_eq` has no public declaration in its source paths
+  - owner `Logical original alias prefix provenance` entry point `SourceCommandTarget::original_logical_prepended_name_inputs` has no public declaration in its source paths
+  - owner `Original Authored declaration and child source bodies` entry point `SourceInvocationBinding::has_original_authored_source_body_name_role_owner` has no public declaration in its source paths
+  - owner `Original Authored declaration and child source bodies` entry point `SourceInvocationBinding::original_authored_source_body_scope_for_name_roles` has no public declaration in its source paths
+  - owner `Original Authored declaration and child source bodies` entry point `SourceInvocationBinding::retain_original_authored_source_body_scope` has no public declaration in its source paths
+  - owner `Original Authored scalar source grammar` entry point `SourceInvocationBinding::original_authored_scalar_body_scope` has no public declaration in its source paths
+  - owner `Original Authored scalar source grammar` entry point `SourceInvocationBinding::retain_original_authored_scalar_body_scope` has no public declaration in its source paths
+  - owner `Original Logical procedure MAY dependencies` entry point `OriginalProcedureSummaryOwners::may_calls` has no public declaration in its source paths
+  - owner `Original Logical procedure MAY dependencies` entry point `RetainedSourceModuleBindings::matches_original_procedure_summary` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `OriginalNativeProcedureBody::source_children` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `SourceInvocationBinding::has_original_native_source_command` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `SourceInvocationBinding::original_native_source_may_owner` has no public declaration in its source paths
+  - owner `Original Native declaration child source grammar` entry point `SourceInvocationBinding::original_native_source_words` has no public declaration in its source paths
+  - owner `Original compiler variable operands` entry point `CodegenCtx::original_variable_operand` has no public declaration in its source paths
+  - owner `Original fixed scalar-formal alpha equivalence` entry point `ScalarAlphaFormalSelection` has no public declaration in its source paths
+  - owner `Original formal name source geometry` entry point `ModuleProcedures::original_source_module` has no public declaration in its source paths
+  - owner `Original literal variable-name operands` entry point `OriginalVariableNameOperand::as_str` has no public declaration in its source paths
+  - owner `Original positioned method-call syntax` entry point `original_instance_method_at_cursor` has no public declaration in its source paths
+  - owner `Original var-escape substitution inventory` entry point `original_authored_substitution_name_roles` has no public declaration in its source paths
+  - owner `Package namespace diagnostic advice` entry point `ResolvedContext::resolve_spec` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `Interp::register_stock_builtin` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `attested_command_identity` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `bind_builtin` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `stock_ensemble_implementation_is_current` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `stock_ensemble_registry_identity` has no public declaration in its source paths
+  - owner `Runtime command registration and identity` entry point `synchronise_command_environment_guards` has no public declaration in its source paths
+  - owner `Selected codegen wrapping traits` entry point `CodegenCtx::selected_invocation_traits` has no public declaration in its source paths
+  - owner `Selected lowering descriptor transport` entry point `ModuleCommandMutations::trusts_unobserved_descriptor` has no public declaration in its source paths
+  - owner `Selected lowering descriptor transport` entry point `SourceInvocationBinding::original_conditional_logical_scalar_store` has no public declaration in its source paths
+  - owner `Typed instance-variable write candidates` entry point `structural_variable_write_projection` has no public declaration in its source paths
+  - owner `active VM artifact identity` entry point `Frame::manifest` has no public declaration in its source paths
+  - owner `active VM artifact identity` entry point `Vm::function_identity_claims_match` has no public declaration in its source paths
+  - owner `active VM artifact identity` entry point `Vm::function_live_command_bindings_match` has no public declaration in its source paths
+  - owner `active VM artifact identity` entry point `Vm::run_compiled_unit` has no public declaration in its source paths
+  - owner `actual source-file entry and caller correlation` entry point `SourceAnalysisEntry::trusted_source_modules` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `CapturedByteStore` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `CapturedContainerModel` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `EnteredVariablePlace` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `capture_byte_store_entered` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `capture_native_compiled_temporary_receiver` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `publish_dictionary_root` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `publish_elem` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `publish_scalar` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `store_captured_byte_variable` has no public declaration in its source paths
+  - owner `captured Runtime byte storage` entry point `store_native_compiled_temporary_checked` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `EnteredVariablePlace::remove` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `RetiredVariableParts` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `finish_destruction_with_check` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `publish_array_destruction` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `publish_remove_after_default` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `publish_remove_elem` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `publish_unset` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `remove_captured_byte_variable` has no public declaration in its source paths
+  - owner `captured Runtime variable removal` entry point `retire_namespace_variables` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `OriginalNumericOps` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `authored_numeric_context` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `native_number_probe_checked_with_string` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `native_scalar_getter_checked_with_string` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `native_scalar_probe_checked_with_string` has no public declaration in its source paths
+  - owner `checked original numeric stages` entry point `numeric_policy_context` has no public declaration in its source paths
+  - owner `checked tracked document source input` entry point `Backend::analyse_with_workspace_classes_from_analysis` has no public declaration in its source paths
+  - owner `complete retained Module source correspondence` entry point `RetainedSourceModuleBindings::matches_module` has no public declaration in its source paths
+  - owner `complete retained Module source correspondence` entry point `proc_dispatch_facts` has no public declaration in its source paths
+  - owner `complete retained Module source correspondence` entry point `retained_substitution_calls` has no public declaration in its source paths
+  - owner `complete supplied SSA metadata scans` entry point `SsaInvocationContext` has no public declaration in its source paths
+  - owner `complete supplied SSA metadata scans` entry point `switch_must_defines_with_source_input` has no public declaration in its source paths
+  - owner `conditional declared overwrite advice` entry point `Analyser::emit_cfg_ssa_diagnostics_for_function_full` has no public declaration in its source paths
+  - owner `conditional dictionary source phase` entry point `original_written_script_body_is_empty` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `DeclarationLayoutObservation::source_body_name_ownership` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `OriginalSourceMaterializedFootprint::deferred_namespace` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `Scan::lambda` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `SourceInvocationBinding::original_materialized_footprint_for_module` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `SourceScan::lambda` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `SourceScan::original_registration` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `own_frame_global_writes_standalone` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `own_frame_global_writes_with_metadata_context` has no public declaration in its source paths
+  - owner `conditional literal body name ownership` entry point `selected_values` has no public declaration in its source paths
+  - owner `current source refactor and CLI reduction metadata` entry point `collect_rename_edits` has no public declaration in its source paths
+  - owner `current source refactor and CLI reduction metadata` entry point `is_qualified` has no public declaration in its source paths
+  - owner `current source refactor and CLI reduction metadata` entry point `root_unrooted_key` has no public declaration in its source paths
+  - owner `current structural diagram source metadata` entry point `DiagramContext::metadata_context` has no public declaration in its source paths
+  - owner `diagnostic source and overwrite advice` entry point `Analyser::emit_cfg_ssa_diagnostics_for_function_full` has no public declaration in its source paths
+  - owner `dictionary scope binding` entry point `DictionaryScopeRead` has no public declaration in its source paths
+  - owner `dictionary scope binding` entry point `dictionary_scope_variable_read` has no public declaration in its source paths
+  - owner `installed embedding handles and typed settlement` entry point `Interp::install_proc_original_storage` has no public declaration in its source paths
+  - owner `installed embedding handles and typed settlement` entry point `Vm::{begin_embedding_call,finish_embedding_result}` has no public declaration in its source paths
+  - owner `intrinsic original stock class creation` entry point `OriginalClassFactoryTransfer::capture` has no public declaration in its source paths
+  - owner `intrinsic original stock class creation` entry point `OriginalClassFactoryTransfer::completed` has no public declaration in its source paths
+  - owner `intrinsic original stock class creation` entry point `closed_definition_member` has no public declaration in its source paths
+  - owner `names / namespaces` entry point `origin_bytes` has no public declaration in its source paths
+  - owner `names / namespaces` entry point `origin` has no public declaration in its source paths
+  - owner `names / namespaces` entry point `which_request` has no public declaration in its source paths
+  - owner `native automatic Jim error capture` entry point `NativeJimScriptState::current_script_location` has no public declaration in its source paths
+  - owner `native automatic Jim error capture` entry point `NativeJimScriptState::new_for_evaluation_frame` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `OriginalByteCommandRegistration` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `original_jim_command_enumeration_keys` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `prune_original_byte_command_registrations` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `publish_original_jim_registration_keys` has no public declaration in its source paths
+  - owner `native original Jim key producer handoff` entry point `remember_original_byte_command_registration` has no public declaration in its source paths
+  - owner `native string materialisation` entry point `OriginalNumericOps::string_value` has no public declaration in its source paths
+  - owner `native string materialisation` entry point `OriginalNumericOps::string` has no public declaration in its source paths
+  - owner `native string materialisation` entry point `native_string_bytes_checked_for_value` has no public declaration in its source paths
+  - owner `nested codegen lexical source operands` entry point `CodegenCtx::nested_command_tokens` has no public declaration in its source paths
+  - owner `original Boolean operand purposes and ordered effects` entry point `tcl_value_get_bool_for_purpose` has no public declaration in its source paths
+  - owner `original Boolean operand purposes and ordered effects` entry point `tcl_value_get_expression_bool` has no public declaration in its source paths
+  - owner `original C9 class-variable links` entry point `classvariable_original` has no public declaration in its source paths
+  - owner `original C9 class-variable links` entry point `prepare_original_c_namespace_link_target` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `CompletionWalk` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `RaiseProof::calls_complete` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `RetainedSourceModuleBindings::matches_original_procedure` has no public declaration in its source paths
+  - owner `original Logical procedure completion and no-error source calls` entry point `SourceContext::matches_procedure` has no public declaration in its source paths
+  - owner `original branch expression source grammar` entry point `branch_execution_equivalent` has no public declaration in its source paths
+  - owner `original branch expression source grammar` entry point `branch_original_expression` has no public declaration in its source paths
+  - owner `original declaration read metadata` entry point `LogicalProcedureDeclaration` has no public declaration in its source paths
+  - owner `original declaration read metadata` entry point `OriginalProcedureReadDeclaration` has no public declaration in its source paths
+  - owner `original declaration read metadata` entry point `authored_procedure_read_advice` has no public declaration in its source paths
+  - owner `original declaration read metadata` entry point `original_procedure_read_declaration` has no public declaration in its source paths
+  - owner `original declared argument read bridge` entry point `OriginalDeclaredProcedureArgumentSlots::incoming_source_read` has no public declaration in its source paths
+  - owner `original diagnostic protocol peers` entry point `SignatureSourceCommand::body_scope` has no public declaration in its source paths
+  - owner `original diagnostic protocol peers` entry point `dispatch_protocol_signatures` has no public declaration in its source paths
+  - owner `original diagnostic protocol peers` entry point `original_dispatch_peers` has no public declaration in its source paths
+  - owner `original diagnostic protocol peers` entry point `original_dispatch_site` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `CapturedJimDictionaryCell` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `EnteredNativeDictionary::prepare_original` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `Interp::mutate_original_jim_dictionary_path` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `OriginalJimDictionaryRoot` has no public declaration in its source paths
+  - owner `original dictionary path publication` entry point `Vm::jim_dictionary_path_update_bytes` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `PublicationService` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `RuntimeEngine::command_publication_service` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `RuntimeEngine::restrict_commands` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `authenticate` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `capture_answer` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `consume` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `fail` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `host_command_proc` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `snapshot_value` has no public declaration in its source paths
+  - owner `original embedding publication and lossless fact transport` entry point `to_obj` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `SourceContext::invocation` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `build_inlinable_map` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `names_a_command` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `reads_only_bound_names` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `rewrite_value_string` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `root` has no public declaration in its source paths
+  - owner `original inlining source and alpha-rename geometry` entry point `substitutes` has no public declaration in its source paths
+  - owner `original per-point CFG lookup metadata` entry point `CfgLookupContexts` has no public declaration in its source paths
+  - owner `original source index diagnostics` entry point `original_index_diagnostics` has no public declaration in its source paths
+  - owner `original stock TclOO factory/bootstrap roles` entry point `CommandRegistry::native_class_factory_recipe` has no public declaration in its source paths
+  - owner `original stock TclOO factory/bootstrap roles` entry point `OriginalClassFactoryState` has no public declaration in its source paths
+  - owner `original substitution purity metadata` entry point `SourceInvocationBinding::original_logical_procedure_call_targets` has no public declaration in its source paths
+  - owner `original summary source dependencies` entry point `command_subst_callees_with_config` has no public declaration in its source paths
+  - owner `original summary source dependencies` entry point `summary_deps_key` has no public declaration in its source paths
+  - owner `purpose-aware scalar value facts` entry point `SemanticValueFacts::loop_analysis` has no public declaration in its source paths
+  - owner `reached original error-context ownership` entry point `NativeErrorStack::begin_instruction` has no public declaration in its source paths
+  - owner `reached original error-context ownership` entry point `NativeErrorStack::restart_inner` has no public declaration in its source paths
+  - owner `reached original error-context ownership` entry point `NativeListItems::owns_native_header` has no public declaration in its source paths
+  - owner `retained expression assistance and unavailable callback source joins` entry point `Analyser::expr_function_calls` has no public declaration in its source paths
+  - owner `retained expression assistance and unavailable callback source joins` entry point `Analyser::original_expression_parser_context` has no public declaration in its source paths
+  - owner `retained expression assistance and unavailable callback source joins` entry point `gated_operator_assistance_context` has no public declaration in its source paths
+  - owner `retained source taint metadata` entry point `ResolvedInvocation::authored_source_callable_factory_class` has no public declaration in its source paths
+  - owner `retained source taint metadata` entry point `RetainedSourceModuleBindings::matches_module` has no public declaration in its source paths
+  - owner `retained source taint metadata` entry point `TaintSourceContext::for_module_function` has no public declaration in its source paths
+  - owner `retained source taint metadata` entry point `TaintSourceContext` has no public declaration in its source paths
+  - owner `retained source taint metadata` entry point `global_instance_class_source` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `SavedExecutionTarget` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `SelectedFrameRestore` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `eval_value_at_level_checked` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `restore_execution_frame` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `select_execution_frame_checked` has no public declaration in its source paths
+  - owner `selected VM execution frame and saved target` entry point `select_execution_frame` has no public declaration in its source paths
+  - owner `selected possible option source metadata` entry point `conditional_option_arguments_with_metadata_context` has no public declaration in its source paths
+  - owner `supplied document compiler findings and unindexed tokens` entry point `Backend::compiler_diagnostics_for` has no public declaration in its source paths
+  - owner `supplied document compiler findings and unindexed tokens` entry point `Backend::semantic_tokens_core_data` has no public declaration in its source paths
+  - owner `supplied document compiler findings and unindexed tokens` entry point `code_action_report` has no public declaration in its source paths
+  - owner `supplied document compiler findings and unindexed tokens` entry point `unindexed_semantic_tokens` has no public declaration in its source paths
+  - owner `supplied unindexed viewport and deep compiler input` entry point `compute_compiler_diags_after_base` has no public declaration in its source paths
+  - owner `supplied unindexed viewport and deep compiler input` entry point `compute_compiler_diags` has no public declaration in its source paths
+  - owner `supplied unindexed viewport and deep compiler input` entry point `unindexed_semantic_tokens_for_range` has no public declaration in its source paths
+  - owner `temporal contents folding and existence` entry point `ConditionReading` has no public declaration in its source paths
+  - owner `temporal contents folding and existence` entry point `QueryReading` has no public declaration in its source paths
+  - source owner `Original compiler variable operands` `CodegenCtx::original_variable_operand`: declaration, visibility or actual consumer route does not resolve
+  - source owner `Original fixed scalar-formal alpha equivalence` `ScalarAlphaFormalSelection`: declaration, visibility or actual consumer route does not resolve
+  - source owner `reached original error-context ownership` `NativeErrorStack::begin_instruction`: declaration, visibility or actual consumer route does not resolve
+  - source owner `reached original error-context ownership` `NativeErrorStack::restart_inner`: declaration, visibility or actual consumer route does not resolve

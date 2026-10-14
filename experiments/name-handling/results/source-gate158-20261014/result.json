@@ -1,0 +1,968 @@
+{
+  "started_utc": "2026-10-14T20:19:59.908153+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "xtask",
+      "--bin",
+      "xtask",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 208.71018268399348,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+    "sha256": "2a9e9904c77c7809613de750dcb734f94fb879302d11cded0d1fa036b8f77762",
+    "bytes": 233380648
+  },
+  "selected_tests": [
+    "owner_resolution::source_internal::file_route_tests::actual_file_routes_keep_exact_source_crate_module_and_consumer_identity",
+    "owner_resolution::source_internal::file_route_tests::direct_self_module_routes_keep_the_existing_tree_bound_without_unrelated_loading",
+    "owner_resolution::source_internal::file_route_tests::explicit_binary_root_keeps_actual_child_modules_and_refuses_ambiguous_targets",
+    "owner_resolution::source_internal::file_route_tests::file_routes_refuse_path_overrides_conditionals_and_duplicate_modules",
+    "owner_resolution::source_internal::file_route_tests::targeted_self_cache_cannot_lend_its_tree_to_full_receiver_routes",
+    "owner_resolution::source_internal::tests::source_declaration_metadata_keeps_passive_lints_and_refuses_availability_changes",
+    "owner_resolution::source_internal::tests::source_dot_routes_require_the_actual_owner_receiver",
+    "owner_resolution::source_internal::tests::source_enum_receivers_follow_actual_iterator_item_and_tuple_variant_fields",
+    "owner_resolution::source_internal::tests::source_enum_receivers_refuse_other_variants_shadows_and_unavailable_shapes",
+    "owner_resolution::source_internal::tests::source_enum_type_rows_require_actual_accessible_field_occurrences",
+    "owner_resolution::source_internal::tests::source_file_module_loader_keeps_ancestor_and_parent_visibility",
+    "owner_resolution::source_internal::tests::source_manifest_requires_exact_markers_scope_and_repository_paths",
+    "owner_resolution::source_internal::tests::source_routes_accept_actual_nested_static_and_typed_parameter_calls",
+    "owner_resolution::source_internal::tests::source_routes_accept_only_actual_fields_and_constructor_results",
+    "owner_resolution::source_internal::tests::source_routes_bind_only_actual_optional_constructor_results",
+    "owner_resolution::source_internal::tests::source_routes_clear_every_shadowing_pattern_and_refuse_binding_macros",
+    "owner_resolution::source_internal::tests::source_routes_follow_current_nested_fields_and_standard_pointer_types",
+    "owner_resolution::source_internal::tests::source_routes_follow_only_actual_standard_mutable_option_fields",
+    "owner_resolution::source_internal::tests::source_routes_keep_plain_local_imports_scoped_and_preserve_target_shadows",
+    "owner_resolution::source_internal::tests::source_routes_refuse_enclosing_generic_receiver_name_shadows",
+    "owner_resolution::source_internal::tests::source_routes_refuse_function_generic_wrappers_and_nested_item_scopes",
+    "owner_resolution::source_internal::tests::source_routes_refuse_generic_field_and_nominal_type_argument_erasure",
+    "owner_resolution::source_internal::tests::source_routes_refuse_shadowed_pointers_and_foreign_nested_field_origins",
+    "owner_resolution::source_internal::tests::source_routes_reject_duplicate_declarations_and_wrong_visibility",
+    "owner_resolution::source_internal::tests::source_routes_reject_shadow_macro_alias_and_conditional_calls",
+    "owner_resolution::source_internal::tests::source_routes_require_direct_module_visibility_and_preserve_real_reexports",
+    "owner_resolution::source_internal::tests::source_routes_resolve_actual_reexports_and_reject_private_alias_routes",
+    "owner_resolution::source_internal::tests::source_routes_verify_actual_parameter_and_producer_fields",
+    "owner_resolution::source_internal::tests::source_standard_wrappers_refuse_local_union_shadows",
+    "owner_resolution::source_internal::tests::source_type_routes_require_explicit_current_struct_constructors",
+    "owner_resolution::source_internal::tests::source_visibility_requires_a_real_ancestor_scope"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::file_route_tests::actual_file_routes_keep_exact_source_crate_module_and_consumer_identity",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.016442983003798872,
+      "log": "test-01.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::file_route_tests::actual_file_routes_keep_exact_source_crate_module_and_consumer_identity",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::file_route_tests::direct_self_module_routes_keep_the_existing_tree_bound_without_unrelated_loading",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.11435844899096992,
+      "log": "test-02.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::file_route_tests::direct_self_module_routes_keep_the_existing_tree_bound_without_unrelated_loading",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::file_route_tests::explicit_binary_root_keeps_actual_child_modules_and_refuses_ambiguous_targets",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.016008361999411136,
+      "log": "test-03.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::file_route_tests::explicit_binary_root_keeps_actual_child_modules_and_refuses_ambiguous_targets",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::file_route_tests::file_routes_refuse_path_overrides_conditionals_and_duplicate_modules",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01613936500507407,
+      "log": "test-04.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::file_route_tests::file_routes_refuse_path_overrides_conditionals_and_duplicate_modules",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::file_route_tests::targeted_self_cache_cannot_lend_its_tree_to_full_receiver_routes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.06403064500773326,
+      "log": "test-05.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::file_route_tests::targeted_self_cache_cannot_lend_its_tree_to_full_receiver_routes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_declaration_metadata_keeps_passive_lints_and_refuses_availability_changes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01597452200076077,
+      "log": "test-06.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_declaration_metadata_keeps_passive_lints_and_refuses_availability_changes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_dot_routes_require_the_actual_owner_receiver",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01615294000657741,
+      "log": "test-07.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_dot_routes_require_the_actual_owner_receiver",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_enum_receivers_follow_actual_iterator_item_and_tuple_variant_fields",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01587105600629002,
+      "log": "test-08.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_enum_receivers_follow_actual_iterator_item_and_tuple_variant_fields",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_enum_receivers_refuse_other_variants_shadows_and_unavailable_shapes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015891371003817767,
+      "log": "test-09.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_enum_receivers_refuse_other_variants_shadows_and_unavailable_shapes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_enum_type_rows_require_actual_accessible_field_occurrences",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015770519006764516,
+      "log": "test-10.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_enum_type_rows_require_actual_accessible_field_occurrences",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_file_module_loader_keeps_ancestor_and_parent_visibility",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01607722500921227,
+      "log": "test-11.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_file_module_loader_keeps_ancestor_and_parent_visibility",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_manifest_requires_exact_markers_scope_and_repository_paths",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01590727000439074,
+      "log": "test-12.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_manifest_requires_exact_markers_scope_and_repository_paths",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_accept_actual_nested_static_and_typed_parameter_calls",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.016087297000922263,
+      "log": "test-13.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_accept_actual_nested_static_and_typed_parameter_calls",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_accept_only_actual_fields_and_constructor_results",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015759681991767138,
+      "log": "test-14.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_accept_only_actual_fields_and_constructor_results",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_bind_only_actual_optional_constructor_results",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015808365002158098,
+      "log": "test-15.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_bind_only_actual_optional_constructor_results",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_clear_every_shadowing_pattern_and_refuse_binding_macros",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01590140099870041,
+      "log": "test-16.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_clear_every_shadowing_pattern_and_refuse_binding_macros",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_follow_current_nested_fields_and_standard_pointer_types",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015843704997678287,
+      "log": "test-17.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_follow_current_nested_fields_and_standard_pointer_types",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_follow_only_actual_standard_mutable_option_fields",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015866643996560015,
+      "log": "test-18.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_follow_only_actual_standard_mutable_option_fields",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_keep_plain_local_imports_scoped_and_preserve_target_shadows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015954290007357486,
+      "log": "test-19.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_keep_plain_local_imports_scoped_and_preserve_target_shadows",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_refuse_enclosing_generic_receiver_name_shadows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.007770396012347192,
+      "log": "test-20.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_refuse_enclosing_generic_receiver_name_shadows",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_refuse_function_generic_wrappers_and_nested_item_scopes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.01592510100454092,
+      "log": "test-21.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_refuse_function_generic_wrappers_and_nested_item_scopes",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_refuse_generic_field_and_nominal_type_argument_erasure",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015754369989736006,
+      "log": "test-22.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_refuse_generic_field_and_nominal_type_argument_erasure",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_refuse_shadowed_pointers_and_foreign_nested_field_origins",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01584231699234806,
+      "log": "test-23.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_refuse_shadowed_pointers_and_foreign_nested_field_origins",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_reject_duplicate_declarations_and_wrong_visibility",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015928066000924446,
+      "log": "test-24.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_reject_duplicate_declarations_and_wrong_visibility",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_reject_shadow_macro_alias_and_conditional_calls",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01596422601141967,
+      "log": "test-25.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_reject_shadow_macro_alias_and_conditional_calls",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_require_direct_module_visibility_and_preserve_real_reexports",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015823462992557324,
+      "log": "test-26.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_require_direct_module_visibility_and_preserve_real_reexports",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_resolve_actual_reexports_and_reject_private_alias_routes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015934295995975845,
+      "log": "test-27.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_resolve_actual_reexports_and_reject_private_alias_routes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_routes_verify_actual_parameter_and_producer_fields",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01586225199571345,
+      "log": "test-28.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_verify_actual_parameter_and_producer_fields",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_standard_wrappers_refuse_local_union_shadows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01577954199456144,
+      "log": "test-29.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_standard_wrappers_refuse_local_union_shadows",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_type_routes_require_explicit_current_struct_constructors",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015914496005279943,
+      "log": "test-30.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_type_routes_require_explicit_current_struct_constructors",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-119503b573feb33e",
+        "owner_resolution::source_internal::tests::source_visibility_requires_a_real_ancestor_scope",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01583078499243129,
+      "log": "test-31.log.gz",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_visibility_requires_a_real_ancestor_scope",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ]
+  ],
+  "finished_utc": "2026-10-14T20:23:31.967642+00:00",
+  "changed_sources": {}
+}

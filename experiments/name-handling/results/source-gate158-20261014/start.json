@@ -1,0 +1,19 @@
+{
+  "started_utc": "2026-10-14T20:19:59.908153+00:00",
+  "label": "actualall31currentSource owner unit/file loader controls",
+  "package": "xtask",
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "source_paths": 34723,
+  "plan": {
+    "filters": [
+      "owner_resolution::source_internal::"
+    ],
+    "exact": [],
+    "scope": "Actual current Source unit and file-route controls including cache partition/bin root. Root must use --list on built actual binary to confirm exact nonempty listing; this source inventory is not executed acceptance. Separate current CLI143207 and full strict1979 scopes remain required.",
+    "expected_control_count": 31
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "7f16f1f670ef3a220b619d51210f1b18eaa10585bdfd22f04a1c4346588de0e9",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

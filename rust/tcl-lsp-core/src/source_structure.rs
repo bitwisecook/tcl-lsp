@@ -909,12 +909,19 @@ fn declared_bodies(
         }
     }
     if analysis.allows_lexical_declaration_advice() {
-        for span in analysis
-            .all_procs
-            .values()
-            .map(|row| row.body_span)
-            .chain(analysis.all_classes.values().map(|row| row.body_span))
-        {
+        let input = analysis.resolved_input.as_ref()?;
+        for procedure in analysis.all_procs.values() {
+            let Some(word) = analysis
+                .logical_source_procedure_declaration(procedure)
+                .and_then(|declaration| declaration.original_body_word(image, input))
+            else {
+                continue;
+            };
+            if let Some(body) = word_body(word) {
+                bodies.push(body);
+            }
+        }
+        for span in analysis.all_classes.values().map(|row| row.body_span) {
             if let Some(body) = declared_body(image, span, config) {
                 bodies.push(body);
             }
@@ -983,6 +990,31 @@ fn retain_member_bodies<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn logical_procedure_structure_uses_current_declared_body_word() {
+        let source = "proc helper {value} {puts \"literal \\} ${value}\"}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let config = analysis.body_lexer_config.unwrap();
+        let image = SourceImage::document(source);
+        let bodies = declared_bodies(source, &analysis, &image, config).unwrap();
+        assert!(bodies.iter().any(
+            |body| source.get(body.content.as_range()) == Some("puts \"literal \\} ${value}\"")
+        ));
+        let mut changed = analysis.clone();
+        changed
+            .all_procs
+            .get_mut("::helper")
+            .unwrap()
+            .params
+            .clear();
+        let bodies = declared_bodies(source, &changed, &image, config).unwrap();
+        assert!(bodies.is_empty());
+        assert!(
+            declared_bodies(source, &analysis, &SourceImage::document("changed"), config)
+                .is_none_or(|bodies| bodies.is_empty())
+        );
+    }
 
     #[test]
     fn original_method_sites_keep_complete_words_nested_commands_and_current_input() {

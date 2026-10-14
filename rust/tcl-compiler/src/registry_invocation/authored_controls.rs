@@ -151,6 +151,15 @@ pub(crate) fn original_authored_scalar_invocation(
     {
         return None;
     }
+    let frame_local = |name: &[u8]| {
+        scope
+            .original_word_dialect()
+            .and_then(|dialect| dialect.variable_lookup_policy)
+            .map_or_else(
+                || tcl_syntax::naming::source_variable_name_is_frame_local_for_all_policies(name),
+                |policy| tcl_syntax::naming::source_variable_name_is_frame_local(name, policy),
+            )
+    };
     let selected = super::resolve_original_source_layout(registry, None, tokens, &advice)?;
     let owner = AuthoredSourceOwner::Body(Arc::new(scope.clone()), tokens.clone());
     let (descriptor, hook, roles, traits) = owner.with_schema(registry, |schema| {
@@ -182,10 +191,9 @@ pub(crate) fn original_authored_scalar_invocation(
                 return None;
             }
             let name = owner.argument_literal(0)?;
-            let policy = scope.original_word_dialect()?.variable_lookup_policy?;
             if name.as_bytes().contains(&0)
                 || tcl_syntax::naming::split_element_ref(&name).is_some()
-                || !tcl_syntax::naming::source_variable_name_is_frame_local(name.as_bytes(), policy)
+                || !frame_local(name.as_bytes())
             {
                 return None;
             }
@@ -198,14 +206,10 @@ pub(crate) fn original_authored_scalar_invocation(
                 let word = words.get(1)?;
                 let reference =
                     tcl_lexer::word_parts::whole_var_ref(word.bytes(), word.config()).ok()??;
-                let policy = scope.original_word_dialect()?.variable_lookup_policy?;
                 if reference.index.is_some()
                     || reference.name.contains(&0)
                     || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
-                    || !tcl_syntax::naming::source_variable_name_is_frame_local(
-                        reference.name,
-                        policy,
-                    )
+                    || !frame_local(reference.name)
                 {
                     return None;
                 }
@@ -307,6 +311,55 @@ impl AuthoredSourceInvocation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn authored_scalar_without_runtime_policy_uses_only_unanimous_source_local_geometry() {
+        let registry = CommandRegistry::build_default();
+        for (name, admitted) in [
+            ("value", true),
+            ("", true),
+            ("$literal", true),
+            (":name", true),
+            ("a:b", true),
+            ("a::b", false),
+            ("::name", false),
+            ("array(key)", false),
+        ] {
+            let source = format!("proc p {{}} {{set {{{name}}} DATA}}\n");
+            let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+                &source,
+                &registry,
+                false,
+                tcl_lexer::LexerConfig::default(),
+            );
+            let (&body, _) = unit
+                .ir_module
+                .original_authored_declaration_body_units
+                .iter()
+                .next()
+                .expect("actual standalone source body");
+            let procedure = unit.original_procedure_for_body(body).unwrap();
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(procedure.body.statements.first().unwrap())
+                .unwrap();
+            assert_eq!(
+                original_authored_scalar_invocation(tokens, &registry).is_some(),
+                admitted,
+                "{name:?}"
+            );
+            assert!(
+                super::super::normal_representation_invocation_with_metadata_context(
+                    &registry, None, tokens,
+                )
+                .is_none()
+            );
+            assert!(
+                super::super::admitted_native_compiler_invocation(&registry, None, tokens)
+                    .is_none()
+            );
+        }
+    }
 
     #[test]
     fn authored_scalar_bodies_retain_real_source_definitions_without_native_admission() {

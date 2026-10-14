@@ -40,13 +40,12 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use tcl_lexer::{Lexer, SourceMap, TokenType};
+use tcl_lexer::SourceMap;
 use tcl_registry::{Arity, CommandRegistry};
 
 use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::ProcedureId;
-use crate::naming::normalise_var_name;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 #[cfg(test)]
 use crate::taint::local_instance_classes;
@@ -271,39 +270,163 @@ pub fn apply_proc_return_summary(
 
 // Return-taint collection
 
-/// Build a `symbol -> version` use map for `text` from a block's exit
-/// versions, scanning the word for `$var` references. A scanned name not
-/// interned in `ssa` is not an SSA variable here, so it is dropped.
+/// Possible lexical return dependencies under the actual word grammar.
+/// Only existing function symbols and exit versions enter the use map.
+struct ReturnWordUses {
+    uses: HashMap<Symbol, u32>,
+    unknown: bool,
+}
+
+fn original_return_word_uses(
+    text: &str,
+    word: Option<&crate::ir::WordExpr>,
+    versions: &HashMap<Symbol, u32>,
+    ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
+) -> ReturnWordUses {
+    use crate::ir::{WordExpr, WordPart};
+    let Some(word) = word else {
+        return return_word_uses_from_versions(text, versions, ssa, config);
+    };
+    let mut out = ReturnWordUses {
+        uses: HashMap::new(),
+        unknown: false,
+    };
+    let mut pending = vec![word];
+    let mut spellings = Vec::new();
+    while let Some(word) = pending.pop() {
+        match word {
+            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => {}
+            WordExpr::Variable { spelling, .. } => {
+                out.unknown |= !matches!(
+                    tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config),
+                    Ok(Some(_))
+                );
+                spellings.push(spelling.as_str());
+            }
+            WordExpr::CommandSubstitution { spelling, .. } => spellings.push(spelling.as_str()),
+            WordExpr::Template {
+                parts, rejected, ..
+            } => {
+                out.unknown |= rejected.is_some();
+                for part in parts {
+                    match part {
+                        WordPart::Text { .. } => {}
+                        WordPart::Variable { spelling, .. } => {
+                            out.unknown |= !matches!(
+                                tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config),
+                                Ok(Some(_))
+                            );
+                            spellings.push(spelling.as_str());
+                        }
+                        WordPart::CommandSubstitution { spelling, .. } => {
+                            spellings.push(spelling.as_str())
+                        }
+                        WordPart::Opaque { text, .. } => {
+                            out.unknown = true;
+                            spellings.push(text.as_str());
+                        }
+                    }
+                }
+            }
+            WordExpr::Expand { word, .. } => {
+                out.unknown = true;
+                pending.push(word);
+            }
+            WordExpr::Opaque { text, .. } => {
+                out.unknown = true;
+                spellings.push(text.as_str());
+            }
+        }
+    }
+    for spelling in spellings {
+        let candidates =
+            tcl_syntax::naming::substitution_variable_candidates(spelling.as_bytes(), config);
+        out.unknown |= candidates.has_unknown_residual();
+        for name in candidates.names() {
+            match ssa
+                .var_symbol(name)
+                .and_then(|symbol| versions.get(&symbol).map(|&version| (symbol, version)))
+            {
+                Some((symbol, version)) => {
+                    out.uses.insert(symbol, version);
+                }
+                None => out.unknown = true,
+            }
+        }
+    }
+    if out.unknown {
+        out.uses.extend(versions);
+    }
+    out
+}
+
+fn return_word_uses_from_versions(
+    text: &str,
+    versions: &HashMap<Symbol, u32>,
+    ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
+) -> ReturnWordUses {
+    let mut out = ReturnWordUses {
+        uses: HashMap::new(),
+        unknown: false,
+    };
+    let config = tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config);
+    let image = tcl_lexer::SourceImage::document(text);
+    let plan = u32::try_from(image.len()).ok().and_then(|end| {
+        tcl_lexer::native_script_words_in_with_purpose(
+            image,
+            tcl_lexer::Span::new(0, end),
+            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()
+    });
+    let Some(plan) = plan else {
+        return ReturnWordUses {
+            uses: versions.clone(),
+            unknown: true,
+        };
+    };
+    out.unknown = plan.fatal_tail.is_some();
+    for command in plan.commands {
+        for word in command.words {
+            if word.group().kind == tcl_lexer::WordKind::Braced {
+                continue;
+            }
+            let Some(original) = text.as_bytes().get(word.word_span().as_range()) else {
+                out.unknown = true;
+                continue;
+            };
+            let candidates = tcl_syntax::naming::substitution_variable_candidates(original, config);
+            out.unknown |= candidates.has_unknown_residual();
+            for name in candidates.names() {
+                let Some(symbol) = ssa.var_symbol(name) else {
+                    out.unknown = true;
+                    continue;
+                };
+                let Some(&version) = versions.get(&symbol) else {
+                    out.unknown = true;
+                    continue;
+                };
+                out.uses.insert(symbol, version);
+            }
+        }
+    }
+    if out.unknown {
+        out.uses.extend(versions);
+    }
+    out
+}
+
+#[cfg(test)]
 fn word_uses_from_versions(
     text: &str,
     versions: &HashMap<Symbol, u32>,
     ssa: &SsaFunction,
     config: tcl_lexer::LexerConfig,
 ) -> HashMap<Symbol, u32> {
-    let mut uses: HashMap<Symbol, u32> = HashMap::new();
-    let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::with_config(
-        text,
-        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
-    )
-    .tokenise_all() else {
-        return uses;
-    };
-    for tok in tokens {
-        if tok.kind != TokenType::Var {
-            continue;
-        }
-        let name = normalise_var_name(source_map.text(tok.span));
-        if name.is_empty() {
-            continue;
-        }
-        let Some(sym) = ssa.var_symbol(name) else {
-            continue;
-        };
-        let ver = versions.get(&sym).copied().unwrap_or(0);
-        uses.insert(sym, ver);
-    }
-    uses
+    return_word_uses_from_versions(text, versions, ssa, config).uses
 }
 
 /// Whether `fu`'s return taint is a **constant** — the same value whatever
@@ -361,15 +484,30 @@ fn collect_return_taint(
         let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
             continue;
         };
-        let uses =
-            word_uses_from_versions(value, &ssa_block.exit_versions, &fu.ssa, ctx.lexer_config());
+        let inventory = original_return_word_uses(
+            value,
+            value_word.as_ref(),
+            &ssa_block.exit_versions,
+            &fu.ssa,
+            ctx.lexer_config(),
+        );
         let returned = TaintCtx {
             source_tokens: tokens.as_deref(),
             source_word: value_word.as_ref(),
             word_offset: value_word.as_ref().map(|word| word.source().span.start()),
             ..ctx.at(span.map_or(0, tcl_lexer::Span::start))
         };
-        ret = ret.join(word_taint(value, &uses, taints, returned));
+        if inventory.unknown
+            && !matches!(
+                value_word,
+                Some(
+                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                )
+            )
+        {
+            ret = ret.join(TaintLattice::tainted());
+        }
+        ret = ret.join(word_taint(value, &inventory.uses, taints, returned));
     }
     ret
 }
@@ -2159,6 +2297,112 @@ mod tests {
 #[cfg(test)]
 mod original_return_taint_word_purpose_tests {
     use super::*;
+
+    #[test]
+    fn return_dependencies_keep_original_template_reads_and_inert_text() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(
+            "set value TEXT; return \"#prefix:\\$inert/$value\"",
+            &registry,
+            false,
+        );
+        let function = &unit.top_level;
+        let symbol = function
+            .ssa
+            .var_symbol("value")
+            .expect("actual scalar source symbol");
+        let (value, word, versions) = function
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(id, block)| {
+                let Terminator::Return {
+                    value: Some(value),
+                    value_word: Some(word),
+                    ..
+                } = block.terminator.as_ref()?
+                else {
+                    return None;
+                };
+                Some((value, word, &function.ssa.blocks.get(id)?.exit_versions))
+            })
+            .expect("actual original return word");
+        let uses = original_return_word_uses(
+            value,
+            Some(word),
+            versions,
+            &function.ssa,
+            function.source_lexer_config(),
+        );
+        assert!(!uses.unknown);
+        assert_eq!(uses.uses, HashMap::from([(symbol, versions[&symbol])]));
+    }
+
+    #[test]
+    fn return_dependencies_keep_literal_names_index_children_and_unknown_versions() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(
+            "set array(key) VALUE; set index key; set {$literal} VALUE; set {} EMPTY; return [list $array($index) ${$literal} ${}]",
+            &registry,
+            false,
+        );
+        let function = &unit.top_level;
+        let names = ["array", "index", "$literal", ""];
+        let symbols = names.map(|name| {
+            function
+                .ssa
+                .var_symbol(name)
+                .expect("actual function symbol")
+        });
+        let versions = function
+            .ssa
+            .blocks
+            .values()
+            .find_map(|block| {
+                symbols
+                    .iter()
+                    .all(|symbol| block.exit_versions.contains_key(symbol))
+                    .then_some(&block.exit_versions)
+            })
+            .expect("actual function exit versions");
+        let config = function.source_lexer_config();
+        let inventory = return_word_uses_from_versions(
+            "[list $array($index) ${$literal} ${}]",
+            versions,
+            &function.ssa,
+            config,
+        );
+        assert!(!inventory.unknown);
+        for symbol in symbols {
+            assert_eq!(inventory.uses.get(&symbol), versions.get(&symbol));
+        }
+        let inert = return_word_uses_from_versions(
+            "{$array($index) ${$literal} ${}}",
+            versions,
+            &function.ssa,
+            config,
+        );
+        assert!(!inert.unknown && inert.uses.is_empty());
+        let escaped =
+            return_word_uses_from_versions("\\$inert/$index", versions, &function.ssa, config);
+        assert!(!escaped.unknown);
+        assert_eq!(
+            escaped.uses,
+            HashMap::from([(symbols[1], versions[&symbols[1]])])
+        );
+        for original in ["[missing $index", "${name\0tail}", "$unrepresented"] {
+            let unknown = return_word_uses_from_versions(original, versions, &function.ssa, config);
+            assert!(unknown.unknown, "{original:?}");
+            for (symbol, version) in versions {
+                assert_eq!(unknown.uses.get(symbol), Some(version));
+            }
+        }
+        let mut missing = versions.clone();
+        missing.remove(&symbols[1]);
+        let unknown = return_word_uses_from_versions("$index", &missing, &function.ssa, config);
+        assert!(unknown.unknown);
+        assert!(!unknown.uses.contains_key(&symbols[1]));
+    }
 
     #[test]
     fn original_return_word_keeps_bom_and_actual_ssa_exit_versions() {

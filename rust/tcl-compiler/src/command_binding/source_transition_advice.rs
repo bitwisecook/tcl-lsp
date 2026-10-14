@@ -1900,6 +1900,7 @@ impl AdviceInvocationContext<'_> {
         procedure: Option<&source_procedure::OriginalSourceProcedureBody>,
     ) -> Option<()> {
         self.retain_schema_advice(tape, invocation, graph, schema)?;
+        self.retain_native_expression_syntax_inventory(tape, graph, invocation, schema);
         self.retain_c_source_lifecycle_inventory(tape, graph, invocation, schema, None, 0);
         self.retain_authored_command_prefix(tape, invocation, graph, schema, None);
         self.retain_definition_member_prefix_inventory(tape, graph, invocation, schema);

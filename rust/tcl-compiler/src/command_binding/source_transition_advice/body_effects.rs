@@ -411,6 +411,53 @@ impl AdviceInvocationContext<'_> {
         tape.extend_inventory(walk.authored_prefixes);
     }
 
+    pub(super) fn retain_native_expression_syntax_inventory(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        let (roles, complete) = self.authored_roles(schema);
+        if !matches!(self.policy, AdviceNamingPolicy::Native(_))
+            || graph.procedure_body.is_none()
+            || !complete
+            || !roles
+                .iter()
+                .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+            || invocation.native.iter().any(|word| word.group().expand)
+        {
+            return;
+        }
+        let Some(advice) = self.schema_advice(invocation, graph, schema) else {
+            return;
+        };
+        let mut branch = graph.clone();
+        let mut walk = BodyWalk {
+            context: self,
+            visited: 0,
+            unavailable_lifecycle_effects: false,
+            inventory: None,
+            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+            source_body: None,
+            logical_scope: None,
+            member_catalogue_body: None,
+            catalogue_body: None,
+        };
+        if walk.expressions(&mut branch, &advice, schema, 0).is_none() {
+            return;
+        }
+        // Expression syntax remains owned when its possible child has no handler.
+        // Speculative effects and other advice stay in the discarded branch.
+        for (offset, receipt) in walk.authored_prefixes.native_procedure_may_commands {
+            super::source_class::merge_receipt(
+                &mut tape.native_procedure_may_commands,
+                offset,
+                receipt,
+            );
+        }
+    }
+
     /// Reuse the original executable arena before selecting source head advice.
     /// Known child transitions are processed; unresolved variable/observer
     /// effects stay separate from the post-operand execution lookup.
