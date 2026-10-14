@@ -238,7 +238,7 @@ fn extract_zip(bytes: &[u8], dest: &Path) -> Result<(), TclPkgError> {
         let Some(name) = file.enclosed_name() else {
             return Err(fetch_error(format!(
                 "zip member escapes target directory: {}",
-                file.name()
+                String::from_utf8_lossy(file.name_raw())
             )));
         };
         let name_str = name.to_string_lossy().into_owned();
