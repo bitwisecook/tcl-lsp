@@ -62,7 +62,7 @@ coming back `Cancelled` is expected and healthy, not a failure.
 
 ## LSP-API suite
 
-Requires only Python 3.9+ (standard library only — no `pip install` needed)
+Requires only Python 3.10+ (standard library only — no `pip install` needed)
 and a built server binary:
 
 ```sh
