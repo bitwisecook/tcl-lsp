@@ -114,10 +114,19 @@ impl CodegenCtx<'_> {
         if !stmt.is_executable_invocation() {
             return;
         }
+        // An empty `for` clause is three `nop`s inside the `for` command, not
+        // a command of its own: Tcl gives it no startCommand. As the init
+        // clause it still opens the `for`'s startCommand, which then starts
+        // one command rather than two.
+        let empty_clause = stmt.synthetic_marker() == Some(crate::ir::SyntheticMarker::EmptyClause);
         // The wrapping startCommand shares the statement's source span.
         self.set_command_source_span(stmt.span());
-        let count = count_override.unwrap_or(1);
-        let emit_sc = self.cmd_index > 0;
+        let count = if empty_clause {
+            1
+        } else {
+            count_override.unwrap_or(1)
+        };
+        let emit_sc = self.cmd_index > 0 && (!empty_clause || deferred_end_label.is_some());
         let mut end_label: Option<String> = None;
         let mut sc_idx: Option<usize> = None;
 
@@ -473,6 +482,8 @@ impl CodegenCtx<'_> {
             if marker == crate::ir::SyntheticMarker::EmptyClause {
                 // tclsh's bytecode keeps three `nop`s where a `for` clause is
                 // empty; match it so the instruction stream stays byte-true.
+                // They are compiler control, never a replayable command.
+                self.set_control_source_span(self.current_span);
                 self.literals.intern("");
                 self.emit(Op::NOP, vec![]);
                 self.emit(Op::NOP, vec![]);

@@ -295,6 +295,11 @@ pub struct Function {
     /// region rather than one statement or a recognised loop shape. Codegen
     /// wraps that region in one replayable `START_CMD` boundary.
     pub command_boundary_continuations: HashMap<BlockId, BlockId>,
+    /// Head dispatch block to join block for a structured `if` or exact
+    /// `switch` lowered into branch terminators. Codegen opens the command's
+    /// replayable `START_CMD` before the head's first test and ends it at the
+    /// join's result pop, as Tcl's bytecode does.
+    pub branch_command_joins: HashMap<BlockId, BlockId>,
     /// Caller-frame injection this function is *subject to*: a callee whose
     /// [frame-effect summary](crate::cfg_builder::upvar_info::UpvarInfo)
     /// says it writes or reads names in **this** frame that no static
@@ -351,6 +356,7 @@ impl Function {
             procedure_binding_requirements: Vec::new(),
             command_boundary_sites: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
+            branch_command_joins: HashMap::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             declared_frame_effects: std::sync::Arc::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),

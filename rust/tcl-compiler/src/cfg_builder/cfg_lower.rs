@@ -306,6 +306,8 @@ impl CfgBuilder<'_> {
         };
 
         let end_block = self.new_block("if_end");
+        self.branch_command_joins
+            .insert(block_name.to_owned(), end_block.clone());
         let mut dispatch = block_name.to_owned();
 
         for clause in clauses {
@@ -400,12 +402,17 @@ impl CfgBuilder<'_> {
             unreachable!("lower_for called with non-For");
         };
 
+        // Lowering the init clause marks its own commands' sites on this
+        // block; the `for` owns the startCommand that init shares.
+        let for_site = self.command_boundary_sites.get(block_name).cloned();
         // Placeholder for empty init clause.
         if init.statements.is_empty() {
             self.push_empty_clause(block_name, *init_span);
         }
         let init_tail = self.lower_script(init, block_name)?;
-        self.copy_command_boundary(block_name, &init_tail);
+        if let Some(site) = for_site {
+            self.command_boundary_sites.insert(init_tail.clone(), site);
+        }
 
         let header = self.new_block("for_header");
         let body_block = self.new_block("for_body");
@@ -888,6 +895,8 @@ impl CfgBuilder<'_> {
         }
 
         let end_block = self.new_block("switch_end");
+        self.branch_command_joins
+            .insert(block_name.to_owned(), end_block.clone());
         let default_block = self.new_block("switch_default");
 
         let body_name = "switch_arm_body";

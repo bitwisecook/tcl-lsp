@@ -3590,3 +3590,76 @@ fn a_running_function_is_checked_against_its_manifest_when_the_pin_changes() {
         "other floors: plain from the next command"
     );
 }
+
+/// A stale binding replays the next command from source and resumes after
+/// it, so every structured command the compiler inlines must open its own
+/// boundary: one without lets the resume land inside its body.
+#[test]
+fn replay_after_a_stale_binding_resumes_after_each_structured_command() {
+    let stale = "set n 0; proc try args {}; try a b\n";
+    let cases: [(String, &str); 10] = [
+        (
+            format!("{stale}if {{$n}} {{\n    puts WRONG\n}}\nputs done"),
+            "done",
+        ),
+        (
+            format!("{stale}if {{$n}} {{puts WRONG}} else {{puts RIGHT}}"),
+            "RIGHT",
+        ),
+        (
+            format!("{stale}switch $n {{1 {{puts W}} default {{puts D}}}}"),
+            "D",
+        ),
+        (
+            format!("{stale}for {{set i 0}} {{$i < 2}} {{incr i}} {{puts $i; if {{$n}} {{puts W}}}}"),
+            "0\n1",
+        ),
+        (
+            format!("{stale}for {{}} {{$n}} {{}} {{puts W}}\nputs done"),
+            "done",
+        ),
+        (
+            format!("{stale}while {{$n < 2}} {{incr n; if {{$n == 1}} {{puts one}} else {{puts two}}}}"),
+            "one\ntwo",
+        ),
+        (
+            // tclsh reads stdin through `if`, so restore it before the line ends.
+            "set n 1; puts pre; rename if _if; proc if args {puts redefined}; \
+             if {$n} {puts W}; rename if {}; rename _if if"
+                .to_owned(),
+            "pre\nredefined",
+        ),
+        (
+            "set n 1; puts pre; rename switch _s; proc switch args {puts redefined}\nswitch $n {1 {puts W}}"
+                .to_owned(),
+            "pre\nredefined",
+        ),
+        (
+            "puts pre; rename for _f; proc for args {puts redefined}\nfor {set i 0} {$i < 1} {incr i} {puts W}"
+                .to_owned(),
+            "pre\nredefined",
+        ),
+        (
+            "set n 0; puts pre; rename for _f; proc for args {puts redefined}\nfor {} {$n} {} {puts W}"
+                .to_owned(),
+            "pre\nredefined",
+        ),
+    ];
+    let tclsh =
+        tcl_test_support::locate_tclsh(TclVersion::V9_0).expect("the Tcl 9.0 oracle is valid");
+    for (source, expected) in &cases {
+        let (mut vm, output) = vm();
+        eval_ok(&mut vm, source);
+        let printed = String::from_utf8(output.0.borrow().clone()).expect("UTF-8 output");
+        assert_eq!(printed.trim_end(), *expected, "{source}");
+        if let Some(tclsh) = &tclsh {
+            let outcome = tcl_test_support::run_script(&tclsh.path, source.as_bytes())
+                .expect("Tcl 9.0 oracle runs");
+            assert_eq!(
+                outcome.strict_text().expect("Tcl 9.0 succeeds"),
+                *expected,
+                "Tcl 9.0: {source}",
+            );
+        }
+    }
+}
