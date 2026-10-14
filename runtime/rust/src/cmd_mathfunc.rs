@@ -125,6 +125,18 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(obj::new_double_obj(interp.srand(seed)));
             return Code::Ok;
         }
+        // C's `ExprBoolFunc` is `Tcl_GetBooleanFromObj`: the boolean words
+        // as well as numbers (tclsh: `bool("yes")` is 1, `bool(" true")` is
+        // `expected boolean value but got " true"`).
+        "bool" => {
+            return match crate::typed_value::boolean(argv[1]) {
+                Ok(value) => {
+                    interp.set_result(obj::new_wide_int_obj(i64::from(value)));
+                    Code::Ok
+                }
+                Err(error) => interp.error_with_code(&error.message, error.code),
+            };
+        }
         _ => {}
     }
 

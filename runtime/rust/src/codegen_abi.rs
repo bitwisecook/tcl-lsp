@@ -3152,7 +3152,8 @@ mod tests {
             tcl_runtime_set_current_interp(interp);
 
             // `tclsh9.0`: `string repeat a [expr {2**200}]` →
-            // "integer value too large to represent" / ARITH IOVERFLOW.
+            // "integer value too large to represent" /
+            // ARITH IOVERFLOW {integer value too large to represent}.
             let huge = owned_word(b"99999999999999999999999");
             let (status, untouched) = get_wide(huge);
             assert_eq!(status, TCL_VALUE_GET_ERROR);
@@ -3161,7 +3162,10 @@ mod tests {
                 (*interp).result_bytes(),
                 b"integer value too large to represent"
             );
-            assert_eq!((*interp).error_code(), b"ARITH IOVERFLOW");
+            assert_eq!(
+                (*interp).error_code(),
+                b"ARITH IOVERFLOW {integer value too large to represent}"
+            );
             // The same value still widens to a double.
             assert_eq!(get_double(huge), (TCL_VALUE_GET_OK, 1e23));
 

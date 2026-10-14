@@ -2504,3 +2504,149 @@ fn diag_lists_exactly_the_selectable_ids_for_an_unknown_dialect() {
     assert_eq!(expected.len(), 21);
     assert_eq!(listed, expected, "{stderr}");
 }
+
+/// Every dialect the constant folder is asked to answer for: the unnamed
+/// default, each core release and Jim.
+const FOLD_DIALECTS: [Option<&str>; 7] = [
+    None,
+    Some("tcl8.4"),
+    Some("tcl8.5"),
+    Some("tcl8.6"),
+    Some("tcl9.0"),
+    Some("tcl9.1"),
+    Some("jim"),
+];
+
+/// Run `tcl VERB --source SOURCE` under `dialect`, tolerating a non-zero exit
+/// (findings) but never an abort: a panic exits 101 with `panicked at` on
+/// stderr. Returns stdout.
+fn run_on_source_without_panic(verb_args: &[&str], dialect: Option<&str>, source: &str) -> String {
+    let mut command = tcl();
+    command.args(verb_args);
+    if let Some(dialect) = dialect {
+        command.args(["--dialect", dialect]);
+    }
+    let output = command
+        .args(["--source", source])
+        .output()
+        .expect("failed to spawn tcl binary");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.code() != Some(101) && !stderr.contains("panicked"),
+        "tcl {verb_args:?} --dialect {dialect:?} aborted on {source:?}: {stderr}"
+    );
+    String::from_utf8(output.stdout).expect("utf-8 output")
+}
+
+/// #2401: `abs` of the most negative wide is `2^63`, past what the folder's
+/// math-call shape can carry. `tcl opt` and `tcl diag` aborted on it in every
+/// dialect. The call is left to run — tclsh 8.5 to 9.1 print
+/// `9223372036854775808`, 8.4 raises `ARITH IOVERFLOW`, and jimsh 0.84 wraps
+/// to `-9223372036854775808`, so no single folded constant is right — and the
+/// same holds wherever the operand reaches `abs` by another spelling.
+#[test]
+fn opt_and_diag_decline_abs_of_the_most_negative_wide_in_every_dialect() {
+    for expr in [
+        "abs(-9223372036854775808)",
+        "abs(-9223372036854775807-1)",
+        "int(abs(-9223372036854775808)) - 1",
+    ] {
+        let program = format!("set x [expr {{{expr}}}]\nputs $x\n");
+        for dialect in FOLD_DIALECTS {
+            let optimised =
+                run_on_source_without_panic(&["opt", "--profile", "full"], dialect, &program);
+            assert!(
+                optimised.contains(&format!("expr {{{expr}}}")),
+                "`{expr}` must be left to run under {dialect:?}: {optimised}"
+            );
+        }
+    }
+    let program = "set x [expr {abs(-9223372036854775808)}]\nputs $x\n";
+    for dialect in FOLD_DIALECTS {
+        run_on_source_without_panic(&["diag"], dialect, program);
+    }
+}
+
+/// Beside #2401, the remaining wide-edge folds: `-(-9223372036854775808)`
+/// and the quotient of it by `-1` promote to a bignum, which only a target
+/// that widens (8.5 onward) folds; and `i64::MIN % -1` is `0` from 8.5 but a
+/// hardware divide trap that kills tclsh 8.4 and jimsh (`SIGFPE`, measured),
+/// so those never fold it to `0`.
+#[test]
+fn opt_folds_the_wide_edges_only_where_the_release_computes_them() {
+    for (expr, widened) in [
+        ("-(-9223372036854775808)", "9223372036854775808"),
+        ("(-9223372036854775807 - 1) / -1", "9223372036854775808"),
+        ("(-9223372036854775807 - 1) % -1", "0"),
+    ] {
+        let program = format!("puts [expr {{{expr}}}]\n");
+        for dialect in FOLD_DIALECTS {
+            let optimised =
+                run_on_source_without_panic(&["opt", "--profile", "full"], dialect, &program);
+            let folds = matches!(
+                dialect,
+                None | Some("tcl8.5" | "tcl8.6" | "tcl9.0" | "tcl9.1")
+            );
+            assert_eq!(
+                optimised.contains(&format!("puts {widened}\n")),
+                folds,
+                "`{expr}` under {dialect:?}: {optimised}"
+            );
+            if !folds {
+                assert!(optimised.contains(expr), "{dialect:?}: {optimised}");
+            }
+        }
+    }
+}
+
+/// #2435: a decimal spelling outside the double range is a double from 8.5 and
+/// not on 8.4, whose `strtod` reports `ERANGE`. Jim refuses it too, but names
+/// no core release, so the fold declines there. Every row measured on tclsh
+/// 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0 and jimsh 0.84.
+#[test]
+fn opt_folds_string_is_double_range_errors_per_release() {
+    for spelling in ["1e400", "-1e-400", "-strict 1e400", "4.9e-324"] {
+        let program = format!("puts [string is double {spelling}]\n");
+        for dialect in FOLD_DIALECTS {
+            let optimised =
+                run_on_source_without_panic(&["opt", "--profile", "full"], dialect, &program);
+            match dialect {
+                Some("tcl8.4") => assert!(
+                    optimised.contains("puts 0\n"),
+                    "8.4 reads `{spelling}` as no double: {optimised}"
+                ),
+                Some("jim") => assert!(
+                    optimised.contains(&format!("string is double {spelling}")),
+                    "Jim names no release to fold under: {optimised}"
+                ),
+                _ => assert!(
+                    optimised.contains("puts 1\n"),
+                    "{dialect:?} takes `{spelling}` as the rounded double: {optimised}"
+                ),
+            }
+        }
+    }
+}
+
+/// The boundary doubles and a zero mantissa are doubles on every release, and
+/// `expr` on a range-error literal is left to run under 8.4 (it raises
+/// `ARITH OVERFLOW` / `UNDERFLOW` there) while 8.5 onward read the value.
+#[test]
+fn opt_keeps_in_range_doubles_and_declines_an_8_4_range_error_literal() {
+    for spelling in ["1.7976931348623157e308", "0e999", "0.0e-400", "Inf"] {
+        let program = format!("puts [string is double {spelling}]\n");
+        for dialect in [Some("tcl8.4"), Some("tcl9.0")] {
+            let optimised =
+                run_on_source_without_panic(&["opt", "--profile", "full"], dialect, &program);
+            assert!(
+                optimised.contains("puts 1\n"),
+                "`{spelling}` is a double under {dialect:?}: {optimised}"
+            );
+        }
+    }
+    let program = "puts [expr {4.9e-324}]\n";
+    let on_84 = run_on_source_without_panic(&["opt", "--profile", "full"], Some("tcl8.4"), program);
+    assert!(on_84.contains("expr {4.9e-324}"), "{on_84}");
+    let on_85 = run_on_source_without_panic(&["opt", "--profile", "full"], Some("tcl8.5"), program);
+    assert!(on_85.contains("puts 5e-324\n"), "{on_85}");
+}

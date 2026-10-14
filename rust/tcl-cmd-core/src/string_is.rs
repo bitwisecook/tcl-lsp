@@ -253,11 +253,19 @@ fn scan_integer(chars: &[char], width: Width, numbers: NumberSyntax) -> (bool, i
 /// C reads a radix integer as a perfectly good double, so `string is double
 /// 0x1f` and `0o17` are true on every release. Going through the shared numeral
 /// parser also picks up the release-dependent spellings (`08`, `1_0`).
+///
+/// A decimal spelling outside the double range (`1e400`, `1e-400`, a subnormal)
+/// is a double from 8.5 but not under 8.4 or Jim, whose `strtod` reports
+/// `ERANGE` ([`number::Parsed::is_range_error`]). 8.4 checks it before the trailing
+/// text, so it reports `-failindex` -1 even for `1e400x` (tclsh 8.4.20).
 fn scan_double(chars: &[char], numbers: NumberSyntax) -> (bool, i64) {
     let s: String = chars.iter().collect();
     let Some(parsed) = number::parse(&s, ParseFlags::for_syntax(numbers)) else {
         return (false, 0);
     };
+    if parsed.is_range_error(numbers) {
+        return (false, -1);
+    }
     let end = skip_trailing_ws(&s, parsed.end);
     if end == s.len() {
         (true, -1)
@@ -443,6 +451,75 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// `string is double` on a spelling outside the double range: 8.4 and Jim
+    /// take `strtod`'s `ERANGE` as "not a double" (overflow, underflow to zero,
+    /// and subnormals alike), 8.5 onward accept the rounded value. Every row
+    /// measured on tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0 and jimsh
+    /// 0.84 (#2435); the boundary values and zero mantissas are doubles
+    /// everywhere.
+    #[test]
+    fn a_double_range_error_is_a_double_only_from_8_5() {
+        let range_errors = [
+            "1e400",
+            "-1e400",
+            "1e-400",
+            "-1e-400",
+            "1.8e308",
+            "4.9e-324",
+            "1e-320",
+            "1e-310",
+            "2.2250738585072009e-308",
+        ];
+        let in_range = [
+            "1.7976931348623157e308",
+            "2.2250738585072014e-308",
+            "1e308",
+            "1e-307",
+            "0e999",
+            "0.0e-400",
+            "0",
+            "Inf",
+            "-Infinity",
+            "NaN",
+            "0x1f",
+        ];
+        for numbers in NumberSyntax::ALL.iter().copied() {
+            let rejects = numbers.string_is_double_rejects_range_error();
+            for v in range_errors {
+                for strict in [false, true] {
+                    let want = if rejects { (false, -1) } else { (true, -1) };
+                    assert_eq!(
+                        class_check("double", v, strict, numbers),
+                        want,
+                        "string is double {v} under {numbers:?}"
+                    );
+                }
+            }
+            for v in in_range {
+                assert_eq!(
+                    class_check("double", v, false, numbers),
+                    (true, -1),
+                    "string is double {v} under {numbers:?}"
+                );
+            }
+        }
+        // 8.4 reports the range error ahead of trailing text; 8.5+ report the
+        // junk's offset.
+        assert_eq!(
+            class_check("double", "1e400x", false, NumberSyntax::Tcl84),
+            (false, -1)
+        );
+        assert_eq!(
+            class_check("double", "1e400x", false, NumberSyntax::Tcl85),
+            (false, 5)
+        );
+        // The integer classes never see a range error.
+        assert_eq!(
+            class_check("integer", "1e400", false, NumberSyntax::Tcl84),
+            (false, 1)
+        );
     }
 
     /// Which classes are bounded to a wide is a class-semantics change, not a

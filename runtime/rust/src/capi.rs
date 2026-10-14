@@ -329,10 +329,7 @@ fn long_value(objPtr: *mut TclObj) -> Result<TclWideInt, TypedError> {
         if (TclWideInt::from(i32::MIN)..=TclWideInt::from(u32::MAX)).contains(&wide) {
             Ok(wide)
         } else {
-            Err(TypedError {
-                message: OVERFLOW_MESSAGE.to_vec(),
-                code: OVERFLOW_CODE,
-            })
+            Err(TypedError::overflow())
         }
     } else {
         typed_value::wide_int_modulo_unsigned(objPtr)
@@ -925,32 +922,22 @@ unsafe fn report(interp: *mut Interp, message: &[u8], code: Option<&[u8]>) -> c_
     TCL_ERROR
 }
 
-/// A failed typed read, as the C call reports it. C Tcl's overflow code carries
-/// the message as its third word.
+/// A failed typed read, as the C call reports it.
 ///
 /// # Safety
 /// `interp` must be null or live.
 unsafe fn typed_error(interp: *mut Interp, error: &TypedError) -> c_int {
-    if error.code == OVERFLOW_CODE {
-        // SAFETY: forwarded per this fn's contract.
-        return unsafe { overflow(interp) };
-    }
-    // SAFETY: as above.
+    // SAFETY: forwarded per this fn's contract.
     unsafe { report(interp, &error.message, Some(error.code)) }
 }
 
-const OVERFLOW_CODE: &[u8] = b"ARITH IOVERFLOW";
-const OVERFLOW_MESSAGE: &[u8] = b"integer value too large to represent";
-
-/// C Tcl's integer overflow: `integer value too large to represent`, `-errorcode
-/// ARITH IOVERFLOW {integer value too large to represent}`.
+/// C Tcl's integer overflow ([`TypedError::overflow`]).
 ///
 /// # Safety
 /// `interp` must be null or live.
 unsafe fn overflow(interp: *mut Interp) -> c_int {
-    let code = error_code_list(&[b"ARITH", b"IOVERFLOW", OVERFLOW_MESSAGE]);
     // SAFETY: forwarded per this fn's contract.
-    unsafe { report(interp, OVERFLOW_MESSAGE, Some(code.as_slice())) }
+    unsafe { typed_error(interp, &TypedError::overflow()) }
 }
 
 /// A list that would not parse, reported with the shared list owner's message

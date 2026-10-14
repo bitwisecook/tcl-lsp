@@ -68,9 +68,24 @@ pub const MAX_EXPONENT: i64 = (1 << 28) - 1;
 /// both libtommath (`mp_and`/`mp_or`/`mp_xor` under `TCL_BIGNUM_TYPE`'s
 /// sign handling) and `num-bigint` already do.
 pub trait BigIntOps: Sized + Clone + Ord {
-    /// Construct from a wide.
+    /// Whether the backend can hold a value outside the wide range. `false`
+    /// only for a backend with no arbitrary-precision rung (the const-folder's
+    /// `NoBig`, which has no value at all), where a result that would promote
+    /// is one the caller cannot carry and must decline.
+    const HAS_BIGNUM_RUNG: bool = true;
+
+    /// Construct from a wide. Only call this where a `Self` is already in
+    /// hand, or after checking [`Self::HAS_BIGNUM_RUNG`]; a promotion that
+    /// starts from a plain `i64` goes through [`Self::promote_i64`].
     #[must_use]
     fn from_i64(v: i64) -> Self;
+    /// [`Self::from_i64`] for a promotion out of the wide rung (`abs` of
+    /// `i64::MIN`, a double beyond the wide range), `None` when the backend
+    /// has no rung to promote to.
+    #[must_use]
+    fn promote_i64(v: i64) -> Option<Self> {
+        Self::HAS_BIGNUM_RUNG.then(|| Self::from_i64(v))
+    }
     /// Narrow to a wide when the value fits — the demote-when-fits step
     /// (`$big - $big` is `Int(0)`, never a one-word bignum).
     fn to_i64(&self) -> Option<i64>;
@@ -138,7 +153,7 @@ pub trait BigIntOps: Sized + Clone + Ord {
     /// has `shift > 0`.
     #[must_use]
     fn from_f64_trunc(f: f64) -> Option<Self> {
-        if !f.is_finite() {
+        if !Self::HAS_BIGNUM_RUNG || !f.is_finite() {
             return None;
         }
         let truncated = f.trunc();

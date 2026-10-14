@@ -95,6 +95,16 @@ pub enum SizeModifier {
 /// `format %hd 5000000000` is `-3584` and `format %hu 5000000000` is `61952`
 /// on every one of them, `format %hd 32768` is `-32768`, and
 /// `format %d 4294967296` is `4294967296` on 8.x but `0` on 9.x.
+///
+/// Two of C Tcl's widths are properties of the build's C ABI, not of the
+/// release: C `long` (the unmodified width before Tcl 9) and the pointer test
+/// `sizeof(void *) > sizeof(int)` (Tcl 9's `z`, `t` and `%p`). This crate
+/// answers both for **LP64** — [`Self::C_LONG`] and [`Self::POINTER`] — on
+/// every target it is compiled for, wasm32 included, rather than carrying a
+/// platform axis in `tcl-dialect`. LP64 is what every reference tclsh measured
+/// here runs on. LLP64 (64-bit Windows: 32-bit `long`) and ILP32 (32-bit
+/// hosts: 32-bit `long` and pointers) are **known-unverified**: C Tcl's source
+/// says they differ, but no oracle on either ABI has been run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntegerWidth {
     /// C `short`, from an `h` modifier. 16 bits on every platform Tcl
@@ -103,11 +113,21 @@ pub enum IntegerWidth {
     /// C `int` — Tcl 9's width for an unmodified integer conversion. 32 bits
     /// on every platform Tcl supports.
     Int,
-    /// 64 bits: `Tcl_WideInt`, and the unmodified width before Tcl 9.
+    /// 64 bits: `Tcl_WideInt`, and C `long` and pointers on LP64.
     Wide,
 }
 
 impl IntegerWidth {
+    /// C `long` on LP64, the unmodified integer width before Tcl 9 (C Tcl
+    /// 8.x reads the value with `Tcl_GetLongFromObj`). 32 bits on LLP64 and
+    /// ILP32, which are not modelled.
+    pub const C_LONG: Self = Self::Wide;
+
+    /// Tcl 9's `z`, `t` and `%p` width, chosen by `sizeof(void *) >
+    /// sizeof(int)`: wide on LP64 (and LLP64), C `int` on ILP32, which is not
+    /// modelled — so this is wide on a wasm32 build too.
+    pub const POINTER: Self = Self::Wide;
+
     /// The mask selecting this width's low bits, or `None` for the full
     /// 64, whose mask does not fit a positive `i64`.
     const fn low_mask(self) -> Option<i64> {
@@ -153,20 +173,16 @@ impl IntegerWidth {
 ///
 /// The one owner of this policy, so the renderers cannot drift apart on it.
 ///
-/// **Two families are deliberately answered [`IntegerWidth::Wide`] rather than
-/// correctly**, because answering them needs facts this crate does not have:
+/// The ABI-dependent answers are LP64's (see [`IntegerWidth`]): an unmodified
+/// conversion before Tcl 9 is [`IntegerWidth::C_LONG`], and `z`/`t` are
+/// [`IntegerWidth::POINTER`]. Explicit `l`, `j`, `q` and `I64` are
+/// `Tcl_WideInt` on every ABI.
 ///
-/// * `ll` and `L` select Tcl's **bignum** path, not a 64-bit one —
-///   `format %lld 9223372036854775808` prints `9223372036854775808` where
-///   `%ld` prints `-9223372036854775808`. A renderer whose value type is
-///   `i64` has already lost the distinction before it gets here.
-/// * `l` before Tcl 9, `z` and `t` are **platform**-dependent (C `long`,
-///   `TCL_WIDE_INT_IS_LONG`, and `sizeof(void *) > sizeof(int)` respectively).
-///   `Wide` is right on LP64 and wrong on an ILP32 build; `tcl-dialect` has no
-///   platform axis to ask.
-///
-/// Both are recorded as gaps rather than guessed at; the unmodified and `h`
-/// answers below are determined on every platform Tcl supports.
+/// `ll` and `L` select Tcl's **bignum** path, not a 64-bit one —
+/// `format %lld 9223372036854775808` prints `9223372036854775808` where `%ld`
+/// prints `-9223372036854775808`. They answer `Wide` here because a renderer
+/// whose value type is `i64` has already lost the distinction; the shared
+/// renderer takes the bignum path before it asks.
 #[must_use]
 pub fn integer_width(
     size: Option<SizeModifier>,
@@ -175,25 +191,46 @@ pub fn integer_width(
     match size {
         Some(SizeModifier::Short) => IntegerWidth::Short,
         Some(SizeModifier::Int | SizeModifier::Int32) => IntegerWidth::Int,
+        Some(SizeModifier::Size | SizeModifier::PtrDiff) => IntegerWidth::POINTER,
         Some(
             SizeModifier::Int64
             | SizeModifier::Long
             | SizeModifier::LongLong
             | SizeModifier::IntMax
-            | SizeModifier::Size
             | SizeModifier::Quad
-            | SizeModifier::PtrDiff
             | SizeModifier::Big,
         ) => IntegerWidth::Wide,
-        // Unmodified: Tcl 9 renders through C `int`, 8.x through the wide
-        // path. `NumberSyntax::Tcl90` is this module's existing discriminator
-        // for "Tcl 9 or later" (it already decides the `%#d` -> `0d` prefix);
-        // Jim keeps the pre-9 answer, since no jimsh oracle was available to
-        // establish otherwise.
+        // Unmodified: Tcl 9 renders through C `int`, 8.x through C `long`.
+        // `NumberSyntax::Tcl90` is this module's existing discriminator for
+        // "Tcl 9 or later" (it already decides the `%#d` -> `0d` prefix). Jim
+        // formats every non-`h` integer as `jim_wide` whatever the ABI
+        // (jimsh 0.84: `format %d 4294967296` is `4294967296`).
         None => match syntax {
             tcl_dialect::NumberSyntax::Tcl90 => IntegerWidth::Int,
-            _ => IntegerWidth::Wide,
+            tcl_dialect::NumberSyntax::Jim | tcl_dialect::NumberSyntax::Jim080 => {
+                IntegerWidth::Wide
+            }
+            tcl_dialect::NumberSyntax::Tcl84 | tcl_dialect::NumberSyntax::Tcl85 => {
+                IntegerWidth::C_LONG
+            }
         },
+    }
+}
+
+/// The bits Tcl 9's `%p` renders for `value` under `size`, on LP64.
+///
+/// `%p` forces C Tcl's wide read whenever [`IntegerWidth::POINTER`] is wide,
+/// whatever the modifier, so `format %Ip 4294967296` is `0x100000000`. An `h`
+/// modifier still selects the `short` rendering branch, whose zero-initialised
+/// `short` the wide read never assigns: `format %hp 65537` is `0x0` on tclsh
+/// 9.0.4 and 9.1.0.
+/// `%llp` and `%Lp` render an uninitialised wide there (a different value per
+/// run), which no model can reproduce; they answer the wide bits.
+#[must_use]
+pub fn pointer_bits(size: Option<SizeModifier>, value: i64) -> u64 {
+    match size {
+        Some(SizeModifier::Short) => 0,
+        _ => IntegerWidth::POINTER.unsigned(value),
     }
 }
 
@@ -202,6 +239,35 @@ impl SizeModifier {
     #[must_use]
     pub fn is_big(self) -> bool {
         matches!(self, Self::LongLong | Self::Big)
+    }
+
+    /// Whether a `format` whose numerals follow `syntax` accepts this
+    /// modifier. Jim accepts `h`, `l` and `ll` (jimsh 0.84).
+    #[must_use]
+    pub fn accepted_under(self, syntax: tcl_dialect::NumberSyntax) -> bool {
+        match self.minimum_version() {
+            None => true,
+            Some(tcl_dialect::TclVersion::V8_5) => syntax != tcl_dialect::NumberSyntax::Tcl84,
+            Some(_) => syntax == tcl_dialect::NumberSyntax::Tcl90,
+        }
+    }
+
+    /// The byte a release that predates this modifier reads as the verb, and
+    /// so names in `bad field specifier "…"`: `format %zd 1` and
+    /// `format %z 1` are both `bad field specifier "z"` before Tcl 9, and
+    /// `format %lld 1` is `bad field specifier "l"` on Tcl 8.4.
+    #[must_use]
+    pub const fn lead_byte(self) -> u8 {
+        match self {
+            Self::Short => b'h',
+            Self::Int | Self::Int32 | Self::Int64 => b'I',
+            Self::Long | Self::LongLong => b'l',
+            Self::IntMax => b'j',
+            Self::Size => b'z',
+            Self::Quad => b'q',
+            Self::PtrDiff => b't',
+            Self::Big => b'L',
+        }
     }
 
     /// Tcl release surface that first accepts this spelling.
@@ -699,8 +765,9 @@ mod tests {
             );
         }
 
-        // Unmodified: `int` from Tcl 9, the wide path before it. Jim keeps
-        // the pre-9 answer, since no jimsh oracle established otherwise.
+        // Unmodified: `int` from Tcl 9, C `long` (LP64: 64 bits) before it.
+        // jimsh 0.84 formats `%d 4294967296` as `4294967296` and `%u -1` as
+        // `18446744073709551615`: Jim's `jim_wide`.
         assert_eq!(integer_width(None, NumberSyntax::Tcl84), IntegerWidth::Wide);
         assert_eq!(integer_width(None, NumberSyntax::Tcl85), IntegerWidth::Wide);
         assert_eq!(integer_width(None, NumberSyntax::Tcl90), IntegerWidth::Int);
@@ -711,9 +778,9 @@ mod tests {
         );
 
         // The Tcl 9 `I` family has fixed widths: `I`/`I32` are C `int`, while
-        // `I64` is Tcl's wide-integer path. Other explicit modifiers answer
-        // `Wide` today — right for `l`/`j`/`q` on LP64, a stated gap for the
-        // bignum and pointer-width families.
+        // `I64` is Tcl's wide-integer path. `z`/`t` are the pointer width,
+        // wide on LP64 (tclsh 9.0.4: `format %zd 4294967296` is
+        // `4294967296`, `format %tx -1` is `ffffffffffffffff`).
         for size in [SizeModifier::Int, SizeModifier::Int32] {
             assert_eq!(
                 integer_width(Some(size), NumberSyntax::Tcl90),
@@ -759,9 +826,92 @@ mod tests {
         assert_eq!(IntegerWidth::Wide.unsigned(-1), u64::MAX);
     }
 
+    /// #2163: the ABI-dependent widths are LP64's on every compile target,
+    /// so a wasm32 build answers what tclsh on an LP64 host answers.
+    #[test]
+    fn abi_dependent_widths_are_lp64_issue_2163() {
+        assert_eq!(IntegerWidth::C_LONG, IntegerWidth::Wide);
+        assert_eq!(IntegerWidth::POINTER, IntegerWidth::Wide);
+        for size in [SizeModifier::Size, SizeModifier::PtrDiff] {
+            assert_eq!(
+                integer_width(Some(size), NumberSyntax::Tcl90),
+                IntegerWidth::POINTER,
+                "{size:?}"
+            );
+        }
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            assert_eq!(integer_width(None, syntax), IntegerWidth::C_LONG);
+        }
+    }
+
+    /// tclsh 9.0.4 / 9.1.0 on LP64: `%p` keeps 64 bits under every modifier
+    /// but `h`, which renders a short it never read.
+    #[test]
+    fn pointer_bits_follow_lp64_tcl9_issue_2163() {
+        assert_eq!(pointer_bits(None, 4_294_967_296), 0x1_0000_0000);
+        assert_eq!(
+            pointer_bits(Some(SizeModifier::Int), 4_294_967_296),
+            0x1_0000_0000
+        );
+        assert_eq!(pointer_bits(Some(SizeModifier::Int32), -1), u64::MAX);
+        assert_eq!(pointer_bits(Some(SizeModifier::PtrDiff), -1), u64::MAX);
+        assert_eq!(pointer_bits(Some(SizeModifier::Short), 65537), 0);
+        assert_eq!(pointer_bits(Some(SizeModifier::Short), -1), 0);
+    }
+
+    /// The modifier gate and the byte each pre-9 release names, from tclsh
+    /// 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 and jimsh 0.84.
+    #[test]
+    fn modifier_acceptance_follows_the_release_issue_2163() {
+        let all = [
+            SizeModifier::Short,
+            SizeModifier::Int,
+            SizeModifier::Int32,
+            SizeModifier::Int64,
+            SizeModifier::Long,
+            SizeModifier::LongLong,
+            SizeModifier::IntMax,
+            SizeModifier::Size,
+            SizeModifier::Quad,
+            SizeModifier::PtrDiff,
+            SizeModifier::Big,
+        ];
+        for size in all {
+            assert!(size.accepted_under(NumberSyntax::Tcl90), "{size:?}");
+        }
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Jim,
+            NumberSyntax::Jim080,
+        ] {
+            for size in [SizeModifier::Short, SizeModifier::Long] {
+                assert!(size.accepted_under(syntax), "{size:?} {syntax:?}");
+            }
+            for size in [
+                SizeModifier::Int,
+                SizeModifier::Int32,
+                SizeModifier::Int64,
+                SizeModifier::IntMax,
+                SizeModifier::Size,
+                SizeModifier::Quad,
+                SizeModifier::PtrDiff,
+                SizeModifier::Big,
+            ] {
+                assert!(!size.accepted_under(syntax), "{size:?} {syntax:?}");
+            }
+        }
+        assert!(!SizeModifier::LongLong.accepted_under(NumberSyntax::Tcl84));
+        assert!(SizeModifier::LongLong.accepted_under(NumberSyntax::Tcl85));
+        assert!(SizeModifier::LongLong.accepted_under(NumberSyntax::Jim));
+
+        let named: Vec<u8> = all.iter().map(|size| size.lead_byte()).collect();
+        assert_eq!(named, b"hIIIlljzqtL");
+    }
+
     use super::{
         ParseSpecError, SizeModifier, Spec, is_available, is_verb, parse_spec,
-        parse_spec_with_limit, parse_spec_with_limit_diagnostic, version_gated_uses,
+        parse_spec_with_limit, parse_spec_with_limit_diagnostic, pointer_bits, version_gated_uses,
     };
     use tcl_dialect::DialectProfile;
 

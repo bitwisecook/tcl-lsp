@@ -399,16 +399,21 @@ fn widens_past_a_wide(profile: Option<&tcl_dialect::DialectProfile>) -> bool {
 }
 
 /// Whether `value` is past the wide tower under the grammar: a beyond-wide
-/// integer or an infinity, as an operand or a result — what a target that
-/// does not widen ([`widens_past_a_wide`]) computes differently.
+/// integer, an infinity, or a double spelling outside the double range
+/// (`1e-400`, `4.9e-324`), as an operand or a result — what a target that
+/// does not widen ([`widens_past_a_wide`]) computes differently. tclsh 8.4
+/// raises `ARITH OVERFLOW` / `UNDERFLOW` on such a literal where 8.5 onward
+/// read the rounded value.
 fn past_the_wide_tower(value: &FoldValue, octal: Option<bool>, numbers: NumberSyntax) -> bool {
     match value {
         FoldValue::Big(_) => true,
         FoldValue::Float(f) => f.is_infinite(),
         FoldValue::Int(_) => false,
-        FoldValue::Str(_) => match strict_number_for_dialect(value, octal, numbers) {
+        FoldValue::Str(text) => match strict_number_for_dialect(value, octal, numbers) {
             Some(TclValue::Big(_)) => true,
-            Some(TclValue::Float(f)) => f.is_infinite(),
+            Some(TclValue::Float(f)) => {
+                f.is_infinite() || tcl_syntax::number::is_out_of_range_double(text, numbers)
+            }
             Some(TclValue::Int(_)) | None => false,
         },
     }
@@ -424,12 +429,13 @@ fn past_the_wide_tower(value: &FoldValue, octal: Option<bool>, numbers: NumberSy
 /// [`TclValue::Big`] so native-width proofs can decline without truncation.
 #[must_use]
 pub fn parse_integer_operand_with_policy(text: &str, policy: FoldPolicy) -> Option<TclValue> {
-    let text = text.trim();
+    // `ParseBoolean` matches a word untrimmed (`"yes "` is no boolean); only
+    // the numeric reading skips surrounding whitespace.
     if let Some(value) = tcl_syntax::boolean::parse_boolean_word(text) {
         return Some(TclValue::Int(i64::from(value)));
     }
     match strict_number_for_dialect(
-        &FoldValue::Str(text.to_owned()),
+        &FoldValue::Str(text.trim().to_owned()),
         policy.octal,
         policy.numbers.unwrap_or_default(),
     )? {
@@ -741,6 +747,19 @@ impl FoldOps<'_> {
         Ok(())
     }
 
+    /// Whether `left % right` is the wide remainder `i64::MIN % -1`: `0` from
+    /// 8.5, but a hardware divide trap that kills tclsh 8.4 and jimsh
+    /// (`SIGFPE`, measured), so a target that does not widen declines it
+    /// rather than fold a value the program never reaches.
+    fn is_trapping_wide_remainder(&self, op: BinOp, left: &FoldValue, right: &FoldValue) -> bool {
+        let wide =
+            |value: &FoldValue| match strict_number_for_dialect(value, self.octal, self.numbers) {
+                Some(TclValue::Int(i)) => Some(i),
+                _ => None,
+            };
+        op == BinOp::Mod && wide(left) == Some(i64::MIN) && wide(right) == Some(-1)
+    }
+
     /// Run the math function `name` — spelled as the program calls it —
     /// over `args` through the shared dispatcher, the one the runtime
     /// evaluates with; `Err` when it declines.
@@ -841,6 +860,9 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // omits the boolean coercion `to_number`/`parse_literal` add, and
         // additionally honours the dialect's leading-zero rule (see its doc).
         self.within_tower(&[&left, &right])?;
+        if self.tower != Tower::Widens && self.is_trapping_wide_remainder(op, &left, &right) {
+            return Err(());
+        }
         let a = strict_number_for_dialect(&left, self.octal, self.numbers).ok_or(())?;
         let b = strict_number_for_dialect(&right, self.octal, self.numbers).ok_or(())?;
         let value = apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())?;
@@ -1782,6 +1804,12 @@ impl<'a> ExprServices<'a> {
     /// other string is the result (`expr {"x"}` is `x`, `expr {"true"}` is
     /// `true`).
     fn full_value(&self, value: &FoldValue) -> Result<ExactValue, DeclineReason> {
+        if self.widens != Some(true)
+            && matches!(value, FoldValue::Str(text)
+                if tcl_syntax::number::is_out_of_range_double(text, self.fold.numbers))
+        {
+            return Err(self.tower_reason());
+        }
         let number = match value {
             FoldValue::Str(text) => {
                 match classify_operand(value, self.fold.octal, self.fold.numbers) {
@@ -1956,6 +1984,9 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
         right: FoldValue,
     ) -> Result<FoldValue, ExprStop> {
         self.tower(&[&left, &right])?;
+        if self.widens != Some(true) && self.fold.is_trapping_wide_remainder(op, &left, &right) {
+            return Err(ExprStop::Declined(self.tower_reason()));
+        }
         if matches!(op, BinOp::Div | BinOp::Mod) && self.divides_integers_by_zero(&left, &right) {
             return Err(self.divide_by_zero());
         }
@@ -2584,6 +2615,18 @@ mod tests {
     use super::*;
     use crate::expr_parser::parse_expr;
 
+    /// tclsh 8.4.20–9.1.0: `ParseBoolean` matches a word untrimmed
+    /// (`if {"yes "} {}` is `expected boolean value but got "yes "`); a
+    /// number still skips its surrounding whitespace.
+    #[test]
+    fn an_integer_operand_reads_a_boolean_word_untrimmed() {
+        let read = |text| parse_integer_operand_with_policy(text, FoldPolicy::default());
+        assert_eq!(read("yes"), Some(TclValue::Int(1)));
+        assert_eq!(read("yes "), None);
+        assert_eq!(read(" true"), None);
+        assert_eq!(read(" 7 "), Some(TclValue::Int(7)));
+    }
+
     // evaluate_expr_with_constants
 
     #[test]
@@ -2765,6 +2808,14 @@ mod tests {
             "18446744073709551616 > 0",
             "-(1 << 70)",
             "abs(1e308 * 10)",
+            // A double spelling outside the range raises `ARITH OVERFLOW` /
+            // `UNDERFLOW` under tclsh 8.4 (`4.9e-324` as "too large").
+            "4.9e-324",
+            "1e-400",
+            "1e-400 * 1",
+            // `i64::MIN % -1` is 0 from 8.5 and a `SIGFPE` that kills tclsh 8.4
+            // and jimsh.
+            "(-9223372036854775807 - 1) % -1",
         ] {
             for dialect in ["tcl8.4", "f5-irules", "f5-bigip"] {
                 assert_eq!(fold(expr, dialect), None, "{dialect}: {expr}");
@@ -2773,6 +2824,54 @@ mod tests {
         }
         assert_eq!(fold("1 << 62", "tcl8.4"), Some(TclValue::Int(1 << 62)));
         assert_eq!(fold("1e308 * 1", "tcl8.4"), Some(TclValue::Float(1e308)));
+        assert_eq!(
+            fold("2.2250738585072014e-308", "tcl8.4"),
+            Some(TclValue::Float(f64::MIN_POSITIVE))
+        );
+        assert_eq!(fold("0e999", "tcl8.4"), Some(TclValue::Float(0.0)));
+    }
+
+    /// #2401: `abs(-9223372036854775808)` is `2^63`, which the folder's
+    /// wide/double math dispatch cannot carry. It declined by panicking
+    /// (`NoBig::from_i64`) under every dialect; it must decline quietly. The
+    /// releases disagree on the answer anyway: tclsh 8.5 to 9.1 give
+    /// `9223372036854775808`, 8.4 raises `ARITH IOVERFLOW`, and jimsh 0.84
+    /// wraps to `-9223372036854775808`.
+    #[test]
+    fn abs_of_the_most_negative_wide_declines_in_every_dialect() {
+        let env = Env::new();
+        for dialect in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-bigip",
+        ] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            for expr in [
+                "abs(-9223372036854775808)",
+                "abs(-9223372036854775807 - 1)",
+                "abs(abs(-9223372036854775808)) + 1",
+                "int(abs(-9223372036854775808))",
+                "max(1, abs(-0x8000000000000000))",
+            ] {
+                let folded = eval_tcl_expr_with_policy(
+                    &parse_expr(expr, Some(dialect)),
+                    &env,
+                    FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile)),
+                );
+                assert_eq!(folded, None, "{dialect}: {expr}");
+            }
+        }
+        assert_eq!(eval_str("abs(-9223372036854775808)"), None);
+        assert_eq!(
+            eval_str("abs(-9223372036854775807)"),
+            Some(TclValue::Int(i64::MAX))
+        );
     }
 
     #[test]

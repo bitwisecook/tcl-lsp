@@ -56,8 +56,9 @@ pub type Num = NumValue<NoBig>;
 pub enum NoBig {}
 
 impl super::super::number_tower::BigIntOps for NoBig {
+    const HAS_BIGNUM_RUNG: bool = false;
     fn from_i64(_: i64) -> Self {
-        unreachable!()
+        unreachable!("NoBig has no value; promote through `promote_i64`")
     }
     fn to_i64(&self) -> Option<i64> {
         match *self {}
@@ -112,14 +113,6 @@ impl super::super::number_tower::BigIntOps for NoBig {
     }
     fn to_f64(&self) -> f64 {
         match *self {}
-    }
-    /// A backend with no arbitrary-precision rung cannot represent a double
-    /// outside the wide range, so it declines rather than panicking in the
-    /// default implementation's `from_i64`. Callers (the const-folder) read
-    /// the `None` as "abstain", which is exactly right: the value is a real
-    /// bignum they have no way to carry.
-    fn from_f64_trunc(_: f64) -> Option<Self> {
-        None
     }
 }
 
@@ -373,13 +366,16 @@ fn is_negative<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> boo
 
 /// Whether a `None` from the value table means "no answer this caller can
 /// carry" rather than "C would raise a domain error": an exact conversion
-/// whose result needs a bignum rung the backend lacks, or `int()` under an
-/// unresolved release.
+/// (or `abs(i64::MIN)`) whose result needs a bignum rung the backend lacks,
+/// or `int()` under an unresolved release.
 fn abstains<B: super::super::number_tower::BigIntOps>(
     name: &str,
     args: &[NumValue<B>],
     int_width: IntWidth,
 ) -> bool {
+    if name == "abs" {
+        return !B::HAS_BIGNUM_RUNG && matches!(args[0], NumValue::Int(i64::MIN));
+    }
     if !converts_to_integer(name) {
         return false;
     }
@@ -388,9 +384,7 @@ fn abstains<B: super::super::number_tower::BigIntOps>(
         NumValue::Big(b) => b.to_i64().is_none(),
         NumValue::Int(_) => false,
     };
-    beyond_wide
-        && (B::from_f64_trunc(1.0e300).is_none()
-            || (name == "int" && int_width == IntWidth::Unresolved))
+    beyond_wide && (!B::HAS_BIGNUM_RUNG || (name == "int" && int_width == IntWidth::Unresolved))
 }
 
 /// Dispatch a math function by (lowercased) `name` over already-evaluated
@@ -1207,8 +1201,10 @@ fn type_conv<B: super::super::number_tower::BigIntOps>(
         }))),
         _ if matches!(v, NumValue::Float(f) if f.is_nan()) => None,
         "abs" => match v {
+            // `abs(i64::MIN)` is `2^63`, past the wide rung: a backend with no
+            // bignum rung declines (`None`) rather than invent a value.
             NumValue::Int(i) => i.checked_abs().map_or_else(
-                || Some(NumValue::Big(B::from_i64(*i).neg())),
+                || B::promote_i64(*i).map(|b| NumValue::Big(b.neg())),
                 |m| Some(NumValue::Int(m)),
             ),
             NumValue::Big(b) => Some(NumValue::Big(b.abs())),
@@ -1270,6 +1266,7 @@ fn type_conv<B: super::super::number_tower::BigIntOps>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::number_tower::BigIntOps;
 
     /// Every built-in has a class of its own, and the classes are what the
     /// interpreters return (tclsh 8.4 to 9.1: `int(2.5)` is 2, `ceil(3.14)`
@@ -1391,6 +1388,118 @@ mod tests {
             dispatch("isinf", &[Num::Float(f64::NAN)]),
             Some(Num::Int(0))
         );
+    }
+
+    /// The wide-range edges every integer/double conversion in the table has
+    /// to survive: the most negative wide (whose `abs` and negation promote),
+    /// the first doubles past each wide bound, and the non-finite operands.
+    fn edge_operands<B: BigIntOps>() -> Vec<NumValue<B>> {
+        vec![
+            NumValue::Int(i64::MIN),
+            NumValue::Int(i64::MIN + 1),
+            NumValue::Int(-1),
+            NumValue::Int(0),
+            NumValue::Int(1),
+            NumValue::Int(i64::MAX),
+            NumValue::Float(I64_MIN_F64),
+            NumValue::Float(I64_MAX_PLUS_ONE_F64),
+            NumValue::Float(1.0e19),
+            NumValue::Float(1.0e300),
+            NumValue::Float(-1.0e300),
+            NumValue::Float(f64::INFINITY),
+            NumValue::Float(f64::NAN),
+            NumValue::Float(-0.0),
+            NumValue::Float(5e-324),
+        ]
+    }
+
+    const WIDTHS: [IntWidth; 3] = [
+        IntWidth::Windowed,
+        IntWidth::Unbounded,
+        IntWidth::Unresolved,
+    ];
+
+    /// `abs(-9223372036854775808)` is `2^63`, past the wide rung. A backend
+    /// with no bignum rung (`Num`, the const-folder's shape) must decline —
+    /// it once reached `NoBig::from_i64` and aborted `tcl opt` / `tcl diag`
+    /// (#2401). tclsh 8.5 to 9.1 answer `9223372036854775808`, 8.4 raises
+    /// `ARITH IOVERFLOW`, and jimsh 0.84 wraps to `-9223372036854775808`, so
+    /// no single wide answer is right either.
+    #[test]
+    fn abs_of_the_most_negative_wide_declines_without_a_bignum_rung() {
+        assert_eq!(dispatch("abs", &[Num::Int(i64::MIN)]), None);
+        const { assert!(!NoBig::HAS_BIGNUM_RUNG) };
+        assert!(NoBig::promote_i64(i64::MIN).is_none());
+        assert!(NoBig::from_f64_trunc(1.0e300).is_none());
+        for width in WIDTHS {
+            assert_eq!(
+                try_dispatch_with_backend_int_width::<NoBig>("abs", &[Num::Int(i64::MIN)], width),
+                Err(MathFuncError::Abstain),
+                "{width:?}"
+            );
+        }
+        assert_eq!(
+            dispatch("abs", &[Num::Int(i64::MIN + 1)]),
+            Some(Num::Int(i64::MAX))
+        );
+        assert_eq!(
+            dispatch("abs", &[Num::Float(I64_MIN_F64)]),
+            Some(Num::Float(-I64_MIN_F64))
+        );
+    }
+
+    /// No call over the wide edges reaches the unreachable `NoBig::from_i64`:
+    /// every function, every arity, every width.
+    #[test]
+    fn a_backend_without_a_bignum_rung_never_panics() {
+        let operands = edge_operands::<NoBig>();
+        for &name in ALL_NAMES {
+            for width in WIDTHS {
+                for a in &operands {
+                    let _ = try_dispatch_with_backend_int_width(name, &[*a], width);
+                    for b in &operands {
+                        let _ = try_dispatch_with_backend_int_width(name, &[*a, *b], width);
+                        for c in &operands {
+                            let _ = try_dispatch_with_backend_int_width(name, &[*a, *b, *c], width);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The no-bignum backend only ever declines: whenever `Num` answers, a real
+    /// bignum backend gives the identical wide or double, and a bignum answer
+    /// (or a conversion whose exact intermediate is one) is declined, never
+    /// approximated.
+    #[cfg(feature = "num-bigint")]
+    #[test]
+    fn a_backend_without_a_bignum_rung_agrees_wherever_it_answers() {
+        use num_bigint::BigInt;
+        let narrow = edge_operands::<NoBig>();
+        let wide = edge_operands::<BigInt>();
+        let agree = |name: &str, width, n: &[Num], w: &[NumValue<BigInt>]| {
+            let want = dispatch_with_backend_int_width::<BigInt>(name, w, width);
+            let got = dispatch_with_backend_int_width::<NoBig>(name, n, width);
+            match (want, got) {
+                (Some(NumValue::Int(a)), Some(NumValue::Int(b))) => assert_eq!(a, b, "{name}"),
+                (Some(NumValue::Float(a)), Some(NumValue::Float(b))) => {
+                    assert_eq!(a.to_bits(), b.to_bits(), "{name}");
+                }
+                (_, None) => {}
+                (want, got) => panic!("{name}{n:?} {width:?}: {want:?} vs {got:?}"),
+            }
+        };
+        for &name in ALL_NAMES {
+            for width in WIDTHS {
+                for (i, a) in narrow.iter().enumerate() {
+                    agree(name, width, &[*a], &[wide[i].clone()]);
+                    for (j, b) in narrow.iter().enumerate() {
+                        agree(name, width, &[*a, *b], &[wide[i].clone(), wide[j].clone()]);
+                    }
+                }
+            }
+        }
     }
 
     /// `round()` is half away from zero on the *exact* operand — C's `modf`

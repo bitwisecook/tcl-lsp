@@ -323,6 +323,30 @@ pub struct Parsed {
     pub number: Number,
     /// Offset in the input just past the number (before any trailing space).
     pub end: usize,
+    /// The numeral is a decimal spelling outside the double range: it
+    /// overflowed to `±Inf`, or a non-zero mantissa underflowed to zero or a
+    /// subnormal — the cases C `strtod` reports with `ERANGE`. The value is
+    /// still the rounded one (`TclParseNumber` from 8.5 takes it); a reader
+    /// that refuses it asks [`Parsed::is_range_error`].
+    pub out_of_range: bool,
+}
+
+impl Parsed {
+    /// Whether `syntax`'s `string is double` refuses this numeral for its
+    /// range ([`NumberSyntax::string_is_double_rejects_range_error`]).
+    #[must_use]
+    pub fn is_range_error(&self, syntax: NumberSyntax) -> bool {
+        self.out_of_range && syntax.string_is_double_rejects_range_error()
+    }
+}
+
+/// Whether `s`, read whole under `syntax`, is a decimal spelling outside the
+/// double range (see [`Parsed::out_of_range`]). For a consumer that has the
+/// text and not the [`Parsed`].
+#[must_use]
+pub fn is_out_of_range_double(s: &str, syntax: NumberSyntax) -> bool {
+    parse(s, ParseFlags::for_syntax(syntax))
+        .is_some_and(|p| p.out_of_range && s.as_bytes()[p.end..].iter().all(|&c| is_ws(c)))
 }
 
 /// Format an `f64` as Tcl's canonical double string, byte-for-byte with
@@ -363,10 +387,8 @@ pub fn format_double(f: f64) -> String {
         };
     }
 
-    // `{:e}` gives the shortest round-tripping mantissa + a base-10 exponent,
-    // e.g. `1.5e2`, `1e17`, `6.022e23`. Split them to drive Tcl's layout.
     let neg = f < 0.0;
-    let sci = format!("{:e}", f.abs());
+    let sci = shortest_nearest_scientific(f.abs());
     let (mantissa, exp_str) = sci
         .split_once('e')
         .expect("Rust's {:e} always emits an 'e' separator");
@@ -406,6 +428,32 @@ pub fn format_double(f: f64) -> String {
         }
     };
     if neg { format!("-{out}") } else { out }
+}
+
+/// The shortest round-tripping digits of a finite positive `f`, and among
+/// those the digits nearest its exact value, ties to an even last digit — what
+/// `TclDoubleDigits`' shortest mode (David Gay's `dtoa` mode 0) picks.
+///
+/// Rust's `{:e}` picks the digit count but not that digit: when two candidates
+/// of that length both round-trip it can take the one further from the value
+/// (1e15 + 0.3 is exactly `…0.25` and `{:e}` spells it `…0.3`; Tcl `…0.2`).
+/// `{:.Ne}` rounds the exact binary value correctly, half to even, so it
+/// supplies the nearest candidate; it is kept only when it still round-trips.
+fn shortest_nearest_scientific(f: f64) -> String {
+    let shortest = format!("{f:e}");
+    let significant = shortest.split_once('e').map_or(0, |(mantissa, _)| {
+        mantissa.bytes().filter(u8::is_ascii_digit).count()
+    });
+    let nearest = format!("{f:.*e}", significant.saturating_sub(1));
+    if nearest != shortest
+        && nearest
+            .parse::<f64>()
+            .is_ok_and(|n| n.to_bits() == f.to_bits())
+    {
+        nearest
+    } else {
+        shortest
+    }
 }
 
 /// Exactly compare an integer against a double, the way C Tcl's
@@ -659,7 +707,11 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
             digits: scan.digits.into_owned(),
         },
     };
-    Some(Parsed { number, end: i })
+    Some(Parsed {
+        number,
+        end: i,
+        out_of_range: false,
+    })
 }
 
 /// Whether the decimal-digit run at `i` is followed by `.` or an exponent — in
@@ -851,7 +903,23 @@ fn parse_decimal_float(
     Some(Parsed {
         number: Number::Double(value),
         end: i,
+        out_of_range: is_range_error_value(&cleaned, mag),
     })
+}
+
+/// Whether the decimal `lexeme` that rounded to the magnitude `mag` is a
+/// `strtod` range error: an overflow to infinity, or a non-zero mantissa that
+/// came out zero or subnormal (a zero mantissa is exactly zero, never an
+/// underflow — `0e999` is `0.0`).
+fn is_range_error_value(lexeme: &str, mag: f64) -> bool {
+    if mag.is_infinite() {
+        return true;
+    }
+    if mag != 0.0 && !mag.is_subnormal() {
+        return false;
+    }
+    let mantissa = lexeme.split(['e', 'E']).next().unwrap_or(lexeme);
+    mantissa.bytes().any(|c| matches!(c, b'1'..=b'9'))
 }
 
 /// Parse the alphabetic `Inf`/`Infinity`/`NaN`/`NaN(hex)` forms (case-insensitive).
@@ -875,6 +943,7 @@ fn parse_inf_nan(b: &[u8], start: usize, negative: bool, syntax: NumberSyntax) -
         return Some(Parsed {
             number: Number::Double(v),
             end,
+            out_of_range: false,
         });
     }
 
@@ -895,6 +964,7 @@ fn parse_inf_nan(b: &[u8], start: usize, negative: bool, syntax: NumberSyntax) -
         return Some(Parsed {
             number: Number::Nan { negative, payload },
             end,
+            out_of_range: false,
         });
     }
 
@@ -1079,6 +1149,26 @@ mod tests {
         assert_eq!(format_double(6.022e23), "6.022e+23");
     }
 
+    /// Two shortest candidates both round-trip and sit equally far from the
+    /// double's exact value; `TclDoubleDigits` takes the even last digit.
+    /// tclsh 8.5.19–9.1.0 (and Python's `repr`) print the left column;
+    /// Rust's bare `{:e}` printed the odd neighbour (#2432).
+    #[test]
+    fn format_double_breaks_a_shortest_tie_to_even() {
+        assert_eq!(format_double(1e15 + 0.3), "1000000000000000.2");
+        assert_eq!(format_double(-1e15 - 0.3), "-1000000000000000.2");
+        for (bits, tcl) in [
+            (0x430c_6bf5_2634_016a_u64, "1000000000000045.2"),
+            (0x430c_6bf5_2634_0732, "1000000000000230.2"),
+            (0x42d6_bcc4_1e90_0508, "100000000000020.12"),
+        ] {
+            assert_eq!(format_double(f64::from_bits(bits)), tcl);
+        }
+        assert_eq!(format_double(0.1 + 0.2), "0.30000000000000004");
+        assert_eq!(format_double(1e23), "1e+23");
+        assert_eq!(format_double(5e-324), "5e-324");
+    }
+
     #[test]
     fn format_double_round_trips_to_double_not_int() {
         // The point of the `.0`: every `format_double` output must re-parse as a
@@ -1185,8 +1275,8 @@ mod tests {
 #[cfg(test)]
 mod dialect_tests {
     use super::{
-        Number, NumberSyntax, Numbers, ParseFlags, is_expr_number, parse, parse_whole_with,
-        runtime_syntax, set_runtime_syntax,
+        Number, NumberSyntax, Numbers, ParseFlags, is_expr_number, is_out_of_range_double, parse,
+        parse_whole_with, runtime_syntax, set_runtime_syntax,
     };
     use tcl_dialect::TclVersion;
 
@@ -1475,5 +1565,80 @@ mod dialect_tests {
         // still holds the initialiser's value.
         let ambient = std::thread::spawn(runtime_syntax).join().unwrap();
         assert_eq!(ambient, NumberSyntax::default());
+    }
+
+    /// The `strtod` `ERANGE` set, measured on tclsh 8.4.20 and jimsh 0.84
+    /// (glibc): an overflow, and a non-zero mantissa that comes out zero or
+    /// subnormal. The boundary values around `DBL_MAX` / `DBL_MIN` are normal.
+    #[test]
+    fn out_of_range_is_the_strtod_erange_set() {
+        let syntax = NumberSyntax::Tcl90;
+        for range_error in [
+            "1e400",
+            "-1e400",
+            "+1e400",
+            "1E400",
+            ".1e400",
+            "1.e400",
+            "100e398",
+            "1.7976931348623159e308",
+            "1.8e308",
+            "1e-400",
+            "-1e-400",
+            "1e-325",
+            "4.9e-324",
+            "5e-324",
+            "1e-320",
+            "1e-310",
+            "1e-308",
+            "2.2250738585072009e-308",
+            "1e999999999999",
+            "0.5e-323",
+            "123456789012345678901234567890e-340",
+        ] {
+            assert!(is_out_of_range_double(range_error, syntax), "{range_error}");
+        }
+        for in_range in [
+            "1.7976931348623157e308",
+            "1e308",
+            "2.2250738585072014e-308",
+            "2.2250738585072013e-308",
+            "1e-307",
+            "1e19",
+            "0.0",
+            "0e999",
+            "0.0e-400",
+            "00e999",
+            "0e-999",
+            "-0.0",
+            "Inf",
+            "-Infinity",
+            "NaN",
+            "1e5",
+            "42",
+            "1e400x",
+            "abc",
+        ] {
+            assert!(
+                !is_out_of_range_double(in_range, syntax),
+                "{in_range} is in range"
+            );
+        }
+        assert!(is_out_of_range_double(" 1e400 ", syntax));
+    }
+
+    #[test]
+    fn range_error_is_a_release_fact_not_a_parse_failure() {
+        for syntax in NumberSyntax::ALL {
+            let parsed = parse("1e400", ParseFlags::for_syntax(*syntax)).unwrap();
+            assert_eq!(parsed.number, Number::Double(f64::INFINITY));
+            assert!(parsed.out_of_range);
+            assert_eq!(
+                parsed.is_range_error(*syntax),
+                syntax.string_is_double_rejects_range_error()
+            );
+            let inf = parse("Inf", ParseFlags::for_syntax(*syntax)).unwrap();
+            assert!(!inf.is_range_error(*syntax));
+        }
     }
 }

@@ -53,6 +53,21 @@ pub(crate) struct TypedError {
 }
 
 impl TypedError {
+    /// C's integer overflow: `integer value too large to represent`, with the
+    /// message as the third word of `ARITH IOVERFLOW {…}`.
+    pub(crate) fn overflow() -> Self {
+        Self {
+            message: tcl_syntax::expr::errors::IOVERFLOW_MESSAGE
+                .as_bytes()
+                .to_vec(),
+            code: tcl_syntax::expr::errors::IOVERFLOW_CODE.as_bytes(),
+        }
+    }
+
+    pub(crate) fn is_overflow(&self) -> bool {
+        self.code == tcl_syntax::expr::errors::IOVERFLOW_CODE.as_bytes()
+    }
+
     /// `expected <what> but got <value>` + `TCL VALUE NUMBER` — the error
     /// `TclParseNumber`'s `formaterr` raises for every unparsable spelling.
     fn expected(what: &str, obj: *mut TclObj) -> Self {
@@ -71,7 +86,7 @@ impl TypedError {
 ///
 /// A double-typed object is refused under C's own wording and `TCL VALUE
 /// INTEGER` code (`tclObj.c`); an integer past the wide range is C's
-/// `ARITH IOVERFLOW`; anything else unparsable is `TclParseNumber`'s
+/// [`TypedError::overflow`]; anything else unparsable is `TclParseNumber`'s
 /// `TCL VALUE NUMBER`.
 pub(crate) fn wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
     if obj::obj_type_ptr(obj) == &obj::TCL_DOUBLE_TYPE {
@@ -94,7 +109,7 @@ pub(crate) fn wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
 /// or below the wide range, it is the overflow [`wide_int`] reports.
 pub(crate) fn wide_int_modulo_unsigned(obj: *mut TclObj) -> Result<i64, TypedError> {
     match wide_int(obj) {
-        Err(error) if error.code == b"ARITH IOVERFLOW" => unsigned_past_wide(obj).ok_or(error),
+        Err(error) if error.is_overflow() => unsigned_past_wide(obj).ok_or(error),
         read => read,
     }
 }
@@ -136,8 +151,9 @@ pub(crate) fn boolean(obj: *mut TclObj) -> Result<bool, TypedError> {
     let bytes = obj::bytes_of(obj);
     let text = String::from_utf8_lossy(&bytes);
     // The words first: they are release-invariant and never numeric, so this
-    // never disturbs an object's rep.
-    if let Some(value) = tcl_syntax::boolean::parse_boolean_word(text.trim()) {
+    // never disturbs an object's rep. C's `ParseBoolean` matches them
+    // untrimmed; only the numeric fallback skips whitespace.
+    if let Some(value) = tcl_syntax::boolean::parse_boolean_word(&text) {
         return Ok(value);
     }
     match read_double(obj) {
@@ -159,7 +175,7 @@ pub(crate) fn boolean(obj: *mut TclObj) -> Result<bool, TypedError> {
 /// against zero), minus the write-back there is no object to perform.
 pub(crate) fn boolean_bytes(bytes: &[u8]) -> Result<bool, TypedError> {
     let text = String::from_utf8_lossy(bytes);
-    tcl_syntax::boolean::truthiness(text.trim()).ok_or_else(|| {
+    tcl_syntax::boolean::truthiness(&text).ok_or_else(|| {
         let mut message = b"expected boolean value but got ".to_vec();
         message.extend_from_slice(tcl_syntax::list::describe_bad_value(&text).as_bytes());
         TypedError {
@@ -175,10 +191,7 @@ fn read_wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
     use crate::bignum::WideRead;
     match crate::bignum::read_wide(obj) {
         WideRead::Wide(value) => Ok(value),
-        WideRead::Overflow => Err(TypedError {
-            message: b"integer value too large to represent".to_vec(),
-            code: b"ARITH IOVERFLOW",
-        }),
+        WideRead::Overflow => Err(TypedError::overflow()),
         WideRead::NotInteger | WideRead::NotNumeric => Err(TypedError::expected("integer", obj)),
     }
 }
@@ -204,10 +217,7 @@ fn read_wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
             obj::cache_wide_rep(obj, value);
             Ok(value)
         }
-        Some(Number::Big { .. }) => Err(TypedError {
-            message: b"integer value too large to represent".to_vec(),
-            code: b"ARITH IOVERFLOW",
-        }),
+        Some(Number::Big { .. }) => Err(TypedError::overflow()),
         _ => Err(TypedError::expected("integer", obj)),
     }
 }

@@ -669,6 +669,23 @@ impl NumberSyntax {
         }
     }
 
+    /// Whether `string is double` refuses a decimal spelling that overflows or
+    /// underflows the double range (`1e400`, `1e-400`, `4.9e-324`).
+    ///
+    /// Tcl 8.4 reads a double with C `strtod` and treats `ERANGE` as "not a
+    /// double"; `JimTcl` does the same in its `string is double`. From 8.5
+    /// `TclParseNumber` takes the value `strtod` would have set `ERANGE` for
+    /// (`Inf`, `0.0`, a subnormal), so those spellings are doubles. A
+    /// spelling whose mantissa is zero (`0e999`) never underflows, and the
+    /// alphabetic `Inf`/`NaN` forms are not range errors in any release.
+    #[must_use]
+    pub fn string_is_double_rejects_range_error(self) -> bool {
+        match self {
+            Self::Tcl84 | Self::Jim | Self::Jim080 => true,
+            Self::Tcl85 | Self::Tcl90 => false,
+        }
+    }
+
     /// Whether `_` may separate digits (`1__000`, `0xff__ff`) — 9.0 onward.
     #[must_use]
     #[allow(clippy::match_same_arms)]
@@ -931,6 +948,24 @@ mod tests {
         assert!(g.script_skips_leading_bom);
         assert_eq!(g.expr_comments, ExprCommentStyle::Hash);
         assert_eq!(g.escapes, EscapeSyntax::Tcl90);
+    }
+
+    #[test]
+    fn only_strtod_readers_reject_a_double_range_error() {
+        for (syntax, rejects) in [
+            (NumberSyntax::Tcl84, true),
+            (NumberSyntax::Tcl85, false),
+            (NumberSyntax::Tcl90, false),
+            (NumberSyntax::Jim, true),
+            (NumberSyntax::Jim080, true),
+        ] {
+            assert_eq!(syntax.string_is_double_rejects_range_error(), rejects);
+        }
+        assert_eq!(
+            NumberSyntax::ALL.len(),
+            5,
+            "a new grammar needs a row above"
+        );
     }
 
     #[test]

@@ -119,6 +119,7 @@ under every grammar and only a few disagree.
 | `1_000` digit separators | — bareword | — bareword | ✓ |
 | `0755` leading zero | **octal → 493** | **octal → 493** | **decimal → 755** |
 | `08` leading zero | — invalid octal | — invalid octal | ✓ 8 |
+| `1e400`, `1e-400`, `4.9e-324` (outside the double range) | `string is double` is `0` | ✓ the rounded value | ✓ the rounded value |
 
 The leading-zero row is the dangerous one: the same text is a *valid number
 with a different value*, so nothing errors — the answer is just wrong. C settles
@@ -128,6 +129,17 @@ numbers with leading zero as octal") and defines it from 9.0. `changes.md` for
 9.0 records: "`0NNN` format is no longer octal interpretation. Use `0oNNN`."
 
 Consequences that are *not* obvious, and are pinned by tests:
+
+* **A range error is a release fact, not a parse failure.** 8.4 reads a double
+  with C `strtod` and treats `ERANGE` as "not a number": `1e400`, `1e-400` and
+  every subnormal (`4.9e-324`, `1e-310`) are `0` for `string is double` and
+  raise `ARITH OVERFLOW` / `UNDERFLOW` in `expr`; `DBL_MAX`, `DBL_MIN` and a
+  zero mantissa (`0e999`) are fine. `JimTcl` refuses them in `string is
+  double` too (not in `expr`). From 8.5 `TclParseNumber` returns `Inf` / `0.0` /
+  the subnormal. The numeral parser reports the fact (`Parsed::out_of_range`),
+  `NumberSyntax::string_is_double_rejects_range_error` is the release switch,
+  and the const-folder declines such a literal wherever the target does not
+  widen.
 
 * **A level word inherits it.** `upvar`/`uplevel` read their level through
   `Tcl_GetIntFromObj`, so `uplevel 010` goes **8 frames up on 8.6 and 10 on
@@ -324,6 +336,58 @@ accident, always in the same shape: strip two characters, call
   `can't use non-numeric string as operand`, `too many digits` (charset
   parse), etc.
 
+## `format` integer widths are LP64's
+
+A fixed-width `format` conversion takes its value modulo 2^width and reads
+the bits signed (`d`/`i`) or unsigned (`u`/`x`/`X`/`o`/`b`/`p`). The width
+comes from the size modifier and the release, and for two rows from the C
+ABI the reference `tclsh` was built for:
+
+| Conversion | C Tcl's width | Modelled as |
+|---|---|---|
+| Unmodified, before Tcl 9 | C `long` | 64 bits |
+| Unmodified, Tcl 9 | C `int` | 32 bits |
+| `h` | C `short` | 16 bits |
+| `l` | `Tcl_WideInt` | 64 bits |
+| `j`, `q`, `I64`, Tcl 9 | `Tcl_WideInt` | 64 bits |
+| `I`, `I32`, Tcl 9 | C `int` | 32 bits |
+| `z`, `t`, `p`, Tcl 9 | wide iff `sizeof(void *) > sizeof(int)` | 64 bits |
+| `ll`, `L` | bignum | unbounded |
+
+The ABI-dependent rows are answered for **LP64** on every target the
+crates compile for, wasm32 included; `tcl-dialect` has no platform axis.
+`tcl_syntax::format::IntegerWidth::{C_LONG, POINTER}` carry the
+assumption, `integer_width` and `pointer_bits` are its only readers, and
+the shared renderer (`tcl_cmd_core::format`, behind both `tcl-vm` and the
+WASM runtime) and the const-folder use no host-width type. Every reference
+`tclsh` (8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0) runs on LP64: `format %d
+4294967296` is `4294967296` on 8.x and `0` on 9.x, `format %u -1` is
+`18446744073709551615` on 8.x, and `format %zd 4294967296` and `format %p
+4294967296` are `4294967296` and `0x100000000` on 9.x. Tcl's own suites
+agree: 8.6's `format-1.*.1` variants are `longIs64bit`, 9.0's `format-8.25`
+and `format-8.27` are `pointerIs64bit`.
+
+**LLP64** (64-bit Windows: 32-bit `long`, so 8.x unmodified is 32 bits) and
+**ILP32** (32-bit hosts: 32-bit `long` and pointers, so `z`/`t`/`p` are
+32 bits too) are **known-unverified**: C Tcl's source says they differ, and
+no oracle on either has been run. A wasm32 build of the runtime answers the
+LP64 values, not the ones a 32-bit C build of Tcl would.
+
+Two `%p` cases follow C Tcl 9 on LP64 rather than its intent: `%p` forces
+the wide read under any modifier (`format %Ip 4294967296` is
+`0x100000000`), and `%hp` renders the zero-initialised `short` that read
+never assigns (`format %hp 65537` is `0x0`). `%llp`/`%Lp` print an
+uninitialised value in C Tcl 9 and are rendered as `%p`.
+
+Before Tcl 9, `z`, `t`, `j`, `q`, `I` and `L` are not modifiers: the older
+parser reads the first byte as the verb, so `format %zd 1` and `format %z
+1` are both `bad field specifier "z"` (8.4 likewise rejects `ll` with `"l"`).
+Jim (0.84) behaves the same way for them and formats every non-`h` integer
+as its 64-bit `jim_wide` whatever the ABI; it also ignores `h` on `%b`,
+which nothing here executes. `int()` before Tcl 9 shares the C `long`
+assumption (`ExprIntFunc` truncates through `TclGetLongFromObj`), answered
+as the 64-bit `IntWidth::Windowed`.
+
 ## Contract vs. incompatible-by-design
 
 | Behaviour | Class |
@@ -335,6 +399,7 @@ accident, always in the same shape: strip two characters, call
 | `Inf`/`NaN`/`NaN(hex)`, booleans | **Contract** |
 | Literal radices, `_` separators, leading-zero octal | **Contract, keyed to the release** — see [the numeral grammar](#the-numeral-grammar-is-release-dependent). Not invariant: `0755` is 493 up to 8.6 and 755 from 9.0. |
 | Shortest-round-trip float formatting, `-0.0`/`Inf`/`NaN` text | **Contract** |
+| `format` integer widths that depend on the C ABI (pre-9 unmodified, `z`/`t`/`p`) | **Contract for LP64** — see [the widths](#format-integer-widths-are-lp64s). LLP64 and ILP32 are known-unverified. |
 | `eq`/`ne`/`in`/`ni`, numeric-vs-string `==` rule | **Contract** |
 | Error wording (`divide by zero`, `domain error`, …) | **Contract** |
 | Which internal rep a value currently holds (`tcl::unsupported::representation`) | **Incompatible-by-design** — shimmering is observable but rep identity is not a from-scratch contract (W9-internal). |
