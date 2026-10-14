@@ -80,7 +80,7 @@ pulldown-cmark = { version = "0.13", default-features = false, features = ["html
 chrono = { version = "0.4", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-minijinja = { version = "2", default-features = false, features = ["builtins", "macros", "loop_controls", "serde", "json"] }
+minijinja = { version = "3", default-features = false, features = ["builtins", "macros", "loop_controls", "serde", "json"] }
 # UCS extraction (plain / OpenPGP) for the native CLI: read a `.ucs` off disk,
 # flatten it to SCF, and pull the certificate filestore + forensic file
 # inventory the same way the wasm generator does. Native-only — gated behind the

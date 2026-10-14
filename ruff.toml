@@ -15,13 +15,8 @@
 # Local: `make lint-py` (check) / `make format-py` (write).
 # CI: the `python` job in .github/workflows/ci.yml runs the same make targets.
 
-# Repo-wide floor.  The skill drivers under .claude/skills/ use `match`, which is
-# 3.10+, so 3.10 is the oldest interpreter the tree as a whole actually parses.
-#
-# The `f5report` package is stricter — it declares `requires-python = ">=3.9"` —
-# and carries its own [tool.ruff] in rust/bigip-report-gen/python/pyproject.toml
-# pinning py39, so ruff still rejects 3.10-only syntax inside the shipped package
-# while tolerating it in the ancillary scripts.
+# Repo-wide floor, shared with the shipped `f5report` package
+# (`requires-python = ">=3.10"`, forced by minijinja 3).
 target-version = "py310"
 
 [lint.per-file-ignores]

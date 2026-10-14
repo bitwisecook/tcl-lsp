@@ -27,7 +27,7 @@ of a unit or single-shot e2e test. See
 "direct infrastructure, no LSP" half of this suite.
 
 Only the Python standard library is used, so this runs on any host with
-Python 3.9+ and a built `tcl-lsp-server` binary — no Rust toolchain, no
+Python 3.10+ and a built `tcl-lsp-server` binary — no Rust toolchain, no
 project checkout beyond the binary itself, required to *run* it (building the
 binary still needs the workspace, as always).
 

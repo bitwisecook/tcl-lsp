@@ -18,7 +18,7 @@ drives the real server over the LSP API, one that hammers the
 - A Rust toolchain (`cargo`) able to build the workspace; `rustup update
   stable` first if `cargo check` complains about an unsupported `rustc`
   version.
-- Python 3.9+ on `PATH` for the LSP-API suite — standard library only,
+- Python 3.10+ on `PATH` for the LSP-API suite — standard library only,
   no `pip install` needed.
 - Nothing else: `run_all.sh` builds the server binary itself every
   time it runs.
