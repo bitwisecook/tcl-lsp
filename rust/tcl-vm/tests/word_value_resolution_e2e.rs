@@ -117,8 +117,14 @@ impl std::io::Write for Capture {
 
 /// Run `src` in the VM at `version`, returning its trimmed `puts` output — the
 /// same shape the tclsh leg produces, so the two are directly comparable.
+/// Both sides read the script and write `puts` as UTF-8 whatever the host
+/// locale: under `C`/`POSIX` the system encoding is `iso8859-1`, which makes
+/// tclsh count a multi-byte character's bytes.
+const UTF8_CHANNELS: &str = "fconfigure stdin -encoding utf-8\nfconfigure stdout -encoding utf-8\n";
+
 fn vm_output(src: &str, version: TclVersion) -> String {
-    let asm = compile_exact_profile(src, profile_of(version))
+    let src = format!("{UTF8_CHANNELS}{src}");
+    let asm = compile_exact_profile(&src, profile_of(version))
         .expect("test script compiles for its selected profile");
     let capture = Capture::default();
     let mut vm = Vm::with_output(Box::new(capture.clone()));
@@ -136,6 +142,7 @@ fn vm_output(src: &str, version: TclVersion) -> String {
 /// isn't installed.
 fn tclsh_output(version: TclVersion, src: &str) -> Option<String> {
     let tclsh = tcl_test_support::locate_tclsh(version).ok().flatten()?;
+    let src = format!("{UTF8_CHANNELS}{src}");
     tcl_test_support::run_script(&tclsh.path, src.as_bytes())
         .ok()?
         .strict_text()

@@ -766,7 +766,9 @@ fn ensemble_subcommand_words_resolve_like_tclsh() {
     );
     // `encoding`: this engine advertises only what it implements (9.0 also has
     // `profiles` and `user`), but the verdicts are tclsh's.
-    assert_eq!(run("encoding s").1, "utf-8");
+    // The default system encoding is locale-dependent; pin it so the prefix
+    // lookup is what is measured.
+    assert_eq!(run("encoding system utf-8; encoding s").1, "utf-8");
     assert_eq!(
         msg("encoding c"),
         format!("unknown or ambiguous subcommand \"c\": {ENC_MUST}")

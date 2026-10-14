@@ -267,6 +267,9 @@ mod tests {
     fn encoding_ensemble_resolves_like_tclsh() {
         const MUST: &str = "must be convertfrom, convertto, dirs, names, or system";
         let mut i = Interp::new();
+        // The default system encoding is locale-dependent; pin it so the prefix
+        // lookup is what is measured.
+        assert_eq!(i.eval_str(b"encoding system utf-8"), Code::Ok);
         assert_eq!(i.eval_str(b"encoding s"), Code::Ok);
         assert_eq!(i.result_bytes(), b"utf-8");
         assert_eq!(i.eval_str(b"encoding c"), Code::Error);
