@@ -94,7 +94,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 ## Current implementation and audit priorities
 
 The [outstanding audit](outstanding-consumer-audit.md) and JSON current refresh
-record the bounded 03:59 UTC checkpoint. Compiler31 executed 295 controls:
+record the bounded 04:12 UTC checkpoint. Compiler31 executed 295 controls:
 171 PASS and 124 FAIL, with zero authored-source drift. Core32 executed 30:
 20 PASS and 10 FAIL, also with zero drift. Source integration and execution
 acceptance remain separate; no whole-codebase completion percentage is established.
@@ -114,10 +114,27 @@ acceptance remain separate; no whole-codebase completion percentage is establish
 | Shared classifiers/lowering | DeclaredFrame, metadata/slot, SelfDispatch, URI/iRule delegates and six lowering bridges. | Scoped positives do not accept every caller; preserve current original positive/refusal and effect controls. |
 | F5 paths/events and AI/editor transports | ObjectNamePolicy alternatives preserve caller ordering; event/source cards and document symbols use retained provider ownership. | Bounded F5 software comparisons pass; appliance questions unanswered. AI TypeScript typecheck passes; real LSP/Electron tests unexecuted. Current server case/provider and transport repairs require replay. |
 
-Runtime07 completed 77 controls: 76 PASS and 1 FAIL because its Jim binary command
-was unavailable; original source, compiled dependency and artifact drift were zero.
-The next paired Runtime replay must use the actual sealed Jim provider. Compiler,
-Core, DB original reuse, Engine/VM and whole-surface acceptance remain independent.
+Paired Runtime08 completes 2 selected controls: 1 PASS and 1 FAIL, with zero
+original source, compiled dependency or artifact drift. Only the Jim rename
+message NUL extent fails. Actual C8.4/C8.5 oracle results retain counted full
+diagnostics, so a universal CString proposal was rejected before Main; the
+per-engine correction remains active. Temporary Compiler33 diagnostic build passed; test logs are arriving without
+a final aggregate. Successful builds alone are not semantic acceptance.
+Compiler, Core, DB original reuse, Engine/VM and whole-surface acceptance remain
+independent. Runtime07's earlier scoped 76/77 capture is retained, not renewed.
+
+The inherited isolated-only statuses for descriptor rosters, runtime publication,
+VM import/forget and BPF selection are superseded by actual Main integration;
+old isolated results remain scoped evidence. Thread diagnostic hints already use
+shared written components; VM authored namespace wrappers use shared geometry
+for fixed/bootstrap/generated source names and retain separate Native operand
+owners. Partial array completion and authored SpecTcl dependencies already use
+their shared purpose-specific owners. Current original provider/consumer tests
+remain required. Runtime rename firing suppression still uses a generation-
+guarded display sidecar and needs the assigned physical-slot consumer audit.
+The remaining import/decorated-name helpers are explicit standalone cfg(test)
+fixtures; narrow shared qualification cleanup is scratch-ready.
+
 The 52 workspace members, 11 excluded packages and inherited 330 lexical LSP rows
 remain reconciliation obligations. Original experiments, failures and unanswered
 F5 packets remain retained. This temporary directory is removed before the

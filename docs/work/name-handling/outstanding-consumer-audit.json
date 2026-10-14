@@ -1487,7 +1487,7 @@
         1778,
         2423
       ],
-      "status": "isolated-applied; fresh-scoped49-controls-accepted",
+      "status": "main-integrated-shared-descriptor-owner; retained-isolated49-evidence; current-acceptance-pending",
       "action": "Replace nqn(name) maps at864/13247 with one explicit typed metadata producer; preserve all exact labels and keep source lookup separate.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -1513,6 +1513,12 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual Main consumes exact Registry descriptor coordinate/roster APIs; original selected realm/input/registration/compiler guards remain independent. Prior isolated49 results do not certify later Main source.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance."
       }
     },
     {
@@ -1538,7 +1544,7 @@
       "related_issues": [
         1778
       ],
-      "status": "isolated-applied; fresh-scoped49-controls-accepted",
+      "status": "main-integrated-shared-descriptor-owner; retained-isolated49-evidence; current-acceptance-pending",
       "action": "Replace namespace normalisation at840; roster labels must agree with current Registry exact entry semantics.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -1556,6 +1562,12 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual Main consumes exact Registry descriptor coordinate/roster APIs; original selected realm/input/registration/compiler guards remain independent. Prior isolated49 results do not certify later Main source.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance."
       }
     },
     {
@@ -1606,7 +1618,7 @@
         1778,
         2423
       ],
-      "status": "isolated-applied; fresh-scoped49-controls-accepted",
+      "status": "main-integrated-shared-descriptor-owner; retained-isolated49-evidence; current-acceptance-pending",
       "action": "Review nqn equalities at7241/12614/12932/13099/16537 under their exact producer; no universal canonicalizer.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -1656,6 +1668,12 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual Main consumes exact Registry descriptor coordinate/roster APIs; original selected realm/input/registration/compiler guards remain independent. Prior isolated49 results do not certify later Main source.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance."
       }
     },
     {
@@ -1681,7 +1699,7 @@
         1778,
         2423
       ],
-      "status": "isolated-applied; fresh-scoped49-controls-accepted",
+      "status": "main-integrated-shared-descriptor-owner; retained-isolated49-evidence; current-acceptance-pending",
       "action": "Replace nqn(command)==token.origin after confirming token.origin purpose; no fake registration or weakened hook/currentness checks.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -1699,6 +1717,12 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual Main consumes exact Registry descriptor coordinate/roster APIs; original selected realm/input/registration/compiler guards remain independent. Prior isolated49 results do not certify later Main source.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance."
       }
     },
     {
@@ -1725,7 +1749,7 @@
         1778,
         2286
       ],
-      "status": "isolated-applied; fresh-scoped49-controls-accepted",
+      "status": "main-integrated-shared-descriptor-owner; retained-isolated49-evidence; current-acceptance-pending",
       "action": "Namespace normalisation at2122 folds selected exact labels; preserve original member/source contracts.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -1743,6 +1767,12 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual Main consumes exact Registry descriptor coordinate/roster APIs; original selected realm/input/registration/compiler guards remain independent. Prior isolated49 results do not certify later Main source.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance."
       }
     },
     {
@@ -1769,7 +1799,7 @@
         1778,
         2423
       ],
-      "status": "isolated-applied; fresh-scoped49-controls-accepted",
+      "status": "main-integrated-shared-descriptor-owner; retained-isolated49-evidence; current-acceptance-pending",
       "action": "Executable prefix now selects actual worker in actual entry; independent Registry runtime implementation, current compiler node and genuine expected-private dependency token/generation remain mandatory. Exact descriptor labels remain metadata only.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -1787,6 +1817,12 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual Main consumes exact Registry descriptor coordinate/roster APIs; original selected realm/input/registration/compiler guards remain independent. Prior isolated49 results do not certify later Main source.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance."
       }
     },
     {
@@ -1818,7 +1854,7 @@
       "related_issues": [
         1778
       ],
-      "status": "isolated-applied; fresh-scoped49-controls-accepted",
+      "status": "main-integrated-shared-descriptor-owner; retained-isolated49-evidence; current-acceptance-pending",
       "action": "Replace repeated-root stripping of constructed function identity and one-prefix target adaptation only after retained dependency producer purpose is explicit.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -1844,6 +1880,12 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual Main consumes exact Registry descriptor coordinate/roster APIs; original selected realm/input/registration/compiler guards remain independent. Prior isolated49 results do not certify later Main source.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance."
       }
     },
     {
@@ -2274,7 +2316,7 @@
         1778,
         2423
       ],
-      "status": "main-and-isolated-source-applied; isolated-scoped88-controls-accepted",
+      "status": "main-integrated-selected-descriptor-owner; current-codegen-replay-pending",
       "action": "Replace canonical_command.unwrap_or(raw command) semantic descriptor selection with retained typed producer, preserving existing conservative subset refusals.",
       "owner_report_reference": "lookup_migration",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -2324,6 +2366,39 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual selected descriptor source owner is integrated; prior isolated88 controls are retained scope evidence only. Current source/effect/unknown-target/BPF lowering admission checks remain required.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance.",
+        "site_observations": [
+          {
+            "path": "rust/bpf-tcl-ir/src/source.rs",
+            "function": "source_declaration_kind",
+            "sha256": "cbe63f14d480059ba1c7a2ce8703681af9038e2341f27f9195ee2e301f64cef1"
+          },
+          {
+            "path": "rust/bpf-tcl-ir/src/frontend.rs",
+            "function": "is_decl",
+            "sha256": "89405e375c6e89114f489e679fce1227e98af9435273d920b1a46dc7258ceae9"
+          },
+          {
+            "path": "rust/bpf-tcl-ir/src/source.rs",
+            "function": "source_bpf_operation",
+            "sha256": "cbe63f14d480059ba1c7a2ce8703681af9038e2341f27f9195ee2e301f64cef1"
+          },
+          {
+            "path": "rust/bpf-tcl-ir/src/lower.rs",
+            "function": "lower_call",
+            "sha256": "b5a45a6f6d40ad34133af4344ccd33460f9187c4cbf199e04ad92505593120fc"
+          },
+          {
+            "path": "rust/bpf-tcl-ir/src/semantic_bridge.rs",
+            "function": "assess_invocation",
+            "sha256": "0deb3c6c5409077e2b5f8704b483aa1573672634213c08334171e8712b98ecf5"
+          }
+        ]
       }
     },
     {
@@ -2346,7 +2421,7 @@
         "new :thread::x versus :::thread::x/lone-colon source-hint controls"
       ],
       "related_issues": [],
-      "status": "diagnostic-only-private-classifier-pending-review",
+      "status": "main-integrated-source-geometry; current-hint-controls-replay-pending",
       "action": "trim_start_matches(':') conflates lone-colon spelling; bounded hint may use written extents but keep domain static roster.",
       "owner_report_reference": "lookup_migration",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -2364,6 +2439,19 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "is_unregistered_thread_command uses shared written_command_parts qualifiers for static Thread/tsv/tpool diagnostic-only classification; no lowering/registration authority. Existing real lowerer colon/root/unknown controls need fresh execution.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance.",
+        "site_observations": [
+          {
+            "path": "rust/bpf-tcl-ir/src/lower.rs",
+            "function": "is_unregistered_thread_command",
+            "sha256": "b5a45a6f6d40ad34133af4344ccd33460f9187c4cbf199e04ad92505593120fc"
+          }
+        ]
       }
     },
     {
@@ -2410,7 +2498,7 @@
         2193,
         2269
       ],
-      "status": "isolated-applied; scoped29-pass1-retained-failure",
+      "status": "main-integrated-shared-publication-geometry; current-original-provider-replay-pending",
       "action": "Delegate remaining manual root/qualifier/tail geometry without changing physical arenas, failure/effect order or bootstrap assumptions.",
       "owner_report_reference": "runtime_variables",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
@@ -2452,6 +2540,34 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "register_at/restore_with_original_key_checked/command_home_ns/ensure_command_owned_namespace use shared written geometry and purpose-specific original projection. Physical arenas, generations, Jim original keys, dying holders and callback ordering remain adapter-owned; isolated29/30 result retained, not current acceptance.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance.",
+        "site_observations": [
+          {
+            "path": "runtime/rust/src/namespace.rs",
+            "function": "register_at",
+            "sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b"
+          },
+          {
+            "path": "runtime/rust/src/namespace.rs",
+            "function": "restore_with_original_key_checked",
+            "sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b"
+          },
+          {
+            "path": "runtime/rust/src/namespace.rs",
+            "function": "command_home_ns",
+            "sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b"
+          },
+          {
+            "path": "runtime/rust/src/namespace.rs",
+            "function": "ensure_command_owned_namespace",
+            "sha256": "ef356d2edd009f3eea55c1b20fbc5c339c2e61d80c64a497f5e317421b86666b"
+          }
+        ]
       }
     },
     {
@@ -2546,7 +2662,7 @@
         1778,
         2300
       ],
-      "status": "isolated-applied; scoped-controls-reported-pass",
+      "status": "main-integrated-original-pattern-parts; current-provider-replay-pending",
       "action": "Replace projected-pattern tail/qualifier/source_path reconstruction with owner parts; keep graph/origin generations and refusal.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
@@ -2572,6 +2688,24 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "import_commands and forget_imports use namespace_pattern_parts with explicit NamespaceImportPattern/NamespaceForgetPattern, selected source token and actual slot/generation/origin owners. Prior isolated pass retained; current C/Jim import/forget lifetime/collision/host-refusal controls needed.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance.",
+        "site_observations": [
+          {
+            "path": "rust/tcl-vm/src/interp.rs",
+            "function": "import_commands",
+            "sha256": "2594cb7366b30c156a188e2d099f37f9c77a1540fc523d419783622ddefe701e"
+          },
+          {
+            "path": "rust/tcl-vm/src/interp.rs",
+            "function": "forget_imports",
+            "sha256": "2594cb7366b30c156a188e2d099f37f9c77a1540fc523d419783622ddefe701e"
+          }
+        ]
       }
     },
     {
@@ -2610,7 +2744,7 @@
         1778,
         1755
       ],
-      "status": "assigned-purpose-review-untouched",
+      "status": "main-integrated-shared-geometry; current-caller-domain-audit-complete; original-provider-controls-pending",
       "action": "Audit remaining wrapper caller purposes; direct namespace path construction is adapter only after owner input selection.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
@@ -2644,6 +2778,29 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "intern_ns only has four fixture callers; namespace_path_from_written serves fixed authored ::static and fresh internal oo::ObjN names; declare_namespace serves selected fixed bootstrap, fresh object-private names and explicit authored rule-callable paths. Original object operands use independent namespace_address_from_native_bytes/native protocol/token owners. Source wrappers do not reconstruct Native identity from reports.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance.",
+        "site_observations": [
+          {
+            "path": "rust/tcl-vm/src/interp.rs",
+            "function": "intern_ns",
+            "sha256": "2594cb7366b30c156a188e2d099f37f9c77a1540fc523d419783622ddefe701e"
+          },
+          {
+            "path": "rust/tcl-vm/src/interp.rs",
+            "function": "namespace_path_from_written",
+            "sha256": "2594cb7366b30c156a188e2d099f37f9c77a1540fc523d419783622ddefe701e"
+          },
+          {
+            "path": "rust/tcl-vm/src/interp.rs",
+            "function": "declare_namespace",
+            "sha256": "2594cb7366b30c156a188e2d099f37f9c77a1540fc523d419783622ddefe701e"
+          }
+        ]
       }
     },
     {
@@ -2669,7 +2826,7 @@
       "related_issues": [
         1778
       ],
-      "status": "isolated-applied; fresh-scoped49-controls-accepted",
+      "status": "main-integrated-shared-descriptor-owner; retained-isolated49-evidence; current-acceptance-pending",
       "action": "Facts-only fallback explicitly declines as Unknown; genuine selected-worker operand_from remains authoritative. Role argument_offset is not retained compiler operand layout.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -2687,6 +2844,12 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual Main consumes exact Registry descriptor coordinate/roster APIs; original selected realm/input/registration/compiler guards remain independent. Prior isolated49 results do not certify later Main source.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance."
       }
     },
     {
@@ -2811,7 +2974,7 @@
         1078,
         2260
       ],
-      "status": "isolated-sealed-unexecuted",
+      "status": "main-integrated-partial-source-owner; current-source-edit-controls-pending",
       "action": "Replace local find('(')/trim-brace parsing with bounded partial-source owner.",
       "owner_report_reference": "consumer_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -2829,6 +2992,19 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "array_element_completions delegates array_variable_completion_prefix and current LogicalVariableScopeAdvice. Existing unclosed/close-paren/source-extent and original source controls remain; UI metadata grants no complete runtime array reference/cell.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance.",
+        "site_observations": [
+          {
+            "path": "rust/tcl-lsp-core/src/completion.rs",
+            "function": "array_element_completions",
+            "sha256": "52fd26d1bd2662e4a712e689653d51ed6ee2475a91993244d8ad30c4f39ed517"
+          }
+        ]
       }
     },
     {
@@ -3009,8 +3185,21 @@
         "declared_binding_keeps_written_name_and_projects_expected_identity_separately"
       ],
       "related_issues": [],
-      "status": "shared-adapter-purpose-review",
-      "action": "Keep existing authored-only contract; do not reinterpret this as measured Native Jim/F5 dependency without selected provider/context."
+      "status": "main-integrated-authored-adapter; current-loader-controls-pending",
+      "action": "Keep existing authored-only contract; do not reinterpret this as measured Native Jim/F5 dependency without selected provider/context.",
+      "current_obligation": "depends_row preserves exact written name, projects only authored expected descriptor through canonical_written_command/unroot_rooted_key. Existing declared_binding_keeps_written_name_and_projects_expected_identity_separately requires current loader replay; no live Native/hosted binding identity.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance.",
+        "site_observations": [
+          {
+            "path": "rust/tcl-spectcl/src/loader/semantics.rs",
+            "function": "depends_row",
+            "sha256": "f96e5342e76f8913d026c43addd9a144501c3d4aaac8ac25faaf75a5bd77228b"
+          }
+        ]
+      }
     },
     {
       "id": "editor-scaffold-authoring",
@@ -3466,8 +3655,21 @@
       "related_issues": [
         1778
       ],
-      "status": "assigned-in-progress",
-      "action": "Root owns physical-slot identity defect separately from runtime_variables destination geometry."
+      "status": "main-generation-guarded-display-sidecar; physical-slot-consumer-audit-assigned",
+      "action": "Root owns physical-slot identity defect separately from runtime_variables destination geometry.",
+      "current_obligation": "Runtime relocate_rename_state uses displayed FQN plus genuine generation, not label alone; firing_cmd_traces and move_cmd_traces consumers need exact physical-slot/trace suppression collision review. VM counterpart already uses CommandSidecarKey. Actual callbacks/window ordering/first cause/rollback remain independent; Issues has exact assignment locations.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance.",
+        "site_observations": [
+          {
+            "path": "runtime/rust/src/interp.rs",
+            "function": "relocate_rename_state",
+            "sha256": "e9de9114923d5bcc71b3b8b2bdedfb28d47307b8974f31bb342f85cbcc11003a"
+          }
+        ]
+      }
     },
     {
       "id": "source-flow-local-eligibility",
@@ -3652,7 +3854,7 @@
       "related_issues": [
         1778
       ],
-      "status": "isolated-applied; fresh-scoped49-controls-accepted",
+      "status": "main-integrated-shared-descriptor-owner; retained-isolated49-evidence; current-acceptance-pending",
       "action": "Make named facts fallback Unknown. If metadata fallback receives an original layout, carry explicit producer provenance rather than treating original_registration_descriptor tuple as universally authentic. Existing actual_ensemble_plan retains worker+operand_from+prerequisite.",
       "owner_report_reference": "oracle_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -3678,6 +3880,12 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "Actual Main consumes exact Registry descriptor coordinate/roster APIs; original selected realm/input/registration/compiler guards remain independent. Prior isolated49 results do not certify later Main source.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance."
       }
     },
     {
@@ -3874,7 +4082,7 @@
       "related_issues": [
         2254
       ],
-      "status": "cfg-test-compatibility-cleanup-pending",
+      "status": "main-cfgtest-standalone-helpers; shared-qualification-cleanup-scratch-ready",
       "action": "Production qualification adapters now delegated in isolated LSP checkout per owner report. Remaining contains(::) in hover helper and root decorator fixture should be reviewed during final current-state test/comment cleanup; do not count these as a production Native lookup failure.",
       "owner_report_reference": "consumer_audit",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
@@ -3900,6 +4108,24 @@
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
+      },
+      "current_obligation": "hover resolve_imported_command is cfg(test) source-order/global-import fixture; redundant contains-colons guard has isolated shared is_qualified delegation. declaration bare_name is explicit Standalone decoration compatibility via var_reference and one-root strip. No production Native lookup failure; preserve original fixture/assertion bytes.",
+      "current_review": {
+        "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+        "checkpoint_utc": "2026-10-14T04:12:00Z",
+        "basis": "Actual current Main owner/caller review at04:12; original isolated evidence is retained but does not establish fresh Main acceptance.",
+        "site_observations": [
+          {
+            "path": "rust/tcl-lsp-core/src/hover.rs",
+            "function": "resolve_imported_command",
+            "sha256": "e1f032464b4394b2f1029f1d13e7f03806c3fd3e7d5c22bf6ce080fc202bca8a"
+          },
+          {
+            "path": "rust/tcl-lsp-core/src/declaration.rs",
+            "function": "bare_name",
+            "sha256": "cfc433a74bf3edd1fcfcda8a6bc8e9f28e7dd71cad4e8dd31707591449835fda"
+          }
+        ]
       }
     },
     {
@@ -12924,12 +13150,24 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "head": "a039ee3d5f61e76ba147416bda516631f3bc3f64",
-    "checkpoint_utc": "2026-10-14T03:59:00Z",
-    "tracking_basis": "Root integration report and actual Main plus sealed Compiler31/Core32 and current Values/DB/Proofs bounded reports. Integrated repairs after captures remain unexecuted.",
+    "head": "ac6532911c5c634b5e63e3233bf365605ab6b58f",
+    "checkpoint_utc": "2026-10-14T04:12:00Z",
+    "tracking_basis": "Actual Main owner/caller reconciliation plus Root sealed Compiler31/Core32/paired Runtime08 report; original snapshots and isolated evidence remain unchanged.",
     "scope": "Only explicit current actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and issue records unchanged; no old proof digest renewed.",
-    "validation": "Compiler31 295=171PASS124FAIL, zero authored-source drift. Core32 30=20PASS10FAIL drift0; OriginalScope9 6PASS3FAIL and original14 11PASS3FAIL. Runtime07 77=76PASS1FAIL(Jim binary command unavailable), source/compiled/artifact drift0; paired current Jim replay pending. AI TypeScript typecheck PASS; LSP/Electron unexecuted. No whole-codebase/Native/F5/PR-ready acceptance.",
+    "validation": "Compiler31 295=171PASS124FAIL, source drift0; Core32 30=20PASS10FAIL source drift0. Paired Runtime08 1PASS1FAIL with all source/compiled/artifact drift0; only Jim rename diagnostic NUL extent fails. Actual C8.4/C8.5 observations preserve counted full diagnostics; universal CString proposal rejected before Main, per-engine repair active. Temporary Compiler33 diagnostic build passed; tests are arriving, with no final aggregate yet. AI TypeScript typecheck PASS; real LSP/Electron and DB original reuse controls remain pending. No whole-codebase/Native/F5/PR-ready acceptance.",
     "source_write_policy": "Root-authorised three tracking documents only; no Rust/runtime/experiments/scripts/specs/Cargo/Git writes by this agent.",
-    "additional_bounded_families": "Nine earlier additional owner families remain integrated with independent current-source execution obligations. Current Native definition hints, source effects, OO linked-member references/editing, DB original reuse and paired Runtime replay remain active."
+    "additional_bounded_families": "Nine earlier additional owner families remain integrated with independent current-source execution obligations. Current Native definition hints, source effects, OO linked-member references/editing, DB original reuse and paired Runtime replay remain active.",
+    "reconciled_live_rows": [
+      "bpf-thread-hint",
+      "vm-authored-ns-wrappers",
+      "lsp-partial-array",
+      "spectcl-written-binding-dependency",
+      "runtime-rename-window-slot",
+      "lsp-test-only-legacy-import-helper",
+      "runtime-publication",
+      "vm-import-forget",
+      "bpf-selected-descriptor"
+    ],
+    "immutable_evidence_policy": "Earlier baseline fields, source/isolated snapshots, inherited330/package/issue rows and proof digests unchanged; current_review observations are not new execution evidence."
   }
 }
