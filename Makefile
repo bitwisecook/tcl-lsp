@@ -633,8 +633,8 @@ format: format-ts format-py ## Format TypeScript and Python code
 # Python tooling. Versions are pinned so a new ruff/ty/pyright release cannot
 # change the verdict of a gate between a local run and CI — the failure mode the
 # floating Rust `stable` channel already gives us (see rust-toolchain.toml).
-RUFF_VERSION    := 0.16.10
-TY_VERSION      := 0.0.84
+RUFF_VERSION    := 0.17.0
+TY_VERSION      := 0.0.87
 PYRIGHT_VERSION := 1.1.414
 PYTEST_VERSION  := 9.1.1
 
@@ -1965,7 +1965,7 @@ codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalog
 # into that same dir. `build.rs` then embeds the whole bundle, and
 # `tcl explore --serve` serves it from memory — no CDN, no network at runtime.
 
-MERMAID_VERSION  := 12.1.0
+MERMAID_VERSION  := 12.2.0
 MERMAID_JS       := $(EXPLORER_STATIC)/mermaid.min.js
 MERMAID_CDN      := https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js
 
