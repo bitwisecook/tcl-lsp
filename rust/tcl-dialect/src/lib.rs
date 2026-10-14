@@ -64,8 +64,9 @@ pub use grammar::{
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::{DialectFileExtension, DialectProfile, EvaluationEvidence};
 pub use version::{
-    ByteStringEncoding, CharacterUnits, CorePackage, PackagePrefer, RequirementValidationError,
-    StringCharacterModel, TclVersion, Ternary, UnitRun, compare_versions, compare_versions_for,
+    ByteStringEncoding, CharacterUnits, CorePackage, PackageDiagnostic, PackagePrefer,
+    RequirementValidationError, StringCharacterModel, TclVersion, Ternary, UnitRun,
+    compare_versions, compare_versions_for,
     exact_requirement, select_package_version, select_package_version_exact_for,
     select_package_version_for, validate_requirement, validate_requirement_for, validate_version,
     validate_version_for, version_in_any_window, version_is_stable, version_is_stable_for,

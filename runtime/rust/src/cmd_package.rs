@@ -32,7 +32,7 @@ use std::collections::BTreeMap;
 use tcl_dialect::{
     compare_versions_for, exact_requirement, select_package_version_exact_for,
     select_package_version_for, validate_requirement_for, validate_version_for,
-    version_matches_exact_for, version_satisfies_for, PackagePrefer, TclVersion,
+    version_matches_exact_for, version_satisfies_for, PackageDiagnostic, PackagePrefer, TclVersion,
 };
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -210,7 +210,7 @@ pub(crate) fn provide_package(interp: &mut Interp, name: &[u8], version: &[u8]) 
             message.extend_from_slice(&existing);
             message.extend_from_slice(b", then ");
             message.extend_from_slice(version);
-            return interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT");
+            return package_error(interp, &message, PackageDiagnostic::VersionConflict);
         }
         return Code::Ok;
     }
@@ -281,7 +281,14 @@ fn package_lookup(interp: &mut Interp, argv: &[*mut TclObj], load: bool) -> Code
             let mut message = b"package ".to_vec();
             message.extend_from_slice(&name);
             message.extend_from_slice(b" is not present");
-            return interp.set_error(&message);
+            return match release.package_error_code(PackageDiagnostic::NotPresent) {
+                Some(words) => {
+                    let mut code: Vec<&[u8]> = words.iter().map(|word| word.as_bytes()).collect();
+                    code.push(&name);
+                    interp.error_with_code(&message, &crate::interp::error_code_list(&code))
+                }
+                None => interp.set_error(&message),
+            };
         }
         None => {}
     }
@@ -324,7 +331,36 @@ fn package_lookup(interp: &mut Interp, argv: &[*mut TclObj], load: bool) -> Code
     }
     let mut message = b"can't find package ".to_vec();
     message.extend_from_slice(&name);
-    interp.set_error(&message)
+    append_requirements(&mut message, exact, &requirements, release);
+    package_error(interp, &message, PackageDiagnostic::Unfound)
+}
+
+/// C's `AddRequirementsToResult`: each requirement after a space, an exact
+/// one spelled `exactly V` from 8.5 (8.4 has no ranges to distinguish).
+fn append_requirements(
+    message: &mut Vec<u8>,
+    exact: bool,
+    requirements: &[Vec<u8>],
+    release: TclVersion,
+) {
+    for requirement in requirements {
+        message.push(b' ');
+        if exact && release.has_package_requirement_ranges() {
+            message.extend_from_slice(b"exactly ");
+        }
+        message.extend_from_slice(requirement);
+    }
+}
+
+/// A package diagnostic carrying the `errorCode` the pinned release sets.
+fn package_error(interp: &mut Interp, message: &[u8], diagnostic: PackageDiagnostic) -> Code {
+    match interp.runtime_version().package_error_code(diagnostic) {
+        Some(words) => {
+            let code: Vec<&[u8]> = words.iter().map(|word| word.as_bytes()).collect();
+            interp.error_with_code(message, &crate::interp::error_code_list(&code))
+        }
+        None => interp.set_error(message),
+    }
 }
 
 /// The highest `ifneeded` version of `name` satisfying the requirements (for
@@ -392,19 +428,13 @@ fn check_provided(
         message.extend_from_slice(name);
         message.extend_from_slice(b"\": have ");
         message.extend_from_slice(&version);
-        message.extend_from_slice(b", need ");
-        if exact {
-            message.extend_from_slice(b"exactly ");
-        }
-        for (index, requirement) in requirements.iter().enumerate() {
-            if index != 0 {
-                message.push(b' ');
-            }
-            message.extend_from_slice(requirement);
-        }
-        Some(Err(
-            interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT")
-        ))
+        message.extend_from_slice(b", need");
+        append_requirements(&mut message, exact, requirements, release);
+        Some(Err(package_error(
+            interp,
+            &message,
+            PackageDiagnostic::VersionConflict,
+        )))
     }
 }
 
@@ -568,7 +598,7 @@ fn invalid_version(interp: &mut Interp, version: &[u8]) -> Code {
     let mut message = b"expected version number but got \"".to_vec();
     message.extend_from_slice(version);
     message.push(b'"');
-    interp.error_with_code(&message, b"TCL VALUE VERSION")
+    package_error(interp, &message, PackageDiagnostic::InvalidVersion)
 }
 
 fn invalid_requirement(interp: &mut Interp, error: InvalidRequirement) -> Code {
@@ -578,13 +608,15 @@ fn invalid_requirement(interp: &mut Interp, error: InvalidRequirement) -> Code {
             let mut message = b"expected versionMin-versionMax but got \"".to_vec();
             message.extend_from_slice(&requirement);
             message.push(b'"');
-            interp.error_with_code(&message, b"TCL VALUE VERSIONRANGE")
+            package_error(interp, &message, PackageDiagnostic::InvalidVersionRange)
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::TclVersion;
+
     use crate::counters;
     use crate::interp::{Code, Interp};
 
@@ -740,6 +772,65 @@ mod tests {
                 b"absent {1.2+x space{brace}-1.2+x space{brace}}"
             );
         });
+    }
+
+    /// Structured package codes arrive at 8.6 and `package present`'s lookup
+    /// code at 8.5; 8.4 spells an exact requirement bare. Measured on tclsh
+    /// 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 (#2229).
+    #[test]
+    fn package_error_codes_follow_the_pinned_release() {
+        let probe = |i: &mut Interp, script: &str| {
+            let caught =
+                format!("set ::errorCode SENTINEL; list [catch {{{script}}} m] $m $::errorCode");
+            String::from_utf8(run(i, caught.as_bytes())).expect("utf-8")
+        };
+        for version in TclVersion::ALL {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                let structured = version >= TclVersion::V8_6;
+                let pick = |code: &'static str| if structured { code } else { "NONE" };
+                run(i, b"package provide foo 1");
+                let need = if version == TclVersion::V8_4 {
+                    "1.1"
+                } else {
+                    "exactly 1.1"
+                };
+                assert_eq!(
+                    probe(i, "package require -exact foo 1.1"),
+                    format!(
+                        "1 {{version conflict for package \"foo\": have 1, need {need}}} {}",
+                        tcl_syntax::list::list_element(pick("TCL PACKAGE VERSIONCONFLICT"))
+                    ),
+                    "{version:?}"
+                );
+                assert_eq!(
+                    probe(i, "package require nope 1.2"),
+                    format!(
+                        "1 {{can't find package nope 1.2}} {}",
+                        tcl_syntax::list::list_element(pick("TCL PACKAGE UNFOUND"))
+                    ),
+                    "{version:?}"
+                );
+                assert_eq!(
+                    probe(i, "package vcompare a 1"),
+                    format!(
+                        "1 {{expected version number but got \"a\"}} {}",
+                        tcl_syntax::list::list_element(pick("TCL VALUE VERSION"))
+                    ),
+                    "{version:?}"
+                );
+                let lookup = if version >= TclVersion::V8_5 {
+                    "{TCL LOOKUP PACKAGE nope}"
+                } else {
+                    "NONE"
+                };
+                assert_eq!(
+                    probe(i, "package present nope"),
+                    format!("1 {{package nope is not present}} {lookup}"),
+                    "{version:?}"
+                );
+            });
+        }
     }
 
     #[test]

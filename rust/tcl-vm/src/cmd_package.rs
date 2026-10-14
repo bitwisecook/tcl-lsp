@@ -22,9 +22,9 @@
 use std::cmp::Ordering;
 
 use tcl_dialect::{
-    PackagePrefer, compare_versions_for as cmp_version, select_package_version_exact_for,
-    select_package_version_for, validate_requirement_for, validate_version_for,
-    version_matches_exact_for, version_satisfies_for as vsatisfies,
+    PackageDiagnostic, PackagePrefer, compare_versions_for as cmp_version,
+    select_package_version_exact_for, select_package_version_for, validate_requirement_for,
+    validate_version_for, version_matches_exact_for, version_satisfies_for as vsatisfies,
 };
 use tcl_runtime_api::{Code, Completion};
 
@@ -197,15 +197,16 @@ pub(crate) fn pkg_provide(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             let name = name.to_str().to_string();
             let version = version.to_str().to_string();
             if !validate_version_for(&version, vm.runtime_version()) {
-                return invalid_version(&version);
+                return invalid_version(vm, &version);
             }
             if let Some(provided) = vm.package_version(&name).map(str::to_owned) {
                 if cmp_version(&provided, &version, vm.runtime_version()) != Ordering::Equal {
-                    return err_with_code(
+                    return package_error(
+                        vm,
                         format!(
                             "conflicting versions provided for package \"{name}\": {provided}, then {version}"
                         ),
-                        "TCL PACKAGE VERSIONCONFLICT",
+                        PackageDiagnostic::VersionConflict,
                     );
                 }
                 return ok(Value::empty());
@@ -223,11 +224,11 @@ fn pkg_vsatisfies(vm: &Vm, rest: &[Value]) -> Completion<Value> {
             let v = version.to_str();
             let release = vm.runtime_version();
             if !validate_version_for(&v, release) {
-                return invalid_version(&v);
+                return invalid_version(vm, &v);
             }
             for requirement in reqs {
                 if let Err(error) = validate_requirement_for(&requirement.to_str(), release) {
-                    return invalid_requirement(error);
+                    return invalid_requirement(vm, error);
                 }
             }
             let satisfied = reqs.iter().any(|r| vsatisfies(&v, &r.to_str(), release));
@@ -245,11 +246,11 @@ fn pkg_vcompare(vm: &Vm, rest: &[Value]) -> Completion<Value> {
             let v1 = v1.to_str();
             let release = vm.runtime_version();
             if !validate_version_for(&v1, release) {
-                return invalid_version(&v1);
+                return invalid_version(vm, &v1);
             }
             let v2 = v2.to_str();
             if !tcl_dialect::validate_version_for(&v2, release) {
-                return invalid_version(&v2);
+                return invalid_version(vm, &v2);
             }
             let order = cmp_version(&v1, &v2, release);
             ok(Value::int(match order {
@@ -267,7 +268,7 @@ fn pkg_ifneeded(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         [name, version] => {
             let version = version.to_str();
             if !validate_version_for(&version, vm.runtime_version()) {
-                return invalid_version(&version);
+                return invalid_version(vm, &version);
             }
             ok(vm
                 .package_ifneeded(&name.to_str(), &version)
@@ -276,7 +277,7 @@ fn pkg_ifneeded(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         [name, version, script] => {
             let version = version.to_str();
             if !validate_version_for(&version, vm.runtime_version()) {
-                return invalid_version(&version);
+                return invalid_version(vm, &version);
             }
             vm.set_package_ifneeded(&name.to_str(), &version, &script.to_str());
             ok(Value::empty())
@@ -356,12 +357,12 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
     let requested: Vec<String> = reqs.iter().map(|r| r.to_str().to_string()).collect();
     if exact {
         if !validate_version_for(&requested[0], release) {
-            return invalid_version(&requested[0]);
+            return invalid_version(vm, &requested[0]);
         }
     } else {
         for requirement in &requested {
             if let Err(error) = validate_requirement_for(requirement, release) {
-                return invalid_requirement(error);
+                return invalid_requirement(vm, error);
             }
         }
     }
@@ -369,15 +370,22 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
     match provided_status(vm, &name, &reqs, exact, release) {
         ProvidedStatus::Satisfies(version) => return ok(Value::string(version)),
         ProvidedStatus::Conflicts(version) => {
-            return version_conflict(&name, &version, &requested, exact);
+            return version_conflict(vm, &name, &version, &requested, exact);
         }
         ProvidedStatus::Absent => {}
     }
     if discover && let Some(version) = vm.package_loading_version(&name) {
-        return circular_dependency(&name, version, &requested, exact);
+        return circular_dependency(vm, &name, version, &requested, exact);
     }
     if !discover {
-        return err(format!("package {name} is not present"));
+        let message = format!("package {name} is not present");
+        return match release.package_error_code(PackageDiagnostic::NotPresent) {
+            Some(words) => err_with_code(
+                message,
+                &tcl_syntax::list::join_list(words.iter().copied().chain([&*name])),
+            ),
+            None => err(message),
+        };
     }
 
     // A loader already registered for a satisfying version wins before the
@@ -416,7 +424,7 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
     match provided_status(vm, &name, &reqs, exact, release) {
         ProvidedStatus::Satisfies(version) => return ok(Value::string(version)),
         ProvidedStatus::Conflicts(version) => {
-            return version_conflict(&name, &version, &requested, exact);
+            return version_conflict(vm, &name, &version, &requested, exact);
         }
         ProvidedStatus::Absent => {}
     }
@@ -424,7 +432,14 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
         return evaluate_loader(vm, &name, &loader);
     }
 
-    err(format!("can't find package {name}"))
+    package_error(
+        vm,
+        format!(
+            "can't find package {name}{}",
+            requirements_suffix(&requested, exact, release)
+        ),
+        PackageDiagnostic::Unfound,
+    )
 }
 
 enum ProvidedStatus {
@@ -450,60 +465,91 @@ fn provided_status(
     }
 }
 
+/// A package diagnostic carrying the `errorCode` the pinned release sets.
+fn package_error(
+    vm: &Vm,
+    message: impl Into<String>,
+    diagnostic: PackageDiagnostic,
+) -> Completion<Value> {
+    match vm.runtime_version().package_error_code(diagnostic) {
+        Some(words) => err_with_code(message, &tcl_syntax::list::join_list(words.iter().copied())),
+        None => err(message),
+    }
+}
+
+/// C's `AddRequirementsToResult`: each requirement after a space, an exact
+/// one spelled `exactly V` from 8.5 (8.4 has no ranges to distinguish).
+fn requirements_suffix(
+    requested: &[String],
+    exact: bool,
+    release: tcl_dialect::TclVersion,
+) -> String {
+    let exactly = if exact && release.has_package_requirement_ranges() {
+        "exactly "
+    } else {
+        ""
+    };
+    requested
+        .iter()
+        .map(|requirement| format!(" {exactly}{requirement}"))
+        .collect()
+}
+
 fn version_conflict(
+    vm: &Vm,
     name: &str,
     have: &str,
     requested: &[String],
     exact: bool,
 ) -> Completion<Value> {
-    let need = if exact {
-        format!("exactly {}", requested[0])
-    } else {
-        requested.join(" ")
-    };
-    err_with_code(
-        format!("version conflict for package \"{name}\": have {have}, need {need}"),
-        "TCL PACKAGE VERSIONCONFLICT",
+    package_error(
+        vm,
+        format!(
+            "version conflict for package \"{name}\": have {have}, need{}",
+            requirements_suffix(requested, exact, vm.runtime_version())
+        ),
+        PackageDiagnostic::VersionConflict,
     )
 }
 
-fn invalid_version(version: &str) -> Completion<Value> {
-    err_with_code(
+fn invalid_version(vm: &Vm, version: &str) -> Completion<Value> {
+    package_error(
+        vm,
         format!("expected version number but got \"{version}\""),
-        "TCL VALUE VERSION",
+        PackageDiagnostic::InvalidVersion,
     )
 }
 
-fn invalid_requirement(error: tcl_dialect::RequirementValidationError<'_>) -> Completion<Value> {
+fn invalid_requirement(
+    vm: &Vm,
+    error: tcl_dialect::RequirementValidationError<'_>,
+) -> Completion<Value> {
     match error {
         tcl_dialect::RequirementValidationError::InvalidVersion(version) => {
-            invalid_version(version)
+            invalid_version(vm, version)
         }
-        tcl_dialect::RequirementValidationError::InvalidRange(requirement) => err_with_code(
+        tcl_dialect::RequirementValidationError::InvalidRange(requirement) => package_error(
+            vm,
             format!("expected versionMin-versionMax but got \"{requirement}\""),
-            "TCL VALUE VERSIONRANGE",
+            PackageDiagnostic::InvalidVersionRange,
         ),
     }
 }
 
 fn circular_dependency(
+    vm: &Vm,
     name: &str,
     loading_version: &str,
     requested: &[String],
     exact: bool,
 ) -> Completion<Value> {
-    let required = if requested.is_empty() {
-        name.to_owned()
-    } else if exact {
-        format!("{name} exactly {}", requested[0])
-    } else {
-        format!("{name} {}", requested.join(" "))
-    };
-    err_with_code(
+    package_error(
+        vm,
         format!(
-            "circular package dependency: attempt to provide {name} {loading_version} requires {required}"
+            "circular package dependency: attempt to provide {name} {loading_version} requires {name}{}",
+            requirements_suffix(requested, exact, vm.runtime_version())
         ),
-        "TCL PACKAGE CIRCULARITY",
+        PackageDiagnostic::Circularity,
     )
 }
 
@@ -594,10 +640,17 @@ fn bad_return_code(
             )
         },
     );
+    let error_code = vm
+        .runtime_version()
+        .package_error_code(PackageDiagnostic::BadResult)
+        .map_or_else(
+            || "NONE".to_owned(),
+            |words| tcl_syntax::list::join_list(words.iter().copied()),
+        );
     for (key, value) in [
         ("-code", Value::int(1)),
         ("-level", Value::int(0)),
-        ("-errorcode", Value::string("TCL PACKAGE BADRESULT")),
+        ("-errorcode", Value::string(error_code)),
     ] {
         options = crate::command::with_return_option(&options, key, value);
     }
@@ -640,20 +693,22 @@ fn evaluate_loader(vm: &mut Vm, name: &str, loader: &SelectedLoader) -> Completi
         }
         Some(provided) => {
             vm.forget_package(name);
-            err_with_code(
+            package_error(
+                vm,
                 format!(
                     "attempt to provide package {name} {} failed: package {name} {provided} provided instead",
                     loader.version
                 ),
-                "TCL PACKAGE WRONGPROVIDE",
+                PackageDiagnostic::WrongProvide,
             )
         }
-        None => err_with_code(
+        None => package_error(
+            vm,
             format!(
                 "attempt to provide package {name} {} failed: no version of package {name} provided",
                 loader.version
             ),
-            "TCL PACKAGE UNPROVIDED",
+            PackageDiagnostic::Unprovided,
         ),
     }
 }
