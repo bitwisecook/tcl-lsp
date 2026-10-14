@@ -304,7 +304,7 @@ mod tests {
         registry.insert_static(rooted);
         let source = b"renamed match * $subject";
         let parsed = native_script_words_in(
-            SourceImage::native(source),
+            SourceImage::native(source.as_slice()),
             Span::new(0, u32::try_from(source.len()).unwrap()),
             LexerConfig::from_grammar(tcl_dialect::DialectProfile::find("tcl8.4").unwrap().grammar),
         )

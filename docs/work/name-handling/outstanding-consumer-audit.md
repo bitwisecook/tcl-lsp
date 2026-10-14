@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T13:58:26Z on `work`.
+Current bounded snapshot: 2026-10-14T14:11:31Z on `work`.
 
 Shared command, variable, body and source owners are integrated across compiler/CFG,
 summaries, DB, LSP, server libraries, MCP/AI metadata, codegen and tooling. The
@@ -95,6 +95,14 @@ syntax request/callback is now integrated; actual cold/edit/uncached equivalence
 replay is required independently of lattice/full-capsule equality. Runtime09 retains
 78 PASS/1 FAIL with all original77 PASS. F5 production53 retains9 PASS/23 FAIL across32
 and one actual experiment receipt delta; appliance answers remain outstanding.
+
+Runtime97 and98 retain zero semantic controls and zero source/provider closure
+drift. All six matching original interpreter/library metadata checks pass. Runtime97
+stops at a test-only Code path; Runtime98 builds runtime successfully and stops at
+a Registry test source-slice coercion. Both exact representation repairs preserve
+original bytes/assertions. Runtime99 is RUNNING: runtime builds successfully,
+Registry build and all99 original/new semantic controls remain pending. Matching
+C8.4–9.1 libraries and the verified latest Jim remain independent oracle owners.
 
 Runtime audit rows26 and29 already use shared rename-destination and import metadata
 owners, retaining actual generations/tokens rather than reporting labels. OO
