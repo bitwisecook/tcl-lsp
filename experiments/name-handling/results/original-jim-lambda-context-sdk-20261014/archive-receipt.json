@@ -1,0 +1,288 @@
+{
+  "schema": 1,
+  "scope": "Exact-byte nonbinary archival of four original Jim SDK captures. Existing manifests preserved; executable/library original hashes verified, binaries omitted.",
+  "captures": [
+    {
+      "capture": "lambda-deferred-namespace",
+      "captured_at": "2026-10-14T22:52:18.011091+00:00",
+      "original_directory": "/tmp/name-jim-lambda-deferred-namespace-sdk-20261014",
+      "original_manifest_sha256": "4e57ab424d66e24ecc2ce23290a9d73938f79d1ffcd75466bdf212405310aba5",
+      "original_library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+      "original_verified_hashes": {
+        "probe.c": "1f1f7d57dd465f8be4516888af0e45aa7fc8e27e52ff836d16d12439825fecb7",
+        "stdout.tsv": "5b959d7f07a7e038615c4ff4795ed55a8b7aa376d456fbd7c24dd0fd96b53cbb",
+        "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "probe": "e131e8782221e03a97b895acb201b18dace55d31e499c418793d0d5e348456a9",
+        "provider-sources/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+        "provider-sources/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "provider-sources/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+        "provider-sources/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+        "provider-sources/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+      },
+      "excluded_binary": {
+        "path": "probe",
+        "sha256": "e131e8782221e03a97b895acb201b18dace55d31e499c418793d0d5e348456a9",
+        "reason": "Compiled executable omitted; original bytes verified against captured manifest before archival."
+      },
+      "archived_files": [
+        {
+          "path": "captures/lambda-deferred-namespace/compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/manifest.json",
+          "sha256": "4e57ab424d66e24ecc2ce23290a9d73938f79d1ffcd75466bdf212405310aba5"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/probe.c",
+          "sha256": "1f1f7d57dd465f8be4516888af0e45aa7fc8e27e52ff836d16d12439825fecb7"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/provider-sources/Makefile",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/provider-sources/jim-config.h",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/provider-sources/jim-namespace.c",
+          "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/provider-sources/jim.c",
+          "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/provider-sources/jim.h",
+          "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/lambda-deferred-namespace/stdout.tsv",
+          "sha256": "5b959d7f07a7e038615c4ff4795ed55a8b7aa376d456fbd7c24dd0fd96b53cbb"
+        }
+      ]
+    },
+    {
+      "capture": "lambda-preflight",
+      "captured_at": "2026-10-14T23:01:24.796649+00:00",
+      "original_directory": "/tmp/name-jim-lambda-preflight-sdk-20261014",
+      "original_manifest_sha256": "9ea8e3e6ce609c1fb0a8c9e0df32cbe7f3d7a2477f9a75b303f7c81c965180f8",
+      "original_library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+      "original_verified_hashes": {
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "probe": "a6281ac1bca67245603122dbd43c1f6f171ef28d3b22b0a85e36a853f191c8e2",
+        "probe.c": "1e56f62ca14514faed392f28c1410efd65104f5e11266eaf85e46655127873f3",
+        "provider-sources/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+        "provider-sources/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+        "provider-sources/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+        "provider-sources/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "provider-sources/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+        "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout.tsv": "5c6499933353cd440f5719f437ac19081116f6ef36f38891250624ccba9469a6"
+      },
+      "excluded_binary": {
+        "path": "probe",
+        "sha256": "a6281ac1bca67245603122dbd43c1f6f171ef28d3b22b0a85e36a853f191c8e2",
+        "reason": "Compiled executable omitted; original bytes verified against captured manifest before archival."
+      },
+      "archived_files": [
+        {
+          "path": "captures/lambda-preflight/compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/lambda-preflight/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/lambda-preflight/manifest.json",
+          "sha256": "9ea8e3e6ce609c1fb0a8c9e0df32cbe7f3d7a2477f9a75b303f7c81c965180f8"
+        },
+        {
+          "path": "captures/lambda-preflight/probe.c",
+          "sha256": "1e56f62ca14514faed392f28c1410efd65104f5e11266eaf85e46655127873f3"
+        },
+        {
+          "path": "captures/lambda-preflight/provider-sources/Makefile",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+        },
+        {
+          "path": "captures/lambda-preflight/provider-sources/jim-config.h",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+        },
+        {
+          "path": "captures/lambda-preflight/provider-sources/jim-namespace.c",
+          "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+        },
+        {
+          "path": "captures/lambda-preflight/provider-sources/jim.c",
+          "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+        },
+        {
+          "path": "captures/lambda-preflight/provider-sources/jim.h",
+          "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+        },
+        {
+          "path": "captures/lambda-preflight/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/lambda-preflight/stdout.tsv",
+          "sha256": "5c6499933353cd440f5719f437ac19081116f6ef36f38891250624ccba9469a6"
+        }
+      ]
+    },
+    {
+      "capture": "deferred-context-followup",
+      "captured_at": "2026-10-14T23:09:39.326398+00:00",
+      "original_directory": "/tmp/name-jim-deferred-context-followup-sdk-20261014",
+      "original_manifest_sha256": "b3769a899beda09b33d550a3243a63c9e883cecfca50e4e57f3a5d5080a88595",
+      "original_library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+      "original_verified_hashes": {
+        "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout.tsv": "c70842fe561d668083b423a232a307301f97a8830ba5fd107578814bc2c2ee56",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "probe": "1ab9a533371dcef48b992153cb13fa7e45eb704e3c3bd923dc2442bda9feb28b",
+        "probe.c": "a23b325f673d16773e3b8e5a4187f1b3e78909fda66c4be3f8ee8033e7f72218",
+        "provider-sources/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+        "provider-sources/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+        "provider-sources/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+        "provider-sources/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "provider-sources/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+      },
+      "excluded_binary": {
+        "path": "probe",
+        "sha256": "1ab9a533371dcef48b992153cb13fa7e45eb704e3c3bd923dc2442bda9feb28b",
+        "reason": "Compiled executable omitted; original bytes verified against captured manifest before archival."
+      },
+      "archived_files": [
+        {
+          "path": "captures/deferred-context-followup/compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/deferred-context-followup/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/deferred-context-followup/manifest.json",
+          "sha256": "b3769a899beda09b33d550a3243a63c9e883cecfca50e4e57f3a5d5080a88595"
+        },
+        {
+          "path": "captures/deferred-context-followup/probe.c",
+          "sha256": "a23b325f673d16773e3b8e5a4187f1b3e78909fda66c4be3f8ee8033e7f72218"
+        },
+        {
+          "path": "captures/deferred-context-followup/provider-sources/Makefile",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+        },
+        {
+          "path": "captures/deferred-context-followup/provider-sources/jim-config.h",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+        },
+        {
+          "path": "captures/deferred-context-followup/provider-sources/jim-namespace.c",
+          "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+        },
+        {
+          "path": "captures/deferred-context-followup/provider-sources/jim.c",
+          "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+        },
+        {
+          "path": "captures/deferred-context-followup/provider-sources/jim.h",
+          "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+        },
+        {
+          "path": "captures/deferred-context-followup/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/deferred-context-followup/stdout.tsv",
+          "sha256": "c70842fe561d668083b423a232a307301f97a8830ba5fd107578814bc2c2ee56"
+        }
+      ]
+    },
+    {
+      "capture": "qualified-context",
+      "captured_at": "2026-10-14T23:11:35.177619+00:00",
+      "original_directory": "/tmp/name-jim-qualified-context-sdk-20261014",
+      "original_manifest_sha256": "1d7a257d9f358256fae03d665b2c918f059ae828c43f8e5ef4f7f49085954c52",
+      "original_library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+      "original_verified_hashes": {
+        "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout.tsv": "470d513718b85098c5727a4b30bf3548939246fb5a800fd52260924dfd6971d5",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "probe": "dbd15411376b67fbd66fa7c4e22ce25dfe2d96f17229c1fa5db01c239f12ec34",
+        "probe.c": "cbad90c3e7b8ee6aad6ef30e67061e64230c991fd33c4659e8ac2b4d435b7a76",
+        "provider-sources/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+        "provider-sources/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "provider-sources/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+        "provider-sources/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+        "provider-sources/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+      },
+      "excluded_binary": {
+        "path": "probe",
+        "sha256": "dbd15411376b67fbd66fa7c4e22ce25dfe2d96f17229c1fa5db01c239f12ec34",
+        "reason": "Compiled executable omitted; original bytes verified against captured manifest before archival."
+      },
+      "archived_files": [
+        {
+          "path": "captures/qualified-context/compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/qualified-context/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/qualified-context/manifest.json",
+          "sha256": "1d7a257d9f358256fae03d665b2c918f059ae828c43f8e5ef4f7f49085954c52"
+        },
+        {
+          "path": "captures/qualified-context/probe.c",
+          "sha256": "cbad90c3e7b8ee6aad6ef30e67061e64230c991fd33c4659e8ac2b4d435b7a76"
+        },
+        {
+          "path": "captures/qualified-context/provider-sources/Makefile",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+        },
+        {
+          "path": "captures/qualified-context/provider-sources/jim-config.h",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+        },
+        {
+          "path": "captures/qualified-context/provider-sources/jim-namespace.c",
+          "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+        },
+        {
+          "path": "captures/qualified-context/provider-sources/jim.c",
+          "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+        },
+        {
+          "path": "captures/qualified-context/provider-sources/jim.h",
+          "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+        },
+        {
+          "path": "captures/qualified-context/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "captures/qualified-context/stdout.tsv",
+          "sha256": "470d513718b85098c5727a4b30bf3548939246fb5a800fd52260924dfd6971d5"
+        }
+      ]
+    }
+  ]
+}

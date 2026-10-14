@@ -2177,8 +2177,10 @@ fn run_step_inner(
         name: format!("{obj_ns}::{method}"),
         command_ns_id: ns_id,
         simple_name: tcl_core_types::NameBytes::from(vm.oo.method_name_bytes(&method)),
-        namespace: vm.namespace_path_for_token(ns_id),
-        ns_id,
+        execution_namespace: crate::interp::ProcedureNamespace::Resolved {
+            path: vm.namespace_path_for_token(ns_id),
+            token: ns_id,
+        },
         params: m.parameters.values.clone(),
         parameter_grammar: tcl_dialect::ParameterGrammar::Tcl,
         has_args: m.parameters.has_args,

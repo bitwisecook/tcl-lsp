@@ -765,14 +765,7 @@ fn record_write(roles: &mut VariableRoles, name: String, at: u32) {
 /// `name` as a variable this transform can carry back to the caller, or the
 /// reason it cannot.
 fn carriable_written_name(head: &str, name: &str) -> Result<String, String> {
-    if name.contains('$') || name.contains('[') {
-        return Err(format!(
-            "'{head}' writes to a variable whose name is computed \
-             (`{name}`), so the extraction cannot tell which variable \
-             leaves the selection"
-        ));
-    }
-    if name.contains('(') {
+    if tcl_syntax::naming::split_element_ref_bytes(name.as_bytes()).is_some() {
         return Err(format!(
             "'{head}' writes to the array element `{name}`; carrying an \
              array element back to the caller needs more than the scalar \
@@ -1140,6 +1133,47 @@ mod tests {
         match &refactoring.disabled {
             Some(reason) => Err(reason.clone()),
             None => Ok(refactoring.apply(src)),
+        }
+    }
+
+    #[test]
+    fn logical_written_roles_keep_literal_sigil_names_and_exact_element_shape() {
+        for (source, names) in [
+            ("set {$literal} 1", vec!["$literal"]),
+            ("set {[literal]} 1", vec!["[literal]"]),
+            ("set a(b 1", vec!["a(b"]),
+            ("set {a)b} 1", vec!["a)b"]),
+            (
+                "foreach {{$literal} {[literal]} a(b} {} {}",
+                vec!["$literal", "[literal]", "a(b"],
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+            let commands = walk.segment_document(source);
+            let [command] = commands.as_slice() else {
+                panic!("one original command");
+            };
+            let mut roles = VariableRoles {
+                read: BTreeMap::new(),
+                written: BTreeMap::new(),
+            };
+            classify_command(source, command, &walk, &mut roles).unwrap();
+            assert_eq!(
+                roles.written.keys().map(String::as_str).collect::<Vec<_>>(),
+                names,
+                "{source}"
+            );
+        }
+        for source in ["set $unknown 1", "set {a(key)} 1"] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+            let commands = walk.segment_document(source);
+            let mut roles = VariableRoles {
+                read: BTreeMap::new(),
+                written: BTreeMap::new(),
+            };
+            assert!(classify_command(source, &commands[0], &walk, &mut roles).is_err());
         }
     }
 

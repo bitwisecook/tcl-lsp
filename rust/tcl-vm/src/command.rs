@@ -96,14 +96,8 @@ pub struct ProcDef {
     pub command_ns_id: tcl_core_types::NsId,
     /// Simple command-table name paired with [`Self::command_ns_id`].
     pub simple_name: tcl_core_types::NameBytes,
-    /// The namespace the body executes in (canonical; `""` = global).
-    pub namespace: tcl_core_types::ByteNamespacePath,
-    /// That namespace's **token** — C's `procPtr->cmdPtr->nsPtr`, which is what
-    /// `TclProcInterpProc` hands `Tcl_PushCallFrame`. The spelling alone is not
-    /// the identity: a namespace deleted while this procedure's frame was
-    /// running is retained under its old token while a wholly separate one may
-    /// already answer to the same name, and the body belongs to the first.
-    pub ns_id: tcl_core_types::NsId,
+    /// Original body execution context, independent of the publication slot.
+    pub(crate) execution_namespace: crate::interp::ProcedureNamespace,
     /// Formal parameters in order.
     pub params: Vec<Param>,
     /// Native formal parsing and activation policy captured at definition.
@@ -747,15 +741,27 @@ pub(crate) fn build_lambda_proc(
             return Err(completion);
         }
     }
-    // C resolves from global; Jim retains its original flat context object.
-    let ns_id = lambda_namespace(vm, parts.get(2))?;
-    let namespace = vm.namespace_path_for_token(ns_id);
-    let native_jim_namespace = vm.uses_native_jim_lookup().then(|| {
-        parts
+    let (execution_namespace, native_jim_namespace) = if vm.uses_native_jim_lookup() {
+        let original = parts
             .get(2)
             .cloned()
-            .unwrap_or_else(|| vm.new_jim_declaration_namespace(tcl_core_types::ROOT_NS))
-    });
+            .unwrap_or_else(|| vm.new_jim_declaration_namespace(tcl_core_types::ROOT_NS));
+        let context = crate::interp::OriginalJimNamespaceContext::for_lambda(vm, &original)
+            .map_err(|error| completion_from_cmd_error(vm, error))?;
+        (
+            crate::interp::ProcedureNamespace::OriginalJim(context),
+            Some(original),
+        )
+    } else {
+        let token = lambda_namespace(vm, parts.get(2))?;
+        (
+            crate::interp::ProcedureNamespace::Resolved {
+                path: vm.namespace_path_for_token(token),
+                token,
+            },
+            None,
+        )
+    };
     let name = fresh_apply_name();
     let command_ns_id = vm.definition_namespace_token("tcl::apply");
     let (binding, publication) = vm.define_proc_binding(ProcDef {
@@ -765,8 +771,7 @@ pub(crate) fn build_lambda_proc(
         simple_name: tcl_core_types::NameBytes::from(tcl_syntax::naming::written_command_tail(
             name.as_bytes(),
         )),
-        namespace,
-        ns_id,
+        execution_namespace,
         params: params_vec,
         parameter_grammar,
         has_args,
@@ -1065,7 +1070,7 @@ fn relocate_renamed_procedure(
             let declaration = def.declaration();
             let current = declaration.actual_command_slot();
             if new_ns_id != current.namespace || simple_name != current.simple {
-                let (body_namespace_id, new_ns, jim_namespace) = if vm.uses_native_jim_lookup() {
+                let (body_namespace, jim_namespace) = if vm.uses_native_jim_lookup() {
                     let holder = vm
                         .name_policy_protocol()
                         .expect("actual Jim names")
@@ -1075,26 +1080,32 @@ fn relocate_renamed_procedure(
                     if let Some(holder) = holder {
                         let token = vm.intern_jim_namespace_object(holder);
                         (
-                            token,
-                            vm.namespace_path_for_token(token),
+                            crate::interp::ProcedureNamespace::Resolved {
+                                path: vm.namespace_path_for_token(token),
+                                token,
+                            },
                             Some(vm.new_jim_declaration_namespace(token)),
                         )
                     } else {
                         (
-                            declaration.actual_namespace_id(),
-                            declaration.actual_namespace(),
+                            declaration.actual_namespace_context(),
                             declaration.retained_jim_namespace(),
                         )
                     }
                 } else {
-                    (new_ns_id, new_ns, None)
+                    (
+                        crate::interp::ProcedureNamespace::Resolved {
+                            path: new_ns,
+                            token: new_ns_id,
+                        },
+                        None,
+                    )
                 };
                 def.relocate_with_body_namespace(
                     display_key,
                     new_ns_id,
                     simple_name,
-                    new_ns,
-                    body_namespace_id,
+                    body_namespace,
                     jim_namespace,
                 );
             }
@@ -2144,8 +2155,10 @@ fn define_procedure(
             name: reg_name,
             command_ns_id: slot.namespace,
             simple_name: slot.simple,
-            namespace,
-            ns_id,
+            execution_namespace: crate::interp::ProcedureNamespace::Resolved {
+                path: namespace,
+                token: ns_id,
+            },
             params: params_vec,
             parameter_grammar,
             has_args,

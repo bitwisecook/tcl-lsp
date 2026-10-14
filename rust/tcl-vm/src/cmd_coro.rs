@@ -417,9 +417,9 @@ fn resume(
     // unset/leave traces and frame/temp-proc cleanup; queued injections remain
     // deliberately unexecuted.
     let stale_message = vm.coro.live.get(key).and_then(|state| {
-        vm.activation_stack_stale_message(
+        vm.activation_stack_stale_message_in_context(
             &state.acts,
-            &vm.namespace_path_for_token(state.parked.current_namespace_token()),
+            &state.parked.current_namespace_execution_context(),
         )
     });
     // Borrow choreography: mark the entry Running and move its `acts`/`parked`

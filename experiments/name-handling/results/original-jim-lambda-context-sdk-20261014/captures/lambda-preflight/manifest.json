@@ -1,0 +1,63 @@
+{
+  "captured_at": "2026-10-14T23:01:24.796649+00:00",
+  "provider": "latest Jim0.84-9-g5bac7c9 original full extension build",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "/tmp/name-jim-lambda-preflight-sdk-20261014/probe.c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/tmp/name-jim-lambda-preflight-sdk-20261014/probe"
+  ],
+  "compile_exit": 0,
+  "process_exit": 0,
+  "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+  "library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+  "original_sources": [
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h",
+      "retained": "provider-sources/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c",
+      "retained": "provider-sources/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c",
+      "retained": "provider-sources/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h",
+      "retained": "provider-sources/jim-config.h",
+      "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile",
+      "retained": "provider-sources/Makefile",
+      "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+    }
+  ],
+  "scope": "Original native List Apply with genuine integer42 namespace child. BEFORE/AFTER inspect resident string and type before any explicit namespace getter. Empty/nonempty arity failure preserves stringless namespace. Nonempty successful bodies are independent positive materialization controls. No tcltest, implementation build or C provider inference.",
+  "files": {
+    "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "probe": "a6281ac1bca67245603122dbd43c1f6f171ef28d3b22b0a85e36a853f191c8e2",
+    "probe.c": "1e56f62ca14514faed392f28c1410efd65104f5e11266eaf85e46655127873f3",
+    "provider-sources/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+    "provider-sources/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "provider-sources/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "provider-sources/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "provider-sources/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.tsv": "5c6499933353cd440f5719f437ac19081116f6ef36f38891250624ccba9469a6"
+  }
+}

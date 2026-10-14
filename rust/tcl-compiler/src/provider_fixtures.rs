@@ -188,13 +188,25 @@ pub(crate) fn original_native_module(source: &str, dialect: &str) -> OriginalNat
         crate::analyser::ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
     let capture = crate::environment_ingress::captured_native_entry(profile);
     assert_eq!(capture.execution_point, environment.point());
-    assert!(
-        capture
-            .compiler_pass_environment
-            .as_ref()
-            .unwrap()
-            .is_current_for(capture.interpreter)
-    );
+    match capture
+        .execution_point
+        .expect("actual Native source fixture execution point")
+        .family()
+    {
+        tcl_dialect::model::Family::Tcl => assert!(
+            capture
+                .compiler_pass_environment
+                .as_ref()
+                .unwrap()
+                .is_current_for(capture.interpreter)
+        ),
+        tcl_dialect::model::Family::Jim => {
+            assert!(capture.compiler_pass_environment.is_none());
+        }
+        family => {
+            panic!("original source fixture requires an actual C Tcl or Jim engine: {family:?}")
+        }
+    }
     let entry = SourceAnalysisEntry {
         metadata_context:
             crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(

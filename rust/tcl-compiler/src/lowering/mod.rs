@@ -8701,6 +8701,8 @@ mod tests {
 
     #[test]
     fn returned_module_snapshots_retain_their_actual_source_owner() {
+        use std::sync::Arc;
+
         let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let context = Arc::new(generation.with_command_store(Arc::clone(generation.commands())));
         let registry = generation.commands();

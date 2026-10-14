@@ -1,0 +1,3 @@
+# Temporary SSA diagnostic preflight
+
+The Compiler test build failed with three E0433 errors for a missing `Arc` import in the new public-lowering owner test. Exit101, captured source drift zero, no test artifacts and no executed tests. The original #2286 selector did not run. `temporary-diagnostic.patch` shows the equation instrumentation; `restoration.json` records byte-exact production SSA restoration. The test import was corrected separately. This failed authored-source build proves no runtime, oracle or conformance result. Absolute paths in the original build script and receipts identify this capture environment.

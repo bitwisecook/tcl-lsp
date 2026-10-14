@@ -1,0 +1,9 @@
+{
+  "source": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+  "copy": "/tmp/name-historical196-gdb-20261014/compiler196.elf",
+  "sha256": "a7fcd9a1d03f738d9434012f81e145c458039c54923161bf97330ce9a57e371a",
+  "bytes": 236889048,
+  "build_receipt": "/tmp/name-consumer196-preflight-20261014/result.json",
+  "ordinary201_receipt": "/tmp/name-tcltest-production201-20261014/result.json",
+  "scope": "Historical196 executable retained before concurrent203 rebuild; no current Main-source or performance claim."
+}

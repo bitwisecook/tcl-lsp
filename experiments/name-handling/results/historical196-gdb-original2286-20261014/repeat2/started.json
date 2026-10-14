@@ -1,0 +1,120 @@
+{
+  "started_utc": "2026-10-14T23:15:06.798372+00:00",
+  "historical_build_receipt": "/tmp/name-consumer196-preflight-20261014/result.json",
+  "historical_build_receipt_sha256": "fad8ff66c5cdc6ea1c4a578d4120d7eaa5c6b283ca02638701fb33236a4a8e59",
+  "compiled_source": "/tmp/name-consumer196-preflight-20261014/source-before.json.gz",
+  "compiled_source_sha256": "74534cf4d00fccf006d9bc3fe454b839cdcdd19fe27684651900a19e505f3027",
+  "ordinary201_receipt_sha256": "f34728da8d6754110c1eb4cacf6f935d5c88b7f802b7914a17af4569d1c3159f",
+  "historical_elf": "/tmp/name-historical196-gdb-20261014/compiler196.elf",
+  "elf_sha256": "a7fcd9a1d03f738d9434012f81e145c458039c54923161bf97330ce9a57e371a",
+  "original_fixture_sha256": "82f6602d5492c1b321f6a26186f80741e5fd4b1a3f9c4a9f09d05dae508911ef",
+  "provider_files_before": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+      "sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+      "sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+      "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+      "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+      "sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311"
+    }
+  ],
+  "command": [
+    "/tmp/name-stack-debugger-helper-20261014/gdb-extracted/usr/bin/gdb",
+    "--nx",
+    "--nh",
+    "--quiet",
+    "--interpreter=mi3",
+    "--data-directory=/tmp/name-stack-debugger-helper-20261014/gdb-extracted/usr/share/gdb",
+    "-iex",
+    "set auto-load off",
+    "-iex",
+    "set debuginfod enabled off",
+    "--args",
+    "/tmp/name-historical196-gdb-20261014/compiler196.elf",
+    "--exact",
+    "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "debugger_sha256": "b4ba8c0e9c47096e7dd407006a310549e274392d37ec6fe04f7dbc7606f0ac90",
+  "recorded_nonsecret_environment": {
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "RUST_BACKTRACE": null,
+    "RUST_TEST_THREADS": null,
+    "RUST_MIN_STACK": null,
+    "TCL_LIBRARY": null,
+    "TCLLIBPATH": null,
+    "JIMLIB": null,
+    "TCL_LSP_REQUIRE_TCLSH": null,
+    "TCL_LSP_REQUIRE_JIM": null,
+    "TCLSH": null,
+    "TCLSH84": null,
+    "TCLSH85": null,
+    "TCLSH86": null,
+    "TCLSH90": null,
+    "TCLSH91": null
+  },
+  "removed_trace_flag_names": [],
+  "trace_flag": null,
+  "inferior_host_budget_seconds": 180,
+  "requested_samples_seconds": [
+    55,
+    100,
+    160
+  ],
+  "maximum_frames_per_thread": 20,
+  "limitations": "Historical196 executable only: current Main has changed. Root203 Cargo build runs concurrently, so no current-source acceptance or comparable performance claim. Pauses count within the unchanged 180-second inferior wall budget. GDB-only LD_LIBRARY_PATH is restored/unset for the inferior. No arguments, locals, source Debug values or unlimited stack dump."
+}

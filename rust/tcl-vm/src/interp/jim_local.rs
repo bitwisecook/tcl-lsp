@@ -555,8 +555,9 @@ fn local(vm: &mut Vm, arguments: &[Value]) -> Completion<Value> {
         let world = Rc::clone(&vm.name_world);
         world.borrow_mut().jim_local_depth += 1;
         let scope = LocalScope(world);
-        let completion = vm.invoke_command_value_at(
-            vm.current_ns_id(),
+        let context = vm.current_namespace_execution_context();
+        let completion = vm.invoke_command_value_ordinary_in_context(
+            context,
             head,
             tail,
             &[],
@@ -569,7 +570,8 @@ fn local(vm: &mut Vm, arguments: &[Value]) -> Completion<Value> {
         if !completion.code.is_ok() {
             return completion;
         }
-        match vm.native_jim_command_from_original_at(vm.current_ns_id(), &completion.result) {
+        let context = vm.current_namespace_execution_context();
+        match vm.native_jim_command_from_original_in_context(&context, &completion.result) {
             Ok(Some((key, _))) => {
                 let record = match vm.capture_original_jim_local_command(
                     completion.result.clone(),
@@ -619,7 +621,8 @@ fn upcall(vm: &mut Vm, arguments: &[Value]) -> Completion<Value> {
         else {
             return vm.refuse_host_command("Jim upcall command issuer is unavailable".into());
         };
-        if let Err(error) = vm.native_jim_command_from_original_at(vm.current_ns_id(), head) {
+        let context = vm.current_namespace_execution_context();
+        if let Err(error) = vm.native_jim_command_from_original_in_context(&context, head) {
             return crate::command::completion_from_cmd_error(vm, error);
         }
         if let Err(error) = original_names.check(vm) {
@@ -637,8 +640,9 @@ fn upcall(vm: &mut Vm, arguments: &[Value]) -> Completion<Value> {
                     node,
                     _lease: lease,
                 };
-                let completion = vm.invoke_command_value_at(
-                    vm.current_ns_id(),
+                let context = vm.current_namespace_execution_context();
+                let completion = vm.invoke_command_value_ordinary_in_context(
+                    context,
                     head,
                     tail,
                     &[],

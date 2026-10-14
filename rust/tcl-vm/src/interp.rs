@@ -71,7 +71,11 @@ pub(crate) mod jim_local;
 mod jim_table_key_tests;
 mod jim_table_keys;
 mod jim_teardown;
+pub(crate) mod namespace_context;
 mod namespace_stack;
+pub(crate) use namespace_context::{
+    NamespaceExecutionContext, OriginalJimNamespaceContext, ProcedureNamespace,
+};
 mod native_alias_registration;
 #[cfg(test)]
 mod native_alias_registration_tests;
@@ -1202,16 +1206,16 @@ impl Default for NativeCompilationEpochs {
 }
 
 struct NamespaceResolutionStacks {
-    ns_stack: Vec<NameBytes>,
-    ns_id_stack: Vec<NsId>,
+    ns_stack: Vec<Option<NameBytes>>,
+    ns_id_stack: Vec<NamespaceExecutionContext>,
     activation_births: Vec<Rc<()>>,
 }
 
 impl Default for NamespaceResolutionStacks {
     fn default() -> Self {
         Self {
-            ns_stack: vec![NameBytes::default()],
-            ns_id_stack: vec![ROOT_NS],
+            ns_stack: vec![Some(NameBytes::default())],
+            ns_id_stack: vec![NamespaceExecutionContext::Resolved(ROOT_NS)],
             activation_births: vec![Rc::new(())],
         }
     }
@@ -1757,10 +1761,20 @@ impl ParkedFlow {
             .collect()
     }
 
-    /// Constructed namespace of the parked flow's current Tcl frame.  The
-    /// saved stack omits the shared global root, so an empty tail is global.
+    /// The saved tail omits the actual shared global entry of a fresh flow.
+    pub(crate) fn current_namespace_execution_context(
+        &self,
+    ) -> namespace_context::NamespaceExecutionContext {
+        self.namespaces.current_namespace().unwrap_or(
+            namespace_context::NamespaceExecutionContext::Resolved(ROOT_NS),
+        )
+    }
+
+    #[cfg(test)]
     pub(crate) fn current_namespace_token(&self) -> NsId {
-        self.namespaces.current_namespace().unwrap_or(ROOT_NS)
+        self.current_namespace_execution_context()
+            .resolved_token()
+            .expect("test requires a resolved parked namespace")
     }
 }
 
@@ -3236,15 +3250,18 @@ impl InterpState {
         self.resolution_stacks
             .ns_id_stack
             .last()
-            .copied()
-            .unwrap_or(ROOT_NS)
+            .and_then(NamespaceExecutionContext::resolved_token)
+            .expect("operation requires a materialized current namespace")
     }
 
     fn current_ns(&self) -> &str {
-        self.resolution_stacks.ns_stack.last().map_or("", |name| {
-            name.try_utf8()
-                .expect("Unicode namespace compatibility view requires checked native bytes")
-        })
+        self.resolution_stacks
+            .ns_stack
+            .last()
+            .and_then(Option::as_ref)
+            .expect("operation requires a materialized namespace report")
+            .try_utf8()
+            .expect("Unicode namespace compatibility view requires checked native bytes")
     }
 
     /// Release/dialect visibility belongs to the interpreter state because
@@ -9596,8 +9613,8 @@ impl Vm {
         let members = self
             .original_name_outcome(original_name_scope, reached)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-        let completion = self.invoke_command_value_at(
-            self.current_ns_id(),
+        let completion = self.invoke_command_value_ordinary_in_context(
+            self.current_namespace_execution_context(),
             &members[0],
             &members[1..],
             &[],
@@ -10198,11 +10215,23 @@ impl Vm {
         &self,
         source_namespace: Option<&str>,
     ) -> Result<NsId, NativeCommandLookupUnavailable> {
+        let current = self
+            .current_namespace_execution_context()
+            .resolved_token()
+            .filter(|token| self.native_namespace_token_has_owner(*token));
         let Some(source_namespace) = source_namespace else {
-            return Ok(self.current_ns_id());
+            return current.ok_or(NativeCommandLookupUnavailable::NamespaceContextUnavailable);
         };
-        if source_namespace == self.current_ns() {
-            return Ok(self.current_ns_id());
+        if let Some(token) = current
+            && self
+                .resolution_stacks
+                .ns_stack
+                .last()
+                .and_then(Option::as_ref)
+                .and_then(|name| name.try_utf8().ok())
+                == Some(source_namespace)
+        {
+            return Ok(token);
         }
         if source_namespace.is_empty() || source_namespace == "::" {
             return Ok(ROOT_NS);
@@ -10462,29 +10491,42 @@ impl Vm {
     pub(crate) fn enter_missing_handler_namespace(
         &mut self,
         context: NsId,
-    ) -> (NameBytes, NsId, NsId) {
+    ) -> (
+        Option<NameBytes>,
+        NamespaceExecutionContext,
+        NamespaceExecutionContext,
+    ) {
         let name = self.ns_name_bytes(context);
         let previous_name = std::mem::replace(
             self.resolution_stacks
                 .ns_stack
                 .last_mut()
                 .expect("root namespace"),
-            name,
+            Some(name),
         );
         let previous_token = std::mem::replace(
             self.resolution_stacks
                 .ns_id_stack
                 .last_mut()
                 .expect("root token"),
-            context,
+            NamespaceExecutionContext::Resolved(context),
         );
-        let previous_frame =
-            std::mem::replace(&mut self.frames.last_mut().expect("root frame").ns, context);
+        let previous_frame = std::mem::replace(
+            &mut self.frames.last_mut().expect("root frame").ns,
+            NamespaceExecutionContext::Resolved(context),
+        );
         (previous_name, previous_token, previous_frame)
     }
 
     /// Restore the variable frame after the reached missing-handler invocation.
-    pub(crate) fn leave_missing_handler_namespace(&mut self, previous: (NameBytes, NsId, NsId)) {
+    pub(crate) fn leave_missing_handler_namespace(
+        &mut self,
+        previous: (
+            Option<NameBytes>,
+            NamespaceExecutionContext,
+            NamespaceExecutionContext,
+        ),
+    ) {
         *self
             .resolution_stacks
             .ns_stack
@@ -10500,10 +10542,13 @@ impl Vm {
 
     /// The current namespace (canonical, no leading `::`; `""` = global).
     pub(crate) fn current_ns(&self) -> &str {
-        self.resolution_stacks.ns_stack.last().map_or("", |name| {
-            name.try_utf8()
-                .expect("Unicode namespace compatibility view requires checked native bytes")
-        })
+        self.resolution_stacks
+            .ns_stack
+            .last()
+            .and_then(Option::as_ref)
+            .expect("operation requires a materialized namespace report")
+            .try_utf8()
+            .expect("Unicode namespace compatibility view requires checked native bytes")
     }
 
     /// Intern a canonical namespace path to its stable `NsId`, minting one on
@@ -10901,8 +10946,11 @@ impl Vm {
         &self,
         path: &NamespacePath,
     ) -> Result<NsId, NativeCommandLookupUnavailable> {
-        if path == &self.ns_path(self.current_ns_id()) {
-            return Ok(self.current_ns_id());
+        if let Some(current) = self.current_namespace_execution_context().resolved_token()
+            && self.native_namespace_token_has_owner(current)
+            && path == &self.ns_path(current)
+        {
+            return Ok(current);
         }
         if path.is_empty() {
             return Ok(ROOT_NS);
@@ -11000,8 +11048,67 @@ impl Vm {
         self.resolution_stacks
             .ns_id_stack
             .last()
-            .copied()
-            .unwrap_or(ROOT_NS)
+            .and_then(NamespaceExecutionContext::resolved_token)
+            .expect("operation requires a materialized current namespace")
+    }
+
+    pub(crate) fn current_namespace_execution_context(&self) -> NamespaceExecutionContext {
+        self.resolution_stacks
+            .ns_id_stack
+            .last()
+            .expect("current namespace execution context")
+            .clone()
+    }
+
+    fn note_original_jim_namespace_materialized(
+        &mut self,
+        original: &OriginalJimNamespaceContext,
+        token: NsId,
+    ) {
+        let name = self
+            .name_world
+            .borrow()
+            .jim_namespace_objects
+            .get(&token)
+            .cloned()
+            .expect("materialized Jim namespace report belongs to its token");
+        for (context, report) in self
+            .resolution_stacks
+            .ns_id_stack
+            .iter()
+            .zip(&mut self.resolution_stacks.ns_stack)
+        {
+            if matches!(context, NamespaceExecutionContext::OriginalJim(selected) if std::ptr::eq(selected.as_ref(), original))
+            {
+                *report = Some(name.clone());
+            }
+        }
+        for frame in &mut self.frames {
+            if matches!(&frame.ns, NamespaceExecutionContext::OriginalJim(selected) if std::ptr::eq(selected.as_ref(), original))
+                && let Some((selected, _)) = frame.jim_namespace.get_mut()
+            {
+                *selected = Some(token);
+            }
+        }
+    }
+
+    pub(crate) fn push_procedure_namespace_context(&mut self, namespace: ProcedureNamespace) {
+        let context = namespace.context();
+        self.frames.last_mut().expect("entered procedure frame").ns = context.clone();
+        match namespace {
+            ProcedureNamespace::Resolved { path, token } => self.push_proc_ns(&path, token),
+            ProcedureNamespace::OriginalJim(_) => {
+                let report = context.resolved_token().and_then(|token| {
+                    self.name_world
+                        .borrow()
+                        .jim_namespace_objects
+                        .get(&token)
+                        .cloned()
+                });
+                self.resolution_stacks
+                    .push_original_activation(report, context);
+            }
+        }
     }
 
     fn retained_token_at_path(&self, path: &NamespacePath) -> Option<NsId> {
@@ -11166,9 +11273,12 @@ impl Vm {
                 self.native_compilation_binding(&key, &command, self.native_interpreter_identity())
             })
             .ok_or_else(unavailable)?;
-        let namespace = self.source_namespace_path();
-        let snapshot =
-            self.native_compilation_entry_for_namespace_token(self.current_ns_id(), false);
+        let current = self.current_native_compilation_namespace()?;
+        let namespace = self.ns_path(current);
+        let snapshot = self.native_compilation_entry_for_namespace_token(
+            self.current_native_compilation_namespace()?,
+            false,
+        );
         let selected = NativeSelectedSubstitutionHandler::capture(&snapshot, &selected)
             .map_err(|_| unavailable())?;
         if let Some(cache) = original.native_substitution_cache() {
@@ -11186,7 +11296,7 @@ impl Vm {
                 && unit.compiler.is_current_service(self.compiler_generation)
                 && unit.profile_generation == self.profile_generation
                 && unit.native_cache == Some(self.native_cache_stamp(self.current_ns_id()))
-                && unit.source_namespace == namespace
+                && unit.source_namespace.compiled_path() == Some(&namespace)
                 && self.function_command_bindings_match_with_manifest(
                     &unit.asm,
                     unit.manifest.as_deref(),
@@ -11221,9 +11331,12 @@ impl Vm {
         original.retire_native_substitution_cache();
         // Source updater callbacks happen before the actual compilation snapshot.
         let source = self.native_script_source_image(original)?;
-        let namespace = self.source_namespace_path();
-        let snapshot =
-            self.native_compilation_entry_for_namespace_token(self.current_ns_id(), false);
+        let current = self.current_native_compilation_namespace()?;
+        let namespace = self.ns_path(current);
+        let snapshot = self.native_compilation_entry_for_namespace_token(
+            self.current_native_compilation_namespace()?,
+            false,
+        );
         let entry =
             NativeSubstitutionCompilationEntry::from_selected_handler(&snapshot, selected, flags)
                 .map_err(|error| {
@@ -11305,11 +11418,11 @@ impl Vm {
         &self,
         path: &NamespacePath,
     ) -> Option<NativeCompilerCacheStamp> {
-        let token = if path == &self.source_namespace_path() {
-            self.current_ns_id()
-        } else {
-            self.namespace_token_at_path(path, true)?
-        };
+        let token = self
+            .current_namespace_execution_context()
+            .resolved_token()
+            .filter(|current| path == &self.ns_path(*current))
+            .or_else(|| self.namespace_token_at_path(path, true))?;
         Some(self.native_cache_stamp(token))
     }
 
@@ -11793,7 +11906,12 @@ impl InterpState {
     }
 
     fn retained_current_record(&self) -> Option<std::cell::Ref<'_, RetainedNamespace>> {
-        self.retained_record_of(*self.resolution_stacks.ns_id_stack.last()?)
+        self.retained_record_of(
+            self.resolution_stacks
+                .ns_id_stack
+                .last()?
+                .resolved_token()?,
+        )
     }
 
     /// Walk exact namespace arena edges below `base`. Namespace-path entries
@@ -12112,7 +12230,8 @@ impl Vm {
     /// name path, which creates the namespace if a rename left the procedure
     /// homed in a deleted one.
     pub(crate) fn push_proc_ns(&mut self, _path: &NamespacePath, id: NsId) {
-        self.frames.last_mut().expect("entered procedure frame").ns = id;
+        self.frames.last_mut().expect("entered procedure frame").ns =
+            NamespaceExecutionContext::Resolved(id);
         self.push_ns_token(self.ns_name_bytes(id), id);
     }
 
@@ -12139,7 +12258,7 @@ impl Vm {
     pub(crate) fn enter_replay_namespace(
         &mut self,
         context: &tcl_runtime_api::CompiledNamespaceContext,
-    ) -> Result<Option<(NameBytes, NsId)>, &'static str> {
+    ) -> Result<Option<(Option<NameBytes>, NamespaceExecutionContext)>, &'static str> {
         let id = self
             .resolve_compiled_namespace_context(context)
             .ok_or("native replay namespace context is unavailable")?;
@@ -12155,20 +12274,23 @@ impl Vm {
                 .ns_stack
                 .last_mut()
                 .expect("global namespace frame exists"),
-            name,
+            Some(name),
         );
         let previous_id = std::mem::replace(
             self.resolution_stacks
                 .ns_id_stack
                 .last_mut()
                 .expect("global namespace token exists"),
-            id,
+            NamespaceExecutionContext::Resolved(id),
         );
         Ok(Some((previous_ns, previous_id)))
     }
 
     /// Restore the namespace saved by [`Self::enter_replay_namespace`].
-    pub(crate) fn leave_replay_namespace(&mut self, previous: (NameBytes, NsId)) {
+    pub(crate) fn leave_replay_namespace(
+        &mut self,
+        previous: (Option<NameBytes>, NamespaceExecutionContext),
+    ) {
         *self
             .resolution_stacks
             .ns_stack
@@ -12211,7 +12333,10 @@ impl Vm {
     pub(crate) fn pop_ns_token(&mut self) -> Option<NsId> {
         self.resolution_stacks
             .pop_activation()
-            .map(|entry| entry.namespace)
+            .and_then(|entry| match entry.namespace {
+                NamespaceExecutionContext::Resolved(token) => Some(token),
+                NamespaceExecutionContext::OriginalJim(_) => None,
+            })
     }
 
     /// Whether namespace `ns` (canonical, unrooted; `""` is the always-present
@@ -12513,8 +12638,8 @@ impl Vm {
             .resolution_stacks
             .ns_id_stack
             .last()
-            .copied()
-            .unwrap_or(ROOT_NS);
+            .and_then(NamespaceExecutionContext::resolved_token)
+            .expect("operation requires a materialized current namespace");
         let mut names: Vec<NameBytes> = Vec::new();
         for key in self.imported_commands.keys().cloned().chain(
             self.retained_record_of(ns)
@@ -12759,8 +12884,8 @@ impl Vm {
                     .resolution_stacks
                     .ns_id_stack
                     .last()
-                    .copied()
-                    .unwrap_or(ROOT_NS),
+                    .and_then(NamespaceExecutionContext::resolved_token)
+                    .expect("operation requires a materialized current namespace"),
                 simple: tail.clone(),
             };
             let existing_key = self.command_storage_key_at_slot(&destination);
@@ -17067,7 +17192,10 @@ impl Vm {
             .native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
-            let reached = self.prepare_native_jim_script_unit(original, self.ns_path(namespace));
+            let reached = self.prepare_native_jim_script_unit(
+                original,
+                namespace_context::NamespaceExecutionContext::Resolved(namespace),
+            );
             return self.original_name_tcl_outcome(original_name_scope, reached);
         }
         let bytes = self
@@ -17188,9 +17316,9 @@ impl Vm {
             && let Ok(text) = std::str::from_utf8(source.bytes())
             && let Ok(selected) = u32::try_from(entry.current_namespace)
             && let Some(unit) = self.module_proc(name, parameter_source, text, NsId(selected))
-            && &unit.source_namespace == namespace
+            && unit.source_namespace.compiled_path() == Some(namespace)
         {
-            let pool = self.create_native_literal_pool(&unit.asm, &unit.source_namespace);
+            let pool = self.create_native_literal_pool(&unit.asm, namespace);
             original_name_scope
                 .check(self)
                 .map_err(|error| self.original_name_cmd_error(error))?;
@@ -17504,12 +17632,9 @@ impl Vm {
             ));
         }
         let body = if !protocol.retains_prepared_body() {
-            self.prepare_procedure_body_value_with_owner(
-                None,
-                &proc.params,
-                proc.actual_namespace_id(),
+            self.prepare_native_jim_script_unit(
                 &proc.body_src,
-                self.command_owned_procedure_namespace(&proc),
+                proc.actual_namespace_context().context(),
             )?
             .with_source_location(proc.body_src.source_location())
         } else if let Some(body) = self.current_native_procedure_body(&proc) {
@@ -17579,7 +17704,8 @@ impl Vm {
             && body.native_cache != Some(self.native_cache_stamp(proc.actual_namespace_id())))
             || body.profile_generation != self.profile_generation
             || (!is_foreign && !body.compiler.is_current_service(self.compiler_generation))
-            || body.source_namespace != self.ns_path(proc.actual_namespace_id())
+            || body.source_namespace.compiled_path()
+                != Some(&self.ns_path(proc.actual_namespace_id()))
             || body.interpreter != self.native_interpreter_identity()
             || !self
                 .function_command_bindings_match_with_manifest(&body.asm, body.manifest.as_deref())
@@ -17656,7 +17782,7 @@ impl Vm {
     /// Actual variable-frame currency used only to authenticate a reached OO context.
     pub(crate) fn native_oo_frame_identity(&self, level: usize) -> Option<(u64, NsId)> {
         let frame = self.frames.get(level)?;
-        Some((frame.activation.serial, frame.ns))
+        Some((frame.activation.serial, frame.ns.resolved_token()?))
     }
 
     /// Counted names from the actual definition namespace command table.
@@ -17674,7 +17800,12 @@ impl Vm {
         call_argv: Vec<Value>,
     ) -> usize {
         let level = self.frames.len();
-        let mut frame = CallFrame::new(level, ROOT_NS, proc_name, call_argv);
+        let mut frame = CallFrame::new(
+            level,
+            self.current_namespace_execution_context(),
+            proc_name,
+            call_argv,
+        );
         if self.uses_native_jim_lookup() {
             frame.jim_storage = self.jim_storage.acquire();
         }
@@ -17686,7 +17817,7 @@ impl Vm {
     /// Retain the original namespace object owned by the entered Jim procedure frame.
     pub(crate) fn install_jim_procedure_namespace_owner(
         &mut self,
-        namespace: NsId,
+        namespace: Option<NsId>,
         original: Value,
     ) {
         *self
@@ -18872,8 +19003,7 @@ impl Vm {
                     .resolution_stacks
                     .ns_id_stack
                     .get(start)
-                    .copied()
-                    .unwrap_or(ROOT_NS);
+                    .and_then(NamespaceExecutionContext::resolved_token)?;
                 let namespace = tcl_syntax::naming::variable_namespace_lookup_bases(
                     false,
                     token,
@@ -18924,8 +19054,7 @@ impl Vm {
             self.resolution_stacks
                 .ns_id_stack
                 .get(start)
-                .copied()
-                .unwrap_or(ROOT_NS)
+                .and_then(NamespaceExecutionContext::resolved_token)?
         };
         let walk = |base| {
             let token = match base {
@@ -23095,7 +23224,9 @@ impl Vm {
         table_key: Option<jim_table_keys::OriginalJimCommandKey>,
     ) -> (crate::command::NativeProcedureCommand, String) {
         if self.uses_native_jim_lookup() && proc.native_jim_namespace.is_none() {
-            proc.native_jim_namespace = Some(self.new_jim_declaration_namespace(proc.ns_id));
+            if let Some(token) = proc.execution_namespace.context().resolved_token() {
+                proc.native_jim_namespace = Some(self.new_jim_declaration_namespace(token));
+            }
         }
         let slot = CommandSlot {
             namespace: proc.command_ns_id,
@@ -23155,8 +23286,10 @@ impl Vm {
                 name: registered.clone(),
                 command_ns_id: slot.namespace,
                 simple_name: slot.simple.clone(),
-                namespace: self.ns_path(ns_id),
-                ns_id,
+                execution_namespace: ProcedureNamespace::Resolved {
+                    path: self.ns_path(ns_id),
+                    token: ns_id,
+                },
                 params,
                 parameter_grammar: grammar,
                 has_args,
@@ -24346,8 +24479,11 @@ impl Vm {
     ) -> Result<tcl_runtime_api::NativeCompilationEntry, TclError> {
         let current = if namespace.is_empty() {
             Some(ROOT_NS)
-        } else if namespace == self.current_ns() {
-            Some(self.current_ns_id())
+        } else if let Some(current) = self.current_namespace_execution_context().resolved_token()
+            && tcl_syntax::naming::checked_namespace_path_utf8(&self.ns_path(current))
+                .is_ok_and(|segments| segments.join("::") == namespace)
+        {
+            Some(current)
         } else {
             let world = self.name_world.borrow();
             let mut matches = world.ns_intern.iter().filter_map(|(path, token)| {
@@ -24360,6 +24496,13 @@ impl Vm {
         };
         let current = current.ok_or_else(Self::unavailable_native_compilation_namespace)?;
         Ok(self.native_compilation_entry_for_namespace_token(current, procedure))
+    }
+
+    fn current_native_compilation_namespace(&self) -> Result<NsId, TclError> {
+        self.current_namespace_execution_context()
+            .resolved_token()
+            .filter(|token| self.native_namespace_token_has_owner(*token))
+            .ok_or_else(Self::unavailable_native_compilation_namespace)
     }
 
     fn unavailable_native_compilation_namespace() -> TclError {
@@ -25038,6 +25181,7 @@ impl Vm {
     /// method via its runtime builtin — compile trace-visible too,
     /// without each call site needing to know that.
     fn compile_cached(&mut self, src: &str) -> Result<Rc<ModuleAsm>, TclError> {
+        self.current_native_compilation_namespace()?;
         let namespace = self.current_ns().to_owned();
         self.compile_cached_in_namespace(src, &namespace)
     }
@@ -25143,11 +25287,11 @@ impl Vm {
         namespace: &NamespacePath,
         plain: bool,
     ) -> Result<Rc<ModuleAsm>, TclError> {
-        let current = if namespace == &self.source_namespace_path() {
-            Some(self.current_ns_id())
-        } else {
-            self.namespace_token_at_path(namespace, true)
-        };
+        let current = self
+            .current_namespace_execution_context()
+            .resolved_token()
+            .filter(|current| namespace == &self.ns_path(*current))
+            .or_else(|| self.namespace_token_at_path(namespace, true));
         let current = current.ok_or_else(Self::unavailable_native_compilation_namespace)?;
         let entry =
             std::sync::Arc::new(self.native_compilation_entry_for_namespace_token(current, false));
@@ -25418,8 +25562,12 @@ impl Vm {
         }
         self.claim_number_grammar();
         self.reset_error_state_for_eval();
-        let namespace = self.source_namespace_path();
-        let entry = self.native_compilation_entry_for_namespace_token(self.current_ns_id(), false);
+        let current = self.current_native_compilation_namespace()?;
+        let namespace = self.ns_path(current);
+        let entry = self.native_compilation_entry_for_namespace_token(
+            self.current_native_compilation_namespace()?,
+            false,
+        );
         let Some(compiler) = self.compiler.clone() else {
             return Err(self.compile_service_error_bytes(
                 tcl_runtime_api::CompileError::Unsupported(
@@ -25654,6 +25802,7 @@ impl Vm {
     /// must carry this owner through to frame creation; using the VM's later
     /// ambient state there can acknowledge changes the assembly has never seen.
     pub(crate) fn compile_script_cached(&mut self, src: &str) -> Result<CompiledUnit, TclError> {
+        self.current_native_compilation_namespace()?;
         let namespace = self.current_ns().to_owned();
         self.compile_script_cached_in_namespace(src, &namespace)
     }
@@ -25730,15 +25879,18 @@ impl Vm {
     pub(crate) fn prepare_native_jim_script_unit(
         &mut self,
         original: &Value,
-        namespace: NamespacePath,
+        context: namespace_context::NamespaceExecutionContext,
     ) -> Result<CompiledUnit, TclError> {
+        context
+            .check_owner(self)
+            .map_err(|error| self.original_name_cmd_error(error))?;
         original.bind_native_jim_context(&self.native_jim_object_context()?)?;
         Ok(CompiledUnit::native_script(
             crate::native_jim_script::NativeJimScriptEntry::borrowed(
                 original.native_lifetime_lease(),
                 None,
             ),
-            namespace,
+            context,
             self.profile_generation,
             self.native_interpreter_identity(),
         ))
@@ -25796,7 +25948,10 @@ impl Vm {
         source: &tcl_runtime_api::SourceImage,
         namespace: &NamespacePath,
     ) -> Result<tcl_runtime_api::ScriptCommandPlan, TclError> {
-        let entry = self.native_compilation_entry_for_namespace_token(self.current_ns_id(), false);
+        let entry = self.native_compilation_entry_for_namespace_token(
+            self.current_native_compilation_namespace()?,
+            false,
+        );
         let Some(compiler) = self.compiler.as_ref() else {
             return Err(self.compile_service_error_bytes(
                 tcl_runtime_api::CompileError::Unsupported(
@@ -25867,9 +26022,10 @@ impl Vm {
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return Ok(PreparedScript {
-                prefix: Some(
-                    self.prepare_native_jim_script_unit(value, self.source_namespace_path())?,
-                ),
+                prefix: Some(self.prepare_native_jim_script_unit(
+                    value,
+                    self.current_namespace_execution_context().clone(),
+                )?),
                 fatal_tail: None,
             });
         }
@@ -25896,7 +26052,7 @@ impl Vm {
                 && body.interpreter == self.native_interpreter_identity()
                 && body.compiler.is_current_service(self.compiler_generation)
                 && body.profile_generation == self.profile_generation
-                && body.source_namespace == self.source_namespace_path()
+                && body.source_namespace.compiled_path() == Some(&self.source_namespace_path())
                 && body.native_cache == Some(self.native_cache_stamp(self.current_ns_id()))
                 && self.function_command_bindings_match_with_manifest(
                     &body.asm,
@@ -27201,8 +27357,8 @@ impl Namespaces for Vm {
         self.resolution_stacks
             .ns_id_stack
             .last()
-            .copied()
-            .unwrap_or(ROOT_NS)
+            .and_then(NamespaceExecutionContext::resolved_token)
+            .expect("operation requires a materialized current namespace")
     }
 
     fn name(&self, ns: NsId) -> String {

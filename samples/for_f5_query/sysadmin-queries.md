@@ -1045,6 +1045,8 @@ On a real box this is exactly the list to feed into
 `tls_handshake` for the cert expiry audit
 ([§8](#8-live-probes)).
 
+## 7. Logs & timeline
+
 The `multitier/logs/` directory carries representative syslog
 from every device in the multitier. Standard message-code
 families used below (KB **K9970** lists every one):

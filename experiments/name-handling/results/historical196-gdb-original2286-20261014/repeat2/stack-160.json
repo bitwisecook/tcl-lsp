@@ -1,0 +1,79 @@
+{
+  "requested_seconds": 160,
+  "inferior_wall_seconds": 160.18421522699646,
+  "cpu_before_interrupt": {
+    "clock_ticks_per_second": 100,
+    "threads": [
+      {
+        "tid": 507792,
+        "state": "S",
+        "user_ticks": 0,
+        "system_ticks": 0,
+        "start_ticks": 12570107
+      },
+      {
+        "tid": 507795,
+        "state": "R",
+        "user_ticks": 15983,
+        "system_ticks": 7,
+        "start_ticks": 12570111
+      }
+    ]
+  },
+  "cpu_when_stopped": {
+    "clock_ticks_per_second": 100,
+    "threads": [
+      {
+        "tid": 507792,
+        "state": "t",
+        "user_ticks": 0,
+        "system_ticks": 0,
+        "start_ticks": 12570107
+      },
+      {
+        "tid": 507795,
+        "state": "t",
+        "user_ticks": 15983,
+        "system_ticks": 7,
+        "start_ticks": 12570111
+      }
+    ]
+  },
+  "stack_lines": [
+    "Thread 2 (Thread 0x7f69aff6b6c0 (LWP 507795) \"analyser::diagn\"):",
+    "#0  0x0000562953d39066 in core::iter::adapters::filter_map::filter_map_fold::<&u32, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::ssa::represented_contents_origins::{closure#2}, tcl_compiler::ssa::represented_contents_origins::{closure#3}>::{closure#0} ()",
+    "#1  0x0000562952d3fb66 in <std::collections::hash::map::Values<tcl_compiler::cfg::BlockId, u32> as core::iter::traits::iterator::Iterator>::fold::<tcl_compiler::var_resolve::ContentsOrigin, core::iter::adapters::filter_map::filter_map_fold<&u32, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::ssa::represented_contents_origins::{closure#2}, tcl_compiler::ssa::represented_contents_origins::{closure#3}>::{closure#0}>::{closure#0} ()",
+    "#2  0x00005629523a3dee in <hashbrown::map::Iter<tcl_compiler::cfg::BlockId, u32> as core::iter::traits::iterator::Iterator>::fold::<tcl_compiler::var_resolve::ContentsOrigin, <std::collections::hash::map::Values<tcl_compiler::cfg::BlockId, u32> as core::iter::traits::iterator::Iterator>::fold<tcl_compiler::var_resolve::ContentsOrigin, core::iter::adapters::filter_map::filter_map_fold<&u32, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::ssa::represented_contents_origins::{closure#2}, tcl_compiler::ssa::represented_contents_origins::{closure#3}>::{closure#0}>::{closure#0}>::{closure#0} ()",
+    "#3  0x0000562951d8d48a in <hashbrown::raw::RawIterRange<(tcl_compiler::cfg::BlockId, u32)>>::fold_impl::<<hashbrown::map::Iter<tcl_compiler::cfg::BlockId, u32> as core::iter::traits::iterator::Iterator>::fold<tcl_compiler::var_resolve::ContentsOrigin, <std::collections::hash::map::Values<tcl_compiler::cfg::BlockId, u32> as core::iter::traits::iterator::Iterator>::fold<tcl_compiler::var_resolve::ContentsOrigin, core::iter::adapters::filter_map::filter_map_fold<&u32, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::ssa::represented_contents_origins::{closure#2}, tcl_compiler::ssa::represented_contents_origins::{closure#3}>::{closure#0}>::{closure#0}>::{closure#0}, tcl_compiler::var_resolve::ContentsOrigin> ()",
+    "#4  0x000056295238ccdd in <hashbrown::map::Iter<tcl_compiler::cfg::BlockId, u32> as core::iter::traits::iterator::Iterator>::fold::<tcl_compiler::var_resolve::ContentsOrigin, <std::collections::hash::map::Values<tcl_compiler::cfg::BlockId, u32> as core::iter::traits::iterator::Iterator>::fold<tcl_compiler::var_resolve::ContentsOrigin, core::iter::adapters::filter_map::filter_map_fold<&u32, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::ssa::represented_contents_origins::{closure#2}, tcl_compiler::ssa::represented_contents_origins::{closure#3}>::{closure#0}>::{closure#0}> ()",
+    "#5  0x0000562952d018bf in <std::collections::hash::map::Values<tcl_compiler::cfg::BlockId, u32> as core::iter::traits::iterator::Iterator>::fold::<tcl_compiler::var_resolve::ContentsOrigin, core::iter::adapters::filter_map::filter_map_fold<&u32, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::ssa::represented_contents_origins::{closure#2}, tcl_compiler::ssa::represented_contents_origins::{closure#3}>::{closure#0}> ()",
+    "#6  0x0000562953d15ffc in <core::iter::adapters::filter_map::FilterMap<std::collections::hash::map::Values<tcl_compiler::cfg::BlockId, u32>, tcl_compiler::ssa::represented_contents_origins::{closure#2}> as core::iter::traits::iterator::Iterator>::fold::<tcl_compiler::var_resolve::ContentsOrigin, tcl_compiler::ssa::represented_contents_origins::{closure#3}> ()",
+    "#7  0x0000562953d25b1e in <core::iter::adapters::filter_map::FilterMap<std::collections::hash::map::Values<tcl_compiler::cfg::BlockId, u32>, tcl_compiler::ssa::represented_contents_origins::{closure#2}> as core::iter::traits::iterator::Iterator>::reduce::<tcl_compiler::ssa::represented_contents_origins::{closure#3}> ()",
+    "#8  0x00005629537ac578 in tcl_compiler::ssa::represented_contents_origins ()",
+    "#9  0x00005629537a5ef2 in tcl_compiler::ssa::retained_read_references ()",
+    "#10 0x0000562953799330 in tcl_compiler::ssa::build_ssa_inner ()",
+    "#11 0x00005629537b7f48 in tcl_compiler::ssa::build_ssa_with_context_for_entry_and_metadata ()",
+    "#12 0x0000562952c2c85c in <tcl_compiler::compilation_unit::FunctionUnit>::build_full::<alloc::string::String> ()",
+    "#13 0x0000562952dcb92f in <tcl_compiler::compilation_unit::FunctionUnit>::build_procedure_in_module ()",
+    "#14 0x0000562952d521d4 in tcl_compiler::compilation_unit::build_procedure_units::{closure#4} ()",
+    "#15 0x0000562953921e78 in <core::option::Option<tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<tcl_compiler::compilation_unit::build_procedure_units::{closure#4}> ()",
+    "#16 0x0000562952e1aa12 in tcl_compiler::compilation_unit::build_procedure_units ()",
+    "#17 0x0000562952ddc265 in <tcl_compiler::compilation_unit::CompilationUnit>::build_with_retained_entry_and_source_syntax ()",
+    "#18 0x0000562952dd69ec in <tcl_compiler::compilation_unit::CompilationUnit>::build_with_retained_entry ()",
+    "#19 0x0000562952dd6902 in <tcl_compiler::compilation_unit::CompilationUnit>::build_with_analysis_input ()",
+    "Thread 1 (Thread 0x7f69aff6cf00 (LWP 507792) \"compiler196.elf\"):",
+    "#0  0x00007f69b007f7b9 in syscall () from /lib/x86_64-linux-gnu/libc.so.6",
+    "#1  0x0000562955d7ff26 in <std::thread::thread::Thread>::park ()",
+    "#2  0x000056295520aa95 in <std::sync::mpmc::list::Channel<test::event::CompletedTest>>::recv::{closure#1} ()",
+    "#3  0x0000562955215ef5 in <std::sync::mpmc::list::Channel<test::event::CompletedTest>>::recv ()",
+    "#4  0x00005629552229aa in test::console::run_tests_console ()",
+    "#5  0x000056295520e91d in test::test_main_static ()",
+    "#6  0x0000562953a70c93 in tcl_compiler::main ()",
+    "#7  0x000056295434648b in <fn() as core::ops::function::FnOnce<()>>::call_once ()",
+    "#8  0x0000562952363e56 in std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()> ()",
+    "#9  0x00005629535fce39 in std::rt::lang_start::<()>::{closure#0} ()",
+    "#10 0x0000562955d8e7b9 in std::rt::lang_start_internal ()",
+    "#11 0x0000562953531de1 in std::rt::lang_start::<()> ()",
+    "#12 0x0000562953c74de5 in main ()"
+  ]
+}

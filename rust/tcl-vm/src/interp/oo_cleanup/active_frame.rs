@@ -122,8 +122,12 @@ impl OriginalOoCleanup {
                 Ok(Some(namespace)) => {
                     let error = self.refuse(vm, "original departing namespace activation");
                     retain_error(vm, &error);
-                    let retired =
-                        self.in_original(vm, |vm| vm.retire_namespace_activation_role(namespace));
+                    let retired = self.in_original(vm, |vm| {
+                        if let super::super::NamespaceExecutionContext::Resolved(token) = namespace
+                        {
+                            vm.retire_namespace_activation_role(token);
+                        }
+                    });
                     if let Err(error) = retired {
                         retain_error(vm, &error);
                     }
@@ -156,7 +160,11 @@ impl OriginalOoCleanup {
             Ok(Some((entry, last))) => {
                 if let Some(entry) = entry {
                     let result = self.in_original(vm, |vm| {
-                        vm.retire_namespace_activation_role(entry.namespace)
+                        if let super::super::NamespaceExecutionContext::Resolved(token) =
+                            entry.namespace
+                        {
+                            vm.retire_namespace_activation_role(token);
+                        }
                     });
                     if let Err(error) = result {
                         retain_error(vm, &error);

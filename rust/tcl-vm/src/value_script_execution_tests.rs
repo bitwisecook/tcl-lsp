@@ -206,7 +206,7 @@ fn deferred_original_jim_script_owner_survives_transport_clones_only_until_activ
         Value::new_native_string_bytes(b"set temporary RESULT; set temporary".as_slice());
     let observer = original.native_lifetime_lease();
     let unit = vm
-        .prepare_native_jim_script_unit(&original, vm.source_namespace_path())
+        .prepare_native_jim_script_unit(&original, vm.current_namespace_execution_context().clone())
         .unwrap()
         .with_deferred_script_original(original)
         .unwrap();
@@ -246,7 +246,7 @@ fn deferred_original_jim_script_owner_refuses_foreign_and_retired_original_heade
     let mut vm = crate::native_fixture::core(profile);
     let original = Value::new_native_string_bytes(b"set marker SAME".as_slice());
     let unit = vm
-        .prepare_native_jim_script_unit(&original, vm.source_namespace_path())
+        .prepare_native_jim_script_unit(&original, vm.current_namespace_execution_context().clone())
         .unwrap();
     let foreign = Value::new_native_string_bytes(b"set marker SAME".as_slice());
     assert!(matches!(
@@ -259,7 +259,7 @@ fn deferred_original_jim_script_owner_refuses_foreign_and_retired_original_heade
     assert_eq!(original.native_object_reference_count(), 1);
 
     let unit = vm
-        .prepare_native_jim_script_unit(&original, vm.source_namespace_path())
+        .prepare_native_jim_script_unit(&original, vm.current_namespace_execution_context().clone())
         .unwrap();
     let observer = original.native_lifetime_lease();
     drop(original);

@@ -1,0 +1,36 @@
+{
+  "captured_at": "2026-10-14T23:09:39.326398+00:00",
+  "provider": "latest Jim0.84-9-g5bac7c9 original full extension build",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "/tmp/name-jim-deferred-context-followup-sdk-20261014/probe.c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/tmp/name-jim-deferred-context-followup-sdk-20261014/probe"
+  ],
+  "compile_exit": 0,
+  "process_exit": 0,
+  "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+  "library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+  "scope": "Retains five genuine Native Apply controls plus nonempty comment-only and parse-invalid source bodies. Namespace integer original child resident state is sampled before any selected namespace getter. No tcltest or implementation build, no fabricated context or C inference.",
+  "files": {
+    "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.tsv": "c70842fe561d668083b423a232a307301f97a8830ba5fd107578814bc2c2ee56",
+    "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "probe": "1ab9a533371dcef48b992153cb13fa7e45eb704e3c3bd923dc2442bda9feb28b",
+    "probe.c": "a23b325f673d16773e3b8e5a4187f1b3e78909fda66c4be3f8ee8033e7f72218",
+    "provider-sources/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+    "provider-sources/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "provider-sources/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "provider-sources/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "provider-sources/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+  }
+}

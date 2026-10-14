@@ -3,8 +3,8 @@
 
 use super::native_original_lookup::OriginalLookup;
 use super::{
-    Command, CommandSidecarKey, CommandSlot, Completion, Local, NameBytes, NsId, ROOT_NS, Rc,
-    RefCell, Value, VarId, Vm, native_name_world,
+    Command, CommandSidecarKey, CommandSlot, Completion, Local, NameBytes,
+    NamespaceExecutionContext, NsId, ROOT_NS, Rc, RefCell, Value, VarId, Vm, native_name_world,
 };
 use std::cell::Cell;
 use std::rc::Weak;
@@ -171,7 +171,19 @@ impl Vm {
         &self,
         read: impl FnOnce(&Value) -> Result<R, ValueError>,
     ) -> Result<R, ValueError> {
-        self.with_jim_namespace_at(self.current_ns_id(), read)
+        match self.current_namespace_execution_context() {
+            NamespaceExecutionContext::Resolved(namespace) => {
+                self.with_jim_namespace_at(namespace, read)
+            }
+            NamespaceExecutionContext::OriginalJim(context) => {
+                if !context.owner_is_current(self) {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "Jim original current namespace owner",
+                    ));
+                }
+                read(context.original())
+            }
+        }
     }
 
     /// Borrow the actual original namespace object for this explicit token.
@@ -199,7 +211,7 @@ impl Vm {
                     .jim_namespace
                     .borrow()
                     .as_ref()
-                    .filter(|(token, _)| *token == namespace)
+                    .filter(|(token, _)| *token == Some(namespace))
                     .map(|(_, original)| original.native_lifetime_lease())
             })
             .ok_or(ValueError::CommandProtocolUnavailable(
@@ -373,68 +385,66 @@ impl Vm {
     }
 
     fn cached_original_jim_command(
-        &self,
-        namespace: NsId,
+        &mut self,
+        entered: &OriginalLookup,
         original: &Value,
         recipe: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
-    ) -> Result<Option<(String, Command)>, ValueError> {
-        Ok(original
-            .with_jim_command_cache(|cache| {
-                if cache.interpreter != self.native_interpreter_identity() {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "foreign Jim command cache",
-                    ));
-                }
-                let epoch = self.name_world.borrow().jim_procedure_epoch;
-                if cache.epoch != epoch {
-                    return Ok(None);
-                }
-                let same_namespace = self.with_jim_namespace_at(namespace, |namespace| {
-                    let current = namespace
-                        .native_string_bytes(
-                            tcl_syntax::native_string::NativeStringProtocol::Jim084,
-                        )
-                        .map_err(|_| {
-                            ValueError::CommandProtocolUnavailable(
-                                "Jim original current namespace spelling",
-                            )
-                        })?;
-                    let cached = cache
-                        .namespace
-                        .native_string_bytes(
-                            tcl_syntax::native_string::NativeStringProtocol::Jim084,
-                        )
-                        .map_err(|_| {
-                            ValueError::CommandProtocolUnavailable(
-                                "Jim original cached namespace spelling",
-                            )
-                        })?;
-                    Ok(current == cached)
-                })?;
-                let node = self
-                    .name_world
-                    .borrow()
-                    .jim_command_receipts
-                    .get(&cache.token)
-                    .and_then(Weak::upgrade);
-                let live = node.as_ref().is_some_and(|node| node.is_live());
-                if !recipe.command_is_current(cache.epoch, epoch, same_namespace, live) {
-                    return Ok(None);
-                }
-                let node =
-                    self.select_jim_previous_node(node.expect("checked original command node"))?;
-                let key = self
-                    .command_token_at_generation(node.token)
-                    .and_then(|identity| match identity.key {
-                        CommandSidecarKey::Visible(key) => Some(key),
-                        CommandSidecarKey::Hidden(_) => None,
-                    })
-                    .unwrap_or_else(|| node.storage_key.borrow().clone());
-                let worker = node.command.borrow().clone();
-                Ok(Some((key, worker)))
+    ) -> Result<Option<(String, Command)>, CmdError> {
+        let Some((interpreter, cached_epoch, token, namespace)) =
+            original.with_jim_command_cache(|cache| {
+                (
+                    cache.interpreter,
+                    cache.epoch,
+                    cache.token,
+                    cache.namespace.native_lifetime_lease(),
+                )
             })
-            .transpose()?
-            .flatten())
+        else {
+            return Ok(None);
+        };
+        if interpreter != self.native_interpreter_identity() {
+            return Err(ValueError::CommandProtocolUnavailable("foreign Jim command cache").into());
+        }
+        let epoch = self.name_world.borrow().jim_procedure_epoch;
+        if cached_epoch != epoch {
+            return Ok(None);
+        }
+        let current =
+            entered
+                .jim_namespace_original()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "Jim original current namespace header",
+                ))?;
+        let same_namespace = if namespace.value().is_same_object(current) {
+            true
+        } else {
+            let cached = self.native_name_operand_bytes_checked(namespace.value())?;
+            entered.check(self)?;
+            let current = entered.read_jim_namespace(self)?;
+            cached == current
+        };
+        entered.check(self)?;
+        let node = self
+            .name_world
+            .borrow()
+            .jim_command_receipts
+            .get(&token)
+            .and_then(Weak::upgrade);
+        let live = node.as_ref().is_some_and(|node| node.is_live());
+        let epoch = self.name_world.borrow().jim_procedure_epoch;
+        if !recipe.command_is_current(cached_epoch, epoch, same_namespace, live) {
+            return Ok(None);
+        }
+        let node = self.select_jim_previous_node(node.expect("checked original command node"))?;
+        let key = self
+            .command_token_at_generation(node.token)
+            .and_then(|identity| match identity.key {
+                CommandSidecarKey::Visible(key) => Some(key),
+                CommandSidecarKey::Hidden(_) => None,
+            })
+            .unwrap_or_else(|| node.storage_key.borrow().clone());
+        let worker = node.command.borrow().clone();
+        Ok(Some((key, worker)))
     }
 
     pub(super) fn native_jim_command_from_original_at(
@@ -442,18 +452,29 @@ impl Vm {
         current: NsId,
         original: &Value,
     ) -> Result<Option<(String, Command)>, CmdError> {
-        let entered = OriginalLookup::enter(self, current, original)?;
+        self.native_jim_command_from_original_in_context(
+            &NamespaceExecutionContext::Resolved(current),
+            original,
+        )
+    }
+
+    pub(super) fn native_jim_command_from_original_in_context(
+        &mut self,
+        context: &NamespaceExecutionContext,
+        original: &Value,
+    ) -> Result<Option<(String, Command)>, CmdError> {
+        let entered = OriginalLookup::enter_in_context(self, context, original)?;
         let reached: Result<Option<(String, Command)>, CmdError> = (|| {
             let dialect = self.actual_native_invocation_dialect();
             let recipe = dialect.native_jim_lookup_protocol().ok_or(
                 ValueError::CommandProtocolUnavailable("Jim original command lookup issuer"),
             )?;
-            self.with_jim_namespace_at(current, |_| Ok(()))?;
-            let hit = self.cached_original_jim_command(current, original, recipe)?;
+            let hit = self.cached_original_jim_command(&entered, original, recipe)?;
             entered.check(self)?;
             if hit.is_some() {
                 return Ok(hit);
             }
+            let current = entered.materialize_namespace(self)?;
             let bytes = entered.read(self)?;
             let Some(key) = self
                 .resolve_command_bytes_checked(current, &bytes, true)
@@ -500,8 +521,12 @@ impl Vm {
                 crate::value::JimCommandNameObservation::capture(&original.original)?
             };
             *node.observed_name.original.borrow_mut() = Some(observed);
-            let namespace = self
-                .with_jim_namespace_at(current, |original| Ok(original.native_lifetime_lease()))?;
+            let namespace = entered
+                .jim_namespace_original()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "Jim original lookup namespace header",
+                ))?
+                .native_lifetime_lease();
             let epoch = self.name_world.borrow().jim_procedure_epoch;
             let interpreter = self.native_interpreter_identity();
             // The original allocation is observed before retirement. The actual

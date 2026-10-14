@@ -1,0 +1,79 @@
+{
+  "requested_seconds": 100,
+  "inferior_wall_seconds": 100.0813467669941,
+  "cpu_before_interrupt": {
+    "clock_ticks_per_second": 100,
+    "threads": [
+      {
+        "tid": 507792,
+        "state": "S",
+        "user_ticks": 0,
+        "system_ticks": 0,
+        "start_ticks": 12570107
+      },
+      {
+        "tid": 507795,
+        "state": "R",
+        "user_ticks": 9975,
+        "system_ticks": 5,
+        "start_ticks": 12570111
+      }
+    ]
+  },
+  "cpu_when_stopped": {
+    "clock_ticks_per_second": 100,
+    "threads": [
+      {
+        "tid": 507792,
+        "state": "t",
+        "user_ticks": 0,
+        "system_ticks": 0,
+        "start_ticks": 12570107
+      },
+      {
+        "tid": 507795,
+        "state": "t",
+        "user_ticks": 9976,
+        "system_ticks": 5,
+        "start_ticks": 12570111
+      }
+    ]
+  },
+  "stack_lines": [
+    "Thread 2 (Thread 0x7f69aff6b6c0 (LWP 507795) \"analyser::diagn\"):",
+    "#0  0x0000562955d2be7b in <core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write ()",
+    "#1  0x0000562955ad4967 in <std::hash::random::DefaultHasher as core::hash::Hasher>::write ()",
+    "#2  0x0000562955ad7934 in <std::hash::random::DefaultHasher as core::hash::Hasher>::write_u32 ()",
+    "#3  0x0000562955ab4584 in <u32 as core::hash::Hash>::hash::<std::hash::random::DefaultHasher> ()",
+    "#4  0x00005629535afc4a in <(tcl_compiler::ssa::Symbol, u32) as core::hash::Hash>::hash::<std::hash::random::DefaultHasher> ()",
+    "#5  0x00005629535ab569 in <&(tcl_compiler::ssa::Symbol, u32) as core::hash::Hash>::hash::<std::hash::random::DefaultHasher> ()",
+    "#6  0x00005629514350b8 in <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(tcl_compiler::ssa::Symbol, u32)> ()",
+    "#7  0x00005629523385a8 in <hashbrown::map::HashMap<(tcl_compiler::ssa::Symbol, u32), tcl_compiler::var_resolve::ContentsOrigin, std::hash::random::RandomState>>::get::<(tcl_compiler::ssa::Symbol, u32)> ()",
+    "#8  0x0000562952c2c006 in <std::collections::hash::map::HashMap<(tcl_compiler::ssa::Symbol, u32), tcl_compiler::var_resolve::ContentsOrigin>>::get::<(tcl_compiler::ssa::Symbol, u32)> ()",
+    "#9  0x00005629537ac8cd in tcl_compiler::ssa::represented_contents_origins ()",
+    "#10 0x00005629537a5ef2 in tcl_compiler::ssa::retained_read_references ()",
+    "#11 0x0000562953799330 in tcl_compiler::ssa::build_ssa_inner ()",
+    "#12 0x00005629537b7f48 in tcl_compiler::ssa::build_ssa_with_context_for_entry_and_metadata ()",
+    "#13 0x0000562952c2c85c in <tcl_compiler::compilation_unit::FunctionUnit>::build_full::<alloc::string::String> ()",
+    "#14 0x0000562952dcb92f in <tcl_compiler::compilation_unit::FunctionUnit>::build_procedure_in_module ()",
+    "#15 0x0000562952d521d4 in tcl_compiler::compilation_unit::build_procedure_units::{closure#4} ()",
+    "#16 0x0000562953921e78 in <core::option::Option<tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<tcl_compiler::compilation_unit::build_procedure_units::{closure#4}> ()",
+    "#17 0x0000562952e1aa12 in tcl_compiler::compilation_unit::build_procedure_units ()",
+    "#18 0x0000562952ddc265 in <tcl_compiler::compilation_unit::CompilationUnit>::build_with_retained_entry_and_source_syntax ()",
+    "#19 0x0000562952dd69ec in <tcl_compiler::compilation_unit::CompilationUnit>::build_with_retained_entry ()",
+    "Thread 1 (Thread 0x7f69aff6cf00 (LWP 507792) \"compiler196.elf\"):",
+    "#0  0x00007f69b007f7b9 in syscall () from /lib/x86_64-linux-gnu/libc.so.6",
+    "#1  0x0000562955d7ff26 in <std::thread::thread::Thread>::park ()",
+    "#2  0x000056295520aa95 in <std::sync::mpmc::list::Channel<test::event::CompletedTest>>::recv::{closure#1} ()",
+    "#3  0x0000562955215ef5 in <std::sync::mpmc::list::Channel<test::event::CompletedTest>>::recv ()",
+    "#4  0x00005629552229aa in test::console::run_tests_console ()",
+    "#5  0x000056295520e91d in test::test_main_static ()",
+    "#6  0x0000562953a70c93 in tcl_compiler::main ()",
+    "#7  0x000056295434648b in <fn() as core::ops::function::FnOnce<()>>::call_once ()",
+    "#8  0x0000562952363e56 in std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()> ()",
+    "#9  0x00005629535fce39 in std::rt::lang_start::<()>::{closure#0} ()",
+    "#10 0x0000562955d8e7b9 in std::rt::lang_start_internal ()",
+    "#11 0x0000562953531de1 in std::rt::lang_start::<()> ()",
+    "#12 0x0000562953c74de5 in main ()"
+  ]
+}

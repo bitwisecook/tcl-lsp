@@ -2,7 +2,7 @@
 //! Original consumer context, independent of selected command and table roles.
 
 use super::{
-    Vm,
+    NamespaceExecutionContext, Vm,
     native_name_queries::QueryNamespace,
     native_name_world::NativeNameWorld,
     native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
@@ -27,8 +27,8 @@ pub(crate) struct OriginalNameConsumerScope {
 pub(super) struct OriginalNameConsumerState {
     jim_namespace: Option<NativeObjectLifetimeLease>,
     frame: Option<(Rc<ActivationIdentity>, usize)>,
-    namespace: NsId,
-    namespace_owner: QueryNamespace,
+    namespace: NamespaceExecutionContext,
+    namespace_owner: RefCell<Option<QueryNamespace>>,
     selected_namespace: Option<QueryNamespace>,
     world: Rc<RefCell<NativeNameWorld>>,
 }
@@ -50,8 +50,14 @@ impl OriginalNameConsumerState {
             .len()
             .checked_sub(1)
             .map(|level| (vm.retained_frame_identity(false), level));
-        let namespace = vm.current_ns_id();
-        let namespace_owner = QueryNamespace::capture(vm, namespace)?;
+        let namespace = vm.current_namespace_execution_context();
+        if let NamespaceExecutionContext::OriginalJim(context) = &namespace {
+            context.check_owner(vm)?;
+        }
+        let namespace_owner = namespace
+            .resolved_token()
+            .map(|id| QueryNamespace::capture(vm, id))
+            .transpose()?;
         let selected_namespace = selected
             .map(|id| QueryNamespace::capture(vm, id))
             .transpose()?;
@@ -68,7 +74,7 @@ impl OriginalNameConsumerState {
             jim_namespace,
             frame,
             namespace,
-            namespace_owner,
+            namespace_owner: RefCell::new(namespace_owner),
             selected_namespace,
             world,
         })
@@ -84,7 +90,11 @@ impl OriginalNameConsumerState {
     ) -> Result<(), CmdError> {
         let world_current = Rc::ptr_eq(&self.world, &vm.name_world)
             && self.world.borrow().is_live()
-            && self.namespace_owner.current(vm)
+            && self
+                .namespace_owner
+                .borrow()
+                .as_ref()
+                .is_none_or(|owner| owner.current(vm))
             && self
                 .selected_namespace
                 .as_ref()
@@ -102,13 +112,28 @@ impl OriginalNameConsumerState {
             },
         );
         require(vm, frame_current, "original Name consumer frame activation")?;
-        let namespace_current = vm.current_ns_id() == self.namespace
-            && vm.native_namespace_token_has_owner(self.namespace);
+        if let NamespaceExecutionContext::OriginalJim(context) = &self.namespace {
+            context.check_owner(vm)?;
+        }
+        let namespace_current = vm
+            .current_namespace_execution_context()
+            .same_context(&self.namespace)
+            && self
+                .namespace
+                .resolved_token()
+                .is_none_or(|id| vm.native_namespace_token_has_owner(id));
         require(
             vm,
             namespace_current,
             "original Name consumer namespace incarnation",
         )?;
+        let namespace_owner_missing = self.namespace_owner.borrow().is_none();
+        if let Some(namespace) = self.namespace.resolved_token()
+            && namespace_owner_missing
+        {
+            let owner = QueryNamespace::capture(vm, namespace)?;
+            *self.namespace_owner.borrow_mut() = Some(owner);
+        }
         if let Some(original) = &self.jim_namespace {
             let same = vm.with_jim_current_namespace(|current| {
                 Ok(current.is_same_object(original.value()))

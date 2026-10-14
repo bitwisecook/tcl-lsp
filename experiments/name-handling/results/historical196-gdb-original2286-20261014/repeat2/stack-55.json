@@ -1,0 +1,79 @@
+{
+  "requested_seconds": 55,
+  "inferior_wall_seconds": 55.13799623098748,
+  "cpu_before_interrupt": {
+    "clock_ticks_per_second": 100,
+    "threads": [
+      {
+        "tid": 507792,
+        "state": "S",
+        "user_ticks": 0,
+        "system_ticks": 0,
+        "start_ticks": 12570107
+      },
+      {
+        "tid": 507795,
+        "state": "R",
+        "user_ticks": 5490,
+        "system_ticks": 4,
+        "start_ticks": 12570111
+      }
+    ]
+  },
+  "cpu_when_stopped": {
+    "clock_ticks_per_second": 100,
+    "threads": [
+      {
+        "tid": 507792,
+        "state": "t",
+        "user_ticks": 0,
+        "system_ticks": 0,
+        "start_ticks": 12570107
+      },
+      {
+        "tid": 507795,
+        "state": "t",
+        "user_ticks": 5491,
+        "system_ticks": 4,
+        "start_ticks": 12570111
+      }
+    ]
+  },
+  "stack_lines": [
+    "Thread 2 (Thread 0x7f69aff6b6c0 (LWP 507795) \"analyser::diagn\"):",
+    "#0  0x0000562955ba2c40 in <tcl_syntax::naming::native::routing::NativeCommandNamespaceRoute as core::cmp::PartialEq>::ne ()",
+    "#1  0x0000562955b9bb31 in <tcl_syntax::naming::native::routing::NativeCommandSlotProjection>::lookup_uses_namespace_path ()",
+    "#2  0x000056295108b420 in <tcl_syntax::naming::native::routing::NativeCommandSlotProjection>::lookup_bases::<<tcl_compiler::command_binding::ModuleCommandBindings>::original_command_slot_paths_for_bytes::LookupScope> ()",
+    "#3  0x000056295293d8b1 in <tcl_compiler::command_binding::ModuleCommandBindings>::original_command_slot_paths_for_bytes ()",
+    "#4  0x000056295293620f in <tcl_compiler::command_binding::ModuleCommandBindings>::original_command_paths_for_bytes ()",
+    "#5  0x0000562952935aec in <tcl_compiler::command_binding::ModuleCommandBindings>::original_registry_command_paths ()",
+    "#6  0x0000562952716862 in <tcl_compiler::command_binding::ModuleCommandBindings>::source_keys_checked::<tcl_compiler::command_binding::namespace_context::SourceNamespaceKey> ()",
+    "#7  0x00005629527158c7 in <tcl_compiler::command_binding::ModuleCommandBindings>::source_keys::<tcl_compiler::command_binding::namespace_context::SourceNamespaceKey> ()",
+    "#8  0x000056295273ea3a in tcl_compiler::command_binding::source_binding_projection_in::<tcl_compiler::command_binding::namespace_context::SourceNamespaceKey> ()",
+    "#9  0x000056295273e4e0 in tcl_compiler::command_binding::source_binding_projection::<tcl_compiler::command_binding::namespace_context::SourceNamespaceKey> ()",
+    "#10 0x000056295273e040 in tcl_compiler::command_binding::source_binding::<tcl_compiler::command_binding::namespace_context::SourceNamespaceKey> ()",
+    "#11 0x0000562952784d8b in <tcl_compiler::command_binding::ModuleCommandBindings>::provider_lookup_dependencies_are_live::<core::slice::iter::Iter<tcl_compiler::command_binding::TrustedCommandLookup>>::{closure#0} ()",
+    "#12 0x0000562950c01621 in <core::slice::iter::Iter<tcl_compiler::command_binding::TrustedCommandLookup> as core::iter::traits::iterator::Iterator>::all::<<tcl_compiler::command_binding::ModuleCommandBindings>::provider_lookup_dependencies_are_live<core::slice::iter::Iter<tcl_compiler::command_binding::TrustedCommandLookup>>::{closure#0}> ()",
+    "#13 0x000056295273ad5e in <tcl_compiler::command_binding::ModuleCommandBindings>::provider_lookup_dependencies_are_live::<core::slice::iter::Iter<tcl_compiler::command_binding::TrustedCommandLookup>> ()",
+    "#14 0x0000562953e24482 in tcl_compiler::command_binding::trusted_package_transfer::preload_dependencies_hold ()",
+    "#15 0x0000562952963b8d in tcl_compiler::command_binding::trusted_loader_is_selected ()",
+    "#16 0x0000562953d7b337 in <tcl_compiler::command_binding::trusted_package_transfer::OriginalTrustedPackageTransfer>::capture ()",
+    "#17 0x00005629528c289c in <tcl_compiler::command_binding::SourceCommandBindings>::prepare_native_target ()",
+    "#18 0x00005629528d5b17 in <tcl_compiler::command_binding::SourceCommandBindings>::walk_prepared_native_target ()",
+    "#19 0x00005629528d66f6 in <tcl_compiler::command_binding::SourceCommandBindings>::walk_prepared_source_target ()",
+    "Thread 1 (Thread 0x7f69aff6cf00 (LWP 507792) \"compiler196.elf\"):",
+    "#0  0x00007f69b007f7b9 in syscall () from /lib/x86_64-linux-gnu/libc.so.6",
+    "#1  0x0000562955d7ff26 in <std::thread::thread::Thread>::park ()",
+    "#2  0x000056295520aa95 in <std::sync::mpmc::list::Channel<test::event::CompletedTest>>::recv::{closure#1} ()",
+    "#3  0x0000562955215ef5 in <std::sync::mpmc::list::Channel<test::event::CompletedTest>>::recv ()",
+    "#4  0x00005629552229aa in test::console::run_tests_console ()",
+    "#5  0x000056295520e91d in test::test_main_static ()",
+    "#6  0x0000562953a70c93 in tcl_compiler::main ()",
+    "#7  0x000056295434648b in <fn() as core::ops::function::FnOnce<()>>::call_once ()",
+    "#8  0x0000562952363e56 in std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()> ()",
+    "#9  0x00005629535fce39 in std::rt::lang_start::<()>::{closure#0} ()",
+    "#10 0x0000562955d8e7b9 in std::rt::lang_start_internal ()",
+    "#11 0x0000562953531de1 in std::rt::lang_start::<()> ()",
+    "#12 0x0000562953c74de5 in main ()"
+  ]
+}

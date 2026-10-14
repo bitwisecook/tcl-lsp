@@ -178,7 +178,7 @@ pub(crate) struct Frame {
     source_location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     /// Canonical unrooted namespace whose command bindings this bytecode was
     /// specialised against.
-    source_namespace: tcl_core_types::ByteNamespacePath,
+    source_namespace: crate::compiled::CompiledUnitNamespace,
     /// Dialect-profile generation under which this activation's bytecode was
     /// compiled.
     /// Stored frames cannot be rewound/recompiled after a profile switch (in
@@ -271,7 +271,10 @@ pub(crate) struct Frame {
     /// activation.  Replay changes command resolution without adding a Tcl
     /// call frame, so the namespace entry at the current frame depth is
     /// replaced in place and restored when this activation unwinds.
-    replay_namespace_restore: Option<(tcl_core_types::NameBytes, tcl_runtime_api::NsId)>,
+    replay_namespace_restore: Option<(
+        Option<tcl_core_types::NameBytes>,
+        crate::interp::namespace_context::NamespaceExecutionContext,
+    )>,
     /// Caller frames hidden by a foreign `uplevel`, retained across suspension.
     selected_frame_restore: Option<crate::interp::SelectedFrameRestore>,
     /// For a script activation, the `errorInfo` body label the uncompiled command
@@ -498,7 +501,7 @@ struct NativeWordDispatch<'a> {
     selected_key: &'a Option<String>,
     sidecar_handle: Option<&'a CommandSidecarHandle>,
     entered: Option<&'a EnteredCommand>,
-    context: tcl_core_types::NsId,
+    context: &'a crate::interp::namespace_context::NamespaceExecutionContext,
     usage: &'a [crate::command::NativeArgumentUsageRewrite],
 }
 
@@ -612,7 +615,8 @@ impl Frame {
         } = unit;
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
-        let compiler_generation = jim_script.is_none().then(|| compiler.generation());
+        let compiler_generation = (compiler != crate::compiled::CompilerProvenance::NativeScript)
+            .then(|| compiler.generation());
         let jim_evaluation_script =
             jim_script
                 .is_none()
@@ -730,8 +734,8 @@ impl Frame {
     ) -> Option<&'static str> {
         (self.each_loop.is_none()
             && self.compiler_generation.is_some()
-            && &self.source_namespace != current_namespace)
-            .then_some("cannot continue bytecode after namespace changed")
+            && self.source_namespace.compiled_path() != Some(current_namespace))
+        .then_some("cannot continue bytecode after namespace changed")
     }
 
     /// Build a bytecode frame from the generations owned by its compiled
@@ -2048,10 +2052,9 @@ impl Vm {
             // namespace retained by that selection, not the child's namespace.
             let parent_namespace = tick
                 .selected_frame_restore()
-                .and_then(crate::interp::SelectedFrameRestore::original_namespace)
-                .map(|namespace| self.namespace_path_for_token(namespace));
+                .and_then(crate::interp::SelectedFrameRestore::original_namespace);
             if parent_namespace.as_ref().is_some_and(|namespace| {
-                self.top_activation_stale_message_in(acts, namespace)
+                self.top_activation_stale_message_in_context(acts, namespace)
                     .is_some()
             }) {
                 // A failed handoff must restore the selected physical frame
@@ -2330,9 +2333,7 @@ impl Vm {
             // A coroutine `yield`/`yieldto` freezes `acts` in place (pc already
             // past the suspend point) and hands the request out to its resume.
             DriveMode::CoroDriver => {
-                if let Some(message) =
-                    self.activation_stack_stale_message(acts, &self.source_namespace_path())
-                {
+                if let Some(message) = self.current_activation_stack_stale_message(acts) {
                     // A freshly compiled try handler/finally can sit above an
                     // activation made stale by the command that selected it.
                     // Never park that mixed stack.
@@ -2387,7 +2388,7 @@ impl Vm {
     fn unwind_stale_compilation_frame(
         &mut self,
         acts: &mut Vec<Frame>,
-        namespace: Option<&tcl_core_types::ByteNamespacePath>,
+        namespace: Option<&crate::interp::namespace_context::NamespaceExecutionContext>,
     ) -> Result<bool, RunExit> {
         let current_profile = self.profile_generation();
         let current_compiler = self.compiler_generation();
@@ -2408,7 +2409,7 @@ impl Vm {
         }
         let stale_message = namespace.map_or_else(
             || self.top_activation_stale_message(acts),
-            |namespace| self.top_activation_stale_message_in(acts, namespace),
+            |namespace| self.top_activation_stale_message_in_context(acts, namespace),
         );
         if let Some(message) = stale_message {
             // This is a command-like failure at the current instruction
@@ -2450,14 +2451,6 @@ impl Vm {
     /// declare their exemption in `Frame::stale_compilation_message`; every
     /// execution, unwind, resume, and suspension boundary consults this owner.
     fn top_activation_stale_message(&self, acts: &[Frame]) -> Option<&'static str> {
-        self.top_activation_stale_message_in(acts, &self.source_namespace_path())
-    }
-
-    fn top_activation_stale_message_in(
-        &self,
-        acts: &[Frame],
-        current_namespace: &tcl_core_types::ByteNamespacePath,
-    ) -> Option<&'static str> {
         let current_profile = self.profile_generation();
         let current_compiler = self.compiler_generation();
         acts.last().and_then(|frame| {
@@ -2467,7 +2460,89 @@ impl Vm {
                     current_compiler,
                     &self.native_compiler_policy(),
                 )
-                .or_else(|| frame.namespace_stale_message(current_namespace))
+                .or_else(|| {
+                    self.activation_namespace_stale_message_in_context(
+                        frame,
+                        &self.current_namespace_execution_context(),
+                    )
+                })
+        })
+    }
+
+    fn activation_namespace_stale_message_in_context(
+        &self,
+        frame: &Frame,
+        current: &crate::interp::namespace_context::NamespaceExecutionContext,
+    ) -> Option<&'static str> {
+        match &frame.source_namespace {
+            crate::compiled::CompiledUnitNamespace::NativeScript(original) => (!original
+                .same_context(current))
+            .then_some("cannot continue original Script after namespace context changed"),
+            crate::compiled::CompiledUnitNamespace::CompiledPath(path) => {
+                if frame.each_loop.is_some() || frame.compiler_generation.is_none() {
+                    return None;
+                }
+                match current.resolved_token() {
+                    Some(token) if &self.ns_path(token) == path => None,
+                    Some(_) => Some("cannot continue bytecode after namespace changed"),
+                    None => Some("cannot continue bytecode without namespace coordinates"),
+                }
+            }
+        }
+    }
+
+    fn current_activation_stack_stale_message(&self, acts: &[Frame]) -> Option<&'static str> {
+        acts.iter()
+            .find_map(|frame| {
+                frame.stale_compilation_message(
+                    self.profile_generation(),
+                    self.compiler_generation(),
+                    &self.native_compiler_policy(),
+                )
+            })
+            .or_else(|| {
+                acts.last().and_then(|frame| {
+                    self.activation_namespace_stale_message_in_context(
+                        frame,
+                        &self.current_namespace_execution_context(),
+                    )
+                })
+            })
+    }
+
+    pub(crate) fn activation_stack_stale_message_in_context(
+        &self,
+        acts: &[Frame],
+        namespace: &crate::interp::namespace_context::NamespaceExecutionContext,
+    ) -> Option<&'static str> {
+        acts.iter()
+            .find_map(|frame| {
+                frame.stale_compilation_message(
+                    self.profile_generation(),
+                    self.compiler_generation(),
+                    &self.native_compiler_policy(),
+                )
+            })
+            .or_else(|| {
+                acts.last().and_then(|frame| {
+                    self.activation_namespace_stale_message_in_context(frame, namespace)
+                })
+            })
+    }
+
+    fn top_activation_stale_message_in_context(
+        &self,
+        acts: &[Frame],
+        namespace: &crate::interp::namespace_context::NamespaceExecutionContext,
+    ) -> Option<&'static str> {
+        acts.last().and_then(|frame| {
+            frame
+                .stale_compilation_message(
+                    self.profile_generation(),
+                    self.compiler_generation(),
+                    &self.native_compiler_policy(),
+                )
+                .or_else(|| self.activation_namespace_stale_message_in_context(frame, namespace))
         })
     }
 
@@ -3637,7 +3712,10 @@ impl Vm {
         );
         self.push_call_frame(Some(proc.actual_name()), call_argv);
         if let Some(namespace) = proc.retained_jim_namespace() {
-            self.install_jim_procedure_namespace_owner(proc.actual_namespace_id(), namespace);
+            self.install_jim_procedure_namespace_owner(
+                proc.actual_namespace_context().context().resolved_token(),
+                namespace,
+            );
         }
         if !protocol.retains_prepared_body() {
             self.install_procedure_object_owners(
@@ -3647,7 +3725,7 @@ impl Vm {
         }
         self.install_procedure_statics(proc.retained_statics());
 
-        self.push_proc_ns(&proc.actual_namespace(), proc.actual_namespace_id());
+        self.push_procedure_namespace_context(proc.actual_namespace_context());
         if !skip_bindings
             && let Err(error) = body
                 .compiled_local_layout
@@ -7915,10 +7993,16 @@ impl Vm {
         lookup_namespace: Option<&str>,
         usage: &[crate::command::NativeArgumentUsageRewrite],
     ) -> Result<Option<Tick>, Completion<Value>> {
-        let context = self
-            .native_command_lookup_context(lookup_namespace)
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        self.dispatch_words_selected_at(f, words, entered, context, usage)
+        let context = match lookup_namespace {
+            Some(namespace) => {
+                crate::interp::namespace_context::NamespaceExecutionContext::Resolved(
+                    self.native_command_lookup_context(Some(namespace))
+                        .map_err(|error| self.refuse_host_command(error.to_string()))?,
+                )
+            }
+            None => self.current_namespace_execution_context(),
+        };
+        self.dispatch_words_entry_in_context(f, words, entered, &context, usage, false)
     }
 
     fn dispatch_words_selected_at(
@@ -7938,6 +8022,20 @@ impl Vm {
         words: &crate::NativeListItems,
         entered: Option<&EnteredCommand>,
         context: tcl_core_types::NsId,
+        usage: &[crate::command::NativeArgumentUsageRewrite],
+        ordinary: bool,
+    ) -> Result<Option<Tick>, Completion<Value>> {
+        let context =
+            crate::interp::namespace_context::NamespaceExecutionContext::Resolved(context);
+        self.dispatch_words_entry_in_context(f, words, entered, &context, usage, ordinary)
+    }
+
+    fn dispatch_words_entry_in_context(
+        &mut self,
+        f: &mut Frame,
+        words: &crate::NativeListItems,
+        entered: Option<&EnteredCommand>,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
         usage: &[crate::command::NativeArgumentUsageRewrite],
         ordinary: bool,
     ) -> Result<Option<Tick>, Completion<Value>> {
@@ -7962,7 +8060,7 @@ impl Vm {
         f: &mut Frame,
         words: &crate::NativeListItems,
         entered: Option<&EnteredCommand>,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
         usage: &[crate::command::NativeArgumentUsageRewrite],
         ordinary: bool,
         original_scope: &NativeOperationScope,
@@ -7974,7 +8072,7 @@ impl Vm {
         let selected = entered.is_some()
             || match words.first() {
                 Some(head) => self
-                    .resolve_original_command_key_at(context, head)
+                    .resolve_original_command_key_in_context(context, head)
                     .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
                     .is_some(),
                 None => false,
@@ -8008,13 +8106,13 @@ impl Vm {
         &mut self,
         original: &Value,
         entered: Option<&EnteredCommand>,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
     ) -> Result<(CommandSidecarHandle, Vec<Rc<CmdTraceEntry>>), Completion<Value>> {
         let sidecar = if let Some(entered) = entered {
             entered.sidecar.clone()
         } else {
             let key = self
-                .resolve_original_command_key_at(context, original)
+                .resolve_original_command_key_in_context(context, original)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
                 .unwrap_or_default();
             let key = self.renamed_command_key(CommandSidecarKey::visible(key));
@@ -8235,7 +8333,7 @@ impl Vm {
         f: &mut Frame,
         words: &crate::NativeListItems,
         entered: Option<&EnteredCommand>,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
         usage: &[crate::command::NativeArgumentUsageRewrite],
         original_scope: &NativeOperationScope,
     ) -> Result<Option<Tick>, Completion<Value>> {
@@ -8295,7 +8393,7 @@ impl Vm {
             None
         } else {
             let selected = self
-                .resolve_original_command_key_at(context, original)
+                .resolve_original_command_key_in_context(context, original)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
                 .map(CommandSidecarKey::visible)
                 .map(|key| self.renamed_command_key(key));
@@ -8470,6 +8568,17 @@ impl Vm {
     /// Build the generation-bearing empty unit used by scanner activations at
     /// the moment their native command hands control to the trampoline.
     fn current_placeholder_unit(&mut self) -> crate::compiled::CompiledUnit {
+        if self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return crate::compiled::CompiledUnit::native_driver(
+                self.current_namespace_execution_context(),
+                self.profile_generation(),
+                self.native_interpreter_identity(),
+            );
+        }
         self.compiled_unit(
             Rc::new(FunctionAsm::default()),
             self.source_namespace_path(),
@@ -8626,7 +8735,7 @@ impl Vm {
         words: &crate::NativeListItems,
         sidecar_handle: Option<&CommandSidecarHandle>,
         entered: Option<&EnteredCommand>,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
         usage: &[crate::command::NativeArgumentUsageRewrite],
         original_scope: &NativeOperationScope,
     ) -> Result<Option<Tick>, Completion<Value>> {
@@ -8639,7 +8748,7 @@ impl Vm {
             (key, Some(entered.command.clone()))
         } else {
             match self
-                .lookup_original_command_at(context, original)
+                .lookup_original_command_in_context(context, original)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
             {
                 Some((key, command)) => (Some(key), Some(command)),
@@ -8761,7 +8870,9 @@ impl Vm {
                 self.dispatch_alias_words(
                     f,
                     &crate::NativeListItems::invocation_view(Rc::new(argv)),
-                    tcl_core_types::ROOT_NS,
+                    &crate::interp::namespace_context::NamespaceExecutionContext::Resolved(
+                        tcl_core_types::ROOT_NS,
+                    ),
                     &usage,
                 )
             }
@@ -8802,7 +8913,7 @@ impl Vm {
                 self.settle_native_dispatch(f, res)
             }
             None => {
-                let result = self.invoke_missing_command_value(
+                let result = self.invoke_missing_command_value_in_context(
                     dispatch.context,
                     original,
                     &words[1..],
@@ -8842,10 +8953,10 @@ impl Vm {
         words: &crate::NativeListItems,
         builtin: crate::command::BuiltinFn,
         entered: Option<&EnteredCommand>,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
     ) -> Result<Option<Tick>, Completion<Value>> {
         let key = self
-            .resolve_original_command_key_at(context, &words[0])
+            .resolve_original_command_key_in_context(context, &words[0])
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         self.set_invoked_name_value(&words[0], key.as_deref().unwrap_or(""));
         let identity = match entered {
@@ -8876,20 +8987,20 @@ impl Vm {
         &mut self,
         frame: &mut Frame,
         words: &crate::NativeListItems,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
         usage: &[crate::command::NativeArgumentUsageRewrite],
     ) -> Result<Option<Tick>, Completion<Value>> {
         let Some((head, arguments)) = words.split_first() else {
             return Err(err("alias target has no command"));
         };
         if self
-            .resolve_original_command_key_at(context, head)
+            .resolve_original_command_key_in_context(context, head)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
             .is_some()
         {
-            return self.dispatch_words_entry_at(frame, words, None, context, usage, false);
+            return self.dispatch_words_entry_in_context(frame, words, None, context, usage, false);
         }
-        let result = self.invoke_missing_command_value(
+        let result = self.invoke_missing_command_value_in_context(
             context,
             head,
             arguments,
@@ -8992,6 +9103,23 @@ impl Vm {
             .unwrap_or_else(|error| crate::command::completion_from_tcl_error(self, error))
     }
 
+    fn invoke_missing_command_value_in_context(
+        &mut self,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
+        original: &Value,
+        arguments: &[Value],
+        origin: tcl_registry::command_lookup::CommandLookupOrigin,
+    ) -> Completion<Value> {
+        match context.resolved_token() {
+            Some(namespace) => {
+                self.invoke_missing_command_value(namespace, original, arguments, origin)
+            }
+            None => self.refuse_host_command(
+                "missing command fallback namespace coordinates are unavailable".into(),
+            ),
+        }
+    }
+
     fn invoke_missing_command_value(
         &mut self,
         context: tcl_core_types::NsId,
@@ -9059,11 +9187,26 @@ impl Vm {
         usage: &[crate::command::NativeArgumentUsageRewrite],
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Completion<Value> {
-        self.invoke_command_value_entry_at(context, original, arguments, usage, origin, true)
+        self.invoke_command_value_ordinary_in_context(
+            crate::interp::namespace_context::NamespaceExecutionContext::Resolved(context),
+            original,
+            arguments,
+            usage,
+            origin,
+        )
     }
 
-    /// Invoke an internally selected alias or ensemble target without ordinary
-    /// evaluation reset events. Native handler metadata remains scoped.
+    pub(crate) fn invoke_command_value_ordinary_in_context(
+        &mut self,
+        context: crate::interp::namespace_context::NamespaceExecutionContext,
+        original: &Value,
+        arguments: &[Value],
+        usage: &[crate::command::NativeArgumentUsageRewrite],
+        origin: tcl_registry::command_lookup::CommandLookupOrigin,
+    ) -> Completion<Value> {
+        self.invoke_command_value_entry_at(&context, original, arguments, usage, origin, true)
+    }
+
     pub(crate) fn invoke_command_value_internal_at(
         &mut self,
         context: tcl_core_types::NsId,
@@ -9072,12 +9215,30 @@ impl Vm {
         usage: &[crate::command::NativeArgumentUsageRewrite],
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Completion<Value> {
-        self.invoke_command_value_entry_at(context, original, arguments, usage, origin, false)
+        self.invoke_command_value_in_context(
+            crate::interp::namespace_context::NamespaceExecutionContext::Resolved(context),
+            original,
+            arguments,
+            usage,
+            origin,
+        )
+    }
+
+    /// Internal relays retain an unresolved original execution namespace.
+    pub(crate) fn invoke_command_value_in_context(
+        &mut self,
+        context: crate::interp::namespace_context::NamespaceExecutionContext,
+        original: &Value,
+        arguments: &[Value],
+        usage: &[crate::command::NativeArgumentUsageRewrite],
+        origin: tcl_registry::command_lookup::CommandLookupOrigin,
+    ) -> Completion<Value> {
+        self.invoke_command_value_entry_at(&context, original, arguments, usage, origin, false)
     }
 
     fn prepare_command_value_entry(
         &mut self,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
         original: &Value,
         ordinary: bool,
     ) -> Result<(Option<String>, u64), Completion<Value>> {
@@ -9087,7 +9248,7 @@ impl Vm {
         {
             return Err(refusal);
         }
-        let key = match self.resolve_original_command_key_at(context, original) {
+        let key = match self.resolve_original_command_key_in_context(context, original) {
             Ok(key) => key,
             Err(error) => return Err(crate::command::completion_from_cmd_error(self, error)),
         };
@@ -9110,7 +9271,7 @@ impl Vm {
 
     fn invoke_command_value_entry_at(
         &mut self,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
         original: &Value,
         arguments: &[Value],
         usage: &[crate::command::NativeArgumentUsageRewrite],
@@ -9135,7 +9296,7 @@ impl Vm {
 
     fn invoke_command_value_entry_at_in_original_scope(
         &mut self,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
         original: &Value,
         arguments: &[Value],
         usage: &[crate::command::NativeArgumentUsageRewrite],
@@ -9197,7 +9358,7 @@ impl Vm {
                 }
             }
         }
-        let resolved = match self.resolve_original_command_key_at(context, original) {
+        let resolved = match self.resolve_original_command_key_in_context(context, original) {
             Ok(key) => key
                 .map(CommandSidecarKey::visible)
                 .map(|key| self.renamed_command_key(key)),
@@ -9377,8 +9538,8 @@ impl Vm {
             frame_index,
             words: words.lifetime_view(),
         });
-        let completion = self.invoke_command_value_at(
-            self.current_ns_id(),
+        let completion = self.invoke_command_value_ordinary_in_context(
+            self.current_namespace_execution_context(),
             &words[0],
             &words[1..],
             &[],
@@ -9704,21 +9865,28 @@ impl Vm {
 
     fn invoke_command_value_inner(
         &mut self,
-        context: tcl_core_types::NsId,
+        context: &crate::interp::namespace_context::NamespaceExecutionContext,
         original: &Value,
         argv: &[Value],
         sidecar_handle: Option<&CommandSidecarHandle>,
         usage: &[crate::command::NativeArgumentUsageRewrite],
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Completion<Value> {
-        match self.lookup_original_command_at(context, original) {
+        match self.lookup_original_command_in_context(context, original) {
             Ok(Some((key, command))) => {
                 let sidecar = Some(CommandSidecarKey::visible(key));
                 let handle =
                     sidecar_handle.filter(|handle| handle.key().as_ref() == sidecar.as_ref());
                 self.invoke_resolved_command_inner(original, command, argv, sidecar, handle, usage)
             }
-            Ok(None) => self.invoke_missing_command_value(context, original, argv, origin),
+            Ok(None) => match context.resolved_token() {
+                Some(namespace) => {
+                    self.invoke_missing_command_value(namespace, original, argv, origin)
+                }
+                None => self.refuse_host_command(
+                    "missing command fallback namespace coordinates are unavailable".into(),
+                ),
+            },
             Err(error) => crate::command::completion_from_cmd_error(self, error),
         }
     }

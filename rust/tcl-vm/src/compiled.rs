@@ -95,6 +95,22 @@ pub(crate) struct NativeCompilerCacheStamp {
     pub(crate) resolver_epoch: u64,
 }
 
+/// Actual source coordinates or the original context of a deferred Script.
+#[derive(Clone, Debug)]
+pub(crate) enum CompiledUnitNamespace {
+    CompiledPath(tcl_core_types::ByteNamespacePath),
+    NativeScript(crate::interp::namespace_context::NamespaceExecutionContext),
+}
+
+impl CompiledUnitNamespace {
+    pub(crate) fn compiled_path(&self) -> Option<&tcl_core_types::ByteNamespacePath> {
+        match self {
+            Self::CompiledPath(path) => Some(path),
+            Self::NativeScript(_) => None,
+        }
+    }
+}
+
 /// Bytecode assembly and the complete VM-local provenance that validated it.
 #[derive(Clone)]
 pub(crate) struct CompiledUnit {
@@ -112,7 +128,7 @@ pub(crate) struct CompiledUnit {
     pub(crate) direct_source_operands: Option<crate::literal_pool::NativeDirectSourceOperands>,
     pub(crate) source_location:
         Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
-    pub(crate) source_namespace: tcl_core_types::ByteNamespacePath,
+    pub(crate) source_namespace: CompiledUnitNamespace,
     pub(crate) profile_generation: u64,
     pub(crate) command_epoch: u64,
     pub(crate) native_cache: Option<NativeCompilerCacheStamp>,
@@ -137,20 +153,50 @@ pub(crate) struct CompiledUnit {
 impl CompiledUnit {
     pub(crate) fn native_script(
         entry: crate::native_jim_script::NativeJimScriptEntry,
-        source_namespace: tcl_core_types::ByteNamespacePath,
+        context: crate::interp::namespace_context::NamespaceExecutionContext,
+        profile_generation: u64,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    ) -> Self {
+        Self::native_context_unit(
+            Some(entry),
+            Rc::new(FunctionAsm::default()),
+            context,
+            profile_generation,
+            interpreter,
+        )
+    }
+
+    pub(crate) fn native_driver(
+        context: crate::interp::namespace_context::NamespaceExecutionContext,
+        profile_generation: u64,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    ) -> Self {
+        Self::native_context_unit(
+            None,
+            Rc::new(FunctionAsm::default()),
+            context,
+            profile_generation,
+            interpreter,
+        )
+    }
+
+    fn native_context_unit(
+        entry: Option<crate::native_jim_script::NativeJimScriptEntry>,
+        asm: Rc<FunctionAsm>,
+        context: crate::interp::namespace_context::NamespaceExecutionContext,
         profile_generation: u64,
         interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
     ) -> Self {
         Self {
             native_local_names: Rc::new(std::cell::RefCell::new(None)),
             compiled_local_layout: None,
-            jim_script: Some(entry),
-            asm: Rc::new(FunctionAsm::default()),
+            jim_script: entry,
+            asm,
             fixed_math_calls: None,
             literal_pool: Err(crate::literal_pool::NativeLiteralUnavailable::uninitialized()),
             direct_source_operands: None,
             source_location: None,
-            source_namespace,
+            source_namespace: CompiledUnitNamespace::NativeScript(context),
             profile_generation,
             command_epoch: 0,
             native_cache: None,
@@ -201,7 +247,7 @@ impl CompiledUnit {
             literal_pool: Err(crate::literal_pool::NativeLiteralUnavailable::uninitialized()),
             direct_source_operands: None,
             source_location: None,
-            source_namespace,
+            source_namespace: CompiledUnitNamespace::CompiledPath(source_namespace),
             profile_generation,
             command_epoch,
             native_cache: native_cache.copied(),

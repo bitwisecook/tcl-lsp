@@ -556,3 +556,75 @@ fn jim_lambda_preflight_leaves_unentered_namespace_objects_stringless() {
         assert!(vm.execution_refusal.is_none());
     }
 }
+
+#[test]
+fn jim_lambda_unreached_command_lookup_keeps_original_namespace_unmaterialized() {
+    let rows = include_str!(
+        "../../../tcl-registry/tests/data/native_jim_lambda_deferred_context/jim/stdout.tsv"
+    );
+    for (label, source) in [("COMMENT_BODY", "# only a comment"), ("INVALID_BODY", "{")] {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+        let protocol = vm
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            .unwrap();
+        let namespace = Value::int(42);
+        let context =
+            crate::interp::OriginalJimNamespaceContext::for_lambda(&mut vm, &namespace).unwrap();
+        let execution = crate::interp::NamespaceExecutionContext::OriginalJim(context);
+        let body = Value::new_native_string_bytes(source.as_bytes());
+        let prepared = vm
+            .prepare_native_jim_script_unit(&body, execution.clone())
+            .unwrap();
+        assert!(
+            namespace.resident_string_bytes().is_none(),
+            "{label}/preparation getter"
+        );
+        assert!(
+            execution.resolved_token().is_none(),
+            "{label}/preparation coordinate"
+        );
+        assert!(
+            prepared.source_namespace.compiled_path().is_none(),
+            "{label}/compiled path"
+        );
+        let lambda = Value::native_list_constructor(
+            vec![
+                Value::native_list_constructor(vec![], protocol),
+                body,
+                namespace.clone(),
+            ],
+            protocol,
+        );
+        let completion = call(&mut vm, b"apply", &[lambda]);
+        let expected = |kind: &str| {
+            rows.lines()
+                .find(|line| line.starts_with(&format!("{kind}|{label}|")))
+                .unwrap()
+                .split('|')
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            namespace.resident_string_bytes().is_some(),
+            expected("AFTER")[2] == "1",
+            "{label}/getter"
+        );
+        assert_eq!(
+            completion.code.as_int(),
+            expected("RESULT")[2].parse::<i64>().unwrap(),
+            "{label}/code"
+        );
+        assert_eq!(
+            completion
+                .result
+                .native_string_bytes(protocol)
+                .unwrap()
+                .as_ref(),
+            unhex(expected("RESULT")[3]),
+            "{label}/result"
+        );
+        assert_eq!(vm.current_ns_id(), tcl_core_types::ROOT_NS);
+        assert!(vm.execution_refusal.is_none(), "{label}/host refusal");
+    }
+}

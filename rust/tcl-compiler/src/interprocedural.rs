@@ -849,11 +849,15 @@ fn build_interprocedural_analysis_inner(
     units: Option<ModuleUnits<'_>>,
 ) -> InterproceduralAnalysis {
     let object_types = object_types.candidates;
-    let known: HashSet<ProcedureId> = ir_module.procedures.keys().copied().collect();
+    let summary_bodies = summary_procedure_bodies(ir_module, registry);
+    let known: HashSet<ProcedureId> = summary_bodies.keys().copied().collect();
 
     let local = scan_all_procs(
         ir_module,
-        &known,
+        SummaryBodyInputs {
+            bodies: &summary_bodies,
+            known: &known,
+        },
         registry,
         dialect,
         object_types,
@@ -885,6 +889,7 @@ fn build_interprocedural_analysis_inner(
 
     let mut procedures = materialise_summaries(
         ir_module,
+        &summary_bodies,
         &local,
         &transitive_calls,
         (&pure, &completes),
@@ -1766,9 +1771,41 @@ fn check_ivar_write(raw: &str, ivars: &HashSet<String>, out: &mut HashSet<String
     }
 }
 
+/// Conditional source summaries retain genuine declaration IDs independently
+/// of callable publication, completed definition reach and Native admission.
+fn summary_procedure_bodies<'a>(
+    module: &'a crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashMap<ProcedureId, &'a crate::ir::Procedure> {
+    let mut procedures: HashMap<_, _> = module
+        .procedures
+        .iter()
+        .filter(|(id, _)| module.procedure_ids.owns(**id))
+        .map(|(id, procedure)| (*id, procedure))
+        .collect();
+    if let Some(owner) = module.retained_source_bindings.as_ref()
+        && owner.positioned_for_module(module, registry).is_some()
+    {
+        for (id, procedure) in module.original_source_procedure_bodies() {
+            if procedure.body_kind == crate::ir::ProcedureBodyKind::OriginalDeclaration
+                && owner.matches_original_procedure_summary(*id, procedure)
+            {
+                procedures.insert(*id, procedure);
+            }
+        }
+    }
+    procedures
+}
+
+#[derive(Clone, Copy)]
+struct SummaryBodyInputs<'a> {
+    bodies: &'a HashMap<ProcedureId, &'a crate::ir::Procedure>,
+    known: &'a HashSet<ProcedureId>,
+}
+
 fn scan_all_procs(
     ir_module: &crate::ir::Module,
-    known: &HashSet<ProcedureId>,
+    source: SummaryBodyInputs<'_>,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: &HashMap<String, HashSet<String>>,
@@ -1778,10 +1815,11 @@ fn scan_all_procs(
     let source_input =
         crate::registry_invocation::InvocationMetadataContext::for_module(registry, ir_module)
             .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
+    let known = source.known;
     let mut local: HashMap<ProcedureId, LocalFacts> = HashMap::with_capacity(known.len());
-    for (id, proc) in ir_module.procedures.iter() {
+    for (&id, &proc) in source.bodies {
         local.insert(
-            *id,
+            id,
             scan_proc(ProcScan {
                 proc,
                 known,
@@ -1947,6 +1985,7 @@ fn fixpoint_effects(
 
 fn materialise_summaries(
     ir_module: &crate::ir::Module,
+    bodies: &HashMap<ProcedureId, &crate::ir::Procedure>,
     local: &HashMap<ProcedureId, LocalFacts>,
     transitive_calls: &HashMap<ProcedureId, HashSet<ProcedureId>>,
     (pure, completes): (&HashMap<ProcedureId, bool>, &HashMap<ProcedureId, bool>),
@@ -1960,7 +1999,7 @@ fn materialise_summaries(
     let rules =
         tcl_syntax::word_rules::WordValueRules::of_dialect_name(ir_module.dialect.as_deref());
     for (qname, facts) in local {
-        let Some(proc) = ir_module.procedures.get(qname) else {
+        let Some(proc) = bodies.get(qname) else {
             continue;
         };
         let mut calls_list: Vec<ProcedureId> = transitive_calls
@@ -2914,10 +2953,20 @@ fn scan_positioned_candidate_callbacks(
         return;
     };
     for row in rows {
-        if let Some(id) = row
-            .target()
-            .and_then(|target| target.original_ir_procedure_id(ctx.source_procedures))
-            && ctx.known.contains(&id)
+        if let Some(id) = row.target().and_then(|target| {
+            target
+                .original_ir_procedure_id(ctx.source_procedures)
+                .or_else(|| {
+                    let owner = ctx.source_module.retained_source_bindings.as_ref()?;
+                    owner.positioned_for_module(ctx.source_module, ctx.registry)?;
+                    let (id, procedure) = ctx
+                        .source_module
+                        .original_source_procedure_for_target(target)?;
+                    owner
+                        .matches_original_procedure_summary(id, procedure)
+                        .then_some(id)
+                })
+        }) && ctx.known.contains(&id)
         {
             facts.direct_calls.insert(id);
         }
@@ -4735,6 +4784,72 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn original_declaration_summaries_keep_actual_cards_without_callable_publication() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = registry.profile().unwrap();
+        let source = "proc p {} {return ORIGINAL}";
+        let module = crate::lowering::lower_to_ir_with_dialect(
+            source,
+            registry,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            Some(profile),
+        );
+        let mut bodies = module.original_source_procedure_bodies();
+        let (id, body) = bodies.next().expect("genuine original declaration card");
+        assert!(bodies.next().is_none());
+        let id = *id;
+        assert_eq!(
+            body.body_kind,
+            crate::ir::ProcedureBodyKind::OriginalDeclaration
+        );
+        assert!(body.publication.is_none());
+        assert!(!module.procedures.contains_key(&id));
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(summary_procedure_bodies(&module, registry).contains_key(&id));
+        let identities = crate::realm::document_realm_bindings_with_source_entry(
+            source,
+            module.lexer_config,
+            registry,
+            &module.source_entry,
+        )
+        .with_resolved_analysis_input(module.source_metadata_input.as_ref().unwrap().clone());
+        let analysis = build_interprocedural_analysis(
+            &module,
+            registry,
+            Some(profile),
+            ObjectTypeMap::none(),
+            &identities,
+            None,
+        );
+        let summary = analysis
+            .procedures
+            .get(&id)
+            .expect("conditional source summary");
+        assert!(!summary.completes);
+        assert!(summary.defined_at.is_none());
+        assert!(summary.defined_callees.is_empty());
+        assert!(!module.procedures.contains_key(&id));
+
+        let mut missing = module.clone();
+        missing.retained_source_bindings = None;
+        assert!(!summary_procedure_bodies(&missing, registry).contains_key(&id));
+        let mut changed = module.clone();
+        changed.source = tcl_lexer::SourceImage::document("proc p {} {return CHANGED}");
+        assert!(!summary_procedure_bodies(&changed, registry).contains_key(&id));
+        let mut changed = module.clone();
+        changed
+            .body_units
+            .get_mut(&id)
+            .unwrap()
+            .body
+            .statements
+            .clear();
+        assert!(!summary_procedure_bodies(&changed, registry).contains_key(&id));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(!summary_procedure_bodies(&module, foreign).contains_key(&id));
+    }
 
     fn known_set(names: &[&str]) -> HashSet<String> {
         names.iter().map(|s| (*s).to_string()).collect()

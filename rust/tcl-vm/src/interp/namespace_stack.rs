@@ -18,25 +18,25 @@
 
 //! Coordinated physical namespace activations, independent of native lookup authority.
 
-use super::{NameBytes, NamespaceResolutionStacks, NsId};
+use super::{NameBytes, NamespaceExecutionContext, NamespaceResolutionStacks, NsId};
 use std::rc::{Rc, Weak};
 
 /// One stack activation. Its birth moves with hiding, frame selection and flow transport.
 pub(super) struct NamespaceResolutionActivation {
-    pub(super) name: NameBytes,
-    pub(super) namespace: NsId,
+    pub(super) name: Option<NameBytes>,
+    pub(super) namespace: NamespaceExecutionContext,
     birth: Rc<()>,
 }
 
 #[derive(Default)]
 pub(super) struct NamespaceResolutionTail {
-    names: Vec<NameBytes>,
-    namespaces: Vec<NsId>,
+    names: Vec<Option<NameBytes>>,
+    namespaces: Vec<NamespaceExecutionContext>,
     births: Vec<Rc<()>>,
 }
 impl NamespaceResolutionTail {
-    pub(super) fn current_namespace(&self) -> Option<NsId> {
-        self.namespaces.last().copied()
+    pub(super) fn current_namespace(&self) -> Option<NamespaceExecutionContext> {
+        self.namespaces.last().cloned()
     }
 }
 
@@ -44,13 +44,16 @@ impl NamespaceResolutionTail {
 #[derive(Clone)]
 pub(super) struct NamespaceActivationObservation {
     pub(super) position: usize,
-    pub(super) namespace: NsId,
+    pub(super) namespace: NamespaceExecutionContext,
     birth: Weak<()>,
     parent: Option<Weak<()>>,
 }
 impl NamespaceActivationObservation {
     pub(super) fn original_present(&self, stack: &NamespaceResolutionStacks) -> bool {
-        stack.ns_id_stack.get(self.position) == Some(&self.namespace)
+        stack
+            .ns_id_stack
+            .get(self.position)
+            .is_some_and(|context| context.same_context(&self.namespace))
             && stack
                 .activation_births
                 .get(self.position)
@@ -69,6 +72,17 @@ impl NamespaceActivationObservation {
 }
 impl NamespaceResolutionStacks {
     pub(super) fn push_activation(&mut self, name: NameBytes, namespace: NsId) {
+        self.restore_activation(NamespaceResolutionActivation {
+            name: Some(name),
+            namespace: NamespaceExecutionContext::Resolved(namespace),
+            birth: Rc::new(()),
+        });
+    }
+    pub(super) fn push_original_activation(
+        &mut self,
+        name: Option<NameBytes>,
+        namespace: NamespaceExecutionContext,
+    ) {
         self.restore_activation(NamespaceResolutionActivation {
             name,
             namespace,
@@ -100,7 +114,7 @@ impl NamespaceResolutionStacks {
         }
         Some(NamespaceActivationObservation {
             position,
-            namespace: self.ns_id_stack[position],
+            namespace: self.ns_id_stack[position].clone(),
             birth: Rc::downgrade(&self.activation_births[position]),
             parent: self.activation_births.get(position - 1).map(Rc::downgrade),
         })

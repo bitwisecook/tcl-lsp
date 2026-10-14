@@ -1,0 +1,98 @@
+{
+  "scope": "Byte-exact archive of historical196 permitted and repeat2 GDB captures; no large ELF, no historical receipt rewrite, no execution or current-source acceptance.",
+  "files": [
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/permitted/started.json",
+      "original_path": "/tmp/name-historical196-gdb-permitted-20261014/started.json",
+      "sha256": "ae2c2219d6299639d79d658680309100eca16c975f4f3d33fd658bf70d7883ca",
+      "bytes": 4745
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/permitted/result.json",
+      "original_path": "/tmp/name-historical196-gdb-permitted-20261014/result.json",
+      "sha256": "9da7da61bd6e3712e8ea8512b1c8609b843de91ee16b7baaf48cbcfea070912e",
+      "bytes": 3704
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/permitted/selector-list.log",
+      "original_path": "/tmp/name-historical196-gdb-permitted-20261014/selector-list.log",
+      "sha256": "3f94570d7c6b55b9c3329281cbcdbbc6d62e315c14c57f5584113b7ccfb01a88",
+      "bytes": 122
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/permitted/gdb-mi.log.gz",
+      "original_path": "/tmp/name-historical196-gdb-permitted-20261014/gdb-mi.log.gz",
+      "sha256": "13fdf5b25f53961da9e37a82bed2d243bab227f5cdb445ae5d8439c816f27466",
+      "bytes": 812
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/permitted/run.py",
+      "original_path": "/tmp/name-historical196-gdb-20261014/run-permitted.py",
+      "sha256": "c7d5acb0b871e893e3d9a0b9dc08dbdb618d3529c10b483a5da26d172cbdd5d4",
+      "bytes": 13021
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/repeat2/started.json",
+      "original_path": "/tmp/name-historical196-gdb-repeat2-20261014/started.json",
+      "sha256": "635f9df9bab5bcaca27548a63dc33f8f32560b651d03204e83b5070565057269",
+      "bytes": 4946
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/repeat2/result.json",
+      "original_path": "/tmp/name-historical196-gdb-repeat2-20261014/result.json",
+      "sha256": "11c3d1b89bb46a302859f940022afe00d7428e1efab2b0e85d467c06366a1846",
+      "bytes": 7448
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/repeat2/selector-list.log",
+      "original_path": "/tmp/name-historical196-gdb-repeat2-20261014/selector-list.log",
+      "sha256": "3f94570d7c6b55b9c3329281cbcdbbc6d62e315c14c57f5584113b7ccfb01a88",
+      "bytes": 122
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/repeat2/gdb-mi.log.gz",
+      "original_path": "/tmp/name-historical196-gdb-repeat2-20261014/gdb-mi.log.gz",
+      "sha256": "7894e7798438ccd8aecd44ec018eba4a8d2d5fd29c093971098192e4d7f0524c",
+      "bytes": 3283
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/repeat2/stack-55.json",
+      "original_path": "/tmp/name-historical196-gdb-repeat2-20261014/stack-55.json",
+      "sha256": "70aaabc6067f603b3d6f865af9df41e5e972a1eec54944b53578596c258c0593",
+      "bytes": 5198
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/repeat2/stack-100.json",
+      "original_path": "/tmp/name-historical196-gdb-repeat2-20261014/stack-100.json",
+      "sha256": "52dd164d59e86d49177d38d0156682c75149567f6169afae7943df73ef98e001",
+      "bytes": 4437
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/repeat2/stack-160.json",
+      "original_path": "/tmp/name-historical196-gdb-repeat2-20261014/stack-160.json",
+      "sha256": "6198644e4aba6d65072388d197346750db2c18abedae1a25ac0dfbd65f067c10",
+      "bytes": 7366
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/repeat2/run.py",
+      "original_path": "/tmp/name-historical196-gdb-20261014/run-repeat2.py",
+      "sha256": "74ad072d2702e2ce4bc9c4a60f223ac4123fa1387d57b9584287625423618ac2",
+      "bytes": 13551
+    },
+    {
+      "path": "experiments/name-handling/results/historical196-gdb-original2286-20261014/elf-copy.json",
+      "original_path": "/tmp/name-historical196-gdb-20261014/elf-copy.json",
+      "sha256": "582b724c0e0701c7f68a6471c766863168b87cd646f442559992ecc28880bca8",
+      "bytes": 568
+    }
+  ],
+  "excluded_elf": {
+    "bytes": 236889048,
+    "sha256": "a7fcd9a1d03f738d9434012f81e145c458039c54923161bf97330ce9a57e371a"
+  },
+  "verified_linked_existing_artifacts": {
+    "consumer196-preflight-20261014/result.json": "fad8ff66c5cdc6ea1c4a578d4120d7eaa5c6b283ca02638701fb33236a4a8e59",
+    "consumer196-preflight-20261014/source-before.json.gz": "74534cf4d00fccf006d9bc3fe454b839cdcdd19fe27684651900a19e505f3027",
+    "tcltest-production201-20261014/result.json": "f34728da8d6754110c1eb4cacf6f935d5c88b7f802b7914a17af4569d1c3159f"
+  }
+}

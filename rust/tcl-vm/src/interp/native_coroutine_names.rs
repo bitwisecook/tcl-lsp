@@ -123,7 +123,9 @@ mod tests {
                             b"N".as_slice(),
                         ]))
                         .unwrap();
-                    vm.resolution_stacks.ns_id_stack.push(current);
+                    vm.resolution_stacks
+                        .ns_id_stack
+                        .push(crate::interp::NamespaceExecutionContext::Resolved(current));
                 }
                 let name = Value::new_native_string_bytes(unhex(fields[3]));
                 let completion = vm.invoke_host_original_object_vector(

@@ -25,8 +25,7 @@ struct NativeProcedureLocation {
     name: String,
     command_namespace: tcl_core_types::NsId,
     simple: tcl_core_types::NameBytes,
-    body_namespace: tcl_core_types::ByteNamespacePath,
-    body_namespace_id: tcl_core_types::NsId,
+    body_namespace: crate::interp::ProcedureNamespace,
 }
 
 impl NativeProcedureResources {
@@ -126,8 +125,7 @@ impl NativeProcedureCommand {
             name: declaration.name.clone(),
             command_namespace: declaration.command_ns_id,
             simple: declaration.simple_name.clone(),
-            body_namespace: declaration.namespace.clone(),
-            body_namespace_id: declaration.ns_id,
+            body_namespace: declaration.execution_namespace.clone(),
         });
         *declaration.native_resources.jim_namespace.borrow_mut() =
             declaration.native_jim_namespace.take();
@@ -191,8 +189,10 @@ impl NativeProcedureCommand {
             name,
             namespace,
             simple,
-            body_namespace,
-            namespace,
+            crate::interp::ProcedureNamespace::Resolved {
+                path: body_namespace,
+                token: namespace,
+            },
             jim_namespace,
         );
     }
@@ -202,8 +202,7 @@ impl NativeProcedureCommand {
         name: String,
         namespace: tcl_core_types::NsId,
         simple: tcl_core_types::NameBytes,
-        body_namespace: tcl_core_types::ByteNamespacePath,
-        body_namespace_id: tcl_core_types::NsId,
+        body_namespace: crate::interp::ProcedureNamespace,
         jim_namespace: Option<Value>,
     ) {
         let declaration = self.declaration();
@@ -212,7 +211,6 @@ impl NativeProcedureCommand {
             command_namespace: namespace,
             simple,
             body_namespace,
-            body_namespace_id,
         });
         if declaration
             .native_resources
@@ -276,23 +274,22 @@ impl ProcDef {
             )
     }
 
-    pub(crate) fn actual_namespace_id(&self) -> tcl_core_types::NsId {
-        self.native_resources
-            .location
-            .borrow()
-            .as_ref()
-            .map_or(self.ns_id, |location| location.body_namespace_id)
-    }
-
-    pub(crate) fn actual_namespace(&self) -> tcl_core_types::ByteNamespacePath {
+    pub(crate) fn actual_namespace_context(&self) -> crate::interp::ProcedureNamespace {
         self.native_resources
             .location
             .borrow()
             .as_ref()
             .map_or_else(
-                || self.namespace.clone(),
+                || self.execution_namespace.clone(),
                 |location| location.body_namespace.clone(),
             )
+    }
+
+    pub(crate) fn actual_namespace_id(&self) -> tcl_core_types::NsId {
+        self.actual_namespace_context()
+            .context()
+            .resolved_token()
+            .expect("operation requires a materialized procedure namespace")
     }
 
     /// Actual legacy recompile copies only formal records and their defaults.
@@ -306,8 +303,7 @@ impl ProcDef {
         let slot = self.actual_command_slot();
         duplicate.command_ns_id = slot.namespace;
         duplicate.simple_name = slot.simple;
-        duplicate.namespace = self.actual_namespace();
-        duplicate.ns_id = self.actual_namespace_id();
+        duplicate.execution_namespace = self.actual_namespace_context();
         duplicate.body_src = self.body_src.duplicate_native_object_in(strings);
         duplicate.body = None;
         NativeProcedureCommand::new(duplicate)
@@ -355,8 +351,10 @@ mod tests {
             name: "p".into(),
             command_ns_id: ROOT_NS,
             simple_name: "p".into(),
-            namespace: ByteNamespacePath::root(),
-            ns_id: ROOT_NS,
+            execution_namespace: crate::interp::ProcedureNamespace::Resolved {
+                path: ByteNamespacePath::root(),
+                token: ROOT_NS,
+            },
             params: vec![Param {
                 name: "x".into(),
                 default: Some(default),

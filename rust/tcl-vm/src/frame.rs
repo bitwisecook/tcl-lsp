@@ -54,7 +54,7 @@ pub(crate) struct CallFrame {
     /// Jim changes this lookup ID on successful root unset; activation identity stays fixed.
     pub(crate) jim_lookup_id: std::cell::Cell<u64>,
     /// Actual current namespace object owned by this native Jim frame.
-    pub(crate) jim_namespace: std::cell::RefCell<Option<(NsId, Value)>>,
+    pub(crate) jim_namespace: std::cell::RefCell<Option<(Option<NsId>, Value)>>,
     /// Successful local-command results retained until this real frame is freed.
     pub(crate) jim_local_commands: Vec<crate::interp::OriginalJimLocalCommand>,
     /// The sole lifetime owner for retained activation receipts.
@@ -72,9 +72,8 @@ pub(crate) struct CallFrame {
         Option<tcl_runtime_api::native_compilation::NativeCompiledLocalLayout>,
     /// Persistent bindings supplied by the selected native procedure.
     pub statics: Option<Rc<StaticVariables>>,
-    /// The native namespace token in which this frame executes.
-    #[allow(dead_code)]
-    pub ns: NsId,
+    /// Original namespace execution context owned by this activation.
+    pub(crate) ns: crate::interp::NamespaceExecutionContext,
     /// Absolute frame level (0 = global).
     pub level: usize,
     /// The proc this frame belongs to (for `errorInfo`/`info level`); `None` at
@@ -106,7 +105,12 @@ impl CallFrame {
     }
 
     /// A fresh frame at `level` in namespace `ns`.
-    pub fn new(level: usize, ns: NsId, proc_name: Option<String>, call_argv: Vec<Value>) -> Self {
+    pub fn new(
+        level: usize,
+        ns: impl Into<crate::interp::NamespaceExecutionContext>,
+        proc_name: Option<String>,
+        call_argv: Vec<Value>,
+    ) -> Self {
         Self {
             native_c_procedure: None,
             native_procedure_execution: None,
@@ -124,7 +128,7 @@ impl CallFrame {
             procedure_body: None,
             procedure_parameters: None,
             statics: None,
-            ns,
+            ns: ns.into(),
             level,
             proc_name,
             call_argv,

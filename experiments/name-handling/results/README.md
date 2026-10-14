@@ -39,3 +39,9 @@ a completed C release gate or Jim/F5 agreement.
 [VM121](vm-production121-20261014/README.md) records44/45 current controls with full captured drift0; the original procedure parse-frame spelling remains failing.
 
 [Runtime126](runtime-production126-20261014/README.md) records106/107 exact controls with full captured drift0; original import passes and child-alias allocator ingress remains failing.
+
+[Historical196 debugger captures](historical196-gdb-original2286-20261014/README.md) retain the same original #2286 selector passing once and timing out on repeat, with bounded CPU/SSA stack observations; no current-source, performance or C oracle acceptance.
+
+[Original Jim lambda context SDK controls](original-jim-lambda-context-sdk-20261014/README.md) retain original object getter and command lookup observations used by the VM context integration.
+
+[TEMP207 SSA diagnostic preflight](temp207-ssa-preflight-20261014/README.md) records the failed test compile, zero executions and exact source restoration.

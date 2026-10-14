@@ -1,0 +1,54 @@
+{
+  "captured_at": "2026-10-14T22:52:18.011091+00:00",
+  "provider": "latest Jim0.84-9-g5bac7c9 original full extension build",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "/tmp/name-jim-lambda-deferred-namespace-sdk-20261014/probe.c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/tmp/name-jim-lambda-deferred-namespace-sdk-20261014/probe"
+  ],
+  "compile_exit": 0,
+  "process_exit": 0,
+  "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+  "library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+  "source_sha256": "1f1f7d57dd465f8be4516888af0e45aa7fc8e27e52ff836d16d12439825fecb7",
+  "stdout_sha256": "5b959d7f07a7e038615c4ff4795ed55a8b7aa376d456fbd7c24dd0fd96b53cbb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "e131e8782221e03a97b895acb201b18dace55d31e499c418793d0d5e348456a9",
+  "provider_sources": [
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.h",
+      "retained": "provider-sources/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c",
+      "retained": "provider-sources/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-namespace.c",
+      "retained": "provider-sources/jim-namespace.c",
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-config.h",
+      "retained": "provider-sources/jim-config.h",
+      "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+    },
+    {
+      "original": "/workspace/tcl-lsp/tmp/jimtcl-oracle/Makefile",
+      "retained": "provider-sources/Makefile",
+      "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+    }
+  ],
+  "scope": "Actual original Jim namespace object integer42 begins without resident string. Observe bytes/type fields before/after original List-child Apply for empty, return and namespace-current body; selected explicit getter occurs only after AFTER. Empty-body original Apply omits namespace getter/frame entry. No implementation getter/frame correspondence is inferred; no C oracle or Jim ByteArray fabrication, no tcltest."
+}

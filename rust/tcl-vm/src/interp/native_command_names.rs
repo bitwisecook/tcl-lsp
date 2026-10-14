@@ -3,8 +3,8 @@
 
 use super::native_original_lookup::OriginalLookup;
 use super::{
-    Command, CommandId, CommandSidecarKey, CommandSlot, FunctionAsm, NamespacePath, Namespaces,
-    NsId, ROOT_NS, Rc, Value, Vm,
+    Command, CommandId, CommandSidecarKey, CommandSlot, FunctionAsm, NamespaceExecutionContext,
+    NamespacePath, Namespaces, NsId, ROOT_NS, Rc, Value, Vm,
 };
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::native_command_name::{
@@ -15,7 +15,6 @@ use tcl_syntax::value::ValueError;
 
 pub(super) struct JimNamespaceOriginBackend<'a> {
     pub(super) vm: &'a mut Vm,
-    pub(super) current: NsId,
     pub(super) entered: &'a OriginalLookup,
     pub(super) protocol: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
 }
@@ -31,7 +30,8 @@ impl tcl_registry::native_jim_lookup::NativeJimNamespaceOriginBackend
         let bytes = self.vm.native_name_operand_bytes_checked(original)?;
         self.entered.check(self.vm)?;
         let namespace = self.entered.read_jim_namespace(self.vm)?;
-        let path = self.vm.ns_path(self.current);
+        let current = self.entered.materialize_namespace(self.vm)?;
+        let path = self.vm.ns_path(current);
         let projected = self
             .protocol
             .namespace_origin_canonical(
@@ -322,6 +322,13 @@ impl Vm {
         &mut self,
         original: &Value,
     ) -> Result<Option<CommandId>, CmdError> {
+        if self.uses_native_jim_lookup() {
+            let context = self.current_namespace_execution_context();
+            let selected = self.native_jim_command_from_original_in_context(&context, original)?;
+            return Ok(selected.and_then(|_| {
+                original.with_jim_command_cache(|cache| CommandId(self.intern_cmd(cache.token)))
+            }));
+        }
         self.native_command_from_original_at(self.current_ns_id(), original)
     }
 
@@ -517,11 +524,12 @@ impl Vm {
                 .name_policy_protocol()
                 .is_some_and(|policy| policy.recipe().is_jim084())
         {
-            let current = self.current_ns_id();
-            let entered = OriginalLookup::enter(self, current, original)?;
+            let context = self.current_namespace_execution_context();
+            let entered = OriginalLookup::enter_in_context(self, &context, original)?;
             let reached = (|| {
                 let bytes = entered.read(self)?;
                 let namespace = entered.read_jim_namespace(self)?;
+                let current = entered.materialize_namespace(self)?;
                 let path = self.ns_path(current);
                 let candidates = tcl_syntax::naming::NativeNameProtocol::Jim084
                     .jim_namespace_command_query_candidates(
@@ -564,8 +572,8 @@ impl Vm {
     }
 
     fn native_jim_namespace_origin(&mut self, original: &Value) -> Result<Vec<u8>, CmdError> {
-        let current = self.current_ns_id();
-        let entered = OriginalLookup::enter(self, current, original)?;
+        let context = self.current_namespace_execution_context();
+        let entered = OriginalLookup::enter_in_context(self, &context, original)?;
         let reached = (|| {
             let protocol = self
                 .actual_native_invocation_dialect()
@@ -575,7 +583,6 @@ impl Vm {
                 ))?;
             let mut backend = JimNamespaceOriginBackend {
                 vm: self,
-                current,
                 entered: &entered,
                 protocol,
             };
@@ -660,6 +667,42 @@ impl Vm {
             Ok(()) => result,
             Err(error) => crate::command::completion_from_cmd_error(self, error),
         }
+    }
+
+    pub(crate) fn resolve_original_command_key_in_context(
+        &mut self,
+        context: &NamespaceExecutionContext,
+        original: &Value,
+    ) -> Result<Option<String>, CmdError> {
+        if self.uses_native_jim_lookup() {
+            return self
+                .native_jim_command_from_original_in_context(context, original)
+                .map(|selected| selected.map(|(key, _)| key));
+        }
+        let NamespaceExecutionContext::Resolved(namespace) = context else {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original command namespace coordinates",
+            )
+            .into());
+        };
+        self.resolve_original_command_key_at(*namespace, original)
+    }
+
+    pub(crate) fn lookup_original_command_in_context(
+        &mut self,
+        context: &NamespaceExecutionContext,
+        original: &Value,
+    ) -> Result<Option<(String, Command)>, CmdError> {
+        if self.uses_native_jim_lookup() {
+            return self.native_jim_command_from_original_in_context(context, original);
+        }
+        let NamespaceExecutionContext::Resolved(namespace) = context else {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original command namespace coordinates",
+            )
+            .into());
+        };
+        self.lookup_original_command_at(*namespace, original)
     }
 
     /// Original command getter at a retained dispatch namespace. A valid cache
@@ -855,9 +898,14 @@ impl Vm {
                 ));
             }
             token
+        } else if let Some(stamp) = self.native_cache_stamp_for_source_namespace(source_namespace) {
+            stamp.namespace
         } else {
-            self.native_cache_stamp_for_source_namespace(source_namespace)
-                .map_or(self.current_ns_id(), |stamp| stamp.namespace)
+            self.current_namespace_execution_context()
+                .resolved_token()
+                .ok_or_else(|| {
+                    Error::unavailable("native literal namespace coordinate is unavailable")
+                })?
         };
         let world = Rc::clone(&self.native_literal_world);
         let before = self.native_cache_stamp(namespace);

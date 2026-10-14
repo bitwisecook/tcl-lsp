@@ -1,0 +1,36 @@
+{
+  "captured_at": "2026-10-14T23:11:35.177619+00:00",
+  "provider": "latest Jim0.84-9-g5bac7c9 original full extension build",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "/tmp/name-jim-qualified-context-sdk-20261014/probe.c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/tmp/name-jim-qualified-context-sdk-20261014/probe"
+  ],
+  "compile_exit": 0,
+  "process_exit": 0,
+  "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+  "library_sha256": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+  "scope": "Fourteen authentic original Native List Apply cases with genuine integer42 namespace child; retain all previous seven plus rooted relative command/variable/current namespace/unknown controls. BEFORE/AFTER field reads precede explicit namespace getter. No tcltest or implementation build, no fabricated context or C inference.",
+  "files": {
+    "stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.tsv": "470d513718b85098c5727a4b30bf3548939246fb5a800fd52260924dfd6971d5",
+    "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "probe": "dbd15411376b67fbd66fa7c4e22ce25dfe2d96f17229c1fa5db01c239f12ec34",
+    "probe.c": "cbad90c3e7b8ee6aad6ef30e67061e64230c991fd33c4659e8ac2b4d435b7a76",
+    "provider-sources/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "provider-sources/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "provider-sources/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "provider-sources/jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "provider-sources/Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+  }
+}

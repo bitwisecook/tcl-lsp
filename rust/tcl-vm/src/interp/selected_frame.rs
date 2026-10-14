@@ -5,7 +5,7 @@
 //! Physical Tcl frame selection owned by an execution activation.
 
 use super::native_operation_currency::SavedExecutionTarget;
-use super::{CallFrame, NsId, Vm};
+use super::{CallFrame, NamespaceExecutionContext, Vm};
 use tcl_cmd_core::CmdError;
 
 /// Actual caller frames hidden while a selected-frame script executes.
@@ -27,7 +27,7 @@ struct SelectedFrameState {
 
 impl SelectedFrameRestore {
     /// Namespace of the execution frame hidden by this exact selection.
-    pub(crate) fn original_namespace(&self) -> Option<NsId> {
+    pub(crate) fn original_namespace(&self) -> Option<NamespaceExecutionContext> {
         self.state.namespaces.current_namespace()
     }
 }

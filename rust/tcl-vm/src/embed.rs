@@ -697,8 +697,10 @@ impl Vm {
                 name: registered,
                 command_ns_id: slot.namespace,
                 simple_name: slot.simple,
-                namespace: self.namespace_path_for_token(ns_id),
-                ns_id,
+                execution_namespace: crate::interp::ProcedureNamespace::Resolved {
+                    path: self.namespace_path_for_token(ns_id),
+                    token: ns_id,
+                },
                 params: parameters,
                 parameter_grammar,
                 has_args,
@@ -785,7 +787,8 @@ impl Vm {
         let epoch_changed = handle.state.borrow().unit.native_cache
             != self.native_cache_stamp_for_source_namespace(&self.source_namespace_path());
         let namespace = self.source_namespace_path();
-        let namespace_changed = handle.state.borrow().unit.source_namespace != namespace;
+        let namespace_changed =
+            handle.state.borrow().unit.source_namespace.compiled_path() != Some(&namespace);
         let interpreter_changed =
             handle.state.borrow().unit.interpreter != self.native_interpreter_identity();
         let bindings_match = {
@@ -1400,7 +1403,7 @@ mod procedure_definition_tests {
                 .unwrap()
                 .unwrap();
             let (namespace, _) = vm.command_slot_parts(&selected).unwrap();
-            assert_eq!(namespace, definition.ns_id);
+            assert_eq!(namespace, definition.actual_namespace_id());
         }
     }
 
@@ -1421,8 +1424,11 @@ mod procedure_definition_tests {
         let crate::command::Command::Proc(new) = vm.lookup_command("::N::body").unwrap() else {
             panic!("new procedure")
         };
-        assert_ne!(old.ns_id, new.ns_id);
-        assert_eq!(vm.namespace_token_for_written("N"), Some(new.ns_id));
+        assert_ne!(old.actual_namespace_id(), new.actual_namespace_id());
+        assert_eq!(
+            vm.namespace_token_for_written("N"),
+            Some(new.actual_namespace_id())
+        );
         let result = vm.try_invoke_command("::N::body", &[]).unwrap();
         assert_eq!(result.code, tcl_runtime_api::Code::Ok);
         assert_eq!(result.result.string_bytes().as_ref(), b"NEW");

@@ -60,7 +60,9 @@ fn embedded_registration_keeps_script_publication_slots_and_counted_name_boundar
         } else {
             vm.activate_namespace_written("::a:")
         };
-        vm.resolution_stacks.ns_id_stack.push(holder);
+        vm.resolution_stacks
+            .ns_id_stack
+            .push(super::NamespaceExecutionContext::Resolved(holder));
         let local = vm
             .register_written_command("p", Command::Native(Rc::new(HostValue(4))))
             .unwrap();
@@ -83,7 +85,10 @@ fn embedded_registration_keeps_script_publication_slots_and_counted_name_boundar
         if local != rooted {
             assert_eq!(host_result(&mut vm, &local), 4);
         }
-        assert_eq!(vm.resolution_stacks.ns_id_stack.pop(), Some(holder));
+        assert_eq!(
+            vm.resolution_stacks.ns_id_stack.pop(),
+            Some(super::NamespaceExecutionContext::Resolved(holder))
+        );
     }
 }
 

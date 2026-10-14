@@ -56,7 +56,16 @@ impl ProcedureQuery {
                     "original procedure query generation",
                 ))?;
         let declaration = procedure.declaration();
-        let namespace = QueryNamespace::capture(vm, declaration.actual_namespace_id())?;
+        let namespace = QueryNamespace::capture(
+            vm,
+            declaration
+                .actual_namespace_context()
+                .context()
+                .resolved_token()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original procedure query namespace coordinate",
+                ))?,
+        )?;
         Ok(Some(Self {
             generation,
             namespace,
@@ -70,7 +79,12 @@ impl ProcedureQuery {
             .is_some_and(|command| matches!(command, Command::Proc(procedure) if Rc::ptr_eq(&procedure.declaration(), &self.declaration)));
         if !same
             || self.declaration.native_reference_count() == 0
-            || self.declaration.actual_namespace_id() != self.namespace.id
+            || self
+                .declaration
+                .actual_namespace_context()
+                .context()
+                .resolved_token()
+                != Some(self.namespace.id)
             || !self.namespace.current(vm)
         {
             return Err(vm.retain_name_query_refusal("original procedure query owner retired"));

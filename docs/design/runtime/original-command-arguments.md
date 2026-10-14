@@ -55,3 +55,29 @@ For independently selected Native C86, [`parse_script_with_original_text`](../..
 Other existing Native and Logical routes retain their checked text path. The VM has no C86 physical split override: the trait's default refuses an independently selected Native C86 worker instead of falling back to a reconstructed Unicode value. Original source materialisation here covers top-level `Esc` parts; nested array-index and `subst` provenance is not proved by this integration.
 
 The [original producer question](../../../experiments/name-handling/results/split-native-implementation-c86/source-boundary/README.md), [native split reference](../../../experiments/name-handling/results/split-native-reference/README.md) and [implementation validation](../../../experiments/name-handling/results/split-native-implementation-c86/README.md) retain exact inputs, channels, provider observations and source scopes. Their evidence covers the selected Runtime C86 integration; nested-source, VM, F5 TMM/MCPD and full-suite conformance require independent evidence.
+
+## Original Jim procedure namespaces
+
+VM procedure declarations and call frames retain `NamespaceExecutionContext`.
+A resolved namespace owns its actual token. An original Jim lambda namespace
+retains its genuine original Value, interpreter, naming policy and world owner.
+Preparing and parsing its original Script, checking arity and binding local
+arguments do not obtain the namespace String getter or create a namespace path.
+Comment-only and invalid bodies can therefore leave an integer namespace
+object without resident String bytes, as the original Jim does.
+
+A reached command lookup owns Jim's namespace getter. Cold lookup obtains the
+namespace before the command operand, including qualified command heads.
+A valid command cache with the same namespace object follows Jim's pointer
+comparison without obtaining either namespace String getter. Materialisation
+records the coordinate on the same original execution context; it never replaces
+that context's identity. Stack transport, frame selection and cleanup retain
+its original activation birth independently of any eventual coordinate.
+Compiled native entry capture requires an already materialised, authenticated
+namespace token and declines while that coordinate is unavailable.
+
+The original SDK controls are retained with the
+[deferred namespace fixture](../../../rust/tcl-registry/tests/data/native_jim_lambda_deferred_context/README.md).
+`jim_lambda_unreached_command_lookup_keeps_original_namespace_unmaterialized`
+checks Script preparation and actual invocation separately. These controls do
+not establish full Jim suite conformance or another provider's getter order.

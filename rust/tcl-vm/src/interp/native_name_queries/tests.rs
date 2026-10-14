@@ -90,8 +90,10 @@ fn declaration(body: Value, defaults: &[Value]) -> NativeProcedureCommand {
         name: "p".into(),
         command_ns_id: tcl_core_types::ROOT_NS,
         simple_name: "p".into(),
-        namespace: tcl_core_types::ByteNamespacePath::root(),
-        ns_id: tcl_core_types::ROOT_NS,
+        execution_namespace: crate::interp::ProcedureNamespace::Resolved {
+            path: tcl_core_types::ByteNamespacePath::root(),
+            token: tcl_core_types::ROOT_NS,
+        },
         params: defaults
             .iter()
             .enumerate()
