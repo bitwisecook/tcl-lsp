@@ -146,9 +146,9 @@ would not fold is folded.
 blocks); the use-site / expr / `incr` detectors consult it (second
 conversions fire with the committed from-type, merges fire only when every
 path pays, loop re-thunks are S101 with the steady-state rep);
-`first_use_commitments_for_cu` feeds hover's
-"string (first used as: list)". Locked in by `shimmer/commit.rs` unit
-tests, FP-SH-22, and the `commit_dataflow_*` lsp_e2e suite.
+`first_use_value_commitments_for_function` supplies first-use advice for the
+exact represented ValueKey selected by hover's original read/definition owner.
+An unavailable read version withholds annotations.
 
 ### `TypeShape` and unions
 

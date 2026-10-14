@@ -37,6 +37,8 @@ pub(crate) use original_procedure_call::{
 mod authored_source_bodies;
 pub use authored_source_bodies::OriginalAuthoredProcedureBody;
 pub(crate) use authored_source_bodies::original_authored_procedure_body;
+mod source_body_names;
+pub(crate) use source_body_names::original_authored_body_name_candidates;
 mod source_name_roles;
 pub(crate) use source_name_roles::{SourceNameRoleInventory, original_source_name_roles};
 mod authored_source_structure;

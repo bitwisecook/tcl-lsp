@@ -143,7 +143,8 @@ dataflow over the SCCP-executable blocks, shared by the use-site, expr, and
   from side.
 - **Def-site pushback**: a pure def whose every executable typed read commits
   the same intrep exposes it via
-  `shimmer::first_use_commitments_for_cu` — hover renders
+  `shimmer::first_use_value_commitments_for_function` for the exact represented
+  ValueKey selected by the original source owner — hover renders
   "string (first used as: list)" at the creation site.
 
 ## Where the command-level knowledge lives

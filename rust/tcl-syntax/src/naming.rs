@@ -54,6 +54,16 @@ mod import_wrapper_hint;
 pub use import_wrapper_hint::{
     AuthoredImportAliasSpelling, AuthoredImportWrapperHint, authored_import_wrapper_hint,
 };
+/// Literal namespace-prefix tail for conditional authoring hints.
+/// Preserves the written remainder; supplies no qualification or cell identity.
+#[must_use]
+pub fn authored_namespace_hint_tail<'a>(name: &'a str, namespace: &str) -> Option<&'a str> {
+    if namespace.is_empty() {
+        return None;
+    }
+    name.strip_prefix(namespace)?.strip_prefix("::")
+}
+
 mod autoload;
 pub use autoload::{autoload_command_candidates, native_autoload_command_candidates};
 mod command_geometry;

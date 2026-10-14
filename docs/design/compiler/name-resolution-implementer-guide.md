@@ -10641,3 +10641,23 @@ body-entry receipts remain unavailable.
 `SourceVariableNameOwnership` preserves the legal empty name and literal dollar
 sigils through the shared array-root partition. A name payload is not a
 substitution, physical cell or definite effect-exclusion proof.
+
+## Original read and operand consumers
+
+Use `original_source_read_at_unit` for an exact original substitution under the
+current compilation owner. It returns that function's private produced symbol
+and optional represented version. A missing version cannot borrow a definition
+or another version's contents. Hover selects the exact ValueKey for type, taint
+and `first_use_value_commitments_for_function`; displayed names never join
+functions. Source definition geometry retains its separate readonly selector.
+
+`original_source_name_roles` retains actual original role ordinals, literal name
+payloads and source grammar. Known-name/scanner consumers pass the same actual
+Registry through nested scripts and preserve unknown coverage. Physical slot
+eligibility requires the independent strict Normal frameless handler and complete
+arity/roles; source name metadata cannot supply it.
+
+Use `WordExpr::original_written_span` for written word extents and
+`original_command_substitution_span` for a sole command component. Whole Command
+bytes must match retained spelling; the typed variable/braced conventions remain
+separate. Every caller still validates its own current input/binding/body/frame.

@@ -93,7 +93,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 
 ## Current implementation and audit priorities
 
-Current bounded snapshot: 2026-10-14T10:43:12Z. The [outstanding audit](outstanding-consumer-audit.md)
+Current bounded snapshot: 2026-10-14T10:57:15Z. The [outstanding audit](outstanding-consumer-audit.md)
 and machine inventory retain original issue and source observations.
 
 The current shared consumers retain complete original source, analysis input,
@@ -335,18 +335,34 @@ zero semantic controls/source drift zero. Its temporary trace is precisely
 removed and actual import corrected, with all original assertions preserved.
 
 The source-read selector is integrated with keyed current body truth and
-terminal source-purpose refusal. Hover's new read-point consumer is held until
-it carries an available exact Version/ValueKey instead of inferring annotations
-from other versions of the same symbol. Revised hover source review is pending.
+terminal source-purpose refusal. Hover's read-point consumer now carries the exact available Version/ValueKey;
+unavailable read versions withhold annotations. The reviewed implementation is
+integrated; actual current producer/consumer replay remains required.
 The source-body cold memo gap is now concrete: readonly Native-card lowering
 bypasses the Native lower_proc_body callback. A separate authentic Source body
 syntax request must be issued before lowering; fresh outputs or Native donors
 cannot supply a cache key. Original DB cold counts0 versus3 remain required,
 and this is separate from lattice/capsule correspondence.
 
-Dictionary7a35 and real original dictionary oracle retention are integrated, with
-plan-owned Legacy VariableStore coverage and separately retained explicit
-additional effects. Possible source mapping names only withdraw contents;
-missing/invalid inputs do not become entered dictionary scopes. Name-role601
-actual incomplete-resolver/expansion controls are also integrated; all await
-fresh execution.
+The exact Version/ValueKey hover consumers, shared per-function value-key first-use
+advice, final NameRole/KnownName/scanner, strict Normal slots, typed word extents
+and dictionary source MAY withdrawal are integrated. These are completed
+implementation migrations; producer failures and original consumer replay remain
+separate. Authored same-invocation body candidate names always retain unknown
+coverage and supply pessimistic spills, with no entered frame. Literal namespace
+prefix hints share exact written-tail geometry without cell or storage meaning.
+
+Diagnostic77/78 retain build-only failures with zero semantic controls/source
+drift zero. Their actual API accessor/namespace corrections preserve original
+assertions. Diagnostic79 runs three exact original Native-child/read/#2286
+controls with accurate temporary instrumentation across four source files; no
+result is available, and those traces are excluded from production checkpoint.
+The current #2286 program is red at1 versus2 and namespace import at0 versus1;
+original programs, expectations and matching C Tcl init/tcltest files remain.
+
+Remaining concrete work is tracked by purpose rather than an unverified percent:
+Native/Hosted child producers; Authored body scope and source-body syntax memo
+ingress; current exact-read/definition/hover producer replay; namespace path/import
+MAY dependency completeness; depth/stack original budgets; actual DB cold/edit
+reuse; all runtime/target/F5 oracle coverage; and complete owner/proof/document
+gates. Full source/cache/Native/F5/PR-ready acceptance remains open.

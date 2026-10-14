@@ -236,9 +236,7 @@ fn extract_variables(commands: &SourceInventory) -> Variables {
     let mut static_vars: BTreeSet<String> = BTreeSet::new();
     for fact in commands.iter() {
         for name in &fact.variable_names {
-            // These are presentation labels from the source owner. Remove
-            // the one displayed prefix; later components remain literal.
-            if let Some(tail) = name.strip_prefix("static::") {
+            if let Some(tail) = tcl_syntax::naming::authored_namespace_hint_tail(name, "static") {
                 static_vars.insert(tail.to_owned());
             }
         }
@@ -265,7 +263,9 @@ fn extract_variables(commands: &SourceInventory) -> Variables {
                     else {
                         continue;
                     };
-                    if let Some(tail) = name.strip_prefix("static::") {
+                    if let Some(tail) =
+                        tcl_syntax::naming::authored_namespace_hint_tail(name, "static")
+                    {
                         static_vars.insert(tail.to_owned());
                     }
                 }
@@ -338,11 +338,13 @@ fn needs_multi_tmm(
                         else {
                             continue;
                         };
-                        static_in_hot |= HOT_EVENTS.contains(&command.event_source().event())
-                            && name.starts_with("static::");
+                        let static_hint =
+                            tcl_syntax::naming::authored_namespace_hint_tail(name, "static")
+                                .is_some();
+                        static_in_hot |=
+                            HOT_EVENTS.contains(&command.event_source().event()) && static_hint;
                         has_counter |= id == NativeEvalId::CellIncrement
-                            && (name.starts_with("static::")
-                                || name.to_ascii_lowercase().contains("count"));
+                            && (static_hint || name.to_ascii_lowercase().contains("count"));
                     }
                 });
         }
@@ -1608,5 +1610,33 @@ mod tests {
                 .iter()
                 .all(|block| !block.contains("HTTP_REQUEST") && !block.contains("HTTP_RESPONSE"))
         );
+    }
+
+    #[test]
+    fn static_namespace_hints_preserve_actual_literal_variable_roles() {
+        for (name, expected) in [
+            ("static::flag", Some("flag")),
+            ("static::::flag", Some("::flag")),
+            ("static::", Some("")),
+            ("::static::rooted", None),
+            ("static_other::flag", None),
+        ] {
+            let source = format!("when HTTP_REQUEST {{set {name} 1}}");
+            let inventory = executable(&source);
+            assert!(inventory.context.is_some(), "{source}");
+            let variables = extract_variables(&inventory);
+            assert_eq!(
+                variables.static_vars,
+                expected.into_iter().map(str::to_owned).collect::<Vec<_>>(),
+                "{source}"
+            );
+            assert_eq!(
+                needs_multi_tmm(inventory.context.as_ref(), &inventory.commands, &variables),
+                expected.is_some(),
+                "{source}"
+            );
+        }
+        let inventory = executable("when HTTP_REQUEST {set data {static::inert}}");
+        assert!(extract_variables(&inventory).static_vars.is_empty());
     }
 }

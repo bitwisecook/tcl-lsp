@@ -117,6 +117,19 @@ fn visit(
                 }
             }
         }
+        if let Some(tokens) = body.retained_source_tokens_for_statement(statement)
+            && let Some(registry) = registry.or_else(|| {
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.retained_registry_for_tokens(tokens))
+            })
+            && let Some(candidates) =
+                crate::registry_invocation::original_authored_body_name_candidates(tokens, registry)
+        {
+            inventory.names.extend(candidates.names);
+            inventory.unknown_residual |= candidates.unknown_residual;
+        }
         visit_one(statement, inventory, registry);
     }
 }

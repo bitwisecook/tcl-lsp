@@ -2561,7 +2561,15 @@ mod tests {
         .unwrap();
         let source = "puts [\u{feff}unknown argument]";
         let tokens = original_logical_tokens(source, &input);
-        assert!(original_call_context(&tokens, config, registry, metadata).is_some());
+        assert!(
+            original_call_context(
+                &tokens,
+                config,
+                registry,
+                OriginalLiftedCallContext::Metadata(metadata)
+            )
+            .is_some()
+        );
         assert!(
             crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
                 registry, metadata, &tokens,
@@ -2580,7 +2588,15 @@ mod tests {
             Some("[\u{feff}unknown argument]")
         );
         let child = calls[0].tokens.as_ref().unwrap();
-        assert!(original_call_context(child, config, registry, metadata).is_some());
+        assert!(
+            original_call_context(
+                child,
+                config,
+                registry,
+                OriginalLiftedCallContext::Metadata(metadata)
+            )
+            .is_some()
+        );
         assert!(
             child
                 .source_binding
@@ -2632,7 +2648,15 @@ mod tests {
         )
         .unwrap();
         let unknown = original_logical_tokens("unknown {[dict size DATA]}", &input);
-        assert!(original_call_context(&unknown, config, registry, metadata).is_some());
+        assert!(
+            original_call_context(
+                &unknown,
+                config,
+                registry,
+                OriginalLiftedCallContext::Metadata(metadata)
+            )
+            .is_some()
+        );
         assert!(
             checked_original_lifted_calls_with_metadata_context(
                 &unknown, config, registry, metadata,

@@ -339,8 +339,8 @@ pub fn find_shimmer_warnings_for_cu(
 /// whose def is **pure** (a literal / interpolation / string-command result)
 /// and whose every executable typed read committed the **same** intrep map to
 /// that intrep, keyed by function name then variable name (all versions must
-/// agree).  Consumed by hover to surface e.g. "pure string — first used as:
-/// list" at the creation site.
+/// agree). This test projection checks consensus across all versions.
+#[cfg(test)]
 #[must_use]
 pub fn first_use_commitments_for_cu(
     cu: &crate::compilation_unit::CompilationUnit,
@@ -348,7 +348,7 @@ pub fn first_use_commitments_for_cu(
 ) -> HashMap<String, HashMap<String, TclType>> {
     let mut out: HashMap<String, HashMap<String, TclType>> = HashMap::new();
     for fu in cu.analysable_functions() {
-        let commitments = first_use_value_commitments(fu, registry);
+        let commitments = first_use_value_commitments_for_function(fu, registry);
         // Collapse (sym, ver) → name: every version with a pushback must agree
         // on the same intrep, else the name is dropped (conflicting uses).
         let mut per_name: HashMap<String, Option<TclType>> = HashMap::new();
@@ -375,13 +375,15 @@ pub fn first_use_commitments_for_cu(
 
 /// First-use commitments for actual SSA symbols in one retained function.
 /// Displayed function and variable labels do not select this result.
+#[cfg(test)]
 #[must_use]
 pub fn first_use_commitments_for_function(
     function: &crate::compilation_unit::FunctionUnit,
     registry: &CommandRegistry,
 ) -> HashMap<crate::ssa::Symbol, TclType> {
     let mut symbols: HashMap<crate::ssa::Symbol, Option<TclType>> = HashMap::new();
-    for ((symbol, _version), value) in first_use_value_commitments(function, registry) {
+    for ((symbol, _version), value) in first_use_value_commitments_for_function(function, registry)
+    {
         symbols
             .entry(symbol)
             .and_modify(|previous| {
@@ -397,7 +399,10 @@ pub fn first_use_commitments_for_function(
         .collect()
 }
 
-fn first_use_value_commitments(
+/// First-use advice for each represented contents version in one retained function.
+/// Source read ownership and available versions must be selected independently.
+#[must_use]
+pub fn first_use_value_commitments_for_function(
     function: &crate::compilation_unit::FunctionUnit,
     registry: &CommandRegistry,
 ) -> HashMap<crate::ssa::ValueKey, TclType> {

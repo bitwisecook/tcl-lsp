@@ -52,7 +52,7 @@ impl AuthoredSourceStructuredInvocation {
         })
     }
 
-    fn with_source_schema<T>(
+    pub(crate) fn with_source_schema<T>(
         &self,
         registry: &CommandRegistry,
         apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
@@ -82,6 +82,16 @@ impl AuthoredSourceStructuredInvocation {
     }
     pub(crate) fn config(&self) -> tcl_lexer::LexerConfig {
         self.config
+    }
+    pub(crate) fn original_argument_word(&self, argument: usize) -> Option<&tcl_lexer::NativeWord> {
+        let written = self.invocation.effective.written_argument(argument)?;
+        self.original_words.get(written.checked_add(1)?)
+    }
+    pub(crate) fn dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        self.invocation.dialect
+    }
+    pub(crate) fn realm(&self) -> tcl_dialect::model::InvocationRealm {
+        self.realm
     }
 }
 

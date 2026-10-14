@@ -44,7 +44,6 @@
 //! `tcl-lsp-server::Backend::hover`; this module is the pure-CPU
 //! computation, no I/O, no async.
 
-use std::collections::HashMap;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 
@@ -52,7 +51,7 @@ use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::taint::{TaintColour, TaintLattice};
-use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
+use tcl_compiler::types::{TclType, TypeKind};
 use tcl_lexer::TokenType;
 use tcl_registry::CommandRegistry;
 
@@ -474,7 +473,7 @@ fn variable_hover(
             // registry; without one we surface just the reference
             // count.
             let (type_info, taint_info) =
-                var_type_annotations(source, analysis, var_byte_offset, &var_name, registry);
+                var_type_annotations(source, analysis, var_byte_offset, registry);
             let format_info = registry.and_then(|registry| {
                 registry_pattern_format_hover(source, line, character, analysis, registry)
             });
@@ -522,7 +521,7 @@ fn variable_hover(
     let var_def =
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset)?;
     let (type_info, taint_info) =
-        var_type_annotations(source, analysis, decl_byte_offset, &var_def.name, registry);
+        var_type_annotations(source, analysis, decl_byte_offset, registry);
     Some(Hover::markdown(var_hover_text(
         var_def,
         type_info.as_deref(),
@@ -842,9 +841,18 @@ fn hover_impl(
     if let std::ops::ControlFlow::Break(selected) =
         crate::variable_symbol::select_navigation(source, analysis, line, character, ctx)
     {
-        return selected
-            .and_then(|selection| selection.hover_text(analysis))
-            .map(Hover::markdown);
+        return selected.and_then(|selection| {
+            let mut text = selection.hover_text(analysis)?;
+            if matches!(
+                selection,
+                crate::variable_symbol::NavigationVariable::Original(_)
+            ) {
+                let (type_info, taint_info) =
+                    var_type_annotations(source, analysis, cursor_offset, registry);
+                append_var_annotations(&mut text, type_info.as_deref(), taint_info.as_deref());
+            }
+            Some(Hover::markdown(text))
+        });
     }
     if let std::ops::ControlFlow::Break(selected) =
         crate::method_symbol::local_candidate(source, analysis, line, character)
@@ -2747,22 +2755,23 @@ pub fn find_var_at_position_with_config(
         .map(|reference| reference.root.to_owned())
 }
 
-/// Type/taint labels use the same selected original reference geometry as
-/// scope lookup. A source element label has no independent SSA/read authority.
+/// Annotation queries retain the selected source occurrence and current input.
 fn var_type_annotations(
     source: &str,
     analysis: &AnalysisResult,
     cursor: u32,
-    var_name: &str,
     registry: Option<&CommandRegistry>,
 ) -> (Option<String>, Option<String>) {
-    let type_var =
-        crate::source_structure::original_variable_reference_at(source, analysis, cursor)
-            .map_or(var_name, |reference| reference.element_label);
-    match registry {
-        Some(reg) => infer_var_type_and_taint(source, reg, type_var, analysis),
-        None => (None, None),
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return (None, None);
+    };
+    if registry.is_some_and(|registry| {
+        registry.snapshot().semantic_key() != current.registry().snapshot().semantic_key()
+    }) {
+        return (None, None);
     }
+    infer_var_type_and_taint(source, current.registry(), cursor, analysis)
 }
 
 fn proc_hover_text(proc_def: &ProcDef) -> String {
@@ -3077,16 +3086,21 @@ fn var_hover_text(
         "**Variable** `{}`\n\n{} reference(s)",
         var_def.name, ref_count
     );
-    if let Some(t) = type_info {
-        let _ = write!(text, "\n\n**Inferred intrep**: {t}");
-    }
-    if let Some(t) = taint_info {
-        let _ = write!(text, "\n\n**Taint**: {t}");
-    }
+    append_var_annotations(&mut text, type_info, taint_info);
     if let Some(f) = format_info {
         let _ = write!(text, "\n\n{f}");
     }
     text
+}
+
+fn append_var_annotations(text: &mut String, type_info: Option<&str>, taint_info: Option<&str>) {
+    use std::fmt::Write as _;
+    if let Some(value) = type_info {
+        let _ = write!(text, "\n\n**Inferred intrep**: {value}");
+    }
+    if let Some(value) = taint_info {
+        let _ = write!(text, "\n\n**Taint**: {value}");
+    }
 }
 
 /// Render hover markdown for an interpreter-provided special variable
@@ -3155,7 +3169,7 @@ fn tcl_type_label(t: TclType) -> String {
 fn infer_var_type_and_taint(
     source: &str,
     registry: &CommandRegistry,
-    var_name: &str,
+    cursor: u32,
     analysis: &AnalysisResult,
 ) -> (Option<String>, Option<String>) {
     let Some(unit) =
@@ -3163,106 +3177,70 @@ fn infer_var_type_and_taint(
     else {
         return (None, None);
     };
-    let first_use = tcl_compiler::shimmer::first_use_commitments_for_cu(&unit, registry);
+    let selected = if let Some(reference) =
+        crate::source_structure::original_variable_reference_at(source, analysis, cursor)
+    {
+        tcl_compiler::ssa::original_source_read_at_unit(&unit, reference.whole_span, registry)
+            .and_then(|read| Some((read.function(), (read.symbol(), read.version()?))))
+    } else {
+        let declaration = analysis
+            .original_variable_symbol_at_offset(cursor)
+            .filter(|occurrence| occurrence.is_declaration())
+            .map(|occurrence| occurrence.span())
+            .or_else(|| {
+                crate::definition::var_def_at_declaration_offset(&analysis.global_scope, cursor)
+                    .map(|definition| definition.definition_span)
+            });
+        declaration
+            .and_then(|span| {
+                tcl_compiler::ssa::original_source_definition_at_unit(&unit, span, registry)
+            })
+            .map(|definition| {
+                (
+                    definition.function(),
+                    (definition.symbol(), definition.version()),
+                )
+            })
+    };
+    let Some((function, value)) = selected else {
+        return (None, None);
+    };
+    let first_use =
+        tcl_compiler::shimmer::first_use_value_commitments_for_function(function, registry);
     (
-        infer_var_type(&unit, var_name, &first_use),
-        infer_var_taint(&unit, var_name),
+        infer_var_type(function, value, first_use.get(&value).copied()),
+        infer_var_taint(function, value),
     )
 }
 
-/// The top-level function unit followed by every procedure unit
-/// in deterministic (name-sorted) order, so the per-variable
-/// inference picks a stable first match regardless of the
-/// procedure map's hashing order.
-fn function_units_in_order(unit: &CompilationUnit) -> Vec<&FunctionUnit> {
-    let mut out: Vec<&FunctionUnit> = Vec::with_capacity(unit.procedures.len() + 1);
-    out.push(&unit.top_level);
-    let mut procs: Vec<&FunctionUnit> = unit.procedures.values().collect();
-    procs.sort_by(|a, b| a.name.cmp(&b.name));
-    out.extend(procs);
-    out
-}
-
-/// Infer a dominant intrep type for `var_name`, mirroring
-/// `_infer_var_type`: returns the first function (top-level, then
-/// procs in name order) that has type entries for the variable
-/// and resolves them to a single label.
-///
-/// A **pure** variable — a literal / interpolation / string-command result
-/// whose intrep is not committed at the def — additionally reports the intrep
-/// its first use commits when every executable typed read agrees ("first used
-/// as"), the def-site pushback of the committed-intrep dataflow
-/// (`tcl_compiler::shimmer::first_use_commitments_for_cu`).
+/// Type display from the selected represented SSA contents version.
 fn infer_var_type(
-    unit: &CompilationUnit,
-    var_name: &str,
-    first_use: &HashMap<String, HashMap<String, TclType>>,
+    function: &FunctionUnit,
+    value: tcl_compiler::ssa::ValueKey,
+    first_use: Option<TclType>,
 ) -> Option<String> {
-    for func in function_units_in_order(unit) {
-        let entries: Vec<&TypeLattice> = func
-            .types
-            .iter()
-            .filter(|((name, _ver), _)| func.ssa.var_name(*name) == var_name)
-            .map(|(_, t)| t)
-            .collect();
-        if entries.is_empty() {
-            continue;
-        }
-        // Every version agrees on the same KNOWN type.
-        let known: Vec<&TypeLattice> = entries
-            .iter()
-            .copied()
-            .filter(|t| t.kind() == TypeKind::Known && t.tcl_type().is_some())
-            .collect();
-        if !known.is_empty()
-            && known.iter().all(|t| t.tcl_type() == known[0].tcl_type())
-            && known.len() == entries.len()
-        {
-            let label = tcl_type_label(known[0].tcl_type().unwrap());
-            // A pure def whose every typed read commits one intrep reports it
-            // at the creation site: `set l {1 2 3}` first used by `llength`
-            // hovers as "string (first used as: list)".
-            if let Some(committed) = first_use
-                .get(&func.name)
-                .and_then(|vars| vars.get(var_name))
-            {
-                let committed_label = tcl_type_label(*committed);
-                if committed_label != label {
-                    return Some(format!("{label} (first used as: {committed_label})"));
+    let lattice = function.types.get(&value)?;
+    match lattice.kind() {
+        TypeKind::Known => {
+            let label = tcl_type_label(lattice.tcl_type()?);
+            if let Some(committed) = first_use {
+                let committed = tcl_type_label(committed);
+                if committed != label {
+                    return Some(format!("{label} (first used as: {committed})"));
                 }
             }
-            return Some(label);
+            Some(label)
         }
-        // Every version agrees on the same shimmer union — render every
-        // member (`shimmered (int / list / string)` for a 3-way merge).
-        let shimmered: Vec<&TypeLattice> = entries
-            .iter()
-            .copied()
-            .filter(|t| t.kind() == TypeKind::Shimmered)
-            .collect();
-        if !shimmered.is_empty() && shimmered.len() == entries.len() {
-            let s = shimmered[0];
-            if shimmered.iter().all(|t| *t == s) {
-                let members: Vec<String> = s
-                    .shapes()
-                    .iter()
-                    .map(|shape| tcl_type_label(shape.coarse()))
-                    .collect();
-                return Some(format!("shimmered ({})", members.join(" / ")));
-            }
+        TypeKind::Shimmered => {
+            let members = lattice
+                .shapes()
+                .iter()
+                .map(|shape| tcl_type_label(shape.coarse()))
+                .collect::<Vec<_>>();
+            Some(format!("shimmered ({})", members.join(" / ")))
         }
-        // Mixed, but a dominant KNOWN type exists.  Pick the
-        // smallest by `Ord` so the choice is deterministic.
-        if let Some(t) = known
-            .iter()
-            .filter_map(|t| t.tcl_type())
-            .min()
-            .map(tcl_type_label)
-        {
-            return Some(t);
-        }
+        _ => None,
     }
-    None
 }
 
 /// Human-readable mitigation-colour labels present in `taint`,
@@ -3290,33 +3268,18 @@ fn taint_colour_labels(taint: TaintLattice) -> Vec<&'static str> {
         .collect()
 }
 
-/// Infer taint for `var_name`, mirroring `_infer_var_taint`:
-/// returns the first function with taint entries for the
-/// variable, joining the tainted versions to the most
-/// conservative colour set.
-fn infer_var_taint(unit: &CompilationUnit, var_name: &str) -> Option<String> {
-    for func in function_units_in_order(unit) {
-        let entries: Vec<&TaintLattice> = func
-            .taints
-            .iter()
-            .filter(|((name, _ver), _)| func.ssa.var_name(*name) == var_name)
-            .map(|(_, t)| t)
-            .collect();
-        if entries.is_empty() {
-            continue;
-        }
-        let tainted: Vec<&TaintLattice> =
-            entries.iter().copied().filter(|t| t.is_tainted()).collect();
-        if let Some((first, rest)) = tainted.split_first() {
-            let combined = rest.iter().fold(**first, |acc, t| acc.join(**t));
-            let labels = taint_colour_labels(combined);
-            if labels.is_empty() {
-                return Some("tainted (from I/O)".to_owned());
-            }
-            return Some(format!("tainted (from I/O); {}", labels.join(", ")));
-        }
+/// Taint display from the same represented version as the source read.
+fn infer_var_taint(function: &FunctionUnit, value: tcl_compiler::ssa::ValueKey) -> Option<String> {
+    let taint = *function.taints.get(&value)?;
+    if !taint.is_tainted() {
+        return None;
     }
-    None
+    let labels = taint_colour_labels(taint);
+    if labels.is_empty() {
+        Some("tainted (from I/O)".to_owned())
+    } else {
+        Some(format!("tainted (from I/O); {}", labels.join(", ")))
+    }
 }
 
 /// Original linked command heads retain their conditional member owner.
@@ -3975,6 +3938,66 @@ mod tests {
         let h = hover(src, 1, 7, &analysis, Some(&registry)).expect("hover");
         assert!(h.value.contains("**Variable** `x`"), "{}", h.value);
         assert!(h.value.contains("**Inferred intrep**: int"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_inference_keeps_same_named_variables_in_the_selected_source_body() {
+        for source in [
+            "set same 1\nproc local {} {set same TEXT; puts $same}\n",
+            "set same [gets stdin]\nproc local {} {set same TEXT; puts $same}\n",
+            "proc first {} {set same 1; puts $same}\nproc second {} {set same TEXT; puts $same}\n",
+        ] {
+            let analysis = analyse(source);
+            let cursor = u32::try_from(source.rfind("$same").unwrap() + 1).unwrap();
+            let position = tcl_lexer::LineIndex::new(source).position_at_utf16(cursor, source);
+            let registry = tcl_registry::CommandRegistry::build_default();
+            let selected = hover(
+                source,
+                position.line,
+                position.character.get(),
+                &analysis,
+                Some(&registry),
+            )
+            .expect("actual selected local variable hover");
+            assert!(
+                selected.value.contains("**Inferred intrep**: string"),
+                "{}",
+                selected.value
+            );
+            assert!(
+                !selected.value.contains("**Inferred intrep**: int"),
+                "{}",
+                selected.value
+            );
+            assert!(!selected.value.contains("**Taint**"), "{}", selected.value);
+        }
+    }
+
+    #[test]
+    fn hover_inference_uses_the_represented_read_version_after_reassignment() {
+        let source = "proc local {} {set same 123; puts $same; set same TEXT; puts $same}\n";
+        let analysis = analyse(source);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let cursor = u32::try_from(source.rfind("$same").unwrap() + 1).unwrap();
+        let position = tcl_lexer::LineIndex::new(source).position_at_utf16(cursor, source);
+        let selected = hover(
+            source,
+            position.line,
+            position.character.get(),
+            &analysis,
+            Some(&registry),
+        )
+        .expect("actual current version has its own source read");
+        assert!(
+            selected.value.contains("**Inferred intrep**: string"),
+            "{}",
+            selected.value
+        );
+        assert!(
+            !selected.value.contains("**Inferred intrep**: int"),
+            "{}",
+            selected.value
+        );
     }
 
     #[test]

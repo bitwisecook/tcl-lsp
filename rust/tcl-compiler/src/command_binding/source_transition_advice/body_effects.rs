@@ -53,7 +53,7 @@ struct PreparedBodyRegionBranch {
 
 // Keep materialisation frames outside recursive source-body descent.
 #[inline(never)]
-fn boxed_body_resolution<'r: 'w, 'w>(
+pub(super) fn boxed_body_resolution<'r: 'w, 'w>(
     context: &'r tcl_registry::model::ContextRegistry,
     dialect: tcl_registry::InvocationDialect,
     command: &'w str,
@@ -74,7 +74,7 @@ fn boxed_body_resolution<'r: 'w, 'w>(
 }
 
 #[inline(never)]
-fn boxed_body_advice(
+pub(super) fn boxed_body_advice(
     context: &AdviceInvocationContext<'_>,
     invocation: AdviceInvocation<'_>,
     graph: &AdviceGraph,
@@ -86,7 +86,7 @@ fn boxed_body_advice(
 }
 
 #[inline(never)]
-fn boxed_region_words(
+pub(super) fn boxed_region_words(
     context: &AdviceInvocationContext<'_>,
     advice: &OriginalSourceCommandTransitionAdvice,
 ) -> Option<Box<crate::registry_invocation::source_structure::OriginalRegistryWords>> {

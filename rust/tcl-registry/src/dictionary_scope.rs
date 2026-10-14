@@ -157,7 +157,7 @@ pub(crate) fn authored_dictionary_scope_source_phase(
     let mut coverage = crate::world_effect::TransitionEffectCoverages::default();
     coverage.extend(&[crate::world_effect::TransitionEffectCoverage {
         source: crate::world_effect::WorldEffectWriteSource::LegacySideEffect(
-            crate::SideEffectTarget::Variable,
+            crate::side_effects::SideEffectTarget::Variable,
         ),
         domains: &[crate::world_effect::WorldStateDomain::VariableStore],
     }]);

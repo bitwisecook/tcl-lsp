@@ -404,8 +404,8 @@ fn scan_value_for_info_hazards(value: &str) -> (bool, Vec<String>) {
     };
     let mut state = crate::var_escape::state::EscapeState::new(std::iter::empty::<String>());
     for invocation in calls.into_iter().filter_map(|call| call.invocation) {
-        if invocation.facts.canonical_command == "info" {
-            crate::var_escape::handlers::handle_introspection(&invocation, &mut state);
+        if invocation.facts().canonical_command == "info" {
+            crate::var_escape::handlers::handle_source_introspection(&invocation, &mut state);
         }
     }
     (
@@ -458,12 +458,12 @@ mod tests {
             .expect("original selected info descriptor");
         assert_eq!(
             invocation
-                .argument_literal(invocation.facts.argument_offset)
+                .argument_literal(invocation.facts().argument_offset)
                 .as_deref(),
             Some("$literal[tail]")
         );
         let mut state = crate::var_escape::state::EscapeState::new(std::iter::empty::<String>());
-        crate::var_escape::handlers::handle_introspection(invocation, &mut state);
+        crate::var_escape::handlers::handle_source_introspection(invocation, &mut state);
         assert!(!state.dynamic_barrier());
         assert!(state.tags.contains_key("$literal[tail]"));
     }
@@ -481,7 +481,7 @@ mod tests {
             .expect("actual nested descriptor");
         assert_eq!(
             invocation
-                .argument_literal(invocation.facts.argument_offset)
+                .argument_literal(invocation.facts().argument_offset)
                 .as_deref(),
             Some("target")
         );

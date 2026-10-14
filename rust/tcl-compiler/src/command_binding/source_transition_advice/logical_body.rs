@@ -4,7 +4,10 @@
 
 //! Deferred Logical source headers retain their original parent body/schema.
 
-use super::body_effects::{OriginalOperandEffect, original_operand_effects};
+use super::body_effects::{
+    OriginalOperandEffect, boxed_body_advice, boxed_body_resolution, boxed_region_words,
+    original_operand_effects,
+};
 use super::{
     AdviceGraph, AdviceInvocation, AdviceInvocationContext, AdviceNamingPolicy,
     AdvicePublicationPurpose, OriginalSourceCommandTransitionAdvice,
@@ -121,6 +124,11 @@ const MAX_COMMANDS: usize = 2048;
 struct LogicalBodyWalk<'context, 'source> {
     context: &'context AdviceInvocationContext<'source>,
     visited: usize,
+}
+
+struct PreparedLogicalBodyBranch {
+    graph: AdviceGraph,
+    scope: Arc<OriginalDeclaredLogicalBodyContext>,
 }
 
 pub(super) struct LogicalNamespaceScope {
@@ -243,10 +251,30 @@ impl LogicalBodyWalk<'_, '_> {
         parent: Option<&Arc<OriginalDeclaredLogicalBodyContext>>,
         depth: usize,
     ) -> Option<()> {
+        if depth > MAX_DEPTH {
+            return None;
+        }
+        let mut prepared = self.prepare_procedure(tape, graph, invocation, schema, parent)?;
+        self.script(
+            tape,
+            &mut prepared.graph,
+            &prepared.scope,
+            depth.checked_add(1)?,
+        )
+    }
+
+    #[inline(never)]
+    fn prepare_procedure(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        parent: Option<&Arc<OriginalDeclaredLogicalBodyContext>>,
+    ) -> Option<Box<PreparedLogicalBodyBranch>> {
         // naming.source.original-declared-command-word-contract
         // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
-        if depth > MAX_DEPTH
-            || !schema.semantics.traits.contains(Traits::DEFERS_BODY)
+        if !schema.semantics.traits.contains(Traits::DEFERS_BODY)
             || schema.facts().arity_accepts_frozen_arguments() != Some(true)
         {
             return None;
@@ -276,7 +304,7 @@ impl LogicalBodyWalk<'_, '_> {
         )?;
         let name_input = receipt.input(name)?.logical_input()?.clone();
         let key = graph.publication_key(name_input.bytes(), AdvicePublicationPurpose::Define)?;
-        let mut advice = self.context.schema_advice(invocation, graph, schema)?;
+        let mut advice = boxed_body_advice(self.context, invocation, graph, schema)?;
         advice.logical_body = parent.map(|parent| Arc::clone(parent.body_arc()));
         advice.logical_scope = parent.cloned();
         if schema.semantics.body_interpreter.resolve_with(|ordinal| {
@@ -334,7 +362,10 @@ impl LogicalBodyWalk<'_, '_> {
         branch.logical_namespace = Some(key.namespace);
         branch.handles.clear();
         branch.class_handles.clear();
-        self.script(tape, &mut branch, &scope, depth.checked_add(1)?)
+        Some(Box::new(PreparedLogicalBodyBranch {
+            graph: branch,
+            scope,
+        }))
     }
 
     fn namespace(
@@ -351,10 +382,27 @@ impl LogicalBodyWalk<'_, '_> {
         if depth > MAX_DEPTH {
             return None;
         }
+        let mut prepared = self.prepare_namespace(graph, invocation, schema, parent)?;
+        self.script(
+            tape,
+            &mut prepared.graph,
+            &prepared.scope,
+            depth.checked_add(1)?,
+        )
+    }
+
+    #[inline(never)]
+    fn prepare_namespace(
+        &self,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        parent: Option<&Arc<OriginalDeclaredLogicalBodyContext>>,
+    ) -> Option<Box<PreparedLogicalBodyBranch>> {
         let selected = self
             .context
             .logical_namespace_scope(graph, invocation, schema)?;
-        let mut advice = self.context.schema_advice(invocation, graph, schema)?;
+        let mut advice = boxed_body_advice(self.context, invocation, graph, schema)?;
         advice.logical_body = parent.map(|parent| Arc::clone(parent.body_arc()));
         advice.logical_scope = parent.cloned();
         let bodies = self.bodies(&advice)?;
@@ -375,21 +423,18 @@ impl LogicalBodyWalk<'_, '_> {
         let mut branch = graph.clone();
         branch.apply(&selected.receipt)?;
         branch.logical_namespace = Some(selected.namespace);
-        self.script(tape, &mut branch, &scope, depth.checked_add(1)?)
+        Some(Box::new(PreparedLogicalBodyBranch {
+            graph: branch,
+            scope,
+        }))
     }
 
+    #[inline(never)]
     fn bodies(
         &self,
         advice: &OriginalSourceCommandTransitionAdvice,
     ) -> Option<Vec<OriginalSourceScriptBody>> {
-        let source = self.context.origin.source_image().try_text().ok()?;
-        let words =
-            crate::registry_invocation::source_structure::source_transition_words_from_advice(
-                source,
-                self.context.config,
-                self.context.context,
-                advice.clone(),
-            )?;
+        let words = boxed_region_words(self.context, advice)?;
         let bodies = words.source_script_bodies(self.context.context);
         if bodies.iter().any(|body| {
             let container = body.original_container();
@@ -522,17 +567,12 @@ impl LogicalBodyWalk<'_, '_> {
         }
         arguments.extend(written.into_iter().skip(1));
         let values = registry_words(&arguments);
-        let resolution =
-            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
-                self.context.context.commands(),
-                Some(self.context.context.context()),
-                tcl_registry::InvocationWords::structured(
-                    tcl_registry::InvocationWord::Literal(&selected),
-                    &values,
-                )
-                .with_dialect(self.context.dialect),
-                tcl_dialect::model::InvocationRealm::RuleLoader,
-            );
+        let resolution = boxed_body_resolution(
+            self.context.context,
+            self.context.dialect,
+            &selected,
+            &values,
+        );
         let Some(schema) = resolution.resolved() else {
             graph.widen(native);
             return Some(());
@@ -664,7 +704,7 @@ impl LogicalBodyWalk<'_, '_> {
         parent: (&Arc<OriginalDeclaredLogicalBodyContext>, usize),
     ) -> Option<()> {
         let (scope, depth) = parent;
-        let mut advice = self.context.schema_advice(invocation, graph, schema)?;
+        let mut advice = boxed_body_advice(self.context, invocation, graph, schema)?;
         advice.logical_body = Some(Arc::clone(scope.body_arc()));
         advice.logical_scope = Some(Arc::clone(scope));
         advice
@@ -672,7 +712,7 @@ impl LogicalBodyWalk<'_, '_> {
             .push(SourceCommandTransitionObligation::DeferredLogicalBodyApplicability);
         self.context
             .retain_authored_command_prefix(tape, invocation, graph, schema, Some(&advice));
-        tape.advice.insert(advice.site.offset, advice.clone());
+        self.retain_advice(tape, &advice);
         self.context
             .retain_source_callback_targets(tape, invocation, graph, schema);
         self.context.retain_produced_command_prefixes(
@@ -684,6 +724,49 @@ impl LogicalBodyWalk<'_, '_> {
         );
         self.children(tape, graph, invocation, (&advice, schema), scope, depth)?;
         Some(())
+    }
+
+    #[inline(never)]
+    fn boxed_inventory() -> Box<OriginalSourceTransitionAdviceTape> {
+        Box::new(OriginalSourceTransitionAdviceTape::default())
+    }
+
+    #[inline(never)]
+    fn retain_inventory(
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        retained: Box<OriginalSourceTransitionAdviceTape>,
+    ) {
+        tape.extend_inventory(*retained);
+    }
+
+    #[inline(never)]
+    fn retain_advice(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        advice: &OriginalSourceCommandTransitionAdvice,
+    ) {
+        tape.advice.insert(advice.site.offset, advice.clone());
+    }
+
+    #[inline(never)]
+    fn prepare_child_body(
+        graph: &AdviceGraph,
+        scope: &Arc<OriginalDeclaredLogicalBodyContext>,
+        body: OriginalSourceScriptBody,
+        frame_level: Option<tcl_registry::FrameLevel>,
+    ) -> Option<Box<PreparedLogicalBodyBranch>> {
+        let body = Arc::new(body);
+        let child = if frame_level.is_some_and(tcl_registry::FrameLevel::is_global_frame) {
+            scope.with_global_body(body)?
+        } else {
+            scope.with_body(body)?
+        };
+        let mut branch = graph.clone();
+        branch.logical_namespace = Some(child.namespace_recipe().clone());
+        Some(Box::new(PreparedLogicalBodyBranch {
+            graph: branch,
+            scope: Arc::new(child),
+        }))
     }
 
     fn children(
@@ -704,12 +787,12 @@ impl LogicalBodyWalk<'_, '_> {
         {
             // Each changing source scope retains its own selected name/body.
             // Unmodelled workers never inherit a procedure namespace/frame.
-            let mut retained = OriginalSourceTransitionAdviceTape::default();
+            let mut retained = Self::boxed_inventory();
             if self
                 .parent_scope(&mut retained, graph, invocation, schema, Some(scope), depth)
                 .is_some()
             {
-                tape.extend_inventory(retained);
+                Self::retain_inventory(tape, retained);
             }
             return Some(());
         }
@@ -733,15 +816,13 @@ impl LogicalBodyWalk<'_, '_> {
             None
         };
         for body in self.bodies(advice)? {
-            let body = Arc::new(body);
-            let child = if frame_level.is_some_and(tcl_registry::FrameLevel::is_global_frame) {
-                scope.with_global_body(body)?
-            } else {
-                scope.with_body(body)?
-            };
-            let mut branch = graph.clone();
-            branch.logical_namespace = Some(child.namespace_recipe().clone());
-            self.script(tape, &mut branch, &Arc::new(child), depth.checked_add(1)?)?;
+            let mut prepared = Self::prepare_child_body(graph, scope, body, frame_level)?;
+            self.script(
+                tape,
+                &mut prepared.graph,
+                &prepared.scope,
+                depth.checked_add(1)?,
+            )?;
         }
         Some(())
     }
