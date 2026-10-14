@@ -1,0 +1,24 @@
+{
+  "started_utc": "2026-10-14T20:17:22.613539+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-lsp-core",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 101,
+    "seconds": 131.93352842699096,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "finished_utc": "2026-10-14T20:19:36.937155+00:00",
+  "changed_sources": {}
+}

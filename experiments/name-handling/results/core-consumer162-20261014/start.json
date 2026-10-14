@@ -1,0 +1,28 @@
+{
+  "started_utc": "2026-10-14T20:17:22.613539+00:00",
+  "label": "actualcurrentNativealpha/methodsite/refactor/inline originalconsumercontrols",
+  "package": "tcl-lsp-core",
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "source_paths": 34723,
+  "plan": {
+    "exact": [
+      "source_structure::tests::original_method_sites_keep_complete_words_nested_commands_and_current_input",
+      "refactor::inline_proc::tests::inline_arguments_use_complete_original_words_and_shared_literal_values",
+      "refactor::inline_proc::original_inline_body_purpose_tests::logical_inline_body_uses_retained_word_extent_for_literal_closers",
+      "refactor::original_frame_walk_tests::original_expression_components_keep_braced_literals_inert_and_quoted_reads_active",
+      "minify::original::tests::native_compaction_uses_fixed_formal_owner_and_original_edit_coverage",
+      "definition::configured_receiver_head_tests::actual_method_navigation_does_not_promote_compound_variable_syntax"
+    ],
+    "filters": [
+      "refactor::inline_proc::",
+      "refactor::extract_proc::",
+      "refactor::original_frame_walk_tests::",
+      "minify::original::tests::"
+    ],
+    "scope": "Actual migrated4surface positionedmethod +Nativealpha/Logicalinline/refactor controls with unchanged relevantoriginals; priorCore145 retainedseparately"
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

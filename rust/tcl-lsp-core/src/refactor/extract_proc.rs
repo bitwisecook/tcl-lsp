@@ -1903,12 +1903,9 @@ set hidden 1";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
         let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
         let commands = walk.segment_document(source);
-        let roles =
-            classify_variables(source, &[&commands[1]], &walk, walk.config.braced_var).unwrap();
+        let roles = classify_variables(source, &[&commands[1]], &walk).unwrap();
         assert_eq!(roles.written.keys().cloned().collect::<Vec<_>>(), ["held"]);
-        assert!(
-            classify_variables(source, &[&commands[3]], &walk, walk.config.braced_var).is_err()
-        );
+        assert!(classify_variables(source, &[&commands[3]], &walk).is_err());
     }
 
     #[test]

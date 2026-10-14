@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "a4efdf0ec3a92ac123962882c25bc6c640f657342032b0d63f96d5dd30e203a0",
+    "source-after.json.gz": "133c206efbc0f65d723e6faac7a1947cf7937bdb27afe851a30c82af7065a44a",
+    "build.log": "8cfd7e6fbd58d162189cdd4cae8d90ba0105bb8187d20a817bb00533ee46d515",
+    "start.json": "87e8becf108dcc4c6e482a616c80695533c93f0d8da92cdcf71d0a0f76e0303c",
+    "source-before.json.gz": "77666c4f2b96c8d37b3e332ce1f7aab8a04e227d0a03eb40f7a32b91e842597d"
+  },
+  "scope": "Core library test build failed2newfixture call signatures; zero consumers executed; source subset drift zero. Config remains on actual shared FrameWalk owner, assertions unchanged."
+}
