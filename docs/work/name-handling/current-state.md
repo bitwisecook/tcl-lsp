@@ -26,7 +26,7 @@ Runtime and VM Jim consumers retain actual registration bytes/generations, physi
 
 ## Active check and remaining work
 
-Runtime165 is sealed build-only with zero attempted semantic controls and empty source, compiled-input and artifact drift maps. Runtime/query builds pass; the Registry compiler dependency fails at two production certificate-effect calls applying ? to an actual non-optional InvocationDialect. The actual API correction and an affected-package combined test-build preflight are next; no new Runtime semantic result is available. Runtime164 retains its separate zero-control fixture-API failure receipt.
+Combined affected test-build167 is active at /tmp/name-affected-test-build167-20261014 (session 65266): five packages compile their test targets with --no-run. This is a test-build/API preflight with zero semantic selectors, not native-provider conformance. Preflight166 is sealed build-only with zero tests on two fixture API errors and source-subset drift zero; the actual fixture corrections are adopted. Runtime165 retains its build-only zero-control receipt with empty full captured drift maps; its two production non-optional dialect API mismatches are corrected. Actual DB/Source/original Tcltest controls and the full 110-control Runtime replay remain required after a successful preflight.
 
 Source158 remains 30/31 PASS, with the original body-local type-shadow negative failing. Adopted, source-reviewed repairs preserve all 31 original controls and add four controls: originating-parameter shadow refusal, passive type-lint handling, a distinct signature-only type occurrence and one proved transparent state-field hop. The 35-control replay and current owner CLI remain required; the last four Source CLI failures are not claimed fixed before execution. The one-hop repair requires the actual unique standard Deref/DerefMut pair, exact shared Box<Target> field and direct reference bodies; it does not infer generic dereference or follow a second hop.
 
@@ -34,4 +34,4 @@ Remaining work includes actual current owner CLI/full strict-proof validation, o
 
 ## Checkpoint
 
-Current 21:50 BST (20:50 UTC). Next tracking 22:05 BST; hourly 22:13 BST. Root owns Main integration and commit/push; red development pushes are authorised.
+Current 22:05 BST (21:05 UTC). Next tracking 22:20 BST; hourly 22:13 BST. Root owns Main integration and commit/push; red development pushes are authorised.
