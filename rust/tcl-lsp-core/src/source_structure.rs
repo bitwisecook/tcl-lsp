@@ -320,6 +320,89 @@ impl<'a> OriginalVariableReferences<'a> {
     }
 }
 
+/// Original receiver and static selector syntax at a current command point.
+/// These values grant no object identity, dispatch, visibility or edit coverage.
+pub(crate) fn original_method_site_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<(String, String, bool)> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    if crate::inert_text::offset_in_physical_comment_in_analysis(source, analysis, cursor)? {
+        return None;
+    }
+    let config = current.config();
+    let structure = SourceStructure::capture(source, Some(analysis), config)?;
+    let command = structure
+        .commands
+        .iter()
+        .filter(|command| {
+            let span = command.execution_span(source);
+            span.start() <= cursor && cursor < span.end()
+        })
+        .min_by_key(|command| command.execution_span(source).len())?;
+    if command.is_partial {
+        return None;
+    }
+    let image = SourceImage::document(source);
+    let plan =
+        tcl_lexer::native_script_words_in(image, command.execution_span(source), config).ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    let head = command.words.first()?;
+    let selector = command.words.get(1)?;
+    if command.words.iter().any(|word| word.group().expand)
+        || !(selector.span().start() <= cursor && cursor < selector.span().end())
+    {
+        return None;
+    }
+    let method = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        selector,
+    )?)
+    .ok()?;
+    if method.contains('\0') {
+        return None;
+    }
+    let arena = head.executable_parts();
+    if let [part] = arena.list(arena.root()) {
+        match part.part {
+            ExecutablePart::Variable { .. } => {
+                let written = arena.bytes(part.span)?;
+                let reference = tcl_lexer::word_parts::whole_var_ref(written, config).ok()??;
+                let name = if reference.index.is_some() {
+                    let name_at =
+                        (reference.name.as_ptr() as usize).checked_sub(written.as_ptr() as usize)?;
+                    std::str::from_utf8(written.get(name_at..)?).ok()?
+                } else {
+                    std::str::from_utf8(reference.name).ok()?
+                };
+                if name.contains('\0') {
+                    return None;
+                }
+                return Some((name.to_owned(), method, true));
+            }
+            ExecutablePart::Command { .. } => {
+                let written = std::str::from_utf8(arena.bytes(part.span)?).ok()?;
+                return Some((written.to_owned(), method, false));
+            }
+            ExecutablePart::Text(_) => {}
+            ExecutablePart::Expression { .. } | ExecutablePart::ParseError(_) => return None,
+        }
+    }
+    let receiver = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        head,
+    )?)
+    .ok()?;
+    if receiver.contains('\0') {
+        return None;
+    }
+    Some((receiver, method, false))
+}
+
 /// Selected original substitution syntax in one complete retained analysis.
 /// Unknown comment/body applicability or stale correspondence declines. The
 /// caller independently chooses lexical or original-variable resolution.
@@ -900,6 +983,83 @@ fn retain_member_bodies<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_method_sites_keep_complete_words_nested_commands_and_current_input() {
+        for (source, expected) in [
+            ("$object method", ("object", "method", true)),
+            ("\"$object\" method", ("object", "method", true)),
+            ("${$literal} {with space}", ("$literal", "with space", true)),
+            ("$array($index) method", ("array($index)", "method", true)),
+            ("puts [$object method]", ("object", "method", true)),
+            (
+                "{object name} \"with space\"",
+                ("object name", "with space", false),
+            ),
+            ("[self object] method", ("[self object]", "method", false)),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+            let cursor = u32::try_from(source.rfind(expected.1).unwrap() + 1).unwrap();
+            assert_eq!(
+                original_method_site_at(source, &analysis, cursor),
+                Some((expected.0.to_owned(), expected.1.to_owned(), expected.2)),
+                "{source}"
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(original_method_site_at(source, &missing, cursor).is_none());
+            assert!(original_method_site_at("changed", &analysis, cursor).is_none());
+        }
+        for (source, receiver, selector) in
+            [("{} {}", "", ""), ("\"\" \"\"", "", ""), ("${} {}", "", "")]
+        {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+            let cursor = u32::try_from(source.len() - 1).unwrap();
+            assert_eq!(
+                original_method_site_at(source, &analysis, cursor),
+                Some((
+                    receiver.to_owned(),
+                    selector.to_owned(),
+                    source.starts_with('$')
+                )),
+                "{source}"
+            );
+        }
+        let source = "puts seed; $object longMethod";
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let analysis = cursor_analysis(source, style);
+            let cursor = u32::try_from(source.find("longMethod").unwrap() + 1).unwrap();
+            assert_eq!(
+                original_method_site_at(source, &analysis, cursor),
+                Some(("object".to_owned(), "longMethod".to_owned(), true))
+            );
+            let mut stale = analysis.clone();
+            stale.body_lexer_config.as_mut().unwrap().braced_var =
+                if style == tcl_dialect::BracedVarStyle::FirstClose {
+                    tcl_dialect::BracedVarStyle::Tcl9Nesting
+                } else {
+                    tcl_dialect::BracedVarStyle::FirstClose
+                };
+            assert!(original_method_site_at(source, &stale, cursor).is_none());
+        }
+        for (source, needle) in [
+            ("# $object method", "method"),
+            ("puts {$object method}", "method"),
+            ("expr {$object < $other}", "<"),
+            ("$object $computed", "$computed"),
+            ("{*}$object method", "method"),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+            let cursor = u32::try_from(source.find(needle).unwrap()).unwrap();
+            assert!(
+                original_method_site_at(source, &analysis, cursor).is_none(),
+                "{source}"
+            );
+        }
+    }
 
     fn cursor_analysis(source: &str, style: tcl_dialect::BracedVarStyle) -> AnalysisResult {
         let profile = tcl_dialect::DialectProfile::plain_tcl();

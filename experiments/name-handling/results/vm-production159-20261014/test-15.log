@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1268 filtered out; finished in 10.37s
+

@@ -425,11 +425,13 @@ fn analytical_closed_projection(
         &mut normalized,
         -i64::from(procedure.span.start()),
     );
-    let mut normalized = normalized
-        .relocated_variable_proofs(&correspondence.relocation)?
-        .restored_source_proofs(&crate::command_binding::BodySourceProofs::from_body(
-            &correspondence.body,
-        ))?;
+    let normalized = normalized.relocated_variable_proofs(&correspondence.relocation)?;
+    let proofs = crate::command_binding::BodySourceProofs::from_body(&correspondence.body);
+    let mut normalized = if native_card.is_some() {
+        normalized.restored_readonly_source_proofs(&proofs)?
+    } else {
+        normalized.restored_source_proofs(&proofs)?
+    };
     // This comparison-only ID is protected by the original declaration and
     // every authentic closed registry lookup; no returned unit is rewritten.
     normalized.body_id = None;
@@ -664,16 +666,22 @@ impl BodyLatticeInputs {
         {
             return None;
         }
-        let normalized = cached
-            .relocated_variable_proofs(&previous.correspondence.relocation)?
-            .restored_source_proofs(&crate::command_binding::BodySourceProofs::from_body(
-                &previous.correspondence.body,
-            ))?;
-        let mut rebound = normalized
-            .relocated_variable_proofs(&current.correspondence.relocation.inverse()?)?
-            .restored_source_proofs(&crate::command_binding::BodySourceProofs::from_body(
-                &self.body,
-            ))?;
+        let normalized = cached.relocated_variable_proofs(&previous.correspondence.relocation)?;
+        let previous_proofs =
+            crate::command_binding::BodySourceProofs::from_body(&previous.correspondence.body);
+        let normalized = if previous.declaration.native_source_slot.is_some() {
+            normalized.restored_readonly_source_proofs(&previous_proofs)?
+        } else {
+            normalized.restored_source_proofs(&previous_proofs)?
+        };
+        let rebound =
+            normalized.relocated_variable_proofs(&current.correspondence.relocation.inverse()?)?;
+        let current_proofs = crate::command_binding::BodySourceProofs::from_body(&self.body);
+        let mut rebound = if current.declaration.native_source_slot.is_some() {
+            rebound.restored_readonly_source_proofs(&current_proofs)?
+        } else {
+            rebound.restored_source_proofs(&current_proofs)?
+        };
         if current.declaration.native_source_slot.is_some() {
             rebound.body_id = Some(current.body);
         }
@@ -1023,6 +1031,91 @@ mod native_source_lattice_tests {
             Some(req.body),
             crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         )
+    }
+
+    #[test]
+    fn readonly_source_restoration_preserves_absence_of_execution_and_refuses_missing_carriers() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "proc p {} {set value TEXT; return $value}\n";
+        let options = crate::compilation_unit::UnitBuildOptions {
+            registry: context.commands(),
+            config,
+            dialect: Some(profile),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let unit = CompilationUnit::build_with_analysis_input(source, options, None, &input);
+        let (&id, card) = unit
+            .ir_module
+            .original_native_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let procedure = unit.original_procedure_for_body(id).unwrap();
+        assert!(card.matches_procedure(&unit.ir_module, procedure));
+        let function = unit.function_for_body(Some(id)).unwrap();
+        let proofs = crate::command_binding::BodySourceProofs::from_body(&procedure.body);
+        let restored = function
+            .restored_readonly_source_proofs(&proofs)
+            .expect("current conditional source carriers without execution");
+        assert!(restored.cfg.executed_source.is_none());
+        assert!(restored.cfg.native_compilation_admission.is_none());
+        assert!(restored.cfg.statement_sources.values().all(Option::is_none));
+        assert!(Arc::ptr_eq(&restored.def_use, &function.def_use));
+        assert!(function.restored_source_proofs(&proofs).is_none());
+        let mut missing = procedure.body.clone();
+        missing.command_binding_sites = Default::default();
+        for statement in &mut missing.statements {
+            if let Some(tokens) = statement.tokens_mut() {
+                tokens.source_binding = None;
+            }
+        }
+        let missing = crate::command_binding::BodySourceProofs::from_body(&missing);
+        assert!(function.restored_readonly_source_proofs(&missing).is_none());
+        let logical_profile = tcl_dialect::DialectProfile::plain_tcl();
+        let logical_input = crate::analyser::ResolvedAnalysisInput::new(
+            logical_profile,
+            logical_profile,
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(logical_profile.grammar),
+        );
+        let logical = CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                config: logical_input.lexer_config(),
+                dialect: Some(logical_profile),
+                ..options
+            },
+            None,
+            &logical_input,
+        );
+        let entered = logical
+            .ir_module
+            .procedures
+            .values()
+            .next()
+            .unwrap()
+            .body
+            .executed_source
+            .as_ref()
+            .unwrap();
+        let mut changed = function.clone();
+        changed.cfg.executed_source = Some(Arc::clone(entered));
+        assert!(changed.restored_readonly_source_proofs(&proofs).is_none());
+        let mut changed_body = procedure.body.clone();
+        changed_body.executed_source = Some(Arc::clone(entered));
+        let mixed = crate::command_binding::BodySourceProofs::from_body(&changed_body);
+        assert!(function.restored_readonly_source_proofs(&mixed).is_none());
     }
 
     #[test]

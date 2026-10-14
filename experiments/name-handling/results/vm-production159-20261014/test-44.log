@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_interpreter_crossing::tests::original_parent_prefix_list_owns_members_without_snapshot_references ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1268 filtered out; finished in 0.16s
+

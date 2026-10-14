@@ -144,6 +144,24 @@ pub struct DefUseResult {
 }
 
 impl DefUseResult {
+    /// Preserve shared chains when every referenced storage key is unchanged.
+    pub(crate) fn variable_proofs_need_relocation(
+        &self,
+        relocation: &crate::var_resolve::VariableProofRelocation,
+    ) -> bool {
+        self.chains.iter().any(|((key, _), chain)| {
+            relocation.storage_key(key) != *key
+                || relocation.storage_key(&chain.key.0) != chain.key.0
+                || chain.uses.iter().any(|site| {
+                    site.kind == UseKind::PhiIncoming
+                        && relocation.storage_key(&site.variable) != site.variable
+                })
+        }) || self
+            .source_keys
+            .values()
+            .any(|key| relocation.storage_key(key) != *key)
+    }
+
     /// Relocate canonical storage identities without changing definitions or SSA versions.
     pub fn relocate_variable_proofs(
         &mut self,

@@ -1,0 +1,234 @@
+[
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::original_command_replacement_uses_native_node_liveness_without_epoch_drift"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::original_deleted_active_command_survives_only_its_actual_invocation_lease"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::original_variable_cache_owns_no_cell_and_unset_changes_only_native_lookup_id"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::global_original_uses_separate_stripped_key_and_foreign_caches_refuse"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::detached_previous_retirement_releases_the_actual_chain_outside_world_borrows"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::detached_previous_retirement_preserves_its_real_active_invocation_owner"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::detached_previous_retirement_uses_its_original_world_when_another_vm_is_current"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::local_frames_and_nested_upcalls_match_original_native_lineage"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::original_jim_local_cleanup_restores_its_captured_previous_after_the_first_host_cause"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::original_jim_local_cleanup_refuses_recreate_delete_aba_and_retires_the_detached_previous"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::original_jim_local_cleanup_permits_an_independent_child_table_mutation"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::original_jim_local_cleanup_refuses_an_exhausted_table_stamp"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::original_jim_local_frame_receipt_completes_cleanup_after_pre_entry_host_refusal"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::original_jim_local_frame_receipt_keeps_a_recreated_binding_unreached_after_refusal"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_result_tests::jim_original_vector_captures_error_arguments_before_releasing_argv"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_result_tests::jim_successful_vector_releases_all_temporary_argument_owners"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::original_publication_header_survives_replacement_without_lookup_references"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::original_key_retirement_is_not_reversed_by_a_same_named_publication"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::host_registration_keys_are_issued_at_actual_jim_selection"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::selected_jim_host_publication_retains_its_original_rooted_cstring"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::a_previous_c_namespace_slot_is_not_promoted_to_a_jim_flat_key"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::unavailable_host_publication_is_distinct_from_a_legal_empty_key"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::selected_error_frames_ignore_an_unselected_retired_key"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_lookup::tests::automatic_error_frames_follow_original_cold_rename_and_selected_key_lifetimes"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::local_unlink_and_restore_preserve_the_original_key_header_and_reference_count"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_child_constructor_tests::child_core_publication_uses_its_retained_constructor_inputs_and_engine"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_child_constructor_tests::jim_child_extension_library_has_its_own_original_command_key"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_child_constructor_tests::child_constructor_refuses_a_foreign_engine_before_allocating_a_slot"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_child_constructor_tests::distribution_child_keeps_its_independent_bootstrap_purpose"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::deleted_local_cleanup_uses_retirement_without_reaching_a_replacement"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::tests::a_missing_slot_without_its_actual_retirement_receipt_refuses_cleanup"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_local::current_cleanup_tests::available_local_cleanup_selects_the_actual_recreated_entry"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "native_jim_script::original_source_location_tests::evaluation_location_borrows_the_original_filename_and_actual_line"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "native_jim_script::original_source_location_tests::missing_script_retains_actual_location_and_subst_has_no_script_layout"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "value::native_jim_pool::tests::actual_factory_reuses_only_the_header_and_keeps_exact_objects_retired"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "value::native_jim_pool::tests::all_three_factory_constructors_and_lifo_release_use_the_actual_scope"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "value::native_jim_pool::tests::host_births_and_foreign_contexts_cannot_acquire_allocator_membership_later"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::jim_table_keys::tests::actual_cstring_registration_uses_one_birth_and_retains_rooted_input"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_operation_currency::tests::actual_factory_scope_tracks_parked_selection_and_retains_first_cause_withdrawal"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "exec::native_script::evaluation_entry_tests::actual_script_missing_guard_precedes_frame_entry_and_success_enters"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::original_host_publication_tests::host_cstring_publication_uses_global_bare_and_actual_qualified_holder_slots"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_interpreter_crossing::tests::original_copy_has_receiver_birth_counted_bytes_and_no_source_header"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_interpreter_crossing::tests::original_parent_prefix_list_owns_members_without_snapshot_references"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_jim_interpreter_crossing::tests::original_parent_alias_copies_operands_and_result_and_keeps_return_state_separate"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_child_constructor_tests::jim_child_bootstrap_values_have_the_child_allocator_birth"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_child_constructor_tests::jim_child_copies_only_existing_parent_globals_with_the_original_cstring_extent"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-48d40b80675d74df",
+    "selector": "interp::native_child_constructor_tests::child_startup_copy_ignores_parent_local_shadows_and_c_has_no_copy_recipe"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/native_compilation_conformance-b226288777165932",
+    "selector": "automatic_jim_errors_retain_actual_evaluation_frames_and_source_locations"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/native_compilation_conformance-b226288777165932",
+    "selector": "jim_alias_retains_root_slot_and_caller_lookup_and_frame"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/native_compilation_conformance-b226288777165932",
+    "selector": "jim_rooted_alias_publication_matches_original_native_source_and_values"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/native_compilation_conformance-b226288777165932",
+    "selector": "alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/native_compilation_conformance-b226288777165932",
+    "selector": "child_alias_publication_matches_original_supported_provider_apis"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/native_compilation_conformance-b226288777165932",
+    "selector": "namespace_usage_and_alias_objv_dispatch_match_actual_native_contexts"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/native_compilation_conformance-b226288777165932",
+    "selector": "missing_alias_targets_preserve_native_handler_selection_and_resolution"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/cross_interp_alias_e2e-e54172b0a2068070",
+    "selector": "jim_c_style_interpreter_alias_surfaces_are_explicitly_unsupported"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/cross_interp_alias_e2e-e54172b0a2068070",
+    "selector": "jim_child_handle_aliases_keep_original_parent_lookup_and_retirement"
+  },
+  {
+    "binary": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-d16b323745d6e16a",
+    "selector": "naming::native::jim_command_hash_comparison_tests::original_jim_hash_comparison_retains_counted_zero_bytes_and_root_geometry"
+  }
+]

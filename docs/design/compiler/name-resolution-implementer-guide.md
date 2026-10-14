@@ -9752,6 +9752,14 @@ command tail. Runtime OO abbreviation dispatch obtains those components and the
 current command generation before constructing its replacement head. Neither
 projection parses a reporting label or establishes command lookup success.
 
+Codegen `original_variable_operand` selects one unchanged original written
+word from the admitted compiler vector and delegates root/index projection to
+`native_variable_word` with its actual release/protocol. Source-backed unset
+validates all original operands before emission, then preserves each receiver's
+sequential index evaluation and unset operation. Unavailable original geometry
+retains the generic invocation; option, hook, local-slot and callback ownership
+remain independent.
+
 ### Jim interpreter copies and child initialisation
 
 `NativeJimInterpreterCopyPurpose` selects the original API's string extent.
@@ -9759,6 +9767,14 @@ projection parses a reporting label or establishes command lookup success.
 `ChildStartupVariable` selects the CString extent used by
 `JimInterpCopyVariable`: a runtime NUL ends the copied value. This purpose only
 selects bytes; it grants no source or target interpreter ownership.
+
+VM `copy_original_jim_value_to` performs the same purpose-selected String
+crossing under actual source and destination operation scopes. Its constructor
+temporary retires an unpublished header; only the reached store or result owner
+publishes the native reference. `capture_original_jim_parent_alias_prefix`
+retains the actual parent List while the accompanying words are neutral member
+leases. A neutral snapshot cannot replace that List or lend a child object to
+parent evaluation.
 
 Runtime's shared Jim object bridge obtains both actual live contexts,
 materialises the original string, creates a fresh target String and binds it

@@ -289,7 +289,7 @@ fn scalar_alpha_compaction(
     // selects a valid same-frame replacement and closes its observer effects.
     let short = super::NameGenerator::new().next_name();
     let receipt = analysis
-        .original_scalar_body_alpha_rename(declaration, short.as_bytes(), registry)
+        .original_fixed_scalar_body_alpha_rename(declaration, short.as_bytes(), registry)
         .ok_or(MinifyRefusal::MissingAlphaRenameContract)?;
     if !receipt.matches_source(&image, config)
         || !receipt.matches_registry(registry)
@@ -557,6 +557,40 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_compaction_uses_fixed_formal_owner_and_original_edit_coverage() {
+        let source = "proc p {unused longVariable} {return $longVariable}";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let analysis = super::analysis_for_profile(source, profile, &registry);
+        assert!(!analysis.allows_lexical_declaration_advice());
+        let result = super::minify_with_analysis(
+            source,
+            &analysis,
+            super::MinifyOptions {
+                tier: super::MinifyTier::Compact,
+                ..super::MinifyOptions::default()
+            },
+        );
+        assert_eq!(result.source, "proc p {unused a} {return $a}");
+        let changed = format!("{source}\ninfo args p");
+        let analysis = super::analysis_for_profile(&changed, profile, &registry);
+        let result = super::minify_with_analysis(
+            &changed,
+            &analysis,
+            super::MinifyOptions {
+                tier: super::MinifyTier::Compact,
+                ..super::MinifyOptions::default()
+            },
+        );
+        assert!(result.source.contains("longVariable"));
+        assert!(
+            result
+                .refusals
+                .contains(&super::MinifyRefusal::MissingAlphaRenameContract)
+        );
+    }
     use super::*;
     use crate::minify::SymbolMap;
 

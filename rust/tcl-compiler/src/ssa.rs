@@ -7645,7 +7645,7 @@ pub fn build_ssa_with_config(
         func,
         registry,
         config,
-        ResolveContext::for_function(&func.name),
+        crate::compilation_unit::function_source_entry(func, None),
     )
 }
 
@@ -7829,9 +7829,7 @@ pub(crate) fn build_ssa_with_context_for_entry(
     entry: ResolveContext,
     entry_bindings: Option<&[String]>,
 ) -> SsaFunction {
-    let metadata = registry
-        .profile()
-        .map(|profile| tcl_registry::model::semantic::SemanticContext::for_profile(profile).into());
+    let metadata = func.metadata_context.metadata_context(registry).flatten();
     build_ssa_with_context_for_entry_and_metadata(
         func,
         registry,

@@ -256,12 +256,8 @@ fn ensemble_subcommand_hover(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
 ) -> Option<Hover> {
-    let (head, sub, is_dollar) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        crate::definition::dialect_config(analysis),
-    )?;
+    let (head, sub, is_dollar) =
+        crate::definition::original_instance_method_at_cursor(source, analysis, line, character)?;
     if is_dollar {
         return None;
     }

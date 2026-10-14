@@ -826,14 +826,26 @@ fn typed_reads_of_statement(
         }
         Statement::Incr { name, amount, .. } => {
             push_literal_target_read(ctx, &mut out, name, TclType::Int, stmt.span(), uses);
-            if let Some(amt) = amount.as_deref().map(str::trim)
-                && amt.starts_with('$')
-                && let Some(word) = ctx
-                    .source
-                    .source_tokens()
-                    .and_then(|tokens| tokens.words().get(2))
+            if amount.is_some()
+                && let Some(invocation) = ctx.context.statement(stmt)
+                && let Some(argument) = invocation.argument_offset().checked_add(1)
+                && super::hints::invocation_shimmer_expectation(&invocation, argument)
+                    .is_some_and(|hint| hint.expected == TclType::Int)
+                && let Some(index) = argument.checked_add(1)
+                && matches!(
+                    invocation.effective_words().origins.get(index),
+                    Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+                )
+                && let Some(word) = invocation.effective_words().words.get(index)
             {
-                push_var_read(ctx, &mut out, word, TclType::Int, stmt.span());
+                push_invocation_var_read(
+                    ctx,
+                    &mut out,
+                    (&invocation, argument),
+                    word,
+                    TclType::Int,
+                    stmt.span(),
+                );
             }
         }
         Statement::AssignExpr {
@@ -1234,6 +1246,72 @@ mod tests {
             }
         }
         assert_eq!(found, HashSet::from(["$value".to_owned(), "é(".to_owned()]));
+    }
+
+    #[test]
+    fn retained_increment_amount_uses_selected_original_word_and_represented_read() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = super::super::byte_array::retained_representation_unit(
+            "proc f {} {set value 0; set step 2; incr value $step; incr value \"$step\"; incr value {$step}}; f",
+            std::sync::Arc::clone(&context),
+        );
+        let function = unit.function("::f").expect("actual original procedure");
+        let retained = crate::shimmer::ShimmerContext::for_function(function, context.commands())
+            .expect("actual function input");
+        let mut amounts = 0;
+        for (&block, body) in &function.ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                let Statement::Incr {
+                    amount: Some(_), ..
+                } = &statement.statement
+                else {
+                    continue;
+                };
+                let source = crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+                let ctx = CommitCtx {
+                    registry: context.commands(),
+                    context: retained,
+                    ssa: &function.ssa,
+                    source,
+                    types: &function.types,
+                    values: function.diagnostic_value_facts().values(),
+                    folded: &function.sccp.folded_types,
+                };
+                let reads = typed_reads_of_statement(&ctx, &statement.statement, &statement.uses);
+                let step = source.symbol("step").expect("actual scalar step");
+                let Some(invocation) = retained.statement(&statement.statement) else {
+                    let word = &source
+                        .source_tokens()
+                        .expect("original amount words")
+                        .words()[2];
+                    assert!(
+                        matches!(word, crate::ir::WordExpr::BracedLiteral { text, .. }
+                        if text == "$step")
+                    );
+                    assert!(reads.iter().all(|read| read.sym != step));
+                    continue;
+                };
+                let argument = invocation.argument_offset() + 1;
+                let word = &invocation.effective_words().words[argument + 1];
+                let actual = source.read_word(word);
+                match actual {
+                    Some(read) => {
+                        let version = read
+                            .version
+                            .filter(|version| *version != 0)
+                            .expect("represented actual step read");
+                        assert_eq!(read.symbol, step);
+                        assert!(reads.iter().any(|read| read.sym == step
+                            && read.ver == version
+                            && read.expected == TclType::Int));
+                        amounts += 1;
+                    }
+                    None => assert!(reads.iter().all(|read| read.sym != step)),
+                }
+            }
+        }
+        assert_eq!(amounts, 2);
     }
 
     fn facts_for<'a>(

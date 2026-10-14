@@ -60,6 +60,7 @@ pub struct BodySourceProofs {
     pub tokens: BTreeMap<u32, crate::ir::CommandTokens>,
     sites: BTreeMap<u32, crate::ir::CommandBindingSite>,
     root_source: Option<Arc<super::ExecutedScriptSource>>,
+    readonly_sources: bool,
     root_admission: Option<Arc<crate::native_compilation_admission::NativeCompilationAdmission>>,
     statement_sources: BTreeMap<(u32, u32), Option<Arc<super::ExecutedScriptSource>>>,
     script_sources: BTreeMap<Vec<(u32, u32)>, Option<Arc<super::ExecutedScriptSource>>>,
@@ -75,11 +76,17 @@ impl BodySourceProofs {
     pub fn from_body(body: &Script) -> Self {
         let mut body = body.clone();
         let mut proofs = Self {
+            readonly_sources: true,
             root_source: body.executed_source.clone(),
             root_admission: body.native_compilation_admission.clone(),
             ..Self::default()
         };
         crate::ir::for_each_script_mut(&mut body, &mut |script| {
+            proofs.readonly_sources &= script.executed_source.is_none()
+                && script.native_compilation_admission.is_none()
+                && script.native_compilation_failure.is_none()
+                && script.implicit_math_invocations.is_empty()
+                && script.expression_preparations.is_empty();
             proofs
                 .math_invocations
                 .extend(script.implicit_math_invocations.iter().cloned());
@@ -142,6 +149,47 @@ impl BodySourceProofs {
         if !self.restore_cfg_sources(cfg) {
             return false;
         }
+        self.restore_cfg_carriers(cfg, false)
+    }
+
+    /// Restore conditional source carriers while retaining absence of execution.
+    pub(crate) fn restore_readonly_cfg(&self, cfg: &mut CfgFunction) -> bool {
+        if !self.readonly_sources
+            || self.root_source.is_some()
+            || self.root_admission.is_some()
+            || cfg.executed_source.is_some()
+            || cfg.native_compilation_admission.is_some()
+            || cfg.native_compilation_failure.is_some()
+            || !cfg.required_math_invocations.is_empty()
+            || !cfg.required_expression_preparations.is_empty()
+            || !cfg.implicit_math_invocations.is_empty()
+            || !cfg.expression_preparations.is_empty()
+            || cfg.statement_sources.values().any(Option::is_some)
+            || cfg.terminator_sources.values().any(Option::is_some)
+            || cfg
+                .loop_nodes
+                .values()
+                .any(|node| node.executed_source.is_some())
+        {
+            return false;
+        }
+        let mut sources = std::collections::HashMap::new();
+        for (block, body) in &cfg.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                if !matches!(
+                    self.statement_sources.get(&span_key(statement.span())),
+                    Some(None)
+                ) {
+                    return false;
+                }
+                sources.insert((*block, index), None);
+            }
+        }
+        cfg.statement_sources = sources;
+        self.restore_cfg_carriers(cfg, true)
+    }
+
+    fn restore_cfg_carriers(&self, cfg: &mut CfgFunction, readonly: bool) -> bool {
         let mut valid = true;
         for site in cfg
             .command_binding_sites
@@ -172,7 +220,7 @@ impl BodySourceProofs {
         }
         for block in cfg.blocks.values_mut() {
             for statement in &mut block.statements {
-                valid &= self.restore_statement(statement);
+                valid &= self.restore_statement_for_purpose(statement, readonly);
             }
             if let Some(crate::cfg::Terminator::Return {
                 tokens: Some(tokens),
@@ -184,7 +232,7 @@ impl BodySourceProofs {
             }
         }
         for node in cfg.loop_nodes.values_mut() {
-            valid &= self.restore_statement(&mut node.statement);
+            valid &= self.restore_statement_for_purpose(&mut node.statement, readonly);
         }
         valid
     }
@@ -293,6 +341,14 @@ impl BodySourceProofs {
 
     /// Restore retained source proofs on one statement without changing its lowered semantics.
     pub fn restore_statement(&self, statement: &mut Statement) -> bool {
+        self.restore_statement_for_purpose(statement, false)
+    }
+
+    pub(crate) fn restore_readonly_statement(&self, statement: &mut Statement) -> bool {
+        self.readonly_sources && self.restore_statement_for_purpose(statement, true)
+    }
+
+    fn restore_statement_for_purpose(&self, statement: &mut Statement, readonly: bool) -> bool {
         let offset = statement.span().start();
         let mut valid = true;
         if let Some(tokens) = statement.tokens_mut()
@@ -301,9 +357,22 @@ impl BodySourceProofs {
             valid &= self.restore_tokens(tokens, offset);
         }
         for body in statement.child_scripts_mut() {
-            valid &= self.restore_script_source(body);
+            if readonly {
+                valid &= self.readonly_sources
+                    && body.executed_source.is_none()
+                    && body.native_compilation_admission.is_none()
+                    && body.native_compilation_failure.is_none()
+                    && body.implicit_math_invocations.is_empty()
+                    && body.expression_preparations.is_empty()
+                    && matches!(
+                        self.script_sources.get(&script_source_key(body)),
+                        Some(None)
+                    );
+            } else {
+                valid &= self.restore_script_source(body);
+            }
             for statement in &mut body.statements {
-                valid &= self.restore_statement(statement);
+                valid &= self.restore_statement_for_purpose(statement, readonly);
             }
         }
         valid

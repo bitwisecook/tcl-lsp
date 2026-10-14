@@ -1396,12 +1396,8 @@ fn ensemble_subcommand_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
         ..
     } = *ctx;
-    let (head, sub, is_dollar) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        retained_dispatch_context(source, analysis)?.config,
-    )?;
+    let (head, sub, is_dollar) =
+        crate::definition::original_instance_method_at_cursor(source, analysis, line, character)?;
     if is_dollar {
         return None;
     }

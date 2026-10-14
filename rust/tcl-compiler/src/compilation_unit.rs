@@ -1149,6 +1149,33 @@ impl FunctionUnit {
         Some(unit)
     }
 
+    /// Restore only independently certified readonly source carriers.
+    pub(crate) fn restored_readonly_source_proofs(
+        &self,
+        proofs: &crate::command_binding::BodySourceProofs,
+    ) -> Option<Self> {
+        if !self.sccp.required_math_invocations.is_empty()
+            || !self.sccp.required_expression_preparations.is_empty()
+        {
+            return None;
+        }
+        let mut unit = self.clone();
+        unit.invalidate_semantic_values();
+        if !proofs.restore_readonly_cfg(&mut unit.cfg)
+            || !unit.ssa.restore_source_tokens(&proofs.tokens)
+        {
+            return None;
+        }
+        for block in unit.ssa.blocks.values_mut() {
+            for statement in &mut block.statements {
+                if !proofs.restore_readonly_statement(&mut statement.statement) {
+                    return None;
+                }
+            }
+        }
+        Some(unit)
+    }
+
     /// Instantiate an injective alpha-renaming of physical variable allocations.
     /// Symbols and lattice versions remain stable; lexical source rebasing is separate.
     /// The source owner must rebuild semantic facts from the actual source before use.
@@ -1171,7 +1198,9 @@ impl FunctionUnit {
         if keys.len() != unit.ssa.cell_keys().len() {
             return None;
         }
-        Arc::make_mut(&mut unit.def_use).relocate_variable_proofs(relocation);
+        if unit.def_use.variable_proofs_need_relocation(relocation) {
+            Arc::make_mut(&mut unit.def_use).relocate_variable_proofs(relocation);
+        }
         if let Some(memory) = &mut unit.memory_ssa {
             memory.relocate_variable_proofs(relocation).ok()?;
         }
@@ -4813,7 +4842,21 @@ pub(crate) fn function_source_entry(
         entry
     } else if let Some(entry) = entry_context {
         entry.clone()
+    } else if !cfg.metadata_context.is_standalone()
+        || cfg.namespace_context.is_some()
+        || cfg.executed_source.is_some()
+        || !cfg.command_binding_sites.is_empty()
+        || cfg.blocks.values().any(|block| {
+            block.statements.iter().any(|statement| {
+                statement
+                    .tokens()
+                    .is_some_and(|tokens| !tokens.words().is_empty())
+            })
+        })
+    {
+        conditional_function_source_entry(cfg, cfg.metadata_context.source_analysis_input())
     } else {
+        // Explicit source-absent Standalone model data keeps its own frame API.
         crate::var_resolve::ResolveContext::for_function(&cfg.name)
     };
     cfg.namespace_context.as_deref().map_or_else(
@@ -8641,6 +8684,61 @@ mod selected_class_roster_tests {
             original
                 .retained_source_class_names(self::context(false).commands())
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn source_ssa_missing_entry_never_infers_activation_from_the_report_name() {
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser
+            .prepare_analysis_input(tcl_dialect::DialectProfile::plain_tcl().name)
+            .unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let source = "set value TEXT; puts $value";
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let mut cfg = unit.top_level.cfg.clone();
+        cfg.command_binding_sites = Default::default();
+        cfg.namespace_context = None;
+        cfg.name = "::invented::procedure".to_owned();
+        let entry = function_source_entry(&cfg, None);
+        assert_eq!(
+            entry.frame_kind,
+            crate::var_resolve::VariableFrameKind::Unknown
+        );
+        assert!(entry.activation.is_none());
+        assert!(!entry.namespace_known);
+        let first = crate::ssa::build_ssa_with_config(&cfg, registry, input.lexer_config());
+        cfg.name = "::top".to_owned();
+        assert_eq!(function_source_entry(&cfg, None), entry);
+        let second = crate::ssa::build_ssa_with_config(&cfg, registry, input.lexer_config());
+        assert_eq!(first.cell_keys(), second.cell_keys());
+        cfg.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        assert_eq!(
+            function_source_entry(&cfg, None).frame_kind,
+            crate::var_resolve::VariableFrameKind::Unknown
+        );
+        let standalone = crate::cfg::Function::new("::standalone::model", "entry");
+        let compatibility = function_source_entry(&standalone, None);
+        assert_eq!(
+            compatibility.frame_kind,
+            crate::var_resolve::VariableFrameKind::Local
+        );
+        assert_eq!(
+            compatibility.activation.as_deref(),
+            Some("::standalone::model")
         );
     }
 }

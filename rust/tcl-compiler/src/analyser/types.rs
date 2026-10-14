@@ -3061,6 +3061,12 @@ impl PartialEq for AnalysisResult {
     }
 }
 
+#[derive(Clone, Copy)]
+enum ScalarAlphaFormalSelection {
+    Single,
+    Fixed,
+}
+
 impl AnalysisResult {
     /// Source declaration cards from genuine original operands and selected
     /// Registry `SymbolDef` roles. No publication, entered handler, cell or edit
@@ -3296,6 +3302,38 @@ impl AnalysisResult {
         new_native_tail: &[u8],
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<crate::command_binding::OriginalScalarBodyAlphaRename> {
+        self.original_scalar_alpha_for_formals(
+            declaration,
+            new_native_tail,
+            registry,
+            ScalarAlphaFormalSelection::Single,
+        )
+    }
+
+    /// Fixed scalar formal equivalence in a closed original return body.
+    /// Every actual formal and original read keeps its separate edit coverage.
+    #[must_use]
+    pub fn original_fixed_scalar_body_alpha_rename(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        new_native_tail: &[u8],
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::command_binding::OriginalScalarBodyAlphaRename> {
+        self.original_scalar_alpha_for_formals(
+            declaration,
+            new_native_tail,
+            registry,
+            ScalarAlphaFormalSelection::Fixed,
+        )
+    }
+
+    fn original_scalar_alpha_for_formals(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        new_native_tail: &[u8],
+        registry: &tcl_registry::CommandRegistry,
+        selection: ScalarAlphaFormalSelection,
+    ) -> Option<crate::command_binding::OriginalScalarBodyAlphaRename> {
         use crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver;
         if !self.original_procedure_metadata.contains(declaration)
             || !self.matches_original_source_image(
@@ -3338,12 +3376,22 @@ impl AnalysisResult {
             {
                 continue;
             }
-            let Some(receipt) = bindings.original_scalar_body_alpha_rename(
-                declaration,
-                occurrence.symbol(),
-                new_native_tail,
-                registry,
-            ) else {
+            let receipt = match selection {
+                ScalarAlphaFormalSelection::Single => bindings.original_scalar_body_alpha_rename(
+                    declaration,
+                    occurrence.symbol(),
+                    new_native_tail,
+                    registry,
+                ),
+                ScalarAlphaFormalSelection::Fixed => bindings
+                    .original_fixed_scalar_body_alpha_rename(
+                        declaration,
+                        occurrence.symbol(),
+                        new_native_tail,
+                        registry,
+                    ),
+            };
+            let Some(receipt) = receipt else {
                 continue;
             };
             if agreed.as_ref().is_some_and(|previous| previous != &receipt) {

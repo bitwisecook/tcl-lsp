@@ -91,30 +91,36 @@ fn validate_alpha_formal<'a>(
 )> {
     trace_alpha("formal-topology", site.offset);
     let topology = body.original_parameters.as_ref()?;
-    let [parameter] = topology.parameters() else {
-        return None;
-    };
-    if parameter.default.is_some() {
-        return None;
-    }
-    let names = topology.fixed_scalar_binding_names(1)?;
-    let [name] = names.as_slice() else {
-        return None;
-    };
-    // A scalar spelling can change the ParamList grammar, such as the
-    // final rest name or Jim's caller-link prefix. Reuse its own recipe.
-    trace_alpha("formal-rename-grammar", site.offset);
-    let fields = topology.original_name_fields()?;
-    let [field] = fields.as_slice() else {
-        return None;
-    };
-    if field.name != *name || field.recipe.renamed_input(proposed)?.as_slice() != proposed {
+    if topology.parameters().is_empty()
+        || topology
+            .parameters()
+            .iter()
+            .any(|parameter| parameter.default.is_some())
+    {
         return None;
     }
-    trace_alpha("symbol-frame", site.offset);
+    let names = topology.fixed_scalar_binding_names(topology.parameters().len())?;
     let SignatureSourceVariableSlot::Local { frame, simple } = symbol.slot() else {
         return None;
     };
+    let selected = names.iter().position(|name| name == simple)?;
+    if names
+        .iter()
+        .enumerate()
+        .any(|(index, name)| index != selected && (name == simple || name.as_bytes() == proposed))
+    {
+        return None;
+    }
+    let name = names.get(selected)?;
+    // The same original ParamList recipe keeps rest and caller-link syntax separate.
+    let fields = topology.original_name_fields()?;
+    let field = fields.get(selected)?;
+    if fields.len() != names.len()
+        || field.name != *name
+        || field.recipe.renamed_input(proposed)?.as_slice() != proposed
+    {
+        return None;
+    }
     if std::env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some() {
         eprintln!(
             "SCALAR_ALPHA offset={} frame_source={} frame_identity={} frame_config={} formal_key={} formal_policy={}",
@@ -235,6 +241,22 @@ fn validate_alpha_return_contract(
 
 impl SourceCommandBindings {
     pub(crate) fn original_scalar_body_alpha_rename(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<
+            crate::analyser::ProcDef,
+        >,
+        symbol: &SignatureSourceVariableSymbol,
+        proposed: &[u8],
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<OriginalScalarBodyAlphaRename> {
+        let body = self.original_declared_procedure_at(declaration.declaration_site(), registry)?;
+        if body.original_parameters.as_ref()?.parameters().len() != 1 {
+            return None;
+        }
+        self.original_fixed_scalar_body_alpha_rename(declaration, symbol, proposed, registry)
+    }
+
+    pub(crate) fn original_fixed_scalar_body_alpha_rename(
         &self,
         declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<
             crate::analyser::ProcDef,
@@ -442,6 +464,60 @@ mod tests {
         let declaration = analysis.original_procedure_declarations().next()?;
         let owner = tcl_registry::model::ingress::static_context_for(profile);
         analysis.original_scalar_body_alpha_rename(declaration, proposed, owner.commands())
+    }
+
+    #[test]
+    fn original_fixed_formal_alpha_keeps_complete_topology_and_observer_refusals() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let source = "proc p {unused original} {return $original}";
+            let analysis = crate::analyser::Analyser::new().analyse(source, profile);
+            let declaration = analysis.original_procedure_declarations().next().unwrap();
+            let owner = tcl_registry::model::ingress::static_context_for(profile);
+            assert!(
+                analysis
+                    .original_scalar_body_alpha_rename(declaration, b"x", owner.commands())
+                    .is_none()
+            );
+            let receipt = analysis
+                .original_fixed_scalar_body_alpha_rename(declaration, b"x", owner.commands())
+                .unwrap();
+            assert_eq!(
+                receipt.selected_symbol().rename_tail(),
+                Some(b"original".as_slice())
+            );
+            assert_eq!(receipt.new_native_tail(), b"x");
+            assert!(
+                analysis
+                    .original_fixed_scalar_body_alpha_rename(
+                        declaration,
+                        b"unused",
+                        owner.commands()
+                    )
+                    .is_none()
+            );
+            for source in [
+                "proc p {original original} {return $original}",
+                "proc p {unused args} {return $args}",
+                "proc p {unused {original DEFAULT}} {return $original}",
+                "proc p {unused original} {return [info locals]}",
+                "proc p {unused original} {set other $original; return $other}",
+                "proc p {unused original} {return $original}\ninfo args p",
+                "proc p {unused original} {return $original}\ntrace add execution p enter callback",
+            ] {
+                let analysis = crate::analyser::Analyser::new().analyse(source, profile);
+                let declaration = analysis.original_procedure_declarations().next().unwrap();
+                assert!(
+                    analysis
+                        .original_fixed_scalar_body_alpha_rename(
+                            declaration,
+                            b"x",
+                            owner.commands()
+                        )
+                        .is_none(),
+                    "{profile}: {source}"
+                );
+            }
+        }
     }
 
     #[test]

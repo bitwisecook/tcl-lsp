@@ -1287,12 +1287,9 @@ pub fn method_target_with_access_in_workspace(
     {
         return Some((provider, word, is_classmethod, MethodAccess::External));
     }
-    if let Some((_, method, _)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        crate::definition::dialect_config(analysis),
-    ) && method == word
+    if let Some((_, method, _)) =
+        crate::definition::original_instance_method_at_cursor(source, analysis, line, character)
+        && method == word
     {
         if let Some(selected) = crate::receiver_identity::method_at_cursor(analysis, source, cursor)
         {

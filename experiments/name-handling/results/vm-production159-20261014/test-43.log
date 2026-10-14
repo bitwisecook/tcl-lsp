@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_interpreter_crossing::tests::original_copy_has_receiver_birth_counted_bytes_and_no_source_header ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1268 filtered out; finished in 0.25s
+

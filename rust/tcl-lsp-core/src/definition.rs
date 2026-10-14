@@ -305,8 +305,9 @@ pub fn definition_with(
     // independently looks up `make` as a command (only the pair `widget make`
     // dispatches), so a coincidental same-named proc elsewhere in the
     // workspace must never win.
-    let config = dialect_config(analysis);
-    if let Some((head, sub, false)) = instance_method_at_cursor(source, line, character, config) {
+    if let Some((head, sub, false)) =
+        original_instance_method_at_cursor(source, analysis, line, character)
+    {
         // The cursor offset here is `decl_byte_offset`, already computed above.
         let namespace = namespace_context_at(
             &analysis.global_scope,
@@ -978,11 +979,11 @@ fn object_dispatch_mask_at_command(
         return ExternalObjectDispatchMask::Unavailable;
     }
     let position = LineIndex::new(source).position_at_utf16(cursor, source);
-    let Some((receiver, method, _)) = instance_method_at_cursor(
+    let Some((receiver, method, _)) = original_instance_method_at_cursor(
         source,
+        analysis,
         position.line,
         position.character.get(),
-        current.config(),
     ) else {
         return ExternalObjectDispatchMask::Clear;
     };
@@ -1336,40 +1337,20 @@ fn canonicalise_class(analysis: &AnalysisResult, at: u32, name: &str) -> Option<
     )
 }
 
-/// Detect a `$obj method ...` / `[$obj method ...]` or
-/// `objcmd method ...` call where the cursor sits on the *method-name*
-/// token.  Returns `(receiver_name, method_name, receiver_is_dollar)`:
-/// `receiver_is_dollar` is `true` for a `$var` / `${var}` receiver (a
-/// variable holding an object) and `false` for a bare object-command
-/// receiver (`objcmd`, e.g. one bound by `CLASS create objcmd`).
-///
-/// The receiver must be the command-segment head (a single token
-/// immediately preceding the method), so the method sits at word-index 1.
-/// Command segments are delimited by `;`, `[`, `{`, and the line start —
-/// a single-line approximation that covers the common editor cases.
-///
-/// Whether a bare receiver actually resolves to a class is decided by
-/// [`logical_receiver_candidate_at`], which gates bare receivers on
-/// `created_instance_commands` (so a plain variable's bare name — never a
-/// valid dispatch — does not resolve).
-///
-/// The method-name word is bounded by [`crate::hover::word_char_bounds`] —
-/// the same lexer-faithful rule every other cursor-word consumer uses — so
-/// a method whose name is not a programming-language identifier still
-/// resolves.  Tcl imposes no character restriction on a method name:
-/// `$obj with-dash`, `$obj a.b`, and TIP 558's generated property accessors
-/// (`my <ReadProp-x>` / `my <WriteProp-x>`, produced by `oo::configurable`'s
-/// `property`) all dispatch for real (verified against tclsh 8.6.14 and
-/// 9.0.4), and an identifier rule stopping at `-` / `<` / `>` would silently
-/// truncate those names to something no class declares.
-///
-/// A word carrying no alphanumeric / `_` content at all — `<`, `<=`, `-`,
-/// `::` — is rejected: those are expression operators and separators, so
-/// `expr {$a < $b}` must not read as `$a` dispatching a method named `<`.
-/// Tcl *would* let a class declare a method literally named `+` or `<`, and
-/// this deliberately does not resolve those: `expr` bodies are far more
-/// common than operator-named methods, so rejecting them trades a rare gap
-/// for no false positives.
+/// Current complete command-head and selector syntax. Actual receiver identity,
+/// method visibility and source edits require their independent owners.
+pub(crate) fn original_instance_method_at_cursor(
+    source: &str,
+    analysis: &AnalysisResult,
+    line: u32,
+    character: u32,
+) -> Option<(String, String, bool)> {
+    let index = LineIndex::new(source);
+    let cursor = byte_offset_at(&index, source, line, character);
+    crate::source_structure::original_method_site_at(source, analysis, cursor)
+}
+
+#[cfg(test)]
 pub(crate) fn instance_method_at_cursor(
     source: &str,
     line: u32,
@@ -1601,7 +1582,7 @@ pub fn indirection_pending_at(analysis: &AnalysisResult, qualified: &str, cursor
     })
 }
 
-/// Resolve `head sub` (as returned by [`instance_method_at_cursor`], with
+/// Resolve `head sub` (as returned by [`original_instance_method_at_cursor`], with
 /// `is_dollar == false`) to the target command it dispatches to, when
 /// `head` names a known `namespace ensemble create -map`/`-subcommands`
 /// ensemble and `sub` resolves against its literal, statically-recorded

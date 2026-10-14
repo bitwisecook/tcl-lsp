@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::original_host_publication_tests::host_cstring_publication_uses_global_bare_and_actual_qualified_holder_slots ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1268 filtered out; finished in 0.59s
+

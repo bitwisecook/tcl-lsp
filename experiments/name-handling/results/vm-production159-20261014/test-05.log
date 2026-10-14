@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_lookup::tests::detached_previous_retirement_releases_the_actual_chain_outside_world_borrows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1268 filtered out; finished in 1.29s
+
