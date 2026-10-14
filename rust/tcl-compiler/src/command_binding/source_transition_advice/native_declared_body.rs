@@ -9,8 +9,10 @@ use crate::signature_scan::scope::{
 };
 use std::sync::Arc;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct OriginalNativeSourceDeclaration {
+    input: crate::analyser::ResolvedAnalysisInput,
+    tape: Arc<super::OriginalSourceTransitionAdviceTape>,
     procedure: Arc<OriginalSourceProcedureBody>,
     name: SignatureSourceNameInput,
     formals: OriginalFormalTopology,
@@ -18,6 +20,20 @@ pub(crate) struct OriginalNativeSourceDeclaration {
     namespace: SourceNamespaceKey,
     scope: SignatureNamespaceScope,
 }
+impl PartialEq for OriginalNativeSourceDeclaration {
+    fn eq(&self, other: &Self) -> bool {
+        self.input == other.input
+            && Arc::ptr_eq(&self.tape, &other.tape)
+            && self.procedure == other.procedure
+            && self.name == other.name
+            && self.formals == other.formals
+            && self.parameters == other.parameters
+            && self.namespace == other.namespace
+            && self.scope == other.scope
+    }
+}
+impl Eq for OriginalNativeSourceDeclaration {}
+
 impl OriginalNativeSourceDeclaration {
     pub(crate) fn site(&self) -> &crate::command_binding::CommandAllocationSite {
         self.procedure.declaration.site()
@@ -60,7 +76,8 @@ impl OriginalNativeSourceDeclaration {
         image: &tcl_lexer::SourceImage,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> bool {
-        !input.has_logical_source_name_context()
+        input == &self.input
+            && !input.has_logical_source_name_context()
             && !input.has_hosted_source_name_context()
             && self
                 .procedure
@@ -97,10 +114,10 @@ impl SourceCommandBindings {
             return None;
         }
         let seed = self.original_source_transition_seed()?;
-        let tape = seed.prepare_for(
+        let tape = Arc::new(seed.prepare_for(
             input.borrowed_context_registry(),
             super::OriginalSourceCataloguePurpose::CompletePrefix,
-        )?;
+        )?);
         let inventory = tape.procedure_publications()?;
         if !inventory.matches_source_context(
             self.source_origin()?.source_image(),
@@ -150,6 +167,8 @@ impl SourceCommandBindings {
                 };
                 let namespace = SourceNamespaceKey::authored(scope.display()?);
                 let card = OriginalNativeSourceDeclaration {
+                    input: input.clone(),
+                    tape: Arc::clone(&tape),
                     procedure: Arc::clone(procedure),
                     name: name.clone(),
                     parameters: formals.advisory_parameters(),
@@ -206,10 +225,7 @@ impl OriginalNativeSourceDeclaration {
         {
             return None;
         }
-        let tape = bindings.original_source_transition_advice_tape_for(
-            input.borrowed_context_registry(),
-            super::OriginalSourceCataloguePurpose::CompletePrefix,
-        )?;
+        let tape = Arc::clone(&self.tape);
         let plan = tcl_lexer::native_script_words_in(
             self.site().source.source_image().clone(),
             self.body_span(),
@@ -248,7 +264,7 @@ impl OriginalNativeSourceDeclaration {
         Some(Arc::new(OriginalNativeSourceBodyChildren {
             declaration: Arc::clone(self),
             input: input.clone(),
-            tape: Arc::new(tape),
+            tape,
             commands,
         }))
     }

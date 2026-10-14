@@ -1215,7 +1215,43 @@ fn slice(source: &str, span: Span) -> &str {
     }
 }
 
-/// Call sites of the proc `name` / `qualified_name`.
+/// Written execution heads selected by the shared current procedure reader.
+fn current_proc_call_sites(
+    source: &str,
+    procedure: &tcl_compiler::analyser::ProcDef,
+    analysis: &AnalysisResult,
+) -> Vec<Span> {
+    if !analysis.allows_lexical_declaration_advice()
+        || crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
+        || !analysis
+            .all_procs
+            .values()
+            .any(|current| std::ptr::eq(current, procedure))
+    {
+        return Vec::new();
+    }
+    let mut seen = FxHashSet::default();
+    analysis
+        .command_invocations
+        .iter()
+        .filter(|invocation| {
+            !invocation.indirect
+                && invocation.lookup.is_execution_site()
+                && crate::references::invocation_references_proc(
+                    analysis,
+                    invocation,
+                    &procedure.qualified_name,
+                    procedure,
+                    source,
+                )
+                && seen.insert((invocation.range.start(), invocation.range.end()))
+        })
+        .map(|invocation| invocation.range)
+        .collect()
+}
+
+/// Constructed presentation rows retained independently from source rewriting.
+#[cfg(test)]
 fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
     let qn_no_prefix =
         tcl_syntax::naming::unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
@@ -1341,7 +1377,7 @@ fn compact_names(
             if actual == *name {
                 edits.push((r.start() as usize, actual.len(), short.clone()));
             }
-            for call in find_proc_call_sites(name, &proc_def.qualified_name, &analysis) {
+            for call in current_proc_call_sites(source, proc_def, &analysis) {
                 let call_text = slice(source, call);
                 let key = (call.start() as usize, call_text.len());
                 if key != def_key && call_text == *name {
@@ -4845,6 +4881,28 @@ mod tests {
 #[cfg(test)]
 mod constructed_compatibility_tests {
     use super::*;
+
+    #[test]
+    fn shared_minifier_call_sites_keep_same_names_in_their_actual_namespace() {
+        let source = "namespace eval A {proc longName {} {}; longName}\nnamespace eval B {proc longName {} {}; longName}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let selected = analysis
+            .all_procs
+            .get("::A::longName")
+            .expect("actual A declaration");
+        let called = source.find("; longName").unwrap() + 2;
+        assert_eq!(
+            current_proc_call_sites(source, selected, &analysis),
+            vec![Span::new(
+                u32::try_from(called).unwrap(),
+                u32::try_from(called + "longName".len()).unwrap(),
+            )]
+        );
+        let detached = selected.clone();
+        assert!(current_proc_call_sites(source, &detached, &analysis).is_empty());
+        assert!(current_proc_call_sites(&format!("{source} "), selected, &analysis).is_empty());
+    }
 
     #[test]
     fn constructed_minifier_call_sites_keep_original_indirect_and_naming_guards() {

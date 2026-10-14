@@ -33,14 +33,18 @@ impl Lowerer<'_> {
             .get(span.as_range())?
             .to_owned();
         let body_namespace = card.namespace().advisory_key()?;
+        let scope = card.create_source_scope(&self.module);
+        let previous_scope = std::mem::replace(&mut self.authored_source_scope, scope.clone());
         let previous = std::mem::replace(&mut self.readonly_authored_body, true);
         let mut body = self
             .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
                 lowerer.lower_body(&text, span.start(), &body_namespace)
             });
         self.readonly_authored_body = previous;
+        self.authored_source_scope = previous_scope;
         body.namespace_context = Some(Box::new(card.namespace().clone()));
-        let card = std::sync::Arc::new(card.retain_lowered_body(&body, &self.module, seg.span));
+        let card =
+            std::sync::Arc::new(card.retain_lowered_body(&body, &self.module, seg.span, scope));
         let label = format!("::original-authored-body#{}", self.body_unit_count);
         self.body_unit_count += 1;
         let id = self.module.retain_body_unit(Procedure {

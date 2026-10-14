@@ -1,0 +1,30 @@
+{
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+    "sha256": "f912d63e66397262ffa4bf8effb477cee9aed187914b4c994fa23306b150929e",
+    "bytes": 383999680
+  },
+  "scope": "Unchanged four depth controls on sealed temporary diagnostic79 ELF; no other consumer acceptance",
+  "runs": [
+    {
+      "selector": "depth_guard::tests::proved_structured_bodies_fit_the_shared_stack_budget",
+      "exit_code": -6,
+      "seconds": 0.56557350201183
+    },
+    {
+      "selector": "depth_guard::tests::source_bindings_with_computed_conditions_fit_the_shared_stack_budget",
+      "exit_code": -6,
+      "seconds": 1.2214660470053786
+    },
+    {
+      "selector": "depth_guard::tests::the_analyser_stops_at_the_shared_cap",
+      "exit_code": -6,
+      "seconds": 0.6658812649984611
+    },
+    {
+      "selector": "depth_guard::tests::the_source_walk_cap_fits_its_stack_budget",
+      "exit_code": -6,
+      "seconds": 0.8663393740134779
+    }
+  ]
+}

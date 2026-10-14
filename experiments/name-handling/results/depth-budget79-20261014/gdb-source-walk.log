@@ -1,0 +1,7 @@
+warning: Missing auto-load script at offset 0 in section .debug_gdb_scripts
+of file /workspace/tcl-lsp/tmp/name-depth-budget79-compiler-ELF.
+Use `info auto-load python-scripts [REGEXP]' to list them.
+warning: Could not trace the inferior process.
+warning: ptrace: Operation not permitted
+/tmp/name-depth-stack-debugger-plan-20261014/commands.gdb:9: Error in sourced command file:
+During startup program exited with code 127.

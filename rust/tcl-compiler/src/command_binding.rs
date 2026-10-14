@@ -1240,6 +1240,8 @@ pub struct SourceInvocationBinding {
     pub(crate) lookup_state: Option<Arc<SourceLookupSnapshot>>,
     pub(crate) compiler_lookup_state: Option<Arc<SourceLookupSnapshot>>,
     original_logical_source_advice: Option<Arc<OriginalSourceCommandTransitionAdvice>>,
+    original_authored_source_body_scope:
+        Option<Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>>,
     original_native_source_command:
         Option<Arc<source_transition_advice::OriginalNativeSourceCommand>>,
     declaration_layout_observations:
@@ -1320,6 +1322,43 @@ impl SourceInvocationBinding {
         if self.lookup_state.is_none() && advice.logical_source_input().is_some() {
             self.original_logical_source_advice = Some(Arc::new(advice));
         }
+    }
+
+    pub(crate) fn retain_original_authored_source_body_scope(
+        &mut self,
+        scope: Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<()> {
+        if self.has_original_source_layout_owner()
+            || self.original_logical_source_advice.is_some()
+            || self.original_native_source_command.is_some()
+        {
+            return None;
+        }
+        scope.original_words(tokens, scope.registry())?;
+        self.original_authored_source_body_scope = Some(scope);
+        Some(())
+    }
+
+    pub(crate) fn has_original_authored_source_body_name_role_owner(&self) -> bool {
+        self.original_authored_source_body_scope.is_some()
+    }
+
+    pub(crate) fn original_authored_source_body_scope_for_name_roles(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&crate::registry_invocation::OriginalAuthoredSourceBodyScope> {
+        if self.has_original_source_layout_owner()
+            || self.original_logical_source_advice.is_some()
+            || self.original_native_source_command.is_some()
+            || tokens.source_binding.as_ref() != Some(self)
+        {
+            return None;
+        }
+        let scope = self.original_authored_source_body_scope.as_deref()?;
+        scope.original_words(tokens, registry)?;
+        Some(scope)
     }
 
     pub(crate) fn has_original_logical_source_name_role_owner(&self) -> bool {
@@ -1415,6 +1454,7 @@ impl Default for SourceInvocationBinding {
             lookup_state: None,
             compiler_lookup_state: None,
             original_logical_source_advice: None,
+            original_authored_source_body_scope: None,
             original_native_source_command: None,
             declaration_layout_observations: None,
             declaration_flow_inventory: None,
@@ -1890,6 +1930,14 @@ impl SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<&tcl_registry::CommandRegistry> {
+        if !self.has_original_source_layout_owner()
+            && let Some(scope) = self.original_authored_source_body_scope.as_deref()
+        {
+            return Some(
+                self.original_authored_source_body_scope_for_name_roles(tokens, scope.registry())?
+                    .registry(),
+            );
+        }
         Some(
             self.retained_registry_snapshot_for_tokens(tokens)?
                 .registry(),
@@ -2058,6 +2106,9 @@ impl SourceInvocationBinding {
     }
 
     fn join_original_operand_receipts(&mut self, other: &Self) {
+        if self.original_authored_source_body_scope != other.original_authored_source_body_scope {
+            self.original_authored_source_body_scope = None;
+        }
         if self.original_native_source_command != other.original_native_source_command {
             self.original_native_source_command = None;
         }
@@ -12375,6 +12426,7 @@ fn source_binding_projection_in(
         lookup_state: None,
         compiler_lookup_state: None,
         original_logical_source_advice: None,
+        original_authored_source_body_scope: None,
         original_native_source_command: None,
         declaration_layout_observations: None,
         declaration_flow_inventory: None,

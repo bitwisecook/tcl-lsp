@@ -34,11 +34,12 @@ pub(crate) use original_procedure_call::{
     original_procedure_scalar_bindings, original_source_procedure_calls_for_word_for_module,
     original_source_procedure_ids_for_word_for_module,
 };
+mod authored_body_scope;
+pub(crate) use authored_body_scope::OriginalAuthoredSourceBodyScope;
+pub(crate) use source_scoped_body::original_written_script_body_span;
 mod authored_source_bodies;
 pub use authored_source_bodies::OriginalAuthoredProcedureBody;
 pub(crate) use authored_source_bodies::original_authored_procedure_body;
-mod source_body_names;
-pub(crate) use source_body_names::original_authored_body_name_candidates;
 mod source_name_roles;
 pub(crate) use source_name_roles::{SourceNameRoleInventory, original_source_name_roles};
 mod authored_source_structure;
@@ -10621,3 +10622,7 @@ mod original_logical_body_topology_input_tests {
 #[cfg(test)]
 #[path = "registry_invocation/original_source_purpose_tests.rs"]
 mod original_source_purpose_tests;
+
+mod source_body_names;
+
+pub(crate) use source_body_names::original_authored_body_name_candidates;

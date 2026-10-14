@@ -1124,6 +1124,8 @@ pub struct Lowerer<'r> {
     /// Hosted source cards keep their independent declaration owner.
     readonly_hosted_body: bool,
     readonly_authored_body: bool,
+    authored_source_scope:
+        Option<std::sync::Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>>,
     /// Lexer config for the document's dialect, threaded into every
     /// body re-segmentation so `{*}` expansion (off for Tcl 8.4 /
     /// iRules) and the iRules `}{` ghost SEP are honoured rather than
@@ -1341,6 +1343,7 @@ impl<'r> Lowerer<'r> {
             native_source_children: None,
             readonly_hosted_body: false,
             readonly_authored_body: false,
+            authored_source_scope: None,
             config,
             dialect: None,
             dialect_context: None,
@@ -2747,7 +2750,18 @@ impl<'r> Lowerer<'r> {
     /// text that was segmented into it (see [`WordSpace`]).
     fn cmd_tokens(&self, seg: &SegmentedCommand) -> CommandTokens {
         let mut tokens = CommandTokens::from_segmented(&self.word_space.map(), self.config, seg);
-        if let Some(bindings) = &self.source_bindings {
+        if self.readonly_authored_body {
+            if let Some(scope) = &self.authored_source_scope {
+                let original = tokens.clone();
+                let _ = tokens
+                    .source_binding
+                    .get_or_insert_with(Default::default)
+                    .retain_original_authored_source_body_scope(
+                        std::sync::Arc::clone(scope),
+                        &original,
+                    );
+            }
+        } else if let Some(bindings) = &self.source_bindings {
             bindings.stamp_original_tokens(&mut tokens);
             if let (Some(body), Some(metadata)) = (
                 self.original_body_word_source.as_ref(),

@@ -12924,7 +12924,32 @@ mod original_source_read_selector_tests {
     #[test]
     fn source_read_selector_uses_original_occurrence_and_current_function_owner() {
         let source = "set same TOP; puts $same\nproc a {} {set same 123; return $same}\nproc b {} {set same TEXT; return $same}\n";
-        let (context, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(&input)
+            .expect("actual complete Logical source input");
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                config,
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        assert_eq!(unit.ir_module.source_metadata_input.as_ref(), Some(&input));
         let reads = source
             .match_indices("$same")
             .map(|(offset, _)| {

@@ -1,6 +1,6 @@
 # Remaining name-handling obligations
 
-Temporary current snapshot on `work`; remove before PR. Tracking checkpoint10:58 UTC; next11:13 UTC, hourly report11:13 UTC. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised. Required PR gates remain mandatory.
+Temporary current snapshot on `work`; remove before PR. Tracking checkpoint11:13 UTC; next11:28 UTC, hourly report12:13 UTC. Root owns integration, Git and one heavy Cargo lease. Audited consumer migrations have priority; red development pushes are authorised. Required PR gates remain mandatory.
 
 | Obligation | Current evidence | Next action |
 | --- | --- | --- |

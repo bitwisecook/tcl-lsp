@@ -1437,12 +1437,10 @@ mod tests {
             "set value 1",
             registry,
             false,
-            Some(
-                context
-                    .commands()
-                    .profile
-                    .expect("fixture selects an explicit profile"),
-            ),
+            context
+                .commands()
+                .profile()
+                .expect("fixture selects an explicit profile"),
         );
         assert!(unit.top_level.cfg.namespace_context.is_some());
         unit.top_level.cfg.namespace_context = None;
@@ -1455,12 +1453,10 @@ mod tests {
         let context = TaintWarnCtx {
             registry,
             unit: &unit,
-            dialect: Some(
-                context
-                    .commands()
-                    .profile
-                    .expect("fixture selects an explicit profile"),
-            ),
+            dialect: context
+                .commands()
+                .profile()
+                .expect("fixture selects an explicit profile"),
             module_traces: traces,
             line_index: &index,
         };

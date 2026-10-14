@@ -1,0 +1,16 @@
+(lldb) target create "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4"
+Current executable set to '/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4' (x86_64).
+(lldb) settings set -- target.run-args  "depth_guard::tests::the_source_walk_cap_fits_its_stack_budget" "--exact" "--nocapture" "--test-threads=1"
+(lldb) command source -s 0 '/tmp/name-depth-stack-debugger-plan-20261014/commands.lldb'
+Executing commands in '/tmp/name-depth-stack-debugger-plan-20261014/commands.lldb'.
+(lldb) settings set target.disable-aslr false
+(lldb) process handle SIGSEGV -s true -n false -p true
+NAME         PASS     STOP     NOTIFY
+===========  =======  =======  =======
+SIGSEGV      true     true     false  
+(lldb) process handle SIGABRT -s true -n false -p true
+NAME         PASS     STOP     NOTIFY
+===========  =======  =======  =======
+SIGABRT      true     true     false  
+(lldb) run
+error: could not find 'lldb-server'. Please ensure it is properly installed and available in your PATH

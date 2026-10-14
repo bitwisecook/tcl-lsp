@@ -253,9 +253,7 @@ fn plain_linked_component(text: &str) -> bool {
                     .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'))
 }
 
-/// Find the proc the cursor sits inside — either on its name
-/// span or anywhere in its body.  Matches the proc by short or
-/// qualified name.
+/// Select the actual declaration or written self-call under the shared reader.
 fn cursor_proc<'a>(
     line_index: &LineIndex,
     source: &str,
@@ -264,30 +262,36 @@ fn cursor_proc<'a>(
     word: &str,
     analysis: &'a AnalysisResult,
 ) -> Option<&'a ProcDef> {
-    let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    for proc in analysis.all_procs.values() {
-        if proc.name != word && proc.qualified_name != word {
-            continue;
-        }
-        if span_contains(proc.name_span, byte_offset) {
-            return Some(proc);
-        }
-        if span_contains(proc.body_span, byte_offset)
-            && crate::definition::invocation_reference_at(analysis, byte_offset).is_none_or(|inv| {
-                inv.lookup.is_execution_site()
-                    && crate::references::invocation_references_proc(
-                        analysis,
-                        inv,
-                        &proc.qualified_name,
-                        proc,
-                        source,
-                    )
-            })
-        {
-            return Some(proc);
-        }
+    let cursor = crate::definition::byte_offset_at(line_index, source, line, character);
+    let (_, procedure) = crate::definition::resolve_proc_target_at(
+        analysis,
+        source,
+        cursor,
+        word,
+        crate::definition::CallResolution::document_only(),
+    )?;
+    if span_contains(procedure.name_span, cursor) {
+        return Some(procedure);
     }
-    None
+    if !span_contains(procedure.body_span, cursor) {
+        return None;
+    }
+    let invocation = crate::definition::invocation_reference_at(analysis, cursor)?;
+    if invocation.indirect
+        || !invocation.lookup.is_execution_site()
+        || !crate::references::invocation_references_proc(
+            analysis,
+            invocation,
+            &procedure.qualified_name,
+            procedure,
+            source,
+        )
+    {
+        return None;
+    }
+    let declaration_text = source.get(procedure.name_span.as_range())?;
+    let written = identical_text_subspan(source, invocation.range, declaration_text)?;
+    span_contains(written, cursor).then_some(procedure)
 }
 
 /// The sub-span of a call-head span whose source text is *identical* to
@@ -421,6 +425,24 @@ mod tests {
         assert!(reference.linked_definition().is_none());
         assert!(linked_editing_ranges(source, 0, 12, &analysis).is_none());
         assert!(linked_editing_ranges(source, 0, 5, &analysis).is_none());
+    }
+
+    #[test]
+    fn linked_edits_select_the_actual_self_head_and_refuse_same_named_data() {
+        let source = "proc recur {} {puts recur; recur}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let index = LineIndex::new(source);
+        let data = source.find("puts recur").unwrap() + "puts ".len();
+        let call = source.rfind("recur").unwrap();
+        let data = index.position_at_utf16(u32::try_from(data).unwrap(), source);
+        let call = index.position_at_utf16(u32::try_from(call).unwrap(), source);
+        assert!(
+            linked_editing_ranges(source, data.line, data.character.get(), &analysis).is_none()
+        );
+        let linked = linked_editing_ranges(source, call.line, call.character.get(), &analysis)
+            .expect("actual recursive head retains its declaration link");
+        assert_eq!(linked.ranges.len(), 2);
     }
 
     #[test]

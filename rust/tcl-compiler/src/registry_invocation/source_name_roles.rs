@@ -95,6 +95,11 @@ pub(crate) fn original_source_name_roles(
             let words = binding.original_logical_source_words(tokens, input, registry)?;
             return from_source_words(&words, input);
         }
+        if binding.has_original_authored_source_body_name_role_owner() {
+            let scope =
+                binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
+            return from_authored_body_scope(scope, tokens, registry);
+        }
         let input = binding.original_native_source_input_for_name_roles(tokens, registry)?;
         let words = binding.original_native_source_words(tokens, input, registry)?;
         return from_source_words(&words, input);
@@ -143,6 +148,40 @@ pub(crate) fn original_source_name_roles(
             .collect(),
         roles_complete: source.facts().arg_roles_complete,
         config: source.config(),
+    })
+}
+
+fn from_authored_body_scope(
+    scope: &super::OriginalAuthoredSourceBodyScope,
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<SourceNameRoleInventory> {
+    let original = scope.original_words(tokens, registry)?;
+    scope.with_source_schema(tokens, registry, |schema| {
+        let facts = Box::new(schema.facts());
+        let (roles, roles_complete) = schema.authored_source_argument_roles();
+        let roles = roles
+            .into_iter()
+            .map(|(ordinal, role)| (facts.argument_offset + usize::from(ordinal), role))
+            .collect();
+        let values = original
+            .iter()
+            .skip(1)
+            .map(|word| {
+                String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+                    word,
+                )?)
+                .ok()
+            })
+            .collect();
+        Some(SourceNameRoleInventory {
+            facts,
+            values,
+            roles,
+            roles_complete,
+            config: scope.config(),
+            unknown_residual: true,
+        })
     })
 }
 

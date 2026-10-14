@@ -27,6 +27,7 @@ pub struct OriginalAuthoredProcedureBody {
     module_entry: Option<SourceAnalysisEntry>,
     module_profile: Option<&'static tcl_dialect::DialectProfile>,
     lowered_body: Option<Arc<Script>>,
+    source_scope: Option<Arc<super::OriginalAuthoredSourceBodyScope>>,
 }
 
 pub(crate) fn original_authored_procedure_body(
@@ -76,6 +77,7 @@ pub(crate) fn original_authored_procedure_body(
         module_entry: None,
         module_profile: None,
         lowered_body: None,
+        source_scope: None,
     })
 }
 
@@ -100,12 +102,28 @@ impl OriginalAuthoredProcedureBody {
             .iter()
             .map(|parameter| parameter.name.as_str())
     }
+    pub(crate) fn create_source_scope(
+        &self,
+        module: &Module,
+    ) -> Option<Arc<super::OriginalAuthoredSourceBodyScope>> {
+        super::OriginalAuthoredSourceBodyScope::capture(
+            &self.header,
+            &self.body_word,
+            &self.namespace,
+            module,
+        )
+    }
+    pub(crate) fn source_scope(&self) -> Option<&Arc<super::OriginalAuthoredSourceBodyScope>> {
+        self.source_scope.as_ref()
+    }
     pub(crate) fn retain_lowered_body(
         mut self,
         body: &Script,
         module: &Module,
         declaration_span: Span,
+        scope: Option<Arc<super::OriginalAuthoredSourceBodyScope>>,
     ) -> Self {
+        self.source_scope = scope;
         self.declaration_span = Some(declaration_span);
         self.lowered_body = Some(Arc::new(body.clone()));
         self.module_entry = Some(module.source_entry.clone());
@@ -142,6 +160,10 @@ impl OriginalAuthoredProcedureBody {
             || procedure.body.namespace_context.as_deref() != Some(&self.namespace)
             || procedure.body.executed_source.is_some()
             || self.lowered_body.as_deref() != Some(&procedure.body)
+            || self
+                .source_scope
+                .as_ref()
+                .is_some_and(|scope| !scope.matches_module(module))
         {
             return false;
         }
@@ -195,14 +217,45 @@ mod tests {
             super::super::admitted_native_compiler_invocation(&registry, None, &card.header)
                 .is_none()
         );
+        assert_eq!(
+            card.header,
+            *module
+                .top_level
+                .retained_source_tokens_for_statement(&module.top_level.statements[0])
+                .unwrap()
+        );
+        assert!(card.source_scope().unwrap().matches_module(&module));
+        let body_tokens = procedure
+            .body
+            .retained_source_tokens_for_statement(&procedure.body.statements[0])
+            .unwrap();
+        assert!(
+            body_tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_authored_source_body_scope_for_name_roles(body_tokens, &registry)
+                .is_some()
+        );
         assert!(
             super::super::normal_representation_invocation_with_metadata_context(
                 &registry,
                 None,
-                &card.header
+                body_tokens
             )
             .is_none()
         );
+        assert!(
+            super::super::admitted_native_compiler_invocation(&registry, None, body_tokens)
+                .is_none()
+        );
+        let scope = card.source_scope().unwrap();
+        assert!(scope.original_words(body_tokens, &registry).is_some());
+        let mut stale = body_tokens.clone();
+        stale.argv_texts[1] = "different".to_owned();
+        assert!(scope.original_words(&stale, &registry).is_none());
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(scope.original_words(body_tokens, foreign).is_none());
         assert!(procedure.body.executed_source.is_none());
         assert!(procedure.body.native_compilation_admission.is_none());
         assert!(procedure.body.native_compilation_failure.is_none());

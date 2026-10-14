@@ -1,0 +1,20 @@
+
+running 1 test
+test ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner ... SOURCE_READ module_input=true retained=true positioned=true
+SOURCE_READ function=::top body=None metadata=true input=true cfg=true references=1 symbols={(BlockId(1), 18446744073709551615): {}, (BlockId(0), 0): {"same": Symbol(0)}, (BlockId(0), 5): {}, (BlockId(0), 1): {"same": Symbol(0)}, (BlockId(0), 2): {}, (BlockId(0), 18446744073709551615): {}, (BlockId(0), 4): {}, (BlockId(0), 3): {}}
+SOURCE_READ reference span=Span { start: 19, end: 24 } spelling="$same" symbol=Symbol(0) version=Some(1) tokens=true exact_tokens=true
+SOURCE_READ function=::original-logical-body#0 body=Some(ProcedureId { scope: 1, ordinal: 0 }) metadata=true input=true cfg=true references=0 symbols={(BlockId(0), 1): {}, (BlockId(1), 18446744073709551615): {}, (BlockId(0), 0): {}, (BlockId(0), 5): {"same": Symbol(0)}, (BlockId(0), 6): {}, (BlockId(0), 18446744073709551615): {}, (BlockId(0), 3): {}, (BlockId(0), 2): {}, (BlockId(0), 7): {}, (BlockId(0), 4): {}}
+SOURCE_READ function=::original-logical-body#1 body=Some(ProcedureId { scope: 1, ordinal: 1 }) metadata=true input=true cfg=true references=0 symbols={(BlockId(0), 0): {}, (BlockId(0), 4): {}, (BlockId(0), 18446744073709551615): {}, (BlockId(0), 5): {"same": Symbol(0)}, (BlockId(0), 7): {}, (BlockId(1), 18446744073709551615): {}, (BlockId(0), 1): {}, (BlockId(0), 3): {}, (BlockId(0), 2): {}, (BlockId(0), 6): {}}
+
+thread 'ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner' (334578) panicked at rust/tcl-compiler/src/ssa.rs:12980:18:
+actual original read has its own current source/SSA producer
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9775 filtered out; finished in 3.67s
+

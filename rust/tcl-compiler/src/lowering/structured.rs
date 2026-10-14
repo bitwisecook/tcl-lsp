@@ -1502,6 +1502,34 @@ impl Lowerer<'_> {
         let Some(tok) = tok else {
             return Script::new();
         };
+        if let Some(scope) = self.authored_source_scope.clone() {
+            let child = self.structured_source_parent.as_deref().and_then(|parent| {
+                let original = scope.original_words(parent, self.registry)?;
+                let body = original
+                    .iter()
+                    .find(|word| word.span().start() == tok.span.start())?;
+                let child = scope.for_plain_body(parent, body)?;
+                let span = crate::registry_invocation::original_written_script_body_span(body)?;
+                let source = body
+                    .image()
+                    .try_text()
+                    .ok()?
+                    .get(span.as_range())?
+                    .to_owned();
+                Some((child, span, source))
+            });
+            let Some((child, span, source)) = child else {
+                return super::over_depth_script(tok.span.start(), text.len());
+            };
+            let Some(namespace) = child.namespace().advisory_key() else {
+                return super::over_depth_script(tok.span.start(), text.len());
+            };
+            let previous = self.authored_source_scope.replace(child.clone());
+            let mut script = self.lower_body(&source, span.start(), &namespace);
+            self.authored_source_scope = previous;
+            script.namespace_context = Some(Box::new(child.namespace().clone()));
+            return script;
+        }
         if let Some(script) = self
             .source_bindings
             .as_ref()

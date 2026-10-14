@@ -1,0 +1,116 @@
+{
+  "started_utc": "2026-10-14T10:53:23.712506+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 366.3639699839987,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+    "sha256": "f912d63e66397262ffa4bf8effb477cee9aed187914b4c994fa23306b150929e",
+    "bytes": 383999680
+  },
+  "selected_tests": [
+    "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+    "command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners",
+    "ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": -9,
+      "seconds": 180.0143126729963,
+      "log": "test-01.log",
+      "timed_out": true,
+      "test": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+      "summaries": [],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2647894559922861,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "command_binding::generated_procedures::original_native_body_tests::native_source_children_keep_actual_schema_and_open_dependency_owners",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_compiler-78463101920c36d4",
+        "ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 3.726126777997706,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "ssa::original_source_read_selector_tests::source_read_selector_uses_original_occurrence_and_current_function_owner",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T11:02:36.782411+00:00",
+  "changed_sources": {}
+}
