@@ -1182,7 +1182,7 @@ namespace eval ::orch {
 
         # Run body
         set err ""
-        set code [catch {uplevel 1 $body} result opts]
+        set code [catch {uplevel 1 $body} result]
 
         # Cleanup (always runs)
         if {$cleanup ne ""} {
