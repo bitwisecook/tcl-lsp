@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Canonical package path admission
+
+The reviewed CAS naming consumer now retains actual Paths beside checked canonical Unicode names and matches ignore entries by actual OsStr identity. Existing admitted Unicode hash bytes/order stay unchanged. Opaque names and unavailable config/inventory/metadata/content produce Result errors through store/install/CLI verify; missing representation is not an empty tree or a mismatch. All existing CAS assertions remain through a test-only successful-input adapter; two new controls are unexecuted. This does not restrict actual OS copying/extraction or establish concurrent snapshot/copy/publication identity. Those lifetimes and zip provider decoding remain separate unfinished purposes.
+
+The first L11 setup at15ac46522 rejected an unsupported cargo-test --keep-going flag before compilation,0ELFs/0tests/source drift{}. L12 uses the same frozen source and unchanged selectors with the supported test build command. No failed setup supplies acceptance.
+
 ## Logical lambda parameter source fields and L10 feedback
 
 The reviewed Logical Apply source owner now retains configured nested formal-name/default fields from the same genuine whole list roster, verifies shared semantic formal parsing and exact source/body/input correspondence, and supplies original names/spans to the handler. Unknown grammar requires explicit Tcl/Jim agreement. Actual third-field source data also supplies namespace-reference spelling independently of Native naming. Native snapshots and generic lambda inventory exclusions remain; no activation, local frame, formal binding, cell, normal completion or editing permission follows. One new control is unexecuted. Legacy unsupported/dynamic parsers and the genuine lambda source-frame issuer remain unfinished.

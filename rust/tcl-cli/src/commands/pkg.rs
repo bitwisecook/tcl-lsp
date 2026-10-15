@@ -866,7 +866,7 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
             continue;
         };
 
-        if tcl_pkg::cas::verify_integrity(&root, &pkg.integrity) {
+        if tcl_pkg::cas::verify_integrity(&root, &pkg.integrity)? {
             let trunc: String = pkg.integrity.chars().take(30).collect();
             println!(
                 "{}",

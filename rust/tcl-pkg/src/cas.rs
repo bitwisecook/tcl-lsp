@@ -35,85 +35,112 @@ use crate::errors::TclPkgError;
 
 const IGNORED_NAMES: &[&str] = &[".git", ".hg", ".svn", ".fossil", ".DS_Store", "Thumbs.db"];
 
-fn is_ignored(name: &str, extra: &[String]) -> bool {
-    IGNORED_NAMES.contains(&name) || extra.iter().any(|p| p == name)
+fn is_ignored(name: &std::ffi::OsStr, extra: &[String]) -> bool {
+    IGNORED_NAMES.iter().any(|ignored| name == *ignored)
+        || extra.iter().any(|ignored| name == ignored.as_str())
 }
 
-fn load_tclpkgignore(root: &Path) -> Vec<String> {
+fn load_tclpkgignore(root: &Path) -> Result<Vec<String>, TclPkgError> {
     let ignore_file = root.join(".tclpkgignore");
-    let Ok(text) = std::fs::read_to_string(&ignore_file) else {
-        return Vec::new();
+    let text = match std::fs::read_to_string(&ignore_file) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(TclPkgError::new(format!(
+                "cannot read package ignore source: {error}"
+            )));
+        }
     };
-    text.lines()
+    Ok(text
+        .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .map(ToString::to_string)
-        .collect()
+        .collect())
 }
 
-/// Return sorted relative file paths under `root`, pruning ignored directories
-/// and files. Directory symlinks are not followed.
-fn walk_tree(root: &Path, extra_ignore: &[String]) -> Vec<PathBuf> {
+struct CanonicalFile {
+    path: PathBuf,
+    name: String,
+}
+
+/// Preserve the existing Unicode hash format independently of OS path identity.
+fn canonical_name(path: &Path) -> Result<String, TclPkgError> {
+    path.components()
+        .map(|component| {
+            component.as_os_str().to_str().ok_or_else(|| {
+                TclPkgError::new("canonical package integrity requires Unicode path components")
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|parts| parts.join("/"))
+}
+
+/// The complete file inventory retains original paths beside canonical names.
+fn walk_tree(root: &Path, extra_ignore: &[String]) -> Result<Vec<CanonicalFile>, TclPkgError> {
     let mut result = Vec::new();
-    collect_files(root, root, extra_ignore, &mut result);
-    // Sort by POSIX path bytes for cross-machine determinism.
-    result.sort_by_key(|a| posix(a).into_bytes());
-    result
+    collect_files(root, root, extra_ignore, &mut result)?;
+    result.sort_by(|left, right| left.name.as_bytes().cmp(right.name.as_bytes()));
+    Ok(result)
 }
 
-fn collect_files(root: &Path, dir: &Path, extra: &[String], out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if is_ignored(&name, extra) {
+fn collect_files(
+    root: &Path,
+    dir: &Path,
+    extra: &[String],
+    out: &mut Vec<CanonicalFile>,
+) -> Result<(), TclPkgError> {
+    let entries = std::fs::read_dir(dir)
+        .map_err(|error| TclPkgError::new(format!("cannot enumerate package tree: {error}")))?;
+    for entry in entries {
+        let entry = entry
+            .map_err(|error| TclPkgError::new(format!("cannot read package entry: {error}")))?;
+        if is_ignored(&entry.file_name(), extra) {
             continue;
         }
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
+        let file_type = entry
+            .file_type()
+            .map_err(|error| TclPkgError::new(format!("cannot inspect package entry: {error}")))?;
         let path = entry.path();
         if file_type.is_dir() {
-            // followlinks=False: a directory symlink is neither recursed nor
-            // emitted as a file.
-            collect_files(root, &path, extra, out);
-        } else if let Ok(rel) = path.strip_prefix(root) {
-            out.push(rel.to_path_buf());
+            collect_files(root, &path, extra, out)?;
+        } else {
+            let relative = path.strip_prefix(root).map_err(|error| {
+                TclPkgError::new(format!("package entry is outside its tree: {error}"))
+            })?;
+            out.push(CanonicalFile {
+                path: relative.to_path_buf(),
+                name: canonical_name(relative)?,
+            });
         }
     }
-}
-
-fn posix(path: &Path) -> String {
-    path.components()
-        .map(|c| c.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
+    Ok(())
 }
 
 /// Compute the canonical SHA-256 integrity hash of a package worktree.
 ///
 /// Returns `sha256-<base64url_no_pad>`, stable across machines: only permission
-/// bits (with execute normalised) and file content matter.
+/// bits (with execute normalised), canonical Unicode paths and content matter.
+///
+/// # Errors
+/// Returns an error for unrepresentable paths, unreadable ignore source, or an
+/// incomplete directory, metadata or content read.
 #[must_use]
-pub fn integrity_of_tree(root: &Path) -> String {
-    let extra = load_tclpkgignore(root);
+pub fn integrity_of_tree(root: &Path) -> Result<String, TclPkgError> {
+    let extra = load_tclpkgignore(root)?;
     let mut hasher = Sha256::new();
-    for rel_path in walk_tree(root, &extra) {
-        let abs_path = root.join(&rel_path);
-        let Ok(meta) = std::fs::metadata(&abs_path) else {
-            continue;
-        };
+    for original in walk_tree(root, &extra)? {
+        let abs_path = root.join(&original.path);
+        let meta = std::fs::metadata(&abs_path)
+            .map_err(|error| TclPkgError::new(format!("cannot inspect package file: {error}")))?;
         let mut mode = file_mode(&meta);
         if mode & 0o111 != 0 {
             mode |= 0o111;
         }
-        let Ok(content) = std::fs::read(&abs_path) else {
-            continue;
-        };
+        let content = std::fs::read(&abs_path)
+            .map_err(|error| TclPkgError::new(format!("cannot read package file: {error}")))?;
         let file_hash = hex_digest(&content);
-        hasher.update(posix(&rel_path).into_bytes());
+        hasher.update(original.name.as_bytes());
         hasher.update(b"\n");
         hasher.update(format!("{mode:o}\n").into_bytes());
         hasher.update(format!("{}\n", content.len()).into_bytes());
@@ -122,7 +149,7 @@ pub fn integrity_of_tree(root: &Path) -> String {
         hasher.update(&content);
     }
     let digest = hasher.finalize();
-    format!("sha256-{}", URL_SAFE_NO_PAD.encode(digest))
+    Ok(format!("sha256-{}", URL_SAFE_NO_PAD.encode(digest)))
 }
 
 #[cfg(unix)]
@@ -155,22 +182,30 @@ fn hex_digest(data: &[u8]) -> String {
 ///
 /// Walks the same file set as [`integrity_of_tree`] and sums file lengths, so
 /// the lockfile `size` field is deterministic.
+///
+/// # Errors
+/// Returns an error when the canonical path inventory or file metadata cannot
+/// be read completely.
 #[must_use]
-pub fn tree_size(root: &Path) -> u64 {
-    let extra = load_tclpkgignore(root);
+pub fn tree_size(root: &Path) -> Result<u64, TclPkgError> {
+    let extra = load_tclpkgignore(root)?;
     let mut total = 0u64;
-    for rel_path in walk_tree(root, &extra) {
-        if let Ok(meta) = std::fs::metadata(root.join(&rel_path)) {
-            total = total.saturating_add(meta.len());
-        }
+    for original in walk_tree(root, &extra)? {
+        let metadata = std::fs::metadata(root.join(&original.path))
+            .map_err(|error| TclPkgError::new(format!("cannot inspect package size: {error}")))?;
+        total = total.saturating_add(metadata.len());
     }
-    total
+    Ok(total)
 }
 
 /// Recompute the integrity hash and return whether it matches `expected`.
+///
+/// # Errors
+/// Returns the canonical inventory or content error from [`integrity_of_tree`];
+/// an unavailable hash is not an integrity mismatch.
 #[must_use]
-pub fn verify_integrity(root: &Path, expected: &str) -> bool {
-    integrity_of_tree(root) == expected
+pub fn verify_integrity(root: &Path, expected: &str) -> Result<bool, TclPkgError> {
+    Ok(integrity_of_tree(root)? == expected)
 }
 
 /// Manage the `sha256/<ab>/<hash>/tree/` CAS on disk.
@@ -244,7 +279,7 @@ impl ContentAddressableStore {
         version: &str,
         expected_integrity: Option<&str>,
     ) -> Result<String, TclPkgError> {
-        let actual = integrity_of_tree(source_dir);
+        let actual = integrity_of_tree(source_dir)?;
         if let Some(expected) = expected_integrity
             && actual != expected
         {
@@ -326,6 +361,15 @@ fn copy_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn integrity_of_tree(root: &Path) -> String {
+        super::integrity_of_tree(root).unwrap()
+    }
+
+    fn verify_integrity(root: &Path, expected: &str) -> bool {
+        super::verify_integrity(root, expected).unwrap()
+    }
+
     use std::fs;
 
     struct TempDir(PathBuf);
@@ -421,6 +465,45 @@ mod tests {
         let expected = integrity_of_tree(&root);
         assert!(verify_integrity(&root, &expected));
         assert!(!verify_integrity(&root, "sha256-WRONG"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_integrity_refuses_opaque_names_without_publishing_display_aliases() {
+        use std::os::unix::ffi::OsStringExt;
+        let tmp = TempDir::new("original-paths");
+        let root = make_tree(tmp.path(), &[("original-\u{fffd}.tcl", "same contents")]);
+        let admitted = super::integrity_of_tree(&root).unwrap();
+        assert!(super::verify_integrity(&root, &admitted).unwrap());
+        let original = std::ffi::OsString::from_vec(b"original-\xff.tcl".to_vec());
+        fs::write(root.join(&original), "same contents").unwrap();
+        assert!(super::integrity_of_tree(&root).is_err());
+        assert!(super::verify_integrity(&root, &admitted).is_err());
+        assert!(super::tree_size(&root).is_err());
+        fs::write(root.join(".tclpkgignore"), "original-\u{fffd}.tcl\n").unwrap();
+        assert!(super::integrity_of_tree(&root).is_err());
+        let cache = tmp.path().join("cache");
+        let cas = ContentAddressableStore::new(&cache);
+        assert!(cas.store(&root, "pkg", "1.0", None).is_err());
+        assert!(!cache.exists());
+        assert_eq!(fs::read(root.join(&original)).unwrap(), b"same contents");
+        assert_eq!(
+            fs::read(root.join("original-\u{fffd}.tcl")).unwrap(),
+            b"same contents"
+        );
+    }
+
+    #[test]
+    fn canonical_integrity_requires_a_complete_tree_and_readable_ignore_source() {
+        let tmp = TempDir::new("complete-paths");
+        let missing = tmp.path().join("missing");
+        assert!(super::integrity_of_tree(&missing).is_err());
+        assert!(super::tree_size(&missing).is_err());
+        assert!(super::verify_integrity(&missing, "sha256-WRONG").is_err());
+        let root = make_tree(tmp.path(), &[("a.tcl", "original contents")]);
+        fs::write(root.join(".tclpkgignore"), [0xff]).unwrap();
+        assert!(super::integrity_of_tree(&root).is_err());
+        assert!(super::tree_size(&root).is_err());
     }
 
     #[test]

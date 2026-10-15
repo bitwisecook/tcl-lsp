@@ -180,7 +180,7 @@ pub fn fetch_and_store(
     };
 
     let integrity = cas.store(&worktree, name, version, None)?;
-    let size = i64::try_from(tree_size(&worktree)).unwrap_or(i64::MAX);
+    let size = i64::try_from(tree_size(&worktree)?).unwrap_or(i64::MAX);
     let (provides, license) = read_pkg_meta(&worktree);
 
     Ok(MaterialiseResult {
