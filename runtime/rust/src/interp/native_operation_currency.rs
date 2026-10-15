@@ -314,6 +314,7 @@ impl NativeOperationScope {
     /// Begin the engine facade's independent evaluation episode. A callback
     /// nested inside an actual operation inherits that entry and cannot reset
     /// its first Host cause; only a genuinely outer engine call starts fresh.
+    #[cfg(any(feature = "engine", test))]
     pub(crate) fn enter_engine_evaluation(
         interpreter: &Interp,
     ) -> Result<Self, NativeExecutionError> {

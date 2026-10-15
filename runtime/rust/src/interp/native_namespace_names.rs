@@ -204,18 +204,32 @@ impl Interp {
         let context = tcl_runtime_api::NsId(u32::try_from(reference_ns).map_err(|_| {
             ValueError::CommandProtocolUnavailable("native namespace context width")
         })?);
-        let selected = Namespaces::find_namespace_bytes_checked(self, context, &bytes)?
-            .map(|ns| ns.0 as usize);
+        let selected = match self.namespace_address_components(context.0 as usize, &bytes) {
+            Ok((anchor, components)) => self
+                .namespaces()
+                .namespace_token_at_components(anchor, &components),
+            Err(super::namespace_address::NamespaceAddressError::Projection {
+                reason: tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot,
+                ..
+            }) => None,
+            Err(error) => return Err(error.into_value_error()),
+        };
         if stage.is_some() {
             reference_current(self)?;
         }
-        if let Some(namespace) = selected {
-            let target = self
-                .namespaces()
-                .namespace_name_token(interpreter, namespace)
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "native namespace target incarnation",
-                ))?;
+        let selected = selected
+            .map(|namespace| {
+                self.namespaces()
+                    .namespace_name_token(interpreter, namespace)
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "native namespace target incarnation",
+                    ))
+                    .map(|target| (namespace, target))
+            })
+            .transpose()?
+            .filter(|(_, target)| recipe.permits_target(target.lifecycle()));
+        let namespace = selected.as_ref().map(|(namespace, _)| *namespace);
+        if let Some((_, target)) = selected {
             let reference = (!tcl_syntax::naming::written_command_parts(&bytes).absolute
                 || recipe.absolute_references_global())
             .then_some(reference);
@@ -237,7 +251,7 @@ impl Interp {
                 retain,
             )?;
         }
-        Ok(selected)
+        Ok(namespace)
     }
 }
 

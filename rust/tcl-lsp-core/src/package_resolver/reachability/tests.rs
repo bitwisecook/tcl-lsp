@@ -532,9 +532,10 @@ fn configured_body_values_and_command_children_keep_distinct_original_grammar() 
         let environment = tcl_registry::model::ingress::resolve_known_environment(dialect).unwrap();
         let context = environment.default_context_registry();
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+        let invocation = tcl_registry::InvocationDialect::of_profile(environment.unit_profile());
         let supports_index = context
             .commands()
-            .get("package")
+            .get_for_surface("package", invocation.authoring_query())
             .and_then(|spec| spec.subcommand("ifneeded"))
             .is_some();
         assert_eq!(supports_index, dialect != "jim");

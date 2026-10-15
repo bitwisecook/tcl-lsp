@@ -1,0 +1,10 @@
+from pathlib import Path
+import datetime,hashlib,json,subprocess
+p=Path('/tmp/name-jim-namespace-delete-sdk-20261015');sdk=Path('/workspace/tcl-lsp/tmp/jimtcl-oracle');h=lambda f:hashlib.sha256(f.read_bytes()).hexdigest()
+prior=json.loads(Path('/tmp/name-jim-variable-inventory-sdk-20261015/manifest.json').read_text());before={f:h(Path(f)) for f in prior['provider_before_after_sha256']};assert before==prior['provider_before_after_sha256']
+command=['cc','-std=c99','-I'+str(sdk),str(p/'probe.c'),str(sdk/'libjim.a'),'-lm','-lssl','-lcrypto','-lz','-ldl','-o',str(p/'probe')];start=datetime.datetime.now(datetime.timezone.utc).isoformat();compiled=subprocess.run(command,capture_output=True);(p/'compile.stdout').write_bytes(compiled.stdout);(p/'compile.stderr').write_bytes(compiled.stderr)
+manifest={'started_utc':start,'compile_command':command,'compile_exit':compiled.returncode,'provider_before_sha256':before,'probe_sha256':h(p/'probe.c'),'driver_sha256':h(Path(__file__)),'upstream_receipt_sha256':h(p/'upstream-check/receipt.json')}
+if compiled.returncode==0:
+ run=subprocess.run([str(p/'probe')],capture_output=True,timeout=30);(p/'stdout.tsv').write_bytes(run.stdout);(p/'stderr').write_bytes(run.stderr);manifest.update(process_exit=run.returncode,executable_sha256=h(p/'probe'),stdout_sha256=h(p/'stdout.tsv'),stderr_sha256=h(p/'stderr'),rows=len(run.stdout.splitlines()))
+manifest['provider_after_sha256']={f:h(Path(f)) for f in before};assert manifest['provider_after_sha256']==before;manifest['finished_utc']=datetime.datetime.now(datetime.timezone.utc).isoformat();manifest['scope']='Actual public/direct pinned Jim namespace delete helper, original List/head/caller object reuse. COLD and REUSE phase labels; destructive cases restore command/global tables before REUSE so no universal hot-cache hit claim. Namespace/name headers sampled before result getters; physical replacement result List member identity. No Runtime/C/VM/full lifecycle or fullfree acceptance.'
+(p/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n');print(json.dumps(manifest,indent=2))

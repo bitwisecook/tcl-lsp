@@ -652,3 +652,34 @@ fn rename_error_reporting_original_c_and_jim() {
         );
     }
 }
+
+#[test]
+fn fresh_namespace_object_lifetimes_match_original_c_releases() {
+    let source = include_bytes!(
+        "../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/probe.tcl"
+    );
+    for (environment, expected) in [
+        ("tcl8.4", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/8-4-20.stdout").as_slice()),
+        ("tcl8.5", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/8-5-19.stdout").as_slice()),
+        ("tcl8.6", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/8-6-18.stdout").as_slice()),
+        ("tcl9.0", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/9-0-4.stdout").as_slice()),
+        ("tcl9.1", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/9-1-0.stdout").as_slice()),
+    ] {
+        let host = Rc::new(CaptureHost {
+            native: NativeHost::new(),
+            stdout: RefCell::new(Vec::new()),
+            stderr: RefCell::new(Vec::new()),
+        });
+        let mut interp = Interp::with_native_core(
+            host.clone(),
+            tcl_registry::model::resolve_environment(environment).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        ).unwrap();
+        assert_eq!(interp.eval_str(source), Code::Ok,
+            "{environment}: result={:?}; refusal={:?}",
+            interp.result_bytes(), interp.native_execution_refusal());
+        assert!(!interp.host_refusal_pending(), "{environment}");
+        assert!(host.stderr.borrow().is_empty(), "{environment}");
+        assert_eq!(host.stdout.borrow().as_slice(), expected, "{environment}");
+    }
+}

@@ -1210,10 +1210,9 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     if include_declaration {
         out.push(span_to_range(source, line_index, var_def.definition_span));
     }
-    // Unify every alias Tcl treats as one cell — namespace/global aliases
-    // (`global`/`variable`/`namespace upvar`) and a class instance variable's
-    // per-method copies — so the reference set spans them all.
-    for r in crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def) {
+    // Readonly alias candidates retain their independent binding obligations.
+    for r in crate::definition::linked_var_reference_spans(source, analysis, var_def, byte_offset)?
+    {
         out.push(span_to_range(source, line_index, r));
     }
     dedup_ranges(&mut out);
@@ -4250,14 +4249,18 @@ pub fn document_highlights_in_program(
         else {
             return Vec::new();
         };
-        let mut out = Vec::with_capacity(1 + var_def.references.len());
+        let Some(references) =
+            crate::definition::linked_var_reference_spans(source, analysis, var_def, byte_offset)
+        else {
+            return Vec::new();
+        };
+        let mut out = Vec::with_capacity(1 + references.len());
         out.push((
             span_to_range(source, &line_index, var_def.definition_span),
             HighlightKind::Write,
         ));
-        // Highlight every alias Tcl treats as one cell (namespace/global
-        // aliases and a class instance variable's per-method copies).
-        for r in crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def) {
+        // Highlight original source relationships without asserting alias execution.
+        for r in references {
             out.push((span_to_range(source, &line_index, r), HighlightKind::Read));
         }
         return dedup_kinded(out);

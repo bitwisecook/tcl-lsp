@@ -368,6 +368,35 @@ impl SignatureSourceVariableSymbol {
         })
     }
 
+    /// Checked outward C namespace coordinate for legacy coordinate interfaces.
+    /// The held protocol must reproduce these exact namespace/simple bytes
+    /// without an element boundary. This string is not a source symbol issuer,
+    /// lookup, current frame/cell, binding continuity or edit certificate.
+    #[must_use]
+    pub fn checked_c_namespace_key(&self) -> Option<String> {
+        let SignatureSourceVariableSlot::C { namespace, simple } = &self.slot else {
+            return None;
+        };
+        let holder = tcl_syntax::naming::checked_namespace_path_key(namespace)?;
+        let simple_text = std::str::from_utf8(simple.as_bytes()).ok()?;
+        let key = tcl_syntax::naming::qualify(&holder, simple_text);
+        let protocol = self.policy.recipe();
+        let selected = protocol.combined_variable_input(key.as_bytes());
+        if selected.element().is_some() || selected.root().selected() != key.as_bytes() {
+            return None;
+        }
+        match protocol.variable_root_geometry(
+            tcl_syntax::naming::NativeNameContext::root(),
+            selected.root().selected(),
+        ) {
+            NativeVariableRootGeometry::CNamespace {
+                namespace: actual,
+                simple: tail,
+            } if actual == *namespace && tail == *simple => Some(key),
+            _ => None,
+        }
+    }
+
     /// Exact selected byte geometry, without a display reconstruction.
     #[must_use]
     pub const fn slot(&self) -> &SignatureSourceVariableSlot {
@@ -980,6 +1009,57 @@ mod tests {
             )
             .unwrap(),
         )
+    }
+
+    #[test]
+    fn checked_c_namespace_coordinates_preserve_exact_geometry_and_refuse_other_slots() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let context =
+                SignatureNamespaceScope::C(ByteNamespacePath::from_segments([b"N".as_slice()]));
+            for (written, expected) in [
+                (b"value".as_slice(), Some("::N::value")),
+                (b"{}".as_slice(), Some("::N::")),
+                (b"{literal(}".as_slice(), Some("::N::literal(")),
+                (b"{:value}".as_slice(), None),
+            ] {
+                let input = original_word(profile, written);
+                let symbol = SignatureSourceVariableSymbol::from_original_input(
+                    &input,
+                    &context,
+                    OriginalVariableSymbolPurpose::NamespaceStorage,
+                    OriginalVariableSymbolReceiver::NamespaceAlias,
+                )
+                .unwrap();
+                assert_eq!(
+                    symbol.checked_c_namespace_key().as_deref(),
+                    expected,
+                    "{profile}"
+                );
+            }
+            let input = original_word(profile, b"value");
+            for path in [
+                ByteNamespacePath::from_segments([b"N:".as_slice()]),
+                ByteNamespacePath::from_segments([b"\xff".as_slice()]),
+            ] {
+                let symbol = SignatureSourceVariableSymbol::from_original_input(
+                    &input,
+                    &SignatureNamespaceScope::C(path),
+                    OriginalVariableSymbolPurpose::NamespaceStorage,
+                    OriginalVariableSymbolReceiver::NamespaceAlias,
+                )
+                .unwrap();
+                assert!(symbol.checked_c_namespace_key().is_none());
+            }
+        }
+        let input = original_word("jim", b"value");
+        let symbol = SignatureSourceVariableSymbol::from_original_input(
+            &input,
+            &SignatureNamespaceScope::Jim(b"N".as_slice().into()),
+            OriginalVariableSymbolPurpose::NamespaceStorage,
+            OriginalVariableSymbolReceiver::NamespaceAlias,
+        )
+        .unwrap();
+        assert!(symbol.checked_c_namespace_key().is_none());
     }
 
     #[test]

@@ -2997,7 +2997,8 @@ impl Namespaces {
         self.namespace_is_live(namespace).then_some(namespace)
     }
 
-    fn namespace_token_at_components(
+    /// Follow physical child tokens; callers apply the selected lifetime policy.
+    pub(crate) fn namespace_token_at_components(
         &self,
         current: NsId,
         components: &[tcl_core_types::NameBytes],

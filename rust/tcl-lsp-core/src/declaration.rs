@@ -100,8 +100,11 @@ pub fn declaration(
     else {
         return definition(source, line, character, analysis);
     };
-    let mut related =
-        crate::definition::linked_var_reference_spans(&analysis.global_scope, variable);
+    let Some(mut related) =
+        crate::definition::linked_var_reference_spans(source, analysis, variable, cursor)
+    else {
+        return Vec::new();
+    };
     related.push(variable.definition_span);
 
     let visible = scope_body_spans_at(&analysis.global_scope, cursor);

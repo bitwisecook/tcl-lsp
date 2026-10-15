@@ -313,32 +313,6 @@ pub(super) fn scan_with_analysis(
     original::scan(content, analysis, registry, config, visit)
 }
 
-/// Whether `words` registers a deferred package-load script — `package
-/// ifneeded NAME VERSION SCRIPT`.
-///
-/// Identified from registry data, not by name: the subcommand is resolved
-/// through the registry (so an unambiguous abbreviation — `package ifn` — is
-/// recognised exactly as the interpreter recognises it), and it qualifies when
-/// it both declares [`Traits::PROVIDES_PACKAGE`] ("running this makes a
-/// package available") and takes a [`ArgRole::Body`] script argument ("…via a
-/// script evaluated later").  `package provide` carries the trait but takes no
-/// script, so the pair picks out `ifneeded` alone.
-fn is_package_ifneeded(text: &str, words: &[Vec<Token>], registry: &CommandRegistry) -> bool {
-    if words.len() < 2 {
-        return false;
-    }
-    let written_head = canonical_written_command(word_raw(text, &words[0]));
-    let head = unroot_rooted_key(&written_head).unwrap_or(&written_head);
-    let Some(spec) = registry.get(head) else {
-        return false;
-    };
-    spec.resolve_subcommand(word_raw(text, &words[1]))
-        .is_some_and(|sub| {
-            sub.traits.contains(Traits::PROVIDES_PACKAGE)
-                && sub.arg_roles.iter().any(|(_, role)| *role == ArgRole::Body)
-        })
-}
-
 #[derive(Clone)]
 struct OriginalScript {
     image: SourceImage,
@@ -425,6 +399,14 @@ impl ScriptWalker<'_, '_> {
             return Some(reached.with(Condition::Undecidable));
         }
         let commands = walk_command_words_with_config(text, config);
+        let registration_plan = u32::try_from(text.len()).ok().and_then(|end| {
+            tcl_lexer::native_script_words_in(
+                SourceImage::document(text),
+                Span::new(0, end),
+                config,
+            )
+            .ok()
+        });
         let plan = original.and_then(|original| {
             tcl_lexer::native_script_words_in(original.image.clone(), original.span, config).ok()
         });
@@ -436,7 +418,13 @@ impl ScriptWalker<'_, '_> {
             let original_words = original
                 .zip(plan.as_ref())
                 .and_then(|(original, plan)| original.words(words, plan));
-            if is_package_ifneeded(text, words, registry) {
+            if registration_plan
+                .as_ref()
+                .and_then(|plan| {
+                    super::registration::select_in_plan(text, words, registry, config, plan)
+                })
+                .is_some()
+            {
                 (self.visit)(Reached {
                     text,
                     words,

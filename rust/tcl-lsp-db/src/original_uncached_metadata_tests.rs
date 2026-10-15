@@ -41,7 +41,15 @@ fn uncached_source_units_retain_actual_availability_and_source_currency() {
     let mut puts = registry.get("puts").unwrap().clone();
     puts.surface = registry.get("dict").unwrap().surface;
     registry.insert(puts);
+    let registry = registry
+        .project_for_profile(tcl_registry::model::resolve_environment("tcl8.6").unit_profile());
     let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+    assert!(
+        current
+            .context()
+            .resolve_spec(current.commands(), "puts")
+            .is_some()
+    );
     let input = source_input(Arc::clone(&current));
     let source = "puts VALUE";
     let analysis = analyse(source, &input);
@@ -56,6 +64,12 @@ fn uncached_source_units_retain_actual_availability_and_source_currency() {
             .with_command_store(Arc::clone(current.commands())),
     );
     assert!(Arc::ptr_eq(older.commands(), current.commands()));
+    assert!(
+        older
+            .context()
+            .resolve_spec(older.commands(), "puts")
+            .is_none()
+    );
     let unavailable = analyse(source, &source_input(older));
     let unavailable_unit =
         compilation_unit_uncached_from_analysis(source, current.commands(), &unavailable, None)

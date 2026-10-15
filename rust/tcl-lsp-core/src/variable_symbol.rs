@@ -364,7 +364,72 @@ fn alias_template_at_offset(
         .then(|| first.clone())
 }
 
-fn alias_template_reference_spans(
+/// Select only genuine current namespace symbols whose checked outward C
+/// coordinate equals the supplied compatibility query. No reporting table or
+/// caller string constructs a symbol, and conflicting source policies refuse.
+pub(crate) fn namespace_symbol_for_compatibility_key<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    key: &str,
+) -> Option<&'a SignatureSourceVariableSymbol> {
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    let mut symbols = analysis
+        .original_variable_symbols
+        .iter()
+        .filter(|occurrence| {
+            occurrence.original_local_alias().is_none()
+                && occurrence.symbol().checked_c_namespace_key().as_deref() == Some(key)
+                && crate::original_name_edit::original_input_matches_source(
+                    source,
+                    analysis,
+                    occurrence.original_name_input(),
+                    occurrence.span(),
+                )
+        });
+    let first = symbols.next()?.symbol();
+    symbols
+        .all(|occurrence| occurrence.symbol() == first)
+        .then_some(first)
+}
+
+/// Match a nominated declaration to the independently selected current cursor.
+/// Scope-tree lookup can nominate a record but cannot choose its source symbol.
+/// Local frame identity is part of a direct symbol; conditional aliases must
+/// additionally preserve their exact original caller frame and local spelling.
+pub(crate) fn declaration_at_cursor<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    variable: &tcl_compiler::analyser::VarDef,
+    offset: u32,
+) -> Option<tcl_compiler::analyser::OriginalVariableSourceDeclaration<'a>> {
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let declaration = analysis.original_variable_declaration_in_source(&image, config, variable)?;
+    let occurrence = analysis.original_variable_symbol_in_source(&image, config, offset);
+    if let Some(alias) = declaration.alias_template() {
+        if occurrence.is_some_and(|occurrence| {
+            occurrence.symbol() == declaration.symbol()
+                && occurrence.original_alias_declaration_span() == Some(alias.declaration_span())
+                && occurrence.original_local_alias()
+                    == Some((alias.original_frame(), alias.local_name()))
+        }) {
+            return Some(declaration);
+        }
+        let selected = alias_template_at_offset(source, analysis, config, offset)?;
+        return (selected.target_symbol() == alias.target_symbol()
+            && selected.original_frame() == alias.original_frame()
+            && selected.local_name() == alias.local_name()
+            && selected.declaration_span() == alias.declaration_span())
+        .then_some(declaration);
+    }
+    (occurrence?.symbol() == declaration.symbol()).then_some(declaration)
+}
+
+pub(crate) fn alias_template_reference_spans(
     source: &str,
     analysis: &AnalysisResult,
     symbol: &SignatureSourceVariableSymbol,
@@ -769,5 +834,95 @@ mod logical_formal_tests {
         );
         assert_eq!(selected.reference_spans(source, &analysis, true).len(), 3);
         assert!(tcl_compiler::registry_invocation::logical_formals::original_logical_procedure_bindings(&format!("{source} "), &analysis).is_none());
+    }
+}
+
+#[cfg(test)]
+mod declaration_cursor_join_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, VarDef};
+
+    fn declaration_at(analysis: &AnalysisResult, start: u32) -> &VarDef {
+        let mut scopes = vec![&analysis.global_scope];
+        while let Some(scope) = scopes.pop() {
+            if let Some(variable) = scope
+                .variables
+                .values()
+                .find(|variable| variable.definition_span.start() == start)
+            {
+                return variable;
+            }
+            scopes.extend(&scope.children);
+        }
+        panic!("the actual original declaration must exist");
+    }
+
+    #[test]
+    fn declaration_navigation_requires_the_original_cursor_symbol_and_current_source() {
+        let source = "set actual 1; set other 2; puts $actual; puts $other";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let cursor = u32::try_from(source.find("$actual").unwrap()).unwrap();
+        let variable = declaration_at(&analysis, 4);
+        let joined = declaration_at_cursor(source, &analysis, variable, cursor)
+            .expect("actual declaration and cursor share the source symbol");
+        assert!(joined.original_occurrence().is_some());
+        let other = declaration_at(
+            &analysis,
+            u32::try_from(source.find("other").unwrap()).unwrap(),
+        );
+        assert!(declaration_at_cursor(source, &analysis, other, cursor).is_none());
+        let clone = variable.clone();
+        assert!(declaration_at_cursor(source, &analysis, &clone, cursor).is_none());
+        assert!(
+            declaration_at_cursor(
+                "set actual 9; set other 2; puts $actual; puts $other",
+                &analysis,
+                variable,
+                cursor,
+            )
+            .is_none()
+        );
+        let mut changed = analysis.clone();
+        changed.resolved_input = None;
+        let variable = declaration_at(&changed, 4);
+        assert!(declaration_at_cursor(source, &changed, variable, cursor).is_none());
+    }
+
+    #[test]
+    fn readonly_alias_relations_ignore_report_links_and_keep_actual_local_frames() {
+        let source = "proc p {i} {upvar ::n::a($i) data; puts $data}; proc q {j} {upvar ::n::a($j) data; puts $data}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let declaration = u32::try_from(source.find(" data;").unwrap() + 1).unwrap();
+        let cursor = u32::try_from(source.find("$data").unwrap()).unwrap();
+        let variable = declaration_at(&analysis, declaration);
+        let joined = declaration_at_cursor(source, &analysis, variable, cursor)
+            .expect("actual conditional alias declaration and local read");
+        assert!(joined.original_occurrence().is_none());
+        assert_eq!(joined.alias_template().unwrap().obligations().len(), 3);
+        assert!(
+            declaration_at_cursor(
+                source,
+                &analysis,
+                variable,
+                u32::try_from(source.rfind("$data").unwrap()).unwrap()
+            )
+            .is_none()
+        );
+        let expected =
+            crate::definition::linked_var_reference_spans(source, &analysis, variable, cursor)
+                .expect("readonly source alias relationship");
+        let mut scopes = vec![&mut analysis.global_scope];
+        while let Some(scope) = scopes.pop() {
+            for variable in scope.variables.values_mut() {
+                variable.name = "REPORT_ONLY".to_owned();
+                variable.link_target = Some("::COUNTERFEIT".to_owned());
+            }
+            scopes.extend(&mut scope.children);
+        }
+        let variable = declaration_at(&analysis, declaration);
+        assert_eq!(
+            crate::definition::linked_var_reference_spans(source, &analysis, variable, cursor),
+            Some(expected)
+        );
     }
 }

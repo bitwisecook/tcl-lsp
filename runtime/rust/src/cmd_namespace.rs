@@ -362,11 +362,13 @@ fn ns_current(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// children, commands, and variables). A missing namespace is an error; with no
 /// names it is a no-op. Mirrors C's `NamespaceDeleteCmd` (`tclNamesp.c`).
 fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if interp
-        .name_policy_protocol()
-        .is_some_and(|policy| policy.recipe().is_jim084())
+    if let Some(helper) = interp
+        .native_invocation_dialect()
+        .native_jim_namespace_helper(
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Delete,
+        )
     {
-        return ns_delete_jim(interp, &argv[2..]);
+        return interp.dispatch_stock_jim_namespace_helper(argv, helper);
     }
     match tcl_cmd_core::namespace::delete_original(interp, &argv[2..]) {
         Ok(Some(index)) => {
@@ -378,113 +380,6 @@ fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         Ok(None) => {}
         Err(error) => return interp.report_cmd_error(error.into()),
-    }
-    interp.set_result_bytes(b"");
-    Code::Ok
-}
-
-/// Jim's script helper removes matching flat commands and globals while
-/// retaining the caller's original namespace holder and local variables.
-fn ns_delete_jim(interp: &mut Interp, names: &[*mut TclObj]) -> Code {
-    use tcl_syntax::value::ValueOps;
-    let Some(policy) = interp.name_policy_protocol() else {
-        return interp.report_cmd_error(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "Jim namespace delete issuer",
-            )
-            .into(),
-        );
-    };
-    let current = match interp.jim_current_namespace_object() {
-        Ok(current) => current,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
-    let empty = obj::Owned::fresh(obj::new_string_bytes(b""));
-    let root = obj::Owned::fresh(obj::new_string_bytes(b"::"));
-    let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
-    for &name in names {
-        let skip =
-            match tcl_syntax::native_equality::full_native_equality(interp, &name, &empty.as_ptr())
-            {
-                Ok(true) => true,
-                Ok(false) => match tcl_syntax::native_equality::full_native_equality(
-                    interp,
-                    &name,
-                    &root.as_ptr(),
-                ) {
-                    Ok(equal) => equal,
-                    Err(error) => return interp.report_cmd_error(error.into()),
-                },
-                Err(error) => return interp.report_cmd_error(error.into()),
-            };
-        if skip {
-            continue;
-        }
-        let canonical = match interp.jim_canonical_namespace_object(&current, name) {
-            Ok(canonical) => canonical,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let canonical = match interp.native_string_bytes(&canonical.as_ptr()) {
-            Ok(bytes) => bytes,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let mut pattern = canonical.to_vec();
-        pattern.extend_from_slice(b"::*");
-        let candidates = interp.visible_command_names_in(GLOBAL);
-        let commands =
-            match policy
-                .recipe()
-                .jim_info_command_names(b"", Some(&pattern), &candidates, false)
-            {
-                Ok(commands) => commands,
-                Err(_) => {
-                    return interp.report_cmd_error(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "Jim namespace delete enumeration",
-                        )
-                        .into(),
-                    );
-                }
-            };
-        for command in commands {
-            let word = obj::Owned::fresh(obj::new_string_bytes(b"rename"));
-            let command = obj::Owned::fresh(obj::new_string_bytes(&command));
-            let invocation = obj::Owned::fresh(interp.new_list_object(&[
-                word.as_ptr(),
-                command.as_ptr(),
-                empty.as_ptr(),
-            ]));
-            let code = interp.eval_uplevel_obj(0, invocation.as_ptr());
-            if code != Code::Ok {
-                return code;
-            }
-        }
-        let globals = interp.namespaces().var_names(GLOBAL);
-        let mut operands = vec![obj::Owned::fresh(obj::new_string_bytes(b"unset"))];
-        for global in globals {
-            match matcher.match_name_pattern(
-                tcl_syntax::native_glob::NativeNameGlobPurpose::InfoVariablesScan,
-                &pattern,
-                &global,
-            ) {
-                Ok(true) => operands.push(obj::Owned::fresh(obj::new_string_bytes(&global))),
-                Ok(false) => {}
-                Err(_) => {
-                    return interp.report_cmd_error(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "Jim namespace delete globals",
-                        )
-                        .into(),
-                    );
-                }
-            }
-        }
-        let words: Vec<_> = operands.iter().map(obj::Owned::as_ptr).collect();
-        let invocation = obj::Owned::fresh(interp.new_list_object(&words));
-        let code = interp.eval_uplevel_obj(0, invocation.as_ptr());
-        if code != Code::Ok {
-            return code;
-        }
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -7326,3 +7221,7 @@ mod native_jim_origin_tests;
 #[cfg(test)]
 #[path = "cmd_namespace/native_jim_inscope_tests.rs"]
 mod native_jim_inscope_tests;
+
+#[cfg(test)]
+#[path = "cmd_namespace/native_jim_delete_tests.rs"]
+mod native_jim_delete_tests;

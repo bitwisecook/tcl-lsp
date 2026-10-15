@@ -205,8 +205,12 @@ impl NativeWord {
                 Ok(Span::new(self.operand.start() + 1, close))
             }
             WordKind::Quoted => {
-                let close = crate::quoted_word_close(self.image().bytes(), start)
-                    .map_err(NativeWordError::Parse)?;
+                let close = crate::word_parts::quoted_word_close_in(
+                    self.image().bytes(),
+                    start,
+                    self.config,
+                )
+                .map_err(NativeWordError::Parse)?;
                 if close + 1 < end {
                     return Err(if self.config.quote_termination.is_strict() {
                         NativeWordError::Parse(EXTRA_AFTER_CLOSE_QUOTE)
@@ -737,5 +741,62 @@ mod written_group_geometry_tests {
             NativeWord::written_span_from_group(source, config, &missing_marker, group).is_err()
         );
         assert!(NativeWord::written_span_from_group(&source[..8], config, &tokens, group).is_err());
+    }
+}
+
+#[cfg(test)]
+mod configured_quote_content_tests {
+    use super::*;
+
+    #[test]
+    fn original_quote_content_uses_the_actual_word_variable_close_grammar() {
+        let source = r#""${a{b}"c} suffix""#;
+        for config in [
+            LexerConfig::for_dialect("tcl9.0"),
+            LexerConfig::for_dialect("tcl9.1"),
+            LexerConfig {
+                braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
+                ..LexerConfig::for_dialect("tcl8.6")
+            },
+        ] {
+            let plan = crate::native_script_words_in(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .expect("actual configured complete original quote word");
+            assert!(plan.fatal_tail.is_none());
+            let [command] = plan.commands.as_slice() else {
+                panic!("one original command");
+            };
+            let [word] = command.words.as_slice() else {
+                panic!("one original word");
+            };
+            assert_eq!(word.config(), config);
+            assert_eq!(word.written_bytes(), source.as_bytes());
+            let content = word.content_span().expect("same configured quote owner");
+            assert_eq!(&source[content.as_range()], r#"${a{b}"c} suffix"#);
+            let parts = word.parts().unwrap();
+            assert!(
+                matches!(&parts[0].part, WordPart::Variable(variable) if variable.name == b"a{b}\"c")
+            );
+            assert!(matches!(&parts[1].part, WordPart::Text(text) if text.as_ref() == b" suffix"));
+        }
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(dialect);
+            let source = r#""prefix ${value} suffix""#;
+            let plan = crate::native_script_words_in(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(plan.fatal_tail.is_none());
+            let word = &plan.commands[0].words[0];
+            assert_eq!(
+                &source[word.content_span().unwrap().as_range()],
+                "prefix ${value} suffix"
+            );
+        }
     }
 }

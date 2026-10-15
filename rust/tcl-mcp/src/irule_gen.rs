@@ -510,6 +510,7 @@ fn build_all_test_blocks(test_name: &str, ctx: &ScriptContext) -> Vec<String> {
                 ctx.ordered_events,
                 ctx.commands_used,
                 ctx.objects,
+                ctx.request_syntax.map(|syntax| syntax.0),
             ));
         } else if has_dns {
             blocks.push(build_dns_test_block(test_name));
@@ -934,17 +935,25 @@ fn build_http_test_blocks(
     events: &[String],
     commands: &[String],
     objects: &ObjectRefs,
+    config: Option<LexerConfig>,
 ) -> Vec<String> {
     let has = |c: &str| commands.iter().any(|x| x == c);
     let mut blocks = Vec::new();
+    // This remains a heuristic expected outcome. Encoding only preserves the
+    // original literal object name and the generated braced script container.
+    let pool = if has("pool") {
+        objects
+            .pools
+            .first()
+            .and_then(|value| request_literal_word(value, config?))
+    } else {
+        None
+    };
 
     // Test 1: happy path.
     let mut body = vec!["::orch::run_http_request -host \"example.com\" -uri \"/\"".to_owned()];
-    if has("pool") && !objects.pools.is_empty() {
-        body.push(format!(
-            "::orch::assert_that pool_selected equals \"{}\"",
-            objects.pools[0]
-        ));
+    if let Some(pool) = &pool {
+        body.push(format!("::orch::assert_that pool_selected equals {pool}"));
     } else {
         body.push("# ::orch::assert_that pool_selected equals \"your_pool\"".to_owned());
     }
@@ -1011,14 +1020,13 @@ fn build_http_test_blocks(
     if events.iter().any(|e| e == "HTTP_RESPONSE") {
         let mut body =
             vec!["::orch::run_http_request -host \"example.com\" -uri \"/first\"".to_owned()];
-        let pool = (has("pool") && !objects.pools.is_empty()).then(|| objects.pools[0].clone());
         if let Some(p) = &pool {
-            body.push(format!("::orch::assert_that pool_selected equals \"{p}\""));
+            body.push(format!("::orch::assert_that pool_selected equals {p}"));
         }
         body.push(String::new());
         body.push("::orch::run_next_request -host \"example.com\" -uri \"/second\"".to_owned());
         if let Some(p) = &pool {
-            body.push(format!("::orch::assert_that pool_selected equals \"{p}\""));
+            body.push(format!("::orch::assert_that pool_selected equals {p}"));
         }
         body.push(String::new());
         body.push("::orch::close_connection".to_owned());
@@ -1883,5 +1891,102 @@ mod original_request_source_tests {
             panic!("original expression topology");
         };
         assert!(source_header_hint(&left, config).is_none());
+    }
+}
+
+#[cfg(test)]
+mod fallback_pool_source_tests {
+    use super::*;
+
+    #[test]
+    fn fallback_http_pool_values_remain_literal_words_and_preserve_the_test_body() {
+        let initial = SourceInventory::capture(
+            "when HTTP_REQUEST {pool p}",
+            crate::environment::store_for_dialect("f5-irules"),
+        );
+        let config = initial.context.as_ref().unwrap().expression_syntax().0;
+        for value in [
+            "plain",
+            "a\"b",
+            "$literal",
+            "p[set ::hint 1]",
+            "}",
+            "a\\b",
+            "a\nb",
+        ] {
+            let source_word = request_literal_word(value, config).unwrap();
+            let source =
+                format!("when HTTP_REQUEST {{pool {source_word}}}\nwhen HTTP_RESPONSE {{}}\n");
+            let inventory = SourceInventory::capture(
+                &source,
+                crate::environment::store_for_dialect("f5-irules"),
+            );
+            let context = inventory.context.as_ref().unwrap();
+            let config = context.expression_syntax().0;
+            let objects = extract_object_refs(&source, context);
+            assert_eq!(objects.pools, [value]);
+            let blocks = build_http_test_blocks(
+                "literal-pool",
+                &["HTTP_REQUEST".to_owned(), "HTTP_RESPONSE".to_owned()],
+                &["pool".to_owned()],
+                &objects,
+                Some(config),
+            );
+            let mut observed = Vec::new();
+            for block in &blocks {
+                let outer = tcl_lexer::native_script_words_in(
+                    tcl_lexer::SourceImage::document(block),
+                    tcl_lexer::Span::new(0, u32::try_from(block.len()).unwrap()),
+                    config,
+                )
+                .unwrap();
+                assert!(outer.fatal_tail.is_none());
+                assert_eq!(outer.commands.len(), 1);
+                let body_word = outer.commands[0].words.last().unwrap();
+                let body =
+                    tcl_syntax::word_rules::original_static_word_unicode_value(body_word).unwrap();
+                let body = String::from_utf8(body).unwrap();
+                let inner = tcl_lexer::native_script_words_in(
+                    tcl_lexer::SourceImage::document(&body),
+                    tcl_lexer::Span::new(0, u32::try_from(body.len()).unwrap()),
+                    config.nested(),
+                )
+                .unwrap();
+                assert!(inner.fatal_tail.is_none());
+                for command in &inner.commands {
+                    if command.words.len() == 4
+                        && tcl_syntax::word_rules::original_static_word_unicode_value(
+                            &command.words[1],
+                        )
+                        .as_deref()
+                            == Some(b"pool_selected")
+                    {
+                        let word = &command.words[3];
+                        assert!(
+                            word.executable_parts().all_parts().all(|part| matches!(
+                                part.part,
+                                tcl_lexer::ExecutablePart::Text(_)
+                            ))
+                        );
+                        observed.push(
+                            tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                                .unwrap(),
+                        );
+                    }
+                }
+            }
+            assert_eq!(observed, vec![value.as_bytes().to_vec(); 3]);
+            let unavailable = build_http_test_blocks(
+                "literal-pool",
+                &["HTTP_RESPONSE".to_owned()],
+                &["pool".to_owned()],
+                &objects,
+                None,
+            );
+            assert!(unavailable.iter().all(|block| !block.lines().any(|line| {
+                line.trim_start()
+                    .starts_with("::orch::assert_that pool_selected equals")
+            })));
+        }
     }
 }

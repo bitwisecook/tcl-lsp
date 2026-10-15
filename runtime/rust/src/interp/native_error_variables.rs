@@ -436,7 +436,7 @@ impl Interp {
             .as_ref()
             .filter(|role| role.active.get())
         {
-            return Some(role.original.as_ptr());
+            return Some(role._original.as_ptr());
         }
         match variable {
             Variable::ErrorInfo => &exc.native.info,

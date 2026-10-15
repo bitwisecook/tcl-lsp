@@ -105,6 +105,44 @@ impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
         (argument < count).then_some(argument)
     }
 
+    /// Exact post-head name, version and script ordinals from the selected
+    /// package-registration source schema. These conditional data coordinates
+    /// establish neither an installed package nor execution of its deferred body.
+    #[must_use]
+    pub fn authored_source_package_registration(&self) -> Option<(usize, usize, usize)> {
+        use crate::{ArgRole, hooks::AnalyserHookId};
+        if self.semantics.analyser_hook != Some(AnalyserHookId::PackageIfneeded)
+            || !self
+                .semantics
+                .arity
+                .accepts(self.argument_count_for_arity()?)
+        {
+            return None;
+        }
+        let count = self.words.arguments().exact_argv_len()?;
+        let (roles, complete) = self.authored_source_argument_roles();
+        if !complete || count != self.semantics.argument_offset.checked_add(3)? {
+            return None;
+        }
+        let ordinal = |wanted| {
+            let mut selected =
+                roles
+                    .iter()
+                    .filter(|(_, role)| *role == wanted)
+                    .map(|&(position, _)| {
+                        self.semantics
+                            .argument_offset
+                            .checked_add(usize::from(position))
+                    });
+            let first = selected.next()??;
+            (first < count && selected.next().is_none()).then_some(first)
+        };
+        let name = ordinal(ArgRole::Name)?;
+        let version = ordinal(ArgRole::Value)?;
+        let body = ordinal(ArgRole::Body)?;
+        (name != version && name != body && version != body).then_some((name, version, body))
+    }
+
     /// Source package geometry from the selected descriptor, complete count
     /// and option walk. A `provide NAME` query supplies no provision evidence.
     #[must_use]
@@ -328,6 +366,85 @@ mod tests {
         assert_eq!(select("call", &[InvocationWord::Expanded]), None);
         assert_eq!(select("call", &[]), None);
         assert_eq!(select("puts", &[InvocationWord::Literal("Lib::one")]), None);
+    }
+
+    #[test]
+    fn original_package_registration_ordinals_keep_query_and_expansion_distinct() {
+        let context = crate::model::ingress::static_context_for("tcl8.6");
+        let select = |arguments: &[InvocationWord<'_>]| {
+            crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.commands(),
+                Some(context.context()),
+                crate::InvocationWords::structured(InvocationWord::Literal("package"), arguments),
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            )
+            .resolved()
+            .and_then(|selected| selected.authored_source_package_registration())
+        };
+        assert_eq!(
+            select(&[
+                InvocationWord::Literal("ifneeded"),
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("1.0"),
+                InvocationWord::Dynamic
+            ]),
+            Some((1, 2, 3))
+        );
+        assert_eq!(
+            select(&[
+                InvocationWord::Literal("ifneeded"),
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("1.0")
+            ]),
+            None
+        );
+        assert_eq!(
+            select(&[
+                InvocationWord::Literal("ifneeded"),
+                InvocationWord::Expanded,
+                InvocationWord::Literal("1.0"),
+                InvocationWord::Dynamic
+            ]),
+            None
+        );
+        assert_eq!(
+            select(&[
+                InvocationWord::Literal("provide"),
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("1.0")
+            ]),
+            None
+        );
+        let mut malformed = crate::CommandRegistry::build_default();
+        malformed.insert(crate::CommandSpec {
+            name: "register",
+            arity: crate::Arity::exact(3),
+            analyser_hook: Some(crate::hooks::AnalyserHookId::PackageIfneeded),
+            arg_roles: &[
+                (0, crate::ArgRole::Name),
+                (0, crate::ArgRole::Value),
+                (0, crate::ArgRole::Body),
+            ],
+            ..crate::CommandSpec::DEFAULT
+        });
+        let arguments = [
+            InvocationWord::Literal("p"),
+            InvocationWord::Literal("1.0"),
+            InvocationWord::Dynamic,
+        ];
+        assert_eq!(
+            malformed
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(
+                        InvocationWord::Literal("register"),
+                        &arguments
+                    ),
+                    None,
+                )
+                .resolved()
+                .and_then(|schema| schema.authored_source_package_registration()),
+            None
+        );
     }
 
     #[test]

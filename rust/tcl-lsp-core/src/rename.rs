@@ -1517,50 +1517,24 @@ fn rename_var(
     {
         return Vec::new();
     }
-    let mut edits = Vec::with_capacity(1 + var_def.references.len());
-    // Preserve any namespace qualifier on the declaration token itself
-    // (`set myns::count` → `set myns::total`).  Derive the prefix from the
-    // actual source token so it is independent of how the analyser stores
-    // the name.
-    let def_text = source
-        .get(var_def.definition_span.start() as usize..var_def.definition_span.end() as usize)
-        .unwrap_or("");
-    // The declaration token can carry an array-element suffix
-    // (`set arr(0) 1` → the span covers `arr(0)`); renaming must rewrite only
-    // the base name and keep both any namespace qualifier and the `(idx)`
-    // suffix, exactly like `build_var_ref_replacement` does for references.
-    // Dropping the suffix here produced `set data 1` and turned every `$arr(0)`
-    // ref into `$data(0)`, so the script then errored "variable isn't array".
-    let (def_name_part, def_suffix) = split_array_suffix(def_text);
-    let def_ns_prefix = source_name_qualifier(def_name_part);
-    let def_new_text = format!("{def_ns_prefix}{new_name}{def_suffix}");
-    edits.push(TextEdit {
-        range: span_to_range(source, line_index, var_def.definition_span),
-        new_text: def_new_text,
-    });
-    // Rewrite every alias Tcl treats as one cell together — namespace/global
-    // aliases (`global`/`variable`/`namespace upvar`) and a class instance
-    // variable's per-method copies — so a rename never leaves a sibling use or
-    // an aliasing declaration pointing at the old name.
-    let ref_spans = crate::definition::linked_var_reference_spans(&analysis.global_scope, var_def);
-    let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
-    for r in ref_spans {
-        if !seen.insert((r.start(), r.end())) {
-            continue;
-        }
-        // Brace-ref escaping — see
-        // [`build_var_ref_replacement`].
-        let Some((whole, replacement)) =
-            build_var_replacement_in_analysis(source, analysis, r, new_name)
-        else {
-            return Vec::new();
-        };
-        edits.push(TextEdit {
-            range: span_to_range(source, line_index, whole),
-            new_text: replacement,
-        });
+    let Some(declaration) =
+        crate::variable_symbol::declaration_at_cursor(source, analysis, var_def, byte_offset)
+    else {
+        return Vec::new();
+    };
+    // A conditional alias supplies readonly navigation, never an editable
+    // reference set. The original constructor separately checks source coverage,
+    // collisions and every original receiver/container before producing edits.
+    if declaration.original_occurrence().is_none() {
+        return Vec::new();
     }
-    edits
+    crate::variable_symbol::original_variable_rename_edits(
+        source,
+        analysis,
+        declaration.symbol(),
+        new_name,
+    )
+    .unwrap_or_default()
 }
 
 /// Whether this call site is an ensemble **dispatch word whose spelling the
@@ -2064,44 +2038,9 @@ pub fn workspace_symbol_rename_edits(
     ))
 }
 
-/// Every edit renaming the **namespace-variable cell** `cell` to `new_name`
-/// within `source` — one document's share of the workspace-wide rename the
-/// cross-document tier drives.
-///
-/// `cell` is a `::`-rooted qualified name
-/// ([`crate::definition::qualified_variable_cell_at`] is the single entry
-/// point that decides which cell a cursor names, shared with go-to-definition
-/// / hover / find-references so the four cannot disagree).  Three occurrence
-/// kinds are rewritten, and they are the complete static set for a namespace
-/// cell:
-///
-/// * the **namespace-scoped declaration(s)** this document holds — the
-///   `variable v` / `set v …` sitting directly in a `namespace eval` body,
-///   read off the scope tree via `namespace_variables` rather than re-derived;
-/// * every **alias** Tcl treats as the same cell — a `variable v` / `global v`
-///   / `namespace upvar ns v local` inside a proc or method body, enumerated
-///   by [`tcl_compiler::analyser::variable_alias_links`] over
-///   `VarDef::link_target` (the analyser's analogue of Tcl's `VAR_LINK`).
-///   Missing these is what makes a naive "declaration + qualified
-///   occurrences" rename break a program: `namespace eval ns { proc p {} {
-///   variable v; puts $v } }` keeps working only if that `variable v` and its
-///   `$v` are renamed too;
-/// * every **`::`-qualified occurrence** (`$::ns::v`, `set app::ns::v 1`) —
-///   `analysis.qualified_var_refs`, the same table the workspace index's
-///   cross-document reference set is built from.
-///
-/// Deliberately *not* rewritten: an unqualified `$v` that is not an alias of
-/// this cell.  A bare name means whatever the local scope chain supplies,
-/// which is a per-document question this cell's identity cannot answer.
-///
-/// Also deliberately *not* rewritten: the **local spelling of a
-/// differently-named alias**.  `namespace upvar ::ns v local` names the cell
-/// in its `otherVar` word (`v`); `local` is an independent local name the
-/// cell's identity does not determine.  See
-/// [`cell_rename_spans`] for the rule and its oracle.
-///
-/// The result is unsorted and deduplicated by range; the caller merges it
-/// with the other documents' shares.
+/// Source edits for an independently retained namespace symbol matching one
+/// checked compatibility coordinate. The caller string cannot manufacture the
+/// symbol, and alias reports supply no reference-set or edit authority.
 #[must_use]
 pub fn namespace_variable_rename_edits(
     source: &str,
@@ -2109,130 +2048,16 @@ pub fn namespace_variable_rename_edits(
     cell: &str,
     new_name: &str,
 ) -> Vec<TextEdit> {
-    if !analysis.allows_lexical_declaration_advice() {
+    if !analysis.allows_lexical_declaration_advice() || !is_safe_symbol_name(new_name) {
         return Vec::new();
     }
-    if !is_safe_symbol_name(new_name) {
-        return Vec::new();
-    }
-    let Some(config) = analysis.body_lexer_config else {
+    let Some(symbol) =
+        crate::variable_symbol::namespace_symbol_for_compatibility_key(source, analysis, cell)
+    else {
         return Vec::new();
     };
-    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
-        return Vec::new();
-    }
-    let target = cell;
-    // Collision gate, the in-document half of the workspace one the server
-    // applies: renaming onto a cell this document already declares would
-    // merge two distinct variables into one.  Same discipline (and same
-    // "answer nothing" shape) as the single-document variable rename's own
-    // scope-chain collision check.
-    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(cell);
-    let new_cell = tcl_syntax::naming::qualify(holder, new_name);
-    if tcl_compiler::analyser::lookup_var_by_qualified_name(&analysis.global_scope, &new_cell)
-        .is_some()
-    {
-        return Vec::new();
-    }
-    let line_index = LineIndex::new(source);
-    let mut spans: Vec<tcl_lexer::Span> = Vec::new();
-    for (qualified, var) in tcl_compiler::analyser::namespace_variables(&analysis.global_scope) {
-        if qualified != target {
-            continue;
-        }
-        // The declaration itself, plus its own unqualified reads in the
-        // namespace frame.  Aliases are *not* unioned in here — they are
-        // handled by `cell_rename_spans`, which knows which of an alias's
-        // words names the cell and which is merely a local spelling.
-        spans.push(var.definition_span);
-        spans.extend(var.references.iter().copied());
-    }
-    cell_rename_spans(&analysis.global_scope, target, &mut spans);
-    for vref in &analysis.qualified_var_refs {
-        if vref.qualified_name == target {
-            spans.push(vref.span);
-        }
-    }
-    let mut edits: Vec<TextEdit> = spans
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .map(|span| {
-            let (whole, replacement) =
-                build_var_replacement_in_analysis(source, analysis, span, new_name)?;
-            Some(TextEdit {
-                range: span_to_range(source, &line_index, whole),
-                new_text: replacement,
-            })
-        })
-        .collect::<Option<Vec<_>>>()
-        .unwrap_or_default();
-    dedup_edits(&mut edits);
-    edits
-}
-
-/// The spans a rename of the `::`-rooted cell `target` must rewrite in every
-/// variable *aliasing* it — a proc-local `variable v` / `global v` /
-/// `namespace upvar ns v local` / `upvar #0 ::ns::v local`, anywhere in the
-/// scope tree.
-///
-/// The namespace-scoped declaration walk above only sees namespace and global
-/// scopes, so an alias declared inside a proc or method body (the ordinary way
-/// a namespace variable is used) is invisible to it; without this the
-/// cross-document rename would rewrite the declaration and leave every
-/// `variable v; … $v` body naming a cell that no longer exists.
-///
-/// # Which word an alias contributes
-///
-/// An alias binds a **local spelling** to a **cell**, and only one of the two
-/// words involved is determined by the cell's name.
-/// [`VarDef::link_target_span`](tcl_compiler::analyser::VarDef::link_target_span)
-/// says which word names the cell, and this walk splits on whether that is the
-/// declaration word itself:
-///
-/// * **Same word** — `variable v`, `global ::ns::v`.  The local spelling *is*
-///   the cell's tail name, so renaming the cell renames the declaration and
-///   every unqualified read with it.  Rewriting only some of them breaks the
-///   program: with `variable total` against a body still reading `$v`, tclsh
-///   9.0.4 and 8.6.16 both give `can't read "v": no such variable`.
-///
-/// * **Different words** — `namespace upvar ::ns v local`, `upvar #0 ::ns::v
-///   local`.  The cell is named by `otherVar`; `local` is an independent
-///   spelling the cell's name does not determine.  Only `otherVar` is
-///   rewritten, and `local` and all its reads are left exactly as written.
-///   Rewriting `local` instead — which is what the declaration span alone
-///   gives — produces `namespace upvar ::ns v total; … $total`, and both
-///   interpreters then fail `can't read "total": no such variable`, because
-///   the alias still points at the cell that was renamed away.
-///
-/// A same-*spelled* `namespace upvar ::ns v v` is the second case, not the
-/// first: its two `v`s are distinct words at distinct offsets, and the local
-/// one is still an independent spelling.  Both interpreters accept either
-/// answer (`namespace upvar ::ns total v; … $v` and `namespace upvar ::ns
-/// total total; … $total` both print `42` on 9.0.4 and 8.6.16), so the
-/// **minimal** edit is taken: rewrite the word that names the cell, and touch
-/// nothing whose meaning the rename does not change.
-fn cell_rename_spans(
-    scope: &tcl_compiler::analyser::Scope,
-    target: &str,
-    out: &mut Vec<tcl_lexer::Span>,
-) {
-    for link in tcl_compiler::analyser::variable_alias_links(scope) {
-        if link.cell != target {
-            continue;
-        }
-        let var = link.var;
-        match var.link_target_span {
-            // The cell is named by a word other than the declaration: rewrite
-            // only that word, and leave the local spelling (and its reads)
-            // alone.
-            Some(span) if span != var.definition_span => out.push(span),
-            // Declaration word and cell-naming word are one and the same.
-            _ => {
-                out.push(var.definition_span);
-                out.extend(var.references.iter().copied());
-            }
-        }
-    }
+    crate::variable_symbol::original_variable_rename_edits(source, analysis, symbol, new_name)
+        .unwrap_or_default()
 }
 
 /// Token-only compatibility geometry controls. Actual rename consumers use
@@ -2245,6 +2070,7 @@ fn var_ref_edit_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
 /// Selected whole-reference source projection. The caller's independent
 /// Logical rename gates supply edit authority; this helper supplies syntax
 /// and refuses malformed, compound or unavailable source geometry.
+#[cfg(test)]
 fn build_var_ref_replacement(
     source: &str,
     span: tcl_lexer::Span,
@@ -2263,6 +2089,7 @@ fn build_var_ref_replacement(
     tcl_syntax::naming::variable_source_reference_with_tail(text, new_tail, config)
 }
 
+#[cfg(test)]
 fn build_var_replacement_in_analysis(
     source: &str,
     analysis: &AnalysisResult,
@@ -2305,6 +2132,7 @@ fn source_name_qualifier(name: &str) -> &str {
 
 /// Closed literal element partition shared with variable naming. An unmatched
 /// open or trailing text belongs to the scalar name and has no index suffix.
+#[cfg(test)]
 fn split_array_suffix(name: &str) -> (&str, &str) {
     tcl_syntax::naming::split_element_ref(name)
         .map_or((name, ""), |(root, _)| (root, &name[root.len()..]))
@@ -5738,6 +5566,90 @@ mod selected_reference_tail_proposal_tests {
         assert_eq!(
             build_var_ref_replacement(source, span, "new", nested).as_deref(),
             Some("$ns:::new($index[command])")
+        );
+    }
+}
+
+#[cfg(test)]
+mod source_declaration_rename_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_variable_rename_uses_original_edit_coverage_and_refuses_alias_only_anchors() {
+        let source = "set actual 1; puts $actual";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let edits = rename_var(
+            source,
+            0,
+            4,
+            "changed",
+            &analysis,
+            &LineIndex::new(source),
+            "actual",
+        );
+        assert_eq!(edits.len(), 2);
+        let source = "proc p {i} {upvar ::n::a($i) data; puts $data}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find(" data;").unwrap() + 1).unwrap();
+        let index = LineIndex::new(source);
+        let position = index.position_at_utf16(offset, source);
+        assert!(
+            rename_var(
+                source,
+                position.line,
+                position.character.get(),
+                "changed",
+                &analysis,
+                &index,
+                "data"
+            )
+            .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod typed_namespace_variable_rename_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn namespace_variable_source_edits_ignore_alias_reports_and_require_current_symbols() {
+        let source = "namespace eval ::N {set value 1; puts $value}";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let expected = namespace_variable_rename_edits(source, &analysis, "::N::value", "changed");
+        assert_eq!(expected.len(), 2);
+        let mut scopes = vec![&mut analysis.global_scope];
+        while let Some(scope) = scopes.pop() {
+            scope.name = "::REPORT_ONLY".to_owned();
+            for variable in scope.variables.values_mut() {
+                variable.name = "REPORT_ONLY".to_owned();
+                variable.link_target = Some("::COUNTERFEIT".to_owned());
+            }
+            scopes.extend(&mut scope.children);
+        }
+        analysis.qualified_var_refs.clear();
+        assert_eq!(
+            namespace_variable_rename_edits(source, &analysis, "::N::value", "changed"),
+            expected
+        );
+        assert!(
+            namespace_variable_rename_edits(source, &analysis, "::COUNTERFEIT", "changed")
+                .is_empty()
+        );
+        assert!(
+            namespace_variable_rename_edits(
+                "namespace eval ::N {set value 2; puts $value}",
+                &analysis,
+                "::N::value",
+                "changed"
+            )
+            .is_empty()
+        );
+        analysis.resolved_input = None;
+        assert!(
+            namespace_variable_rename_edits(source, &analysis, "::N::value", "changed").is_empty()
         );
     }
 }

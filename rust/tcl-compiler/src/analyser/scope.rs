@@ -3383,6 +3383,9 @@ impl Analyser {
                 link_target: None,
                 link_target_span: None,
             };
+            scope
+                .original_variable_declaration_spans
+                .insert(base_owned.clone(), span);
             scope.variables.insert(base_owned.clone(), var.clone());
             let key = format!("{}::{base_owned}", scope.name);
             self.result.all_variables.insert(key, var);

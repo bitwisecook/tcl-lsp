@@ -986,7 +986,7 @@ body spans separately from result values, and package-version expression shapes
 require one whole unexpanded command. Values supply no original source coordinate,
 analysis, reached Body, frame or Native issuer.
 
-Fresh VM original C namespace conversion applies the same selected lifecycle
+Fresh Runtime and VM original C namespace conversion applies the same selected lifecycle
 recipe as cache reuse. Raw namespace handles remain independently available for
 hidden execution; an actual C8.4 Dying conversion and later fresh-Dying refusal
 retain the existing entered operation, context, target, publication and getter
@@ -1007,3 +1007,43 @@ generated braced script container. Completed Switch pattern values retain litera
 quotes and braces. Source-label categories and URI examples remain heuristics;
 they establish no reached handler, path satisfaction, frame or observed outcome.
 Missing context supplies no replacement grammar.
+
+Original variable declarations join the actual nominated VarDef pointer to its
+private first-defining extent and genuine declaration-role source occurrence
+under the full current image/input/Registry/configuration. Reporting parent,
+name, kind, a cloned variable or shared span cannot authenticate this join.
+The editor separately matches the requested occurrence and typed symbol/frame.
+Conditional alias templates retain applicability, target-cell and binding
+continuity obligations; readonly reference association is distinct from an
+executed alias, physical cell or complete edit set. Rename refuses a conditional
+anchor and retains original coverage, source-container and collision checks.
+
+Readonly original Authored procedure declarations remain in their issued
+ID/card/body inventory and are excluded from independent executable roots.
+Top-level and other executable roots retain their existing purpose; the source
+map exclusion erases no world hazard and supplies no publication or body entry.
+
+The selected Jim Delete helper shares actual physical publication, replacement,
+public arity and original-operand dispatch with the existing scripted family.
+Its pinned variadic body receives a fresh helper head and untouched operands;
+C deletion and broader callback/final-free lifecycle stay independent.
+
+Configured original quoted-word content retains its opening fragment and uses
+the actual full lexical configuration through variable and trailing text parts.
+That lexical extent is separate from runtime value, read or inline-motion proof.
+
+Fallback HTTP pool assertions receive actual retained lexical configuration and
+the same checked literal-word plus enclosing-braced-body proposal as request
+hints. Missing grammar or an unavailable spelling withholds an active assertion.
+Encoding preserves literal data, without verifying a predicted pool or path.
+
+Standalone implementation surveys select actual Require and version-bearing
+Provide source ordinals over complete configured words and literal Unicode
+package-name data. PackageIfneeded advertisements separately select exact written
+Name/Value/Body layout before name/version projection. Literal whitespace, braces,
+quotes, sigils and empty names remain data; unavailable name or advertisement-version data
+withdraws that projection. A dynamic Body retains its selected ordinal and the
+existing directory fallback independently. Existing
+version validation, conditions, directory/existence and fallback conventions stay
+independent. These source-data surveys establish no installed package, reached
+registration or handler, deferred body/frame, supplied analysis or Native lookup.

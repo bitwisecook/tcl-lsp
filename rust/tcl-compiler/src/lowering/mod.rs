@@ -6849,10 +6849,20 @@ mod body_cache_eligible_tests {
         let binding = tokens.source_binding.as_ref().expect("original binding");
         let metadata = tcl_registry::model::semantic::SemanticContext::for_profile(profile).into();
         assert_eq!(
-            binding.original_invocation_source_purpose(tokens, metadata, registry),
+            binding.original_source_advice_purpose(tokens, metadata, registry),
             Some(crate::command_binding::OriginalInvocationSourcePurpose::Standalone)
         );
-        assert!(body.executed_source.is_none());
+        assert!(
+            binding
+                .original_invocation_source_purpose(tokens, metadata, registry)
+                .is_none()
+        );
+        let retained = body
+            .executed_source
+            .as_ref()
+            .expect("original isolated body source");
+        assert_eq!(retained.try_text().unwrap(), source);
+        assert_eq!(retained.base(), 0);
         assert!(body.native_compilation_admission.is_none());
         assert!(
             crate::registry_invocation::admitted_native_compiler_invocation(registry, None, tokens)

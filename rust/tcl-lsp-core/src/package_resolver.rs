@@ -395,19 +395,24 @@ pub fn parse_pkg_index(
             conditions,
             ..
         } = reached;
-        if words.len() < 5 {
+        let Some(registration) =
+            registration::select(text, words, registry, tcl_lexer::LexerConfig::default())
+        else {
+            return;
+        };
+        let (Some(name), Some(version)) = (registration.name, registration.version) else {
+            return;
+        };
+        if !is_version_word(&version) {
             return;
         }
-        let name = word_raw(text, &words[2]);
-        let version = word_raw(text, &words[3]);
-        if !is_version_word(version) {
+        let Some(body) = words.get(registration.body) else {
             return;
-        }
-        let body = &words[4..];
+        };
         let mut source_files = Vec::new();
         collect_source_targets(
             text,
-            &[body.to_vec()],
+            &[vec![body.clone()]],
             pkg_dir,
             exists,
             &mut source_files,
@@ -435,8 +440,8 @@ pub fn parse_pkg_index(
         // answers an empty file list, so nothing tries to read a shared object
         // as Tcl, while `provides` answers `true`.
         out.push(PackageInfo {
-            name: name.to_owned(),
-            version: version.to_owned(),
+            name,
+            version,
             source_files,
             pkg_index_path: pkg_index_path.to_owned(),
             conditions,
@@ -548,40 +553,87 @@ fn push_auto_entry(
     }
 }
 
-/// The package names a file makes available: every literal `package require
-/// NAME` (with optional `-exact`) plus every `package provide NAME`.
+/// Package-name candidates from literal `package require NAME` (with optional
+/// `-exact`) and version-bearing `package provide NAME VERSION` declarations.
 ///
 /// Used to chase the *transitive* closure of a `package require` — a package
 /// whose implementation does `package require Tk` (transitively) makes `Tk`
 /// available, exactly as C Tcl would once that package's `ifneeded` script
 /// runs. A non-literal name (`package require $x`) is skipped: its provided
 /// set is unknowable statically, and the caller treats that conservatively.
+/// This explicit standalone survey retains the default source configuration;
+/// selected Registry source ordinals and decoded literal data grant no package
+/// lookup, installation or successful loading authority.
 #[must_use]
 pub fn package_requires_in(content: &str) -> Vec<String> {
+    let config = tcl_lexer::LexerConfig::default();
+    let Ok(length) = u32::try_from(content.len()) else {
+        return Vec::new();
+    };
+    let Ok(plan) = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(content),
+        tcl_lexer::Span::new(0, length),
+        config,
+    ) else {
+        return Vec::new();
+    };
+    if plan.fatal_tail.is_some() {
+        return Vec::new();
+    }
+    let context = tcl_registry::model::ingress::static_context_for("tcl");
+    let mut dialect =
+        tcl_registry::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+    dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
+    dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&config);
     let mut names = Vec::new();
-    for words in walk_command_words(content) {
-        if words.len() < 3 || word_raw(content, &words[0]) != "package" {
+    for command in plan.commands {
+        let values = command
+            .words
+            .iter()
+            .map(|word| {
+                String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+                    word,
+                )?)
+                .ok()
+            })
+            .collect::<Vec<_>>();
+        if values.iter().flatten().any(|value| value.contains('\0')) {
             continue;
         }
-        let sub = word_raw(content, &words[1]);
-        let name = match sub {
-            "require" => {
-                // `package require ?-exact? NAME ?version?`
-                let idx = if word_raw(content, &words[2]) == "-exact" {
-                    3
+        let words = command
+            .words
+            .iter()
+            .zip(&values)
+            .map(|(word, value)| {
+                if word.group().expand {
+                    tcl_registry::InvocationWord::Expanded
                 } else {
-                    2
-                };
-                words.get(idx).map(|w| word_raw(content, w))
-            }
-            "provide" => Some(word_raw(content, &words[2])),
-            _ => None,
+                    value.as_deref().map_or(
+                        tcl_registry::InvocationWord::Dynamic,
+                        tcl_registry::InvocationWord::Literal,
+                    )
+                }
+            })
+            .collect::<Vec<_>>();
+        let Some((&head, arguments)) = words.split_first() else {
+            continue;
         };
-        if let Some(name) = name
-            && !name.is_empty()
-            && !name.contains(['$', '[', '{'])
-        {
-            names.push(name.to_owned());
+        let Some(schema) =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.commands(),
+                Some(context.context()),
+                tcl_registry::InvocationWords::structured(head, arguments).with_dialect(dialect),
+                tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+            )
+            .resolved()
+        else {
+            continue;
+        };
+        let Some(reference) = schema.authored_source_package_reference() else {
+            continue;
+        };
+        if let Some(Some(name)) = values.get(reference.argument + 1) {
+            names.push(name.clone());
         }
     }
     names
@@ -1251,6 +1303,7 @@ fn list_tcl_files(store: &dyn SourceStore, dir: &Path) -> Vec<PathBuf> {
 
 mod original_names;
 pub mod reachability;
+mod registration;
 pub use original_names::{
     OriginalPackageFileCandidate, OriginalPackageFileCandidateKind, OriginalPackageInfo,
     PackageRequirementAdvice, PackageRequirementAdviceKey,

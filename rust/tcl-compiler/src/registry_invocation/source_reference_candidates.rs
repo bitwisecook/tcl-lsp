@@ -326,7 +326,18 @@ mod tests {
         let mut missing = analysis.clone();
         missing.resolved_input = None;
         assert!(original_body_reference_candidates(&source, &missing, &body).is_none());
-        let (_, foreign, _) = fixture("puts $parameter", config);
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let foreign_input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            crate::environment_ingress::resolve_environment("tcl9.1").default_context_registry(),
+            config,
+        );
+        let foreign = crate::analyser::Analyser::new()
+            .with_resolved_input(foreign_input)
+            .analyse(&source, "tcl");
+        assert!(foreign.resolved_input != analysis.resolved_input);
+        assert!(foreign.matches_original_source_image(&SourceImage::document(&source), config));
         assert!(original_body_reference_candidates(&source, &foreign, &body).is_none());
         let (source, analysis, body) = fixture("unknown {$parameter}", config);
         assert!(

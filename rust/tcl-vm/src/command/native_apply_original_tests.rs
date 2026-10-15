@@ -633,3 +633,81 @@ fn jim_lambda_unreached_command_lookup_keeps_original_namespace_unmaterialized()
         assert!(vm.execution_refusal.is_none(), "{label}/host refusal");
     }
 }
+
+#[test]
+fn jim_lambda_temporary_publication_keeps_the_original_execution_namespace_separate() {
+    let mut vm =
+        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+    let protocol = vm
+        .actual_native_invocation_dialect()
+        .native_string_protocol()
+        .unwrap();
+    let namespace = Value::int(42);
+    let lambda = Value::native_list_constructor(
+        vec![
+            Value::native_list_constructor(Vec::new(), protocol),
+            Value::new_native_string_bytes(b"return BODY".as_slice()),
+            namespace.clone(),
+        ],
+        protocol,
+    );
+    let definition = super::build_lambda_proc(
+        &mut vm,
+        &lambda,
+        vec![
+            Value::new_native_string_bytes(b"apply".as_slice()),
+            lambda.clone(),
+        ],
+    )
+    .unwrap_or_else(|completion| {
+        panic!(
+            "actual lambda definition failed: {:?}; refusal={:?}",
+            completion.code, vm.execution_refusal
+        )
+    });
+    let declaration = definition.binding.declaration();
+    assert_eq!(declaration.command_ns_id, tcl_core_types::ROOT_NS);
+    assert_eq!(
+        declaration.simple_name.as_bytes(),
+        declaration.name.as_bytes()
+    );
+    assert!(matches!(
+        &declaration.execution_namespace,
+        crate::interp::ProcedureNamespace::OriginalJim(_)
+    ));
+    assert!(
+        declaration
+            .execution_namespace
+            .context()
+            .resolved_token()
+            .is_none()
+    );
+    assert!(
+        declaration
+            .native_jim_namespace
+            .as_ref()
+            .unwrap()
+            .is_same_object(&namespace)
+    );
+    assert!(namespace.resident_string_bytes().is_none());
+    let (storage, selected) = vm
+        .lookup_command_bytes_checked(tcl_core_types::ROOT_NS, declaration.simple_name.as_bytes())
+        .expect("actual Jim flat command query")
+        .expect("published temporary binding");
+    assert_eq!(
+        definition.registration.key(),
+        Some(crate::interp::CommandSidecarKey::visible(storage))
+    );
+    let crate::command::Command::Proc(selected) = selected else {
+        panic!("actual procedure publication");
+    };
+    assert!(std::rc::Rc::ptr_eq(&selected.declaration(), &declaration));
+    assert!(namespace.resident_string_bytes().is_none());
+    assert!(
+        vm.retire_command_lifecycle_key(&definition.registration.key().unwrap())
+            .is_some()
+    );
+    assert!(!definition.registration.is_attached());
+    assert!(namespace.resident_string_bytes().is_none());
+    assert!(vm.execution_refusal.is_none());
+}

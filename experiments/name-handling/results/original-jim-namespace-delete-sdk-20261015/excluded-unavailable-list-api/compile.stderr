@@ -1,0 +1,5 @@
+/tmp/name-jim-namespace-delete-sdk-20261015/probe.c: In function ‘main’:
+/tmp/name-jim-namespace-delete-sdk-20261015/probe.c:97:59: error: implicit declaration of function ‘Jim_ListGetElements’; did you mean ‘Jim_ListInsertElements’? [-Wimplicit-function-declaration]
+   97 |         if(cases[n].change==1){int len;Jim_Obj **v;int ok=Jim_ListGetElements(i,Jim_GetResult(i),&len,&v)==JIM_OK;
+      |                                                           ^~~~~~~~~~~~~~~~~~~
+      |                                                           Jim_ListInsertElements

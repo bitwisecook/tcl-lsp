@@ -3369,9 +3369,10 @@ impl Module {
     ///
     /// Whole-module semantic scans use this inventory instead of each keeping
     /// a partial copy of the procedure/method/body-unit map traversal. The
-    /// ordering is deterministic so monotone state replays and memo inputs do
-    /// follows the module's body allocation order. Every retained definition
-    /// contributes its original body and independently retained namespace.
+    /// ordering follows the module's body allocation order so monotone state
+    /// replays and memo inputs stay deterministic. Executable units retain
+    /// their namespace; analysis-only declarations and installations stay in
+    /// their separate body inventories.
     #[must_use]
     pub fn executable_script_roots(&self) -> Vec<(&Script, ExecutionNamespace)> {
         let mut roots = self.independent_executable_script_roots();
@@ -3392,6 +3393,9 @@ impl Module {
                             .contains_key(*qname)
                         && !self
                             .original_hosted_declaration_body_units
+                            .contains_key(*qname)
+                        && !self
+                            .original_authored_declaration_body_units
                             .contains_key(*qname)
                 })
                 .map(|(_, unit)| {

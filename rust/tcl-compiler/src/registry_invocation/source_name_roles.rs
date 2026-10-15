@@ -1086,12 +1086,28 @@ mod unresolved_point_metadata_tests {
         let mut puts = registry.get("puts").unwrap().clone();
         puts.surface = registry.get("dict").unwrap().surface;
         registry.insert(puts);
+        // Insertion retains shipped alternatives. Project the authored override
+        // after insertion so this fixture has only the intended 8.5+ puts row.
+        let registry = registry
+            .project_for_profile(tcl_registry::model::resolve_environment("tcl8.6").unit_profile());
         let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
         let older = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
                 .with_command_store(Arc::clone(current.commands())),
         );
         assert!(Arc::ptr_eq(current.commands(), older.commands()));
+        assert!(
+            current
+                .context()
+                .resolve_spec(current.commands(), "puts")
+                .is_some()
+        );
+        assert!(
+            older
+                .context()
+                .resolve_spec(older.commands(), "puts")
+                .is_none()
+        );
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let mut config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;

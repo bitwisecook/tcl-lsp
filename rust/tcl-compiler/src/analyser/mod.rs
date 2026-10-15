@@ -73,6 +73,9 @@ pub mod tk_checks;
 pub mod types;
 pub mod utils;
 mod variable_alias_templates;
+mod variable_source_declarations;
+
+pub use variable_source_declarations::OriginalVariableSourceDeclaration;
 
 pub use class_hierarchy::{ClassHierarchy, build_class_hierarchy};
 pub use class_lattice::{

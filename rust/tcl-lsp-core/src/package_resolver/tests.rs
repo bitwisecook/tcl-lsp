@@ -1150,3 +1150,105 @@ fn requirement_candidates_respect_release_and_keep_unpinned_alternatives() {
             .is_empty()
     );
 }
+
+#[test]
+fn package_reference_names_use_original_values_and_selected_source_ordinals() {
+    let source = r#"package require {space name}
+package require -exact {::literal$[name]} 1.0
+package provide {brace{data}} 2.0
+package require "quote\"data"
+package require \u0064ecoded
+package provide QUERY_ONLY
+package require $dynamic
+package require [list computed]
+package require {*}{expanded}
+set fake {package require INERT}
+"#;
+    assert_eq!(
+        package_requires_in(source),
+        [
+            "space name",
+            "::literal$[name]",
+            "brace{data}",
+            "quote\"data",
+            "decoded"
+        ]
+    );
+    assert!(package_requires_in("package require {unterminated").is_empty());
+    assert!(package_requires_in("package require literal\0opaque").is_empty());
+}
+
+#[test]
+fn package_registration_names_and_versions_use_original_values_and_selected_roles() {
+    let directory = Path::new("/library");
+    let index = directory.join("pkgIndex.tcl");
+    let source = r#"
+"package" {ifneeded} { p } {1.0} {source first.tcl}
+package ifneeded {$literal} \u0032.0 {source second.tcl}
+package ifneeded {quoted"name} 3.0 {source third.tcl}
+package ifneeded {} 4.0 {source empty.tcl}
+package ifneeded nested {{5.0}} {source bad.tcl}
+package ifneeded $dynamic 6.0 {source bad.tcl}
+package ifneeded dynamic_version $version {source bad.tcl}
+package ifneeded expanded {*}$names 7.0 {source bad.tcl}
+package ifneeded query 8.0
+"#;
+    let entries = parse_pkg_index(source, directory, &index, &|_| true, &|_| Vec::new());
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| (entry.name.as_str(), entry.version.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            (" p ", "1.0"),
+            ("$literal", "2.0"),
+            ("quoted\"name", "3.0"),
+            ("", "4.0")
+        ]
+    );
+    assert_eq!(entries[0].source_files, vec![directory.join("first.tcl")]);
+    assert_eq!(entries[1].source_files, vec![directory.join("second.tcl")]);
+    assert!(
+        entries
+            .iter()
+            .all(|entry| entry.conditions.is_unconditional())
+    );
+
+    let config = tcl_lexer::LexerConfig::default();
+    let command = "package ifneeded { p } 1.0 {source p.tcl}";
+    let mut tokens = walk_command_words_with_config(command, config).remove(0);
+    let registry = crate::registry_for_dialect("tcl");
+    assert!(registration::select(command, &tokens, registry, config).is_some());
+    let plan = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(command),
+        tcl_lexer::Span::new(0, u32::try_from(command.len()).unwrap()),
+        config,
+    )
+    .unwrap();
+    let mut changed_config = config;
+    changed_config.strict_quoting ^= true;
+    assert!(
+        registration::select_in_plan(command, &tokens, registry, changed_config, &plan).is_none()
+    );
+    assert!(
+        registration::select_in_plan(
+            &format!("{command} # changed"),
+            &tokens,
+            registry,
+            config,
+            &plan
+        )
+        .is_none()
+    );
+    tokens[2][0].span = tcl_lexer::Span::new(0, 1);
+    assert!(registration::select(command, &tokens, registry, config).is_none());
+    let malformed = "package ifneeded p 1.0 {source p.tcl";
+    let tokens = walk_command_words_with_config(malformed, config);
+    assert!(
+        tokens
+            .first()
+            .is_none_or(
+                |tokens| registration::select(malformed, tokens, registry, config).is_none()
+            )
+    );
+}

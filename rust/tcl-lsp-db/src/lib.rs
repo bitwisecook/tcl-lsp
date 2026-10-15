@@ -6158,7 +6158,15 @@ p\uD801 ordinary";
         let mut puts = registry.get("puts").unwrap().clone();
         puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
         registry.insert(puts);
+        let registry = registry
+            .project_for_profile(tcl_registry::model::resolve_environment("tcl8.6").unit_profile());
         let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        assert!(
+            current
+                .context()
+                .resolve_spec(current.commands(), "puts")
+                .is_some()
+        );
         let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
         let mut lowerer = tcl_compiler::lowering::Lowerer::with_config(current.commands(), config)
             .with_resolved_analysis_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -6176,6 +6184,13 @@ p\uD801 ordinary";
         let older = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
                 .with_command_store(Arc::clone(current.commands())),
+        );
+        assert!(Arc::ptr_eq(older.commands(), current.commands()));
+        assert!(
+            older
+                .context()
+                .resolve_spec(older.commands(), "puts")
+                .is_none()
         );
         let unavailable = supplied_cfg_lattice_key(
             &db,

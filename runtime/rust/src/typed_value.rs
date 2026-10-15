@@ -740,6 +740,7 @@ fn scalar_failure_presentation_using(
     record.ok_or(ValueError::ScalarNumericInputUnavailable)
 }
 
+#[cfg(test)]
 pub(crate) fn native_wide_int(
     value: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,
@@ -751,6 +752,7 @@ pub(crate) fn native_wide_int(
     }
 }
 
+#[cfg(test)]
 pub(crate) fn native_double(
     value: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,

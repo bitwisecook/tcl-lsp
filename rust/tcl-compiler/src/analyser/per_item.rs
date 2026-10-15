@@ -918,6 +918,17 @@ impl Analyser {
         if let Some(ps) = super::scope::scope_at_mut(&mut self.result.global_scope, &db.scope_path)
         {
             merge_scope_vars(&mut ps.variables, proc_scope.variables);
+            for (key, span) in proc_scope.original_variable_declaration_spans {
+                if ps
+                    .variables
+                    .get(&key)
+                    .is_some_and(|variable| variable.definition_span == span)
+                {
+                    ps.original_variable_declaration_spans
+                        .entry(key)
+                        .or_insert(span);
+                }
+            }
             ps.procs = proc_scope.procs;
             ps.classes = proc_scope.classes;
             ps.children = proc_scope.children;
@@ -1829,6 +1840,9 @@ fn rebase_scope(s: &mut super::types::Scope, d: u32) {
     for v in s.variables.values_mut() {
         rebase_vardef(v, d);
     }
+    for span in s.original_variable_declaration_spans.values_mut() {
+        *span = shift(*span, d);
+    }
     for p in s.procs.values_mut() {
         rebase_proc(p, d);
     }
@@ -2060,6 +2074,7 @@ fn fix_var_names(v: &mut super::types::VarDef, fix: &impl Fn(&mut String)) {
 fn rebase_scope_names(s: &mut super::types::Scope, fix: &impl Fn(&mut String)) {
     fix(&mut s.name);
     fix_string_keys(&mut s.variables, fix);
+    fix_string_keys(&mut s.original_variable_declaration_spans, fix);
     for v in s.variables.values_mut() {
         fix_var_names(v, fix);
     }

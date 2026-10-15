@@ -763,14 +763,27 @@ pub(crate) fn build_lambda_proc(
         )
     };
     let name = fresh_apply_name();
-    let command_ns_id = vm.definition_namespace_token("tcl::apply");
+    // This VM-owned temporary publication is independent of the lambda's
+    // original execution namespace. Jim owns a flat root command table;
+    // its existing slot publisher constructs the actual CString key object.
+    let (command_ns_id, simple_name) = if vm.uses_native_jim_lookup() {
+        (
+            tcl_core_types::ROOT_NS,
+            tcl_core_types::NameBytes::from(name.as_str()),
+        )
+    } else {
+        (
+            vm.definition_namespace_token("tcl::apply"),
+            tcl_core_types::NameBytes::from(tcl_syntax::naming::written_command_tail(
+                name.as_bytes(),
+            )),
+        )
+    };
     let (binding, publication) = vm.define_proc_binding(ProcDef {
         native_resources: Rc::default(),
         name: name.clone(),
         command_ns_id,
-        simple_name: tcl_core_types::NameBytes::from(tcl_syntax::naming::written_command_tail(
-            name.as_bytes(),
-        )),
+        simple_name,
         execution_namespace,
         params: params_vec,
         parameter_grammar,

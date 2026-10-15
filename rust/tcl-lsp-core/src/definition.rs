@@ -1849,109 +1849,30 @@ pub(crate) fn lookup_var_in_logical_scope<'a>(
     advice.variable_definition(name)
 }
 
-/// Every reference span (other than `var_def`'s own declaration) for the
-/// variable `var_def` denotes, gathered across the whole scope tree by
-/// unifying the aliases Tcl treats as one cell:
-///
-/// * **Namespace / global aliases** — `global v`, `variable v`, `namespace
-///   upvar ns v local` each record a `link_target` (the qualified cell name);
-///   every alias of that cell, and the namespace-level declaration itself,
-///   shares the target, so their declarations (each spells the name) and uses
-///   all unify.  This is the analyser analogue of Tcl's `VAR_LINK`.
-/// * **`TclOO` instance variables** — pre-bound into every method scope with
-///   the *same* `variable v` declaration span; unioning by that shared span
-///   links the per-method copies into the one per-object cell.
-///
-/// A zero-width declaration span (the fallback for a declaration-less
-/// grammar-injected implicit) can't be unioned safely — several such seeds in
-/// one body share it — so that case returns exactly `var_def`'s own
-/// references.  The caller adds `var_def`'s own declaration span itself (when
-/// including the declaration), so it is excluded here.
+/// Current original source occurrences related to the actual declaration.
+/// Conditional aliases remain readonly source candidates, with no successful
+/// link, physical cell or editable-reference-set claim. Missing provenance is
+/// definitive; reporting names and shared declaration spans are not identities.
 #[must_use]
 pub(crate) fn linked_var_reference_spans(
-    scope: &tcl_compiler::analyser::Scope,
+    source: &str,
+    analysis: &AnalysisResult,
     var_def: &tcl_compiler::analyser::VarDef,
-) -> Vec<tcl_lexer::Span> {
-    let mut out = Vec::new();
-    match var_def.link_target.as_deref() {
-        Some(target) => {
-            collect_alias_spans(scope, target, var_def.definition_span, &mut out, 0);
-            // `target`'s own canonical cell (a plain `set` / declaration with
-            // no `link_target` of its own) is never found by the alias-only
-            // scan above, since that scan only unions records that name
-            // `target` as *their own* link target: fold
-            // it in directly.
-            if let Some(canonical) =
-                tcl_compiler::analyser::lookup_var_by_qualified_name(scope, target)
-                && canonical.definition_span != var_def.definition_span
-            {
-                out.push(canonical.definition_span);
-                out.extend(canonical.references.iter().copied());
-            }
-        }
-        None if !var_def.definition_span.is_empty() => {
-            collect_shared_span_refs(scope, var_def.definition_span, &mut out, 0);
-            // The inverse of the fold-in above: `var_def` might itself BE the
-            // canonical cell some `global` / `variable` / `namespace upvar`
-            // alias elsewhere points at — its own
-            // `link_target` is `None` precisely because it isn't an alias, so
-            // this can only be discovered by finding its own qualified name
-            // and searching for aliases of it.
-            if let Some(own_qualified) =
-                tcl_compiler::analyser::qualified_name_for_var_decl(scope, var_def.definition_span)
-            {
-                collect_alias_spans(scope, &own_qualified, var_def.definition_span, &mut out, 0);
-            }
-        }
-        None => out.extend(var_def.references.iter().copied()),
-    }
-    out
-}
-
-/// Declarations (other than `own_decl`) and uses of every variable aliasing the
-/// cell `target`.
-fn collect_alias_spans(
-    scope: &tcl_compiler::analyser::Scope,
-    target: &str,
-    own_decl: tcl_lexer::Span,
-    out: &mut Vec<tcl_lexer::Span>,
-    depth: u32,
-) {
-    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
-        return;
-    }
-    for v in scope.variables.values() {
-        if v.link_target.as_deref() == Some(target) {
-            if v.definition_span != own_decl {
-                out.push(v.definition_span);
-            }
-            out.extend(v.references.iter().copied());
-        }
-    }
-    for child in &scope.children {
-        collect_alias_spans(child, target, own_decl, out, depth + 1);
-    }
-}
-
-/// Uses of every variable sharing the declaration span `def_span` (the `TclOO`
-/// instance-variable case).
-fn collect_shared_span_refs(
-    scope: &tcl_compiler::analyser::Scope,
-    def_span: tcl_lexer::Span,
-    out: &mut Vec<tcl_lexer::Span>,
-    depth: u32,
-) {
-    if crate::MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
-        return;
-    }
-    for v in scope.variables.values() {
-        if v.definition_span == def_span {
-            out.extend(v.references.iter().copied());
-        }
-    }
-    for child in &scope.children {
-        collect_shared_span_refs(child, def_span, out, depth + 1);
-    }
+    cursor: u32,
+) -> Option<Vec<tcl_lexer::Span>> {
+    let declaration =
+        crate::variable_symbol::declaration_at_cursor(source, analysis, var_def, cursor)?;
+    Some(
+        crate::variable_symbol::alias_template_reference_spans(
+            source,
+            analysis,
+            declaration.symbol(),
+            true,
+        )
+        .into_iter()
+        .filter(|span| *span != declaration.declaration_span())
+        .collect(),
+    )
 }
 
 /// Logical namespace-variable coordinate for the cross-document tier.
@@ -1986,17 +1907,11 @@ pub fn qualified_variable_cell_at(
         }
         return scope.namespace_variable_coordinate(base);
     }
-    // A bareword sitting on a namespace-scoped declaration (or a later
-    // same-cell write): the scope tree already knows the cell's qualified
-    // name, so read it off rather than re-deriving one from the word.
-    tcl_compiler::analyser::namespace_variables(&analysis.global_scope)
-        .into_iter()
-        .find(|(_, var)| {
-            let contains =
-                |span: tcl_lexer::Span| span.start() <= cursor_off && cursor_off < span.end();
-            contains(var.definition_span)
+    var_def_at_declaration_offset(&analysis.global_scope, cursor_off)
+        .and_then(|variable| {
+            crate::variable_symbol::declaration_at_cursor(source, analysis, variable, cursor_off)
         })
-        .map(|(qualified, _)| qualified)
+        .and_then(|declaration| declaration.symbol().checked_c_namespace_key())
         .or_else(|| logical_variable_write_coordinate(source, analysis, cursor_off, &scope))
 }
 
@@ -4788,11 +4703,8 @@ c\uD800";
     /// export oracle — what a single-document test resolves against.
     const DOC: CallResolution<'static> = CallResolution::document_only();
 
-    /// `variable_scope_extent`'s nested `innermost` fn and
-    /// `linked_var_reference_spans`'s
-    /// `collect_alias_spans`/`collect_shared_span_refs` all recurse once
-    /// per nested namespace/proc scope, capped by
-    /// `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). 80 nested `namespace eval`
+    /// Scope extent and source-declaration membership must handle nested
+    /// namespace scopes without overflowing. 80 nested `namespace eval`
     /// levels is past the point (confirmed empirically: 100+) where
     /// unguarded namespace-scope recursion overflows `cargo test`'s bare
     /// ~2 MiB per-test default. The assertion is that both return at all,
@@ -4810,8 +4722,18 @@ c\uD800";
         }
         let analysis = analyse(&source);
         let _ = variable_scope_extent(&analysis, "x", 0);
-        if let Some(var_def) = analysis.all_variables.values().next() {
-            let _ = linked_var_reference_spans(&analysis.global_scope, var_def);
+        let mut scopes = vec![&analysis.global_scope];
+        while let Some(scope) = scopes.pop() {
+            if let Some(var_def) = scope.variables.values().next() {
+                let _ = linked_var_reference_spans(
+                    &source,
+                    &analysis,
+                    var_def,
+                    var_def.definition_span.start(),
+                );
+                break;
+            }
+            scopes.extend(&scope.children);
         }
         let _ = cross_namespace_qualified_vars(&analysis.global_scope, &FxHashSet::default());
     }

@@ -29,17 +29,20 @@ pub enum NativeJimNamespaceHelperKind {
     Origin,
     /// Original `namespace inscope` distribution procedure.
     Inscope,
+    /// Original namespace deletion distribution procedure.
+    Delete,
     /// Original private namespace-aware inventory distribution procedure.
     Info,
 }
 impl NativeJimNamespaceHelperKind {
     /// Pinned source families this owner currently supplies.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Which,
         Self::Code,
         Self::Origin,
         Self::Inscope,
         Self::Info,
+        Self::Delete,
     ];
 }
 
@@ -170,6 +173,24 @@ impl crate::InvocationDialect {
                 name: "namespace inscope",
                 parameters: "name arg args",
                 body: "\n\ttailcall namespace eval $name $arg $args\n",
+            },
+            NativeJimNamespaceHelperKind::Delete => NativeJimNamespaceHelper {
+                kind,
+                public_subcommand: true,
+                minimum_arguments: 0,
+                maximum_arguments: usize::MAX,
+                usage: "?name ...?",
+                name: "namespace delete",
+                parameters: "args",
+                body: r#"
+	foreach name $args {
+		if {$name ni {:: ""}} {
+			set name [uplevel 1 [list ::namespace canon $name]]
+			foreach i [info commands ${name}::*] { rename $i "" }
+			uplevel #0 [list unset {*}[info globals ${name}::*]]
+		}
+	}
+"#,
             },
             NativeJimNamespaceHelperKind::Info => NativeJimNamespaceHelper {
                 kind,
@@ -452,6 +473,35 @@ mod namespace_helper_source_tests {
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Info)
+                    .is_none()
+            );
+        }
+    }
+    #[test]
+    fn delete_helper_descriptor_keeps_original_variadic_procedure_and_public_arity() {
+        let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();
+        let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
+        let helper = dialect
+            .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Delete)
+            .unwrap();
+        let source = include_str!("../tests/data/native_jim_namespace_which/nshelper.tcl");
+        assert!(source.contains(&format!(
+            "proc {{{}}} {{{}}} {{{}}}",
+            helper.name(),
+            helper.parameters(),
+            helper.body()
+        )));
+        assert_eq!(helper.usage(), "?name ...?");
+        for count in [0, 1, 2, usize::MAX] {
+            assert!(helper.accepts_public_arguments(count));
+        }
+        assert!(super::NativeJimNamespaceHelperKind::ALL.contains(&helper.kind()));
+        for version in tcl_dialect::TclVersion::ALL {
+            let environment =
+                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+            assert!(
+                crate::InvocationDialect::of_profile(environment.unit_profile())
+                    .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Delete)
                     .is_none()
             );
         }

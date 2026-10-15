@@ -851,6 +851,7 @@ pub(crate) fn capture_completion_checked(
 /// resolution and dispatch only: it does not parse source or repeat word
 /// substitution. Callers retain argv elements for the call duration; this
 /// helper borrows them and neither adopts nor releases them.
+#[cfg(test)]
 pub(crate) fn dispatch_prebuilt_argv(
     interp: &mut Interp,
     argv: &[*mut TclObj],

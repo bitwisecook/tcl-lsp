@@ -2167,6 +2167,9 @@ pub struct Scope {
     pub name_span: Option<Span>,
     /// Variables defined directly in this scope.
     pub variables: HashMap<String, VarDef>,
+    /// Producer-owned first declaration extents, coupled to actual variable
+    /// map entries. These storage keys supply no name or scope interpretation.
+    pub(super) original_variable_declaration_spans: HashMap<String, Span>,
     pub(crate) readonly_dictionary_keys:
         HashMap<String, super::scope::ReadonlyDictionaryKeyVariable>,
     /// Procs defined directly in this scope.
@@ -2246,6 +2249,7 @@ impl Scope {
             body_span: None,
             name_span: None,
             variables: HashMap::new(),
+            original_variable_declaration_spans: HashMap::new(),
             readonly_dictionary_keys: HashMap::new(),
             procs: HashMap::new(),
             classes: HashMap::new(),
@@ -3590,6 +3594,23 @@ impl AnalysisResult {
         }) {
             return false;
         }
+        self.original_variable_alias_coverage()
+    }
+
+    /// Whether the selected recorded variable-alias declarations have complete
+    /// source-name coverage in this actual current image/input/configuration.
+    /// This is not a runtime alias census, successful link, binding continuity,
+    /// element/lifetime, physical cell or editable-reference-set certificate.
+    #[must_use]
+    pub fn original_variable_alias_source_is_complete(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.matches_original_source_image(image, config) && self.original_variable_alias_coverage()
+    }
+
+    fn original_variable_alias_coverage(&self) -> bool {
         self.dynamic_variable_names.is_empty()
             && self.original_variable_name_unknowns.is_empty()
             && self
@@ -5732,5 +5753,43 @@ mod original_definition_suffix_purpose_tests {
         );
         result.body_lexer_config = None;
         assert!(result.definition_tokens(&definition, source).is_none());
+    }
+}
+
+#[cfg(test)]
+mod source_alias_coverage_tests {
+    use super::*;
+
+    #[test]
+    fn selected_alias_source_coverage_requires_current_input_and_all_actual_receipts() {
+        let source = "proc p {} {global shared; puts $shared}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        assert!(!analysis.original_variable_alias_obligations.is_empty());
+        assert_eq!(analysis.original_variable_alias_receipts.len(), 1);
+        assert!(analysis.original_variable_alias_source_is_complete(&image, config));
+        let mut missing_receipts = analysis.clone();
+        missing_receipts.original_variable_alias_receipts.clear();
+        assert!(!missing_receipts.original_variable_alias_source_is_complete(&image, config));
+        let mut missing_input = analysis.clone();
+        missing_input.resolved_input = None;
+        assert!(!missing_input.original_variable_alias_source_is_complete(&image, config));
+        assert!(!analysis.original_variable_alias_source_is_complete(
+            &tcl_lexer::SourceImage::document(&format!("{source} ")),
+            config
+        ));
+        let mut changed_config = config;
+        changed_config.leading_bom = match config.leading_bom {
+            tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+            tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+        };
+        assert!(!analysis.original_variable_alias_source_is_complete(&image, changed_config));
+        let dynamic_source = "set $unknown 1";
+        let dynamic = crate::analyser::Analyser::new().analyse(dynamic_source, "tcl");
+        assert!(!dynamic.original_variable_alias_source_is_complete(
+            &tcl_lexer::SourceImage::document(dynamic_source),
+            dynamic.body_lexer_config.unwrap()
+        ));
     }
 }

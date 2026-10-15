@@ -209,6 +209,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn authored_source_declaration_bodies_are_not_independent_executable_roots() {
+        let registry = CommandRegistry::build_default();
+        let source = "proc subject {} {set value 1; return OK}\nset root VALUE\n";
+        let module = crate::lowering::lower_to_ir(source, &registry);
+        assert_eq!(module.original_authored_declaration_body_units.len(), 1);
+        let roots = module.executable_script_roots();
+        assert!(
+            roots
+                .iter()
+                .any(|(script, _)| std::ptr::eq(*script, &module.top_level))
+        );
+        for (&id, card) in &module.original_authored_declaration_body_units {
+            assert!(module.procedure_ids.owns(id));
+            let procedure = module.body_units.get(&id).unwrap();
+            assert!(card.matches_procedure(&module, procedure));
+            assert!(
+                roots
+                    .iter()
+                    .all(|(script, _)| !std::ptr::eq(*script, &procedure.body))
+            );
+            assert!(
+                module
+                    .original_source_procedure_bodies()
+                    .any(|(owned, body)| { *owned == id && std::ptr::eq(body, procedure) })
+            );
+            assert!(procedure.publication.is_none());
+            assert!(procedure.body.executed_source.is_none());
+        }
+    }
+
+    #[test]
     fn authored_declaration_cards_retain_actual_source_bodies_without_publication() {
         let registry = CommandRegistry::build_default();
         let source = "proc {$literal} {value} {set out $value}";
