@@ -5,6 +5,17 @@ executable uses the selected native core at allocation time and real matching
 upstream libraries. Completed assertion results, host refusals and unexecuted
 suite regions remain separate evidence.
 
+## Original Jim namespace-info projection
+
+The [original SDK capture](jim-namespace-info-projection/README.md) retains15 exact
+rows for genuine/empty global projections and mutable lmap/string-cat controls.
+The actual provider's namespace suite passes79/79;247 provider inputs remain
+unchanged and a fresh upstream check matches clean5bac7c99. This is original
+provider evidence, not Runtime execution acceptance. Runtime genuine/empty
+controls follow observed headers; mutable-case software refusals deliberately
+carry no original-success conformance claim. Local dictionary projection and
+Import entry remain separate obligations.
+
 ## Shared namespace-variable query consumers
 
 The [purpose-selected owner and Runtime capture](variable-namespace-query-bases-20261013/README.md)

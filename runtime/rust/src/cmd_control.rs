@@ -841,6 +841,7 @@ fn refresh_each_loop_group(
     strings: tcl_syntax::native_string::NativeStringProtocol,
     arguments: &OriginalArguments,
     import: Option<&crate::interp::OriginalJimImportEachLoop>,
+    info: Option<&crate::interp::OriginalNamespaceInfoEachLoop>,
 ) -> Result<(), Code> {
     use tcl_cmd_core::native_each_loop::EachLoopAction;
     match action {
@@ -859,6 +860,10 @@ fn refresh_each_loop_group(
             if let Some(import) = import {
                 import
                     .check_values(interp, group.values)
+                    .map_err(|error| interp.report_cmd_error(error.into()))?;
+            }
+            if let Some(info) = info {
+                info.check_values(interp, group.values)
                     .map_err(|error| interp.report_cmd_error(error.into()))?;
             }
             cursor.set_value_length(index, items.len());
@@ -930,6 +935,7 @@ fn assign_each_loop_variable(
     arguments: &OriginalArguments,
     import: Option<&crate::interp::OriginalJimImportEachLoop>,
     group_index: usize,
+    info: Option<&crate::interp::OriginalNamespaceInfoEachLoop>,
 ) -> Result<(), Code> {
     let recipe = protocol.recipe();
     let kind = protocol.kind();
@@ -1005,6 +1011,15 @@ fn assign_each_loop_variable(
             .assigned(interp, group_index, variable, value.map(|_| assigned))
             .map_err(|error| interp.report_cmd_error(error.into()))?;
     }
+    if let Some(info) = info {
+        info.assigned(
+            interp,
+            group_index,
+            variable,
+            value.map(|index| (index, assigned)),
+        )
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    }
     Ok(())
 }
 
@@ -1070,6 +1085,14 @@ fn each_loop_with_original(
         Ok(scope) => scope,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
+    let info = match interp.original_namespace_info_each_loop(
+        argv,
+        collect,
+        &lengths.iter().map(|length| length.0).collect::<Vec<_>>(),
+    ) {
+        Ok(scope) => scope,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
     let jim_empty = if recipe.live_iterators() {
         match interp.native_jim_object_context() {
             Ok(context) => {
@@ -1112,6 +1135,7 @@ fn each_loop_with_original(
                     strings,
                     arguments,
                     import.as_ref(),
+                    info.as_ref(),
                 ) {
                     return code;
                 }
@@ -1131,6 +1155,7 @@ fn each_loop_with_original(
                     arguments,
                     import.as_ref(),
                     group,
+                    info.as_ref(),
                 ) {
                     return code;
                 }
@@ -1145,6 +1170,11 @@ fn each_loop_with_original(
                 }
                 if let Some(import) = &import {
                     if let Err(error) = import.body_completed(interp, code) {
+                        return interp.report_cmd_error(error.into());
+                    }
+                }
+                if let Some(info) = &info {
+                    if let Err(error) = info.body_completed(interp, code) {
                         return interp.report_cmd_error(error.into());
                     }
                 }
@@ -1175,6 +1205,12 @@ fn each_loop_with_original(
                         .map(crate::obj::Owned::as_ptr)
                         .collect::<Vec<_>>();
                     let list = interp.new_list_object(&values);
+                    if let Some(info) = &info {
+                        if let Err(error) = info.finish(interp, list) {
+                            drop_fresh(list);
+                            return interp.report_cmd_error(error.into());
+                        }
+                    }
                     drop(collected);
                     interp.set_result(list);
                 } else if let Some((context, _result_owner)) = jim_empty {

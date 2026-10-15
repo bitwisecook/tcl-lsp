@@ -13,22 +13,33 @@ pub(crate) struct NativeProcedureResources {
     objects: RefCell<Option<Vec<Owned>>>,
     statics: RefCell<Option<Rc<crate::frame::StaticVariables>>>,
     compiled_names: RefCell<Option<Vec<Option<tcl_core_types::NameBytes>>>>,
-    original_jim_import_source: RefCell<Option<OriginalJimImportSource>>,
+    original_jim_namespace_helper_source: RefCell<Option<OriginalJimNamespaceHelperSource>>,
 }
 
-/// The actual Source body created by the original Import installer. This
+/// The actual Source body created by the selected original helper installer. This
 /// retains allocation safety, without a native body or procedure reference.
-pub(crate) struct OriginalJimImportSource {
+pub(crate) struct OriginalJimNamespaceHelperSource {
     body: obj::NativeObjectLifetime,
     context: Weak<crate::native_source::NativeJimObjectContext>,
     origin: Rc<crate::native_source::NativeJimSourceOrigin>,
+    kind: tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
 }
 
-impl OriginalJimImportSource {
+impl OriginalJimNamespaceHelperSource {
     pub(super) fn capture(
         body: &Owned,
         context: &Rc<crate::native_source::NativeJimObjectContext>,
+        kind: tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
+        if !matches!(
+            kind,
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import
+                | tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info
+        ) {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original naming helper Source purpose",
+            ));
+        }
         obj::check_native_liveness(body.as_ptr())?;
         crate::native_source::original_source_info(body.as_ptr(), context)?.ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -39,6 +50,7 @@ impl OriginalJimImportSource {
             body: obj::NativeObjectLifetime::retain(body.as_ptr()),
             context: Rc::downgrade(context),
             origin: crate::native_source::retain_original_source_origin(body.as_ptr(), context)?,
+            kind,
         })
     }
 }
@@ -55,7 +67,7 @@ impl NativeProcedureRoleOwner for ProcDef {
         let compiled_names = owner.native_resources.compiled_names.borrow_mut().take();
         let import_source = owner
             .native_resources
-            .original_jim_import_source
+            .original_jim_namespace_helper_source
             .borrow_mut()
             .take();
         // No owner borrow spans a primary free hook, which can release another
@@ -291,7 +303,7 @@ fn create_declaration(
             objects: RefCell::new(Some(objects)),
             statics: RefCell::new(statics),
             compiled_names: RefCell::new(None),
-            original_jim_import_source: RefCell::new(None),
+            original_jim_namespace_helper_source: RefCell::new(None),
         },
     })
 }
@@ -461,9 +473,9 @@ pub(crate) struct NativeProcedureDefinition {
 }
 
 impl ProcDef {
-    pub(super) fn retain_original_jim_import_source(
+    pub(super) fn retain_original_jim_namespace_helper_source(
         &self,
-        source: OriginalJimImportSource,
+        source: OriginalJimNamespaceHelperSource,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         self.check_native_liveness()?;
         if self.body.checked_ptr()? != source.body.checked_ptr()? {
@@ -473,7 +485,7 @@ impl ProcDef {
         }
         *self
             .native_resources
-            .original_jim_import_source
+            .original_jim_namespace_helper_source
             .borrow_mut() = Some(source);
         Ok(())
     }
@@ -497,10 +509,28 @@ impl ProcDef {
         Option<Rc<crate::native_source::NativeJimSourceOrigin>>,
         tcl_syntax::value::ValueError,
     > {
+        Ok(self
+            .original_jim_namespace_helper_origin(actual)?
+            .and_then(|(kind, origin)| {
+                (kind == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import)
+                    .then_some(origin)
+            }))
+    }
+
+    pub(super) fn original_jim_namespace_helper_origin(
+        &self,
+        actual: &Interp,
+    ) -> Result<
+        Option<(
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
+            Rc<crate::native_source::NativeJimSourceOrigin>,
+        )>,
+        tcl_syntax::value::ValueError,
+    > {
         self.check_native_liveness()?;
         if let Some(source) = self
             .native_resources
-            .original_jim_import_source
+            .original_jim_namespace_helper_source
             .borrow()
             .as_ref()
         {
@@ -523,7 +553,7 @@ impl ProcDef {
                     "original Import current Source birth",
                 ));
             }
-            return Ok(Some(Rc::clone(&source.origin)));
+            return Ok(Some((source.kind, Rc::clone(&source.origin))));
         }
         Ok(None)
     }

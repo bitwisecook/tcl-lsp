@@ -17,9 +17,11 @@ use tcl_syntax::{
 pub(super) struct OriginalSourceInvocation {
     frame: super::native_arguments::OriginalArgumentFrame,
     procedure: std::rc::Weak<super::ProcDef>,
+    purpose: tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
     pub(super) root: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
     argv: Vec<crate::obj::NativeObjectLifetime>,
     pub(super) operands: Vec<Option<OriginalSourceOperand>>,
+    relay: Option<std::rc::Rc<OriginalSourceInvocation>>,
     inventory_return: std::cell::RefCell<
         Option<std::rc::Rc<super::native_jim_lookup::OriginalJimCommandInventoryReturn>>,
     >,
@@ -29,6 +31,21 @@ pub(super) struct OriginalSourceOperand {
     pub(super) source: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
     pub(super) returned: bool,
     inventory: Option<std::rc::Rc<super::native_jim_lookup::OriginalJimCommandInventoryReturn>>,
+}
+
+#[derive(Clone)]
+pub(crate) struct OriginalSourceConstruction {
+    invocation: std::rc::Rc<OriginalSourceInvocation>,
+}
+
+impl OriginalSourceConstruction {
+    pub(crate) fn check(&self, actual: &Interp) -> Result<(), ValueError> {
+        self.invocation.check_retained(actual)
+    }
+
+    pub(super) fn invocation(&self) -> &std::rc::Rc<OriginalSourceInvocation> {
+        &self.invocation
+    }
 }
 
 /// The exact object returned by one reached Command token. This does not
@@ -76,6 +93,100 @@ impl OriginalSourceCommandReturn {
 }
 
 impl OriginalSourceInvocation {
+    pub(super) fn check_suffix(
+        &self,
+        actual: &Interp,
+        inputs: &[*mut crate::obj::TclObj],
+    ) -> Result<(), ValueError> {
+        self.check_retained(actual)?;
+        let start = self.argv.len().checked_sub(inputs.len()).ok_or(
+            ValueError::CommandProtocolUnavailable("original Source construction operand extent"),
+        )?;
+        for (held, &input) in self.argv[start..].iter().zip(inputs) {
+            if held.checked_ptr()? != input {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "original Source construction original operands",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn receive_namespace_info_inventory(
+        &self,
+        actual: &Interp,
+        inventory: std::rc::Rc<super::native_jim_lookup::OriginalJimCommandInventoryReturn>,
+    ) -> Result<(), ValueError> {
+        if self.relay.is_none() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original NamespaceInfo completion receiver",
+            ));
+        }
+        self.check_retained(actual)?;
+        let invocations = actual.jim_invocation_borrows.borrow();
+        if !invocations
+            .last()
+            .and_then(|invocation| invocation.source.as_ref())
+            .is_some_and(|source| std::ptr::eq(source.as_ref(), self))
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original NamespaceInfo selected completion receiver",
+            ));
+        }
+        inventory.check(actual, actual.result_obj())?;
+        *self.inventory_return.borrow_mut() = Some(inventory);
+        Ok(())
+    }
+    pub(super) fn namespace_info_relay(
+        actual: &Interp,
+        original: &[*mut crate::obj::TclObj],
+        source: &std::rc::Rc<Self>,
+    ) -> Result<std::rc::Rc<Self>, ValueError> {
+        source.check_retained(actual)?;
+        if source.relay.is_some() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original NamespaceInfo Source relay issuer",
+            ));
+        }
+        let relay = std::rc::Rc::new(Self {
+            frame: super::native_arguments::OriginalArgumentFrame::capture(actual),
+            procedure: source.procedure.clone(),
+            purpose: source.purpose,
+            root: std::rc::Rc::clone(&source.root),
+            argv: original
+                .iter()
+                .map(|&original| crate::obj::NativeObjectLifetime::retain(original))
+                .collect(),
+            operands: (0..original.len()).map(|_| None).collect(),
+            relay: Some(std::rc::Rc::clone(source)),
+            inventory_return: std::cell::RefCell::new(None),
+        });
+        relay.check(actual, original)?;
+        Ok(relay)
+    }
+
+    pub(super) fn forward_namespace_info_inventory(
+        &self,
+        actual: &Interp,
+        original: *mut crate::obj::TclObj,
+    ) -> Result<(), ValueError> {
+        self.check_retained(actual)?;
+        let caller = self
+            .relay
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original NamespaceInfo inventory relay",
+            ))?;
+        let inventory = self.inventory_return.borrow_mut().take().ok_or(
+            ValueError::CommandProtocolUnavailable(
+                "original NamespaceInfo inventory completion producer",
+            ),
+        )?;
+        inventory.check(actual, original)?;
+        *caller.inventory_return.borrow_mut() = Some(inventory);
+        Ok(())
+    }
+
     pub(super) fn check_retained(&self, actual: &Interp) -> Result<(), ValueError> {
         let argv = self
             .argv
@@ -98,7 +209,8 @@ impl OriginalSourceInvocation {
         let Some(procedure) = procedure else {
             return Ok(None);
         };
-        let Some(installed) = procedure.original_jim_import_origin(actual)? else {
+        let Some((purpose, installed)) = procedure.original_jim_namespace_helper_origin(actual)?
+        else {
             return Ok(None);
         };
         if !installed.same_root(root)
@@ -114,12 +226,14 @@ impl OriginalSourceInvocation {
         Ok(Some(std::rc::Rc::new(Self {
             frame: super::native_arguments::OriginalArgumentFrame::capture(actual),
             procedure: std::rc::Rc::downgrade(&procedure),
+            purpose,
             root: std::rc::Rc::clone(root),
             argv: argv
                 .iter()
                 .map(|&original| crate::obj::NativeObjectLifetime::retain(original))
                 .collect(),
             operands,
+            relay: None,
             inventory_return: std::cell::RefCell::new(None),
         })))
     }
@@ -130,6 +244,9 @@ impl OriginalSourceInvocation {
         argv: &[*mut crate::obj::TclObj],
     ) -> Result<(), ValueError> {
         self.frame.check_frame(actual)?;
+        if let Some(caller) = &self.relay {
+            caller.check_retained(actual)?;
+        }
         let procedure = actual.frames.borrow().current_original_jim_procedure()?;
         let Some((owner, current)) = self.procedure.upgrade().zip(procedure) else {
             return Err(ValueError::CommandProtocolUnavailable(
@@ -138,8 +255,10 @@ impl OriginalSourceInvocation {
         };
         if !std::rc::Rc::ptr_eq(&owner, &current)
             || !owner
-                .original_jim_import_origin(actual)?
-                .is_some_and(|root| root.same_root(&self.root))
+                .original_jim_namespace_helper_origin(actual)?
+                .is_some_and(|(purpose, root)| {
+                    purpose == self.purpose && root.same_root(&self.root)
+                })
             || argv.len() != self.argv.len()
         {
             return Err(ValueError::CommandProtocolUnavailable(
@@ -158,6 +277,31 @@ impl OriginalSourceInvocation {
 }
 
 impl Interp {
+    pub(super) fn original_namespace_info_receiver(
+        &self,
+        argv: Option<&[*mut crate::obj::TclObj]>,
+    ) -> Result<Option<std::rc::Rc<OriginalSourceInvocation>>, ValueError> {
+        let invocations = self.jim_invocation_borrows.borrow();
+        let Some(source) = invocations
+            .last()
+            .and_then(|invocation| invocation.source.as_ref())
+            .filter(|source| source.relay.is_some())
+        else {
+            return Ok(None);
+        };
+        let argv = argv.ok_or(ValueError::CommandProtocolUnavailable(
+            "original NamespaceInfo entered argv",
+        ))?;
+        source.check(self, argv)?;
+        Ok(Some(std::rc::Rc::clone(source)))
+    }
+    pub(crate) fn original_source_construction(
+        &self,
+    ) -> Result<Option<OriginalSourceConstruction>, ValueError> {
+        Ok(self
+            .current_original_source_invocation()?
+            .map(|invocation| OriginalSourceConstruction { invocation }))
+    }
     pub(super) fn current_original_source_invocation(
         &self,
     ) -> Result<Option<std::rc::Rc<OriginalSourceInvocation>>, ValueError> {
@@ -168,6 +312,9 @@ impl Interp {
         let Some(source) = invocation.source.as_ref() else {
             return Ok(None);
         };
+        if source.relay.is_some() {
+            return Ok(None);
+        }
         source.check(self, &invocation.argv)?;
         Ok(Some(std::rc::Rc::clone(source)))
     }
@@ -185,13 +332,38 @@ impl Interp {
             let Some(source) = invocation.source.as_ref() else {
                 return Ok(());
             };
+            if source.relay.is_some() {
+                return Ok(());
+            }
             source.check(self, &invocation.argv)?;
             std::rc::Rc::clone(source)
         };
         let inventory = super::native_jim_lookup::OriginalJimCommandInventoryReturn::capture(
             self, original, keys,
         )?;
-        *source.inventory_return.borrow_mut() = Some(std::rc::Rc::new(inventory));
+        let inventory = std::rc::Rc::new(inventory);
+        if let Some(owner) = self
+            .frames
+            .borrow()
+            .current_original_namespace_info_frame()?
+        {
+            owner.record_data(self, std::rc::Rc::clone(&inventory))?;
+        }
+        *source.inventory_return.borrow_mut() = Some(inventory);
+        Ok(())
+    }
+
+    pub(super) fn record_original_source_inventory_data(
+        &self,
+        inventory: std::rc::Rc<super::native_jim_lookup::OriginalJimCommandInventoryReturn>,
+    ) -> Result<(), ValueError> {
+        let source = self.current_original_source_invocation()?.ok_or(
+            ValueError::CommandProtocolUnavailable(
+                "original inventory projection Source completion",
+            ),
+        )?;
+        inventory.check(self, inventory.original()?)?;
+        *source.inventory_return.borrow_mut() = Some(inventory);
         Ok(())
     }
 
@@ -207,6 +379,9 @@ impl Interp {
         let Some(source) = invocation.source.as_ref() else {
             return Ok(None);
         };
+        if source.relay.is_some() {
+            return Ok(None);
+        }
         source.check(self, &invocation.argv)?;
         if invocation.argv.get(index) != Some(&original) {
             return Err(ValueError::CommandProtocolUnavailable(

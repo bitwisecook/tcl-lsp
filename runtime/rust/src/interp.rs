@@ -92,6 +92,10 @@ mod native_jim_subcommands;
 pub(crate) use native_jim_lookup::OriginalJimLookupNamespace;
 pub(crate) use native_jim_subcommands::OriginalJimNamespaceSubcommandOutcome;
 mod native_jim_namespace;
+mod native_jim_namespace_info;
+pub(crate) use native_jim_namespace_info::{
+    OriginalNamespaceInfoEachLoop, OriginalNamespaceInfoFrame,
+};
 mod native_jim_result;
 pub(crate) mod native_jim_tailcall;
 pub(crate) mod native_literal_pool;
@@ -138,7 +142,7 @@ mod native_object_vector;
 pub(crate) mod native_operation_currency;
 pub(crate) mod native_scalar_context;
 mod native_script;
-pub(crate) use native_script::OriginalSourceCommandReturn;
+pub(crate) use native_script::{OriginalSourceCommandReturn, OriginalSourceConstruction};
 mod native_substitution;
 mod native_variable_names;
 mod native_variable_observers;
@@ -4765,7 +4769,7 @@ impl Interp {
         body_obj: *mut TclObj,
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
-        import_source: Option<native_procedure_resources::OriginalJimImportSource>,
+        import_source: Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
     ) -> Option<OriginalProcedurePublication> {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
@@ -4806,7 +4810,7 @@ impl Interp {
         body_obj: *mut TclObj,
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
-        import_source: Option<native_procedure_resources::OriginalJimImportSource>,
+        import_source: Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
     ) -> Option<OriginalProcedurePublication> {
         if self.host_refusal_pending() {
             return None;
@@ -4857,7 +4861,7 @@ impl Interp {
         body: (
             *mut TclObj,
             obj::Owned,
-            Option<native_procedure_resources::OriginalJimImportSource>,
+            Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
         ),
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
@@ -4900,7 +4904,7 @@ impl Interp {
         body: (
             *mut TclObj,
             obj::Owned,
-            Option<native_procedure_resources::OriginalJimImportSource>,
+            Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
         ),
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
@@ -4956,7 +4960,7 @@ impl Interp {
         body: (
             *mut TclObj,
             obj::Owned,
-            Option<native_procedure_resources::OriginalJimImportSource>,
+            Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
         ),
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
@@ -5001,7 +5005,7 @@ impl Interp {
         body: (
             *mut TclObj,
             obj::Owned,
-            Option<native_procedure_resources::OriginalJimImportSource>,
+            Option<native_procedure_resources::OriginalJimNamespaceHelperSource>,
         ),
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
@@ -5092,7 +5096,7 @@ impl Interp {
         );
         let def = command.declaration();
         if let Some(import_source) = import_source {
-            if let Err(error) = def.retain_original_jim_import_source(import_source) {
+            if let Err(error) = def.retain_original_jim_namespace_helper_source(import_source) {
                 self.report_cmd_error(error.into());
                 return None;
             }
@@ -17597,6 +17601,10 @@ impl Interp {
             return Code::Ok;
         }
         let jim_body = meta.jim_body;
+        let info_receiver = match self.original_namespace_info_receiver(meta.original_argv) {
+            Ok(receiver) => receiver,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
         let (saved_ns, proc_frame) = match self.enter_native_procedure_frame(
             params,
             call_args,
@@ -17649,6 +17657,23 @@ impl Interp {
                 .borrow_mut()
                 .observe_original_jim_import_traversal(Rc::clone(traversal));
         }
+        let info_frame = if let Some(receiver) = info_receiver {
+            self.frames.borrow().current_original_jim_procedure().and_then(|procedure| {
+                match procedure {
+                    Some(procedure) if procedure.original_jim_namespace_helper_origin(self)?.is_some_and(|(kind, _)| kind == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info) => {
+                        native_jim_namespace_info::OriginalNamespaceInfoFrame::capture(self, &procedure, receiver).map(Some)
+                    }
+                    _ => Ok(None),
+                }
+            })
+        } else {
+            Ok(None)
+        };
+        if let Ok(Some(frame)) = &info_frame {
+            self.frames
+                .borrow_mut()
+                .observe_original_namespace_info_frame(Rc::clone(frame));
+        }
         let body_options = self.clear_return_options_checked();
         native_admission.activate();
         let jim_level = self.jim_procedure_level.get();
@@ -17661,6 +17686,12 @@ impl Interp {
                 .map_err(tcl_cmd_core::CmdError::from)
                 .and_then(|()| {
                     import_traversal
+                        .as_ref()
+                        .map(|_| ())
+                        .map_err(|error| error.clone().into())
+                })
+                .and_then(|()| {
+                    info_frame
                         .as_ref()
                         .map(|_| ())
                         .map_err(|error| error.clone().into())
@@ -17692,6 +17723,11 @@ impl Interp {
             .ok()
             .and_then(Option::as_ref)
             .map(|traversal| traversal.normal_completion(self));
+        let info_completion = info_frame
+            .as_ref()
+            .ok()
+            .and_then(Option::as_ref)
+            .map(|frame| frame.completion(self));
         self.release_native_procedure_execution();
         self.jim_procedure_level.set(jim_level);
         // The frame's local variables (and any traces on them) die with it.
@@ -17735,6 +17771,9 @@ impl Interp {
             if let Some(Err(error)) = import_completion {
                 return self.report_cmd_error(error.into());
             }
+            if let Some(Err(error)) = info_completion {
+                return self.report_cmd_error(error.into());
+            }
             if let Err(first) = self.clear_return_options_checked() {
                 return self.refuse_native_execution(first);
             }
@@ -17758,6 +17797,18 @@ impl Interp {
             match import_completion {
                 Some(Err(error)) => self.report_cmd_error(error.into()),
                 _ => settled,
+            }
+        } else {
+            settled
+        };
+        let settled = if settled == Code::Ok {
+            match info_completion {
+                Some(Ok(completion)) => match completion.publish(self) {
+                    Ok(()) => settled,
+                    Err(error) => self.report_cmd_error(error.into()),
+                },
+                Some(Err(error)) => self.report_cmd_error(error.into()),
+                None => settled,
             }
         } else {
             settled

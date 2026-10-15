@@ -1592,6 +1592,7 @@ struct Frame {
     original_jim_procedure: Option<std::rc::Weak<crate::interp::ProcDef>>,
     original_jim_variadic: Option<OriginalJimVariadic>,
     original_jim_import: Option<Rc<crate::interp::OriginalJimImportTraversal>>,
+    original_namespace_info: Option<Rc<crate::interp::OriginalNamespaceInfoFrame>>,
     oo_variable_resolver: Option<crate::cmd_oo::native_variables::NativeOoVariableResolver>,
     native_procedure_execution: Option<
         tcl_runtime_api::native_procedure_roles::NativeProcedureReference<crate::interp::ProcDef>,
@@ -1680,6 +1681,7 @@ impl Frame {
             original_jim_procedure: None,
             original_jim_variadic: None,
             original_jim_import: None,
+            original_namespace_info: None,
             oo_variable_resolver: None,
             native_procedure_execution: None,
             native_local_names: None,
@@ -1896,6 +1898,33 @@ impl FrameStack {
             .last_mut()
             .expect("actual Jim activation")
             .original_jim_import = Some(traversal);
+    }
+
+    pub(crate) fn observe_original_namespace_info_frame(
+        &mut self,
+        frame: Rc<crate::interp::OriginalNamespaceInfoFrame>,
+    ) {
+        self.frames
+            .last_mut()
+            .expect("actual Jim procedure activation")
+            .original_namespace_info = Some(frame);
+    }
+
+    pub(crate) fn current_original_namespace_info_frame(
+        &self,
+    ) -> Result<Option<Rc<crate::interp::OriginalNamespaceInfoFrame>>, tcl_syntax::value::ValueError>
+    {
+        let frame = self
+            .frames
+            .get(self.current_frame_index())
+            .and_then(|frame| frame.original_namespace_info.as_ref())
+            .cloned();
+        if frame.is_some() && self.current_original_jim_procedure()?.is_none() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original NamespaceInfo selected procedure frame",
+            ));
+        }
+        Ok(frame)
     }
 
     pub(crate) fn current_original_jim_import_traversal(

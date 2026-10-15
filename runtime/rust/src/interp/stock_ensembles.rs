@@ -472,11 +472,13 @@ impl Interp {
                     self.refuse_native_execution(first);
                     return None;
                 }
-                let import_source = if kind
-                    == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import
-                {
-                    match super::native_procedure_resources::OriginalJimImportSource::capture(
-                        &body, &context,
+                let import_source = if matches!(
+                    kind,
+                    tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import
+                        | tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info
+                ) {
+                    match super::native_procedure_resources::OriginalJimNamespaceHelperSource::capture(
+                        &body, &context, kind,
                     ) {
                         Ok(source) => Some(source),
                         Err(error) => {

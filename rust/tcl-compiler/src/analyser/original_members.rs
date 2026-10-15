@@ -127,6 +127,11 @@ impl Analyser {
             advice.site(),
             whole,
             member.clone(),
+            OriginalSourceNamePurpose::for_analysis_input(
+                &self.resolved_analysis_input(),
+                self.source_analysis_entry.as_deref(),
+                member.policy(),
+            ),
         )?;
         let proc = procedure.metadata();
         let method = MethodDef {
@@ -1154,6 +1159,7 @@ impl Producer<'_> {
             allocation_site,
             name_word,
             name.clone(),
+            self.name_purpose,
         )?
         .with_source_installer(self.source_installer.clone())?;
         let delegate = self
@@ -1572,6 +1578,14 @@ mod tests {
             panic!("one actual ClassObject member");
         };
         assert_eq!(method.original_name_input().bytes(), b"create");
+        let roles = method
+            .original_parameter_names_and_body(&analysis)
+            .expect("the same genuine Logical formal/body role owner");
+        assert_eq!(
+            roles.parameter_names().collect::<Vec<_>>(),
+            vec!["name", "body"]
+        );
+        assert_eq!(roles.body_word(), method.body_word().unwrap());
         let key = method.original_name_input().original_word_key().unwrap();
         assert!(
             SignatureSourceNameKey::from_original_native_word(

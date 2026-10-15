@@ -11171,3 +11171,13 @@ Readonly Logical formal and alias occurrences retain source-applicability obliga
 Use the shared generated-name owner `suggested_data_group_name` only for data-group suggestions. Explicit supplied names remain literal. iRules flow metadata comes from the actual selected descriptor and original effective operands, and option questions retain the existing full KeywordTable. Shared original argv/body and child carriers remain mandatory; report labels cannot select behavior.
 
 Original Jim namespace table `lookup_using` retains the actual interleaved per-row comparison/prefix/ambiguity order and physical comparison callback. Mutable diagnostic sorting goes through the real selected helper invocation; native result construction keeps private refcount-zero and published refcount-one recipes separate. NamespaceHelpers selects the actual source extension and existing bootstrap token lifecycle independently of primitive Core selection. Raw source-file bodies and original static-extension loaded bodies keep distinct provider purposes until their exact bytes are retained.
+
+## Consume original namespace helper results
+
+Runtime namespace-info results retain the actual installed Source kind, original
+arguments, producer frame, selected iteration and original string construction.
+Use the retained result data after actual successful return; do not reconstruct
+command keys from its members. A returned List may outlive its producer frame.
+Its data receipt checks the actual object context, headers, backing and members;
+it does not retain a live namespace or permit lookup or Import traversal.
+Mutable callbacks need their own actual transformation and completion receipts.

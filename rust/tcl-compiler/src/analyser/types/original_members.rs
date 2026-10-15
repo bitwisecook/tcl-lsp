@@ -43,20 +43,33 @@ impl OriginalSourceMemberDeclaration {
         site: &CommandAllocationSite,
         word: &tcl_lexer::NativeWord,
         input: SignatureSourceNameInput,
+        purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
     ) -> Option<Self> {
         if word.image() != site.source.source_image()
             || site.offset > word.span().start()
             || word.group().expand
-            || word.config().escapes != input.policy().string_protocol().escape_syntax()
+            || purpose.policy() != Some(input.policy())
         {
             return None;
         }
         let static_occurrence = match &input {
             SignatureSourceNameInput::OriginalWord(key) => {
-                (key.original_word() == word).then_some(())?;
+                (purpose
+                    .key(
+                        word,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
+                    )
+                    .as_ref()
+                    == Some(key))
+                .then_some(())?;
                 Some(SourceOriginalNameOccurrence::new(site, key.clone())?)
             }
-            SignatureSourceNameInput::OriginalValue(_) => None,
+            SignatureSourceNameInput::OriginalValue(_) => {
+                // Readonly produced values retain their separate original list owner.
+                (word.config().escapes == input.policy().string_protocol().escape_syntax())
+                    .then_some(())?;
+                None
+            }
             SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
         };
         Some(Self {
@@ -366,10 +379,13 @@ impl OriginalSourceMethodMetadata {
             return None;
         }
         let policy = self.original_name_input().policy();
-        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let key = purpose.key(
             parameters,
             tcl_syntax::word_rules::WordValueRules::from_config(&parameters.config()),
-            policy,
         )?;
         let topology =
             crate::command_binding::formal_topology::OriginalFormalTopology::from_original_key(

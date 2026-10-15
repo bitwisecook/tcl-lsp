@@ -33,8 +33,29 @@ enum OriginalJimCachedStore {
 pub(super) struct OriginalJimCommandInventoryReturn {
     original: obj::NativeObjectLifetime,
     backing: crate::list::NativeListBacking,
-    keys: Vec<crate::namespace::OriginalJimCommandInventoryKey>,
-    namespace: OriginalJimLookupNamespace,
+    members: Vec<OriginalJimInventoryMember>,
+    context: std::rc::Weak<crate::native_source::NativeJimObjectContext>,
+}
+
+pub(super) struct OriginalJimInventoryMember {
+    original: obj::NativeObjectLifetime,
+    provenance: std::rc::Rc<OriginalJimInventoryProvenance>,
+}
+
+enum OriginalJimInventoryProvenance {
+    TableKey {
+        _entry: crate::namespace::OriginalJimCommandInventoryKey,
+    },
+    Constructed {
+        _source: std::rc::Rc<OriginalJimInventoryProvenance>,
+        _constructor: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
+    },
+}
+
+impl OriginalJimInventoryMember {
+    pub(super) fn original(&self) -> Result<*mut TclObj, ValueError> {
+        self.original.checked_ptr()
+    }
 }
 
 impl OriginalJimCommandInventoryReturn {
@@ -43,36 +64,133 @@ impl OriginalJimCommandInventoryReturn {
         original: *mut TclObj,
         keys: Vec<crate::namespace::OriginalJimCommandInventoryKey>,
     ) -> Result<Self, ValueError> {
+        let members = keys
+            .into_iter()
+            .map(|key| {
+                Ok(OriginalJimInventoryMember {
+                    original: obj::NativeObjectLifetime::retain(key.original()?),
+                    provenance: std::rc::Rc::new(OriginalJimInventoryProvenance::TableKey {
+                        _entry: key,
+                    }),
+                })
+            })
+            .collect::<Result<Vec<_>, ValueError>>()?;
+        Self::capture_members(actual, original, members)
+    }
+
+    pub(super) fn capture_members(
+        actual: &Interp,
+        original: *mut TclObj,
+        members: Vec<OriginalJimInventoryMember>,
+    ) -> Result<Self, ValueError> {
         obj::check_native_liveness(original)?;
+        let context = actual.native_jim_object_context()?;
+        crate::native_source::bind_context(original, &context)?;
         let backing = crate::list::native_list_backing(original).ok_or(
             ValueError::CommandProtocolUnavailable("original Jim inventory result List"),
         )?;
         let result = Self {
             original: obj::NativeObjectLifetime::retain(original),
             backing,
-            keys,
-            namespace: OriginalJimLookupNamespace::capture(actual, crate::namespace::GLOBAL)?,
+            members,
+            context: std::rc::Rc::downgrade(&context),
         };
         result.check(actual, original)?;
         Ok(result)
     }
 
+    pub(super) fn original(&self) -> Result<*mut TclObj, ValueError> {
+        self.original.checked_ptr()
+    }
+
+    pub(super) fn has_original_header(&self, original: *mut TclObj) -> bool {
+        self.original.as_ptr() == original
+    }
+
+    pub(super) fn len(&self) -> usize {
+        self.members.len()
+    }
+
+    pub(super) fn member(&self, actual: &Interp, index: usize) -> Result<*mut TclObj, ValueError> {
+        self.check(actual, self.original()?)?;
+        self.members
+            .get(index)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original inventory member ordinal",
+            ))?
+            .original()
+    }
+
+    pub(super) fn constructed_member(
+        &self,
+        actual: &Interp,
+        index: usize,
+        construction: &crate::value_ops::OriginalJimStringCatConstruction<'_>,
+    ) -> Result<OriginalJimInventoryMember, ValueError> {
+        let (inputs, output, source) = construction.checked_parts(actual)?;
+        let source = source.ok_or(ValueError::CommandProtocolUnavailable(
+            "original inventory construction Source owner",
+        ))?;
+        let constructor = std::rc::Rc::clone(&source.invocation().root);
+        let input = *inputs.last().ok_or(ValueError::CommandProtocolUnavailable(
+            "original inventory construction input",
+        ))?;
+        self.check(actual, self.original()?)?;
+        let member = self
+            .members
+            .get(index)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original inventory construction member index",
+            ))?;
+        if member.original()? != input {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original inventory construction input header",
+            ));
+        }
+        obj::check_native_liveness(output)?;
+        crate::native_source::bind_context(output, &actual.native_jim_object_context()?)?;
+        Ok(OriginalJimInventoryMember {
+            original: obj::NativeObjectLifetime::retain(output),
+            provenance: std::rc::Rc::new(OriginalJimInventoryProvenance::Constructed {
+                _source: std::rc::Rc::clone(&member.provenance),
+                _constructor: constructor,
+            }),
+        })
+    }
+
     pub(super) fn check(&self, actual: &Interp, original: *mut TclObj) -> Result<(), ValueError> {
-        self.namespace.check(actual)?;
+        actual.check_entered_native_operation().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("original Jim inventory result operation")
+        })?;
+        let context = actual.native_jim_object_context()?;
+        if !self
+            .context
+            .upgrade()
+            .is_some_and(|original| std::rc::Rc::ptr_eq(&original, &context))
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim inventory result context",
+            ));
+        }
         if self.original.checked_ptr()? != original {
             return Err(ValueError::CommandProtocolUnavailable(
                 "original Jim inventory result header",
             ));
         }
+        if !std::rc::Rc::ptr_eq(&crate::native_source::context(original)?, &context) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim inventory result header context",
+            ));
+        }
         self.backing.check_original_header(original)?;
         let members = self.backing.elements()?;
-        if members.len() != self.keys.len() {
+        if members.len() != self.members.len() {
             return Err(ValueError::CommandProtocolUnavailable(
                 "original Jim inventory result members",
             ));
         }
-        for (&member, key) in members.iter().zip(&self.keys) {
-            if key.original()? != member {
+        for (&member, original) in members.iter().zip(&self.members) {
+            if original.original()? != member {
                 return Err(ValueError::CommandProtocolUnavailable(
                     "original Jim inventory original member",
                 ));
@@ -598,7 +716,28 @@ impl Interp {
                     let mut invocation = Vec::with_capacity(original.len() + 1);
                     invocation.push(head.as_ptr());
                     invocation.extend_from_slice(original);
-                    self.dispatch(&invocation)
+                    let relay = self
+                        .current_original_source_invocation()?
+                        .map(|source| {
+                            super::native_script::OriginalSourceInvocation::namespace_info_relay(
+                                self,
+                                &invocation,
+                                &source,
+                            )
+                        })
+                        .transpose()?;
+                    let code = if let Some(relay) = &relay {
+                        self.dispatch_original_source(&invocation, Some(relay))
+                    } else {
+                        self.dispatch(&invocation)
+                    };
+                    check(self)?;
+                    if code == Code::Ok {
+                        if let Some(relay) = relay {
+                            relay.forward_namespace_info_inventory(self, self.result_obj())?;
+                        }
+                    }
+                    code
                 }
                 tcl_registry::commands::tcl::NativeJimCommandInventory::Flat {
                     pattern,

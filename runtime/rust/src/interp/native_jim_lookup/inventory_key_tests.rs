@@ -180,3 +180,58 @@ fn completed_inventory_receipts_keep_original_list_correspondence_without_native
     operation.currency().ensure_current_or_refuse().unwrap();
     assert!(interpreter.native_execution_refusal().is_none());
 }
+
+#[test]
+fn completed_inventory_data_crosses_frames_but_keeps_its_actual_interpreter() {
+    let mut actual = Interp::with_native_core(
+        super::super::default_host(),
+        crate::environment::profile_for_dialect("jimtcl"),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .unwrap();
+    let foreign = Interp::with_native_core(
+        super::super::default_host(),
+        crate::environment::profile_for_dialect("jimtcl"),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .unwrap();
+    assert_eq!(actual.eval_str(b"proc original_data {} {}"), Code::Ok);
+    let operation =
+        super::super::native_operation_currency::NativeOperationScope::enter(&actual).unwrap();
+    let key = actual
+        .namespaces()
+        .original_jim_command_inventory_keys(
+            tcl_runtime_api::NativeJimCommandInventoryKind::Commands,
+            &|_, _| true,
+        )
+        .unwrap()
+        .into_iter()
+        .find(|key| key.report == b"original_data")
+        .unwrap();
+    let result = Owned::fresh(actual.new_list_object(&[key.original().unwrap()]));
+    let receipt =
+        OriginalJimCommandInventoryReturn::capture(&actual, result.as_ptr(), vec![key]).unwrap();
+    actual.frames.borrow_mut().push(crate::namespace::GLOBAL);
+    receipt.check(&actual, result.as_ptr()).unwrap();
+    assert_eq!(
+        actual.frames.borrow_mut().pop(),
+        Some(crate::namespace::GLOBAL)
+    );
+    let foreign_operation =
+        super::super::native_operation_currency::NativeOperationScope::enter(&foreign).unwrap();
+    assert!(receipt.check(&foreign, result.as_ptr()).is_err());
+    assert!(crate::native_source::bind_context(
+        result.as_ptr(),
+        &foreign.native_jim_object_context().unwrap()
+    )
+    .is_err());
+    foreign_operation
+        .currency()
+        .ensure_current_or_refuse()
+        .unwrap();
+    drop(foreign_operation);
+    receipt.check(&actual, result.as_ptr()).unwrap();
+    operation.currency().ensure_current_or_refuse().unwrap();
+    assert!(actual.native_execution_refusal().is_none());
+    assert!(foreign.native_execution_refusal().is_none());
+}

@@ -643,7 +643,11 @@ fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// proc/source boundaries (`Tcl_ReturnObjCmd`). A `-options` dict (as produced
 /// by `catch`) seeds the options; explicit flags override it.
 pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    crate::return_options::command(interp, &argv[1..])
+    let code = crate::return_options::command(interp, &argv[1..]);
+    if let Err(error) = interp.record_original_namespace_info_return(argv, code) {
+        return interp.report_cmd_error(error.into());
+    }
+    code
 }
 
 // unset

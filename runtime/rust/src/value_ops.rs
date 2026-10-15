@@ -48,8 +48,11 @@ mod native_indexed_append;
 #[cfg(test)]
 #[path = "value_ops/native_integer_refusal_tests.rs"]
 mod native_integer_refusal_tests;
+#[path = "value_ops/native_jim_cat.rs"]
+mod native_jim_cat;
 #[path = "value_ops/native_jim_index.rs"]
 mod native_jim_index;
+pub(crate) use native_jim_cat::OriginalJimStringCatConstruction;
 pub(crate) use native_jim_index::list_length_using;
 #[path = "value_ops/native_list_index.rs"]
 pub(crate) mod native_list_index;
@@ -1480,9 +1483,33 @@ impl ValueOps for Interp {
         if !protocol.is_jim084() {
             return Ok(None);
         }
-        if let [only] = args {
-            obj::check_native_liveness(*only)?;
-        }
+        let operation = crate::interp::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim string cat operation")
+            })?;
+        let source = self.original_source_construction()?;
+        let lifetimes = args
+            .iter()
+            .map(|&original| {
+                obj::check_native_liveness(original)?;
+                Ok(obj::NativeObjectLifetime::retain(original))
+            })
+            .collect::<Result<Vec<_>, ValueError>>()?;
+        let check = |original: &RuntimeAppendValue| -> Result<(), ValueError> {
+            operation
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("original Jim string cat operation")
+                })?;
+            if let Some(source) = &source {
+                source.check(self)?;
+            }
+            for original in &lifetimes {
+                original.checked_ptr()?;
+            }
+            obj::check_native_liveness(original.as_ptr())
+        };
         let originals: Vec<_> = args
             .iter()
             .copied()
@@ -1492,15 +1519,38 @@ impl ValueOps for Interp {
             dialect,
             binary_recipe: None,
         };
-        tcl_cmd_core::native_cat::concatenate_jim(&objects, protocol, &originals, |original| {
-            crate::dict::native_object_bytes_with_integer_formatter(
-                original.as_ptr(),
-                protocol,
-                self.host().native_integer_formatter(),
-            )
-            .map(Rc::from)
-        })
-        .map(|result| Some(result.into_native_unowned()))
+        let retain = |error: &ValueError| {
+            if let Some(refusal) = error.native_access_refusal() {
+                operation.currency().retain_refusal(
+                    &tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(refusal),
+                );
+            }
+        };
+        let result = tcl_cmd_core::native_cat::concatenate_jim_checked(
+            &objects,
+            protocol,
+            &originals,
+            &mut |original: &RuntimeAppendValue| {
+                self.native_object_string_bytes_using(
+                    original.as_ptr(),
+                    &|| check(original),
+                    &|error| error,
+                )
+            },
+            &mut |original| check(original),
+            &mut |error| retain(error),
+        )?;
+        let construction = OriginalJimStringCatConstruction::completed(
+            &lifetimes,
+            result.as_ptr(),
+            source.clone(),
+        );
+        let recorded = self.record_original_namespace_info_cat(&construction);
+        if let Err(error) = &recorded {
+            retain(error);
+        }
+        recorded?;
+        Ok(Some(result.into_native_unowned()))
     }
 
     fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {
