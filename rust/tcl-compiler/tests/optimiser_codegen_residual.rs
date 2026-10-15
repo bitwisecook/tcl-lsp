@@ -39,7 +39,7 @@
 //!   * `src/codegen/cmd_subst.rs` — the command-substitution lowering
 //!     discriminators `codegen_depth.rs` skips: every `string is CLASS`
 //!     branch (alpha / integer / double / boolean, strict and non-strict),
-//!     `string replace`'s fast 0..N path vs the `strreplace` fallback,
+//!     `string replace`'s fast before-the-start path vs the `strreplace` fallback,
 //!     `string equal/compare`'s `-nocase`/`-length` `INVOKE_REPLACE` forms,
 //!     `array names`/`size`, multi-key `dict get`, `lreplace`/`linsert`,
 //!     `regexp`'s nocase-glob vs plain-2-arg forms, and the
@@ -131,6 +131,18 @@ fn sink_only(src: &str) -> Vec<(bool, String)> {
 /// Opcodes emitted by `emit_inline_cmd_subst(text)` in the given scope.
 fn inline_ops(is_proc: bool, params: &[&str], text: &str) -> Vec<Op> {
     let reg = registry();
+    let mut ctx = CodegenCtx::new(is_proc, params, &reg);
+    ctx.emit_inline_cmd_subst(text);
+    ctx.instructions.iter().map(|i| i.op).collect()
+}
+
+/// `inline_ops` against the registry projected to Tcl 8.6, whose compiler
+/// has the `string is` and `string replace` compile procedures the
+/// release-blind registry leaves unsettled.
+fn inline_ops_at_8_6(is_proc: bool, params: &[&str], text: &str) -> Vec<Op> {
+    let profile =
+        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 is a catalogue profile");
+    let reg = registry().project_for_profile(profile);
     let mut ctx = CodegenCtx::new(is_proc, params, &reg);
     ctx.emit_inline_cmd_subst(text);
     ctx.instructions.iter().map(|i| i.op).collect()
@@ -513,12 +525,12 @@ fn cmd_subst_string_is_alpha_class_branches() {
     // A character class (`alpha`) with a known `str_class_id` lowers to the
     // single specialised `STR_CLASS` opcode.
     assert_eq!(
-        inline_ops(true, &["x"], "[string is alpha $x]"),
+        inline_ops_at_8_6(true, &["x"], "[string is alpha $x]"),
         vec![Op::LOAD_SCALAR1, Op::STR_CLASS],
     );
     // `-strict` on a *character* class cannot use `STR_CLASS` (it reports the
     // empty string as a member), so it defers to the generic command invoke.
-    let strict = inline_ops(true, &["x"], "[string is alpha -strict $x]");
+    let strict = inline_ops_at_8_6(true, &["x"], "[string is alpha -strict $x]");
     assert!(
         strict.contains(&Op::INVOKE_STK1) && !strict.contains(&Op::STR_CLASS),
         "strict char-class defers to generic invoke: {strict:?}",
@@ -529,14 +541,14 @@ fn cmd_subst_string_is_alpha_class_branches() {
 fn cmd_subst_string_is_integer_strict_and_nonstrict() {
     // `string is integer` (non-`-strict`) emits the empty-string-membership
     // dance (`STR_EQ` against "") plus the `NUMERIC_TYPE <= 3` integer test.
-    let nonstrict = inline_ops(true, &["x"], "[string is integer $x]");
+    let nonstrict = inline_ops_at_8_6(true, &["x"], "[string is integer $x]");
     assert!(
         nonstrict.contains(&Op::NUMERIC_TYPE) && nonstrict.contains(&Op::STR_EQ),
         "non-strict integer: empty-check + numeric-type: {nonstrict:?}",
     );
     // `-strict` drops the empty-string acceptance: a shorter `NUMERIC_TYPE`,
     // `JUMP_FALSE1`, `LE`-3 sequence with no `STR_EQ`.
-    let strict = inline_ops(true, &["x"], "[string is integer -strict $x]");
+    let strict = inline_ops_at_8_6(true, &["x"], "[string is integer -strict $x]");
     assert!(
         strict.contains(&Op::NUMERIC_TYPE)
             && strict.contains(&Op::LE)
@@ -552,7 +564,7 @@ fn cmd_subst_string_is_integer_strict_and_nonstrict() {
 fn cmd_subst_string_is_double_strict_and_nonstrict() {
     // `string is double` strict path: `NUMERIC_TYPE` then a `JUMP_TRUE1`
     // branch pushing 0/1 — no empty-string `STR_EQ`.
-    let strict = inline_ops(true, &["x"], "[string is double -strict $x]");
+    let strict = inline_ops_at_8_6(true, &["x"], "[string is double -strict $x]");
     assert!(
         strict.first() == Some(&Op::LOAD_SCALAR1)
             && strict.contains(&Op::NUMERIC_TYPE)
@@ -560,7 +572,7 @@ fn cmd_subst_string_is_double_strict_and_nonstrict() {
         "strict double: {strict:?}",
     );
     // Non-strict accepts the empty string first (a leading `STR_EQ` vs "").
-    let nonstrict = inline_ops(true, &["x"], "[string is double $x]");
+    let nonstrict = inline_ops_at_8_6(true, &["x"], "[string is double $x]");
     assert!(
         nonstrict.contains(&Op::STR_EQ) && nonstrict.contains(&Op::NUMERIC_TYPE),
         "non-strict double accepts empty: {nonstrict:?}",
@@ -572,7 +584,7 @@ fn cmd_subst_string_is_double_strict_and_nonstrict() {
 fn cmd_subst_string_is_boolean_uses_try_cvt() {
     // `string is boolean` lowers through `TRY_CVT_TO_BOOLEAN` plus the
     // empty-string accept.
-    let ops = inline_ops(true, &["x"], "[string is boolean $x]");
+    let ops = inline_ops_at_8_6(true, &["x"], "[string is boolean $x]");
     assert!(
         ops.contains(&Op::TRY_CVT_TO_BOOLEAN) && ops.contains(&Op::STR_EQ),
         "boolean: tryCvtToBoolean + empty accept: {ops:?}",
@@ -582,10 +594,12 @@ fn cmd_subst_string_is_boolean_uses_try_cvt() {
 
 #[test]
 fn cmd_subst_string_replace_fast_path_and_fallback() {
-    // `emit_inline_string_replace`: a `0 N` prefix-replace takes the fast
-    // `reverse; strRangeImm; strConcat1` path (drop the first N+1 chars, prepend
-    // the replacement).
-    let fast = inline_ops(true, &["s"], "[string replace $s 0 2 X]");
+    // `emit_inline_string_replace`: a replace whose first index is before the
+    // start takes the fast `reverse; strRangeImm; strConcat1` path (drop the
+    // first N+1 chars, prepend the replacement), as `TclCompileStringReplaceCmd`
+    // does; a first index of 0 is not before the start and compiles to
+    // `strreplace`.
+    let fast = inline_ops_at_8_6(true, &["s"], "[string replace $s -1 2 X]");
     assert!(
         fast.contains(&Op::REVERSE)
             && fast.contains(&Op::STR_RANGE_IMM)
@@ -593,10 +607,10 @@ fn cmd_subst_string_replace_fast_path_and_fallback() {
             && !fast.contains(&Op::STR_REPLACE),
         "0..N replace fast path: {fast:?}",
     );
-    // tclsh: string replace abcdef 0 2 X → Xdef  (8.6 + 9.0)
+    // tclsh: string replace abcdef -1 2 X → Xdef  (8.6 + 9.0)
 
     // A mid-string range (`2 3`) falls back to the general `STR_REPLACE` opcode.
-    let fallback = inline_ops(true, &["s"], "[string replace $s 2 3 X]");
+    let fallback = inline_ops_at_8_6(true, &["s"], "[string replace $s 2 3 X]");
     assert!(
         fallback.contains(&Op::STR_REPLACE) && !fallback.contains(&Op::STR_RANGE_IMM),
         "mid-string replace → strreplace fallback: {fallback:?}",
@@ -692,15 +706,15 @@ fn cmd_subst_lreplace_and_linsert_use_lreplace4() {
 #[test]
 fn cmd_subst_regexp_nocase_glob_and_plain_forms() {
     // `emit_inline_regexp`: a `-nocase` pattern that converts to a glob lowers
-    // to `STR_MATCH` (case-insensitive); a plain 2-arg `regexp` lowers to the
-    // `REGEXP` opcode.
+    // to `STR_MATCH` (case-insensitive); a plain 2-arg `regexp` whose pattern
+    // `TclReToGlob` cannot convert lowers to the `REGEXP` opcode.
     let nocase = inline_ops(true, &["s"], "[regexp -nocase abc $s]");
     assert!(
         nocase.contains(&Op::STR_MATCH) && !nocase.contains(&Op::REGEXP),
         "regexp -nocase glob → STR_MATCH: {nocase:?}",
     );
     // tclsh: regexp -nocase {ABC} "xxabcyy" → 1  (case-insensitive, 8.6 + 9.0)
-    let plain = inline_ops(true, &["s"], "[regexp foo $s]");
+    let plain = inline_ops(true, &["s"], "[regexp {fo+} $s]");
     assert!(
         plain.contains(&Op::REGEXP) && !plain.contains(&Op::STR_MATCH),
         "plain 2-arg regexp → REGEXP: {plain:?}",

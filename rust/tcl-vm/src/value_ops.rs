@@ -131,6 +131,10 @@ impl ValueOps for Vm {
         v.to_char_str()
     }
 
+    fn is_untyped_or_string(&mut self, v: &Value) -> bool {
+        v.is_untyped_or_string()
+    }
+
     fn char_len(&mut self, v: &Value) -> usize {
         string_char_len(&v.to_char_str(), self.runtime_version())
     }

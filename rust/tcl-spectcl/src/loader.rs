@@ -2770,6 +2770,12 @@ const INLINE_CODEGEN_HOOKS: &[InlineCodegenHookId] = &[
     InlineCodegenHookId::Break,
     InlineCodegenHookId::Continue,
     InlineCodegenHookId::Try,
+    InlineCodegenHookId::StringIs,
+    InlineCodegenHookId::StringMatch,
+    InlineCodegenHookId::StringReplace,
+    InlineCodegenHookId::StringTrim,
+    InlineCodegenHookId::StringTrimLeft,
+    InlineCodegenHookId::StringTrimRight,
 ];
 
 const RETURN_TYPE_HOOKS: &[ReturnTypeHookId] = &[

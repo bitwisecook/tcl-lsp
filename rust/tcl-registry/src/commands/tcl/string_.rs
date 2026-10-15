@@ -1231,6 +1231,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Test if string is a member of a character class.",
         synopsis: "string is class ?-strict? ?-failindex varname? string",
         return_type: Some(TclType::Boolean),
+        // `TclCompileStringIsCmd` arrives in 8.6; before it the command runs.
+        inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
+            value: crate::hooks::InlineCodegenHookId::StringIs,
+        }],
         const_fold_versioned: Some(fold_is),
         // Deliberately NOT `pure: true`: `-failindex` (documented since
         // Tcl 8.4) optionally writes its `varname` argument, and the
@@ -1448,6 +1453,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Test glob-style pattern match.",
         synopsis: "string match ?-nocase? pattern string",
         pure: true,
+        inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::StringMatch),
         const_fold: Some(fold_match),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_MATCH),
         return_type: Some(TclType::Boolean),
@@ -1545,6 +1551,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(3, 4),
         detail: "Replace range with new string.",
         synopsis: "string replace string first last ?newString?",
+        // `TclCompileStringReplaceCmd` arrives in 8.6; before it the command
+        // runs.
+        inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
+            value: crate::hooks::InlineCodegenHookId::StringReplace,
+        }],
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_replace),
@@ -1729,6 +1741,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Trim leading and trailing characters.",
         synopsis: "string trim string ?chars?",
         pure: true,
+        // `TclCompileStringTrimCmd` arrives in 8.6; before it the command runs.
+        inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
+            value: crate::hooks::InlineCodegenHookId::StringTrim,
+        }],
         return_type: Some(TclType::String),
         const_fold: Some(fold_trim),
         semantics: SemanticsDeclaration::Declared(
@@ -1745,6 +1762,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Trim leading characters.",
         synopsis: "string trimleft string ?chars?",
         pure: true,
+        // `TclCompileStringTrimLCmd` arrives in 8.6; before it the command runs.
+        inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
+            value: crate::hooks::InlineCodegenHookId::StringTrimLeft,
+        }],
         return_type: Some(TclType::String),
         const_fold: Some(fold_trimleft),
         semantics: SemanticsDeclaration::Declared(
@@ -1761,6 +1783,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Trim trailing characters.",
         synopsis: "string trimright string ?chars?",
         pure: true,
+        // `TclCompileStringTrimRCmd` arrives in 8.6; before it the command runs.
+        inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
+            value: crate::hooks::InlineCodegenHookId::StringTrimRight,
+        }],
         return_type: Some(TclType::String),
         const_fold: Some(fold_trimright),
         semantics: SemanticsDeclaration::Declared(

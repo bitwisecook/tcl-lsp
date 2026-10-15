@@ -123,6 +123,10 @@ pub fn repeat<O: ValueOps>(
     count: &O::Value,
 ) -> Result<O::Value, CmdError> {
     let n = ops.as_int(count)?;
+    // One copy is the value itself (`StringReptCmd`).
+    if n == 1 {
+        return Ok(s.clone());
+    }
     if n <= 0 {
         return Ok(ops.empty());
     }
@@ -479,9 +483,9 @@ pub fn replace<O: ValueOps>(
     let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
     let first = index::resolve_with(&ops.as_str(&args[1]), len, numbers)?;
     let last = index::resolve_with(&ops.as_str(&args[2]), len, numbers)?;
+    // A range outside the string leaves the value itself (`StringRplcCmd`).
     if last < 0 || first > end || last < first {
-        let unchanged: String = chars.iter().collect();
-        return Ok(ops.new_string(unchanged));
+        return Ok(args[0].clone());
     }
     let first = first.max(0);
     let last = last.min(end);
@@ -527,6 +531,10 @@ pub fn insert<O: ValueOps>(
 /// # Errors
 /// The value-size limit, when the concatenation would be over it.
 pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    // One word is the value itself (`StringCatCmd`).
+    if let [only] = args {
+        return Ok(only.clone());
+    }
     value_size::charge(ops, |ops, cap| value_size::joined(ops, args, 0, cap))?;
     let mut out = String::new();
     for a in args {
@@ -543,6 +551,13 @@ const DEFAULT_TRIM_SET: &[char] = &[
     '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{200b}', '\u{2028}', '\u{2029}',
     '\u{202f}', '\u{205f}', '\u{2060}', '\u{3000}', '\u{feff}',
 ];
+
+/// The characters `string trim` strips without a set of its own, as one
+/// string (C's `tclDefaultTrimSet`, which the compiled trim pushes).
+#[must_use]
+pub fn default_trim_set() -> String {
+    DEFAULT_TRIM_SET.iter().collect()
+}
 
 /// `string trim`/`trimleft`/`trimright` — strip `chars` (default the TIP #413
 /// whitespace set) from the requested ends.
@@ -662,8 +677,13 @@ pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Va
             ));
         }
     };
-    let pattern = ops.as_str(pat).to_string();
-    let text = ops.as_str(s).to_string();
+    // `TclStringMatchObj` reads both by character where the string has no
+    // type or is a string, converting the pattern too.
+    let (pattern, text) = if ops.is_untyped_or_string(s) {
+        (ops.as_chars(pat), ops.as_chars(s))
+    } else {
+        (ops.as_str(pat), ops.as_str(s))
+    };
     Ok(ops.new_bool(tcl_syntax::glob::string_case_match(&pattern, &text, nocase)))
 }
 
@@ -708,17 +728,30 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
     if items.len() % 2 != 0 {
         return Err(CmdError::new("char map list unbalanced"));
     }
+    // As `StringMapCmd`: an empty map leaves the value itself, any other reads
+    // the string by character, and an empty string stops there; a single pair
+    // reads its key by character and its value only where the key could match
+    // (non-empty and no longer than the string), while several pairs read
+    // every key and value so.
+    if items.is_empty() {
+        return Ok(text.clone());
+    }
+    let string = ops.as_chars(text).to_string();
+    if string.is_empty() {
+        return Ok(ops.empty());
+    }
     let mut map: Vec<(String, String)> = Vec::with_capacity(items.len() / 2);
     for c in items.as_chunks::<2>().0 {
-        map.push((ops.as_str(&c[0]).to_string(), ops.as_str(&c[1]).to_string()));
+        let key = ops.as_chars(&c[0]).to_string();
+        let reads_value =
+            items.len() > 2 || (!key.is_empty() && key.chars().count() <= string.chars().count());
+        let value = if reads_value {
+            ops.as_chars(&c[1])
+        } else {
+            ops.as_str(&c[1])
+        };
+        map.push((key, value.to_string()));
     }
-    // An empty map leaves the string unread; any other reads it by character.
-    let string = if map.is_empty() {
-        ops.as_str(text)
-    } else {
-        ops.as_chars(text)
-    }
-    .to_string();
 
     // Case-insensitive matching folds full Unicode case (like `string equal
     // -nocase` and `tolower`), not just ASCII, and matches/advances by

@@ -267,6 +267,26 @@ pub enum InlineCodegenHookId {
     /// `try body on error {var} handler` inside a catch body —
     /// inline two-range catch/handler sequence.
     Try,
+    /// `string is class ?-strict? string` — `strclass` and the numeric
+    /// checks `TclCompileStringIsCmd` compiles (subcommand-keyed).
+    StringIs,
+    /// `string match ?-nocase? pattern string` — `streq` for a literal
+    /// pattern with no glob character, else `strmatch`
+    /// (`TclCompileStringMatchCmd`; subcommand-keyed).
+    StringMatch,
+    /// `string replace string first last ?newString?` — the forms
+    /// `TclCompileStringReplaceCmd` settles on literal indices, else
+    /// `strreplace` (subcommand-keyed).
+    StringReplace,
+    /// `string trim string ?chars?` — `strtrim` (`TclCompileStringTrimCmd`;
+    /// subcommand-keyed).
+    StringTrim,
+    /// `string trimleft string ?chars?` — `strtrimLeft`
+    /// (`TclCompileStringTrimLCmd`; subcommand-keyed).
+    StringTrimLeft,
+    /// `string trimright string ?chars?` — `strtrimRight`
+    /// (`TclCompileStringTrimRCmd`; subcommand-keyed).
+    StringTrimRight,
 }
 
 /// Typed identifier for an analyser per-command handler family.

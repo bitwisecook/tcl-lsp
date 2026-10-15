@@ -343,6 +343,12 @@ pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
     v("Break", "break"),
     v("Continue", "continue"),
     v("Try", "try"),
+    v("StringIs", "string is"),
+    v("StringMatch", "string match"),
+    v("StringReplace", "string replace"),
+    v("StringTrim", "string trim"),
+    v("StringTrimLeft", "string trimleft"),
+    v("StringTrimRight", "string trimright"),
 ];
 
 /// [`ReturnTypeHookId`] — the algorithm that types a call whose result shape
@@ -1117,7 +1123,13 @@ mod tests {
             | InlineCodegenHookId::Error
             | InlineCodegenHookId::Break
             | InlineCodegenHookId::Continue
-            | InlineCodegenHookId::Try => true,
+            | InlineCodegenHookId::Try
+            | InlineCodegenHookId::StringIs
+            | InlineCodegenHookId::StringMatch
+            | InlineCodegenHookId::StringReplace
+            | InlineCodegenHookId::StringTrim
+            | InlineCodegenHookId::StringTrimLeft
+            | InlineCodegenHookId::StringTrimRight => true,
         }
     }
 

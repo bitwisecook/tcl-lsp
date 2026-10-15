@@ -883,6 +883,42 @@ struct GuardedCommands {
     host: HashSet<u64>,
 }
 
+/// The scripts runtime evaluation has compiled, both forms.
+#[derive(Default)]
+struct ScriptCaches {
+    /// Cache of compiled scripts for the runtime-`eval` / command-substitution
+    /// path (`eval_source`), keyed by constructed namespace and source text.
+    /// Compilation is a pure function of those values and the currently
+    /// selected profile, so a script
+    /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
+    /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
+    /// time. This is the dominant cost in the tcltest workload. The key also
+    /// carries [`ScriptCompileTarget::evaluation`].
+    fast: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
+    /// Plain-dispatch counterpart of [`Self::fast`] — the SAME source
+    /// text compiled with [`CompileService::compile_plain_dispatch_for_profile`]
+    /// instead of
+    /// [`compile`](CompileService::compile), used whenever
+    /// [`Self::requires_plain_command_dispatch`] is true. A step-traced proc's
+    /// `if`/`while`/`foreach`/`eval`/`uplevel`/`catch`/`try`/… bodies all funnel through
+    /// `eval_source`/`compile_source_cached` (their runtime builtins evaluate
+    /// bodies that way), so gating the cache choice here — rather than at
+    /// each call site — makes every one of them trace-visible with one change.
+    /// Kept as a wholly separate map (not a mode-keyed
+    /// entry in `fast`) so the two compiled forms of the same source
+    /// never collide or get served to the wrong mode. Both maps are cleared
+    /// when the profile changes.
+    plain: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
+}
+
+impl ScriptCaches {
+    /// Forget every compiled script, as a profile or compiler change must.
+    fn clear(&mut self) {
+        self.fast.clear();
+        self.plain.clear();
+    }
+}
+
 pub struct InterpState {
     /// The Tcl release whose number/expr grammar this VM emulates —
     /// threaded from `DialectProfile::vm_runtime_version` (dialect-profile
@@ -1187,29 +1223,8 @@ pub struct InterpState {
     /// debugger, `tcl-irule-test`, `f5 explain-flow --simulate`) sees the
     /// unwinding completion and survives. `None` until `exit` runs.
     pending_exit: Option<i32>,
-    /// Cache of compiled scripts for the runtime-`eval` / command-substitution
-    /// path (`eval_source`), keyed by constructed namespace and source text.
-    /// Compilation is a pure function of those values and the currently
-    /// selected profile, so a script
-    /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
-    /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
-    /// time. This is the dominant cost in the tcltest workload. The key also
-    /// carries [`ScriptCompileTarget::evaluation`].
-    eval_cache: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
-    /// Plain-dispatch counterpart of [`Self::eval_cache`] — the SAME source
-    /// text compiled with [`CompileService::compile_plain_dispatch_for_profile`]
-    /// instead of
-    /// [`compile`](CompileService::compile), used whenever
-    /// [`Self::requires_plain_command_dispatch`] is true. A step-traced proc's
-    /// `if`/`while`/`foreach`/`eval`/`uplevel`/`catch`/`try`/… bodies all funnel through
-    /// `eval_source`/`compile_source_cached` (their runtime builtins evaluate
-    /// bodies that way), so gating the cache choice here — rather than at
-    /// each call site — makes every one of them trace-visible with one change.
-    /// Kept as a wholly separate map (not a mode-keyed
-    /// entry in `eval_cache`) so the two compiled forms of the same source
-    /// never collide or get served to the wrong mode. Both maps are cleared
-    /// when the profile changes.
-    eval_cache_plain: HashMap<(String, String, CommandEvaluation), Rc<ModuleAsm>>,
+    /// Compiled runtime-`eval` scripts ([`ScriptCaches`]).
+    script_caches: ScriptCaches,
     /// The accumulating `errorInfo` source trace (C's `iPtr->errorInfo`): the
     /// error message followed by `while executing` / `invoked from within`
     /// frames, built up as the error unwinds through commands. `None` until the
@@ -1340,6 +1355,9 @@ pub struct InterpState {
     pub(crate) coro: crate::cmd_coro::CoroSystem,
     /// Requests staged by control builtins and drained into stack ticks.
     pub(crate) pending: PendingControl,
+    /// The objects compiled code pushes for its literal words, shared by
+    /// every unit that pushes the same text (C's interp literal table).
+    pub(crate) literals: crate::value::LiteralTable,
     /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
     /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
     pub(crate) events: crate::cmd_event::EventQueue,
@@ -1809,8 +1827,7 @@ impl Vm {
             // rebuilt lazily; these cache-only forms do not, so discard them.
             // Active frames carry this generation and fail closed at the
             // trampoline seam if a native callback changes profile mid-run.
-            self.eval_cache.clear();
-            self.eval_cache_plain.clear();
+            self.script_caches.clear();
             self.module_procs.clear();
         }
         self.command_surface_profile = profile;
@@ -1875,8 +1892,7 @@ impl Vm {
         }
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
-        self.eval_cache.clear();
-        self.eval_cache_plain.clear();
+        self.script_caches.clear();
         self.module_procs.clear();
         self.command_surface_profile = profile;
         self.command_surface_point = Some(crate::environment::surface_point(profile));
@@ -2225,8 +2241,7 @@ impl InterpState {
             line_watch: None,
             last_debug_key: None,
             pending_exit: None,
-            eval_cache: HashMap::new(),
-            eval_cache_plain: HashMap::new(),
+            script_caches: ScriptCaches::default(),
             error_info: None,
             error_logged: false,
             error_stack: ErrorStack::default(),
@@ -2257,6 +2272,7 @@ impl InterpState {
             oo: crate::cmd_oo::OoState::default(),
             coro: crate::cmd_coro::CoroSystem::default(),
             pending: PendingControl::default(),
+            literals: crate::value::LiteralTable::default(),
             events: crate::cmd_event::EventQueue::default(),
             thread: crate::cmd_thread::ThreadSystem::default(),
         }
@@ -2759,8 +2775,7 @@ impl Vm {
     pub fn set_compiler(&mut self, compiler: Box<dyn CompileService<Module = ModuleAsm>>) {
         self.compiler = Some(Rc::from(compiler));
         self.compiler_generation = self.compiler_generation.wrapping_add(1);
-        self.eval_cache.clear();
-        self.eval_cache_plain.clear();
+        self.script_caches.clear();
         self.module_procs.clear();
     }
 
@@ -9832,12 +9847,12 @@ impl Vm {
             target.source.to_owned(),
             target.evaluation,
         );
-        if let Some(module) = self.eval_cache_plain.get(&key) {
+        if let Some(module) = self.script_caches.plain.get(&key) {
             Self::validate_module_namespace(module, target.namespace)?;
             return Ok(Rc::clone(module));
         }
         let module = Rc::new(self.compile_plain_module(target)?);
-        self.eval_cache_plain.insert(key, Rc::clone(&module));
+        self.script_caches.plain.insert(key, Rc::clone(&module));
         Ok(module)
     }
 
@@ -12630,7 +12645,7 @@ impl Vm {
     /// possible — the shared body of [`eval_source`](Self::eval_source) and
     /// [`compile_script_cached`](Self::compile_script_cached). Picks
     /// [`CompileService::compile_plain_dispatch_for_profile`] and
-    /// [`Self::eval_cache_plain`] instead of the fast pair whenever
+    /// [`ScriptCaches::plain`] instead of the fast pair whenever
     /// [`Self::requires_plain_command_dispatch`] is true,
     /// so a step-traced proc's `if`/`while`/`foreach`/`eval`/`uplevel`/
     /// `catch`/`try`/… bodies — every one of which funnels through this
@@ -12665,7 +12680,7 @@ impl Vm {
             return self.compile_plain_cached_module(target);
         }
         let key = (namespace.to_owned(), src.to_owned(), evaluation);
-        if let Some(m) = self.eval_cache.get(&key) {
+        if let Some(m) = self.script_caches.fast.get(&key) {
             let m = Rc::clone(m);
             Self::validate_module_namespace(&m, namespace)?;
             if !self.function_command_bindings_match(&m.top_level, m.manifest.as_deref()) {
@@ -12685,7 +12700,7 @@ impl Vm {
         if !self.function_command_bindings_match(&m.top_level, m.manifest.as_deref()) {
             return self.compile_plain_cached_module(target);
         }
-        self.eval_cache.insert(key, Rc::clone(&m));
+        self.script_caches.fast.insert(key, Rc::clone(&m));
         Ok(m)
     }
 

@@ -526,7 +526,103 @@ const EVAL_TEXT_READ: &str = "proc: t1=<> t2=<> t3=<> t4=<> t5=<{}>\ntop: <>\n";
 const EVAL_TEXT_86: &str =
     "proc: t1=<> t2=<abcdefghijkl> t3=<abcdefghijkl> t4=<abcdefghijkl> t5=<{}>\ntop: <>\n";
 
+/// What each string command and `regexp` does to the value it reads, where
+/// it is compiled and where it runs as a command, which shows as 8.6 reading
+/// the canonical list it was apart afterwards. A command reads its words by
+/// character (`Tcl_GetUnicodeFromObj`), a pattern as a regexp, or not at
+/// all, and some return a word itself: `regexp` reads both, compiled only
+/// where its literal pattern is no glob `TclReToGlob` can make; `string
+/// match` reads both where the string is untyped or a string, compiled only
+/// where either is already a string; `string is` reads its value only
+/// compiled; the compiled `string trim` returns a value it trims nothing
+/// from, the command never; `string replace` reads its replacement only
+/// compiled, and settles a literal no-op there; `string map` reads its keys
+/// and values, a lone pair's value only where its key could match; and an
+/// empty map, `string cat` of one word and `string repeat` once return the
+/// word.
+const STRING_READS: &str = r#"proc L {} { list string range abcdefghijkl 0 [set e end-2147483649] }
+proc show {tag v} { upvar 1 out out; lappend out "$tag=[expr {[eval $v] eq {} ? {-} : {C}}]" }
+set out {}
+set l [L]; regexp abc $l; show rx $l
+set l [L]; regexp $l abc; show rxpat $l
+set l [L]; set v [regexp -nocase {^a.c$} $l]; show rxglob $l
+set l [L]; string match $l t1; show matchpat $l
+set l [L]; string match t2* $l; show matchstr $l
+set l [L]; set v [string trim $l]; show trim $v
+set l [L]; set v [string trimright $l x]; show trimright $v
+set l [L]; string is alpha $l; show isalpha $l
+set l [L]; set v [string is ascii $l]; show isascii $l
+set l [L]; set v [string is integer $l]; show isint $l
+set l [L]; string replace abc 1 1 $l; show replnew $l
+set l [L]; set v [string replace abc 0 2 $l]; show replall $v
+set l [L]; set v [string replace $l 5 2 x]; show replnone $v
+set l [L]; string map [list $l x] abc; show mapkey $l
+set l [L]; string map [list x $l] abc; show mapval $l
+set l [L]; string map [list xyzw $l] abc; show maplong $l
+set l [L]; string map [list x $l y z] abc; show mappairs $l
+set l [L]; set v [string map {} $l]; show mapnone $v
+set l [L]; set v [string cat $l]; show cat $v
+set l [L]; set v [string repeat $l 1]; show repeat $v
+puts "top: $out"
+proc p {} {
+    set out {}
+    set l [L]; regexp abc $l; show rx $l
+    set l [L]; regexp $l abc; show rxpat $l
+    set l [L]; set v [regexp -nocase {^a.c$} $l]; show rxglob $l
+    set l [L]; string match $l t3; show matchpat $l
+    set l [L]; string match t4* $l; show matchstr $l
+    set l [L]; set v [string trim $l]; show trim $v
+    set l [L]; set v [string trimright $l x]; show trimright $v
+    set l [L]; string is alpha $l; show isalpha $l
+    set l [L]; set v [string is ascii $l]; show isascii $l
+    set l [L]; set v [string is integer $l]; show isint $l
+    set l [L]; string replace abc 1 1 $l; show replnew $l
+    set l [L]; set v [string replace abc 0 2 $l]; show replall $v
+    set l [L]; set v [string replace $l 5 2 x]; show replnone $v
+    set l [L]; string map [list $l x] abc; show mapkey $l
+    set l [L]; string map [list x $l] abc; show mapval $l
+    set l [L]; string map [list xyzw $l] abc; show maplong $l
+    set l [L]; string map [list x $l y z] abc; show mappairs $l
+    set l [L]; set v [string map {} $l]; show mapnone $v
+    set l [L]; set v [string cat $l]; show cat $v
+    set l [L]; set v [string repeat $l 1]; show repeat $v
+    return $out
+}
+puts "proc: [p]"
+"#;
+
+const STRING_READS_NONE: &str = "top: rx=- rxpat=- rxglob=- matchpat=- matchstr=- trim=- trimright=- isalpha=- \
+isascii=- isint=- replnew=- replall=- replnone=- mapkey=- mapval=- maplong=- \
+mappairs=- mapnone=- cat=- repeat=-\nproc: rx=- rxpat=- rxglob=- matchpat=- \
+matchstr=- trim=- trimright=- isalpha=- isascii=- isint=- replnew=- replall=- \
+replnone=- mapkey=- mapval=- maplong=- mappairs=- mapnone=- cat=- repeat=-\n";
+
+const STRING_READS_86_FILE: &str = "top: rx=C rxpat=C rxglob=C matchpat=C matchstr=- trim=C trimright=C isalpha=- \
+isascii=- isint=- replnew=- replall=C replnone=C mapkey=C mapval=C maplong=- \
+mappairs=C mapnone=- cat=- repeat=-\nproc: rx=- rxpat=C rxglob=- matchpat=- \
+matchstr=- trim=- trimright=- isalpha=C isascii=C isint=- replnew=C replall=- \
+replnone=- mapkey=C mapval=C maplong=- mappairs=C mapnone=- cat=- repeat=-\n";
+
+const STRING_READS_86_STDIN: &str = "top: rx=- rxpat=C rxglob=- matchpat=- matchstr=- trim=- trimright=- isalpha=C \
+isascii=C isint=- replnew=C replall=- replnone=- mapkey=C mapval=C maplong=- \
+mappairs=C mapnone=- cat=- repeat=-\nproc: rx=- rxpat=C rxglob=- matchpat=- \
+matchstr=- trim=- trimright=- isalpha=C isascii=C isint=- replnew=C replall=- \
+replnone=- mapkey=C mapval=C maplong=- mappairs=C mapnone=- cat=- repeat=-\n";
+
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "what string commands read",
+        script: STRING_READS,
+        want: &[
+            (
+                TclVersion::V8_6,
+                STRING_READS_86_FILE,
+                STRING_READS_86_STDIN,
+            ),
+            (TclVersion::V9_0, STRING_READS_NONE, STRING_READS_NONE),
+            (TclVersion::V9_1, STRING_READS_NONE, STRING_READS_NONE),
+        ],
+    },
     Vector {
         name: "a script eval compiles from a variable",
         script: EVAL_TEXT,

@@ -94,6 +94,15 @@ fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
+/// The registry projected to Tcl 8.6, whose compiler has the `string is`,
+/// `string replace` and `string trim` compile procedures the release-blind
+/// registry leaves unsettled.
+fn registry_at_8_6() -> CommandRegistry {
+    let profile =
+        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 is a catalogue profile");
+    CommandRegistry::build_default().project_for_profile(profile)
+}
+
 /// A proc-flavour `CodegenCtx` for driving the inline-emission helpers
 /// directly (the surface-syntax path to several of these arms is narrow, so
 /// the helper is driven on a hand-built context — the same idiom the existing
@@ -248,7 +257,7 @@ fn string_is_integer_non_strict_lowers_to_numeric_type_chain() {
     // numericType/empty-string/LE(3) chain (treats "" as a member). This is the
     // longest of the `emit_inline_string_is` arms and is not exercised elsewhere.
     // tclsh: string is integer 42  →  1 ;  string is integer ""  →  1   (8.6 + 9.0)
-    let reg = registry();
+    let reg = registry_at_8_6();
     let mut ctx = proc_ctx(&reg, &["v"]);
     ctx.emit_inline_cmd_subst("[string is integer $v]");
     let ops = ctx_ops(&ctx);
@@ -269,7 +278,7 @@ fn string_is_integer_strict_uses_shorter_chain() {
     // `-strict` integer: the empty string is NOT a member, so the strict arm
     // emits a shorter numericType + LE chain (no empty-string STR_EQ branch).
     // tclsh: string is integer -strict ""  →  0   (8.6 + 9.0)
-    let reg = registry();
+    let reg = registry_at_8_6();
     let mut ctx = proc_ctx(&reg, &["v"]);
     ctx.emit_inline_cmd_subst("[string is integer -strict $v]");
     let ops = ctx_ops(&ctx);
@@ -288,7 +297,7 @@ fn string_is_integer_strict_uses_shorter_chain() {
 fn string_is_double_lowers_to_numeric_type() {
     // `string is double $v` → numericType-based test (the double arm).
     // tclsh: string is double 3.5  →  1   (8.6 + 9.0)
-    let reg = registry();
+    let reg = registry_at_8_6();
     let mut ctx = proc_ctx(&reg, &["v"]);
     ctx.emit_inline_cmd_subst("[string is double $v]");
     let ops = ctx_ops(&ctx);
@@ -303,7 +312,7 @@ fn string_is_double_lowers_to_numeric_type() {
 #[test]
 fn string_is_double_strict_omits_empty_compare() {
     // `-strict` double: the strict double arm drops the empty-string STR_EQ.
-    let reg = registry();
+    let reg = registry_at_8_6();
     let mut ctx = proc_ctx(&reg, &["v"]);
     ctx.emit_inline_cmd_subst("[string is double -strict $v]");
     let ops = ctx_ops(&ctx);
@@ -319,7 +328,7 @@ fn string_is_boolean_uses_try_cvt() {
     // `string is boolean $v` → tryCvtToBoolean (its own arm, distinct from the
     // numeric classes).
     // tclsh: string is boolean yes  →  1   (8.6 + 9.0)
-    let reg = registry();
+    let reg = registry_at_8_6();
     let mut ctx = proc_ctx(&reg, &["v"]);
     ctx.emit_inline_cmd_subst("[string is boolean $v]");
     let ops = ctx_ops(&ctx);
@@ -334,7 +343,7 @@ fn string_is_boolean_uses_try_cvt() {
 fn string_is_charclass_non_strict_uses_str_class() {
     // A character class (`alpha`) with no -strict lowers to the single STR_CLASS
     // opcode (the `str_class_id` fast path).
-    let reg = registry();
+    let reg = registry_at_8_6();
     let mut ctx = proc_ctx(&reg, &["v"]);
     ctx.emit_inline_cmd_subst("[string is alpha $v]");
     let ops = ctx_ops(&ctx);
@@ -350,7 +359,7 @@ fn string_is_charclass_strict_defers_to_generic() {
     // STR_CLASS reports "" as a member, so it cannot honour `-strict` for a
     // character class; the strict char-class arm defers to the generic command
     // (keeping the `is` subcommand word). → generic invoke, not STR_CLASS.
-    let reg = registry();
+    let reg = registry_at_8_6();
     let mut ctx = proc_ctx(&reg, &["v"]);
     ctx.emit_inline_cmd_subst("[string is alpha -strict $v]");
     let ops = ctx_ops(&ctx);
@@ -374,14 +383,15 @@ fn string_is_charclass_strict_defers_to_generic() {
 // String replace — fast path vs generic.
 
 #[test]
-fn string_replace_zero_prefix_uses_reverse_range_concat() {
-    // `string replace $s 0 N repl` has a fast path: REVERSE + STR_RANGE_IMM
-    // (start = N+1) + STR_CONCAT1 — replacing a leading run is `repl` ++ the
-    // tail after index N.
-    // tclsh: string replace abcdef 0 1 XY  →  XYcdef   (8.6 + 9.0)
-    let reg = registry();
+fn string_replace_before_the_start_uses_reverse_range_concat() {
+    // `string replace $s first N repl` with `first` before the first element
+    // has `TclCompileStringReplaceCmd`'s fast path: REVERSE + STR_RANGE_IMM
+    // (start = N+1) + STR_CONCAT1 — the replacement ++ the tail after N. A
+    // `first` of 0 is no such index: that compiles to STR_REPLACE.
+    // tclsh: string replace abcdef -1 1 XY  →  XYcdef   (8.6 + 9.0)
+    let reg = registry_at_8_6();
     let mut ctx = proc_ctx(&reg, &["s"]);
-    ctx.emit_inline_cmd_subst("[string replace $s 0 1 XY]");
+    ctx.emit_inline_cmd_subst("[string replace $s -1 1 XY]");
     let ops = ctx_ops(&ctx);
     assert!(
         ops.contains(&Op::STR_RANGE_IMM),
@@ -399,9 +409,9 @@ fn string_replace_zero_prefix_uses_reverse_range_concat() {
 fn string_replace_general_uses_str_replace() {
     // A non-zero start index (`1 2`) falls out of the fast path and emits the
     // general STR_REPLACE opcode with all four operands.
-    let reg = registry();
+    let reg = registry_at_8_6();
     let mut ctx = proc_ctx(&reg, &["s"]);
-    ctx.emit_inline_cmd_subst("[string replace $s 1 2 XY]");
+    ctx.emit_inline_cmd_subst("[string replace $s 0 2 XY]");
     let ops = ctx_ops(&ctx);
     assert!(
         ops.contains(&Op::STR_REPLACE),
@@ -431,14 +441,25 @@ fn regexp_nocase_literal_pattern_lowers_to_str_match() {
 
 #[test]
 fn regexp_plain_two_arg_uses_regexp_opcode() {
-    // A plain (no `-nocase`) 2-arg `regexp` emits the REGEXP opcode with the
-    // advanced-flags operand. This is the sibling arm to the glob path.
+    // A plain (no `-nocase`) 2-arg `regexp` whose pattern `TclReToGlob` cannot
+    // turn into a glob emits the REGEXP opcode with the advanced-flags
+    // operand; one it can (`.` is `?`) is STR_MATCH, as `TclCompileRegexpCmd`
+    // compiles it (tclsh 8.6.18: `regexp {a.c} $s` is `push "*a?c*"; ...;
+    // strmatch +0`).
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &["s"]);
-    ctx.emit_inline_cmd_subst("[regexp {a.c} $s]");
+    ctx.emit_inline_cmd_subst("[regexp {a+c} $s]");
     let ops = ctx_ops(&ctx);
     assert!(ops.contains(&Op::REGEXP), "plain regexp → REGEXP: {ops:?}");
     assert!(!ops.contains(&Op::STR_MATCH));
+    let mut ctx = proc_ctx(&reg, &["s"]);
+    ctx.emit_inline_cmd_subst("[regexp {a.c} $s]");
+    let ops = ctx_ops(&ctx);
+    assert!(
+        ops.contains(&Op::STR_MATCH),
+        "a glob pattern → STR_MATCH: {ops:?}"
+    );
+    assert!(!ops.contains(&Op::REGEXP));
 }
 
 // Linsert / lreplace → LREPLACE4 (distinct operand discriminator).

@@ -594,6 +594,12 @@ impl IntrinsicId {
             | InlineCodegenHookId::Continue
             | InlineCodegenHookId::Try
             | InlineCodegenHookId::String
+            | InlineCodegenHookId::StringIs
+            | InlineCodegenHookId::StringMatch
+            | InlineCodegenHookId::StringReplace
+            | InlineCodegenHookId::StringTrim
+            | InlineCodegenHookId::StringTrimLeft
+            | InlineCodegenHookId::StringTrimRight
             | InlineCodegenHookId::Array => None,
         }
     }

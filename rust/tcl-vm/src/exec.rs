@@ -123,6 +123,8 @@ struct CaughtState {
 /// pushes its resume value via [`Frame::push_operand`]).
 pub(crate) struct Frame {
     asm: Rc<FunctionAsm>,
+    /// The objects the unit has pushed for its literal words.
+    literal_values: Rc<crate::compiled::LiteralValues>,
     /// Canonical unrooted namespace whose command bindings this bytecode was
     /// specialised against.
     source_namespace: String,
@@ -405,11 +407,13 @@ impl Frame {
             compiler,
             fatal_tail,
             manifest,
+            literal_values,
         } = unit;
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
         Self {
             asm,
+            literal_values,
             source_namespace,
             profile_generation,
             command_epoch,
@@ -1005,13 +1009,19 @@ fn imm_index(imm: i32, len: usize) -> isize {
 /// (`INST_STR_INDEX`, `INST_STR_RANGE`, `INST_STR_REPLACE`, `INST_LREPLACE4`);
 /// the non-validating `unwrap_or` forms it replaced turned a garbage index into
 /// a plausible-looking value.
-fn checked_index_value(v: &Value, len: usize) -> Result<isize, Completion<Value>> {
-    let s = v.to_str();
-    crate::command::resolve_index(&s, len).ok_or_else(|| {
-        err(format!(
-            "bad index \"{s}\": must be integer?[+-]integer? or end?[+-]integer?"
-        ))
-    })
+///
+/// The word reads under the release's number grammar `numbers` and a bad one
+/// is the command's own error, code included.
+fn checked_index_value(
+    v: &Value,
+    len: usize,
+    numbers: tcl_syntax::number::NumberSyntax,
+) -> Result<isize, Completion<Value>> {
+    tcl_cmd_core::index::resolve_with(&v.to_str(), len, numbers)
+        .map(|index| {
+            isize::try_from(index).unwrap_or(if index < 0 { isize::MIN } else { isize::MAX })
+        })
+        .map_err(crate::command::completion_from_cmd_error)
 }
 
 /// List element at signed index, or empty when out of range.
@@ -2710,21 +2720,42 @@ impl Vm {
         match instr.op {
             // Stack.
             Op::PUSH1 | Op::PUSH4 => {
-                let raw = usize::try_from(imm0(instr))
-                    .ok()
-                    .and_then(|idx| lits.get(idx))
-                    .cloned()
-                    .unwrap_or_default();
+                let index = usize::try_from(imm0(instr)).unwrap_or(usize::MAX);
+                let raw = lits.get(index).map_or("", String::as_str);
+                // A compiled command pushes the one object its literal is,
+                // which a later push of the same text, here or in another
+                // unit, finds as this one left it; a command evaluated
+                // directly makes its words afresh.
+                let literal = (instr.evaluation == tcl_runtime_api::CommandEvaluation::Compiled)
+                    .then(|| crate::subst::literal_word_value(raw, instr.push_verbatim))
+                    .flatten();
                 // A verbatim (braced / constant) literal suppresses all word
                 // substitution — it is pushed exactly as the codegen interned
                 // it (the codegen sets this flag for braced words / `proc`
                 // bodies / constant assignments).
                 if instr.literal_rep == tcl_bytecode::LiteralRep::List {
-                    f.stack.push(Value::list_literal(&raw));
+                    let value = if literal.is_some() {
+                        crate::compiled::LiteralValues::get_or(
+                            &f.literal_values.lists,
+                            index,
+                            || Value::list_literal(raw),
+                        )
+                    } else {
+                        Value::list_literal(raw)
+                    };
+                    f.stack.push(value);
+                } else if let Some(text) = literal {
+                    let literals = &mut self.literals;
+                    let value = crate::compiled::LiteralValues::get_or(
+                        &f.literal_values.strings,
+                        index,
+                        || literals.literal(text),
+                    );
+                    f.stack.push(value);
                 } else if instr.push_verbatim {
                     f.stack.push(Value::string(raw));
                 } else {
-                    match crate::subst::subst_word(&raw, self, instr.evaluation) {
+                    match crate::subst::subst_word(raw, self, instr.evaluation) {
                         Ok(v) => f.stack.push(v),
                         // A `break`/`continue`/`return` carried out of a `[…]`
                         // substitution propagates with its own code (an enclosing
@@ -3486,14 +3517,22 @@ impl Vm {
                         if mode == 1 {
                             // lreplace: list first last ?elem ...?
                             let first = match vals.get(1) {
-                                Some(v) => match checked_index_value(v, n) {
+                                Some(v) => match checked_index_value(
+                                    v,
+                                    n,
+                                    self.runtime_version().number_syntax(),
+                                ) {
                                     Ok(i) => i.max(0),
                                     Err(c) => return Tick::Return(c),
                                 },
                                 None => 0,
                             };
                             let last = match vals.get(2) {
-                                Some(v) => match checked_index_value(v, n) {
+                                Some(v) => match checked_index_value(
+                                    v,
+                                    n,
+                                    self.runtime_version().number_syntax(),
+                                ) {
                                     Ok(i) => i,
                                     Err(c) => return Tick::Return(c),
                                 },
@@ -3514,7 +3553,11 @@ impl Vm {
                         } else {
                             // linsert: list index ?elem ...? ("end" → after last).
                             let idx = match vals.get(1) {
-                                Some(v) => match checked_index_value(v, n + 1) {
+                                Some(v) => match checked_index_value(
+                                    v,
+                                    n + 1,
+                                    self.runtime_version().number_syntax(),
+                                ) {
                                     Ok(i) => i,
                                     Err(c) => return Tick::Return(c),
                                 },
@@ -3913,7 +3956,11 @@ impl Vm {
                 let idx = pop(f);
                 let s = pop(f).to_char_str();
                 let chars: Vec<char> = s.chars().collect();
-                let i = match checked_index_value(&idx, chars.len()) {
+                let i = match checked_index_value(
+                    &idx,
+                    chars.len(),
+                    self.runtime_version().number_syntax(),
+                ) {
                     Ok(i) => i,
                     Err(c) => return Tick::Return(c),
                 };
@@ -3936,11 +3983,19 @@ impl Vm {
                 let from = pop(f);
                 let s = pop(f).to_char_str();
                 let chars: Vec<char> = s.chars().collect();
-                let lo = match checked_index_value(&from, chars.len()) {
+                let lo = match checked_index_value(
+                    &from,
+                    chars.len(),
+                    self.runtime_version().number_syntax(),
+                ) {
                     Ok(i) => i,
                     Err(c) => return Tick::Return(c),
                 };
-                let hi = match checked_index_value(&to, chars.len()) {
+                let hi = match checked_index_value(
+                    &to,
+                    chars.len(),
+                    self.runtime_version().number_syntax(),
+                ) {
                     Ok(i) => i,
                     Err(c) => return Tick::Return(c),
                 };
@@ -3963,9 +4018,15 @@ impl Vm {
                 let needle = pop(f).to_char_str();
                 f.stack.push(Value::int(char_find(&s, &needle, true)));
             }
+            // `INST_STR_MATCH` reads both by character only where either is
+            // already a string, converting the other.
             Op::STR_MATCH => {
-                let s = pop(f).to_str();
-                let pat = pop(f).to_str();
+                let (s, pat) = (pop(f), pop(f));
+                let (s, pat) = if s.is_string_typed() || pat.is_string_typed() {
+                    (s.to_char_str(), pat.to_char_str())
+                } else {
+                    (s.to_str(), pat.to_str())
+                };
                 let nocase = imm0(instr) != 0;
                 f.stack
                     .push(Value::bool(tcl_syntax::glob::string_case_match(
@@ -4037,9 +4098,12 @@ impl Vm {
                 }
                 f.stack.push(Value::string(s.repeat(times)));
             }
+            // `INST_STR_TRIM` and its one-sided forms leave the value itself
+            // where nothing is trimmed.
             Op::STR_TRIM | Op::STR_TRIM_LEFT | Op::STR_TRIM_RIGHT => {
                 let chars = pop(f).to_str();
-                let s = pop(f).to_str();
+                let value = pop(f);
+                let s = value.to_str();
                 let set: Vec<char> = chars.chars().collect();
                 let pred = |c: char| set.contains(&c);
                 let out = match instr.op {
@@ -4047,7 +4111,11 @@ impl Vm {
                     Op::STR_TRIM_LEFT => s.trim_start_matches(pred),
                     _ => s.trim_end_matches(pred),
                 };
-                f.stack.push(Value::string(out));
+                if out.len() == s.len() {
+                    f.stack.push(value);
+                } else {
+                    f.stack.push(Value::string(out));
+                }
             }
 
             // Numeric/boolean coercion checks (expr result validation)
@@ -4594,25 +4662,25 @@ impl Vm {
                 let newstr = pop(f);
                 let last = pop(f);
                 let first = pop(f);
-                let string = pop(f).to_char_str().to_string();
+                let value = pop(f);
+                let string = value.to_char_str().to_string();
                 let chars: Vec<char> = string.chars().collect();
                 let len = chars.len();
-                let bad = |spec: &str| {
-                    err(format!(
-                        "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
-                    ))
+                let numbers = self.runtime_version().number_syntax();
+                let from = match checked_index_value(&first, len, numbers) {
+                    Ok(i) => i,
+                    Err(c) => return Tick::Return(c),
                 };
-                let first_s = first.to_str();
-                let last_s = last.to_str();
-                let Some(from) = crate::command::resolve_index(&first_s, len) else {
-                    return Tick::Return(bad(&first_s));
-                };
-                let Some(to) = crate::command::resolve_index(&last_s, len) else {
-                    return Tick::Return(bad(&last_s));
+                let to = match checked_index_value(&last, len, numbers) {
+                    Ok(i) => i,
+                    Err(c) => return Tick::Return(c),
                 };
                 let slen = isize::try_from(len).unwrap_or(isize::MAX) - 1;
+                // As `INST_STR_REPLACE`: a range outside the string leaves it,
+                // the whole string is the replacement itself, and otherwise the
+                // replacement is read by character.
                 if to < 0 || from > slen || to < from {
-                    f.stack.push(Value::string(string));
+                    f.stack.push(value);
                 } else {
                     let from = usize::try_from(from.max(0)).unwrap_or(0);
                     let to = usize::try_from(to.min(slen)).unwrap_or(0);
@@ -4620,7 +4688,7 @@ impl Vm {
                         f.stack.push(newstr);
                     } else {
                         let mut out: String = chars[..from].iter().collect();
-                        out.push_str(&newstr.to_str());
+                        out.push_str(&newstr.to_char_str());
                         out.extend(&chars[to + 1..]);
                         f.stack.push(Value::string(out));
                     }
@@ -4673,14 +4741,16 @@ impl Vm {
             Op::REGEXP => {
                 const TCL_REG_NOCASE: i32 = 0o10;
                 let nocase = imm0(instr) & TCL_REG_NOCASE != 0;
-                let s = pop(f).to_str();
-                let pat = pop(f).to_str();
+                let s = pop(f).to_char_str();
+                let pat = pop(f).to_pattern_str();
                 let version = self.runtime_version();
                 match crate::cmd_regexp::regexp_matches(&pat, &s, nocase, version) {
                     Ok(m) => f.stack.push(Value::bool(m)),
+                    // The command's error, `TclRegError`'s code included.
                     Err(detail) => {
-                        let prefix = version.regex_compile_error_prefix();
-                        return Tick::Return(err(format!("{prefix}{detail}")));
+                        return Tick::Return(crate::cmd_regexp::regex_err(
+                            &tcl_cmd_core::regex::compile_error(version, detail.as_bytes()),
+                        ));
                     }
                 }
             }
