@@ -11019,6 +11019,9 @@ mod tests {
                 .borrow_mut()
                 .insert(key.to_string(), value.to_string());
         }
+        fn unset(&self, key: &str) {
+            self.0.borrow_mut().remove(key);
+        }
 
         fn vars(&self) -> Vec<(String, String)> {
             self.0

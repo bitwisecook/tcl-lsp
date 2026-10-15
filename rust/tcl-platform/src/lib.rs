@@ -314,6 +314,9 @@ pub trait Env {
     fn get(&self, key: &str) -> Option<String>;
     /// Set environment variable `key` to `val`.
     fn set(&self, key: &str, val: &str);
+    /// Remove environment variable `key` (`unsetenv`). Defaults to a no-op
+    /// for a host whose environment cannot change.
+    fn unset(&self, _key: &str) {}
     /// All environment variables.
     fn vars(&self) -> Vec<(String, String)>;
     /// The current working directory (`pwd`).

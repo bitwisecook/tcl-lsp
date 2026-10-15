@@ -261,6 +261,9 @@ impl Env for WasiEnv {
             .borrow_mut()
             .insert(key.to_string(), val.to_string());
     }
+    fn unset(&self, key: &str) {
+        self.vars.borrow_mut().remove(key);
+    }
     fn vars(&self) -> Vec<(String, String)> {
         self.vars
             .borrow()

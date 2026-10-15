@@ -65,6 +65,10 @@ impl Env for CaptureHost {
         self.native.env().set(key, value);
     }
 
+    fn unset(&self, key: &str) {
+        self.native.env().unset(key);
+    }
+
     fn vars(&self) -> Vec<(String, String)> {
         let mut vars = self.native.env().vars();
         vars.retain(|(key, _)| key != "TCL_LIBRARY");
