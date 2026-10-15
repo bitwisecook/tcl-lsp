@@ -526,6 +526,33 @@ const EVAL_TEXT_READ: &str = "proc: t1=<> t2=<> t3=<> t4=<> t5=<{}>\ntop: <>\n";
 const EVAL_TEXT_86: &str =
     "proc: t1=<> t2=<abcdefghijkl> t3=<abcdefghijkl> t4=<abcdefghijkl> t5=<{}>\ntop: <>\n";
 
+/// A canonical list `eval`, `uplevel`, `if` or `catch` runs directly hands
+/// its command the very values the list holds (`Tcl_EvalObjv` over its
+/// elements), so a canonical list among them stays one: `eval [list catch $b
+/// r]` gives `catch` the list `$b` is, which it runs directly in turn. A
+/// script 8.6 compiles (the canonical list a compiled `catch` evaluates with
+/// `INST_EVAL_STK`, a string `eval`) makes its words afresh.
+const DIRECT_WORDS: &str = r#"proc L {} { list string range abcdefghijkl 0 [set e end-2147483649] }
+proc show {tag v} { upvar 1 out out; lappend out "$tag=<$v>" }
+proc p1 {b} { set r 1; eval [list catch $b r]; set r }
+proc p2 {b} { eval [list set r $b]; eval $r }
+proc p3 {b} { set r 1; uplevel 0 [list catch $b r]; set r }
+proc p4 {b} { set r 1; catch [list catch $b r]; set r }
+proc p5 {b} { set r 1; if 1 [list catch $b r]; set r }
+proc p6 {b} { set r 1; eval [list catch] [list $b r]; set r }
+proc p7 {b} { set r 1; eval "catch {$b} r"; set r }
+set out {}
+foreach p {p1 p2 p3 p4 p5 p6 p7} { show $p [$p [L]] }
+set r 1; eval [list catch [L] r]; show top $r
+set c [list set q [L]]; eval $c; show topset [eval $q]
+puts $out
+"#;
+
+const DIRECT_WORDS_READ: &str = "p1=<> p2=<> p3=<> p4=<> p5=<> p6=<> p7=<> top=<> topset=<>\n";
+
+const DIRECT_WORDS_86: &str =
+    "p1=<> p2=<> p3=<> p4=<abcdefghijkl> p5=<> p6=<> p7=<abcdefghijkl> top=<> topset=<>\n";
+
 /// What each string command and `regexp` does to the value it reads, where
 /// it is compiled and where it runs as a command, which shows as 8.6 reading
 /// the canonical list it was apart afterwards. A command reads its words by
@@ -610,6 +637,17 @@ matchstr=- trim=- trimright=- isalpha=C isascii=C isint=- replnew=C replall=- \
 replnone=- mapkey=C mapval=C maplong=- mappairs=C mapnone=- cat=- repeat=-\n";
 
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "the words of a script run directly",
+        script: DIRECT_WORDS,
+        want: &[
+            (TclVersion::V8_4, DIRECT_WORDS_READ, DIRECT_WORDS_READ),
+            (TclVersion::V8_5, DIRECT_WORDS_READ, DIRECT_WORDS_READ),
+            (TclVersion::V8_6, DIRECT_WORDS_86, DIRECT_WORDS_86),
+            (TclVersion::V9_0, DIRECT_WORDS_READ, DIRECT_WORDS_READ),
+            (TclVersion::V9_1, DIRECT_WORDS_READ, DIRECT_WORDS_READ),
+        ],
+    },
     Vector {
         name: "what string commands read",
         script: STRING_READS,

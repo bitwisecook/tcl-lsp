@@ -803,8 +803,7 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         Ok(body) => body,
         Err(error) => return crate::command::completion_from_cmd_error(error),
     };
-    let evaluation =
-        crate::value::script_evaluation(&[script.clone(), Value::list(extra.to_vec())]);
+    let evaluation = vm.script_evaluation(&[script.clone(), Value::list(extra.to_vec())]);
     let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
     call_argv.extend(rest.iter().cloned());
     eval_in_ns(vm, &written, &body, evaluation, call_argv)
@@ -867,7 +866,7 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    let evaluation = crate::value::script_evaluation(body_parts);
+    let evaluation = vm.script_evaluation(body_parts);
     let mut call_argv = vec![Value::string("namespace"), Value::string("eval")];
     call_argv.extend(rest.iter().cloned());
     eval_in_ns(vm, &written, &body, evaluation, call_argv)

@@ -85,9 +85,29 @@ pub(crate) struct CompiledUnit {
 pub(crate) struct LiteralValues {
     pub(crate) strings: std::cell::RefCell<Vec<Option<crate::value::Value>>>,
     pub(crate) lists: std::cell::RefCell<Vec<Option<crate::value::Value>>>,
+    /// The values a script evaluated directly runs as its words, which a push
+    /// of a word with the same text pushes (`Tcl_EvalObjv` over a canonical
+    /// list's elements).
+    pub(crate) words: std::cell::RefCell<Vec<crate::value::Value>>,
 }
 
 impl LiteralValues {
+    /// Run the unit's words as `words`.
+    pub(crate) fn bind_words(&self, words: Vec<crate::value::Value>) {
+        *self.words.borrow_mut() = words;
+    }
+
+    /// The bound word a push of the literal `raw` pushes, where the unit runs
+    /// bound words.
+    pub(crate) fn word(&self, raw: &str, verbatim: bool) -> Option<crate::value::Value> {
+        let words = self.words.borrow();
+        if words.is_empty() {
+            return None;
+        }
+        let text = crate::subst::literal_word_value(raw, verbatim)?;
+        words.iter().find(|word| &*word.to_str() == text).cloned()
+    }
+
     /// The object in `slots` at `index`, made by `make` the first time.
     pub(crate) fn get_or(
         slots: &std::cell::RefCell<Vec<Option<crate::value::Value>>>,

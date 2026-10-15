@@ -831,6 +831,9 @@ pub(crate) struct PendingControl {
     pub(crate) release_compiled: Option<tcl_bytecode::ReleaseCompiled>,
     /// Next `package unknown` or `package ifneeded` script of a require.
     pub(crate) package: Option<crate::cmd_package::PackageReq>,
+    /// The script a builtin is about to evaluate directly, as the text it
+    /// compiles and the values its words are ([`Vm::script_evaluation`]).
+    pub(crate) direct_script: Option<(String, Vec<Value>)>,
 }
 
 /// One interpreter's complete state: command table, namespaces, call frames,
@@ -5699,7 +5702,8 @@ impl Vm {
                     .map(|v| v.to_str().to_string())
                     .collect::<Vec<_>>()
                     .join(" ");
-                self.eval_in_interp(id, &script, crate::value::script_evaluation(rest))
+                let evaluation = self.script_evaluation(rest);
+                self.eval_in_interp(id, &script, evaluation)
             }
             "issafe" => ok(Value::bool(self.st_of(id).is_some_and(|st| st.is_safe))),
             "delete" => {
@@ -12750,7 +12754,10 @@ impl Vm {
             return Err(TclError::new(tail.message));
         }
         let module = self.compile_cached(prefix, evaluation)?;
-        let mut comp = self.run_current_module(&module);
+        let words = (evaluation == CommandEvaluation::Direct)
+            .then(|| self.take_direct_words(prefix))
+            .flatten();
+        let mut comp = self.run_current_module_with_words(&module, words);
         // Only a prefix that ran to completion reaches the parse error: an
         // error (or any non-`ok` completion) in an earlier command is what C
         // reports, the malformed tail never being parsed at all.
@@ -12804,6 +12811,36 @@ impl Vm {
         self.compile_script_cached_as(src, CommandEvaluation::Compiled)
     }
 
+    /// How `TclEvalObjEx` evaluates `words` as one script
+    /// ([`crate::value::script_evaluation`]). Where it runs them directly the
+    /// values its words are carry to the unit compiled from their text
+    /// ([`Self::take_direct_words`]), so the command receives those values
+    /// themselves rather than ones read again from the text.
+    pub(crate) fn script_evaluation(&mut self, words: &[Value]) -> CommandEvaluation {
+        let direct = crate::value::direct_script_words(words);
+        let evaluation = if direct.is_some() {
+            CommandEvaluation::Direct
+        } else {
+            CommandEvaluation::Compiled
+        };
+        self.pending.direct_script = direct.map(|values| {
+            let text = words
+                .iter()
+                .map(|word| word.to_str().to_string())
+                .collect::<Vec<_>>()
+                .join(" ");
+            (text, values)
+        });
+        evaluation
+    }
+
+    /// The values [`Self::script_evaluation`] noted for the direct script
+    /// `src`, if it is that script.
+    pub(crate) fn take_direct_words(&mut self, src: &str) -> Option<Vec<Value>> {
+        let (text, values) = self.pending.direct_script.take()?;
+        (text == src).then_some(values)
+    }
+
     /// [`Self::compile_script_cached`], the script's own commands evaluated as
     /// `evaluation` says ([`crate::value::script_evaluation`]).
     pub(crate) fn compile_script_cached_as(
@@ -12836,12 +12873,18 @@ impl Vm {
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
         self.merge_procs(&module);
-        Ok(self
+        let unit = self
             .compiled_unit(
                 Rc::new(module.top_level.clone()),
                 module.source_namespace.clone(),
             )
-            .with_manifest(module.manifest.clone()))
+            .with_manifest(module.manifest.clone());
+        if evaluation == CommandEvaluation::Direct
+            && let Some(words) = self.take_direct_words(src)
+        {
+            unit.literal_values.bind_words(words);
+        }
+        Ok(unit)
     }
 
     /// Prepare a catchable/handleable script without rejecting a valid command

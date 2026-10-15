@@ -67,7 +67,7 @@ fn eval_body(vm: &mut Vm, body: &Value) -> Completion<Value> {
     if let Err(c) = vm.enter_control_fallback() {
         return c;
     }
-    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
+    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
     let result = match vm.eval_source_as(&body.to_str(), evaluation) {
         Ok(c) => c,
         Err(e) => completion_from_tcl_error(e),
@@ -291,7 +291,7 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
     // deferred to the explicit stack below), so it does not need
     // `enter_control_fallback`'s native-stack recursion guard — matching
     // `eval`/`uplevel`'s own pending deferral, which likewise has none.
-    let evaluation = crate::value::script_evaluation(std::slice::from_ref(&body));
+    let evaluation = vm.script_evaluation(std::slice::from_ref(&body));
     let script = match vm.compile_script_cached_as(&body.to_str(), evaluation) {
         Ok(script) => script,
         Err(e) => return err(e.message),

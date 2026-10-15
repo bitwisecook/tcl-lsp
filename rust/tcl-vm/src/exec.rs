@@ -1295,6 +1295,16 @@ impl Vm {
 
     /// Run a module just returned by this VM's current compile service.
     pub(crate) fn run_current_module(&mut self, module: &ModuleAsm) -> Completion<Value> {
+        self.run_current_module_with_words(module, None)
+    }
+
+    /// [`Self::run_current_module`] for a script evaluated directly, whose
+    /// words are `words` ([`crate::compiled::LiteralValues::bind_words`]).
+    pub(crate) fn run_current_module_with_words(
+        &mut self,
+        module: &ModuleAsm,
+        words: Option<Vec<Value>>,
+    ) -> Completion<Value> {
         if let Err(error) = self.validate_module_profile(module) {
             return crate::command::completion_from_tcl_error(error);
         }
@@ -1309,6 +1319,9 @@ impl Vm {
                 module.source_namespace.clone(),
             )
             .with_manifest(module.manifest.clone());
+        if let Some(words) = words {
+            unit.literal_values.bind_words(words);
+        }
         self.run_compiled_unit(unit)
     }
 
@@ -2733,7 +2746,12 @@ impl Vm {
                 // substitution — it is pushed exactly as the codegen interned
                 // it (the codegen sets this flag for braced words / `proc`
                 // bodies / constant assignments).
-                if instr.literal_rep == tcl_bytecode::LiteralRep::List {
+                let bound = (instr.literal_rep == tcl_bytecode::LiteralRep::String)
+                    .then(|| f.literal_values.word(raw, instr.push_verbatim))
+                    .flatten();
+                if let Some(value) = bound {
+                    f.stack.push(value);
+                } else if instr.literal_rep == tcl_bytecode::LiteralRep::List {
                     let value = if literal.is_some() {
                         crate::compiled::LiteralValues::get_or(
                             &f.literal_values.lists,

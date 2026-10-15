@@ -407,7 +407,8 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // before the error is raised (#1603): C parses one command at a time, so
     // the malformed tail is never reached until the commands ahead of it have
     // run.  `catch`/`try` already prepare their bodies this way.
-    match vm.prepare_script_commands_as(&script, crate::value::script_evaluation(args)) {
+    let evaluation = vm.script_evaluation(args);
+    match vm.prepare_script_commands_as(&script, evaluation) {
         Ok(prepared) => match prepared.prefix {
             Some(unit) => {
                 vm.pending.eval = Some(crate::exec::EvalReq {
@@ -793,7 +794,7 @@ fn interp_eval_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    let evaluation = crate::value::script_evaluation(scripts);
+    let evaluation = vm.script_evaluation(scripts);
     if p.is_empty() {
         return match vm.eval_source_as(&script, evaluation) {
             Ok(c) => c,
@@ -2133,7 +2134,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // code — is absorbed by `finish_catch` (which binds the result/options vars
     // and yields the status code). Mirrors `cmd_eval`'s pending request, but
     // catch's completion is caught rather than propagated.
-    let evaluation = crate::value::script_evaluation(std::slice::from_ref(script));
+    let evaluation = vm.script_evaluation(std::slice::from_ref(script));
     match vm.prepare_script_commands_as(&script.to_str(), evaluation) {
         Ok(prepared) if prepared.prefix.is_some() => {
             vm.pending.catch = Some(crate::exec::CatchReq {
@@ -2573,7 +2574,7 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // that frame's namespace, the frames above it carried on the activation
     // until it completes. As with `eval`, the clean prefix of a body whose
     // later commands do not parse runs before the parse error (#1603).
-    let evaluation = crate::value::script_evaluation(rest);
+    let evaluation = vm.script_evaluation(rest);
     let namespace = vm.namespace_at_level(target);
     match vm.prepare_script_commands_in_namespace_as(&script, &namespace, evaluation) {
         Ok(prepared) => match prepared.prefix {

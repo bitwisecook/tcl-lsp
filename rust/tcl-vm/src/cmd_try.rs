@@ -311,10 +311,8 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         finally,
         compiled,
     });
-    match vm.prepare_script_commands_as(
-        &body.to_str(),
-        crate::value::script_evaluation(std::slice::from_ref(body)),
-    ) {
+    let evaluation = vm.script_evaluation(std::slice::from_ref(body));
+    match vm.prepare_script_commands_as(&body.to_str(), evaluation) {
         Ok(prepared) if prepared.prefix.is_some() => {
             vm.pending.try_phase = Some(TryReq {
                 script: prepared.prefix.expect("checked above"),
@@ -422,10 +420,8 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
                 });
                 vm.publish_error(&einfo, &errorcode);
             }
-            match vm.prepare_script_commands_as(
-                &plan.handlers[b].script.to_str(),
-                crate::value::script_evaluation(std::slice::from_ref(&plan.handlers[b].script)),
-            ) {
+            let evaluation = vm.script_evaluation(std::slice::from_ref(&plan.handlers[b].script));
+            match vm.prepare_script_commands_as(&plan.handlers[b].script.to_str(), evaluation) {
                 Ok(prepared) if prepared.prefix.is_some() => TryOutcome::Push(TryReq {
                     script: prepared.prefix.expect("checked above"),
                     state: TryState {
@@ -490,10 +486,8 @@ fn finish_body_or_handler(
     // never runs before this point, so a
     // body/handler compile error is reported before `finally`'s own grammar
     // is ever touched.
-    let prepared = match vm.prepare_script_commands_as(
-        &fin.to_str(),
-        crate::value::script_evaluation(std::slice::from_ref(&fin)),
-    ) {
+    let evaluation = vm.script_evaluation(std::slice::from_ref(&fin));
+    let prepared = match vm.prepare_script_commands_as(&fin.to_str(), evaluation) {
         Ok(prepared) => prepared,
         // A `finally` parse error is `finally`'s own exception overriding the
         // prior outcome, same as a runtime error in `finally` would (chains

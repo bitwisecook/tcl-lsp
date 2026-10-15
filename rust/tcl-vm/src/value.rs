@@ -714,6 +714,20 @@ impl std::fmt::Debug for Value {
 /// and compiles anything else. `Tcl_ConcatObj` keeps canonical lists and empty
 /// words a canonical list, but for a later list whose first element starts a
 /// comment.
+/// The words `TclEvalObjEx` runs a script of `words` as where it evaluates
+/// it directly ([`script_evaluation`]): the elements of its canonical lists,
+/// the very values the lists hold, in order.
+pub(crate) fn direct_script_words(words: &[Value]) -> Option<Vec<Value>> {
+    if script_evaluation(words) != CommandEvaluation::Direct {
+        return None;
+    }
+    let mut out = Vec::new();
+    for word in words.iter().filter(|word| word.is_canonical_list()) {
+        out.extend(word.as_list().ok()?.iter().cloned());
+    }
+    Some(out)
+}
+
 pub(crate) fn script_evaluation(words: &[Value]) -> CommandEvaluation {
     let mut started = false;
     for word in words {
