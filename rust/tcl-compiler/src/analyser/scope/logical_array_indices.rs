@@ -10,7 +10,9 @@ use tcl_lexer::{ExecutablePart, NativeWord, Span};
 /// Literal key data and substituting original index syntax are different inputs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LogicalArrayIndexKind {
+    /// Literal element-name data that source construction must keep inert.
     LiteralNameData(String),
+    /// Original active index source whose substitutions remain syntax.
     ComputedOriginalSyntax(String),
 }
 
@@ -26,11 +28,13 @@ pub struct LogicalArrayIndexCandidate<'advice, 'analysis> {
 }
 
 impl LogicalArrayIndexCandidate<'_, '_> {
+    /// The original occurrence's literal-data or computed-source interpretation.
     #[must_use]
     pub const fn kind(&self) -> &LogicalArrayIndexKind {
         &self.kind
     }
 
+    /// Literal key data or original index syntax, as distinguished by [`Self::kind`].
     #[must_use]
     pub fn index(&self) -> &str {
         match &self.kind {

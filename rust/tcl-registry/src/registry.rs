@@ -7478,9 +7478,9 @@ impl CommandRegistry {
                     };
                     let name = if invocation.authored_source_option_variable_scope_at(argument)
                         == Some(crate::hover::VariableScope::Global)
-                        && !name.starts_with("::")
+                        && tcl_syntax::naming::unroot_rooted_key(name).is_none()
                     {
-                        format!("::{name}")
+                        tcl_syntax::naming::root_unrooted_key(name)
                     } else {
                         name.to_owned()
                     };
@@ -7541,12 +7541,13 @@ impl CommandRegistry {
         for (index, _) in roles {
             match args.literal_at(index) {
                 Some(variable) if !variable.is_empty() => {
-                    let effective_name =
-                        if global_arguments.contains(&index) && !variable.starts_with("::") {
-                            format!("::{variable}")
-                        } else {
-                            variable.to_owned()
-                        };
+                    let effective_name = if global_arguments.contains(&index)
+                        && tcl_syntax::naming::unroot_rooted_key(variable).is_none()
+                    {
+                        tcl_syntax::naming::root_unrooted_key(variable)
+                    } else {
+                        variable.to_owned()
+                    };
                     if !projection
                         .literal_names
                         .iter()

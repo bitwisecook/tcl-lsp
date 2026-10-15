@@ -56,9 +56,9 @@ fn include_operand(
 ) {
     if invocation.authored_source_option_variable_scope_at(argument)
         == Some(crate::VariableScope::Global)
-        && !name.starts_with("::")
+        && tcl_syntax::naming::unroot_rooted_key(name).is_none()
     {
-        SourceVariableNameOwnership::include(names, &format!("::{name}"));
+        SourceVariableNameOwnership::include(names, &tcl_syntax::naming::root_unrooted_key(name));
     } else {
         SourceVariableNameOwnership::include(names, name);
     }

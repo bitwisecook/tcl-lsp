@@ -133,7 +133,7 @@ fn collect_ranges(
                         out.push(range(
                             base + s,
                             base + e,
-                            if text.contains("::") {
+                            if tcl_core_types::naming::has_namespace_separator(text.as_bytes()) {
                                 "tk-ns"
                             } else {
                                 "tk-cmd"
@@ -234,7 +234,7 @@ fn highlight_into(
                         // its namespace colour.
                         wrap(
                             out,
-                            if text.contains("::") {
+                            if tcl_core_types::naming::has_namespace_separator(text.as_bytes()) {
                                 "tk-ns"
                             } else {
                                 "tk-cmd"
@@ -308,7 +308,7 @@ fn recurse_wrapped(
 /// Classify a non-command bare word: an iRule event / TMSH constant
 /// (`HTTP_REQUEST`), a namespaced command/proc (`HTTP::host`), or nothing.
 fn classify_word(text: &str) -> Option<&'static str> {
-    if text.contains("::") {
+    if tcl_core_types::naming::has_namespace_separator(text.as_bytes()) {
         return Some("tk-ns");
     }
     // ALL_CAPS identifiers are iRule events and TCL-level constants.

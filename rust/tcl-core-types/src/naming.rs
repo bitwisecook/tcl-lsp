@@ -1,5 +1,14 @@
 //! Dependency-free Tcl name scanners shared by lexer and runtime crates.
 
+/// Whether the supplied counted bytes contain a written namespace separator.
+/// A separator is a run of two or more colons. Callers independently select
+/// the input extent and naming purpose; this predicate supplies no C/Jim
+/// lookup policy, namespace identity, canonicalisation or Native authority.
+#[must_use]
+pub fn has_namespace_separator(name: &[u8]) -> bool {
+    name.windows(2).any(|pair| pair == b"::")
+}
+
 /// Scan the unbraced variable-name extent beginning at `start` (the first byte
 /// after `$`).  Tcl's `Tcl_ParseVarName` consumes an entire run of two or more
 /// colons as one namespace separator, including any further colons in that

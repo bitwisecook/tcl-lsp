@@ -276,7 +276,7 @@ pub fn unattributed_variable_alias_hint<'a>(
 /// Does `name` contain a `::` namespace separator (i.e. is it qualified)?
 #[must_use]
 pub fn is_qualified(name: &[u8]) -> bool {
-    name.windows(2).any(|w| w == b"::")
+    tcl_core_types::naming::has_namespace_separator(name)
 }
 
 /// Whether a source variable name belongs to an ordinary activation's table.
