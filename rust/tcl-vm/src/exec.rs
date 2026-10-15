@@ -3841,13 +3841,10 @@ impl Vm {
 
             // Dict validation: consumes the (dup'd) TOS, validates even length.
             Op::VERIFY_DICT => {
-                let top = pop(f);
-                match top.as_list() {
-                    Ok(items) if items.len() % 2 == 0 => {}
-                    Ok(_) => {
-                        return Tick::Return(err("missing value to go with key"));
-                    }
-                    Err(e) => return Tick::Return(err(e.message)),
+                // C's `Tcl_DictObjSize`: the value (the literal `dup` shares
+                // with the stored result) becomes a dict, not a list.
+                if let Err(e) = pop(f).dict_pairs() {
+                    return Tick::Return(err(e.message));
                 }
             }
 
