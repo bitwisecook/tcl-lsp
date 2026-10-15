@@ -1,0 +1,27 @@
+{
+  "version": "9.0.4",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+    "/tmp/name-dying-descendant-command-sdk-20261014/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/tmp/name-dying-descendant-command-sdk-20261014/9.0.4/probe"
+  ],
+  "compile_exit": 0,
+  "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+  "library_sha256": "c1fef73d6842ea10b5ec81de5f4a92bd9376e2f0f842b2b434be8a3b87e7a86f",
+  "original_init": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+  "original_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+  "source_sha256": "164bbf45b85ba8dfd3245c1db3b4c9a213e1a54bf7c140c7c2f2637e410ac417",
+  "process_exit": 0,
+  "stdout_sha256": "1f550d2d251f5a8f06250fea567ee82f1044c565bc41176436d057d5b990869c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "3188428d10f1beab8f0fe708c5861de0a971caabfde1489d97cc1a4026c09d59"
+}

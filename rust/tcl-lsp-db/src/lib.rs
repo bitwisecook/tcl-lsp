@@ -3423,6 +3423,8 @@ pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<V
 /// build is paid once for both halves.  `PartialEq` for salsa early-cutoff.
 #[derive(Clone, PartialEq)]
 pub struct CheckSolve {
+    /// Actual immutable compilation whose Module-issued IDs key this solve.
+    unit: Arc<CompilationUnit>,
     /// Interprocedural taint solve (`proc_summary_cascade`-memoised summaries).
     pub taints: InterprocTaintResult,
     /// Per-procedure non-taint checks (`function_checks`-memoised), already
@@ -3522,9 +3524,10 @@ fn solve_checks_for_unit<'db>(
     lattice_keys: &HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
     dialect_opt: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Arc<CheckSolve> {
-    let retained = Arc::new(cu.clone());
+    let retained = Arc::new(cu);
+    let cu = retained.as_ref();
     let taints = tcl_compiler::taint_interproc::solve_interprocedural_taints_with(
-        &cu,
+        cu,
         registry,
         dialect_opt,
         &mut |actual, body_id, analysis, known, summaries| {
@@ -3600,8 +3603,9 @@ fn solve_checks_for_unit<'db>(
         }
     }
 
-    let optimisations = solve_optimisations(db, &cu, lattice_keys, registry, dialect_opt);
+    let optimisations = solve_optimisations(db, cu, lattice_keys, registry, dialect_opt);
     Arc::new(CheckSolve {
+        unit: retained,
         taints,
         fn_checks,
         optimisations,
@@ -4343,7 +4347,7 @@ pub fn compiler_check_diagnostics(
     // The analyser tail and compiler checks share the complete document
     // policy key. The supplied input must still pass its exact guard.
     let cfg_key = lexer_cfg_key(db, &dialect);
-    let Some(cu) = compilation_unit_for_config(db, file, cfg_key, config) else {
+    let Some(_shared_unit) = compilation_unit_for_config(db, file, cfg_key, config) else {
         return abstain_diagnostics();
     };
     // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]:
@@ -4351,24 +4355,27 @@ pub fn compiler_check_diagnostics(
     // and the per-procedure non-taint checks (`solve.fn_checks`, already rebased),
     // so an unchanged procedure contributes neither a re-solve nor a re-check.
     // The remaining taint-family + iRules module checks (which read the solved
-    // taints) are appended over the shared build, then the combined set is sorted
+    // taints) are appended over the solve's retained unit, then the set is sorted
     // into the same deterministic order `run_all_checks` produces.  Byte-identical
     // to the in-line build; guarded by the corpus differential.  Optimiser
     // unchanged.
     let Some(solve) = proc_taint_solve_for_config(db, file, cfg_key, config) else {
         return abstain_diagnostics();
     };
+    // Procedure IDs belong to this solve's genuine construction. A separate
+    // shared build retains its own source ingress and cannot select these maps.
+    let cu = solve.unit.as_ref();
     let mut checks = solve.fn_checks.clone();
     let generic_patterns = config.generic_variable_patterns(db).as_deref();
     let taint_replays = tcl_compiler::compiler_checks::push_taint_and_module_checks(
-        &cu,
+        cu,
         registry,
         dialect_opt,
         &solve.taints,
         generic_patterns,
         &mut checks,
     );
-    tcl_compiler::compiler_checks::retain_diagnostic_source_context(&cu, registry, &mut checks);
+    tcl_compiler::compiler_checks::retain_diagnostic_source_context(cu, registry, &mut checks);
     tcl_compiler::compiler_checks::sort_diagnostics(&mut checks);
     Arc::new(CompilerDiagnostics {
         checks,
@@ -7731,6 +7738,52 @@ p\uD801 ordinary";
             seen[3], seen[0],
             "restoring the guard must restore the span"
         );
+    }
+
+    #[test]
+    fn configured_taint_checks_consume_the_solve_original_module_owner() {
+        let source = "proc pass {x} { return $x }\n\
+                      proc danger {} { set u [gets stdin]; set p [pass $u]; exec $p }\n\
+                      proc other {} { set z 1 }\n";
+        let dialect = "tcl8.6";
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+        let policy = cfg(&db);
+        let key = lexer_cfg_key(&db, dialect);
+        let input = document_analysis_input(&db, file, policy).unwrap();
+        let shared = compilation_unit_for_config(&db, file, key, policy).unwrap();
+        let solved = proc_taint_solve_for_config(&db, file, key, policy).unwrap();
+        let owner = solved.unit.as_ref();
+        assert_eq!(
+            owner.ir_module.source,
+            tcl_lexer::SourceImage::document(source)
+        );
+        assert_eq!(
+            owner.ir_module.source_metadata_input.as_ref(),
+            Some(input.as_ref())
+        );
+        assert_eq!(owner.ir_module.lexer_config, input.lexer_config());
+        assert!(!solved.taints.proc_taints.is_empty());
+        for (id, taints) in &solved.taints.proc_taints {
+            assert!(owner.ir_module.procedure_ids.owns(*id));
+            assert!(!shared.ir_module.procedure_ids.owns(*id));
+            let function = owner.function_for_body(Some(*id)).unwrap();
+            assert!(std::ptr::eq(
+                solved.taints.taints_for_function(owner, function),
+                taints,
+            ));
+        }
+        let registry = input.borrowed_context_registry().commands();
+        let expected = compiler_check_diagnostics_uncached(source, registry, dialect, None, None);
+        assert!(
+            expected
+                .checks
+                .iter()
+                .any(|check| check.code == DiagCode::T100)
+        );
+        let actual = compiler_check_diagnostics(&db, file, policy);
+        assert_eq!(actual.checks, expected.checks);
+        assert_eq!(actual.optimisations, expected.optimisations);
     }
 
     /// The interprocedural taint cascade (`taint_cascade`, backlog #1) must stay

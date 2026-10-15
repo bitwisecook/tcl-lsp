@@ -1,0 +1,3750 @@
+{
+  "scope": "Decoded original stdout only; no implementation result or complete earlier-child-generation observation. Each case has independent original interpreter and one actual unset or command-delete callback.",
+  "providers": {
+    "8.4.20": {
+      "stdout_rows": 105,
+      "cases": {
+        "UNSET_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3120312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "1 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3120312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "1 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3120312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "1 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3120312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "1 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3120312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "1 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3120312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "1 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3120312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "1 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3120312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "1 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        }
+      }
+    },
+    "8.5.19": {
+      "stdout_rows": 105,
+      "cases": {
+        "UNSET_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "0 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "0 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        }
+      }
+    },
+    "8.6.18": {
+      "stdout_rows": 105,
+      "cases": {
+        "UNSET_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "0 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "0 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        }
+      }
+    },
+    "9.0.4": {
+      "stdout_rows": 105,
+      "cases": {
+        "UNSET_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "0 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "0 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        }
+      }
+    },
+    "9.1.0": {
+      "stdout_rows": 105,
+      "cases": {
+        "UNSET_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "UNSET_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "0 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "UNSET_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_MISSING_PARENT": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e6577",
+            "result_utf8": "::retiring::New"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_MISSING_PARENT",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_DEEP_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4e65773a3a4c6561663a3a70",
+            "result_utf8": "0 1 1 ::retiring::New::Leaf::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4e65773a3a4c656166",
+            "result_utf8": "::retiring::New::Leaf"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_DEEP_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        },
+        "COMMAND_EXISTING_CHILD": {
+          "CALLER": {
+            "kind": "CALLER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a",
+            "result_utf8": "::"
+          },
+          "CREATE": {
+            "kind": "CREATE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "PARENT_API_PRESENT": {
+            "kind": "PARENT_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "CHILD_API_PRESENT": {
+            "kind": "CHILD_API_PRESENT",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "ORIGINAL_ANCESTOR": {
+            "kind": "ORIGINAL_ANCESTOR",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "PUBLIC_LOOKUPS": {
+            "kind": "PUBLIC_LOOKUPS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020312031203a3a7265746972696e673a3a4578697374696e673a3a70",
+            "result_utf8": "0 1 1 ::retiring::Existing::p"
+          },
+          "CONTENTS": {
+            "kind": "CONTENTS",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "48454c44204348494c44",
+            "result_utf8": "HELD CHILD"
+          },
+          "CHILDREN": {
+            "kind": "CHILDREN",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "",
+            "result_utf8": ""
+          },
+          "REENTER": {
+            "kind": "REENTER",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "SAME_CHILD": {
+            "kind": "SAME_CHILD",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "DELETE": {
+            "kind": "DELETE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3a3a7265746972696e673a3a4578697374696e67",
+            "result_utf8": "::retiring::Existing"
+          },
+          "CALLBACK_ONCE": {
+            "kind": "CALLBACK_ONCE",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "31",
+            "result_utf8": "1"
+          },
+          "FINAL": {
+            "kind": "FINAL",
+            "case": "COMMAND_EXISTING_CHILD",
+            "code": 0,
+            "result_hex": "3020302030207b7d",
+            "result_utf8": "0 0 0 {}"
+          }
+        }
+      }
+    }
+  }
+}

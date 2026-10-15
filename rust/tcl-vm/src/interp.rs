@@ -4480,15 +4480,39 @@ impl Vm {
             .frames
             .iter()
             .rev()
-            .map(|fr| DebugFrame {
-                level: u32::try_from(fr.level).unwrap_or(0),
-                name: fr.proc_name.clone().unwrap_or_else(|| "global".to_owned()),
-                namespace: fr
-                    .ns_eval
-                    .as_ref()
-                    .map_or_else(|| self.ns_name_bytes(fr.ns), Clone::clone)
-                    .try_utf8()
-                    .map_or_else(|_| format!("<namespace token {}>", fr.ns.0), str::to_owned),
+            .map(|fr| {
+                let token = fr.ns.resolved_token();
+                let bytes = fr.ns_eval.clone().or_else(|| {
+                    let token = token?;
+                    if self.uses_native_jim_lookup() {
+                        self.name_world
+                            .borrow()
+                            .jim_namespace_objects
+                            .get(&token)
+                            .cloned()
+                    } else {
+                        Some(Self::namespace_path_reporting_bytes(&self.ns_path(token)))
+                    }
+                });
+                let namespace = bytes.as_ref().map_or_else(
+                    || "<namespace unavailable>".to_owned(),
+                    |bytes| {
+                        bytes.try_utf8().map_or_else(
+                            |_| {
+                                token.map_or_else(
+                                    || "<opaque namespace>".to_owned(),
+                                    |token| format!("<namespace token {}>", token.0),
+                                )
+                            },
+                            str::to_owned,
+                        )
+                    },
+                );
+                DebugFrame {
+                    level: u32::try_from(fr.level).unwrap_or(0),
+                    name: fr.proc_name.clone().unwrap_or_else(|| "global".to_owned()),
+                    namespace,
+                }
             })
             .collect();
         let mut variables: Vec<DebugVar> = self.frames.last().map_or_else(Vec::new, |frame| {
@@ -10728,8 +10752,10 @@ impl Vm {
         }
         frame.ns_eval = Some(self.ns_name_bytes(namespace));
         if self.uses_native_jim_lookup() {
-            *frame.jim_namespace.get_mut() =
-                Some((namespace, self.new_jim_declaration_namespace(namespace)));
+            *frame.jim_namespace.get_mut() = Some((
+                Some(namespace),
+                self.new_jim_declaration_namespace(namespace),
+            ));
         }
         self.frames.push(frame);
         self.recursion_depth += 1;
@@ -11072,12 +11098,8 @@ impl Vm {
             .get(&token)
             .cloned()
             .expect("materialized Jim namespace report belongs to its token");
-        for (context, report) in self
-            .resolution_stacks
-            .ns_id_stack
-            .iter()
-            .zip(&mut self.resolution_stacks.ns_stack)
-        {
+        let stacks = &mut self.resolution_stacks;
+        for (context, report) in stacks.ns_id_stack.iter().zip(&mut stacks.ns_stack) {
             if matches!(context, NamespaceExecutionContext::OriginalJim(selected) if std::ptr::eq(selected.as_ref(), original))
             {
                 *report = Some(name.clone());

@@ -2482,8 +2482,11 @@ impl Vm {
                 if frame.each_loop.is_some() || frame.compiler_generation.is_none() {
                     return None;
                 }
-                match current.resolved_token() {
-                    Some(token) if &self.ns_path(token) == path => None,
+                match current
+                    .resolved_token()
+                    .filter(|token| self.native_namespace_token_has_owner(*token))
+                {
+                    Some(token) if &self.namespace_path_for_token(token) == path => None,
                     Some(_) => Some("cannot continue bytecode after namespace changed"),
                     None => Some("cannot continue bytecode without namespace coordinates"),
                 }

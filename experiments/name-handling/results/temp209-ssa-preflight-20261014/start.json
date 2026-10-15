@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-14T23:48:08.501236+00:00",
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "--no-run",
+    "--message-format=json",
+    "-j1",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "xtask",
+    "-p",
+    "tcl-syntax",
+    "-p",
+    "bpf-tcl-ir",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "--bin",
+    "xtask"
+  ],
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "scope": "TEMP209 seven affected-consumer test artifacts with bounded SSA equation instrumentation after typed callback correction, full semantic bundle comparison transport, literal member handle and typed Jim namespace migrations. No tests executed by build. Original #2286 selector separately retains exact fixture and 180-second host budget. Temporary instrumentation is not production acceptance or full Native/provider closure."
+}

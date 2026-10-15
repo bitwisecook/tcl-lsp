@@ -49,3 +49,9 @@ a completed C release gate or Jim/F5 agreement.
 [TEMP208 SSA diagnostic preflight](temp208-ssa-preflight-20261014/README.md) retains the callback-target compile failure and exact restoration; no selector ran.
 
 [Original dying-namespace descendant SDK controls](original-dying-descendant-sdk-20261014/README.md) retain physical parent ancestry, visibility and teardown observations from C Tcl8.4–9.1.
+
+[Original descendant command-delete SDK controls](original-dying-descendant-command-sdk-20261014/README.md) retain eight actual unset/command-delete callback windows per C5 provider, with original ancestor identity and final cleanup; implementation acceptance remains independent.
+
+[TEMP209 SSA diagnostic preflight](temp209-ssa-preflight-20261014/README.md) retains the failed combined build and actual artifact scope; temporary SSA is excluded from production checkpoints.
+
+[TEMP210 SSA diagnostic preflight](temp210-ssa-preflight-20261014/README.md) retains the failed combined build and actual artifact scope; temporary SSA is excluded from production checkpoints.

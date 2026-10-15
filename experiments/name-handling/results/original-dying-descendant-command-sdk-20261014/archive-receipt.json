@@ -1,0 +1,412 @@
+{
+  "scope": "Exact original C5 SDK command-delete and unset-callback captures; no original receipt rewrite, binaries, current implementation or Native acceptance inferred.",
+  "files": [
+    {
+      "path": "probe.c",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/probe.c",
+      "sha256": "164bbf45b85ba8dfd3245c1db3b4c9a213e1a54bf7c140c7c2f2637e410ac417",
+      "bytes": 5160
+    },
+    {
+      "path": "capture.py",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/capture.py",
+      "sha256": "d0eea4777d49e51ea39ed53aba5fb586ceb6eece6965f5d13003302b0bb535e9",
+      "bytes": 2297
+    },
+    {
+      "path": "manifest.json",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/manifest.json",
+      "sha256": "a1f368c0f3732732002d5cfcd33b477f7e5d98bd8ff150c0c0e04efda6c19fbd",
+      "bytes": 6704
+    },
+    {
+      "path": "8.4.20/receipt.json",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.4.20/receipt.json",
+      "sha256": "e8e4bd0415b01ddb6d2ec25d15d2b90d3b0d68637c97d9a491aaf7ac7d598bae",
+      "bytes": 1139
+    },
+    {
+      "path": "8.4.20/stdout.tsv",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.4.20/stdout.tsv",
+      "sha256": "fe913e6cbe53f45c6d5d5c25dd0a738ece1ca1bce9568e4dadec095bcc84efc8",
+      "bytes": 5223
+    },
+    {
+      "path": "8.4.20/stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8.4.20/compile.stdout",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8.4.20/compile.stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8.5.19/receipt.json",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.5.19/receipt.json",
+      "sha256": "b98ddcc239fbb86e2ea7f35b259da70b259d237b9a5f9437ce7275ed5ce5a245",
+      "bytes": 1139
+    },
+    {
+      "path": "8.5.19/stdout.tsv",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.5.19/stdout.tsv",
+      "sha256": "55991ebccd18cced0bc85a3a4efaecfac614cea537fdcbb006c2abf1c0987af5",
+      "bytes": 5223
+    },
+    {
+      "path": "8.5.19/stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8.5.19/compile.stdout",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8.5.19/compile.stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8.6.18/receipt.json",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.6.18/receipt.json",
+      "sha256": "69631a119424f1aa8e60504a39cc210b5871d15bd3a08bb50ee9ae73495a1f05",
+      "bytes": 1139
+    },
+    {
+      "path": "8.6.18/stdout.tsv",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.6.18/stdout.tsv",
+      "sha256": "fdadcd039f56a2bbb9f36284a4213678aadfc8981fa8ee647cdea5e3eec513d4",
+      "bytes": 5223
+    },
+    {
+      "path": "8.6.18/stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8.6.18/compile.stdout",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "8.6.18/compile.stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "9.0.4/receipt.json",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.0.4/receipt.json",
+      "sha256": "af7ae0994b3b87eb4be5015074cda284e427ee0354eb1f04257fe591c977c2ad",
+      "bytes": 1132
+    },
+    {
+      "path": "9.0.4/stdout.tsv",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.0.4/stdout.tsv",
+      "sha256": "1f550d2d251f5a8f06250fea567ee82f1044c565bc41176436d057d5b990869c",
+      "bytes": 5221
+    },
+    {
+      "path": "9.0.4/stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "9.0.4/compile.stdout",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "9.0.4/compile.stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "9.1.0/receipt.json",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.1.0/receipt.json",
+      "sha256": "2aa864323bff5dc2c4f8a6c1a25287a7d554d78ea4153ba9675e3a14477e5d51",
+      "bytes": 1132
+    },
+    {
+      "path": "9.1.0/stdout.tsv",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.1.0/stdout.tsv",
+      "sha256": "7fadd11dbe9cfe9c028a8e9c3e330bdb85be755c93d3214d9826c0f298a5f4af",
+      "bytes": 5221
+    },
+    {
+      "path": "9.1.0/stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "9.1.0/compile.stdout",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "9.1.0/compile.stderr",
+      "original": "/tmp/name-dying-descendant-command-sdk-20261014/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "analysis.json",
+      "sha256": "24bdf610ea0a3d67d17d2a9fa8391c58f97a3ac4b46f8988c8c3fcb04df461bc",
+      "bytes": 118157
+    },
+    {
+      "path": "README.md",
+      "sha256": "ccb68aab216995d2f45d4f770ccd29c98c3bb065c957c11f91b36eb45d499c87",
+      "bytes": 3095
+    },
+    {
+      "path": "verify.py",
+      "sha256": "5cbb62ba0b193fc6d41dea417c0d3ec1d445e8dd4a0ec923ecc02227aecc739c",
+      "bytes": 678
+    }
+  ],
+  "referenced_provider_snapshots": [
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.4.20/generic/tclNamesp.c",
+      "sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.4.20/generic/tclVar.c",
+      "sha256": "177628c7637491dffb4ba78f76e5dfdec21331c738c382f47ddb312721f05c9d",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclVar.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.4.20/generic/tclInt.h",
+      "sha256": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.4.20/generic/tclIntDecls.h",
+      "sha256": "ef14c8b968a80d9d4b08b70419afbfcef4dc484d03fb5c3f6c729350e0c45a1e",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIntDecls.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.4.20/generic/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.4.20/library/init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.4.20/unix/Makefile",
+      "sha256": "fc51767f4b4eedbfc6511104919f5b674a826421ff3aa086b5fb0afba91096bd",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.5.19/generic/tclNamesp.c",
+      "sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.5.19/generic/tclVar.c",
+      "sha256": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclVar.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.5.19/generic/tclInt.h",
+      "sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.5.19/generic/tclIntDecls.h",
+      "sha256": "e4efb75e3a479b8d816cba3eb4633a449276dc2ac2f1a86d2125cac32dfc0243",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIntDecls.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.5.19/generic/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.5.19/library/init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.5.19/unix/Makefile",
+      "sha256": "d75f646667cb61a345ba3b296378820ab645dd64a2dfc4086a7a4fc1f3aefd30",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.6.18/generic/tclNamesp.c",
+      "sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.6.18/generic/tclVar.c",
+      "sha256": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclVar.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.6.18/generic/tclInt.h",
+      "sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.6.18/generic/tclIntDecls.h",
+      "sha256": "dd303cab02a101f96109c96f626eb91fa5576fe21294a9d80816b06a8014ca26",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIntDecls.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.6.18/generic/tcl.h",
+      "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.6.18/library/init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/8.6.18/unix/Makefile",
+      "sha256": "3cd353b9ac58331ec96496de14f005be972f2824250e6812ca60b6949f23aaed",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.0.4/generic/tclNamesp.c",
+      "sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.0.4/generic/tclVar.c",
+      "sha256": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclVar.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.0.4/generic/tclInt.h",
+      "sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.0.4/generic/tclIntDecls.h",
+      "sha256": "96897750658753b43b3de554682bec7249c92e858dbe437eab7de0e26aba9a6a",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIntDecls.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.0.4/generic/tcl.h",
+      "sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.0.4/library/init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.0.4/unix/Makefile",
+      "sha256": "5d28ef83e60eabcaf398a53a41bab20c381254f9a67c78dba09460722d5d33b6",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.1.0/generic/tclNamesp.c",
+      "sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.1.0/generic/tclVar.c",
+      "sha256": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclVar.c"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.1.0/generic/tclInt.h",
+      "sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.1.0/generic/tclIntDecls.h",
+      "sha256": "78d549e7b85ed9e91df2d44e62db9f2a376b55deb98c55edbbbe53396d45b502",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIntDecls.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.1.0/generic/tcl.h",
+      "sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.1.0/library/init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl"
+    },
+    {
+      "path": "experiments/name-handling/results/original-dying-descendant-sdk-20261014/provider-sources/9.1.0/unix/Makefile",
+      "sha256": "a2c52481652af4a3df4042243a7c6ed6211835f6a08d9d13a064ff6de927f737",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile"
+    }
+  ],
+  "excluded_verified_binaries": [
+    {
+      "version": "8.4.20",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "executable": "/tmp/name-dying-descendant-command-sdk-20261014/8.4.20/probe",
+      "executable_sha256": "c0aa8e0814b11311c90689108136a7ed8c70093b787748d084e786bcc59ed473",
+      "verified_at_archival": true,
+      "archived": false
+    },
+    {
+      "version": "8.5.19",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "executable": "/tmp/name-dying-descendant-command-sdk-20261014/8.5.19/probe",
+      "executable_sha256": "e6edf91538902627b25574170ff9db1502a96da5580922b8d838b7c1087392ae",
+      "verified_at_archival": true,
+      "archived": false
+    },
+    {
+      "version": "8.6.18",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "executable": "/tmp/name-dying-descendant-command-sdk-20261014/8.6.18/probe",
+      "executable_sha256": "73d789f7cc2ea640c37c9123c876eee8e3f7f9a24f09e36ae9dd46be7e6bbe36",
+      "verified_at_archival": true,
+      "archived": false
+    },
+    {
+      "version": "9.0.4",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "c1fef73d6842ea10b5ec81de5f4a92bd9376e2f0f842b2b434be8a3b87e7a86f",
+      "executable": "/tmp/name-dying-descendant-command-sdk-20261014/9.0.4/probe",
+      "executable_sha256": "3188428d10f1beab8f0fe708c5861de0a971caabfde1489d97cc1a4026c09d59",
+      "verified_at_archival": true,
+      "archived": false
+    },
+    {
+      "version": "9.1.0",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "7065af82e6e2c2b15dd45e3146ebb4fa7ed6b0b293a8c66c17b91b27dfdcaa61",
+      "executable": "/tmp/name-dying-descendant-command-sdk-20261014/9.1.0/probe",
+      "executable_sha256": "d3b56995b94f7aebf23100dce18e6fa2cccb0f3e7829af9e0c6215d14a1df3ed",
+      "verified_at_archival": true,
+      "archived": false
+    }
+  ]
+}

@@ -1,0 +1,574 @@
+{
+  "started": {
+    "utc": "2026-10-14T23:48:08.501236+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "xtask",
+      "-p",
+      "tcl-syntax",
+      "-p",
+      "bpf-tcl-ir",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "--bin",
+      "xtask"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "TEMP209 seven affected-consumer test artifacts with bounded SSA equation instrumentation after typed callback correction, full semantic bundle comparison transport, literal member handle and typed Jim namespace migrations. No tests executed by build. Original #2286 selector separately retains exact fixture and 180-second host budget. Temporary instrumentation is not production acceptance or full Native/provider closure."
+  },
+  "finished_utc": "2026-10-14T23:50:12.740724+00:00",
+  "exit_code": 101,
+  "seconds": 124.23932302100002,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [
+    {
+      "rendered": "error[E0624]: method `ns_path` is private\n     --> rust/tcl-vm/src/exec.rs:2486:42\n      |\n 2486 |                     Some(token) if &self.ns_path(token) == path => None,\n      |                                          ^^^^^^^ private method\n      |\n     ::: rust/tcl-vm/src/interp.rs:11680:5\n      |\n11680 |     fn ns_path(&self, id: NsId) -> NamespacePath {\n      |     -------------------------------------------- private method defined here\n\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "error",
+      "message": "method `ns_path` is private",
+      "spans": [
+        {
+          "byte_end": 105629,
+          "byte_start": 105622,
+          "column_end": 49,
+          "column_start": 42,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/exec.rs",
+          "is_primary": true,
+          "label": "private method",
+          "line_end": 2486,
+          "line_start": 2486,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 49,
+              "highlight_start": 42,
+              "text": "                    Some(token) if &self.ns_path(token) == path => None,"
+            }
+          ]
+        },
+        {
+          "byte_end": 503938,
+          "byte_start": 503894,
+          "column_end": 49,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "private method defined here",
+          "line_end": 11680,
+          "line_start": 11680,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 49,
+              "highlight_start": 5,
+              "text": "    fn ns_path(&self, id: NsId) -> NamespacePath {"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0624",
+        "explanation": "A private item was used outside of its scope.\n\nErroneous code example:\n\n```compile_fail,E0624\nmod inner {\n    pub struct Foo;\n\n    impl Foo {\n        fn method(&self) {}\n    }\n}\n\nlet foo = inner::Foo;\nfoo.method(); // error: method `method` is private\n```\n\nTwo possibilities are available to solve this issue:\n\n1. Only use the item in the scope it has been defined:\n\n```\nmod inner {\n    pub struct Foo;\n\n    impl Foo {\n        fn method(&self) {}\n    }\n\n    pub fn call_method(foo: &Foo) { // We create a public function.\n        foo.method(); // Which calls the item.\n    }\n}\n\nlet foo = inner::Foo;\ninner::call_method(&foo); // And since the function is public, we can call the\n                          // method through it.\n```\n\n2. Make the item public:\n\n```\nmod inner {\n    pub struct Foo;\n\n    impl Foo {\n        pub fn method(&self) {} // It's now public.\n    }\n}\n\nlet foo = inner::Foo;\nfoo.method(); // Ok!\n```\n"
+      }
+    },
+    {
+      "rendered": "error[E0308]: mismatched types\n     --> rust/tcl-vm/src/interp.rs:4489:56\n      |\n 4489 |                     .map_or_else(|| self.ns_name_bytes(fr.ns), Clone::clone)\n      |                                          ------------- ^^^^^ expected `NsId`, found `NamespaceExecutionContext`\n      |                                          |\n      |                                          arguments to this method are incorrect\n      |\nnote: method defined here\n     --> rust/tcl-vm/src/interp.rs:11021:8\n      |\n11021 |     fn ns_name_bytes(&self, id: NsId) -> NameBytes {\n      |        ^^^^^^^^^^^^^        --------\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "method defined here",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 477550,
+              "byte_start": 477542,
+              "column_end": 37,
+              "column_start": 29,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp.rs",
+              "is_primary": false,
+              "label": "",
+              "line_end": 11021,
+              "line_start": 11021,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 37,
+                  "highlight_start": 29,
+                  "text": "    fn ns_name_bytes(&self, id: NsId) -> NameBytes {"
+                }
+              ]
+            },
+            {
+              "byte_end": 477534,
+              "byte_start": 477521,
+              "column_end": 21,
+              "column_start": 8,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 11021,
+              "line_start": 11021,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 21,
+                  "highlight_start": 8,
+                  "text": "    fn ns_name_bytes(&self, id: NsId) -> NameBytes {"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "mismatched types",
+      "spans": [
+        {
+          "byte_end": 197623,
+          "byte_start": 197618,
+          "column_end": 61,
+          "column_start": 56,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": true,
+          "label": "expected `NsId`, found `NamespaceExecutionContext`",
+          "line_end": 4489,
+          "line_start": 4489,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 61,
+              "highlight_start": 56,
+              "text": "                    .map_or_else(|| self.ns_name_bytes(fr.ns), Clone::clone)"
+            }
+          ]
+        },
+        {
+          "byte_end": 197617,
+          "byte_start": 197604,
+          "column_end": 55,
+          "column_start": 42,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "arguments to this method are incorrect",
+          "line_end": 4489,
+          "line_start": 4489,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 55,
+              "highlight_start": 42,
+              "text": "                    .map_or_else(|| self.ns_name_bytes(fr.ns), Clone::clone)"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0308",
+        "explanation": "Expected type did not match the received type.\n\nErroneous code examples:\n\n```compile_fail,E0308\nfn plus_one(x: i32) -> i32 {\n    x + 1\n}\n\nplus_one(\"Not a number\");\n//       ^^^^^^^^^^^^^^ expected `i32`, found `&str`\n\nif \"Not a bool\" {\n// ^^^^^^^^^^^^ expected `bool`, found `&str`\n}\n\nlet x: f32 = \"Not a float\";\n//     ---   ^^^^^^^^^^^^^ expected `f32`, found `&str`\n//     |\n//     expected due to this\n```\n\nThis error occurs when an expression was used in a place where the compiler\nexpected an expression of a different type. It can occur in several cases, the\nmost common being when calling a function and passing an argument which has a\ndifferent type than the matching type in the function declaration.\n"
+      }
+    },
+    {
+      "rendered": "error[E0609]: no field `0` on type `NamespaceExecutionContext`\n    --> rust/tcl-vm/src/interp.rs:4491:76\n     |\n4491 |                     .map_or_else(|_| format!(\"<namespace token {}>\", fr.ns.0), str::to_owned),\n     |                                                                            ^ unknown field\n\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "error",
+      "message": "no field `0` on type `NamespaceExecutionContext`",
+      "spans": [
+        {
+          "byte_end": 197748,
+          "byte_start": 197747,
+          "column_end": 77,
+          "column_start": 76,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": true,
+          "label": "unknown field",
+          "line_end": 4491,
+          "line_start": 4491,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 77,
+              "highlight_start": 76,
+              "text": "                    .map_or_else(|_| format!(\"<namespace token {}>\", fr.ns.0), str::to_owned),"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0609",
+        "explanation": "Attempted to access a nonexistent field in a struct.\n\nErroneous code example:\n\n```compile_fail,E0609\nstruct StructWithFields {\n    x: u32,\n}\n\nlet s = StructWithFields { x: 0 };\nprintln!(\"{}\", s.foo); // error: no field `foo` on type `StructWithFields`\n```\n\nTo fix this error, check that you didn't misspell the field's name or that the\nfield actually exists. Example:\n\n```\nstruct StructWithFields {\n    x: u32,\n}\n\nlet s = StructWithFields { x: 0 };\nprintln!(\"{}\", s.x); // ok!\n```\n"
+      }
+    },
+    {
+      "rendered": "error[E0308]: mismatched types\n     --> rust/tcl-vm/src/interp.rs:10732:23\n      |\n10732 |                 Some((namespace, self.new_jim_declaration_namespace(namespace)));\n      |                       ^^^^^^^^^ expected `Option<NsId>`, found `NsId`\n      |\n      = note: expected enum `std::option::Option<NsId>`\n               found struct `NsId`\nhelp: try wrapping the expression in `Some`\n      |\n10732 |                 Some((Some(namespace), self.new_jim_declaration_namespace(namespace)));\n      |                       +++++         +\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "expected enum `std::option::Option<NsId>`\n found struct `NsId`",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "try wrapping the expression in `Some`",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 465554,
+              "byte_start": 465554,
+              "column_end": 23,
+              "column_start": 23,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 10732,
+              "line_start": 10732,
+              "suggested_replacement": "Some(",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 23,
+                  "highlight_start": 23,
+                  "text": "                Some((namespace, self.new_jim_declaration_namespace(namespace)));"
+                }
+              ]
+            },
+            {
+              "byte_end": 465563,
+              "byte_start": 465563,
+              "column_end": 32,
+              "column_start": 32,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 10732,
+              "line_start": 10732,
+              "suggested_replacement": ")",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 32,
+                  "highlight_start": 32,
+                  "text": "                Some((namespace, self.new_jim_declaration_namespace(namespace)));"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "mismatched types",
+      "spans": [
+        {
+          "byte_end": 465563,
+          "byte_start": 465554,
+          "column_end": 32,
+          "column_start": 23,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": true,
+          "label": "expected `Option<NsId>`, found `NsId`",
+          "line_end": 10732,
+          "line_start": 10732,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 32,
+              "highlight_start": 23,
+              "text": "                Some((namespace, self.new_jim_declaration_namespace(namespace)));"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0308",
+        "explanation": "Expected type did not match the received type.\n\nErroneous code examples:\n\n```compile_fail,E0308\nfn plus_one(x: i32) -> i32 {\n    x + 1\n}\n\nplus_one(\"Not a number\");\n//       ^^^^^^^^^^^^^^ expected `i32`, found `&str`\n\nif \"Not a bool\" {\n// ^^^^^^^^^^^^ expected `bool`, found `&str`\n}\n\nlet x: f32 = \"Not a float\";\n//     ---   ^^^^^^^^^^^^^ expected `f32`, found `&str`\n//     |\n//     expected due to this\n```\n\nThis error occurs when an expression was used in a place where the compiler\nexpected an expression of a different type. It can occur in several cases, the\nmost common being when calling a function and passing an argument which has a\ndifferent type than the matching type in the function declaration.\n"
+      }
+    },
+    {
+      "rendered": "error[E0502]: cannot borrow `*self` as mutable because it is also borrowed as immutable\n     --> rust/tcl-vm/src/interp.rs:11079:23\n      |\n11075 |           for (context, report) in self\n      |           -                        ---- immutable borrow occurs here\n      |  _________|\n      | |\n11076 | |             .resolution_stacks\n11077 | |             .ns_id_stack\n11078 | |             .iter()\n11079 | |             .zip(&mut self.resolution_stacks.ns_stack)\n      | |              ---      ^^^^ mutable borrow occurs here\n      | |              |\n      | |              immutable borrow later used by call\n...     |\n11085 | |         }\n      | |_________- this for loop borrows `*self` immutably, preventing mutation within its body\n      |\n      = help: consider using an index-based loop instead, or collecting modifications into a separate collection\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "consider using an index-based loop instead, or collecting modifications into a separate collection",
+          "rendered": null,
+          "spans": []
+        }
+      ],
+      "level": "error",
+      "message": "cannot borrow `*self` as mutable because it is also borrowed as immutable",
+      "spans": [
+        {
+          "byte_end": 479479,
+          "byte_start": 479475,
+          "column_end": 27,
+          "column_start": 23,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": true,
+          "label": "mutable borrow occurs here",
+          "line_end": 11079,
+          "line_start": 11079,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 27,
+              "highlight_start": 23,
+              "text": "            .zip(&mut self.resolution_stacks.ns_stack)"
+            }
+          ]
+        },
+        {
+          "byte_end": 479376,
+          "byte_start": 479372,
+          "column_end": 38,
+          "column_start": 34,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "immutable borrow occurs here",
+          "line_end": 11075,
+          "line_start": 11075,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 38,
+              "highlight_start": 34,
+              "text": "        for (context, report) in self"
+            }
+          ]
+        },
+        {
+          "byte_end": 479729,
+          "byte_start": 479347,
+          "column_end": 10,
+          "column_start": 9,
+          "expansion": {
+            "def_site_span": {
+              "byte_end": 0,
+              "byte_start": 0,
+              "column_end": 1,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/lib.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 1,
+              "line_start": 1,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": []
+            },
+            "macro_decl_name": "desugaring of `for` loop",
+            "span": {
+              "byte_end": 479729,
+              "byte_start": 479347,
+              "column_end": 10,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 11085,
+              "line_start": 11075,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 38,
+                  "highlight_start": 9,
+                  "text": "        for (context, report) in self"
+                },
+                {
+                  "highlight_end": 31,
+                  "highlight_start": 1,
+                  "text": "            .resolution_stacks"
+                },
+                {
+                  "highlight_end": 25,
+                  "highlight_start": 1,
+                  "text": "            .ns_id_stack"
+                },
+                {
+                  "highlight_end": 20,
+                  "highlight_start": 1,
+                  "text": "            .iter()"
+                },
+                {
+                  "highlight_end": 55,
+                  "highlight_start": 1,
+                  "text": "            .zip(&mut self.resolution_stacks.ns_stack)"
+                },
+                {
+                  "highlight_end": 10,
+                  "highlight_start": 1,
+                  "text": "        {"
+                },
+                {
+                  "highlight_end": 128,
+                  "highlight_start": 1,
+                  "text": "            if matches!(context, NamespaceExecutionContext::OriginalJim(selected) if std::ptr::eq(selected.as_ref(), original))"
+                },
+                {
+                  "highlight_end": 14,
+                  "highlight_start": 1,
+                  "text": "            {"
+                },
+                {
+                  "highlight_end": 46,
+                  "highlight_start": 1,
+                  "text": "                *report = Some(name.clone());"
+                },
+                {
+                  "highlight_end": 14,
+                  "highlight_start": 1,
+                  "text": "            }"
+                },
+                {
+                  "highlight_end": 10,
+                  "highlight_start": 1,
+                  "text": "        }"
+                }
+              ]
+            }
+          },
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "this for loop borrows `*self` immutably, preventing mutation within its body",
+          "line_end": 11085,
+          "line_start": 11075,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 38,
+              "highlight_start": 9,
+              "text": "        for (context, report) in self"
+            },
+            {
+              "highlight_end": 31,
+              "highlight_start": 1,
+              "text": "            .resolution_stacks"
+            },
+            {
+              "highlight_end": 25,
+              "highlight_start": 1,
+              "text": "            .ns_id_stack"
+            },
+            {
+              "highlight_end": 20,
+              "highlight_start": 1,
+              "text": "            .iter()"
+            },
+            {
+              "highlight_end": 55,
+              "highlight_start": 1,
+              "text": "            .zip(&mut self.resolution_stacks.ns_stack)"
+            },
+            {
+              "highlight_end": 10,
+              "highlight_start": 1,
+              "text": "        {"
+            },
+            {
+              "highlight_end": 128,
+              "highlight_start": 1,
+              "text": "            if matches!(context, NamespaceExecutionContext::OriginalJim(selected) if std::ptr::eq(selected.as_ref(), original))"
+            },
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "            {"
+            },
+            {
+              "highlight_end": 46,
+              "highlight_start": 1,
+              "text": "                *report = Some(name.clone());"
+            },
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "            }"
+            },
+            {
+              "highlight_end": 10,
+              "highlight_start": 1,
+              "text": "        }"
+            }
+          ]
+        },
+        {
+          "byte_end": 479469,
+          "byte_start": 479466,
+          "column_end": 17,
+          "column_start": 14,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp.rs",
+          "is_primary": false,
+          "label": "immutable borrow later used by call",
+          "line_end": 11079,
+          "line_start": 11079,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 17,
+              "highlight_start": 14,
+              "text": "            .zip(&mut self.resolution_stacks.ns_stack)"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0502",
+        "explanation": "A variable already borrowed with a certain mutability (either mutable or\nimmutable) was borrowed again with a different mutability.\n\nErroneous code example:\n\n```compile_fail,E0502\nfn bar(x: &mut i32) {}\nfn foo(a: &mut i32) {\n    let y = &a; // a is borrowed as immutable.\n    bar(a); // error: cannot borrow `*a` as mutable because `a` is also borrowed\n            //        as immutable\n    println!(\"{}\", y);\n}\n```\n\nTo fix this error, ensure that you don't have any other references to the\nvariable before trying to access it with a different mutability:\n\n```\nfn bar(x: &mut i32) {}\nfn foo(a: &mut i32) {\n    bar(a);\n    let y = &a; // ok!\n    println!(\"{}\", y);\n}\n```\n\nFor more information on Rust's ownership system, take a look at the\n[References & Borrowing][references-and-borrowing] section of the Book.\n\n[references-and-borrowing]: https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html\n"
+      }
+    }
+  ],
+  "test_artifacts": []
+}

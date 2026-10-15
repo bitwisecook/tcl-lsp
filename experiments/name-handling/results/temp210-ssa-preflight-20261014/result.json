@@ -1,0 +1,406 @@
+{
+  "started": {
+    "utc": "2026-10-14T23:53:22.797100+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "xtask",
+      "-p",
+      "tcl-syntax",
+      "-p",
+      "bpf-tcl-ir",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "--bin",
+      "xtask"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "TEMP210 seven affected-consumer test artifacts with bounded SSA equation instrumentation after actual VM type corrections and DB solve producer ownership, full semantic bundle comparison transport, literal member handle and typed Jim namespace migrations. No tests executed by build. Original #2286 selector separately retains exact fixture and 180-second host budget. Temporary instrumentation is not production acceptance or full Native/provider closure."
+  },
+  "finished_utc": "2026-10-14T23:57:32.418181+00:00",
+  "exit_code": 101,
+  "seconds": 249.62092147300427,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [
+    {
+      "rendered": "error[E0308]: mismatched types\n     --> rust/tcl-vm/src/exec/native_jim_script.rs:510:21\n      |\n  508 |                 .prepare_native_jim_script_unit(\n      |                  ------------------------------ arguments to this method are incorrect\n  509 |                     &original,\n  510 |                     tcl_core_types::ByteNamespacePath::root(),\n      |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `NamespaceExecutionContext`, found `ByteNamespacePath`\n      |\nnote: method defined here\n     --> rust/tcl-vm/src/interp.rs:25901:19\n      |\n25901 |     pub(crate) fn prepare_native_jim_script_unit(\n      |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n25904 |         context: namespace_context::NamespaceExecutionContext,\n      |         -----------------------------------------------------\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "method defined here",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 1087505,
+              "byte_start": 1087452,
+              "column_end": 62,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp.rs",
+              "is_primary": false,
+              "label": "",
+              "line_end": 25904,
+              "line_start": 25904,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 62,
+                  "highlight_start": 9,
+                  "text": "        context: namespace_context::NamespaceExecutionContext,"
+                }
+              ]
+            },
+            {
+              "byte_end": 1087397,
+              "byte_start": 1087367,
+              "column_end": 49,
+              "column_start": 19,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 25901,
+              "line_start": 25901,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 49,
+                  "highlight_start": 19,
+                  "text": "    pub(crate) fn prepare_native_jim_script_unit("
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "mismatched types",
+      "spans": [
+        {
+          "byte_end": 21952,
+          "byte_start": 21911,
+          "column_end": 62,
+          "column_start": 21,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/exec/native_jim_script.rs",
+          "is_primary": true,
+          "label": "expected `NamespaceExecutionContext`, found `ByteNamespacePath`",
+          "line_end": 510,
+          "line_start": 510,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 62,
+              "highlight_start": 21,
+              "text": "                    tcl_core_types::ByteNamespacePath::root(),"
+            }
+          ]
+        },
+        {
+          "byte_end": 21858,
+          "byte_start": 21828,
+          "column_end": 48,
+          "column_start": 18,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/exec/native_jim_script.rs",
+          "is_primary": false,
+          "label": "arguments to this method are incorrect",
+          "line_end": 508,
+          "line_start": 508,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 48,
+              "highlight_start": 18,
+              "text": "                .prepare_native_jim_script_unit("
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0308",
+        "explanation": "Expected type did not match the received type.\n\nErroneous code examples:\n\n```compile_fail,E0308\nfn plus_one(x: i32) -> i32 {\n    x + 1\n}\n\nplus_one(\"Not a number\");\n//       ^^^^^^^^^^^^^^ expected `i32`, found `&str`\n\nif \"Not a bool\" {\n// ^^^^^^^^^^^^ expected `bool`, found `&str`\n}\n\nlet x: f32 = \"Not a float\";\n//     ---   ^^^^^^^^^^^^^ expected `f32`, found `&str`\n//     |\n//     expected due to this\n```\n\nThis error occurs when an expression was used in a place where the compiler\nexpected an expression of a different type. It can occur in several cases, the\nmost common being when calling a function and passing an argument which has a\ndifferent type than the matching type in the function declaration.\n"
+      }
+    },
+    {
+      "rendered": "error[E0560]: struct `JimNamespaceOriginBackend<'_>` has no field named `current`\n   --> rust/tcl-vm/src/interp/native_namespace_origin_tests.rs:122:9\n    |\n122 |         current: super::ROOT_NS,\n    |         ^^^^^^^ `JimNamespaceOriginBackend<'_>` does not have this field\n    |\n    = note: all struct fields are already assigned\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "all struct fields are already assigned",
+          "rendered": null,
+          "spans": []
+        }
+      ],
+      "level": "error",
+      "message": "struct `JimNamespaceOriginBackend<'_>` has no field named `current`",
+      "spans": [
+        {
+          "byte_end": 5048,
+          "byte_start": 5041,
+          "column_end": 16,
+          "column_start": 9,
+          "expansion": null,
+          "file_name": "rust/tcl-vm/src/interp/native_namespace_origin_tests.rs",
+          "is_primary": true,
+          "label": "`JimNamespaceOriginBackend<'_>` does not have this field",
+          "line_end": 122,
+          "line_start": 122,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 16,
+              "highlight_start": 9,
+              "text": "        current: super::ROOT_NS,"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0560",
+        "explanation": "An unknown field was specified into a structure.\n\nErroneous code example:\n\n```compile_fail,E0560\nstruct Simba {\n    mother: u32,\n}\n\nlet s = Simba { mother: 1, father: 0 };\n// error: structure `Simba` has no field named `father`\n```\n\nVerify you didn't misspell the field's name or that the field exists. Example:\n\n```\nstruct Simba {\n    mother: u32,\n    father: u32,\n}\n\nlet s = Simba { mother: 1, father: 0 }; // ok!\n```\n"
+      }
+    },
+    {
+      "rendered": "error[E0369]: binary operation `==` cannot be applied to type `CompiledUnitNamespace`\n   --> rust/tcl-vm/src/interp/native_procedure_artifacts.rs:221:9\n    |\n221 |         assert_eq!(selected.source_namespace, left_path);\n    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |         |\n    |         CompiledUnitNamespace\n    |         tcl_core_types::ByteNamespacePath\n    |\nnote: an implementation of `PartialEq<tcl_core_types::ByteNamespacePath>` might be missing for `CompiledUnitNamespace`\n   --> rust/tcl-vm/src/compiled.rs:100:1\n    |\n100 | pub(crate) enum CompiledUnitNamespace {\n    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ must implement `PartialEq<tcl_core_types::ByteNamespacePath>`\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "an implementation of `PartialEq<tcl_core_types::ByteNamespacePath>` might be missing for `CompiledUnitNamespace`",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 4391,
+              "byte_start": 4354,
+              "column_end": 38,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/compiled.rs",
+              "is_primary": true,
+              "label": "must implement `PartialEq<tcl_core_types::ByteNamespacePath>`",
+              "line_end": 100,
+              "line_start": 100,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 38,
+                  "highlight_start": 1,
+                  "text": "pub(crate) enum CompiledUnitNamespace {"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "binary operation `==` cannot be applied to type `CompiledUnitNamespace`",
+      "spans": [
+        {
+          "byte_end": 1491,
+          "byte_start": 1482,
+          "column_end": 31,
+          "column_start": 22,
+          "expansion": {
+            "def_site_span": {
+              "byte_end": 1343,
+              "byte_start": 1321,
+              "column_end": 23,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 43,
+              "line_start": 43,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": []
+            },
+            "macro_decl_name": "assert_eq!",
+            "span": {
+              "byte_end": 7999,
+              "byte_start": 7951,
+              "column_end": 57,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp/native_procedure_artifacts.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 221,
+              "line_start": 221,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 57,
+                  "highlight_start": 9,
+                  "text": "        assert_eq!(selected.source_namespace, left_path);"
+                }
+              ]
+            }
+          },
+          "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+          "is_primary": false,
+          "label": "CompiledUnitNamespace",
+          "line_end": 47,
+          "line_start": 47,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": []
+        },
+        {
+          "byte_end": 1505,
+          "byte_start": 1495,
+          "column_end": 45,
+          "column_start": 35,
+          "expansion": {
+            "def_site_span": {
+              "byte_end": 1343,
+              "byte_start": 1321,
+              "column_end": 23,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 43,
+              "line_start": 43,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": []
+            },
+            "macro_decl_name": "assert_eq!",
+            "span": {
+              "byte_end": 7999,
+              "byte_start": 7951,
+              "column_end": 57,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp/native_procedure_artifacts.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 221,
+              "line_start": 221,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 57,
+                  "highlight_start": 9,
+                  "text": "        assert_eq!(selected.source_namespace, left_path);"
+                }
+              ]
+            }
+          },
+          "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+          "is_primary": false,
+          "label": "tcl_core_types::ByteNamespacePath",
+          "line_end": 47,
+          "line_start": 47,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": []
+        },
+        {
+          "byte_end": 1494,
+          "byte_start": 1492,
+          "column_end": 34,
+          "column_start": 32,
+          "expansion": {
+            "def_site_span": {
+              "byte_end": 1343,
+              "byte_start": 1321,
+              "column_end": 23,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 43,
+              "line_start": 43,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": []
+            },
+            "macro_decl_name": "assert_eq!",
+            "span": {
+              "byte_end": 7999,
+              "byte_start": 7951,
+              "column_end": 57,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/tcl-vm/src/interp/native_procedure_artifacts.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 221,
+              "line_start": 221,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 57,
+                  "highlight_start": 9,
+                  "text": "        assert_eq!(selected.source_namespace, left_path);"
+                }
+              ]
+            }
+          },
+          "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 47,
+          "line_start": 47,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": []
+        }
+      ],
+      "code": {
+        "code": "E0369",
+        "explanation": "A binary operation was attempted on a type which doesn't support it.\n\nErroneous code example:\n\n```compile_fail,E0369\nlet x = 12f32; // error: binary operation `<<` cannot be applied to\n               //        type `f32`\n\nx << 2;\n```\n\nTo fix this error, please check that this type implements this binary\noperation. Example:\n\n```\nlet x = 12u32; // the `u32` type does implement it:\n               // https://doc.rust-lang.org/stable/std/ops/trait.Shl.html\n\nx << 2; // ok!\n```\n\nIt is also possible to overload most operators for your own type by\nimplementing traits from `std::ops`.\n\nString concatenation appends the string on the right to the string on the\nleft and may require reallocation. This requires ownership of the string\non the left. If something should be added to a string literal, move the\nliteral to the heap by allocating it with `to_owned()` like in\n`\"Your text\".to_owned()`.\n"
+      }
+    }
+  ],
+  "test_artifacts": [
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-21137d634222e84e",
+      "sha256": "36d649214f0c3dbf89fe2795cc49566f2348878492ecfd1d2a78db3201580bd0"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+      "sha256": "9641e7d828f37a7aaeba3078eca8b4729e284dcbfc231e8494c0848972b881b2"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-000c77bc7bf4bde5",
+      "sha256": "cbc1d74aa73080e3e026e20cb66622fc273d4fe77b5139398d3790f7ad73cae2"
+    }
+  ]
+}

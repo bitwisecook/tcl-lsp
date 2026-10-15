@@ -398,6 +398,18 @@ intact, as C's `ObjectNamespaceDeleted` does. Deletion goes **by namespace id**
 (`delete_namespace_by_id`, over `descendant_ids`) rather than by name,
 specifically so variable unset traces fire as the namespace is torn down.
 
+The [original C descendant controls](../../../experiments/name-handling/results/original-dying-descendant-sdk-20261014/README.md)
+isolate publication through a dying ancestor during an actual unset callback.
+New descendants retain that original physical ancestor and disappear after the
+outer teardown. The native namespace API can still find the parent while the
+public existence query reports it absent in C8.5–9.1; C8.4 reports it present.
+Reentry into the newly created child preserves that child's identity. These
+observations do not identify the earlier allocation of a pre-existing child.
+They also do not establish Runtime/VM acceptance, command-delete callback
+behaviour, Jim or F5. Returning a selected dying final token for an original
+trailing-separator operand is a separate rule; it grants no descendant
+publication or cleanup authority.
+
 ### Variable and command traces
 
 Implemented, but not as `VAR_TRACED_*` bits on the cell. Both runtimes keep

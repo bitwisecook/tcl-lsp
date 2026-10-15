@@ -153,6 +153,8 @@ authority.
 
 Closed body capsule equality retains each complete original semantic bundle. A private source transport requires two independently authenticated equal body correspondences and injective variable relocations before moving an exact original lowered statement and its same-site complete tokens to the peer's genuine source. Operation descriptors, effects, completion identities, structural nodes, world-state SSA, metadata and availability remain fully compared. Unsupported executable shapes and Native admissions retain exact bundle equality. The rebound bundle serves equality alone and cannot supply executable facts or Native authority.
 
+A memoised taint check retains its genuine immutable compilation producer alongside the solved Module-issued body IDs. Warning projection and diagnostic source-context selection use that same unit; a separately built unit with equal source and display names cannot select the solved body maps. The independent configured source, grammar and Registry ingress checks remain required.
+
 A runtime artifact cache retains
 separate candidate IDs and declines when multiple current candidates agree
 only in name/body/namespace geometry.
