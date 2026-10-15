@@ -1,0 +1,78 @@
+{
+  "fixture_sha256": "233c5f3e5b41420ba17b177f2d47f7fd28f7d490a21596442a9db9f9eb163da6",
+  "runs": [
+    {
+      "provider": "8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "started_utc": "2026-10-15T04:10:15.626280+00:00",
+      "finished_utc": "2026-10-15T04:10:15.629591+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "7cf89541a2f31f9a226d1e5442139c992e81b6eea5c0fce0203402ed586ce6df",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "provider": "8.5.19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "started_utc": "2026-10-15T04:10:15.629652+00:00",
+      "finished_utc": "2026-10-15T04:10:15.633683+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "7cf89541a2f31f9a226d1e5442139c992e81b6eea5c0fce0203402ed586ce6df",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "provider": "8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "started_utc": "2026-10-15T04:10:15.633739+00:00",
+      "finished_utc": "2026-10-15T04:10:15.639362+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "7cf89541a2f31f9a226d1e5442139c992e81b6eea5c0fce0203402ed586ce6df",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "provider": "9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "started_utc": "2026-10-15T04:10:15.639453+00:00",
+      "finished_utc": "2026-10-15T04:10:15.650834+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "7cf89541a2f31f9a226d1e5442139c992e81b6eea5c0fce0203402ed586ce6df",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "provider": "9.1.0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "started_utc": "2026-10-15T04:10:15.650940+00:00",
+      "finished_utc": "2026-10-15T04:10:15.661984+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "7cf89541a2f31f9a226d1e5442139c992e81b6eea5c0fce0203402ed586ce6df",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    },
+    {
+      "provider": "jim",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "started_utc": "2026-10-15T04:10:15.662068+00:00",
+      "finished_utc": "2026-10-15T04:10:15.665735+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "24eaa68a4e7f28d35aca9087afa15c7540a7ed63a166ea855ecb0a1670ddebdd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "original_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+    }
+  ],
+  "scope": "Original command-substitution plus literal namespace suffix source invocations. List conversion preserves its own representation; dynamic suffixes are observed separately and remain outside static component eligibility. No command lookup/installed body/Native grant."
+}

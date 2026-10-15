@@ -4,7 +4,7 @@
 
 //! Public original argv error reporting, separate from retained source-command text.
 
-use super::{Code, Interp};
+use super::{native_arguments::OriginalArguments, Code, Interp};
 use crate::obj::{self, Owned, TclObj};
 use tcl_registry::native_object_vector::NativeObjectVectorErrorProjection;
 use tcl_syntax::{native_string::NativeStringProtocol, value::ValueError};
@@ -29,99 +29,123 @@ impl Interp {
     /// pins them for invocation. Source evaluators use `dispatch` instead: their
     /// error command is the retained written source, not a serialized argv.
     pub fn eval_original_object_vector(&mut self, argv: &[*mut TclObj]) -> Code {
-        let Some(protocol) = self
-            .native_invocation_dialect()
-            .native_object_vector_protocol()
-        else {
-            return self.report_cmd_error(
-                ValueError::CommandProtocolUnavailable("public original object-vector evaluation")
-                    .into(),
-            );
+        let arguments = match OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
         };
-        if argv.is_empty() && matches!(protocol.strings(), NativeStringProtocol::C(_)) {
-            // TclInterpReady reaches Tcl_ResetResult before the empty-vector
-            // return, with no command lookup or command counter increment.
-            return match self.reset_original_c_result() {
-                Ok(()) => Code::Ok,
-                Err(first) => self.refuse_native_execution(first),
+        let code = (|| {
+            let Some(protocol) = self
+                .native_invocation_dialect()
+                .native_object_vector_protocol()
+            else {
+                return self.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable(
+                        "public original object-vector evaluation",
+                    )
+                    .into(),
+                );
             };
-        }
-        let pins = protocol.pins_arguments().then(|| {
-            argv.iter()
-                .map(|word| Owned::retain(*word))
-                .collect::<Vec<_>>()
-        });
-        let jim_frame = protocol.strings().is_jim084().then(|| {
-            let mut frames = self.jim_evaluation_frames.borrow_mut();
-            let previous_len = frames.len();
-            let script = frames.last().and_then(|parent| parent.script.clone());
-            frames.push(super::OriginalJimEvaluationFrame {
-                procedure_level: self.jim_procedure_level.get(),
-                command: None,
-                is_procedure: false,
-                script,
-                invocation: Vec::new(),
+            if argv.is_empty() && matches!(protocol.strings(), NativeStringProtocol::C(_)) {
+                // TclInterpReady reaches Tcl_ResetResult before the empty-vector
+                // return, with no command lookup or command counter increment.
+                return match self.reset_original_c_result() {
+                    Ok(()) => Code::Ok,
+                    Err(first) => self.refuse_native_execution(first),
+                };
+            }
+            let pins = protocol.pins_arguments().then(|| {
+                argv.iter()
+                    .map(|word| Owned::retain(*word))
+                    .collect::<Vec<_>>()
             });
-            JimVectorEvaluationFrame {
-                interp: self.clone(),
-                previous_len,
+            let jim_frame = protocol.strings().is_jim084().then(|| {
+                let mut frames = self.jim_evaluation_frames.borrow_mut();
+                let previous_len = frames.len();
+                let script = frames.last().and_then(|parent| parent.script.clone());
+                frames.push(super::OriginalJimEvaluationFrame {
+                    procedure_level: self.jim_procedure_level.get(),
+                    command: None,
+                    is_procedure: false,
+                    script,
+                    invocation: Vec::new(),
+                });
+                JimVectorEvaluationFrame {
+                    interp: self.clone(),
+                    previous_len,
+                }
+            });
+            let outer = self.eval_depth.get() == 0 && self.native_dispatch_depth.get() == 0;
+            let previous_depth = self.eval_depth.get();
+            self.eval_depth.set(previous_depth.saturating_add(1));
+            let mut code = self.dispatch(argv);
+            self.eval_depth.set(previous_depth);
+            if let Err(error) = arguments.check_for(self) {
+                return self.report_cmd_error(error);
             }
-        });
-        let outer = self.eval_depth.get() == 0 && self.native_dispatch_depth.get() == 0;
-        let previous_depth = self.eval_depth.get();
-        self.eval_depth.set(previous_depth.saturating_add(1));
-        let mut code = self.dispatch(argv);
-        self.eval_depth.set(previous_depth);
-        if !self.host_refusal_pending() && outer && !protocol.strings().is_jim084() {
-            let original = code;
-            code = self.settle_return(code);
-            if protocol.unexpected_completion(original.as_int(), code.as_int()) {
-                code = self.unexpected_object_vector_result(code);
+            if !self.host_refusal_pending() && outer && !protocol.strings().is_jim084() {
+                let original = code;
+                code = self.settle_return(code);
+                if protocol.unexpected_completion(original.as_int(), code.as_int()) {
+                    code = self.unexpected_object_vector_result(code);
+                }
             }
-        }
-        if code == Code::Error && !self.host_refusal_pending() {
-            let logged = self.exc.borrow().already_logged;
-            let command = match protocol.error_projection(logged) {
-                NativeObjectVectorErrorProjection::CStringWords => {
-                    let mut command = Vec::new();
-                    for word in argv {
-                        let bytes = match self.native_object_string_bytes(*word) {
-                            Ok(bytes) => bytes,
-                            Err(error) => return self.report_cmd_error(error.into()),
-                        };
-                        let end = bytes
-                            .iter()
-                            .position(|byte| *byte == 0)
-                            .unwrap_or(bytes.len());
-                        if !command.is_empty() {
-                            command.push(b' ');
+            if code == Code::Error && !self.host_refusal_pending() {
+                let logged = self.exc.borrow().already_logged;
+                let (command, temporary) = match protocol.error_projection(logged) {
+                    NativeObjectVectorErrorProjection::CStringWords => {
+                        let mut command = Vec::new();
+                        for index in 0..argv.len() {
+                            let bytes = match arguments.bytes(index) {
+                                Ok(bytes) => bytes,
+                                Err(error) => return self.report_cmd_error(error),
+                            };
+                            let end = bytes
+                                .iter()
+                                .position(|byte| *byte == 0)
+                                .unwrap_or(bytes.len());
+                            if !command.is_empty() {
+                                command.push(b' ');
+                            }
+                            tcl_syntax::list::append_list_element(
+                                &mut command,
+                                &bytes[..end],
+                                false,
+                            );
                         }
-                        tcl_syntax::list::append_list_element(&mut command, &bytes[..end], false);
+                        (Some(command), None)
                     }
-                    Some(command)
-                }
-                NativeObjectVectorErrorProjection::OriginalList => {
-                    let list = Owned::fresh(self.new_list_object(argv));
-                    match self.native_object_string_bytes(list.as_ptr()) {
-                        Ok(bytes) => Some(bytes.to_vec()),
-                        Err(error) => return self.report_cmd_error(error.into()),
+                    NativeObjectVectorErrorProjection::OriginalList => {
+                        let list = Owned::fresh(self.new_list_object(argv));
+                        let reached = self.native_object_string_bytes(list.as_ptr());
+                        if let Err(error) = arguments.check_for(self) {
+                            return self.report_cmd_error(error);
+                        }
+                        match reached {
+                            Ok(bytes) => (Some(bytes.to_vec()), Some(list)),
+                            Err(error) => return self.report_cmd_error(error.into()),
+                        }
+                    }
+                    NativeObjectVectorErrorProjection::None => (None, None),
+                };
+                if let Some(command) = command {
+                    self.log_command_bytes(1, &command);
+                    if let Err(error) = arguments.check_for(self) {
+                        return self.report_cmd_error(error);
+                    }
+                    if !logged {
+                        self.exc.borrow_mut().already_logged = false;
                     }
                 }
-                NativeObjectVectorErrorProjection::None => None,
-            };
-            if let Some(command) = command {
-                self.log_command_bytes(1, &command);
-                if !logged {
-                    self.exc.borrow_mut().already_logged = false;
-                }
+                drop(temporary);
             }
-        }
-        if protocol.clears_logged_on_exit() {
-            self.exc.borrow_mut().already_logged = false;
-        }
-        drop(jim_frame);
-        drop(pins);
-        code
+            if protocol.clears_logged_on_exit() {
+                self.exc.borrow_mut().already_logged = false;
+            }
+            drop(jim_frame);
+            drop(pins);
+            code
+        })();
+        arguments.finish(code)
     }
 
     pub(super) fn invalid_original_command(&mut self, original: *mut TclObj) -> Code {

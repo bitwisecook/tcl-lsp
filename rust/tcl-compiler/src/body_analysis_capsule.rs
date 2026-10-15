@@ -76,6 +76,7 @@ struct NeutralDeclaration {
         tcl_syntax::naming::NamePolicyProtocol,
         tcl_core_types::ByteCommandSlot,
     )>,
+    authored_source_slot: Option<tcl_core_types::ByteCommandSlot>,
     namespace: crate::command_binding::SourceNamespaceKey,
     written_name: String,
     display: String,
@@ -292,6 +293,7 @@ fn native_closed_projection(
     let declaration = NeutralDeclaration {
         publication: Some(publication.clone()),
         native_source_slot: None,
+        authored_source_slot: None,
         namespace: procedure.body.namespace_context.as_deref()?.clone(),
         written_name: procedure.name.clone(),
         display: procedure.qualified_name.clone(),
@@ -374,6 +376,38 @@ fn native_closed_projection(
     })
 }
 
+fn authored_source_slot(
+    module: &crate::ir::Module,
+    id: ProcedureId,
+) -> Option<tcl_core_types::ByteCommandSlot> {
+    let card = module.original_authored_declaration_body_units.get(&id)?;
+    let procedure = module.body_units.get(&id)?;
+    if !module.procedure_ids.owns(id) || !card.matches_procedure(module, procedure) {
+        return None;
+    }
+    // This card's original producer accepts only the explicit root source
+    // declaration grammar. A report label supplies no namespace coordinate.
+    let root = tcl_core_types::ByteNamespacePath::root();
+    let slot = tcl_syntax::naming::authored_source_command_slot(&root, card.name().as_bytes())?;
+    let count = module
+        .original_authored_declaration_body_units
+        .iter()
+        .filter(|(body, candidate)| {
+            module
+                .body_units
+                .get(body)
+                .is_some_and(|procedure| candidate.matches_procedure(module, procedure))
+                && tcl_syntax::naming::authored_source_command_slot(
+                    &root,
+                    candidate.name().as_bytes(),
+                )
+                .as_ref()
+                    == Some(&slot)
+        })
+        .count();
+    (count == 1).then_some(slot)
+}
+
 fn analytical_closed_projection(
     unit: &CompilationUnit,
     body_id: ProcedureId,
@@ -385,13 +419,21 @@ fn analytical_closed_projection(
         .original_native_declaration_body_units
         .get(&body_id)
         .filter(|card| card.matches_procedure(module, procedure));
-    if (native_card.is_none() && procedure.body_kind != crate::ir::ProcedureBodyKind::Named)
+    let authored_card = module
+        .original_authored_declaration_body_units
+        .get(&body_id)
+        .filter(|card| card.matches_procedure(module, procedure));
+    let readonly_source = native_card.is_some() || authored_card.is_some();
+    if (!readonly_source && procedure.body_kind != crate::ir::ProcedureBodyKind::Named)
         || !unit.methods.is_empty()
-        || (native_card.is_none() && !unit.body_units.is_empty())
+        || (!readonly_source && !unit.body_units.is_empty())
         || unit.body_units.keys().any(|id| {
             !module
                 .original_native_declaration_body_units
                 .contains_key(id)
+                && !module
+                    .original_authored_declaration_body_units
+                    .contains_key(id)
         })
         || unit.connection_scope.is_some()
         || !module.class_relations.is_empty()
@@ -415,6 +457,9 @@ fn analytical_closed_projection(
             return None;
         }
         None
+    } else if authored_card.is_some() {
+        authored_source_slot(module, body_id)?;
+        None
     } else {
         let publication = procedure.publication.as_ref()?;
         if module
@@ -436,6 +481,11 @@ fn analytical_closed_projection(
                 card.source_slot().clone(),
             )
         }),
+        authored_source_slot: if authored_card.is_some() {
+            Some(authored_source_slot(module, body_id)?)
+        } else {
+            None
+        },
         namespace: procedure.body.namespace_context.as_deref()?.clone(),
         written_name: procedure.name.clone(),
         display: procedure.qualified_name.clone(),
@@ -445,7 +495,17 @@ fn analytical_closed_projection(
         kind: procedure.body_kind,
     };
     let function = unit.function_for_body(Some(body_id))?;
-    function.invocation_metadata_context_for_module(registry, module)?;
+    if authored_card.is_some() {
+        if function.source_metadata_input().is_some()
+            || !function.cfg.metadata_context.is_standalone()
+            || !module.source_entry.metadata_context.is_standalone()
+            || function.source_lexer_config() != module.native_lexer_config().nested().normalized()
+        {
+            return None;
+        }
+    } else {
+        function.invocation_metadata_context_for_module(registry, module)?;
+    }
     let mut body = procedure.body.clone();
     crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
     let bindings = crate::command_binding::ModuleCommandBindings::analyse(module, registry);
@@ -454,14 +514,23 @@ fn analytical_closed_projection(
         body_source: &declaration.body_text,
         original_body_offset: procedure.span.start(),
         executable_body_offset: procedure.body_offset,
-        metadata: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
-            function.source_metadata_input(),
-        ),
+        metadata: if authored_card.is_some() {
+            crate::registry_invocation::InvocationMetadataInput::Retained(
+                &module.source_entry.metadata_context,
+            )
+        } else {
+            crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                function.source_metadata_input(),
+            )
+        },
         config: function.source_lexer_config(),
     };
     let correspondence = if native_card.is_some() {
         bindings
             .prepare_native_source_body_correspondence(&body, scope, module, body_id, registry)?
+    } else if authored_card.is_some() {
+        bindings
+            .prepare_authored_source_body_correspondence(&body, scope, module, body_id, registry)?
     } else {
         bindings.prepare_analytical_body_correspondence(&body, scope, registry)?
     };
@@ -472,7 +541,7 @@ fn analytical_closed_projection(
     );
     let normalized = normalized.relocated_variable_proofs(&correspondence.relocation)?;
     let proofs = crate::command_binding::BodySourceProofs::from_body(&correspondence.body);
-    let mut normalized = if native_card.is_some() {
+    let mut normalized = if readonly_source {
         normalized.restored_readonly_source_proofs(&proofs)?
     } else {
         normalized.restored_source_proofs(&proofs)?
@@ -586,6 +655,12 @@ impl BodyLatticeInputs {
             .original_logical_declaration_body_units
             .get(&request.body_id)
             .filter(|card| card.matches_procedure(module, procedure));
+        if module
+            .original_authored_declaration_body_units
+            .contains_key(&request.body_id)
+        {
+            return Self::retain_authored_source(request, registry);
+        }
         let actual_input = module.source_metadata_input.as_ref()?;
         let supplied_input = request.source_metadata_input?;
         if (supplied_input != actual_input && supplied_input != &actual_input.for_nested_source())
@@ -636,6 +711,7 @@ impl BodyLatticeInputs {
                     card.source_slot().clone(),
                 )
             }),
+            authored_source_slot: None,
             namespace: procedure.body.namespace_context.as_deref()?.clone(),
             written_name: procedure.name.clone(),
             display: procedure.qualified_name.clone(),
@@ -694,6 +770,81 @@ impl BodyLatticeInputs {
         })
     }
 
+    fn retain_authored_source(
+        request: &crate::compilation_unit::LatticeRequest<'_>,
+        registry: &CommandRegistry,
+    ) -> Option<Self> {
+        let module = request.module;
+        let procedure = request.original_source_procedure()?;
+        let card = module
+            .original_authored_declaration_body_units
+            .get(&request.body_id)?;
+        let retained = module.retained_source_bindings.as_ref()?;
+        retained.positioned_for_module(module, registry)?;
+        if !card.matches_procedure(module, procedure)
+            || !request.original_metadata_context(registry).is_standalone()
+            || request.source_metadata_input.is_some()
+            || module.source_metadata_input.is_some()
+            || module
+                .original_native_declaration_body_units
+                .contains_key(&request.body_id)
+            || module
+                .original_logical_declaration_body_units
+                .contains_key(&request.body_id)
+            || !retained.matches_original_procedure_summary(request.body_id, procedure)
+        {
+            return None;
+        }
+        let mut original = procedure.body.clone();
+        crate::lattice_rebase::rebase_script(&mut original, -i64::from(procedure.span.start()));
+        if &original != request.body {
+            return None;
+        }
+        let declaration = NeutralDeclaration {
+            publication: None,
+            native_source_slot: None,
+            authored_source_slot: Some(authored_source_slot(module, request.body_id)?),
+            namespace: procedure.body.namespace_context.as_deref()?.clone(),
+            written_name: procedure.name.clone(),
+            display: procedure.qualified_name.clone(),
+            parameters: procedure.params.clone(),
+            parameters_text: procedure.params_raw.clone(),
+            body_text: procedure.body_source.clone()?,
+            kind: procedure.body_kind,
+        };
+        let scope = crate::command_binding::BodyProofScope {
+            source: request.source,
+            body_source: &declaration.body_text,
+            original_body_offset: request.original_body_offset,
+            executable_body_offset: request.executable_body_offset,
+            metadata: crate::registry_invocation::InvocationMetadataInput::Retained(
+                &module.source_entry.metadata_context,
+            ),
+            config: request.lexer_config,
+        };
+        let correspondence = request
+            .command_bindings
+            .prepare_authored_source_body_correspondence(
+                request.body,
+                scope,
+                module,
+                request.body_id,
+                registry,
+            )?;
+        Some(Self {
+            body: request.body.clone(),
+            bindings: Some(request.command_bindings.clone()),
+            certificate: Some(Arc::new(BodyLatticeCertificate {
+                issuer: module.procedure_ids.clone(),
+                body: request.body_id,
+                retained_source: Arc::clone(retained),
+                procedure: procedure.clone(),
+                declaration,
+                correspondence,
+            })),
+        })
+    }
+
     /// Original offset-zero IR retained by the genuine request.
     /// Original source body retained for this lattice input.
     #[must_use]
@@ -723,6 +874,21 @@ impl BodyLatticeInputs {
         .then_some(certificate.body)
     }
 
+    /// Actual issued readonly declaration certified for source-analysis restoration.
+    /// This includes independent Native-source and explicit Standalone source
+    /// purposes; it grants no executable body, entry, publication or frame.
+    #[must_use]
+    pub fn certified_readonly_source_body_id(&self) -> Option<ProcedureId> {
+        let certificate = self.certificate.as_ref()?;
+        ((certificate.declaration.native_source_slot.is_some()
+            || certificate.declaration.authored_source_slot.is_some())
+            && certificate.issuer.owns(certificate.body)
+            && certificate
+                .retained_source
+                .matches_original_procedure_summary(certificate.body, &certificate.procedure))
+        .then_some(certificate.body)
+    }
+
     /// Restore a cached offset-zero lattice to this request's actual source and cells.
     #[must_use]
     pub fn rebind_cached(&self, original: &Self, cached: &FunctionUnit) -> Option<FunctionUnit> {
@@ -741,7 +907,8 @@ impl BodyLatticeInputs {
         {
             return None;
         }
-        if previous.declaration.native_source_slot.is_some()
+        if (previous.declaration.native_source_slot.is_some()
+            || previous.declaration.authored_source_slot.is_some())
             && cached.body_id != Some(previous.body)
         {
             return None;
@@ -749,7 +916,9 @@ impl BodyLatticeInputs {
         let normalized = cached.relocated_variable_proofs(&previous.correspondence.relocation)?;
         let previous_proofs =
             crate::command_binding::BodySourceProofs::from_body(&previous.correspondence.body);
-        let normalized = if previous.declaration.native_source_slot.is_some() {
+        let normalized = if (previous.declaration.native_source_slot.is_some()
+            || previous.declaration.authored_source_slot.is_some())
+        {
             normalized.restored_readonly_source_proofs(&previous_proofs)?
         } else {
             normalized.restored_source_proofs(&previous_proofs)?
@@ -757,12 +926,16 @@ impl BodyLatticeInputs {
         let rebound =
             normalized.relocated_variable_proofs(&current.correspondence.relocation.inverse()?)?;
         let current_proofs = crate::command_binding::BodySourceProofs::from_body(&self.body);
-        let mut rebound = if current.declaration.native_source_slot.is_some() {
+        let mut rebound = if (current.declaration.native_source_slot.is_some()
+            || current.declaration.authored_source_slot.is_some())
+        {
             rebound.restored_readonly_source_proofs(&current_proofs)?
         } else {
             rebound.restored_source_proofs(&current_proofs)?
         };
-        if current.declaration.native_source_slot.is_some() {
+        if (current.declaration.native_source_slot.is_some()
+            || current.declaration.authored_source_slot.is_some())
+        {
             rebound.body_id = Some(current.body);
         }
         Some(rebound)
@@ -1081,7 +1254,8 @@ mod native_source_lattice_tests {
     use crate::compilation_unit::{FunctionLatticeInputs, LatticeRequest, UnitDialect};
 
     fn build_current(req: &LatticeRequest<'_>, registry: &CommandRegistry) -> FunctionUnit {
-        let prepared = crate::cfg_builder::PreparedCfgContext::from_source_input(
+        let metadata = req.original_metadata_context(registry);
+        let prepared = crate::cfg_builder::PreparedCfgContext::from_metadata_input(
             (
                 req.upvar_procs.clone(),
                 req.proc_params.clone(),
@@ -1090,7 +1264,7 @@ mod native_source_lattice_tests {
                 req.procedure_summary_owners.clone(),
             ),
             registry,
-            req.source_metadata_input,
+            crate::registry_invocation::InvocationMetadataInput::Retained(&metadata),
         );
         let cfg = crate::cfg_builder::build_cfg_function_with_prepared_context(
             req.qname,
@@ -1598,6 +1772,168 @@ mod native_source_lattice_tests {
         );
         drop(memo);
         assert_eq!(visited, 1);
+    }
+
+    #[test]
+    fn authored_source_capsules_keep_independent_standalone_analysis_purpose() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let options = crate::compilation_unit::UnitBuildOptions {
+            registry: context.commands(),
+            config,
+            dialect: Some(profile),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let build = |other: &str| {
+            Arc::new(CompilationUnit::build_with_options(
+                &format!(
+                    "proc kept {{x}} {{set value $x; return $value}}\nproc other {{}} {{return {other}}}\n"
+                ),
+                options,
+            ))
+        };
+        let left = build("BEFORE");
+        let right = build("AFTER");
+        let select = |unit: &CompilationUnit| {
+            *unit
+                .ir_module
+                .original_authored_declaration_body_units
+                .iter()
+                .find(|(_, card)| card.name() == "kept")
+                .unwrap()
+                .0
+        };
+        let a = BodyAnalysisCapsule::retain(Arc::clone(&left), select(&left), context.commands())
+            .unwrap();
+        let b = BodyAnalysisCapsule::retain(Arc::clone(&right), select(&right), context.commands())
+            .unwrap();
+        assert!(left.ir_module.source_entry.metadata_context.is_standalone());
+        assert!(left.ir_module.source_metadata_input.is_none());
+        assert!(left.ir_module.source_entry.native_entry.is_none());
+        assert!(a.has_closed_analysis_correspondence());
+        assert!(!a.has_closed_native_correspondence());
+        assert!(
+            a == b,
+            "same certified standalone body after unrelated source edit"
+        );
+        let foreign = CommandRegistry::build_default();
+        assert!(BodyAnalysisCapsule::retain(Arc::clone(&left), select(&left), &foreign).is_none());
+        let mut missing = (*left).clone();
+        missing
+            .ir_module
+            .original_authored_declaration_body_units
+            .clear();
+        assert!(
+            BodyAnalysisCapsule::retain(Arc::new(missing), select(&left), context.commands())
+                .is_none()
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let supplied = Arc::new(CompilationUnit::build_with_analysis_input(
+            "proc kept {x} {set value $x; return $value}",
+            options,
+            None,
+            &input,
+        ));
+        assert!(
+            supplied
+                .ir_module
+                .original_authored_declaration_body_units
+                .is_empty()
+        );
+        assert!(
+            !supplied
+                .ir_module
+                .original_native_declaration_body_units
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn authored_source_lattice_certificate_rebinds_actual_ids_and_refuses_missing_owner() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let options = crate::compilation_unit::UnitBuildOptions {
+            registry: context.commands(),
+            config,
+            dialect: Some(profile),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let mut previous: Option<(BodyLatticeInputs, FunctionUnit)> = None;
+        let mut computations = 0;
+        let mut ids = Vec::new();
+        let mut memo = |request: &LatticeRequest<'_>| {
+            assert!(request.module.source_entry.metadata_context.is_standalone());
+            let inputs = BodyLatticeInputs::retain(request, context.commands())
+                .expect("authentic standalone scalar source dependencies");
+            assert_eq!(
+                inputs.certified_readonly_source_body_id(),
+                Some(request.body_id)
+            );
+            assert!(inputs.certified_native_source_body_id().is_none());
+            let mut missing = request.module.clone();
+            missing.original_authored_declaration_body_units.clear();
+            assert!(
+                BodyLatticeInputs::retain(
+                    &LatticeRequest {
+                        module: &missing,
+                        ..*request
+                    },
+                    context.commands()
+                )
+                .is_none()
+            );
+            let mut wrong_config = *request;
+            wrong_config.lexer_config.strict_quoting = !wrong_config.lexer_config.strict_quoting;
+            assert!(BodyLatticeInputs::retain(&wrong_config, context.commands()).is_none());
+            if request.qname == "::kept" {
+                ids.push(request.body_id);
+                if let Some((old, cached)) = &previous {
+                    assert!(
+                        &inputs == old,
+                        "same complete standalone source dependencies"
+                    );
+                    let rebound = inputs
+                        .rebind_cached(old, cached)
+                        .expect("same typed source analysis, current issued owner");
+                    assert_eq!(rebound.body_id, Some(request.body_id));
+                    assert!(Arc::ptr_eq(&rebound.def_use, &cached.def_use));
+                    assert!(rebound.cfg.executed_source.is_none());
+                    assert!(rebound.cfg.native_compilation_admission.is_none());
+                    return rebound;
+                }
+                computations += 1;
+                let current = build_current(request, context.commands());
+                previous = Some((inputs, current.clone()));
+                current
+            } else {
+                build_current(request, context.commands())
+            }
+        };
+        for source in [
+            "proc kept {x} {set value $x; return $value}\nproc other {} {return BEFORE}\n",
+            "\nproc kept {x} {set value $x; return $value}\nproc other {} {return AFTER}\n",
+        ] {
+            let unit = CompilationUnit::build_for_memoized(source, options, &mut memo);
+            assert!(unit.ir_module.source_metadata_input.is_none());
+            assert!(unit.ir_module.source_entry.native_entry.is_none());
+        }
+        drop(memo);
+        assert_eq!(computations, 1);
+        assert_eq!(ids.len(), 2);
+        assert_ne!(ids[0], ids[1]);
     }
 
     #[test]

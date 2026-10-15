@@ -1,0 +1,66 @@
+{
+  "fixture_sha256": "7965b9783d586a8c9e5eb64038fc11382c33c189dbe783570abfd0a86764f25d",
+  "runs": [
+    {
+      "provider": "8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "started_utc": "2026-10-15T03:51:19.665235+00:00",
+      "finished_utc": "2026-10-15T03:51:19.668151+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "cb1d8082481250f91e9b67992184fb7088bb7cdbb55c306ad7512abd2a90a200",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "8.5.19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "started_utc": "2026-10-15T03:51:19.669505+00:00",
+      "finished_utc": "2026-10-15T03:51:19.672103+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "cb1d8082481250f91e9b67992184fb7088bb7cdbb55c306ad7512abd2a90a200",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "started_utc": "2026-10-15T03:51:19.673777+00:00",
+      "finished_utc": "2026-10-15T03:51:19.676970+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "cb1d8082481250f91e9b67992184fb7088bb7cdbb55c306ad7512abd2a90a200",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "started_utc": "2026-10-15T03:51:19.679294+00:00",
+      "finished_utc": "2026-10-15T03:51:19.687504+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "1c93374f5e3bd04a3a50d6a3ca72cba2ac5b8dfc0fb2820c01d435c78a402c03",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "9.1.0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "started_utc": "2026-10-15T03:51:19.691708+00:00",
+      "finished_utc": "2026-10-15T03:51:19.702587+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "1c93374f5e3bd04a3a50d6a3ca72cba2ac5b8dfc0fb2820c01d435c78a402c03",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "started_utc": "2026-10-15T03:51:19.707393+00:00",
+      "finished_utc": "2026-10-15T03:51:19.711125+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "91ed146049d296809742a88dd65294740e4c8a9ec21deb22a87d68958e60e42c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "scope": "Fixed original whole-reference expression nested/direct public invocation values and error codes. No tcltest or Native execution/rewriter authority asserted; W114 fix remains RequiresReview."
+}

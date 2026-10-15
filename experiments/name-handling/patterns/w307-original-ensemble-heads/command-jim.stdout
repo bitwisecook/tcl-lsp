@@ -1,0 +1,7 @@
+{[set prefix]::tail} 0 OK
+{[list ::N]::tail} 0 OK
+\[list\ \"\ \]::inert\"\]::tail 1 ERROR
+\[format\ %s\ \"\ \]::inert\"\]::tail 0 NESTED
+{[list ::N]} 1 ERROR
+{[set prefix]::$tail} 0 OK
+{[set prefix]::[set tail]} 0 OK

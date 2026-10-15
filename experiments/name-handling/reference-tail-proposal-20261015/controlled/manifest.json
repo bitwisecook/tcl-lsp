@@ -1,0 +1,435 @@
+{
+  "utc": "2026-10-15T03:57:49.706774+00:00",
+  "probe_sha256": "aa88b31c50400dbf301997fe9cbeec601d93a19399e7ec5e214eafed7cb503e8",
+  "prior_initial_trial": "/tmp/name-reference-tail-oracles-20261015/manifest.json",
+  "prior_initial_trial_sha256": "e94792ce4e074d09cd25169053c28b92a3e20da9b70967bf6a3dff60a7a71f16",
+  "scope": "Fixed original C5 and existing latest-pinned Jim read-only provider observations, each provider/case isolated. Probe prints actual info patchlevel. No tcltest, no source/input/namespace/frame/cell/edit grant. All crashes/refusals retained.",
+  "rows": [
+    {
+      "provider_label": "8.4.20",
+      "case": "complete",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "complete"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-4-20-complete.stdout",
+      "stderr_file": "8-4-20-complete.stderr",
+      "stdout_sha256": "f162f1958a1e67148bc4d71afc44474955a0bfc408e45a5c9e60f0349df79e6e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "8.4.20",
+      "case": "missing-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "missing-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-4-20-missing-read.stdout",
+      "stderr_file": "8-4-20-missing-read.stderr",
+      "stdout_sha256": "3ba440d148d222498102acbd8bc00fac660c5d0c9635653ccb6fc967b8236c8b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "8.4.20",
+      "case": "populated-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "populated-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-4-20-populated-read.stdout",
+      "stderr_file": "8-4-20-populated-read.stderr",
+      "stdout_sha256": "f6016b28adf0a7557947d687646123de8b4e26855ffc8a44618326a9b14d88fb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "8.5.19",
+      "case": "complete",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "complete"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-5-19-complete.stdout",
+      "stderr_file": "8-5-19-complete.stderr",
+      "stdout_sha256": "ad128309fd7234cceb22a0e6006c1f4077f1dbeafeed0dbe80c31c3fc8cff93b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "8.5.19",
+      "case": "missing-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "missing-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-5-19-missing-read.stdout",
+      "stderr_file": "8-5-19-missing-read.stderr",
+      "stdout_sha256": "f5fb39607e8b0f3ec1a2c2a4ec982e83de3369f8bbccb3d12a422b73abc8a729",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "8.5.19",
+      "case": "populated-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "populated-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-5-19-populated-read.stdout",
+      "stderr_file": "8-5-19-populated-read.stderr",
+      "stdout_sha256": "6168ef1fa43fb74fdd88c834be71fc3e284cfd1946bffd4388b7e79109251ee9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "8.6.18",
+      "case": "complete",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "complete"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-6-18-complete.stdout",
+      "stderr_file": "8-6-18-complete.stderr",
+      "stdout_sha256": "32c3f1e550467a5947610b21ff4894ca0c75d8e523728c2b8a8642b6e8bfcc72",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "8.6.18",
+      "case": "missing-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "missing-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-6-18-missing-read.stdout",
+      "stderr_file": "8-6-18-missing-read.stderr",
+      "stdout_sha256": "0ad78b5ac152880cd17e7e1171f26186d3a3ef3c023709ec48b09ca10acbe301",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "8.6.18",
+      "case": "populated-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "populated-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+      },
+      "exit_code": 0,
+      "stdout_file": "8-6-18-populated-read.stdout",
+      "stderr_file": "8-6-18-populated-read.stderr",
+      "stdout_sha256": "5c9d88c986835042b0409bd5275b738196f9ceebb7825a7afdcea47caa457ffc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "9.0.4",
+      "case": "complete",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "complete"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-0-4-complete.stdout",
+      "stderr_file": "9-0-4-complete.stderr",
+      "stdout_sha256": "ea283621458ff1620695e7a941452177223364ecff66cf9ec3837965b10ca5ec",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "9.0.4",
+      "case": "missing-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "missing-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-0-4-missing-read.stdout",
+      "stderr_file": "9-0-4-missing-read.stderr",
+      "stdout_sha256": "ef04263753bc9dee6df64ab8e245bb832a57d6c881c75751df89f5a7d0fc7d38",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "9.0.4",
+      "case": "populated-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "populated-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-0-4-populated-read.stdout",
+      "stderr_file": "9-0-4-populated-read.stderr",
+      "stdout_sha256": "f2a3266bd96a4b4a4b0240eef18166ac83bb76a59abeeb0216e93f06dc5e762e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "9.1.0",
+      "case": "complete",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "complete"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-1-0-complete.stdout",
+      "stderr_file": "9-1-0-complete.stderr",
+      "stdout_sha256": "1b49ba4cd4f4aea4997ec4024c19508561edd3ac22c058cc1329013efee943cb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "9.1.0",
+      "case": "missing-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "missing-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-1-0-missing-read.stdout",
+      "stderr_file": "9-1-0-missing-read.stderr",
+      "stdout_sha256": "415456afe3b638c40591c96e9c60ca5b6a03353dbc1f56a4e9a8fb07d7db3805",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "9.1.0",
+      "case": "populated-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "populated-read"
+      ],
+      "selected_original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+      },
+      "exit_code": 0,
+      "stdout_file": "9-1-0-populated-read.stdout",
+      "stderr_file": "9-1-0-populated-read.stderr",
+      "stdout_sha256": "e95555754787307f6d1184df5eac598ca251fa00f41ca42e43585700c4a63f0e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "Jim",
+      "case": "complete",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "complete"
+      ],
+      "selected_original_library": null,
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "exit_code": 0,
+      "stdout_file": "Jim-complete.stdout",
+      "stderr_file": "Jim-complete.stderr",
+      "stdout_sha256": "18ebb4ce46fd66b5fe2d294b09c804deafa6783a224cef454987f4c4cde1c83a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "Jim",
+      "case": "missing-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "missing-read"
+      ],
+      "selected_original_library": null,
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "exit_code": 0,
+      "stdout_file": "Jim-missing-read.stdout",
+      "stderr_file": "Jim-missing-read.stderr",
+      "stdout_sha256": "c16edac3a4fe0c6b06371cbb43a971c06ab65b10bd6bfbfde706beb394e993da",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    },
+    {
+      "provider_label": "Jim",
+      "case": "populated-read",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-reference-tail-controlled-oracles-20261015/probe.tcl",
+        "populated-read"
+      ],
+      "selected_original_library": null,
+      "original_files_before": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "original_files_after": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+      },
+      "exit_code": 0,
+      "stdout_file": "Jim-populated-read.stdout",
+      "stderr_file": "Jim-populated-read.stderr",
+      "stdout_sha256": "5ec4a551b5505639345b59d32c39aee2752373448e4b7779c4a40962e36dfb1c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Actual isolated interpreter grammar observation only; nonzero signal or unsupported operation remains unavailable, no LSP/native source constructor execution."
+    }
+  ]
+}

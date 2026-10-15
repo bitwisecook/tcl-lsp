@@ -245,6 +245,7 @@ impl Refactoring {
 /// closer, so widening would overshoot; the discriminator is whether the
 /// token text is empty (the closer is already covered), exactly as the
 /// segmenter's `widen_word_end`.
+#[cfg(test)]
 #[must_use]
 pub fn token_end_offset(source: &str, tok: Token) -> u32 {
     let bytes = source.as_bytes();
@@ -836,18 +837,28 @@ pub(crate) fn configured_command_span_offsets(
     command: &SegmentedCommand,
     config: LexerConfig,
 ) -> Option<(u32, u32)> {
+    let words = configured_command_words(source, command, config)?;
+    Some((words.first()?.span().start(), words.last()?.span().end()))
+}
+
+/// Whole words of an unchanged standalone lexical command under its actual
+/// configuration. This is syntax geometry, without analysis or edit authority.
+pub(crate) fn configured_command_words(
+    source: &str,
+    command: &SegmentedCommand,
+    config: LexerConfig,
+) -> Option<Vec<tcl_lexer::NativeWord>> {
     let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         config,
         command,
     );
-    let words = tcl_compiler::registry_invocation::original_native_compiler_words(
+    tcl_compiler::registry_invocation::original_native_compiler_words(
         &tcl_lexer::SourceImage::document(source),
         tokens.words(),
         command.argv.first()?.span.start(),
         config,
-    )?;
-    Some((words.first()?.span().start(), words.last()?.span().end()))
+    )
 }
 
 /// `(start, end)` byte offsets covering the full command text.

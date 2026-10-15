@@ -85,6 +85,108 @@ impl OriginalLogicalCommandCandidates {
     }
 }
 
+/// One literal absolute source command coordinate in an authentic original
+/// script/member body. No caller namespace is supplied or inferred. This is
+/// conditional navigation advice, never installed lookup or method-frame proof.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalLogicalAbsoluteCommandCandidate {
+    input: ResolvedAnalysisInput,
+    original: Arc<[NativeWord]>,
+    body: super::OriginalSourceCatalogueBody,
+    coordinates: [ByteCommandSlot; 1],
+    earlier_unknown_mutations: bool,
+}
+impl OriginalLogicalAbsoluteCommandCandidate {
+    fn capture(
+        graph: &AdviceGraph,
+        original: &[NativeWord],
+        body: super::OriginalSourceCatalogueBody,
+    ) -> Option<Self> {
+        let AdviceNamingPolicy::Logical(input) = &graph.policy else {
+            return None;
+        };
+        let head = original.first()?;
+        if head.group().expand
+            || !body.matches_source(head.image(), input.lexer_config())
+            || !body.matches_context(input.borrowed_context_registry())
+            || original
+                .iter()
+                .any(|word| word.image() != head.image() || word.config() != input.lexer_config())
+            || head.span().start() < body.content_span().start()
+            || original.last()?.span().end() > body.content_span().end()
+        {
+            return None;
+        }
+        let written = tcl_syntax::word_rules::original_static_word_unicode_value(head)?;
+        if !written.starts_with(b"::") {
+            return None;
+        }
+        let coordinate = AdviceNamingPolicy::logical_slot(&written)?;
+        Some(Self {
+            input: input.clone(),
+            original: Arc::from(original),
+            body,
+            coordinates: [coordinate],
+            earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
+        })
+    }
+    /// The root-independent coordinate of this authentic absolute source head.
+    #[must_use]
+    pub const fn coordinates(&self) -> &[ByteCommandSlot; 1] {
+        &self.coordinates
+    }
+    /// Earlier unmodelled source effects remain an applicability obligation.
+    #[must_use]
+    pub const fn has_earlier_unknown_mutations(&self) -> bool {
+        self.earlier_unknown_mutations
+    }
+    /// Exact complete input/image/grammar and retained original body purpose.
+    #[must_use]
+    pub fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &ResolvedAnalysisInput,
+    ) -> bool {
+        &self.input == input
+            && input.has_logical_source_name_context()
+            && self.body.matches_source(image, input.lexer_config())
+            && self.body.matches_context(input.borrowed_context_registry())
+            && self
+                .original
+                .iter()
+                .all(|word| word.image() == image && word.config() == input.lexer_config())
+    }
+}
+
+impl OriginalSourceTransitionAdviceTape {
+    pub(super) fn retain_logical_absolute_navigation(
+        &mut self,
+        graph: &AdviceGraph,
+        original: &[NativeWord],
+        body: super::OriginalSourceCatalogueBody,
+    ) {
+        let Some(head) = original.first() else {
+            return;
+        };
+        super::source_class::merge_receipt(
+            &mut self.logical_absolute_navigation,
+            head.span().start(),
+            OriginalLogicalAbsoluteCommandCandidate::capture(graph, original, body),
+        );
+    }
+    pub(crate) fn logical_absolute_navigation_at(
+        &self,
+        input: &ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        offset: u32,
+    ) -> Option<OriginalLogicalAbsoluteCommandCandidate> {
+        let candidate = self.logical_absolute_navigation.get(&offset)?.as_ref()?;
+        (candidate.original.first()?.span().start() == offset
+            && candidate.matches_source(image, input))
+        .then(|| candidate.clone())
+    }
+}
+
 fn logical_coordinates(
     graph: &AdviceGraph,
     namespace: &tcl_core_types::ByteNamespacePath,
@@ -360,6 +462,58 @@ mod tests {
             analysis,
             u32::try_from(source.find(needle)?).ok()?,
         )
+    }
+
+    #[test]
+    fn logical_absolute_method_heads_keep_original_body_purpose_without_a_namespace_recipe() {
+        use crate::registry_invocation::source_structure::source_logical_absolute_command_candidate_at;
+        let source = "oo::class create C {method m {} {::helper; relative; puts {::inert}}}";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        let offset = u32::try_from(source.find("::helper").unwrap()).unwrap();
+        let candidate = source_logical_absolute_command_candidate_at(source, &analysis, offset)
+            .expect("literal absolute original member-body command");
+        assert_eq!(
+            candidate.coordinates()[0],
+            AdviceNamingPolicy::logical_slot(b"::helper").unwrap()
+        );
+        assert!(candidate.matches_source(&tcl_lexer::SourceImage::document(source), &input));
+        assert!(
+            source_logical_command_candidates_at(source, &analysis, offset).is_none(),
+            "absolute syntax grants no unknown method namespace"
+        );
+        for needle in ["relative", "::inert"] {
+            assert!(
+                source_logical_absolute_command_candidate_at(
+                    source,
+                    &analysis,
+                    u32::try_from(source.find(needle).unwrap()).unwrap()
+                )
+                .is_none()
+            );
+        }
+        assert!(
+            source_logical_absolute_command_candidate_at(source, &analysis, offset + 1).is_none()
+        );
+        assert!(
+            source_logical_absolute_command_candidate_at(&format!("{source} "), &analysis, offset)
+                .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(source_logical_absolute_command_candidate_at(source, &missing, offset).is_none());
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(source_logical_absolute_command_candidate_at(source, &native, offset).is_none());
     }
 
     #[test]

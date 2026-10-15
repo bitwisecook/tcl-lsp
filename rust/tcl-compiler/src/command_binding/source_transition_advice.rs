@@ -13,7 +13,10 @@ mod c_namespace;
 mod logical_body;
 mod logical_declaration;
 mod logical_navigation;
-pub use logical_navigation::{OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates};
+pub use logical_navigation::{
+    OriginalLogicalAbsoluteCommandCandidate, OriginalLogicalCallbackCandidates,
+    OriginalLogicalCommandCandidates,
+};
 mod native_baseline;
 mod produced_prefix;
 mod registered_instance;
@@ -683,6 +686,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
     logical_summary_scopes: BTreeMap<u32, Option<OriginalLogicalSummaryScope>>,
     logical_navigation: BTreeMap<u32, Option<OriginalLogicalCommandCandidates>>,
+    logical_absolute_navigation: BTreeMap<u32, Option<OriginalLogicalAbsoluteCommandCandidate>>,
     logical_callbacks:
         BTreeMap<u32, Option<(Arc<[NativeWord]>, Vec<OriginalLogicalCallbackCandidates>)>>,
     class_publications: Option<OriginalSourceClassPublications>,
@@ -872,6 +876,9 @@ impl OriginalSourceTransitionAdviceTape {
         }
         for (offset, candidate) in other.logical_navigation {
             source_class::merge_receipt(&mut self.logical_navigation, offset, candidate);
+        }
+        for (offset, candidate) in other.logical_absolute_navigation {
+            source_class::merge_receipt(&mut self.logical_absolute_navigation, offset, candidate);
         }
         for (offset, scope) in other.logical_summary_scopes {
             source_class::merge_receipt(&mut self.logical_summary_scopes, offset, scope);

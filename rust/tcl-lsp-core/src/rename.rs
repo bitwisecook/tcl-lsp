@@ -2260,22 +2260,7 @@ fn build_var_ref_replacement(
         return None;
     }
     let text = source.get(whole.as_range())?;
-    let reference = tcl_lexer::word_parts::whole_var_ref(text.as_bytes(), config).ok()??;
-    let root =
-        tcl_syntax::naming::variable_reference_root_bytes(text.as_bytes(), config).ok()??;
-    let root = std::str::from_utf8(root).ok()?;
-    let name = std::str::from_utf8(reference.name).ok()?;
-    let suffix = if reference.index.is_some() {
-        text.strip_prefix('$')?.strip_prefix(name)?
-    } else {
-        name.strip_prefix(root)?
-    };
-    let qualifier = source_name_qualifier(root);
-    Some(if text.starts_with("${") {
-        format!("${{{qualifier}{new_tail}{suffix}}}")
-    } else {
-        format!("${qualifier}{new_tail}{suffix}")
-    })
+    tcl_syntax::naming::variable_source_reference_with_tail(text, new_tail, config)
 }
 
 fn build_var_replacement_in_analysis(
@@ -5722,5 +5707,37 @@ mod selected_replacement_qualification_tests {
             assert!(workspace_symbol_rename_edits("::original", replacement, &index).is_none());
         }
         assert!(workspace_symbol_rename_edits("::original", "replacement", &index).is_some());
+    }
+}
+
+#[cfg(test)]
+mod selected_reference_tail_proposal_tests {
+    use super::*;
+
+    #[test]
+    fn logical_reference_rename_declines_unrepresentable_qualified_brace_tail() {
+        let nested = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+            ..Default::default()
+        };
+        let source = "${ns{::x}}";
+        let span = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+        assert!(build_var_ref_replacement(source, span, "new", nested).is_none());
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..nested
+        };
+        let source = "${ns{::x}";
+        let span = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+        assert_eq!(
+            build_var_ref_replacement(source, span, "new", first).as_deref(),
+            Some("${ns{::new}")
+        );
+        let source = "$ns:::arr($index[command])";
+        let span = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+        assert_eq!(
+            build_var_ref_replacement(source, span, "new", nested).as_deref(),
+            Some("$ns:::new($index[command])")
+        );
     }
 }

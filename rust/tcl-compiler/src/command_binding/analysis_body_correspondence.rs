@@ -26,12 +26,14 @@ struct OriginalRegistryDependency {
 enum AnalyticalCommandDependency {
     Positioned(OriginalRegistryDependency),
     NativeSchema(NativeSourceSchemaDependency),
+    AuthoredSchema(AuthoredSourceSchemaDependency),
 }
 impl AnalyticalCommandDependency {
     fn offset(&self) -> u32 {
         match self {
             Self::Positioned(value) => value.offset,
             Self::NativeSchema(value) => value.offset,
+            Self::AuthoredSchema(value) => value.offset,
         }
     }
 }
@@ -50,6 +52,33 @@ struct NativeSourceSchemaDependency {
     uncertain_operations: Vec<Vec<(tcl_lexer::Span, Arc<[u8]>)>>,
     observers: Arc<super::command_observers::SourceCommandObservers>,
     source_step_observed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AuthoredSourceSchemaDependency {
+    offset: u32,
+    namespace: super::SourceNamespaceKey,
+    dialect: tcl_registry::InvocationDialect,
+    realm: tcl_dialect::model::InvocationRealm,
+    targets: Vec<super::SourceCommandTarget>,
+    command: String,
+    roles: Vec<(usize, tcl_registry::ArgRole)>,
+    original: Vec<(tcl_lexer::Span, Arc<[u8]>)>,
+    observers: Arc<super::command_observers::SourceCommandObservers>,
+    source_step_observed: bool,
+}
+
+#[derive(Clone, Copy)]
+enum ReadonlySourceBodyKind {
+    Native,
+    Authored,
+}
+
+#[derive(Clone, Copy)]
+struct ReadonlySourceBody<'a> {
+    module: &'a crate::ir::Module,
+    id: crate::ir::ProcedureId,
+    kind: ReadonlySourceBodyKind,
 }
 
 /// A private comparison value; its rewritten carriers never leave this owner.
@@ -89,6 +118,10 @@ impl AnalyticalBodyCorrespondence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CorrespondencePurpose {
     Logical,
+    AuthoredSource {
+        entry: super::SourceAnalysisEntry,
+        config: tcl_lexer::LexerConfig,
+    },
     NativeSource {
         input: crate::analyser::ResolvedAnalysisInput,
         entry: super::SourceAnalysisEntry,
@@ -279,6 +312,87 @@ impl ModuleCommandBindings {
         if &current != body {
             return None;
         }
+        self.prepare_readonly_source_body_projection(
+            body,
+            scope,
+            ReadonlySourceBody {
+                module,
+                id,
+                kind: ReadonlySourceBodyKind::Native,
+            },
+            registry,
+            CorrespondencePurpose::NativeSource {
+                input: input.clone(),
+                entry: module.source_entry.clone(),
+            },
+        )
+    }
+
+    pub(crate) fn prepare_authored_source_body_correspondence(
+        &self,
+        body: &Script,
+        scope: BodyProofScope<'_>,
+        module: &crate::ir::Module,
+        id: crate::ir::ProcedureId,
+        registry: &CommandRegistry,
+    ) -> Option<AnalyticalBodyCorrespondence> {
+        let card = module.original_authored_declaration_body_units.get(&id)?;
+        let procedure = module.body_units.get(&id)?;
+        let retained = module.retained_source_bindings.as_ref()?;
+        retained.positioned_for_module(module, registry)?;
+        if !module.procedure_ids.owns(id)
+            || !card.matches_procedure(module, procedure)
+            || !retained.matches_original_procedure_summary(id, procedure)
+            || !self.baseline.metadata_context.is_standalone()
+            || !scope.metadata.retain().is_standalone()
+            || !module.source_entry.metadata_context.is_standalone()
+            || module.source_metadata_input.is_some()
+            || self.baseline.native_entry.is_some()
+            || self.baseline.logical_source_input.is_some()
+            || self.baseline.vendor_source_input.is_some()
+            || self.baseline.hosted_execution_context.is_some()
+            || self.baseline.unknown_entry
+            || self.baseline.registry_snapshot.as_ref() != Some(&registry.snapshot().semantic_key())
+            || self.current_source_origin.as_ref() != Some(&card.site().source)
+            || scope.source != module.source.try_text().ok()?
+            || Some(scope.body_source) != procedure.body_source.as_deref()
+            || scope.original_body_offset != procedure.span.start()
+            || scope.executable_body_offset != procedure.body_offset
+            || scope.config != module.native_lexer_config().nested().normalized()
+            || body.executed_source.is_some()
+            || body.native_compilation_admission.is_some()
+        {
+            return None;
+        }
+        let mut current = procedure.body.clone();
+        crate::lattice_rebase::rebase_script(&mut current, -i64::from(scope.original_body_offset));
+        if &current != body {
+            return None;
+        }
+        self.prepare_readonly_source_body_projection(
+            body,
+            scope,
+            ReadonlySourceBody {
+                module,
+                id,
+                kind: ReadonlySourceBodyKind::Authored,
+            },
+            registry,
+            CorrespondencePurpose::AuthoredSource {
+                entry: module.source_entry.clone(),
+                config: scope.config,
+            },
+        )
+    }
+
+    fn prepare_readonly_source_body_projection(
+        &self,
+        body: &Script,
+        scope: BodyProofScope<'_>,
+        owner: ReadonlySourceBody<'_>,
+        registry: &CommandRegistry,
+        purpose: CorrespondencePurpose,
+    ) -> Option<AnalyticalBodyCorrespondence> {
         let mut projection = body.clone();
         let mut relocation = crate::var_resolve::VariableProofRelocation::default();
         let mut dependencies = std::collections::BTreeMap::new();
@@ -299,12 +413,11 @@ impl ModuleCommandBindings {
                     valid = false;
                     continue;
                 };
-                valid &= collect_native_source_registry_dependencies(
+                valid &= collect_readonly_source_registry_dependencies(
                     tokens,
                     scope,
                     self,
-                    module,
-                    id,
+                    owner,
                     registry,
                     &mut dependencies,
                     &mut relocation,
@@ -313,12 +426,11 @@ impl ModuleCommandBindings {
             }
             for site in script.command_binding_sites.iter() {
                 if let Some(tokens) = &site.source_tokens {
-                    valid &= collect_native_source_registry_dependencies(
+                    valid &= collect_readonly_source_registry_dependencies(
                         tokens,
                         scope,
                         self,
-                        module,
-                        id,
+                        owner,
                         registry,
                         &mut dependencies,
                         &mut relocation,
@@ -366,12 +478,24 @@ impl ModuleCommandBindings {
                     .as_ref()
                     .map(|context| Arc::new(context.relocated(&relocation)));
                 if let Some(tokens) = &mut site.source_tokens {
-                    normalize_analysis_tokens(tokens, scope, &origin, &relocation);
+                    normalize_readonly_source_tokens(
+                        tokens,
+                        scope,
+                        &origin,
+                        &relocation,
+                        owner.kind,
+                    );
                 }
             }
             for statement in &mut script.statements {
                 if let Some(tokens) = statement.tokens_mut() {
-                    normalize_analysis_tokens(tokens, scope, &origin, &relocation);
+                    normalize_readonly_source_tokens(
+                        tokens,
+                        scope,
+                        &origin,
+                        &relocation,
+                        owner.kind,
+                    );
                 }
             }
         });
@@ -381,10 +505,7 @@ impl ModuleCommandBindings {
             body: projection,
             relocation,
             dependencies: dependencies.into_values().collect(),
-            purpose: CorrespondencePurpose::NativeSource {
-                input: input.clone(),
-                entry: module.source_entry.clone(),
-            },
+            purpose,
         })
     }
 }
@@ -588,12 +709,30 @@ fn normalize_analysis_tokens(
     }
 }
 
-fn collect_native_source_registry_dependencies(
+fn normalize_readonly_source_tokens(
+    tokens: &mut crate::ir::CommandTokens,
+    scope: BodyProofScope<'_>,
+    origin: &Arc<SourceOriginId>,
+    relocation: &crate::var_resolve::VariableProofRelocation,
+    kind: ReadonlySourceBodyKind,
+) {
+    normalize_analysis_tokens(tokens, scope, origin, relocation);
+    if matches!(kind, ReadonlySourceBodyKind::Authored) {
+        for proof in tokens
+            .source_binding
+            .iter_mut()
+            .chain(tokens.nested_bindings.iter_mut().map(|(_, proof)| proof))
+        {
+            proof.original_authored_source_body_scope = None;
+        }
+    }
+}
+
+fn collect_readonly_source_registry_dependencies(
     tokens: &crate::ir::CommandTokens,
     scope: BodyProofScope<'_>,
     bindings: &ModuleCommandBindings,
-    module: &crate::ir::Module,
-    body: crate::ir::ProcedureId,
+    owner: ReadonlySourceBody<'_>,
     registry: &CommandRegistry,
     dependencies: &mut std::collections::BTreeMap<u32, AnalyticalCommandDependency>,
     relocation: &mut crate::var_resolve::VariableProofRelocation,
@@ -604,15 +743,32 @@ fn collect_native_source_registry_dependencies(
         i64::from(scope.original_body_offset),
     );
     let mut calls = vec![original.clone()];
-    let children = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-        &original,
-        scope.config,
-        registry,
-        bindings
-            .baseline
-            .metadata_context
-            .metadata_context(registry)??,
-    )?;
+    let children = if matches!(owner.kind, ReadonlySourceBodyKind::Authored) {
+        let proof = original.source_binding.as_ref()?;
+        let authored_scope = proof.original_authored_scalar_body_scope(&original, registry)?;
+        if authored_scope
+            .original_words(&original, registry)?
+            .iter()
+            .any(|word| {
+                word.executable_parts()
+                    .all_parts()
+                    .any(|part| matches!(part.part, tcl_lexer::ExecutablePart::Command { .. }))
+            })
+        {
+            return None;
+        }
+        Vec::new()
+    } else {
+        crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            &original,
+            scope.config,
+            registry,
+            bindings
+                .baseline
+                .metadata_context
+                .metadata_context(registry)??,
+        )?
+    };
     for child in children {
         calls.push(child.tokens?);
     }
@@ -622,13 +778,27 @@ fn collect_native_source_registry_dependencies(
         calls.push(recorded);
     }
     for call in calls {
-        let dependency = if call
+        let dependency = if matches!(owner.kind, ReadonlySourceBodyKind::Authored) {
+            AnalyticalCommandDependency::AuthoredSchema(original_authored_source_schema_dependency(
+                &call,
+                scope,
+                bindings,
+                owner.module,
+                owner.id,
+                registry,
+            )?)
+        } else if call
             .source_binding
             .as_ref()?
             .has_original_native_source_command()
         {
             AnalyticalCommandDependency::NativeSchema(original_native_source_schema_dependency(
-                &call, scope, bindings, module, body, registry,
+                &call,
+                scope,
+                bindings,
+                owner.module,
+                owner.id,
+                registry,
             )?)
         } else {
             AnalyticalCommandDependency::Positioned(original_native_source_registry_dependency(
@@ -871,4 +1041,132 @@ fn original_native_source_schema_dependency(
         observers: Arc::clone(&bindings.command_observers),
         source_step_observed: bindings.source_step_observed(),
     })
+}
+
+fn original_authored_source_schema_dependency(
+    tokens: &crate::ir::CommandTokens,
+    scope: BodyProofScope<'_>,
+    bindings: &ModuleCommandBindings,
+    module: &crate::ir::Module,
+    body: crate::ir::ProcedureId,
+    registry: &CommandRegistry,
+) -> Option<AuthoredSourceSchemaDependency> {
+    let proof = tokens.source_binding.as_ref()?;
+    let card = module.original_authored_declaration_body_units.get(&body)?;
+    let procedure = module.body_units.get(&body)?;
+    let retained = module.retained_source_bindings.as_ref()?;
+    if !card.matches_procedure(module, procedure)
+        || !analysis_carriers_supported(proof)
+        || !retained.owns_original_analysis_attachment(tokens)
+        || tokens.evaluated_body.is_some()
+        || tokens.synthetic.is_some()
+    {
+        return None;
+    }
+    let source_scope = proof.original_authored_scalar_body_scope(tokens, registry)?;
+    if !source_scope.matches_module(module) || !card.owns_original_source_scope(source_scope) {
+        return None;
+    }
+    let advice = proof.original_authored_declaration_scalar_layout(tokens, registry)?;
+    if advice.snapshot.state.baseline.as_ref() != bindings.baseline.as_ref()
+        || !advice.snapshot.state.command_observers.is_quiet()
+        || advice.snapshot.state.source_step_observed()
+        || advice.targets().iter().any(|target| {
+            !target.registry_backed
+                || !target.prepended.is_empty()
+                || target.implementation_allocation.is_some()
+                || target
+                    .identity
+                    .as_ref()
+                    .is_some_and(|identity| identity.allocation.is_some())
+        })
+    {
+        return None;
+    }
+    let dialect = source_scope.original_word_dialect()?;
+    let original = source_scope.original_words(tokens, registry)?;
+    if original.iter().any(|word| word.group().expand) {
+        return None;
+    }
+    let end =
+        u64::from(scope.executable_body_offset) + u64::try_from(scope.body_source.len()).ok()?;
+    let original = original
+        .iter()
+        .map(|word| {
+            let span = word.span();
+            if word.image() != &module.source
+                || word.config() != module.native_lexer_config()
+                || span.start() < scope.executable_body_offset
+                || u64::from(span.end()) > end
+            {
+                return None;
+            }
+            Some((
+                tcl_lexer::Span::new(
+                    span.start().checked_sub(scope.original_body_offset)?,
+                    span.end().checked_sub(scope.original_body_offset)?,
+                ),
+                Arc::from(word.image().bytes().get(span.as_range())?),
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let (command, roles) = source_scope.with_source_schema(tokens, registry, |schema| {
+        let roles = authored_source_dependency_roles(schema, dialect, proof)?;
+        Some((schema.canonical_command.to_owned(), roles))
+    })?;
+    Some(AuthoredSourceSchemaDependency {
+        offset: proof
+            .invocation_site()?
+            .offset
+            .checked_sub(scope.original_body_offset)?,
+        namespace: advice.namespace().clone(),
+        dialect,
+        realm: advice.realm(),
+        targets: advice.targets().to_vec(),
+        command,
+        roles,
+        original,
+        observers: Arc::clone(&advice.snapshot.state.command_observers),
+        source_step_observed: advice.snapshot.state.source_step_observed(),
+    })
+}
+
+fn authored_source_dependency_roles(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    dialect: tcl_registry::InvocationDialect,
+    proof: &SourceInvocationBinding,
+) -> Option<Vec<(usize, tcl_registry::ArgRole)>> {
+    use tcl_registry::world_effect::{CallbackKinds, WorldStateDomain};
+    let (roles, complete) = schema.authored_source_argument_roles();
+    let (effects, transitions) = schema.authored_source_effects_and_state_transitions(dialect);
+    let trace_free = !proof.variable_context.dynamic_traces
+        && proof.variable_context.traced.is_empty()
+        && proof.variable_context.trace_registrations.is_empty()
+        && proof.variable_context.untracked_traces.is_empty();
+    let callbacks = effects.callback().kinds;
+    if !complete
+        || schema.facts().arity_accepts_frozen_arguments() != Some(true)
+        || schema.facts().argument_offset != 0
+        || (callbacks != CallbackKinds::NONE && !(callbacks == CallbackKinds::TRACE && trace_free))
+        || schema.semantics.body_execution.is_some()
+        || schema.semantics.frame_effect.is_some()
+        || !transitions.facts().is_empty()
+        || effects.accesses().iter().any(|access| {
+            !matches!(
+                access.domain,
+                WorldStateDomain::VariableStore
+                    | WorldStateDomain::VariableTraces
+                    | WorldStateDomain::InterpreterResult
+                    | WorldStateDomain::CompletionState
+            )
+        })
+    {
+        return None;
+    }
+    Some(
+        roles
+            .into_iter()
+            .map(|(argument, role)| (usize::from(argument), role))
+            .collect(),
+    )
 }

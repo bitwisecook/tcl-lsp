@@ -550,6 +550,98 @@ fn segment_body_calls(
     calls
 }
 
+enum LogicalMethodProcedureSelection<'a> {
+    Unavailable,
+    Vacant {
+        candidates: Option<Box<tcl_compiler::command_binding::OriginalLogicalCommandCandidates>>,
+    },
+    Occupied {
+        procedure: Option<&'a ProcDef>,
+        earlier_unknown_mutations: bool,
+    },
+}
+
+/// Match conditional source coordinates against independent original headers.
+/// A method's reporting class name supplies no caller namespace. Unknown
+/// earlier effects and ambiguous occupied coordinates remain unresolved.
+fn logical_method_procedure_at<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    offset: u32,
+) -> LogicalMethodProcedureSelection<'a> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
+        || !analysis.allows_lexical_declaration_advice()
+    {
+        return LogicalMethodProcedureSelection::Unavailable;
+    }
+    let ordinary =
+        tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(
+            source, analysis, offset,
+        );
+    let absolute = if ordinary.is_none() {
+        tcl_compiler::registry_invocation::source_structure::source_logical_absolute_command_candidate_at(source, analysis, offset)
+    } else {
+        None
+    };
+    let (coordinates, earlier_unknown_mutations) = if let Some(candidate) = &ordinary {
+        (
+            candidate.coordinates(),
+            candidate.has_earlier_unknown_mutations(),
+        )
+    } else if let Some(candidate) = &absolute {
+        (
+            candidate.coordinates().as_slice(),
+            candidate.has_earlier_unknown_mutations(),
+        )
+    } else {
+        return LogicalMethodProcedureSelection::Unavailable;
+    };
+    for coordinate in coordinates {
+        let mut selected: Option<&ProcDef> = None;
+        let mut occupied = false;
+        let mut ambiguous = false;
+        for procedure in analysis.all_procs.values().chain(
+            analysis
+                .original_procedure_declarations()
+                .map(|declaration| declaration.metadata()),
+        ) {
+            if analysis.logical_source_procedure_declaration(procedure)
+                .and_then(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::source_candidate_coordinate)
+                .as_ref() != Some(coordinate)
+            {
+                continue;
+            }
+            occupied = true;
+            if let Some(previous) = selected {
+                if previous.name_span != procedure.name_span
+                    || previous.body_span != procedure.body_span
+                {
+                    ambiguous = true;
+                }
+            } else {
+                selected = Some(procedure);
+            }
+        }
+        if analysis.all_classes.values().any(|class| {
+            analysis.logical_source_class_declaration(class)
+                .and_then(tcl_compiler::analyser::types::LogicalSourceClassDeclaration::source_candidate_coordinate)
+                == Some(coordinate)
+        }) {
+            occupied = true;
+            ambiguous = true;
+        }
+        if occupied {
+            return LogicalMethodProcedureSelection::Occupied {
+                procedure: if ambiguous { None } else { selected },
+                earlier_unknown_mutations,
+            };
+        }
+    }
+    LogicalMethodProcedureSelection::Vacant {
+        candidates: ordinary.map(Box::new),
+    }
+}
+
 /// Build a [`CallHierarchyItem`] for a given proc definition.
 fn item_for_proc(
     source: &str,
@@ -791,10 +883,9 @@ fn unresolved_method_outgoing_calls(
     target: &LogicalCallTarget<'_>,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
-    resolution: crate::definition::CallResolution<'_>,
+    _resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<UnresolvedOutgoingCall> {
     let LogicalCallDeclaration::Member {
-        class: class_def,
         definition: source_method,
         ..
     } = target.declaration()
@@ -804,22 +895,23 @@ fn unresolved_method_outgoing_calls(
     let mut by_head: std::collections::BTreeMap<String, UnresolvedOutgoingCall> =
         std::collections::BTreeMap::new();
     for (head, span) in segment_body_calls(source, analysis, source_method.body_span) {
-        // Local top-level proc?  Resolved from the class's namespace (a
-        // method body's commands resolve there), with the deterministic
-        // simple-name fallback — not a namespace-blind `any` scan.
-        let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
-        if crate::definition::resolve_called_proc(
-            analysis,
-            source,
-            class_ns,
-            &head,
-            span.start(),
-            resolution,
-        )
-        .is_some()
-        {
+        let selection = logical_method_procedure_at(source, analysis, span.start());
+        if matches!(
+            selection,
+            LogicalMethodProcedureSelection::Occupied {
+                procedure: Some(_),
+                earlier_unknown_mutations: false,
+            }
+        ) {
             continue;
         }
+        let candidates = match selection {
+            LogicalMethodProcedureSelection::Vacant { candidates } => {
+                candidates.map(|candidate| *candidate)
+            }
+            LogicalMethodProcedureSelection::Unavailable
+            | LogicalMethodProcedureSelection::Occupied { .. } => None,
+        };
         let range = span_to_range(source, line_index, span);
         let entry = by_head
             .entry(head.clone())
@@ -830,10 +922,9 @@ fn unresolved_method_outgoing_calls(
                 from_ranges: Vec::new(),
             });
         entry.from_ranges.push(range);
-        entry.logical_occurrences.push(LogicalOutgoingCallOccurrence {
-            candidates: tcl_compiler::registry_invocation::source_structure::source_logical_command_candidates_at(source, analysis, span.start()),
-            range,
-        });
+        entry
+            .logical_occurrences
+            .push(LogicalOutgoingCallOccurrence { candidates, range });
     }
     by_head.into_values().collect()
 }
@@ -1426,7 +1517,7 @@ fn method_outgoing_calls(
     target: &LogicalCallTarget<'_>,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
-    resolution: crate::definition::CallResolution<'_>,
+    _resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<OutgoingCall> {
     let LogicalCallDeclaration::Member {
         class: class_def,
@@ -1481,21 +1572,12 @@ fn method_outgoing_calls(
         line_index,
         &mut by_target,
     );
-    let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
-    for (head, span) in segment_body_calls(source, analysis, source_method.body_span) {
-        // Top-level user proc?  Resolved from the class's namespace (a
-        // method body's commands resolve there) — a deterministic
-        // simple-name fallback, never a namespace-blind `p.name == head`
-        // first-hit scan that could edge the hierarchy to an arbitrary
-        // same-named proc in an unrelated namespace.
-        if let Some(proc_def) = crate::definition::resolve_called_proc(
-            analysis,
-            source,
-            class_ns,
-            &head,
-            span.start(),
-            resolution,
-        ) {
+    for (_, span) in segment_body_calls(source, analysis, source_method.body_span) {
+        if let LogicalMethodProcedureSelection::Occupied {
+            procedure: Some(proc_def),
+            ..
+        } = logical_method_procedure_at(source, analysis, span.start())
+        {
             let qname = &proc_def.qualified_name;
             let entry = by_target
                 .entry(CallItemKey::for_proc(qname, proc_def))
@@ -3028,5 +3110,112 @@ mod logical_workspace_occurrence_tests {
         let first = helper.logical_occurrences[0].candidates.as_ref().unwrap();
         let second = helper.logical_occurrences[1].candidates.as_ref().unwrap();
         assert_ne!(first.coordinates(), second.coordinates());
+    }
+}
+
+#[cfg(test)]
+mod logical_method_source_candidate_tests {
+    use super::*;
+
+    fn analyse(source: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn method_proc_source_candidates_keep_unknown_namespace_and_mutation_alternatives() {
+        let source =
+            "proc helper {} {}; oo::class create C {method m {} {unknown; helper; ::helper}}";
+        let mut analysis = analyse(source);
+        let relative = u32::try_from(source.find("helper;").unwrap()).unwrap();
+        assert!(matches!(
+            logical_method_procedure_at(source, &analysis, relative),
+            LogicalMethodProcedureSelection::Unavailable
+        ));
+        let absolute = u32::try_from(source.find("::helper").unwrap()).unwrap();
+        let LogicalMethodProcedureSelection::Occupied {
+            procedure: Some(target),
+            earlier_unknown_mutations,
+        } = logical_method_procedure_at(source, &analysis, absolute)
+        else {
+            panic!("actual absolute head must match its independent original procedure header");
+        };
+        let target_span = target.name_span;
+        assert_eq!(target_span, analysis.all_procs["::helper"].name_span);
+        assert!(earlier_unknown_mutations);
+        let class = &analysis.all_classes["::C"];
+        let item = item_for_method(source, class, &class.methods["m"], &LineIndex::new(source));
+        let outgoing = outgoing_calls(
+            source,
+            analysis.resolved_profile().unwrap(),
+            &item,
+            &analysis,
+        );
+        assert_eq!(outgoing.len(), 1);
+        assert_eq!(
+            outgoing[0].to.selection_range,
+            span_to_range(source, &LineIndex::new(source), target_span)
+        );
+        assert_eq!(outgoing[0].from_ranges.len(), 1);
+        assert_eq!(
+            outgoing[0].from_ranges[0],
+            span_to_range(
+                source,
+                &LineIndex::new(source),
+                tcl_lexer::Span::new(absolute, absolute + 8)
+            )
+        );
+        let unresolved = unresolved_outgoing_calls(
+            source,
+            analysis.resolved_profile().unwrap(),
+            &item,
+            &analysis,
+        );
+        assert!(unresolved.iter().any(|call| call.name == "helper"));
+        assert!(unresolved.iter().any(|call| call.name == "::helper"));
+        analysis.all_classes.get_mut("::C").unwrap().qualified_name = "::report::Different".into();
+        analysis
+            .all_procs
+            .get_mut("::helper")
+            .unwrap()
+            .qualified_name = "::report::Elsewhere".into();
+        assert!(
+            matches!(logical_method_procedure_at(source, &analysis, absolute), LogicalMethodProcedureSelection::Occupied { procedure: Some(procedure), .. } if procedure.name_span == target_span)
+        );
+        assert!(matches!(
+            logical_method_procedure_at(&format!("{source} "), &analysis, absolute),
+            LogicalMethodProcedureSelection::Unavailable
+        ));
+        analysis.resolved_input = None;
+        assert!(matches!(
+            logical_method_procedure_at(source, &analysis, absolute),
+            LogicalMethodProcedureSelection::Unavailable
+        ));
+    }
+
+    #[test]
+    fn method_proc_source_candidates_preserve_duplicate_headers_and_class_occupancy() {
+        for source in [
+            "proc helper {} {}; proc helper {} {}; oo::class create C {method m {} {::helper}}",
+            "oo::class create helper {}; oo::class create C {method m {} {::helper}}",
+        ] {
+            let analysis = analyse(source);
+            let absolute = u32::try_from(source.find("::helper").unwrap()).unwrap();
+            assert!(matches!(
+                logical_method_procedure_at(source, &analysis, absolute),
+                LogicalMethodProcedureSelection::Occupied {
+                    procedure: None,
+                    ..
+                }
+            ));
+        }
     }
 }

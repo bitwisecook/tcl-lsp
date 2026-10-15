@@ -1,0 +1,3 @@
+version 0 8.6.18
+old {${ns{::x}}} complete 0 1
+proposed \$\{ns\{::new\} complete 0 1

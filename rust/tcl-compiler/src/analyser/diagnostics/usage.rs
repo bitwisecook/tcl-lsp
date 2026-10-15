@@ -973,8 +973,8 @@ literal text `({inner})`"
 
     /// W114: a nested `[expr …]` inside an argument that is
     /// *already* an expression context (`expr` / `if` / `while` / `for`
-    /// conditions) is redundant.  `diag_span` is the source span of the
-    /// expression argument; we scan its source slice for the first
+    /// conditions) is redundant. The selected original whole word supplies
+    /// its source span and complete configuration. We scan its slice for the first
     /// `[`-`expr`-whitespace sequence and anchor the warning at the
     /// nested `[expr … ]`.  One warning per argument (first match only).
     ///
@@ -983,9 +983,16 @@ literal text `({inner})`"
     /// [`w114_unwrap_fix`] for the exact conditions.
     pub(in crate::analyser) fn emit_w114_redundant_nested_expr(
         &mut self,
-        _text: &str,
-        diag_span: tcl_lexer::Span,
+        word: &tcl_lexer::NativeWord,
     ) {
+        let config = word.config();
+        let original_config = self.file_lexer_config();
+        if word.image().bytes() != self.source.as_bytes()
+            || (config != original_config && config != original_config.nested())
+        {
+            return;
+        }
+        let diag_span = word.span();
         let start = diag_span.start() as usize;
         let end = diag_span.end() as usize;
         if start >= end {
@@ -1001,7 +1008,7 @@ literal text `({inner})`"
             u32::try_from(start + open).unwrap_or(diag_span.start()),
             u32::try_from(start + close + 1).unwrap_or(diag_span.end()),
         );
-        let fixes = w114_unwrap_fix(slice, open, close, nested_span)
+        let fixes = w114_unwrap_fix(slice, open, close, nested_span, config)
             .into_iter()
             .collect();
         self.result.diagnostics.push(
@@ -1538,17 +1545,8 @@ fn is_safe_literal_expr_in_context(
     })
 }
 
-/// The *local*-name argument indices (into `args`, command-name excluded) of an
-/// `upvar ?level? otherVar localVar ?otherVar localVar …?` call — every other
-/// argument after the optional leading level word.
-///
-/// `upvar` is resolved structurally rather than through the registry's
-/// `VarWrite` role: its frame-linking semantics are modelled by the dedicated
-/// var-escape machinery, and only the *local* names are strict name positions
-/// (the paired *other* names may legitimately be a computed `$remote`). See
-/// `Analyser::variable_name_positions`.
 /// Find the first `[`-`expr`-whitespace sequence in `slice` (the
-/// `_NESTED_EXPR_RE = \[\s*expr\s` pattern) and return
+/// bracket-expression spelling) and return
 /// `(open_bracket_index, matching_close_bracket_index)`.  The close is
 /// located by a depth scan; an unmatched `[` falls back to the last
 /// byte.  Returns `None` when no nested `[expr ` is present.
@@ -1623,6 +1621,7 @@ fn w114_unwrap_fix(
     open: usize,
     close: usize,
     span: tcl_lexer::Span,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<super::types::CodeFix> {
     if !outer.starts_with('{') || outer.as_bytes().get(close) != Some(&b']') {
         return None;
@@ -1646,7 +1645,7 @@ fn w114_unwrap_fix(
     if inner.is_empty() {
         return None;
     }
-    let new_text = if is_expr_atom(inner) {
+    let new_text = if is_expr_atom(inner, config) {
         inner.to_string()
     } else {
         format!("({inner})")
@@ -1741,28 +1740,14 @@ fn contains_string_comparison_word(text: &str) -> bool {
     false
 }
 
-/// True when `inner` is a single expr atom — a bare
-/// alphanumeric/`.`/`_` literal (`42`, `3.14`, `0x1f`, `true`) or a
-/// plain `$name` / `${name}` variable reference — so the `(…)`
-/// wrapping of the W114 unwrap fix can be dropped without changing
-/// how the surrounding expression parses.
-fn is_expr_atom(inner: &str) -> bool {
-    let ident = |name: &str| {
-        !name.is_empty()
-            && name
+/// Whole scalar references use the original source grammar; the literal arm
+/// only preserves the existing conservative parenthesis-elision eligibility.
+fn is_expr_atom(inner: &str, config: tcl_lexer::LexerConfig) -> bool {
+    tcl_syntax::naming::whole_scalar_variable_reference_name(inner, config).is_some()
+        || (!inner.is_empty()
+            && inner
                 .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
-    };
-    if let Some(name) = inner.strip_prefix('$') {
-        return match name.strip_prefix('{').and_then(|n| n.strip_suffix('}')) {
-            Some(braced) => ident(braced),
-            None => ident(name),
-        };
-    }
-    !inner.is_empty()
-        && inner
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'))
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_')))
 }
 
 /// True when `text` can be pasted verbatim as one bare Tcl word — no
@@ -2037,6 +2022,93 @@ mod original_expression_grammar_tests {
                 config,
             ));
             assert!(analyser.original_expression_parser_context().is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_reference_atom_tests {
+    use super::*;
+
+    #[test]
+    fn expression_atoms_use_the_original_complete_reference_grammar() {
+        for (dialect, unicode, nested) in [
+            ("tcl8.6", false, false),
+            ("tcl9.1", false, true),
+            ("jim0.84", true, false),
+        ] {
+            let config = tcl_lexer::LexerConfig::for_profile(Some(
+                tcl_dialect::DialectProfile::find(dialect).unwrap(),
+            ));
+            for reference in [
+                "${ with space }",
+                "${$literal}",
+                "${[literal]}",
+                "${}",
+                "$::N::value",
+            ] {
+                assert!(is_expr_atom(reference, config), "{dialect} {reference}");
+            }
+            assert_eq!(is_expr_atom("$café", config), unicode, "{dialect}");
+            assert_eq!(is_expr_atom("${a{b}c}", config), nested, "{dialect}");
+            for reference in [
+                "$array(key)",
+                "${array(key)}",
+                "${value}tail",
+                "$value+1",
+                "$",
+                "${missing",
+                "${value}}",
+            ] {
+                assert!(!is_expr_atom(reference, config), "{dialect} {reference}");
+            }
+            for literal in ["42", "3.14", "0x1f", "true"] {
+                assert!(is_expr_atom(literal, config));
+            }
+        }
+    }
+
+    #[test]
+    fn nested_expression_fix_retains_current_whole_word_geometry_and_configuration() {
+        let source = "set { with space } 7; expr {[expr {${ with space }}] + 1}";
+        let mut analyser = Analyser::new();
+        let result = analyser.analyse(source, "tcl8.6");
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::W114)
+            .expect("actual original expression role and nested expression source");
+        assert_eq!(diagnostic.fixes.len(), 1);
+        assert_eq!(diagnostic.fixes[0].new_text, "${ with space }");
+        assert_eq!(
+            &source[diagnostic.fixes[0].span.as_range()],
+            "[expr {${ with space }}]"
+        );
+        assert_eq!(
+            diagnostic.fixes[0].safety,
+            crate::irules_checks::FixSafety::RequiresReview
+        );
+        let count = analyser.result.diagnostics.len();
+        let config = analyser.file_lexer_config();
+        for (text, config) in [
+            (format!("{source} # changed"), config),
+            (
+                source.to_owned(),
+                tcl_lexer::LexerConfig {
+                    strict_quoting: !config.strict_quoting,
+                    ..config
+                },
+            ),
+        ] {
+            let words = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(&text),
+                tcl_lexer::Span::new(0, u32::try_from(text.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let word = &words.commands[1].words[1];
+            analyser.emit_w114_redundant_nested_expr(word);
+            assert_eq!(analyser.result.diagnostics.len(), count);
         }
     }
 }

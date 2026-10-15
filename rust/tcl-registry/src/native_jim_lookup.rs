@@ -18,14 +18,46 @@
 
 //! Authentic pinned Jim original-object lookup policy.
 
+/// Selected pinned namespace procedure family; no callable or entry authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeJimNamespaceHelperKind {
+    /// Original `namespace which` distribution procedure.
+    Which,
+    /// Original `namespace code` distribution procedure.
+    Code,
+}
+impl NativeJimNamespaceHelperKind {
+    /// Pinned source families this owner currently supplies.
+    pub const ALL: [Self; 2] = [Self::Which, Self::Code];
+}
+
 /// Authored pinned distribution procedure source, not a published callable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NativeJimNamespaceWhichHelper {
+pub struct NativeJimNamespaceHelper {
+    kind: NativeJimNamespaceHelperKind,
+    minimum_arguments: usize,
+    maximum_arguments: usize,
+    usage: &'static str,
     name: &'static str,
     parameters: &'static str,
     body: &'static str,
 }
-impl NativeJimNamespaceWhichHelper {
+impl NativeJimNamespaceHelper {
+    /// Original selected source family, independent of physical helper publication.
+    #[must_use]
+    pub const fn kind(self) -> NativeJimNamespaceHelperKind {
+        self.kind
+    }
+    /// `Jim_ParseSubCmd` validates the public operands before helper-head lookup.
+    #[must_use]
+    pub const fn accepts_public_arguments(self, count: usize) -> bool {
+        count >= self.minimum_arguments && count <= self.maximum_arguments
+    }
+    /// Exact public-subcommand argument synopsis.
+    #[must_use]
+    pub const fn usage(self) -> &'static str {
+        self.usage
+    }
     /// Original compound registration spelling and fresh public fallback head.
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -44,12 +76,20 @@ impl NativeJimNamespaceWhichHelper {
 }
 
 impl crate::InvocationDialect {
-    /// Select the pinned namespace-which distribution procedure source.
+    /// Select one pinned namespace distribution procedure source.
     /// This descriptor grants no installed slot, header or Native compiler entry.
     #[must_use]
-    pub fn native_jim_namespace_which_helper(self) -> Option<NativeJimNamespaceWhichHelper> {
-        self.native_jim_lookup_protocol()
-            .map(|_| NativeJimNamespaceWhichHelper {
+    pub fn native_jim_namespace_helper(
+        self,
+        kind: NativeJimNamespaceHelperKind,
+    ) -> Option<NativeJimNamespaceHelper> {
+        self.native_jim_lookup_protocol()?;
+        Some(match kind {
+            NativeJimNamespaceHelperKind::Which => NativeJimNamespaceHelper {
+                kind,
+                minimum_arguments: 1,
+                maximum_arguments: 2,
+                usage: "?-command|-variable? name",
                 name: "namespace which",
                 parameters: "{type -command} name",
                 body: r#"
@@ -67,7 +107,23 @@ impl crate::InvocationDialect {
 	}
 	return -code error {wrong # args: should be "namespace which ?-command? ?-variable? name"}
 "#,
-            })
+            },
+            NativeJimNamespaceHelperKind::Code => NativeJimNamespaceHelper {
+                kind,
+                minimum_arguments: 1,
+                maximum_arguments: 1,
+                usage: "arg",
+                name: "namespace code",
+                parameters: "arg",
+                body: r#"
+	if {[string first "::namespace inscope " $arg] == 0} {
+		# Already scoped
+		return $arg
+	}
+	list ::namespace inscope [uplevel 1 ::namespace current] $arg
+"#,
+            },
+        })
     }
 
     /// Actual pinned Jim lookup-cache policy; compatibility versions and C
@@ -159,7 +215,7 @@ mod namespace_helper_source_tests {
     fn which_helper_descriptor_keeps_the_original_pinned_declaration() {
         let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();
         let helper = crate::InvocationDialect::of_profile(environment.unit_profile())
-            .native_jim_namespace_which_helper()
+            .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Which)
             .unwrap();
         let source = include_str!("../tests/data/native_jim_namespace_which/nshelper.tcl");
         let declaration = format!(
@@ -174,7 +230,35 @@ mod namespace_helper_source_tests {
                 crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
-                    .native_jim_namespace_which_helper()
+                    .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Which)
+                    .is_none()
+            );
+        }
+    }
+    #[test]
+    fn code_helper_descriptor_keeps_original_source_and_public_arity() {
+        let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();
+        let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
+        let helper = dialect
+            .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Code)
+            .unwrap();
+        let source = include_str!("../tests/data/native_jim_namespace_which/nshelper.tcl");
+        assert!(source.contains(&format!(
+            "proc {{{}}} {{{}}} {{{}}}",
+            helper.name(),
+            helper.parameters(),
+            helper.body()
+        )));
+        assert!(!helper.accepts_public_arguments(0));
+        assert!(helper.accepts_public_arguments(1));
+        assert!(!helper.accepts_public_arguments(2));
+        assert_eq!(helper.usage(), "arg");
+        for version in tcl_dialect::TclVersion::ALL {
+            let environment =
+                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+            assert!(
+                crate::InvocationDialect::of_profile(environment.unit_profile())
+                    .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Code)
                     .is_none()
             );
         }

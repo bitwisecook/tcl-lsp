@@ -10712,7 +10712,7 @@
       "consumer": "`compilation_unit.rs::build_procedure_units`, CompilationUnit.procedures",
       "retained_inherited_semantic_disposition": [
         "Original lexer/Registry/frame metadata and bounded memo validation",
-        "CFG\u2192IR `.get(qname)`; constants, tainted writes, cache seeds and output FunctionUnit map keyed String.",
+        "CFG→IR `.get(qname)`; constants, tainted writes, cache seeds and output FunctionUnit map keyed String.",
         "Preserve exact cache context/rebase/source validations; same-display-different-body tests."
       ],
       "current_sources": [
@@ -11658,7 +11658,7 @@
       ],
       "section": "Closed issues / merged prior work to preserve",
       "actionable_ids": [],
-      "record": "| [#2166](https://github.com/bitwisecook/tcl-lsp/issues/2166) | CLOSED | Jim dialect/editor/CLI surface supports proc statics and two-word method names; comments reference jimsh 0.76\u20130.84. This does not fulfil latest-Jim oracle rerun requirement. |",
+      "record": "| [#2166](https://github.com/bitwisecook/tcl-lsp/issues/2166) | CLOSED | Jim dialect/editor/CLI surface supports proc statics and two-word method names; comments reference jimsh 0.76–0.84. This does not fulfil latest-Jim oracle rerun requirement. |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12204,7 +12204,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#276](https://github.com/bitwisecook/tcl-lsp/issues/276) | CLOSED | WASM runtime: tracking \u2014 upstream Tcl 9 I/O tcltest suite parity |",
+      "record": "| [#276](https://github.com/bitwisecook/tcl-lsp/issues/276) | CLOSED | WASM runtime: tracking — upstream Tcl 9 I/O tcltest suite parity |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12213,7 +12213,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#280](https://github.com/bitwisecook/tcl-lsp/issues/280) | CLOSED | tcltest 2.5 bootstrap fails on WASM runtime \u2014 blocks upstream tcltest sweeps |",
+      "record": "| [#280](https://github.com/bitwisecook/tcl-lsp/issues/280) | CLOSED | tcltest 2.5 bootstrap fails on WASM runtime — blocks upstream tcltest sweeps |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12222,7 +12222,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#281](https://github.com/bitwisecook/tcl-lsp/issues/281) | CLOSED | clock: remaining tcltest gaps \u2014 scan -format, clock-5 free-form, mathop ensemble |",
+      "record": "| [#281](https://github.com/bitwisecook/tcl-lsp/issues/281) | CLOSED | clock: remaining tcltest gaps — scan -format, clock-5 free-form, mathop ensemble |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12402,7 +12402,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1051](https://github.com/bitwisecook/tcl-lsp/issues/1051) | CLOSED | Multi-word `eval` (word-concatenation form) draws false E002/W210 \u2014 the analyser reads only the first argument as the script |",
+      "record": "| [#1051](https://github.com/bitwisecook/tcl-lsp/issues/1051) | CLOSED | Multi-word `eval` (word-concatenation form) draws false E002/W210 — the analyser reads only the first argument as the script |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12411,7 +12411,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1056](https://github.com/bitwisecook/tcl-lsp/issues/1056) | CLOSED | VM: `namespace inscope` space-joins its trailing args \u2014 C Tcl list-appends them (`concat script [list args\u2026]`) |",
+      "record": "| [#1056](https://github.com/bitwisecook/tcl-lsp/issues/1056) | CLOSED | VM: `namespace inscope` space-joins its trailing args — C Tcl list-appends them (`concat script [list args…]`) |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12420,7 +12420,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1058](https://github.com/bitwisecook/tcl-lsp/issues/1058) | CLOSED | runtime/rust: command-resolution conformance vector fails \u2014 braced proc name corrupts dispatch (`invalid command name \"if\"`) |",
+      "record": "| [#1058](https://github.com/bitwisecook/tcl-lsp/issues/1058) | CLOSED | runtime/rust: command-resolution conformance vector fails — braced proc name corrupts dispatch (`invalid command name \"if\"`) |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12429,7 +12429,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1064](https://github.com/bitwisecook/tcl-lsp/issues/1064) | CLOSED | Go-to-definition ignores `rename` for procs and classes (single-file path) \u2014 `resolve_class_target_at` / `lookup_alias` need the rename hop |",
+      "record": "| [#1064](https://github.com/bitwisecook/tcl-lsp/issues/1064) | CLOSED | Go-to-definition ignores `rename` for procs and classes (single-file path) — `resolve_class_target_at` / `lookup_alias` need the rename hop |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12483,7 +12483,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1098](https://github.com/bitwisecook/tcl-lsp/issues/1098) | CLOSED | Block-scoped `export`/`unexport` inside `self { \u2026 }` abstains \u2014 `set_member_visibility` flips both instance and class-side tables by bare name |",
+      "record": "| [#1098](https://github.com/bitwisecook/tcl-lsp/issues/1098) | CLOSED | Block-scoped `export`/`unexport` inside `self { … }` abstains — `set_member_visibility` flips both instance and class-side tables by bare name |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12618,7 +12618,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1262](https://github.com/bitwisecook/tcl-lsp/issues/1262) | CLOSED | Dynamic variable-name provenance stops at the written word \u2014 no per-site constant-value record survives analysis |",
+      "record": "| [#1262](https://github.com/bitwisecook/tcl-lsp/issues/1262) | CLOSED | Dynamic variable-name provenance stops at the written word — no per-site constant-value record survives analysis |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12699,7 +12699,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1442](https://github.com/bitwisecook/tcl-lsp/issues/1442) | CLOSED | `namespace origin` in tcl-vm returns the *caller's* qualification, never the import source or the resolved command \u2014 and `namespace which -variable` answers with proc locals |",
+      "record": "| [#1442](https://github.com/bitwisecook/tcl-lsp/issues/1442) | CLOSED | `namespace origin` in tcl-vm returns the *caller's* qualification, never the import source or the resolved command — and `namespace which -variable` answers with proc locals |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12807,7 +12807,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1582](https://github.com/bitwisecook/tcl-lsp/issues/1582) | CLOSED | tclvm: `upvar` linking a proc local to a namespace variable is silently accepted \u2014 C raises \"can't create namespace variable that refers to procedure variable\" |",
+      "record": "| [#1582](https://github.com/bitwisecook/tcl-lsp/issues/1582) | CLOSED | tclvm: `upvar` linking a proc local to a namespace variable is silently accepted — C raises \"can't create namespace variable that refers to procedure variable\" |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12843,7 +12843,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1604](https://github.com/bitwisecook/tcl-lsp/issues/1604) | CLOSED | compiler: ~20 free-text `${\u2026}` scanners hard-code the 8.x first-`}` rule (and ~15 more use a last-`}` rule) across optimiser/dataflow/taint/analyser \u2014 #1568's class, outside its declared scope |",
+      "record": "| [#1604](https://github.com/bitwisecook/tcl-lsp/issues/1604) | CLOSED | compiler: ~20 free-text `${…}` scanners hard-code the 8.x first-`}` rule (and ~15 more use a last-`}` rule) across optimiser/dataflow/taint/analyser — #1568's class, outside its declared scope |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12852,7 +12852,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1610](https://github.com/bitwisecook/tcl-lsp/issues/1610) | CLOSED | registry: `ENSEMBLE_CREATE_OPTIONS` serves both `namespace ensemble create` and `configure`, but the real option sets differ \u2014 completion offers a guaranteed error and hides a valid option |",
+      "record": "| [#1610](https://github.com/bitwisecook/tcl-lsp/issues/1610) | CLOSED | registry: `ENSEMBLE_CREATE_OPTIONS` serves both `namespace ensemble create` and `configure`, but the real option sets differ — completion offers a guaranteed error and hides a valid option |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12861,7 +12861,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1612](https://github.com/bitwisecook/tcl-lsp/issues/1612) | CLOSED | analyser: `namespace export` records patterns past an invalid one \u2014 C aborts the loop at the first bad pattern |",
+      "record": "| [#1612](https://github.com/bitwisecook/tcl-lsp/issues/1612) | CLOSED | analyser: `namespace export` records patterns past an invalid one — C aborts the loop at the first bad pattern |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12870,7 +12870,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1613](https://github.com/bitwisecook/tcl-lsp/issues/1613) | CLOSED | runtime: `namespace exists`/`parent`/`children` still take the lossy `&str` route \u2014 byte-valued machinery now exists, convert them |",
+      "record": "| [#1613](https://github.com/bitwisecook/tcl-lsp/issues/1613) | CLOSED | runtime: `namespace exists`/`parent`/`children` still take the lossy `&str` route — byte-valued machinery now exists, convert them |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12879,7 +12879,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1616](https://github.com/bitwisecook/tcl-lsp/issues/1616) | CLOSED | VM: quoted variable names in `set` are stored under their unsubstituted source spelling \u2014 `set \"a\\\\\" K` creates `a\\\\` (3 bytes) where tclsh creates `a\\` (2 bytes) |",
+      "record": "| [#1616](https://github.com/bitwisecook/tcl-lsp/issues/1616) | CLOSED | VM: quoted variable names in `set` are stored under their unsubstituted source spelling — `set \"a\\\\\" K` creates `a\\\\` (3 bytes) where tclsh creates `a\\` (2 bytes) |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12888,7 +12888,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#1625](https://github.com/bitwisecook/tcl-lsp/issues/1625) | CLOSED | Extension\u2192dialect registration is only partially generator-driven: 6 drifted hand-maintained surfaces (.tmsh can't activate VS Code; .irules not indexed or recognised by f5-cli; Sublime per-dialect scopes wrong) |",
+      "record": "| [#1625](https://github.com/bitwisecook/tcl-lsp/issues/1625) | CLOSED | Extension→dialect registration is only partially generator-driven: 6 drifted hand-maintained surfaces (.tmsh can't activate VS Code; .irules not indexed or recognised by f5-cli; Sublime per-dialect scopes wrong) |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12960,7 +12960,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#2142](https://github.com/bitwisecook/tcl-lsp/issues/2142) | CLOSED | A `try` statement erases the definiteness of names bound before it: W210 after `try \u2026 finally`, and O109 deletes the `finally` body's store |",
+      "record": "| [#2142](https://github.com/bitwisecook/tcl-lsp/issues/2142) | CLOSED | A `try` statement erases the definiteness of names bound before it: W210 after `try … finally`, and O109 deletes the `finally` body's store |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -12978,7 +12978,7 @@
       ],
       "section": "Wider issue-search inventory",
       "actionable_ids": [],
-      "record": "| [#2168](https://github.com/bitwisecook/tcl-lsp/issues/2168) | CLOSED | A computed `rename` still miscompiles a shadowed builtin \u2014 and O102 proves the names in the same run without feeding them back |",
+      "record": "| [#2168](https://github.com/bitwisecook/tcl-lsp/issues/2168) | CLOSED | A computed `rename` still miscompiles a shadowed builtin — and O102 proves the names in the same run without feeding them back |",
       "authority": "existing verified issue-search snapshot; no new GitHub read in this audit"
     },
     {
@@ -13150,11 +13150,11 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "head": "796dbc7c9",
-    "checkpoint_utc": "2026-10-15T04:00:00Z",
-    "tracking_basis": "The retained Compiler146 broad scope is 248/313 PASS with 65 nonpassing controls and three timeouts. Its 264 unchanged originals have 13 gains and zero regressions; one authorised nested-array oracle correction is separately recorded. Focused Compiler153 is 27/47 PASS: all three old Named SSA controls, all 11 unset controls and publication inlining pass; 20 source producer/consumer controls remain red.\n\nCore145 is 123/196 PASS, with all 101 prior controls retained and three gains, zero regressions/drops. All nine code-lens controls pass in that scope. Focused Core182 is75/133 PASS with source-subset drift zero, no timeouts or missing selectors. All 133 Core171 controls remain with three gains and zero regressions/drops: constructed-colon namespace membership, original literal/escaped inline parameter components and Logical procedure body structure. Both Native minifier formal/local-store positives remain passing; this focused scope does not replace Core145. VM159 is 58/58 PASS with empty full captured drift maps: all 52 prior controls and six additions pass, including the original error corpus and both child regressions. This does not establish acceptance for another suite or Native/F5 purpose.\n\nRuntime188 seals 115/117 PASS with two failures and empty full captured drift maps: all 107 Runtime126 controls retained without gains/regressions/drops, nine of ten additions PASS. Original child-alias publication and new dying-global-token controls fail. DB186 seals 24/34 PASS, 10 FAIL, source-subset drift zero and no timeouts/missing selectors. All 34 DB170 controls remain: four callback gains and one unavailable-package callback regression. All ten DB61 originals remain 1 PASS/9 FAIL; additions are 23 PASS/1 FAIL. Original cache counts, availability and uncached equivalence remain required. Source184 is 36/36 PASS; CLI163 remains183 failures. The independent full strict-proof result remains1,979 errors; evidence/census/provider digests are preserved.\n\nCheckpoint796dbc7c9 is committed and pushed. Seventy-five post224 source/fixture transport packets are adopted in the exact receipt, including current68 durable contractsab1ec8b3. Source69 adds the real Jim existence worker through existing original command/variable owners;70 retains the actual trace fixture,71 explicitly separates Standalone package-index filename data from current analysis inputs,72 selects declaration-body content through the genuine original word,73 keys Logical candidates into their immutable retained original vector, and74 restores the exact empty Exists stderr afterimage. Current74 durable successor650ad791 has all relevant bounded owner approvals and is adopted, with no proof/provider/result digest refresh. Runtime240 eleven-control diagnostic preflight is sealed: Runtime build passed97.1008 seconds, Registry build failed135.0266 seconds, attempted0/runs[], with raw source, compiled-input and artifact drift maps empty. The failed build did not finalize compiled-input/artifact closure, so these empty maps establish no successful test coverage. No eleven-control or150-control tests executed in this attempt. Source75 adopts the narrow constructor type-inference lifetime correction without changing original words, input or configuration. Runtime241 is now building the same explicitly scoped eleven-control diagnostic with full source/provider closure frozen and no outcomes yet. Fresh ordinary238 with eleven unit artifacts including Spec Studio has not started. Current source75 has no complete fresh ordinary semantic acceptance. Earlier ordinary237 workspace all-target check failed one E0308 in179.85 seconds/source0/zero tests; its fixture adapter is adopted65, verification pending. TEMP239 built one Compiler ELF and ran six exact isolated controls:three PASS and three FAIL, source0/binary unchanged. Both default authoring controls and callback-negative pass; two namespace controls and callback-positive fail. Full authored restoration caught the initially missed parent extension logger; Root retained the initial receipt, restored its exact inverse hunk and confirmed both files byte-exact and all97,039 authored inputs unchanged. No temporary source was committed. Runtime236 remains its sealed source58 epoch:150=141PASS9FAIL with full source/compiled-input/artifact closure unchanged. All117 prior controls are retained:112PASS5FAIL, one gain and four old PASS-to-FAIL regressions;33 additions29PASS4FAIL. The four regressions reach the missing genuine exists callee through Which; new source69 repairs the producer but has no actual test outcome yet, and Code helper remains held. The prior child-alias failure and other independent Runtime obligations remain explicit. Prior production231 ten-package no-run build passed284.5023 seconds/source0 with ten ELFs. Compiler393 is222PASS169FAIL2TIMEOUT, all361 prior controls retained with two gains and zero PASS regressions/drops,32 additions20PASS12FAIL; original#2286 PASS68.1008 seconds retains its unchanged180 budget and both original deep controls retain180-second timeouts. Core165 is109PASS56FAIL with six old gains and zero PASS regressions/drops, including three failing new workspace occurrence controls; DB58 is46PASS12FAIL with one gain and zero PASS regressions/drops; Source37/37, Registry4/4, Syntax4/4 and corrected actual-listing Lexer10/10 pass. These remain their actual earlier source/ELF epoch. Normal owner CLI233 built successfully then exited1 with196 violations/source0/unchanged artifact; no owner-gate acceptance is claimed. The finite inherited330 semantic audit is complete:275 tracking reviews plus55 Root reviews, all330 original rows and immutable chunks preserved and zero unseen inherited rows. This is review coverage, not complete migration or execution closure. The current identity check retains257 exact original inspected file hashes,71 changed-file rows awaiting bounded revalidation and two separately revalidated caller-frame rows. Specific unresolved source purposes remain explicit, including Root's actual private import wildcard classifier and Logical variable source-form rendering; no stale hash is refreshed to PASS. Real source68 entry currency and safe source62 rename proposals remain distinct from identity/edit permissions. Compiler407, Core173 and DB61 compact successor plans retain actual231 inventories and original180-second budgets; additive controls and actual fresh source/listing/ELF guards remain required, with plans supplying no outcomes. All required PR gates, complete affected current replays and repository-wide current docs/comments cleanup remain outstanding. Prior ordinary224 sealed exit101 in393.6370 seconds/source0/zero tests/nine artifacts with one Lexer fixture E0308; Compiler/Core replay writers subsequently died exit120 during actual /tmp ENOSPC, without complete result receipts. /tmp/name-current224-replays-20261015/storage-interruption.json records no complete-scope acceptance. Never infer zero failures, full coverage or a cause from their partial logs. DB22458, Syntax4 and Registry1 sealed before the incident: DB45PASS13FAIL/source0; all58DB215 selectors retained, one foreign-library-source-context gain and zero PASS regressions/additions/drops; Syntax4PASS/4 and Registry1PASS/1 remain separate scopes. The actual normal owner CLI224 built successfully in153.4903 seconds, then exited1 in40.6883 seconds with185 reported violations, source0 and unchanged command ELF. It finished01:46:41 after the storage incident and remains provisional until clean rebuild/rerun; it supplies no green gate or Native/provider acceptance. Historical CLI163183 failures and full strict-proof1979 errors remain independent older scopes. Root preserved historical captures114 and119 byte-for-byte with relocation manifests and original /tmp symlinks, then removed verified regenerable stock Cargo outputs with supported cargo clean (4442files/8.3GiB). New capture outputs use /workspace/name-captures. No source, evidence or original result was deleted. Earlier ordinary223's two fixture borrow errors were fixed without changing assertions. TEMP222 and its extra same-epoch replays retain their prior diagnostic-only outcomes and exact restoration; reviewed header2a/receivera089 remain unapplied and unexecuted. Actual selected tailcall command/List ownership6e2f is adopted with the original cancellation69bd observation explicitly separate from full public defer or lifecycle conformance. Simulator mock publication addresses c7, test-only helper retirements390/e53, inline parameter-body scanner1f6 and current implementation source guard141 are adopted; no fresh software outcome follows. Original SDK/oracle/SSA records and all original assertions/budgets remain immutable. Runtime helper and Switch contracts do not turn independent original observations into an executed Rust result. After this checkpoint the audit priority is the inherited330 semantic callsites, including299 Core rows still requiring actual current source/guard review: retain every old row, add actual current function/hash/shared purpose/caller guards or a specific rewire, and coordinate real implementation consumers in ten-minute chunks. The existing18-callsite current roster identifies confirmed diagram/worker-address migrations and already-shared MCP/AI/tooling routes; it does not close all330. Concrete owner-gate route gaps are retained separately: generic consumer exclusion, unvisited real local type annotations and direct declarations blocked by unrelated globs require bounded checker work and adversarial tests, never invented proof calls or weakened owner guards. The latest ordinary compiler scope remains Original212 plus corrected217: 361 unique same211ELF selectors, 200 PASS, 159 FAIL and two TIMEOUTs, source drift zero, all 345 Compiler204 and 24 Compiler197 retained. Five old PASS gains and zero PASS regressions/drops occur among the 345 shared selectors; 16 additions are 14 PASS and two FAIL. Original #2286 passes in 65.6810 seconds with unchanged fixture/assertions/180-second budget, and the e781 cycle regression independently passes; both original deep controls retain 180-second timeouts. This selector analyses retained Tcltest source under five C profiles without executing an external C oracle. The focused coverage does not replace broad191 or cover its 354 outside selectors. Core216 remains 85 PASS/59 FAIL of 144, all 137 Core205 retained with three gains and zero PASS regressions/drops; seven additions are two PASS/five FAIL. DB215 remains 44 PASS/14 FAIL of 58: 33 unchanged DB206 controls retained with two gains/zero PASS regressions, explicit corrected-fixture lineage ClosedTk PASS/foreignLibrarySource FAIL, and 25 additions 17 PASS/eight FAIL. Its cached [] versus actual uncached T100 mismatch and solve-Module owner failure remain unresolved. Next Compiler379, Core160 and current VM/Runtime plans preserve prior selectors and original budgets but require fresh ordinary source/ELF and actual per-test receipts; dynamic DB derives its denominator from that ELF. Last complete owner CLI163 reports 183 failures and full strict proof 1,979 errors, each a separate older scope. Durable original SDK/oracle/SSA evidence remains protected; generic build/selector/process-suite logs require separate final-scope classification. Remaining current consumer migrations and validation of adopted Runtime selected command/List transport, owner/codegen/Native/provider/editor/MCP/generation/F5 gates, repository-wide current docs/comments audit and final temporary-process cleanup remain open.\n\nSource184 seals 36/36 PASS with source-subset drift zero, no timeouts or missing selectors: all 35 Source169 controls remain passing plus the standard Option::map control. This validates bounded source declaration/reference checks only. CLI163 remains the last complete owner CLI result at 183 failures (179 general and four Source); current registrations and checker repairs still require actual owner CLI execution. Runtime, provider and full strict-proof gates remain independent.\n\nCompiler183 seals 25/61 PASS, 36 FAIL, source-subset drift zero and no timeouts/missing selectors. This focused capsule/object scope does not replace Compiler146 or 153; current source correspondence, CFG availability and Logical object producers remain red.",
+    "head": "5c3c37f2d",
+    "checkpoint_utc": "2026-10-15T04:15:00Z",
+    "tracking_basis": "The retained Compiler146 broad scope is 248/313 PASS with 65 nonpassing controls and three timeouts. Its 264 unchanged originals have 13 gains and zero regressions; one authorised nested-array oracle correction is separately recorded. Focused Compiler153 is 27/47 PASS: all three old Named SSA controls, all 11 unset controls and publication inlining pass; 20 source producer/consumer controls remain red.\n\nCore145 is 123/196 PASS, with all 101 prior controls retained and three gains, zero regressions/drops. All nine code-lens controls pass in that scope. Focused Core182 is75/133 PASS with source-subset drift zero, no timeouts or missing selectors. All 133 Core171 controls remain with three gains and zero regressions/drops: constructed-colon namespace membership, original literal/escaped inline parameter components and Logical procedure body structure. Both Native minifier formal/local-store positives remain passing; this focused scope does not replace Core145. VM159 is 58/58 PASS with empty full captured drift maps: all 52 prior controls and six additions pass, including the original error corpus and both child regressions. This does not establish acceptance for another suite or Native/F5 purpose.\n\nRuntime188 seals 115/117 PASS with two failures and empty full captured drift maps: all 107 Runtime126 controls retained without gains/regressions/drops, nine of ten additions PASS. Original child-alias publication and new dying-global-token controls fail. DB186 seals 24/34 PASS, 10 FAIL, source-subset drift zero and no timeouts/missing selectors. All 34 DB170 controls remain: four callback gains and one unavailable-package callback regression. All ten DB61 originals remain 1 PASS/9 FAIL; additions are 23 PASS/1 FAIL. Original cache counts, availability and uncached equivalence remain required. Source184 is 36/36 PASS; CLI163 remains183 failures. The independent full strict-proof result remains1,979 errors; evidence/census/provider digests are preserved.\n\nCheckpoint5c3c37f2d containing source75 is committed and pushed. Eighty-eight post224 source/fixture/evidence packets are adopted in the exact receipt. Current74 durable contracts650ad791 are adopted with all bounded owner reviews. Newly adopted76–86 include shared W114 source grammar, bounded owner-checker routes, genuine Authored summary correspondence, absolute Logical body syntax candidates, reviewed reference-tail/method-source/arm-word consumers, actual import glob ownership, W307 source components, authored corpus body data, original Jim Which/Code helpers and Script entry operation, and the exact reference-tail archive. New current88 durable contract composition is queued; sources87–88 additionally adopt the reviewed C original object-vector operation/error-value lifetime and genuine Clock primitive publication. No fresh source88 execution result is assumed. Runtime241 remains its actual source75 selected diagnostic:eleven controls8PASS3FAIL, errors[] and unchanged source/compiled-input/artifact closure. Both Exists controls, original descendant read-trace fixture and five selected Which/helper controls pass; child alias publication, missing lambda namespace and namespace-kind display still fail. These selected results do not supply a fresh full Runtime154 or150 result. The earlier Runtime240 preflight attempted0 tests after Registry build failure; raw empty compiled/artifact maps did not finalize closure. Source75 corrected that lifetime before actual241. Ordinary238 has now started the eleven-package unit-artifact build after the source88 review window and formatting; authored/runtime sources remain frozen through its capture and planned replays. The build is unsealed, with no ordinary238 outcome or executed test claim. TEMP239 ran six exact isolated controls3PASS3FAIL/source0/unchanged binary, then both temporary files were restored byte-exact with all97,039 authored inputs unchanged. The initial restoration missed parent logger was detected by full snapshot and retained separately, with no TEMP production commit. Runtime236 remains actual full source58 scope150=141PASS9FAIL; all117 prior controls retained112PASS5FAIL, one gain and four old PASS regressions,33 additions29PASS4FAIL. Selected241 improvements do not rewrite it. Prior production231 ten-package no-run build passed284.5023 seconds/source0 with ten ELFs. Compiler393 is222PASS169FAIL2TIMEOUT, all361 prior controls retained with two gains and zero PASS regressions/drops;32 additions20PASS12FAIL. Original#2286 PASS68.1008 seconds retains its unchanged180 budget and both original deep controls still time out at180 seconds. Core165 is109PASS56FAIL with six old gains and zero PASS regressions/drops, including three failing new workspace controls; DB58 is46PASS12FAIL with one gain and zero PASS regressions/drops; Source37/37, Registry4/4, Syntax4/4 and corrected actual-listing Lexer10/10 pass. These remain their actual earlier source/ELF epoch. Normal owner CLI233 built successfully then exited1 with196 violations/source0/unchanged artifact; checker source changes supply no owner-gate outcome. All330 inherited call sites have actual manual purpose/owner/caller dispositions,275 tracking and55 Root, preserving original rows and immutable lineage. The source75 snapshot bound257 original reviews and73 explicit bounded revalidations with no changed-file obligations. Current88 production edits subsequently change67 inspected file identities;226 unchanged original reviews and37 still-current revalidations remain exact, while67 rows require bounded actual function/caller delta review. Source75 review coverage is preserved as its actual snapshot, not silently renewed to current88. Finite review coverage does not close migration, semantics or edit/Native permissions: genuine method/source-summary issuers, direct-call String/CommandTail consumers, source renderer purposes and runtime lifecycle obligations remain independently scoped. The new reference-tail archive preserves all52 original files, including initial Jim signal11 and separate controlled18case observations, with all55 archive files and25 empty channels copied and hashed; it supplies no LSP/Native runtime acceptance. Reviewed future replay plans must retain every actual231 selector, all failing workspace controls and original180-second budgets with additive adopted controls and actual current source/listing/ELF guards. Final required PR gates, full affected current replays and repository-wide current docs/comments cleanup remain necessary. Prior ordinary224 sealed exit101 in393.6370 seconds/source0/zero tests/nine artifacts with one Lexer fixture E0308; Compiler/Core replay writers subsequently died exit120 during actual /tmp ENOSPC, without complete result receipts. /tmp/name-current224-replays-20261015/storage-interruption.json records no complete-scope acceptance. Never infer zero failures, full coverage or a cause from their partial logs. DB22458, Syntax4 and Registry1 sealed before the incident: DB45PASS13FAIL/source0; all58DB215 selectors retained, one foreign-library-source-context gain and zero PASS regressions/additions/drops; Syntax4PASS/4 and Registry1PASS/1 remain separate scopes. The actual normal owner CLI224 built successfully in153.4903 seconds, then exited1 in40.6883 seconds with185 reported violations, source0 and unchanged command ELF. It finished01:46:41 after the storage incident and remains provisional until clean rebuild/rerun; it supplies no green gate or Native/provider acceptance. Historical CLI163183 failures and full strict-proof1979 errors remain independent older scopes. Root preserved historical captures114 and119 byte-for-byte with relocation manifests and original /tmp symlinks, then removed verified regenerable stock Cargo outputs with supported cargo clean (4442files/8.3GiB). New capture outputs use /workspace/name-captures. No source, evidence or original result was deleted. Earlier ordinary223's two fixture borrow errors were fixed without changing assertions. TEMP222 and its extra same-epoch replays retain their prior diagnostic-only outcomes and exact restoration; reviewed header2a/receivera089 remain unapplied and unexecuted. Actual selected tailcall command/List ownership6e2f is adopted with the original cancellation69bd observation explicitly separate from full public defer or lifecycle conformance. Simulator mock publication addresses c7, test-only helper retirements390/e53, inline parameter-body scanner1f6 and current implementation source guard141 are adopted; no fresh software outcome follows. Original SDK/oracle/SSA records and all original assertions/budgets remain immutable. Runtime helper and Switch contracts do not turn independent original observations into an executed Rust result. After this checkpoint the audit priority is the inherited330 semantic callsites, including299 Core rows still requiring actual current source/guard review: retain every old row, add actual current function/hash/shared purpose/caller guards or a specific rewire, and coordinate real implementation consumers in ten-minute chunks. The existing18-callsite current roster identifies confirmed diagram/worker-address migrations and already-shared MCP/AI/tooling routes; it does not close all330. Concrete owner-gate route gaps are retained separately: generic consumer exclusion, unvisited real local type annotations and direct declarations blocked by unrelated globs require bounded checker work and adversarial tests, never invented proof calls or weakened owner guards. The latest ordinary compiler scope remains Original212 plus corrected217: 361 unique same211ELF selectors, 200 PASS, 159 FAIL and two TIMEOUTs, source drift zero, all 345 Compiler204 and 24 Compiler197 retained. Five old PASS gains and zero PASS regressions/drops occur among the 345 shared selectors; 16 additions are 14 PASS and two FAIL. Original #2286 passes in 65.6810 seconds with unchanged fixture/assertions/180-second budget, and the e781 cycle regression independently passes; both original deep controls retain 180-second timeouts. This selector analyses retained Tcltest source under five C profiles without executing an external C oracle. The focused coverage does not replace broad191 or cover its 354 outside selectors. Core216 remains 85 PASS/59 FAIL of 144, all 137 Core205 retained with three gains and zero PASS regressions/drops; seven additions are two PASS/five FAIL. DB215 remains 44 PASS/14 FAIL of 58: 33 unchanged DB206 controls retained with two gains/zero PASS regressions, explicit corrected-fixture lineage ClosedTk PASS/foreignLibrarySource FAIL, and 25 additions 17 PASS/eight FAIL. Its cached [] versus actual uncached T100 mismatch and solve-Module owner failure remain unresolved. Next Compiler379, Core160 and current VM/Runtime plans preserve prior selectors and original budgets but require fresh ordinary source/ELF and actual per-test receipts; dynamic DB derives its denominator from that ELF. Last complete owner CLI163 reports 183 failures and full strict proof 1,979 errors, each a separate older scope. Durable original SDK/oracle/SSA evidence remains protected; generic build/selector/process-suite logs require separate final-scope classification. Remaining current consumer migrations and validation of adopted Runtime selected command/List transport, owner/codegen/Native/provider/editor/MCP/generation/F5 gates, repository-wide current docs/comments audit and final temporary-process cleanup remain open.\n\nSource184 seals 36/36 PASS with source-subset drift zero, no timeouts or missing selectors: all 35 Source169 controls remain passing plus the standard Option::map control. This validates bounded source declaration/reference checks only. CLI163 remains the last complete owner CLI result at 183 failures (179 general and four Source); current registrations and checker repairs still require actual owner CLI execution. Runtime, provider and full strict-proof gates remain independent.\n\nCompiler183 seals 25/61 PASS, 36 FAIL, source-subset drift zero and no timeouts/missing selectors. This focused capsule/object scope does not replace Compiler146 or 153; current source correspondence, CFG availability and Logical object producers remain red.",
     "scope": "Only explicit current actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and issue records unchanged; no old proof digest renewed.",
-    "validation": "75adopted;796dbc7c9PUSHED;ab1current68contractsADOPTED;650current74docsallboundedpeersAPPROVED/queued. Runtime240preflight Runtime0/97.1008s Registry101/135.0266s/0tests/rawdriftmaps{}notfinalizedcompiled/artifactclosure. Runtime241same11BUILDactive/unsealed/source75freeze. TEMP2393PASS3FAIL/exactbothrestored97039inputs0. PriorRuntime236141/9with4regressions;231earlierELFscopesunchanged. Finite330manualcoveragecomplete275+55;71changed-file revalidations remain;noallgreen.",
+    "validation": "88adopted;5c3c37f2dSOURCE75PUSHED;ab1current68contractsADOPTED;650current74docsADOPTED/allboundedpeersAPPROVED. Runtime240preflight Runtime0/97.1008s Registry101/135.0266s/0tests/rawdriftmaps{}notfinalizedcompiled/artifactclosure. Runtime241same11SEALED8PASS3FAIL/errors[]/closureguards{};not150acceptance. TEMP2393PASS3FAIL/exactbothrestored97039inputs0. PriorRuntime236141/9with4regressions;231earlierELFscopesunchanged. Finite330coveragecomplete;Source75historical257+73bound;current88changed67pendingboundedrevalidation;noallgreen.",
     "source_write_policy": "Root-authorised tracking proposal only; agent writes scratch copies and patch, no Main or Git mutations.",
     "additional_bounded_families": "Current source roles, lexical/Expr inventories, declaration/body cards, exact read/definition ValueKey selectors, Normal physical slot eligibility, method/procedure insertion, codegen admission, typed data, source syntax caching and original Runtime/VM key/location transports retain independent current vector/input/config/store/purpose guards. Unknown advice cannot prove a Native/Normal frame/cell/value or editing permission. Adopted repairs require actual affected replay.",
     "reconciled_live_rows": [
@@ -13169,8 +13169,8 @@
       "bpf-selected-descriptor"
     ],
     "immutable_evidence_policy": "Earlier baseline fields, source/isolated snapshots, inherited330/package/issue rows and proof digests unchanged; current_review observations are not new execution evidence.",
-    "next_commit_due_utc": "2026-10-15T04:15:00Z",
-    "current_remaining": "Verify actualsource75lifetimefixviaactive241same11diagnostic/fullRuntime150scope independently; freshordinary238elevenartifacts and current affected replays retaining all231 controls and original180budgets. Resolve actual CLI233196 owner/checker obligations, finite330 specificremainingrewires and71changed-file revalidations. Actualsource69Exists/newfilename/declaration/vector controls unexecuted. AllPRgates/finalcurrentdocs cleanup remainrequired.",
+    "next_commit_due_utc": "2026-10-15T04:30:00Z",
+    "current_remaining": "Investigateactual241threefailuresandrunfreshfullRuntime150scope independently; freshordinary238elevenartifacts and current affected replays retaining all231 controls and original180budgets. Resolve actual CLI233196 owner/checker obligations, finite330specificremainingrewires and67post86changed-file bounded revalidations. Current88newconsumer/controlsexecutionpending;prior241onlysource75selected11. AllPRgates/finalcurrentdocs cleanup remainrequired.",
     "current_runtime_dispositions": [
       {
         "original_row": 26,
@@ -13256,13 +13256,13 @@
       "compiler_combined_result": "361unique=200PASS159FAIL2TIMEOUT/same211ELF/source0",
       "core_receipt": "/tmp/name-core216-production-20261015/result.json",
       "db_receipt": "/tmp/name-db215-production-20261015/result.json",
-      "post211_batch": "75actualadopted;Runtime240Registrybuild101/0tests;lifetimefix75adopted;241same11buildactive;ordinary238notstarted;no current75semanticacceptance.",
+      "post211_batch": "88actualadopted;new76–88sourcechangesunexecuted;prior241source75same11sealed8PASS3FAIL;ordinary238elevenartifactBUILDSTARTED/unsealed/sourcefreeze;no current88semanticacceptance.",
       "temp218_receipt": "/tmp/name-temp218-combined-diagnostics-20261015/result.json",
       "temp218_result": "E0369 bothpackagebuilds/0runs/binarynull/restoredinventoryequaltrue",
       "temp219_receipt": "/tmp/name-temp219-combined-diagnostics-20261015/result.json",
       "temp219_result": "Corebuildexit101/fourmissingdocs/30.98701922899636seconds/0tests/binarynull/noDBbuild/finallyrestoredtrue",
-      "next_build_scope": "Freshordinary238elevenunitartifactsincludingSpecStudioNOTSTARTED;guardedcurrent407/Core173/DB61+allother231scopesrequireadditiveactualnewcontrols. Runtime11diagnosticnot150acceptance;alloriginal180budgetsremain.",
-      "production_head": "796dbc7c9PUSHED;75actualpost224source/fixturetransportpackets;ab1current68docsADOPTED",
+      "next_build_scope": "Ordinary238elevenunitartifactsincludingSpecStudioBUILDSTARTED/unsealed/noresult;guardedcurrent407/Core173/DB61+allother231scopesrequireadditiveactualnewcontrols. Runtime11diagnosticnot150acceptance;alloriginal180budgetsremain.",
+      "production_head": "5c3c37f2dSOURCE75PUSHED;88actualpost224source/fixture/evidencepackets;ab1current68+650current74docsADOPTED",
       "normal_owner_cli_attempt": "/tmp/name-current-owner-cli-attempt2-20261015",
       "normal_owner_cli_state": "SEALEDactualnormalbuild101/92.66246727999533sec/twoRuntimeadaptererrors/noartifact/source0/CLI NOTRUN/noownergateresult. Optionaldata-firstguardrefusedbeforeCargo, not a build result.",
       "temp220_receipt": "/tmp/name-temp220-combined-diagnostics-20261015/result.json",
@@ -13302,7 +13302,7 @@
       "runtime232_result": "build101/96.791s/3actualfixtureAPIerrors/0tests/fullclosureunchanged;new98adaptersand484retiringnowadopted;Runtime1509eactualafterimagesverifiedcaptureSTARTEDunsealed/noresult.",
       "owner233_result": "Build0/125.50248s;actualCLI1/42.79463s/196violations/source0/artifactunchanged;oldprovisional224185=>2removed+13new;allsourceandcontractfreezesreleased.",
       "temp234_result": "IntentionalSIGINT-2/about57s/source0/errors0/artifacts0/tests0 tocombine newNativeowner diagnostic; retainedfirstbuildresult.",
-      "temp235_state": "BuildPASS0/206.5816s/3ELFs/0buildtests;isolatedCore3FAIL/DB1FAIL/Compiler4FAIL/source0/binariesunchanged/missingempty[];8filesbyteexactrestored03:18:02/full34766authoredpaths/differences{}. Subsequent53\u201358productionadoptionsdistinct,noTEMPcommit.",
+      "temp235_state": "BuildPASS0/206.5816s/3ELFs/0buildtests;isolatedCore3FAIL/DB1FAIL/Compiler4FAIL/source0/binariesunchanged/missingempty[];8filesbyteexactrestored03:18:02/full34766authoredpaths/differences{}. Subsequent53–58productionadoptionsdistinct,noTEMPcommit.",
       "temp235_restore_inventory": "/workspace/name-captures/temp234-original-owner-diagnostics-20261015/restoration-after.json",
       "runtime236_capture": "/workspace/name-captures/runtime236-20261015",
       "runtime236_state": "SEALED150=141PASS9FAIL/errors[]/source_drift{}/compiled_input_drift{}/artifact_drift{}. All117priorretained112PASS5FAIL;1gain4oldPASSregressions;33new29PASS4FAIL. Actualsource58epoch,no current68acceptance.",
@@ -13312,8 +13312,9 @@
       "runtime240_capture": "/workspace/name-captures/runtime240-eleven-20261015",
       "runtime240_state": "SEALED Runtimebuild0/97.100775s;Registrybuild101/135.026599s;attempted0/runs[];source_drift{}/compiled_input_drift{}/artifact_drift{}rawmaps;buildfailuremeanscompiled/artifactclosureNOTfinalized;no11or150acceptance.",
       "runtime241_capture": "/workspace/name-captures/runtime241-eleven-20261015",
-      "runtime241_state": "Sameexplicit11diagnosticsBUILDactive/unsealedafter75narrowconstructorlifetimefix;fullsource/provider/compiled/artifactclosurefrozen;noresultoracceptance.",
-      "runtime240_result_sha256": "57824cc1d9a0fc7e28355715d50c3f387e5b9ea88ee2bea506ab2254bb584d87"
+      "runtime241_state": "SEALED04:03:26UTC/11=8PASS3FAIL/errors[]/source_drift{}/compiled_input_drift{}/artifact_drift{}. BothExists/fouroldWhichregressions/originaldescendantreadtracePASS;childalias/missinglambdans/actualkinddisplayFAIL. Diagnostic11not150acceptance.",
+      "runtime240_result_sha256": "57824cc1d9a0fc7e28355715d50c3f387e5b9ea88ee2bea506ab2254bb584d87",
+      "runtime241_result_sha256": "e85ebc41476dfa6d96f64af1f8f7c5cccb7e49bae41036296bc4146c61d2a4bc"
     },
     "hourly_next_due_utc": "2026-10-15T02:14:00Z",
     "current_sdk_archives": {
@@ -13336,18 +13337,53 @@
       "old_rows_preserved": 330,
       "pending_core_source_review_rows": 299,
       "prior_bounded_current_roster": "/tmp/name-actionable-current-consumer-roster-20261015.json",
-      "limits": "Finite330manualcoveragecomplete275tracking+55Root;alloriginalrows/chunks/prooflineagepreserved.71changed-file rowsawaitboundedrevalidation;actualremainingrewires/unsupportedscopes/reportpurposesremainexplicit. Root286privatewildcardclassifier+Logicalvariablesourceformdebt actionable. No complete migration/execution/gate acceptance or stalePASS.",
+      "limits": "Finite330manualcoveragecomplete275tracking+55Root;alloriginalrows/chunks/prooflineagepreserved.Source75old257+73bindingpreserved;current88has226oldexact+37stillcurrentexplicit/67changedpending;actualremainingrewires/unsupportedscopes/reportpurposesremainexplicit. Laterproductioneditsrequireboundedrevalidation. Root286privatewildcardclassifier+Logicalvariablesourceformdebt actionable. No complete migration/execution/gate acceptance or stalePASS.",
       "current_chunk": "/tmp/name-semantic330-current-audit-20261015/chunk01.json",
-      "sha256": "30cc673bc913d1946d6eb7bcffa44df9348cdc63954fa7a085f5409e1e6c69a7",
+      "sha256": "96df05b68c0b4716ce566ee00b424aa57a2ed0ccb1fd7d7211e2ca612cb6afb1",
       "reviewed_inherited_rows": 330,
       "remaining_unreviewed_inherited_rows": 0,
       "extra_ingress_defect": "implementation current-source guard141 reviewed/adopted; actualexecutionpending",
-      "current_reconciliation": "/tmp/name-semantic330-current-audit-20261015/reconciliation-complete330-20261015.json",
-      "current_exact_inspected_source_rows": 257,
-      "changed_since_inspection_rows": 71,
+      "current_reconciliation": "/tmp/name-semantic330-current-audit-20261015/reconciliation-current-source86-pending-deltas-20261015.json",
+      "current_exact_inspected_source_rows": 226,
+      "changed_since_inspection_rows": 67,
       "current_explicit_source_revalidated_rows": [
         5,
-        6
+        6,
+        30,
+        35,
+        36,
+        115,
+        116,
+        117,
+        118,
+        119,
+        176,
+        178,
+        179,
+        180,
+        194,
+        195,
+        196,
+        198,
+        199,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        213,
+        214,
+        215,
+        216,
+        217,
+        218,
+        219,
+        326,
+        327,
+        328
       ],
       "root_reserved_pending_rows": []
     }

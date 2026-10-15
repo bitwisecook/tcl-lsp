@@ -1317,6 +1317,19 @@ pub fn source_logical_command_candidates_at(
     realm.original_logical_navigation_candidates(input, offset)
 }
 
+/// One literal absolute Logical command head from an authentic retained
+/// original body. Caller namespace and method frame remain unavailable; this
+/// coordinate supplies no installed lookup, call binding or absence proof.
+#[must_use]
+pub fn source_logical_absolute_command_candidate_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalLogicalAbsoluteCommandCandidate> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_absolute_navigation_candidate(input, offset)
+}
+
 /// Ordered readonly Logical candidates for selected prefix roles at this exact original installer.
 /// Caller scope, path and name bytes remain source recipes; candidates prove no
 /// installed command, reached declaration, body entry or edit permission.

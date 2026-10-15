@@ -2697,7 +2697,7 @@ impl Analyser {
                 self.emit_w003_dialect_invalid_expr_operator(content);
             }
             self.emit_expr_function_dialect_diagnostics(*token);
-            self.emit_w114_redundant_nested_expr(text, word.span());
+            self.emit_w114_redundant_nested_expr(word);
         }
     }
 

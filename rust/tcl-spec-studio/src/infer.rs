@@ -200,6 +200,51 @@ fn callback_slots(proc_def: &tcl_compiler::analyser::types::ProcDef) -> Vec<usiz
         .collect()
 }
 
+/// Readonly body-value data from the actual declaring instruction and layout.
+fn original_body_data(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    procedure: &tcl_compiler::analyser::types::ProcDef,
+) -> Option<(String, tcl_lexer::LexerConfig)> {
+    let mut declarations = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| declaration.metadata() == procedure);
+    let declaration = declarations.next()?;
+    declarations.next().is_none().then_some(())?;
+    let words = tcl_compiler::registry_invocation::source_structure::source_registry_words_at(
+        source,
+        analysis,
+        declaration.declaration_site().offset,
+    )?;
+    let input = analysis.resolved_input.as_ref()?;
+    let registry = analysis.resolved_registry()?;
+    words.matches_registry(registry).then_some(())?;
+    let layout = words.with_source_schema(&input.context_registry(), |selected| {
+        selected.authored_source_procedure_arguments()
+    })??;
+    let written = |argument: usize| {
+        matches!(
+            words.origins().get(argument.checked_add(1)?),
+            Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(_))
+        )
+        .then_some(())?;
+        words.original_argument_word(argument)
+    };
+    let name = written(layout.name)?;
+    let body = written(layout.body)?;
+    if name != declaration.name_input().original_word() {
+        return None;
+    }
+    let bodies = words.source_script_bodies(&input.context_registry());
+    let mut matching = bodies.iter().filter(|original| {
+        original.original_container() == body && original.extent_span() == procedure.body_span
+    });
+    matching.next()?;
+    matching.next().is_none().then_some(())?;
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(body)?;
+    Some((String::from_utf8(value).ok()?, body.config().nested()))
+}
+
 /// Conditional facts from this original declaration's independently retained body.
 /// Display names neither select summaries nor recover unavailable body admission.
 fn facts_in(
@@ -428,18 +473,17 @@ fn synopsis(name: &str, params: &[ParamDef]) -> String {
 
 /// Turn one analysed procedure into a draft.
 ///
-/// `body` is the proc's own source between its braces, so the corpus shape
+/// `body` retains the original procedure's static value and full grammar, so corpus shape
 /// heuristics ([`crate::corpus`]) can read what the *body* says about the
 /// interface — option tables, mode words, closed value sets, callback arity —
-/// which the parameter list alone cannot show. `dialect` is the registry the
-/// body walk resolves script arguments against.
+/// which the parameter list alone cannot show. Its held Registry resolves script
+/// arguments; unavailable original body data contributes no corpus evidence.
 fn draft_for_proc(
     proc_def: &tcl_compiler::analyser::types::ProcDef,
     package: Option<&str>,
     version: Option<&str>,
     file: &str,
-    body: &str,
-    dialect: &str,
+    body: Option<(&str, tcl_lexer::LexerConfig, &tcl_registry::CommandRegistry)>,
     facts: &InferredFacts,
 ) -> Inferred {
     let mut d = draft::default_command_draft();
@@ -498,7 +542,9 @@ fn draft_for_proc(
     // What the body says about the caller-visible shape, each conclusion with
     // its own evidence line. Runs after the signature pass so a role the
     // analyser proved is never overwritten by a shape guess.
-    crate::corpus::scan(body, params, dialect).apply(&mut d, &mut notes);
+    if let Some((body, config, registry)) = body {
+        crate::corpus::scan_in(body, params, registry, config).apply(&mut d, &mut notes);
+    }
     facts.apply(&mut d, &mut notes);
     describe(&mut d, proc_def, &name, package, version, file, &mut notes);
 
@@ -649,16 +695,11 @@ pub fn import_package(files: &[SourceFile], dialect: &str) -> Import {
                 (Some(declaration), None) => facts_in(&file.text, &result, &unit, declaration),
                 _ => InferredFacts::default(),
             };
-            let start = proc_def.body_span.start() as usize;
-            let end = proc_def.body_span.end() as usize;
-            // The recorded span runs from the body word's opening brace to the
-            // last byte before its close, so strip whichever delimiters are
-            // actually there — the heuristics read a *script*, and a body
-            // still wrapped in braces segments as one word and says nothing.
-            let body = file.text.get(start..end).unwrap_or_default();
-            let body = body.strip_prefix('{').unwrap_or(body);
-            let body = body.strip_suffix('}').unwrap_or(body);
-            let inferred = draft_for_proc(proc_def, None, None, &file.name, body, dialect, &facts);
+            let body = original_body_data(&file.text, &result, proc_def);
+            let body = body.as_ref().and_then(|(body, config)| {
+                Some((body.as_str(), *config, result.resolved_registry()?))
+            });
+            let inferred = draft_for_proc(proc_def, None, None, &file.name, body, &facts);
             by_name.insert(proc_def.qualified_name.clone(), inferred);
         }
     }
@@ -1095,5 +1136,70 @@ mod tests {
             facts_in(source, &analysis, &changed_unit, declaration),
             InferredFacts::default()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_body_value_tests {
+    use super::*;
+
+    #[test]
+    fn imported_body_values_keep_nested_closers_and_literal_reference_data() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (source, expected) in [
+                ("proc p {} {return {${literal}}}", "return {${literal}}"),
+                ("proc p {} {}", ""),
+                ("proc p {} \"return VALUE\"", "return VALUE"),
+            ] {
+                let analysis = Analyser::new().analyse(source, dialect);
+                let declaration = analysis.original_procedure_declarations().next().unwrap();
+                let (body, config) = original_body_data(source, &analysis, declaration.metadata())
+                    .expect("actual retained declaration and original Body word");
+                assert_eq!(body, expected, "{dialect}/{source}");
+                assert_eq!(config, analysis.body_lexer_config.unwrap().nested());
+            }
+            let import = import_package(
+                &[SourceFile {
+                    name: "original.tcl".into(),
+                    text: "proc p {mode args} {switch -- $mode {alpha {} beta {}}}".into(),
+                }],
+                dialect,
+            );
+            let procedure = import.commands.iter().find(|row| row.name == "p").unwrap();
+            assert_eq!(
+                procedure.draft["subcommands"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|row| row["name"].as_str().unwrap())
+                    .collect::<Vec<_>>(),
+                ["alpha", "beta"],
+                "{dialect}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_body_values_refuse_changed_or_unavailable_declaration_owners() {
+        let source = "proc p {} {return {${literal}}}";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let declaration = analysis.original_procedure_declarations().next().unwrap();
+        let procedure = declaration.metadata();
+        assert!(original_body_data(source, &analysis, procedure).is_some());
+        assert!(original_body_data(&format!("{source} # changed"), &analysis, procedure).is_none());
+        let mut changed = procedure.clone();
+        changed.body_span = tcl_lexer::Span::new(0, 1);
+        assert!(original_body_data(source, &analysis, &changed).is_none());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(original_body_data(source, &missing, procedure).is_none());
+        let mut missing = analysis.clone();
+        missing.body_lexer_config = None;
+        assert!(original_body_data(source, &missing, procedure).is_none());
+        let dynamic = "set body {return VALUE}; proc p {} $body";
+        let analysis = Analyser::new().analyse(dynamic, "tcl9.0");
+        if let Some(declaration) = analysis.original_procedure_declarations().next() {
+            assert!(original_body_data(dynamic, &analysis, declaration.metadata()).is_none());
+        }
     }
 }

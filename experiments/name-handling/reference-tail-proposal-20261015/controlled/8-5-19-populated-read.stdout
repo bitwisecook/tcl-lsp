@@ -1,0 +1,8 @@
+version 0 8.5.19
+namespace-attempt ns\{
+namespace-result 0 {}
+set-result ns{::x} 0 OLD_BALANCED
+set-result ns\{::x 0 OLD_FIRST
+set-result ns\{::new 0 NEW
+old {${ns{::x}}} read 0 OLD_FIRST\}
+proposed \$\{ns\{::new\} read 0 NEW

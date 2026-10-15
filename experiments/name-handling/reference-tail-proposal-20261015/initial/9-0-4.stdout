@@ -1,0 +1,2 @@
+old {${ns{::x}}} 1 0 OLD_BALANCED
+proposed \$\{ns\{::new\} 0 1 {missing close-brace for variable name}

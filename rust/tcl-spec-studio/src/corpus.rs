@@ -391,6 +391,17 @@ pub fn scan(body: &str, params: &[ParamDef], dialect: &str) -> Shape {
     // The body is the authored pack's own Tcl, so it is read under the
     // grammar of the environment the pack is being authored for.
     let config = LexerConfig::for_profile(Some(crate::environment::profile_for_dialect(dialect)));
+    scan_in(body, params, registry, config)
+}
+
+/// Conditional body-value advice under its retained grammar and Registry.
+/// The value itself supplies no reached invocation or body-entry authority.
+pub(crate) fn scan_in(
+    body: &str,
+    params: &[ParamDef],
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Shape {
     let mut stmts = Vec::new();
     statements(registry, config, body, 0, &mut stmts);
 

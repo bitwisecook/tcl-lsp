@@ -624,6 +624,33 @@ impl super::CommandBindingRealm {
             .logical_navigation_at(input, image, offset)
     }
 
+    /// Absolute source syntax from a genuine original body, independently of
+    /// the body frame's unavailable namespace recipe or reached handler.
+    pub(crate) fn original_logical_absolute_navigation_candidate(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        offset: u32,
+    ) -> Option<crate::command_binding::OriginalLogicalAbsoluteCommandCandidate> {
+        let image = self.original_source_image()?;
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        prepared
+            .as_ref()
+            .as_ref()?
+            .logical_absolute_navigation_at(input, image, offset)
+    }
+
     /// Reborrow actual Logical callback roles at one original installer from the immutable syntax catalogue.
     /// The retained callback candidate coordinates cannot supply an installed target or call edge.
     pub(crate) fn original_logical_callback_candidates(

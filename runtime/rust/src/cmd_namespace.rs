@@ -75,7 +75,7 @@ pub fn install(interp: &mut Interp) {
         STOCK_MEMBERS,
         admitted,
     );
-    interp.install_stock_jim_namespace_which();
+    interp.install_stock_jim_namespace_helpers();
 }
 
 const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
@@ -717,15 +717,13 @@ fn namespace_text_result(
 /// `namespace which ?-command? ?-variable? name` — the FQN `name` resolves to.
 /// The variable query uses the actual selected C cell or Jim textual helper.
 fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if interp
+    if let Some(helper) = interp
         .native_invocation_dialect()
-        .native_jim_namespace_which_helper()
-        .is_some()
+        .native_jim_namespace_helper(
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Which,
+        )
     {
-        if !matches!(argv.len(), 3 | 4) {
-            return interp.wrong_args_for_prefix(argv, 2, b"?-command|-variable? name");
-        }
-        return interp.dispatch_stock_jim_namespace_which(argv);
+        return interp.dispatch_stock_jim_namespace_helper(argv, helper);
     }
     let args = match argv[2..]
         .iter()
@@ -1608,6 +1606,14 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// proper list so `script` is correctly quoted. A script that is already such a
 /// capture is returned unchanged (`NamespaceCodeCmd`, `tclNamesp.c`).
 fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if let Some(helper) = interp
+        .native_invocation_dialect()
+        .native_jim_namespace_helper(
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Code,
+        )
+    {
+        return interp.dispatch_stock_jim_namespace_helper(argv, helper);
+    }
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"arg");
     }
@@ -2475,7 +2481,7 @@ mod tests {
         assert_eq!(interp.result_bytes(), b"OVERRIDE");
         let replacement = interp.resolve_cmd_token(b"namespace which").unwrap();
         assert_ne!(replacement, helper);
-        interp.install_stock_jim_namespace_which();
+        interp.install_stock_jim_namespace_helpers();
         assert_eq!(
             interp.resolve_cmd_token(b"namespace which"),
             Some(replacement)
@@ -7301,3 +7307,7 @@ mod original_import_alias_tests {
         OWNER.with(|owner| owner.borrow_mut().take());
     }
 }
+
+#[cfg(test)]
+#[path = "cmd_namespace/native_jim_code_tests.rs"]
+mod native_jim_code_tests;

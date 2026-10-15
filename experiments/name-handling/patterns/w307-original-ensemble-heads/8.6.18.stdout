@@ -1,0 +1,8 @@
+{${prefix}::tail} 0 OK
+{${ with space }::tail} 0 OK
+{${$literal}::tail} 0 OK
+{${literal(open}::tail} 0 OK
+{${}::tail} 0 OK
+{${a{b}c}::tail} 1 ERROR
+{$café::tail} 1 ERROR
+{$prefix::tail} 1 ERROR

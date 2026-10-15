@@ -2321,7 +2321,7 @@ impl DocumentRecords {
             let Some(source) = &imp.source else {
                 continue;
             };
-            if source.tail_pattern.contains(['*', '?', '[']) {
+            if !tcl_syntax::glob::is_literal(&source.tail_pattern) {
                 self.glob_imports.push(WorkspaceGlobImport {
                     original_pattern: analysis
                         .original_namespace_patterns()
@@ -14445,5 +14445,49 @@ mod logical_class_navigation_candidate_tests {
         let candidates = index.logical_command_candidates(&request, "caller");
         assert_eq!(candidates.len(), 1, "{candidates:?}");
         assert_eq!(candidates[0].uri, "class");
+    }
+}
+
+#[cfg(test)]
+mod shared_import_pattern_classification_tests {
+    use super::*;
+
+    #[test]
+    fn escaped_import_patterns_retain_original_names_in_each_supported_oracle() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (name, pattern) in [
+                ("p*", r"p\*"),
+                ("p?", r"p\?"),
+                ("p[", r"p\["),
+                (r"p\x", r"p\\x"),
+            ] {
+                let source = [
+                    format!("namespace eval ::Source {{proc {{{name}}} {{}} {{return OK}}; namespace export *}}"),
+                    format!("namespace eval ::Target {{namespace import {{::Source::{pattern}}}; {{{name}}}}}"),
+                ].join("\n");
+                let analysis = tcl_compiler::analyser::Analyser::new().analyse(&source, dialect);
+                let mut index = WorkspaceIndex::new();
+                index.add_document("original", &analysis);
+                let candidates = vec![
+                    tcl_syntax::naming::qualify("::Target", name),
+                    tcl_syntax::naming::qualify("::", name),
+                ];
+                let expected = tcl_syntax::naming::qualify("::Source", name);
+                let actual = index.resolve_wildcard_import(
+                    name,
+                    &candidates,
+                    CallSite {
+                        uri: "original",
+                        at: u32::try_from(source.len() - 1).unwrap(),
+                        enclosing_body: None,
+                    },
+                );
+                assert_eq!(
+                    actual.as_deref(),
+                    Some(expected.as_str()),
+                    "{dialect}/{pattern}"
+                );
+            }
+        }
     }
 }

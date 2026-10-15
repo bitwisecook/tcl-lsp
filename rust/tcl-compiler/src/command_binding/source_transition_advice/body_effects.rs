@@ -1129,6 +1129,23 @@ impl BodyWalk<'_, '_> {
         depth: usize,
     ) -> Option<()> {
         self.mark_child_header(native)?;
+        let syntax_body = self
+            .member_catalogue_body
+            .as_ref()
+            .map(|body| super::OriginalSourceCatalogueBody::Member(Arc::clone(body)))
+            .or_else(|| self.catalogue_body.clone())
+            .or_else(|| {
+                self.source_body
+                    .as_ref()
+                    .map(|body| super::OriginalSourceCatalogueBody::Script(Arc::clone(body)))
+            });
+        if let Some(body) = syntax_body {
+            let tape = self
+                .inventory
+                .as_mut()
+                .unwrap_or(&mut self.authored_prefixes);
+            tape.retain_logical_absolute_navigation(graph, &native.words, body);
+        }
         if let (Some(tape), Some(scope)) = (&mut self.inventory, &self.logical_scope) {
             tape.retain_logical_summary_scope(&native.words, scope);
             tape.retain_logical_navigation(graph, &native.words, scope);

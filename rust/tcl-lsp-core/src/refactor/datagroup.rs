@@ -29,7 +29,7 @@ use tcl_registry::{ArgRole, CommandRegistry};
 
 use super::{
     RefactorEdit, Refactoring, configured_command_span_offsets, find_command_at, line_indent,
-    reindent_body, token_end_offset,
+    reindent_body,
 };
 use crate::code_actions::ActionKind;
 
@@ -273,20 +273,21 @@ fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
         return None;
     }
     let cmd = &commands[0];
-    let raw = |index: usize| -> String {
-        let tok = cmd.argv[index];
-        text[tok.span.start() as usize..token_end_offset(text, tok) as usize].to_owned()
+    let words = super::configured_command_words(text, cmd, config.nested())?;
+    let raw = |index: usize| -> Option<String> {
+        text.get(words.get(index)?.span().as_range())
+            .map(str::to_owned)
     };
     // registry-axis-ok: representation — this renderer accepts the literal
     // proposal template syntax. The actual-document route independently
     // validates each original arm's selected Set/Return operation before
     // calling it; these spellings establish no command identity or effects.
     if cmd.texts[0] == "set" && cmd.texts.len() == 3 {
-        return Some(SetOrReturn::Set(cmd.texts[1].clone(), raw(2)));
+        return Some(SetOrReturn::Set(cmd.texts[1].clone(), raw(2)?));
     }
     // registry-axis-ok: representation — same proposal-template boundary.
     if cmd.texts[0] == "return" && cmd.texts.len() == 2 {
-        return Some(SetOrReturn::Return(raw(1)));
+        return Some(SetOrReturn::Return(raw(1)?));
     }
     None
 }
@@ -1553,5 +1554,34 @@ mod original_arm_parser_tests {
                 .is_none()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod original_arm_value_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn data_group_arm_values_keep_complete_original_variable_and_compound_words() {
+        let config = LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        for value in [
+            "${value}",
+            "prefix${value}suffix",
+            "\"prefix ${value} suffix\"",
+            "{}",
+        ] {
+            let body = format!("return {value}");
+            let Some(SetOrReturn::Return(raw)) = parse_set_or_return(&body, config) else {
+                panic!("complete original return proposal");
+            };
+            assert_eq!(raw, value);
+            let body = format!("set output {value}");
+            let Some(SetOrReturn::Set(name, raw)) = parse_set_or_return(&body, config) else {
+                panic!("complete original set proposal");
+            };
+            assert_eq!(name, "output");
+            assert_eq!(raw, value);
+        }
+        assert!(parse_set_or_return("return ${unterminated", config).is_none());
     }
 }

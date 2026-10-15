@@ -47,85 +47,100 @@ impl Interp {
     }
 
     pub(super) fn eval_native_jim_script(&mut self, original: Owned, frame: CmdFrame) -> Code {
-        // naming.source.jim-original-source-entry
-        // docs/design/analysis/name-resolution-proofs/jim-original-source-entry.md
-        let context = match self.native_jim_object_context() {
-            Ok(context) => context,
-            Err(error) => return self.report_cmd_error(error.into()),
+        let scope = match super::native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return self.refuse_native_execution(first),
         };
-        let backing =
-            match crate::native_script::prepare(original.as_ptr(), &context, self.lexer_config()) {
+        let reached = (|| {
+            // naming.source.jim-original-source-entry
+            // docs/design/analysis/name-resolution-proofs/jim-original-source-entry.md
+            let context = match self.native_jim_object_context() {
+                Ok(context) => context,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let prepared =
+                crate::native_script::prepare(original.as_ptr(), &context, self.lexer_config());
+            if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                return self.refuse_native_execution(first);
+            }
+            let backing = match prepared {
                 Ok(backing) => backing,
                 Err(error) => return self.report_cmd_error(error.into()),
             };
-        let script = match backing.ordinary() {
-            Ok(script) => script,
-            Err(error) => return self.report_cmd_error(error.into()),
-        };
-        if let Some(message) = missing_message(script.objects.missing) {
-            let code = self.error(message);
-            if let Err(first) = self.capture_original_jim_parse_failure(script) {
-                return self.refuse_native_execution(first);
-            }
-            return code;
-        }
-        self.set_result(context.empty_object().as_ptr());
-        if script.objects.tokens().is_empty() {
-            return Code::Ok;
-        }
-        let _lease = crate::native_script::activate(original, &backing);
-        self.cmd_frames.borrow_mut().push(frame);
-        self.reset_jim_error_capture();
-        let mut cursor = 0;
-        let code = loop {
-            let command = match script.objects.command_at(cursor) {
-                Ok(Some(command)) => command,
-                Ok(None) => break Code::Ok,
-                Err(error) => break self.report_cmd_error(error.into()),
+            let script = match backing.ordinary() {
+                Ok(script) => script,
+                Err(error) => return self.report_cmd_error(error.into()),
             };
-            let line_index = cursor;
-            cursor = command.next;
-            let Some((argc, line)) = crate::native_script::script_line(
-                script.objects.tokens()[line_index].value.as_ptr(),
-            ) else {
-                break self.report_cmd_error(
-                    ValueError::CommandProtocolUnavailable("Jim Script original LINE primary")
-                        .into(),
-                );
-            };
-            if usize::try_from(argc).ok() != Some(command.words.len())
-                || line
-                    != script
-                        .baseline
-                        .wrapping_add(i32::from_ne_bytes(command.line_delta.to_ne_bytes()))
-            {
-                break self.report_cmd_error(
-                    ValueError::CommandProtocolUnavailable("Jim Script original LINE payload")
-                        .into(),
-                );
-            }
-            script.linenr.set(line);
-            let _evaluation = self.enter_original_jim_evaluation(
-                u32::from_ne_bytes(line.to_ne_bytes()),
-                script.filename.as_ptr(),
-            );
-            if let Some(frame) = self.cmd_frames.borrow_mut().last_mut() {
-                frame.line = u32::from_ne_bytes(line.to_ne_bytes());
-            }
-            let code = self.eval_native_jim_words(&backing, &script.objects, command.words);
-            if code == Code::Error {
-                // Capture while the actual Script frame and procedure level are
-                // live. Failed lookup has no selected invocation argv.
-                if let Err(first) = self.capture_jim_error_stack() {
-                    break self.refuse_native_execution(first);
+            if let Some(message) = missing_message(script.objects.missing) {
+                let code = self.error(message);
+                if let Err(first) = self.capture_original_jim_parse_failure(script) {
+                    return self.refuse_native_execution(first);
                 }
+                return code;
             }
-            if code != Code::Ok {
-                break code;
+            self.set_result(context.empty_object().as_ptr());
+            if script.objects.tokens().is_empty() {
+                return Code::Ok;
             }
-        };
-        self.cmd_frames.borrow_mut().pop();
-        code
+            let _lease = crate::native_script::activate(original, &backing);
+            self.cmd_frames.borrow_mut().push(frame);
+            self.reset_jim_error_capture();
+            let mut cursor = 0;
+            let code = loop {
+                let command = match script.objects.command_at(cursor) {
+                    Ok(Some(command)) => command,
+                    Ok(None) => break Code::Ok,
+                    Err(error) => break self.report_cmd_error(error.into()),
+                };
+                let line_index = cursor;
+                cursor = command.next;
+                let Some((argc, line)) = crate::native_script::script_line(
+                    script.objects.tokens()[line_index].value.as_ptr(),
+                ) else {
+                    break self.report_cmd_error(
+                        ValueError::CommandProtocolUnavailable("Jim Script original LINE primary")
+                            .into(),
+                    );
+                };
+                if usize::try_from(argc).ok() != Some(command.words.len())
+                    || line
+                        != script
+                            .baseline
+                            .wrapping_add(i32::from_ne_bytes(command.line_delta.to_ne_bytes()))
+                {
+                    break self.report_cmd_error(
+                        ValueError::CommandProtocolUnavailable("Jim Script original LINE payload")
+                            .into(),
+                    );
+                }
+                script.linenr.set(line);
+                let _evaluation = self.enter_original_jim_evaluation(
+                    u32::from_ne_bytes(line.to_ne_bytes()),
+                    script.filename.as_ptr(),
+                );
+                if let Some(frame) = self.cmd_frames.borrow_mut().last_mut() {
+                    frame.line = u32::from_ne_bytes(line.to_ne_bytes());
+                }
+                let code = self.eval_native_jim_words(&backing, &script.objects, command.words);
+                if code == Code::Error {
+                    // Capture while the actual Script frame and procedure level are
+                    // live. Failed lookup has no selected invocation argv.
+                    if let Err(first) = self.capture_jim_error_stack() {
+                        break self.refuse_native_execution(first);
+                    }
+                }
+                if code != Code::Ok {
+                    break code;
+                }
+            };
+            self.cmd_frames.borrow_mut().pop();
+            code
+        })();
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            self.refuse_native_execution(first)
+        } else {
+            reached
+        }
     }
 
     fn capture_original_jim_parse_failure(

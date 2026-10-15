@@ -1,0 +1,8 @@
+{${ with space }} 0 0 8 8
+{${$literal}} 0 0 8 8
+{${[literal]}} 0 0 8 8
+{${}} 0 0 8 8
+{$café} 1 1 ERROR ERROR
+{${a{b}c}} 0 0 8 8
+{$arr(key)} 0 0 8 8
+{${arr(key)}} 0 0 8 8

@@ -81,6 +81,46 @@ pub fn array_source_reference(
     (selected_root == root.as_bytes() && selected_index == index.as_bytes()).then_some(reference)
 }
 
+/// Replace one whole original reference's written tail while preserving its
+/// qualifier, wrappers and literal or computed index bytes. The selected
+/// scanner must reproduce the complete proposed name, root and index shape;
+/// an unrepresentable proposal declines. This supplies no source currency,
+/// selected variable, cell, lookup, read or edit permission.
+#[must_use]
+pub fn variable_source_reference_with_tail(
+    source: &str,
+    tail: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let bytes = source.as_bytes();
+    let original = tcl_lexer::scan_var_ref(bytes, 0, config).ok()??;
+    if original.next != bytes.len() {
+        return None;
+    }
+    let name_range = original.name_range_in(bytes)?;
+    let root = super::variable_reference_root_bytes(bytes, config).ok()??;
+    let qualifier_len = root
+        .len()
+        .checked_sub(super::written_command_tail(root).len())?;
+    let qualifier = std::str::from_utf8(root.get(..qualifier_len)?).ok()?;
+    let proposed_root = format!("{qualifier}{tail}");
+    if super::written_command_tail(proposed_root.as_bytes()) != tail.as_bytes() {
+        return None;
+    }
+    let suffix = std::str::from_utf8(original.name.get(root.len()..)?).ok()?;
+    let proposed_name = format!("{proposed_root}{suffix}");
+    let start = name_range.start.checked_add(qualifier_len)?;
+    let end = name_range.start.checked_add(root.len())?;
+    let proposal = format!("{}{tail}{}", source.get(..start)?, source.get(end..)?);
+    let parsed = tcl_lexer::scan_var_ref(proposal.as_bytes(), 0, config).ok()??;
+    let matches = parsed.next == proposal.len()
+        && parsed.name == proposed_name.as_bytes()
+        && parsed.index == original.index
+        && super::variable_reference_root_bytes(proposal.as_bytes(), config).ok()??
+            == proposed_root.as_bytes();
+    matches.then_some(proposal)
+}
+
 /// Render an exact local scalar name and reference under the complete source
 /// grammar and native string recipe. Qualification, array interpretation,
 /// clipped operands and unrepresentable source text are unavailable. The
@@ -267,5 +307,64 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod original_tail_proposal_tests {
+    use super::*;
+
+    #[test]
+    fn original_reference_tail_proposals_keep_wrappers_indices_and_oracle_brace_grammar() {
+        for style in [
+            tcl_lexer::BracedVarStyle::FirstClose,
+            tcl_lexer::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                braced_var: style,
+                ..Default::default()
+            };
+            for (source, expected) in [
+                ("$x", "$new"),
+                ("${x}", "${new}"),
+                ("$ns:::x($i[command]\\key)", "$ns:::new($i[command]\\key)"),
+                ("${ns::x($literal[key])}", "${ns::new($literal[key])}"),
+                ("${scalar(open}", "${new}"),
+                ("${cash$name}", "${new}"),
+                ("${}", "${new}"),
+            ] {
+                assert_eq!(
+                    variable_source_reference_with_tail(source, "new", config).as_deref(),
+                    Some(expected)
+                );
+            }
+            for source in ["${missing", "$a tail", "${a}(tail)", "literal"] {
+                assert!(variable_source_reference_with_tail(source, "new", config).is_none());
+            }
+            assert!(
+                variable_source_reference_with_tail("${ns::x}", "other::new", config).is_none()
+            );
+            assert!(variable_source_reference_with_tail("${ns::x}", ":new", config).is_none());
+            assert!(variable_source_reference_with_tail("$x", "new(index)", config).is_none());
+        }
+        // Fixed original C5 and pinned Jim observations precede these controls:
+        // FirstClose reads ns{::x, while Tcl9Nesting reads ns{::x}.
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..Default::default()
+        };
+        let nested = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+            ..first
+        };
+        assert_eq!(
+            variable_source_reference_with_tail("${ns{::x}", "new", first).as_deref(),
+            Some("${ns{::new}")
+        );
+        assert!(variable_source_reference_with_tail("${ns{::x}}", "new", nested).is_none());
+        assert_eq!(
+            variable_source_reference_with_tail("${ns{::x}}", "new}", nested).as_deref(),
+            Some("${ns{::new}}")
+        );
     }
 }

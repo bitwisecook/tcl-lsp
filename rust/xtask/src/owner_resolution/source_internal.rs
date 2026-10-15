@@ -430,6 +430,12 @@ impl CrateModules {
             );
         }
         let file = &self.modules.get(module)?.file;
+        // A local declaration takes precedence over glob imports in Rust.
+        // Named imports still participate so duplicate bindings cannot pass.
+        let local_declaration = file
+            .items
+            .iter()
+            .any(|item| item_name(item).as_deref() == Some(first.as_str()));
         let mut candidates = Vec::new();
         for item in &file.items {
             if item_name(item).as_deref() == Some(first.as_str()) {
@@ -445,7 +451,12 @@ impl CrateModules {
             }
             if let syn::Item::Use(import) = item {
                 let mut bindings = Vec::new();
-                flatten_use(&import.tree, &mut Vec::new(), &mut bindings)?;
+                flatten_use_with_local_precedence(
+                    &import.tree,
+                    &mut Vec::new(),
+                    &mut bindings,
+                    local_declaration,
+                )?;
                 for (binding, route) in bindings {
                     if binding == *first {
                         if !super::route_attrs_are_plain(&import.attrs)
@@ -563,7 +574,18 @@ impl CrateModules {
         if !super::file_attrs_preserve_routes(&consumer_module.file.attrs) {
             return false;
         }
-        let Some(consumer) = declaration(&consumer_module.file, &row.consumer_entry) else {
+        let consumer = declaration(&consumer_module.file, &row.consumer_entry).or_else(|| {
+            (row.route == "static")
+                .then(|| {
+                    declaration_with_static_generics(
+                        &consumer_module.file,
+                        &row.consumer_entry,
+                        true,
+                    )
+                })
+                .flatten()
+        });
+        let Some(consumer) = consumer else {
             return false;
         };
         if consumer.impl_generics.is_some_and(|generics| {
@@ -638,6 +660,14 @@ impl CrateModules {
             matched: false,
             invalid: false,
         };
+        for parameter in &signature.generics.params {
+            if let syn::GenericParam::Type(parameter) = parameter {
+                calls.shadowed.insert(parameter.ident.to_string());
+                calls
+                    .type_import_shadows
+                    .insert(parameter.ident.to_string());
+            }
+        }
         for argument in &signature.inputs {
             if let syn::FnArg::Typed(parameter) = argument {
                 if !super::route_attrs_are_plain(&parameter.attrs) {
@@ -684,10 +714,19 @@ fn flatten_use(
     prefix: &mut Vec<String>,
     out: &mut Vec<(String, Vec<String>)>,
 ) -> Option<()> {
+    flatten_use_with_local_precedence(tree, prefix, out, false)
+}
+
+fn flatten_use_with_local_precedence(
+    tree: &syn::UseTree,
+    prefix: &mut Vec<String>,
+    out: &mut Vec<(String, Vec<String>)>,
+    local_declaration: bool,
+) -> Option<()> {
     match tree {
         syn::UseTree::Path(path) => {
             prefix.push(path.ident.to_string());
-            flatten_use(&path.tree, prefix, out)?;
+            flatten_use_with_local_precedence(&path.tree, prefix, out, local_declaration)?;
             prefix.pop();
         }
         syn::UseTree::Name(name) => {
@@ -702,10 +741,11 @@ fn flatten_use(
         }
         syn::UseTree::Group(group) => {
             for tree in &group.items {
-                flatten_use(tree, prefix, out)?;
+                flatten_use_with_local_precedence(tree, prefix, out, local_declaration)?;
             }
         }
-        syn::UseTree::Glob(_) => return None,
+        syn::UseTree::Glob(_) if !local_declaration => return None,
+        syn::UseTree::Glob(_) => {}
     }
     Some(())
 }
@@ -757,7 +797,39 @@ fn supported_generics(generics: &syn::Generics) -> bool {
         .all(|parameter| matches!(parameter, syn::GenericParam::Lifetime(_)))
 }
 
+// Only concrete static call routes may inspect a function with unrelated
+// bounded type parameters. Generic owners, results and receiver routes retain
+// the existing lifetime-only declaration contract.
+fn supported_static_function_generics(generics: &syn::Generics) -> bool {
+    generics.where_clause.is_none()
+        && generics.params.iter().all(|parameter| match parameter {
+            syn::GenericParam::Lifetime(_) => true,
+            syn::GenericParam::Type(parameter) => {
+                super::route_attrs_are_plain(&parameter.attrs)
+                    && parameter.default.is_none()
+                    && !parameter.bounds.is_empty()
+                    && parameter.bounds.iter().all(|bound| {
+                        matches!(bound,
+                    syn::TypeParamBound::Trait(bound)
+                        if bound.lifetimes.is_none() && bound.maybe.is_none()
+                            && bound.modifiers.require_empty().is_ok()
+                            && bound.path.leading_colon.is_none()
+                            && supported_path_arguments(&bound.path))
+                    })
+            }
+            syn::GenericParam::Const(_) => false,
+        })
+}
+
 fn declaration<'a>(file: &'a syn::File, entry: &str) -> Option<Declaration<'a>> {
+    declaration_with_static_generics(file, entry, false)
+}
+
+fn declaration_with_static_generics<'a>(
+    file: &'a syn::File,
+    entry: &str,
+    static_consumer: bool,
+) -> Option<Declaration<'a>> {
     let (owner, name) = entry
         .split_once("::")
         .map_or((None, entry), |(owner, name)| (Some(owner), name));
@@ -768,7 +840,9 @@ fn declaration<'a>(file: &'a syn::File, entry: &str) -> Option<Declaration<'a>> 
                 if owner.is_none()
                     && item.sig.ident == name
                     && source_attrs_preserve_routes(&item.attrs)
-                    && supported_generics(&item.sig.generics) =>
+                    && (supported_generics(&item.sig.generics)
+                        || (static_consumer
+                            && supported_static_function_generics(&item.sig.generics))) =>
             {
                 found.push(Declaration {
                     visibility: &item.vis,
@@ -827,7 +901,9 @@ fn declaration<'a>(file: &'a syn::File, entry: &str) -> Option<Declaration<'a>> 
                     if let syn::ImplItem::Fn(item) = item
                         && item.sig.ident == name
                         && source_attrs_preserve_routes(&item.attrs)
-                        && supported_generics(&item.sig.generics)
+                        && (supported_generics(&item.sig.generics)
+                            || (static_consumer
+                                && supported_static_function_generics(&item.sig.generics)))
                         && supported_generics(&implementation.generics)
                     {
                         found.push(Declaration {
@@ -2955,6 +3031,68 @@ mod tests {
         assert_eq!(
             crate_root("rust/a/src/nested/owner.rs").unwrap(),
             Path::new("rust/a")
+        );
+    }
+    #[test]
+    fn static_source_routes_keep_concrete_targets_under_bounded_function_generics() {
+        let owner = "pub(super) struct Ledger; impl Ledger { pub(super) fn capture() {} }";
+        for caller in [
+            "fn consume<O: ObjectPointer>() { super::owner::Ledger::capture(); }",
+            "struct Reader; impl Reader { fn consume<O: ObjectPointer>(&self) { super::owner::Ledger::capture(); } }",
+        ] {
+            let (modules, mut row) = fixture(owner, caller, "Ledger::capture", "static");
+            if caller.starts_with("struct") {
+                row.consumer_entry = "Reader::consume".into();
+            }
+            assert!(modules.check_row(&row), "{caller}");
+        }
+        for caller in [
+            "use super::owner::Ledger; fn consume<Ledger: ObjectPointer>() { Ledger::capture(); }",
+            "use super::owner::Ledger; fn consume<O: ObjectPointer>() { O::capture(); }",
+            "fn consume<const N: usize>() { super::owner::Ledger::capture(); }",
+            "fn consume<O>() { super::owner::Ledger::capture(); }",
+            "fn consume<O>() where O: ObjectPointer { super::owner::Ledger::capture(); }",
+            "#[cfg(any())] fn consume<O: ObjectPointer>() { super::owner::Ledger::capture(); }",
+            "fn consume<O: ObjectPointer>() { #[cfg(any())] super::owner::Ledger::capture(); }",
+        ] {
+            let (modules, row) = fixture(owner, caller, "Ledger::capture", "static");
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+    }
+
+    #[test]
+    fn local_source_declarations_shadow_only_module_globs() {
+        let owner = "use super::*; pub(super) fn selected() {}";
+        let (modules, row) = fixture(
+            owner,
+            "use super::*; fn consume() { super::owner::selected(); }",
+            "selected",
+            "static",
+        );
+        assert!(modules.check_row(&row));
+        for owner in [
+            "use super::*; use fake::selected; pub(super) fn selected() {}",
+            "use super::{*, other::selected}; pub(super) fn selected() {}",
+            "use super::*; #[cfg(any())] pub(super) fn selected() {}",
+            "use super::*; pub(super) fn selected() {} pub(super) fn selected() {}",
+        ] {
+            let (modules, row) = fixture(
+                owner,
+                "fn consume() { super::owner::selected(); }",
+                "selected",
+                "static",
+            );
+            assert!(!modules.check_row(&row), "{owner}");
+        }
+        let (modules, row) = fixture(
+            "pub(super) struct Ledger; impl Ledger { pub(super) fn capture() {} }",
+            "use super::*; use super::owner::Ledger; fn consume() { Ledger::capture(); }",
+            "Ledger::capture",
+            "static",
+        );
+        assert!(
+            !modules.check_row(&row),
+            "a glob cannot manufacture an imported target identity"
         );
     }
 }

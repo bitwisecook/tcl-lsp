@@ -1,0 +1,9 @@
+SETUP 0 {}
+IMPORT p* {p\*} 0 {}
+CALL p* 0 STAR
+IMPORT p? {p\?} 0 {}
+CALL p? 0 QUESTION
+IMPORT {p[} {p\[} 0 {}
+CALL {p[} 0 BRACKET
+IMPORT {p\x} {p\\x} 0 {}
+CALL {p\x} 0 SLASH

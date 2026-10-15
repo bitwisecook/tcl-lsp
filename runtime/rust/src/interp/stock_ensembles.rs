@@ -372,10 +372,19 @@ impl Interp {
     }
 
     /// Publish the actual selected distribution helper, preserving an existing slot.
-    pub(crate) fn install_stock_jim_namespace_which(&mut self) {
+    pub(crate) fn install_stock_jim_namespace_helpers(&mut self) {
+        for kind in tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::ALL {
+            self.install_stock_jim_namespace_helper(kind);
+        }
+    }
+
+    fn install_stock_jim_namespace_helper(
+        &mut self,
+        kind: tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
+    ) {
         let Some(helper) = self
             .native_invocation_dialect()
-            .native_jim_namespace_which_helper()
+            .native_jim_namespace_helper(kind)
         else {
             return;
         };
@@ -463,20 +472,25 @@ impl Interp {
     }
 
     /// Jim's public fallback obtains a fresh helper header and performs real lookup.
-    pub(crate) fn dispatch_stock_jim_namespace_which(&mut self, argv: &[*mut TclObj]) -> Code {
-        let Some(helper) = self
+    pub(crate) fn dispatch_stock_jim_namespace_helper(
+        &mut self,
+        argv: &[*mut TclObj],
+        helper: tcl_registry::native_jim_lookup::NativeJimNamespaceHelper,
+    ) -> Code {
+        if self
             .native_invocation_dialect()
-            .native_jim_namespace_which_helper()
-        else {
+            .native_jim_namespace_helper(helper.kind())
+            != Some(helper)
+        {
             return self.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "Jim namespace which helper issuer",
+                    "Jim namespace helper issuer",
                 )
                 .into(),
             );
-        };
-        if !matches!(argv.len(), 3 | 4) {
-            return self.wrong_args_for_prefix(argv, 2, b"?-command|-variable? name");
+        }
+        if !helper.accepts_public_arguments(argv.len().saturating_sub(2)) {
+            return self.wrong_args_for_prefix(argv, 2, helper.usage().as_bytes());
         }
         let arguments = match super::native_arguments::OriginalArguments::enter(self, argv) {
             Ok(arguments) => arguments,

@@ -297,7 +297,13 @@ pub fn install(interp: &mut Interp) {
         );
         return;
     }
-    interp.register_stock_builtin(b"clock", clock_cmd);
+    interp.register_stock_ensemble(
+        tcl_registry::invocation_words::EnsembleImplementationFamily::Clock,
+        b"clock",
+        clock_cmd,
+        &[],
+        &[],
+    );
     // The ensemble's implementation members: the real `clock.tcl` rewrites
     // `clock` into an ensemble whose subcommands dispatch to `::tcl::clock::…`,
     // and library/framework code calls those fully-qualified forms directly.

@@ -414,6 +414,21 @@ impl Analyser {
             })
     }
 
+    fn original_dispatch_word(&self, span: tcl_lexer::Span) -> Option<tcl_lexer::NativeWord> {
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let (word, offset) = self
+            .head_identities
+            .original_written_word_at_span_in_source(&image, span, self.file_lexer_config())?;
+        (offset == span.start()).then_some(word)
+    }
+
+    fn original_namespaced_ensemble(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+    ) -> Option<(String, String)> {
+        parse_namespaced_ensemble(&self.original_dispatch_word(site.cmd_span)?)
+    }
+
     /// Decide whether a `$var <method>` dispatch site is suppressed (no W307).
     ///
     /// Suppressed when SCCP proves the value is a known command; when an
@@ -492,14 +507,9 @@ impl Analyser {
         if dispatcher_suppressed && !tainted && !sccp_absence_advice && !original_caller_absence {
             return true;
         }
-        // Namespaced-ensemble dispatch: `${ns}::tail` / `$ns::tail` where `ns`
-        // holds a namespace prefix and `::tail` composes a qualified command
-        // path (tcllib's logger / dns / irc modules use this).  When the prefix
-        // is an SCCP const and *every* composed name `<value>::tail` resolves to
-        // a known command/proc/class, the dispatch is statically resolvable —
-        // suppress.  A composition that resolves to nothing still fires.
-        if let Some((prefix, tail)) =
-            parse_namespaced_ensemble(&self.source, site.cmd_span, self.braced_var())
+        // A genuine scalar substitution followed by literal namespace text
+        // retains its own full grammar; value and target checks stay separate.
+        if let Some((prefix, tail)) = self.original_namespaced_ensemble(site)
             && let Some(values) = ctx.all_constsets.get(&prefix)
             && !values.is_empty()
             && values
@@ -957,22 +967,9 @@ impl Analyser {
         &self,
         site: &crate::analyser::state::CmdCommandSite,
     ) -> bool {
-        let start = site.cmd_span.start() as usize;
-        let end = (site.cmd_span.end() as usize).min(self.source.len());
-        let Some(word) = self.source.get(start..end) else {
-            return false;
-        };
-        if !word.starts_with('[') {
-            return false;
-        }
-        let Some(sep) = word.find("]::") else {
-            return false;
-        };
-        let tail = &word[sep + 3..];
-        !tail.is_empty()
-            && tail
-                .chars()
-                .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+        self.original_dispatch_word(site.cmd_span)
+            .as_ref()
+            .is_some_and(command_namespaced_ensemble)
     }
 
     /// Emit W307/W308 for `[cmd] method` command-substitution dispatch sites.
@@ -1808,45 +1805,54 @@ impl Analyser {
     }
 }
 
-/// Parse a namespaced-ensemble dispatch head `${prefix}::tail` from the source
-/// slice at `span`, returning `(prefix_var_name, tail)`.  Returns `None` when
-/// the head isn't this shape.
-///
-/// Only the **braced** form composes a command path.  A bare `$prefix::tail`
-/// is lexed by Tcl as a *single* variable named `prefix::tail` (the runtime
-/// reads that variable — it is not `$prefix` followed by a literal `::tail`),
-/// so it must NOT be treated as ensemble dispatch.  This only matters after
-/// a `${…}` closing brace — the bare VAR token already swallows the `::tail`,
-/// so the character after it is never `::`.
-fn parse_namespaced_ensemble(
-    source: &str,
-    span: tcl_lexer::Span,
-    braced_var: tcl_dialect::BracedVarStyle,
-) -> Option<(String, String)> {
-    let start = span.start() as usize;
-    let end = (span.end() as usize).min(source.len());
-    if start >= end {
+/// Retain one original scalar reference and an unchanged namespace suffix.
+/// A bare `$prefix::tail` is one variable, not this concatenation.
+fn parse_namespaced_ensemble(word: &tcl_lexer::NativeWord) -> Option<(String, String)> {
+    let (variable, tail) = original_namespace_suffix(word)?;
+    if !matches!(
+        variable.part,
+        tcl_lexer::ExecutablePart::Variable { index: None, .. }
+    ) {
         return None;
     }
-    let head = &source[start..end];
-    head.strip_prefix("${")?;
-    // The closer comes from the shared owner under this document's release
-    // rule — `2` is the byte just past the `${`. A first-`}` scan split
-    // `${a{b}c}::tail` at the wrong brace, so the prefix this reports is a
-    // variable the source never names.
-    let tcl_lexer::BracedVarEnd::Closed(close) =
-        tcl_lexer::braced_var_name_end(head.as_bytes(), 2, braced_var)
-    else {
+    let reference = std::str::from_utf8(word.executable_parts().bytes(variable.span)?).ok()?;
+    let prefix =
+        tcl_syntax::naming::whole_scalar_variable_reference_name(reference, word.config())?;
+    Some((prefix.to_owned(), tail.to_owned()))
+}
+
+fn command_namespaced_ensemble(word: &tcl_lexer::NativeWord) -> bool {
+    original_namespace_suffix(word).is_some_and(|(prefix, tail)| {
+        matches!(prefix.part, tcl_lexer::ExecutablePart::Command { .. })
+            && tail
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+    })
+}
+
+fn original_namespace_suffix(
+    word: &tcl_lexer::NativeWord,
+) -> Option<(&tcl_lexer::SpannedExecutablePart, &str)> {
+    if word.group().expand || word.group().kind != tcl_lexer::WordKind::Bare {
+        return None;
+    }
+    let arena = word.executable_parts();
+    let [prefix, suffix] = arena.list(arena.root()) else {
         return None;
     };
-    let (prefix, after) = (&head[2..close], &head[close + 1..]);
-    let tail = after.strip_prefix("::")?;
-    // Both prefix and tail must be non-empty; a `${arr(key)}` array element is
-    // not an ensemble prefix.
-    if prefix.is_empty() || tail.is_empty() || prefix.contains('(') {
+    if !matches!(
+        suffix.part,
+        tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Original)
+    ) || prefix.span.start() != word.span().start()
+        || prefix.span.end() != suffix.span.start()
+        || suffix.span.end() != word.span().end()
+    {
         return None;
     }
-    Some((prefix.to_string(), tail.to_string()))
+    let tail = std::str::from_utf8(arena.bytes(suffix.span)?)
+        .ok()?
+        .strip_prefix("::")?;
+    (!tail.is_empty()).then_some((prefix, tail))
 }
 
 /// Harvest `array set arr {k1 v1 k2 v2 …}` literal element values into the
@@ -3146,5 +3152,126 @@ mod self_dispatch_observation_tests {
         for head in ["missing", "", ":::::my", "my::", "Other:::my"] {
             assert!(analyser.self_dispatch_keyword_disturbed(head));
         }
+    }
+}
+
+#[cfg(test)]
+mod original_ensemble_head_tests {
+    use super::*;
+
+    fn parse(source: &str, config: tcl_lexer::LexerConfig) -> Option<(String, String)> {
+        let script = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .ok()?;
+        let [command] = script.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        parse_namespaced_ensemble(word)
+    }
+
+    #[test]
+    fn ensemble_heads_use_original_whole_scalar_and_literal_component_geometry() {
+        for (dialect, nested) in [("tcl8.6", false), ("tcl9.1", true), ("jim0.84", false)] {
+            let config = tcl_lexer::LexerConfig::for_profile(Some(
+                tcl_dialect::DialectProfile::find(dialect).unwrap(),
+            ));
+            for (source, name) in [
+                ("${prefix}::tail", "prefix"),
+                ("${ with space }::tail", " with space "),
+                ("${$literal}::tail", "$literal"),
+                ("${literal(open}::tail", "literal(open"),
+                ("${}::tail", ""),
+            ] {
+                assert_eq!(
+                    parse(source, config),
+                    Some((name.to_owned(), "tail".to_owned())),
+                    "{dialect} {source}"
+                );
+            }
+            assert_eq!(
+                parse("${a{b}c}::tail", config),
+                nested.then(|| ("a{b}c".to_owned(), "tail".to_owned())),
+                "{dialect}"
+            );
+            for source in [
+                "$prefix::tail",
+                "$café::tail",
+                "${array(key)}::tail",
+                "$array(key)::tail",
+                "${prefix}::$tail",
+                "${prefix}::[tail]",
+                "${prefix}::",
+                "{${prefix}::tail}",
+                "\"${prefix}::tail\"",
+                "{*}${prefix}::tail",
+                "${prefix}::ta\\il",
+            ] {
+                assert!(parse(source, config).is_none(), "{dialect} {source}");
+            }
+        }
+    }
+
+    #[test]
+    fn command_ensemble_heads_use_original_command_and_literal_suffix_components() {
+        let config = tcl_lexer::LexerConfig::default();
+        for (source, expected) in [
+            ("[set prefix]::tail", true),
+            ("[list ::N]::tail", true),
+            (r#"[format %s " ]::inert"]::tail"#, true),
+            ("[list ::N]", false),
+            ("[set prefix]::$tail", false),
+            ("[set prefix]::[tail]", false),
+            ("[set prefix]::ta\\il", false),
+            ("{[set prefix]::tail}", false),
+            (r#""[set prefix]::tail""#, false),
+            ("{*}[set prefix]::tail", false),
+        ] {
+            let script = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(source),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert_eq!(
+                command_namespaced_ensemble(&script.commands[0].words[0]),
+                expected,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ensemble_head_source_projection_refuses_stale_source_and_original_offsets() {
+        let source = "namespace eval N {proc tail {} {}}; set prefix ::N; ${prefix}::tail";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let mut analyser = Analyser::new().with_resolved_input(input);
+        analyser.analyse(source, profile.name);
+        let site = analyser
+            .var_command_sites
+            .iter()
+            .find(|site| site.cmd_span.start() as usize == source.find("${prefix}").unwrap())
+            .expect("actual original dynamic command head")
+            .clone();
+        assert_eq!(
+            analyser.original_namespaced_ensemble(&site),
+            Some(("prefix".to_owned(), "tail".to_owned()))
+        );
+        let mut shifted = site.clone();
+        shifted.cmd_span = tcl_lexer::Span::new(site.cmd_span.start() + 1, site.cmd_span.end());
+        assert!(analyser.original_namespaced_ensemble(&shifted).is_none());
+        analyser.source.push(' ');
+        assert!(analyser.original_namespaced_ensemble(&site).is_none());
     }
 }

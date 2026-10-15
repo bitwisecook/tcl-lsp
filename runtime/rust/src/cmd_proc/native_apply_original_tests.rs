@@ -330,7 +330,8 @@ fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
                 let lambda = Owned::fresh(crate::list::new_list_obj_native(
                     &[parameters.as_ptr(), body.as_ptr(), namespace.as_ptr()], protocol,
                 ));
-                let code = call(&mut interp, b"apply", &[lambda.as_ptr()]);
+                let head = Owned::fresh(obj::new_string_bytes(b"apply"));
+                let code = interp.eval_original_object_vector(&[head.as_ptr(), lambda.as_ptr()]);
                 assert_eq!(code.as_int(), apply[2].parse::<i64>().unwrap(), "{engine}/{label}");
                 assert_eq!(interp.result_bytes(), unhex(apply[3]), "{engine}/{label}");
                 if code == Code::Error {

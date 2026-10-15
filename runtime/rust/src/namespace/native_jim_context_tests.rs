@@ -111,6 +111,10 @@ fn qualified_displays_follow_the_actual_namespace_kind_across_policy_changes() {
         b"::physical_c"
     );
     interp.set_dialect_profile(crate::environment::profile_for_dialect("jimtcl"));
+    assert!(
+        interp.native_execution_refusal().is_none(),
+        "genuine C-to-Jim stock refresh"
+    );
     assert_eq!(
         interp.namespaces().qualified_name(c_namespace),
         b"::physical_c"

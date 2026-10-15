@@ -23,7 +23,7 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
 
 use super::source_rewrite::{RewriteObligation, select};
-use super::{RefactorEdit, Refactoring, token_end_offset};
+use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
 
 /// A parsed single-command arm body.
@@ -46,15 +46,17 @@ fn parse_branch_assignment(body_text: &str, config: LexerConfig) -> Option<Branc
         return None;
     }
     let cmd = &commands[0];
-    let raw = |index: usize| -> String {
-        let tok = cmd.argv[index];
-        body_text[tok.span.start() as usize..token_end_offset(body_text, tok) as usize].to_owned()
+    let words = super::configured_command_words(body_text, cmd, config.nested())?;
+    let raw = |index: usize| -> Option<String> {
+        body_text
+            .get(words.get(index)?.span().as_range())
+            .map(str::to_owned)
     };
     if cmd.texts[0] == "set" && cmd.texts.len() == 3 {
-        return Some(BranchBody::Set(cmd.texts[1].clone(), raw(2)));
+        return Some(BranchBody::Set(cmd.texts[1].clone(), raw(2)?));
     }
     if cmd.texts[0] == "return" && cmd.texts.len() == 2 {
-        return Some(BranchBody::Return(raw(1)));
+        return Some(BranchBody::Return(raw(1)?));
     }
     None
 }
@@ -531,5 +533,34 @@ mod original_branch_parser_tests {
         let nested = "\u{feff}switch -exact -- {$x} {a {\u{feff}return ONE} b {return TWO}}";
         let analysis = analysed(nested, config);
         assert!(switch_to_dict(nested, cursor, &analysis, &LineIndex::new(nested)).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_arm_value_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn switch_branch_values_keep_complete_original_variable_and_compound_words() {
+        let config = LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        for value in [
+            "${value}",
+            "prefix${value}suffix",
+            "\"prefix ${value} suffix\"",
+            "{}",
+        ] {
+            let body = format!("return {value}");
+            let Some(BranchBody::Return(raw)) = parse_branch_assignment(&body, config) else {
+                panic!("complete original return proposal");
+            };
+            assert_eq!(raw, value);
+            let body = format!("set output {value}");
+            let Some(BranchBody::Set(name, raw)) = parse_branch_assignment(&body, config) else {
+                panic!("complete original set proposal");
+            };
+            assert_eq!(name, "output");
+            assert_eq!(raw, value);
+        }
+        assert!(parse_branch_assignment("return ${unterminated", config).is_none());
     }
 }

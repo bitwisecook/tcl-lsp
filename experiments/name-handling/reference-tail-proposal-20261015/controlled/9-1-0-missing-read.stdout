@@ -1,0 +1,3 @@
+version 0 9.1.0
+old {${ns{::x}}} read 1 {can't read "ns{::x}": no such variable}
+proposed \$\{ns\{::new\} read 1 {missing close-brace for variable name}
