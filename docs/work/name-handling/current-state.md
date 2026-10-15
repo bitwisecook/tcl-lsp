@@ -22,6 +22,10 @@ Rust1.99.0 is provisioned through `rustup`. All five pinned C releases and curre
 
 The active tranche retains genuine Logical formal topology/cursor frames, configured bound substitutions, complete factory source-owner projection, typed list-loop source/CFG correspondence and runtime call completion dispatch. iRules nominal hazards and collection-flow consumers now use original source owners; composite/index/head child coverage and missing AssignValue carriers remain unfinished. Runtime/VM add distinct actual namespace table/cache/public-arity stages and VM typed Parent physical result handling. Specials, mutable diagnostic lsort and authentic VM helper installation remain unfinished. CLI transform/compile consumers now require original faithful decode reports before any output. These source peers are bounded, not execution acceptance. Original two Recorder completion assertions remain unchanged with a live producer-transport obligation.
 
+## Successor build feedback
+
+The isolated `a9fca77c1` ordinary build failed101 with4 generic error-type diagnostics in Runtime cache-install closures,0 test ELFs and0 tests, complete source drift{}. Capture: `/workspace/name-session/batch-b-build-ordinary`. Explicit `Result<(), E>` closure annotations repair inference without changing checks/order; successor rebuild is required. The missing libtommath setup warning belongs this failed attempt, not Native acceptance. Original assertions and selectors remain unchanged.
+
 ## Remaining implementation
 
 | Owner | Next concrete obligations |

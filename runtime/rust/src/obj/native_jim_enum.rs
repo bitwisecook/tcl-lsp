@@ -65,7 +65,7 @@ pub(crate) fn install_checked<E: From<ValueError>>(
     } else {
         &COMPARED
     };
-    let mut current = || {
+    let mut current = || -> Result<(), E> {
         check()?;
         super::check_native_liveness(value)?;
         if !has_string_rep(value) {

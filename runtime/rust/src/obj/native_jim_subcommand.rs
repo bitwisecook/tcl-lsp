@@ -61,7 +61,7 @@ pub(crate) fn install<E: From<ValueError>>(
         )
         .into());
     }
-    let mut current = || {
+    let mut current = || -> Result<(), E> {
         check()?;
         super::check_native_liveness(original)?;
         if !super::has_string_rep(original) {
