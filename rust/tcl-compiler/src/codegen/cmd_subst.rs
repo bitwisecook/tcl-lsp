@@ -544,6 +544,12 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     parts
 }
 
+/// Whether a [`parse_cmd_parts`] word is C's `TCL_TOKEN_SIMPLE_WORD`: braced,
+/// or with no backslash, variable or command substitution.
+fn is_simple_word((text, braced): &(String, bool)) -> bool {
+    *braced || !text.contains(['\\', '$', '['])
+}
+
 /// Like [`parse_cmd_parts`] but also flags `{*}`-expansion words. Each tuple is
 /// `(text, braced, expand)`: `expand` is true when the word carried a leading
 /// `{*}` prefix (stripped from `text`). A `{*}` *not* immediately followed by
@@ -1568,6 +1574,15 @@ impl CodegenCtx<'_> {
         // when the subcommand word matched exactly, so those arms need
         // no re-check of the subcommand text.
         match self.inline_cmd_subst_resolution(cmd, args) {
+            // A word with substitutions is substituted first and its value
+            // parsed at run time (`TclCompileExprWords`): `expr $x` evaluates
+            // a `[cmd]` inside `x`'s value, and `\"` reaches `expr` as `"`.
+            Some((InlineCodegenHookId::Expr, _))
+                if args.len() == 1 && !is_simple_word(&args[0]) =>
+            {
+                self.emit_cmd_subst_arg(&args[0].0, args[0].1);
+                self.emit(Op::EXPR_STK, vec![]);
+            }
             Some((InlineCodegenHookId::Expr, _)) if args.len() == 1 => {
                 let expr_body = &args[0].0;
                 // Re-parsed under the compile's own dialect, exactly as the
@@ -1575,7 +1590,9 @@ impl CodegenCtx<'_> {
                 // it dialect-blind here would leave a dialect-only operator
                 // (`$x contains "a"`) unrecognised and push it as a raw string.
                 let node = self.parse_compile_expr(expr_body);
-                self.emit_expr(&node);
+                if !self.emit_expr(&node) {
+                    self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
+                }
             }
             Some((InlineCodegenHookId::Incr, _)) if (1..=2).contains(&args.len()) => {
                 self.emit_inline_incr(args);

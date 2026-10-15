@@ -201,7 +201,7 @@ impl Value {
         let (generated, past_cap): (Rc<str>, bool) = match &*self.0.intrep.borrow() {
             IntRep::Str => (Rc::from(""), false),
             IntRep::Int(n) => (Rc::from(n.to_string().as_str()), false),
-            IntRep::Double(f) => (Rc::from(number::format_double(*f).as_str()), false),
+            IntRep::Double(f) => (Rc::from(number::print_double(*f).as_str()), false),
             IntRep::Bool(b) => (Rc::from(if *b { "1" } else { "0" }), false),
             IntRep::List(items) | IntRep::ParsedList(items) => {
                 if MAX_LIST_TO_STR_DEPTH.exceeded(depth) {
@@ -583,7 +583,7 @@ impl Value {
             IntRep::Int(n) => {
                 u64::from(n.unsigned_abs().checked_ilog10().unwrap_or(0) + 1) + u64::from(*n < 0)
             }
-            IntRep::Double(f) => number::format_double(*f).len() as u64,
+            IntRep::Double(f) => number::print_double(*f).len() as u64,
             _ if MAX_LIST_TO_STR_DEPTH.exceeded(depth) => return 1,
             IntRep::List(items) | IntRep::ParsedList(items) => {
                 measure_elements(items.iter(), cap, depth)

@@ -819,6 +819,7 @@ pub(crate) fn extract_single_expr_arg_with_config(
     // reconstructed word would lose them (`$e` → `e`); such an arg also needs the
     // second round of evaluation the runtime `expr` performs, so it must not fuse.
     let mut literal = Vec::new();
+    let mut braced = Vec::new();
     let mut prev_is_sep = true;
     for tok in &tokens {
         match tok.kind {
@@ -832,6 +833,7 @@ pub(crate) fn extract_single_expr_arg_with_config(
                     words.push(t.to_owned());
                     single.push(true);
                     literal.push(is_lit);
+                    braced.push(tok.kind == TokenType::Str);
                     word_spans.push(tok.span);
                 } else if let Some(last) = words.last_mut() {
                     last.push_str(t);
@@ -845,6 +847,7 @@ pub(crate) fn extract_single_expr_arg_with_config(
                     words.push(t.to_owned());
                     single.push(true);
                     literal.push(is_lit);
+                    braced.push(tok.kind == TokenType::Str);
                     word_spans.push(tok.span);
                 }
                 prev_is_sep = false;
@@ -884,8 +887,10 @@ pub(crate) fn extract_single_expr_arg_with_config(
         return None;
     }
     // A braced `{$e}` (a `Str` token) keeps its `$` and is a real expression
-    // operand, so it fuses; a bare `$e`/`[f]` must defer to the runtime `expr`.
-    if !literal[1] {
+    // operand, so it fuses; a bare `$e`/`[f]` must defer to the runtime `expr`,
+    // as must a bare word whose backslashes are substituted before `expr` sees
+    // it (`\"a\"` is `"a"`).
+    if !literal[1] || (!braced[1] && words[1].contains('\\')) {
         return None;
     }
     let base = word_content_base(word_spans[1], single[1], &words[1]);

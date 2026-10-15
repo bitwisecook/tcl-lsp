@@ -56,18 +56,19 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     if cmd.single_token_word.len() < 2 || !cmd.single_token_word[1] {
         return None;
     }
-    // Only a *literal* single-token arg — a braced `{…}` or a bare word — is the
-    // expression itself. A lone substitution (`expr $e`, `expr [f]`) must be
+    // Only a *literal* single-token arg — a braced `{…}` or a bare word with no
+    // backslash — is the expression itself (C's `TCL_TOKEN_SIMPLE_WORD`): an
+    // escape is substituted before `expr` sees the word, so `expr \"a\"=={a}`
+    // compares `"a"`. A lone substitution (`expr $e`, `expr [f]`) must be
     // substituted *then* re-evaluated as an expression (`expr $e` with
     // `e == "1+2"` is `3`, not `"1+2"`); inlining `parse_expr("$e")` would treat
     // the variable's *value* as the final result. Defer those to the runtime
     // `expr`, which does the second evaluation. (A braced `{$e}` correctly inlines:
     // there the expression really is the operand `$e`.)
-    if !matches!(
-        cmd.arg_kinds.first(),
-        Some(ArgTokenKind::Str | ArgTokenKind::Esc)
-    ) {
-        return None;
+    match cmd.arg_kinds.first() {
+        Some(ArgTokenKind::Str) => {}
+        Some(ArgTokenKind::Esc) if !cmd.args[0].contains('\\') => {}
+        _ => return None,
     }
     let expr = parse_expr_for_profile(&cmd.args[0], cmd.dialect);
     // Anchor the expression text absolutely when the arg word's content is

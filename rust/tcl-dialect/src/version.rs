@@ -697,6 +697,16 @@ impl TclVersion {
         !matches!(self, Self::V8_4 | Self::V8_5)
     }
 
+    /// Whether a failed variable trace keeps its callback's errorInfo and
+    /// adds a `(write trace on "x")` frame (`TclCallVarTraces`, 8.5). 8.4's
+    /// `CallVarTraces` resets the result to `can't set "x": <message>`, so
+    /// errorInfo starts again from that message. Measured on tclsh 8.4.20
+    /// and 8.5.19.
+    #[must_use]
+    pub const fn has_var_trace_error_frames(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
     /// Whether the bytecode compiler emits only the wide (4-byte operand)
     /// instruction forms, which then drop their width suffix (`invokeStk`,
     /// `loadScalar`). Measured in `-errorstack` on tclsh 9.1.0.

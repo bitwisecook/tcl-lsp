@@ -456,7 +456,7 @@ impl Lowerer<'_> {
             // script — which the runtime `if` command does. Bail the whole
             // construct to that command rather than mis-parsing the unsubstituted
             // word as a literal script at compile time.
-            if !super::seg_word_is_static_literal(seg, body_idx + 1) {
+            if !super::seg_word_is_simple(seg, body_idx + 1) {
                 return self.barrier(seg, "if with non-literal body");
             }
             let body_tok = arg_tokens.get(body_idx);
@@ -477,6 +477,12 @@ impl Lowerer<'_> {
                 else_span = body_tok.map(|t| t.span);
                 continue;
             };
+            // A condition word that is not simple is substituted and its value
+            // evaluated as an expression (`TclCompileExprWords`): `if $c` with
+            // `c` holding `1==1` is true.
+            if !super::seg_word_is_simple(seg, cond_idx + 1) {
+                return self.barrier(seg, "if with a substituted condition");
+            }
             let cond_tok = arg_tokens.get(cond_idx);
             let static_cond = super::static_bool(&args[cond_idx]);
             let clause_dead = later_clauses_dead || matches!(static_cond, Some(false));
@@ -542,10 +548,10 @@ impl Lowerer<'_> {
         // matching `TclCompileForCmd`'s `TCL_TOKEN_SIMPLE_WORD` check). A single-token
         // but dynamic word (`$body`, `[cmd]`) must barrier rather than be
         // lowered as if it were the literal text.
-        if !arg_single[1]
-            || !super::seg_word_is_static_literal(seg, 1)
-            || !super::seg_word_is_static_literal(seg, 3)
-            || !super::seg_word_is_static_literal(seg, 4)
+        if !super::seg_word_is_simple(seg, 1)
+            || !super::seg_word_is_simple(seg, 2)
+            || !super::seg_word_is_simple(seg, 3)
+            || !super::seg_word_is_simple(seg, 4)
         {
             return self.barrier(seg, "for with dynamic arguments");
         }
@@ -603,7 +609,7 @@ impl Lowerer<'_> {
         // `TCL_TOKEN_SIMPLE_WORD` check on the body). A single-token but
         // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
         // as if it were the literal text.
-        if !arg_single[0] || !super::seg_word_is_static_literal(seg, 2) {
+        if !super::seg_word_is_simple(seg, 1) || !super::seg_word_is_simple(seg, 2) {
             return self.barrier(seg, "while with dynamic arguments");
         }
         // See `lower_for`: a body redefining break/continue must use the runtime
