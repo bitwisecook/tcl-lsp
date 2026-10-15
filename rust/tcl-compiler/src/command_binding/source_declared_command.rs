@@ -5,7 +5,9 @@
 //! Document assistance contracts, independently of Registry implementations.
 
 mod logical_body;
+mod logical_lambda;
 pub use logical_body::{OriginalDeclaredLogicalBodyContext, OriginalDeclaredSourceBodyFrame};
+pub(crate) use logical_lambda::OriginalLogicalLambdaBody;
 
 use super::{CommandAllocationSite, SourceAdviceNameInput, SourceInvocationBinding};
 use crate::analyser::ResolvedAnalysisInput;

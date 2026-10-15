@@ -452,21 +452,14 @@ impl OriginalInterpreterInvocation {
 /// This retains source materialisation and future-entry assumptions; it is not
 /// an entered lambda, native frame or namespace allocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OriginalInterpreterLambdaBody {
+pub(super) struct OriginalInterpreterLambdaBody {
     input: ResolvedAnalysisInput,
     lambda: NativeWord,
     producer: Vec<NativeWord>,
     content: Span,
     namespace: SignatureNamespaceScope,
     domain: Option<Arc<OriginalInterpreterSourceDomain>>,
-    logical: Option<OriginalLogicalLambdaNamespace>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct OriginalLogicalLambdaNamespace {
-    words: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
-    fields: Vec<crate::signature_scan::name_value::LogicalSourceListNameInput>,
-    formals: Option<Arc<crate::signature_scan::formal_parameters::LogicalSourceFormalParameters>>,
+    logical: Option<Arc<crate::command_binding::OriginalLogicalLambdaBody>>,
 }
 
 impl OriginalInterpreterLambdaBody {
@@ -476,131 +469,24 @@ impl OriginalInterpreterLambdaBody {
         producer: &[NativeWord],
         purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
     ) -> Option<Self> {
-        let context = input.context_registry();
-        let image = producer.first()?.image();
-        if !input.has_logical_source_name_context()
-            || producer
-                .iter()
-                .any(|word| word.image() != image || word.config() != input.lexer_config())
-            || !words.matches_source(image, input.lexer_config())
-            || !words.matches_registry(context.commands())
-            || words.context() != Some(context.context())
-            || words.origins().len() != producer.len()
-            || words.origins().iter().enumerate().any(|(ordinal, origin)| {
-                *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
-            })
-        {
-            return None;
-        }
-        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
-            advice,
-        ) = words.source()
-        else {
-            return None;
-        };
-        if advice.logical_source_input() != Some(input) || advice.original_words() != producer {
-            return None;
-        }
-        let selected = words.with_source_schema(&context, |schema| {
-            (schema.semantics.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::Apply))
-                .then(|| schema.authored_source_lambda_call())
-                .flatten()
-        })??;
-        let lambda = words
-            .original_argument_word(selected.lambda_argument)?
-            .clone();
-        let body = words.original_lambda_body_geometry(&context)?;
-        if body.original_container() != &lambda {
-            return None;
-        }
-        let fields = purpose.logical_list_inputs(
-            &lambda,
-            tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
-        )?;
-        let namespace = SignatureNamespaceScope::from_logical_lambda_list(&fields)?;
-        let formals = crate::signature_scan::formal_parameters::LogicalSourceFormalParameters::from_lambda_fields(
-            &fields, crate::command_binding::source_input_dialect(input),
-        ).map(Arc::new);
+        let logical = Arc::new(crate::command_binding::OriginalLogicalLambdaBody::capture(
+            input, words, producer, purpose,
+        )?);
         Some(Self {
             input: input.clone(),
-            lambda,
+            lambda: logical.lambda().clone(),
             producer: producer.to_vec(),
-            content: body.content_span(),
-            namespace,
+            content: logical.body().content_span(),
+            namespace: logical.namespace().clone(),
             domain: None,
-            logical: Some(OriginalLogicalLambdaNamespace {
-                words: Arc::new(words),
-                fields,
-                formals,
-            }),
+            logical: Some(logical),
         })
     }
 
-    pub(crate) fn logical_frame_source(
+    pub(super) fn logical_source_owner(
         &self,
-        input: &ResolvedAnalysisInput,
-    ) -> Option<(
-        Arc<crate::command_binding::SourceOriginId>,
-        u32,
-        Span,
-        SignatureNamespaceScope,
-    )> {
-        if self.input != *input
-            || !input.has_logical_source_name_context()
-            || self.lambda.config() != input.lexer_config()
-            || self.producer.is_empty()
-            || self.producer.iter().any(|word| {
-                word.image() != self.lambda.image() || word.config() != input.lexer_config()
-            })
-        {
-            return None;
-        }
-        let logical = self.logical.as_ref()?;
-        let context = input.context_registry();
-        if !logical
-            .words
-            .matches_source(self.lambda.image(), input.lexer_config())
-            || !logical.words.matches_registry(context.commands())
-            || logical.words.context() != Some(context.context())
-        {
-            return None;
-        }
-        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
-            advice,
-        ) = logical.words.source()
-        else {
-            return None;
-        };
-        if advice.logical_source_input() != Some(input) || advice.original_words() != self.producer
-        {
-            return None;
-        }
-        let body = logical.words.original_lambda_body_geometry(&context)?;
-        if body.original_container() != &self.lambda
-            || body.content_span() != self.content
-            || SignatureNamespaceScope::from_logical_lambda_list(&logical.fields).as_ref()
-                != Some(&self.namespace)
-        {
-            return None;
-        }
-        let call = logical
-            .words
-            .with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
-        let formals = logical.formals.as_deref()?;
-        if call.count.indeterminate {
-            return None;
-        }
-        crate::signature_scan::formal_count::logical_formal_argument_bindings(
-            formals.parameter_field().value(),
-            formals.parameters(),
-            usize::from(call.count.minimum),
-        )?;
-        Some((
-            Arc::clone(&advice.site().source),
-            advice.site().offset,
-            self.content,
-            self.namespace.clone(),
-        ))
+    ) -> Option<&Arc<crate::command_binding::OriginalLogicalLambdaBody>> {
+        self.logical.as_ref()
     }
 
     pub(super) fn has_logical_source_namespace(&self) -> bool {
@@ -615,7 +501,7 @@ impl OriginalInterpreterLambdaBody {
         parameter_token: Token,
     ) -> Option<&crate::signature_scan::formal_parameters::LogicalSourceFormalParameters> {
         self.for_body_token(source, input, token)?;
-        let formals = self.logical.as_ref()?.formals.as_deref()?;
+        let formals = self.logical.as_ref()?.formal_parameters()?;
         let field = formals.parameter_field();
         let content = field.source_span()?;
         if parameter_token
@@ -637,7 +523,7 @@ impl OriginalInterpreterLambdaBody {
         token: Token,
     ) -> Option<&crate::signature_scan::name_value::LogicalSourceListNameInput> {
         self.for_body_token(source, input, token)?;
-        self.logical.as_ref()?.fields.get(2)
+        self.logical.as_ref()?.namespace_field()
     }
 
     pub(super) fn for_body_token(
@@ -663,20 +549,13 @@ impl OriginalInterpreterLambdaBody {
         {
             return None;
         }
-        if let Some(logical) = &self.logical {
-            let context = input.context_registry();
-            let body = logical.words.original_lambda_body_geometry(&context)?;
-            if !logical
-                .words
-                .matches_source(&SourceImage::document(source), input.lexer_config())
-                || !logical.words.matches_registry(context.commands())
-                || body.original_container() != &self.lambda
-                || body.content_span() != self.content
-                || SignatureNamespaceScope::from_logical_lambda_list(&logical.fields).as_ref()
-                    != Some(&self.namespace)
-            {
-                return None;
-            }
+        if let Some(logical) = &self.logical
+            && (!logical.matches_source(&SourceImage::document(source), input)
+                || logical.lambda() != &self.lambda
+                || logical.body().content_span() != self.content
+                || logical.namespace() != &self.namespace)
+        {
+            return None;
         }
         Some((self.namespace.clone(), self.domain.clone()))
     }
@@ -2355,7 +2234,12 @@ mod tests {
                 .original_interp_apply_body(command.argv[0], command.arg_tokens(), &[])
                 .expect("namespace geometry remains independent of formal validity");
             assert!(
-                receipt.logical.as_ref().unwrap().formals.is_none(),
+                receipt
+                    .logical
+                    .as_ref()
+                    .unwrap()
+                    .formal_parameters()
+                    .is_none(),
                 "{source}"
             );
         }
@@ -2400,7 +2284,7 @@ mod tests {
             );
             assert!(receipt.has_logical_source_namespace());
             let logical = receipt.logical.as_ref().unwrap();
-            let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = logical.words.source() else { panic!("held original Logical applicability"); };
+            let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = logical.source_words().source() else { panic!("held original Logical applicability"); };
             assert_eq!(advice.logical_source_input(), Some(&input));
             assert!(advice.obligations().contains(&crate::command_binding::SourceCommandTransitionObligation::ExplicitLogicalSourceApplicability));
             let scope_receipt = retained(&analyser.result.global_scope)
@@ -2417,7 +2301,7 @@ mod tests {
                     .logical
                     .as_ref()
                     .unwrap()
-                    .words
+                    .source_words()
                     .matches_source(&SourceImage::document(source), input.lexer_config(),)
             );
             let mut changed = input.clone();

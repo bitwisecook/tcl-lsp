@@ -125,7 +125,6 @@ fn collect_files(
 /// # Errors
 /// Returns an error for unrepresentable paths, unreadable ignore source, or an
 /// incomplete directory, metadata or content read.
-#[must_use]
 pub fn integrity_of_tree(root: &Path) -> Result<String, TclPkgError> {
     let extra = load_tclpkgignore(root)?;
     let mut hasher = Sha256::new();
@@ -186,7 +185,6 @@ fn hex_digest(data: &[u8]) -> String {
 /// # Errors
 /// Returns an error when the canonical path inventory or file metadata cannot
 /// be read completely.
-#[must_use]
 pub fn tree_size(root: &Path) -> Result<u64, TclPkgError> {
     let extra = load_tclpkgignore(root)?;
     let mut total = 0u64;
@@ -203,7 +201,6 @@ pub fn tree_size(root: &Path) -> Result<u64, TclPkgError> {
 /// # Errors
 /// Returns the canonical inventory or content error from [`integrity_of_tree`];
 /// an unavailable hash is not an integrity mismatch.
-#[must_use]
 pub fn verify_integrity(root: &Path, expected: &str) -> Result<bool, TclPkgError> {
     Ok(integrity_of_tree(root)? == expected)
 }

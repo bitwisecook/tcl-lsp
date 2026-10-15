@@ -117,7 +117,7 @@ mod declaration_flow;
 mod source_declared_command;
 mod source_declared_method_template;
 pub(crate) use declaration_flow::DeclarationFlowReport;
-pub(crate) use source_declared_command::DeclaredSourceSelection;
+pub(crate) use source_declared_command::{DeclaredSourceSelection, OriginalLogicalLambdaBody};
 pub use source_declared_command::{
     OriginalDeclaredCommandWords, OriginalDeclaredLogicalBodyContext,
     OriginalDeclaredSourceBodyFrame, OriginalDeclaredSourceObligation,

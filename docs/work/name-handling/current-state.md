@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Shared Logical lambda declaration owner
+
+The reviewed canonical Logical lambda receipt now lives in the existing source-declaration owner and is shared by analyser and conditional-frame adapters. Its original selected-call/vector/fields/body/formals/input/argc guards are retained, with full fresh body correspondence. Native snapshots remain separate. This makes the genuine producer available to the source walker without an analyser cycle; it does not yet issue lambda child binding/alias graphs, formal source symbols or generic same-frame inventory coverage. Existing tests only reborrow the same shared owner; Rust acceptance remains unexecuted.
+
 ## Original completion-word geometry
 
 The reviewed shared lexer owner retains complete configured source words/groups, original partial/fullcontainer spans, command/argv ordinals and empty boundaries. Syntax projects Unicode literal-prefix data; Core joins actual current source/input/config and innermost selected script phase, checks exact UTF16 and uses original replacement extent including switch dash prefixes. All208 prior test bodies remain byte-exact; seven new controls are unexecuted. No fake closer, cooked offset inverse, Native name/lookup or generic command advice in ordinary data follows. Candidate exact source encoding, Expr/snippet trigger domains and genuine multiline range transport remain unfinished; static-word grammar validation alone does not prove candidate-name equality.

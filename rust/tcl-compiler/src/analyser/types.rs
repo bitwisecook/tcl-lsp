@@ -3769,7 +3769,7 @@ impl AnalysisResult {
                     return None;
                 }
                 let frame = crate::command_binding::SourceOriginalVariableFrame::from_logical_lambda_source(
-                    std::sync::Arc::clone(receipt), input,
+                    std::sync::Arc::clone(receipt.logical_source_owner()?), input,
                 )?;
                 let span = first.body_span?;
                 if span.start().checked_add(1) != Some(frame.source().base())

@@ -416,7 +416,7 @@ pub struct SourceOriginalVariableFrame {
     source: super::ExecutedScriptSource,
     frame: crate::var_resolve::VariableExecutionFrame,
     config: tcl_lexer::LexerConfig,
-    logical_lambda: Option<Arc<crate::analyser::OriginalInterpreterLambdaBody>>,
+    logical_lambda: Option<Arc<super::OriginalLogicalLambdaBody>>,
 }
 
 impl std::hash::Hash for SourceOriginalVariableFrame {
@@ -431,10 +431,10 @@ impl SourceOriginalVariableFrame {
     /// Conditional lexical lambda layout from its held call and source fields.
     /// This does not issue an entered frame, installed local or Native recipe.
     pub(crate) fn from_logical_lambda_source(
-        receipt: Arc<crate::analyser::OriginalInterpreterLambdaBody>,
+        receipt: Arc<super::OriginalLogicalLambdaBody>,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<Self> {
-        let (origin, offset, body, namespace) = receipt.logical_frame_source(input)?;
+        let (origin, offset, body, namespace) = receipt.frame_source(input)?;
         let crate::signature_scan::scope::SignatureNamespaceScope::C(path) = namespace else {
             return None;
         };
