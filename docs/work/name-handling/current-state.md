@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Completion candidate source construction
+
+Reviewed catalogue producers now pass actual candidate data through shared exact-value Unicode source construction before UI-label packaging. Full production configuration/input and event placement remain genuine; explicit standalone metadata tests keep their independent supplied syntax profile. Backslash/punctuation proposals must reproduce the intended value, not merely parse as one word. Existing SourceMethod NUL policy remains distinct. All173 prior test bodies remain byte-exact; four new controls are unexecuted. Expr/snippet trigger domains, OO receiver/parameter policy and protocol-compatible multiline editing remain independently bounded. Source is newer than L14; its result cannot accept this tranche.
+
 ## Lambda child binding inventory and selected-region correction
 
 Reviewed source walking now retains explicit named versus anonymous Lambda scope origins, actual live-horizon conditional child binding graphs and the canonical lambda call/frame/namespace/argc owner. Named consumers refuse anonymous names. Parent Apply unknown/world/observer effects remain unchanged; child inventory proves no outer absence or resulting state. Actual body word occurrences reuse the same alias/unknown barriers. Formal nested-field signature inputs and Native/edit/normal grants remain unavailable.

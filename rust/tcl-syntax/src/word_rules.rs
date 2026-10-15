@@ -691,6 +691,54 @@ mod original_word_cursor_value_tests {
     }
 }
 
+#[cfg(test)]
+mod lexical_unicode_source_word_tests {
+    use super::*;
+
+    #[test]
+    fn literal_source_words_preserve_unicode_data_and_original_formatting_policy() {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim", "f5-irules"] {
+            let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+            for value in [
+                "plain",
+                "two words",
+                "",
+                "café 😀",
+                r"cash$[call]\path",
+                "{unbalanced",
+                r"literal\uD800",
+                "line\nname",
+                "crlf\r\nname",
+                "\u{feff}name",
+            ] {
+                let spelling = lexical_unicode_source_word(value, config).unwrap();
+                let image = tcl_lexer::SourceImage::document(&spelling);
+                let plan = tcl_lexer::native_script_words_in(
+                    image,
+                    tcl_lexer::Span::new(0, spelling.len() as u32),
+                    config,
+                )
+                .unwrap();
+                assert!(plan.fatal_tail.is_none());
+                let [command] = plan.commands.as_slice() else {
+                    panic!("one command")
+                };
+                let [word] = command.words.as_slice() else {
+                    panic!("one word")
+                };
+                assert_eq!(
+                    original_static_word_unicode_value(word).as_deref(),
+                    Some(value.as_bytes()),
+                    "{dialect}: {value:?}"
+                );
+                if let Some(ascii) = lexical_ascii_source_word(value, config) {
+                    assert_eq!(spelling, ascii);
+                }
+            }
+        }
+    }
+}
+
 /// One original scalar reference with an exact decoded literal prefix.
 /// Original grouping and executable components remain authoritative; this
 /// classifies source syntax and supplies no variable read or name lookup.
@@ -928,6 +976,39 @@ pub fn lexical_ascii_source_word(value: &str, config: tcl_lexer::LexerConfig) ->
     };
     (original_static_word_ascii_presentation(word)?.as_slice() == value.as_bytes())
         .then_some(spelling)
+}
+
+/// Render Unicode data as one literal source word under the complete supplied
+/// grammar. Existing list formatting is retained when it proves the exact
+/// value; quoted source is independently checked when that proposal cannot.
+/// This authoring purpose supplies no Native name recipe or existing identity.
+#[must_use]
+pub fn lexical_unicode_source_word(value: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let admits = |spelling: &str| {
+        let end = u32::try_from(spelling.len()).ok()?;
+        let image = tcl_lexer::SourceImage::document(spelling);
+        let plan =
+            tcl_lexer::native_script_words_in(image, tcl_lexer::Span::new(0, end), config).ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        (plan.fatal_tail.is_none()
+            && !word.group().expand
+            && word.span() == tcl_lexer::Span::new(0, end)
+            && original_static_word_unicode_value(word)?.as_slice() == value.as_bytes())
+        .then_some(())
+    };
+    let proposal = crate::list::list_element(value);
+    if admits(&proposal).is_some() {
+        return Some(proposal);
+    }
+    let fragment = crate::backslash::literal_quoted_source_fragment(value, config.escapes)?;
+    let proposal = format!("\"{fragment}\"");
+    admits(&proposal)?;
+    Some(proposal)
 }
 
 #[cfg(test)]

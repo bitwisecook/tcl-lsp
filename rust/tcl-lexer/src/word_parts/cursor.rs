@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Incomplete variable source prefixes retain lexical ownership without values.
+//! Original word and variable cursor geometry retains incomplete source ownership.
 
 use super::{
     ArrayIndexEnd, BracedVarEnd, LexerConfig, SubstFlags, TemplateVariableSyntax, WordPart,

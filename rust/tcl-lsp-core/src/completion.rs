@@ -376,7 +376,11 @@ fn context_aware_completions(
         && let Some(scoped) = env.command(&cmd)
         && !scoped.subcommands.is_empty()
     {
-        return Some(scoped_op_completions(scoped, partial));
+        return Some(scoped_op_completions(
+            scoped,
+            partial,
+            analysis.resolved_input.as_ref()?.lexer_config(),
+        ));
     }
 
     original_context::items(source, cursor, line, character, analysis, partial)
@@ -516,7 +520,13 @@ pub fn completions(
             source,
             line,
             &prefix,
-            grammar_member_completions(grammar, &partial, registry),
+            grammar_member_completions(
+                grammar,
+                &partial,
+                registry,
+                current.config(),
+                current.context().context().authoring_query(),
+            ),
         );
     }
 
@@ -543,7 +553,7 @@ pub fn completions(
     // commands.  Deduped by label so a scoped name never doubles a core one.
     if let Some(env) = scoped_env_at(analysis, source, line, character, &line_index) {
         let present: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
-        for item in scoped_command_completions(env, &partial) {
+        for item in scoped_command_completions(env, &partial, current.config()) {
             if !present.contains(&item.label) {
                 items.push(item);
             }
@@ -1667,7 +1677,7 @@ fn source_method_name_word(analysis: &AnalysisResult, name: &str) -> Option<Stri
     if analysis.body_lexer_config != Some(input.lexer_config()) || name.contains('\0') {
         return None;
     }
-    tcl_syntax::word_rules::lexical_ascii_source_word(name, input.lexer_config())
+    tcl_syntax::word_rules::lexical_unicode_source_word(name, input.lexer_config())
 }
 
 fn generated_property_method_items(
@@ -1811,6 +1821,7 @@ fn switch_completions(
     partial: &str,
     edit: (u32, u32),
     package_version: Option<&str>,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<CompletionItem> {
     let mut opts: Vec<_> = options
         .iter()
@@ -1826,11 +1837,13 @@ fn switch_completions(
     } = filter_candidates(partial, opts, |opt| opt.name);
     let mut items: Vec<CompletionItem> = opts
         .into_iter()
-        .map(|opt| {
+        .filter_map(|opt| {
+            let insert_text =
+                tcl_syntax::word_rules::lexical_unicode_source_word(opt.name, config)?;
             let doc = (!opt.detail.is_empty()).then(|| opt.detail.to_owned());
-            CompletionItem {
+            Some(CompletionItem {
                 label: opt.name.to_owned(),
-                insert_text: opt.name.to_owned(),
+                insert_text: insert_text.clone(),
                 kind: CompletionKind::Function,
                 detail: doc.clone(),
                 documentation: doc,
@@ -1840,9 +1853,9 @@ fn switch_completions(
                 text_edit: Some(CompletionEdit {
                     start_char: edit.0,
                     end_char: edit.1,
-                    new_text: opt.name.to_owned(),
+                    new_text: insert_text,
                 }),
-            }
+            })
         })
         .collect();
     if fuzzy {
@@ -1853,32 +1866,24 @@ fn switch_completions(
     items
 }
 
-/// Compute iRules event-name completions for `when EVENT { body }`.
-/// Returns one [`CompletionItem`] per event registered in the
-/// shared [`tcl_registry::events::EventRegistry`] whose name starts
-/// with `partial` (case-sensitive — event names are all-uppercase
-/// snake-case by convention).
-///
-/// The registry is built once per call.  `EventRegistry::build`
-/// materialises a small static table at runtime; for completion
-/// (one call per user keystroke at a `when ` site) that's
-/// negligible.  Threading a cached registry through the public
-/// `completions()` signature would force every caller to plumb it
-/// even when iRules isn't in scope, so we keep it local instead.
-fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
+/// Event candidates retain the actual BIG-IP placement and source grammar.
+fn event_name_completions(partial: &str, analysis: &AnalysisResult) -> Vec<CompletionItem> {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return Vec::new();
+    };
+    let config = input.lexer_config();
+    if analysis.body_lexer_config != Some(config) {
+        return Vec::new();
+    }
+    let context = input.context_registry();
+    let Some(target) = context.context().placement_floor("f5-irules-cmds") else {
+        return Vec::new();
+    };
     let reg = tcl_registry::events::EventRegistry::build();
-    // Lifecycle rule: completion omits *retired* events and keeps
-    // deprecated ones, labelled with their deprecating release. The target is
-    // the axis default (the oldest-supported release) since this entry
-    // point carries no resolved BIG-IP version.
-    let target = tcl_dialect::VersionKey::BigipVersion.default_version();
     let mut names: Vec<&str> = reg
         .all_event_names()
         .into_iter()
-        .filter(|name| {
-            reg.event_lifecycle(name)
-                .is_none_or(|life| life.available_at(target))
-        })
+        .filter(|name| reg.event_available_at(name, target.as_str()))
         .collect();
     names.sort_unstable();
     let FilteredCandidates {
@@ -1887,7 +1892,8 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     } = filter_candidates(partial, names, |name| *name);
     let mut items: Vec<CompletionItem> = names
         .into_iter()
-        .map(|name| {
+        .filter_map(|name| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(name, config)?;
             // Describe the event from its registry props (sides / transport /
             // implied profiles) so the item carries documentation.
             let doc = reg.get_props(name).map(|p| {
@@ -1900,9 +1906,9 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
                 }
                 parts.join("\n\n")
             });
-            CompletionItem {
+            Some(CompletionItem {
                 label: name.to_owned(),
-                insert_text: name.to_owned(),
+                insert_text,
                 kind: CompletionKind::Function,
                 detail: Some("F5 iRules event".to_string()),
                 sort_text: None,
@@ -1910,7 +1916,7 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
                 filter_text: None,
                 text_edit: None,
                 documentation: doc.or_else(|| Some(format!("F5 iRules event `{name}`"))),
-            }
+            })
         })
         .collect();
     if fuzzy {
@@ -1936,12 +1942,17 @@ fn subcommand_completions(
         .into_iter()
         .filter(|sub| sub.available_for_version(floor))
         .collect();
-    arg_value_completions_from_subcommands(subs, partial)
+    arg_value_completions_from_subcommands(
+        subs,
+        partial,
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+    )
 }
 
 fn arg_value_completions_from_subcommands(
     mut subs: Vec<&tcl_registry::SubCommand>,
     partial: &str,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<CompletionItem> {
     subs.sort_unstable_by_key(|sub| sub.name);
     let FilteredCandidates {
@@ -1950,20 +1961,24 @@ fn arg_value_completions_from_subcommands(
     } = filter_candidates(partial, subs, |sub| sub.name);
     let mut items: Vec<CompletionItem> = subs
         .into_iter()
-        .map(|sub| CompletionItem {
-            label: sub.name.to_owned(),
-            insert_text: sub.name.to_owned(),
-            kind: CompletionKind::Function,
-            // Surface the registry's one-line description, exactly as the
-            // sub-subcommand / scoped-op / arg-value completions already do
-            // — `string <TAB>` shows what each operation does, not a bare
-            // name list.
-            detail: (!sub.detail.is_empty()).then(|| sub.detail.to_owned()),
-            sort_text: None,
-            is_snippet: false,
-            filter_text: None,
-            text_edit: None,
-            documentation: None,
+        .filter_map(|sub| {
+            let insert_text =
+                tcl_syntax::word_rules::lexical_unicode_source_word(sub.name, config)?;
+            Some(CompletionItem {
+                label: sub.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                // Surface the registry's one-line description, exactly as the
+                // sub-subcommand / scoped-op / arg-value completions already do
+                // — `string <TAB>` shows what each operation does, not a bare
+                // name list.
+                detail: (!sub.detail.is_empty()).then(|| sub.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
         })
         .collect();
     if fuzzy {
@@ -2047,16 +2062,25 @@ fn grammar_member_completions(
     grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
     partial: &str,
     registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    query: tcl_dialect::model::SurfaceQuery<'_>,
 ) -> Vec<CompletionItem> {
     grammar
         .members
         .iter()
-        .filter(|member| partial.is_empty() || member.keyword.starts_with(partial))
-        .map(|member| {
+        .filter(|member| {
+            (partial.is_empty() || member.keyword.starts_with(partial))
+                && grammar
+                    .source_member_in(member.keyword.as_bytes(), Some(query))
+                    .is_some_and(|actual| std::ptr::eq(actual, *member))
+        })
+        .filter_map(|member| {
+            let insert_text =
+                tcl_syntax::word_rules::lexical_unicode_source_word(member.keyword, config)?;
             let spec = registry.get(member.keyword);
-            CompletionItem {
+            Some(CompletionItem {
                 label: member.keyword.to_owned(),
-                insert_text: member.keyword.to_owned(),
+                insert_text,
                 kind: CompletionKind::Function,
                 detail: spec.map(|s| command_detail(s, registry)),
                 sort_text: None,
@@ -2066,7 +2090,7 @@ fn grammar_member_completions(
                 documentation: spec
                     .and_then(|s| s.hover.as_ref())
                     .map(|h| h.summary.to_owned()),
-            }
+            })
         })
         .collect()
 }
@@ -2076,20 +2100,24 @@ fn grammar_member_completions(
 fn scoped_command_completions(
     env: &'static tcl_registry::scoped::ScopedCommandEnv,
     partial: &str,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<CompletionItem> {
     env.commands
         .iter()
         .filter(|c| partial.is_empty() || c.name.starts_with(partial))
-        .map(|c| CompletionItem {
-            label: c.name.to_owned(),
-            insert_text: c.name.to_owned(),
-            kind: CompletionKind::Function,
-            detail: (!c.detail.is_empty()).then(|| c.detail.to_owned()),
-            sort_text: None,
-            is_snippet: false,
-            filter_text: None,
-            text_edit: None,
-            documentation: None,
+        .filter_map(|c| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(c.name, config)?;
+            Some(CompletionItem {
+                label: c.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: (!c.detail.is_empty()).then(|| c.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
         })
         .collect()
 }
@@ -2099,6 +2127,7 @@ fn scoped_command_completions(
 fn scoped_op_completions(
     cmd: &'static tcl_registry::scoped::ScopedCommand,
     partial: &str,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<CompletionItem> {
     let ops: Vec<&tcl_registry::SubCommand> = cmd.subcommands.iter().collect();
     let FilteredCandidates {
@@ -2107,16 +2136,19 @@ fn scoped_op_completions(
     } = filter_candidates(partial, ops, |op| op.name);
     let mut items: Vec<CompletionItem> = ops
         .into_iter()
-        .map(|s| CompletionItem {
-            label: s.name.to_owned(),
-            insert_text: s.name.to_owned(),
-            kind: CompletionKind::Function,
-            detail: (!s.detail.is_empty()).then(|| s.detail.to_owned()),
-            sort_text: None,
-            is_snippet: false,
-            filter_text: None,
-            text_edit: None,
-            documentation: None,
+        .filter_map(|s| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(s.name, config)?;
+            Some(CompletionItem {
+                label: s.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: (!s.detail.is_empty()).then(|| s.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
         })
         .collect();
     if fuzzy {
@@ -2131,6 +2163,7 @@ fn scoped_op_completions(
 fn sub_subcommand_completions(
     mut subs: Vec<&'static tcl_registry::SubSubCommand>,
     partial: &str,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<CompletionItem> {
     subs.sort_unstable_by_key(|s| s.name);
     let FilteredCandidates {
@@ -2139,16 +2172,19 @@ fn sub_subcommand_completions(
     } = filter_candidates(partial, subs, |s| s.name);
     let mut items: Vec<CompletionItem> = subs
         .into_iter()
-        .map(|s| CompletionItem {
-            label: s.name.to_owned(),
-            insert_text: s.name.to_owned(),
-            kind: CompletionKind::Function,
-            detail: (!s.detail.is_empty()).then(|| s.detail.to_owned()),
-            sort_text: None,
-            is_snippet: false,
-            filter_text: None,
-            text_edit: None,
-            documentation: None,
+        .filter_map(|s| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(s.name, config)?;
+            Some(CompletionItem {
+                label: s.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: (!s.detail.is_empty()).then(|| s.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
         })
         .collect();
     if fuzzy {
@@ -2163,21 +2199,24 @@ fn sub_subcommand_completions(
 /// The vocabulary is `tcl_registry::abbrev::BOOLEAN_KEYWORDS` — the same list
 /// `resolve_boolean` accepts, so completion, the formatter's canonical-boolean
 /// rewrite, and the analyser cannot disagree about what a boolean word is.
-fn boolean_value_completions(partial: &str) -> Vec<CompletionItem> {
+fn boolean_value_completions(partial: &str, config: tcl_lexer::LexerConfig) -> Vec<CompletionItem> {
     let candidates: Vec<&&str> = tcl_registry::abbrev::BOOLEAN_KEYWORDS.iter().collect();
     let FilteredCandidates { candidates, fuzzy } = filter_candidates(partial, candidates, |v| **v);
     let mut items: Vec<CompletionItem> = candidates
         .into_iter()
-        .map(|value| CompletionItem {
-            label: (*value).to_owned(),
-            insert_text: (*value).to_owned(),
-            kind: CompletionKind::EnumValue,
-            detail: Some("boolean".to_owned()),
-            sort_text: None,
-            is_snippet: false,
-            filter_text: None,
-            text_edit: None,
-            documentation: None,
+        .filter_map(|value| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(*value, config)?;
+            Some(CompletionItem {
+                label: (*value).to_owned(),
+                insert_text,
+                kind: CompletionKind::EnumValue,
+                detail: Some("boolean".to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
         })
         .collect();
     if fuzzy {
@@ -2189,6 +2228,7 @@ fn boolean_value_completions(partial: &str) -> Vec<CompletionItem> {
 fn arg_value_completions_from(
     mut values: Vec<&tcl_registry::ArgValue>,
     partial: &str,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<CompletionItem> {
     // Prefix matches retain value order; fuzzy matches retain distance ranking.
     values.sort_unstable_by_key(|v| v.value);
@@ -2198,16 +2238,19 @@ fn arg_value_completions_from(
     } = filter_candidates(partial, values, |v| v.value);
     let mut items: Vec<CompletionItem> = values
         .into_iter()
-        .map(|v| CompletionItem {
-            label: v.value.to_owned(),
-            insert_text: v.value.to_owned(),
-            kind: CompletionKind::EnumValue,
-            detail: (!v.detail.is_empty()).then(|| v.detail.to_owned()),
-            sort_text: None,
-            is_snippet: false,
-            filter_text: None,
-            text_edit: None,
-            documentation: None,
+        .filter_map(|v| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(v.value, config)?;
+            Some(CompletionItem {
+                label: v.value.to_owned(),
+                insert_text,
+                kind: CompletionKind::EnumValue,
+                detail: (!v.detail.is_empty()).then(|| v.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
         })
         .collect();
     if fuzzy {
@@ -2279,6 +2322,13 @@ fn builtin_completions(
     analysis: &AnalysisResult,
     oo_frame: crate::oo_dispatch::OoFrame,
 ) -> Vec<CompletionItem> {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return Vec::new();
+    };
+    let config = input.lexer_config();
+    if analysis.body_lexer_config != Some(config) {
+        return Vec::new();
+    }
     // Availability-gate the command list through the dialect profile: a
     // command whose spec restricts itself to later dialects (`try` is Tcl
     // 8.6+, `lseq` is 9.0+, …) must not be offered in an earlier-dialect
@@ -2369,7 +2419,8 @@ fn builtin_completions(
     names.sort_unstable();
     names
         .into_iter()
-        .map(|name| {
+        .filter_map(|name| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(name, config)?;
             let count = usage.get(name).copied().unwrap_or(0);
             // The *profile-resolved* spec, not `registry.get`: a command
             // with more than one spec under one name (`link` is 9.0 core
@@ -2380,9 +2431,9 @@ fn builtin_completions(
             // already applies, so the item and the decision to offer it
             // cannot disagree.
             let spec = context.resolve_spec(registry, name);
-            CompletionItem {
+            Some(CompletionItem {
                 label: name.to_owned(),
-                insert_text: name.to_owned(),
+                insert_text,
                 kind: CompletionKind::Function,
                 detail: spec.map(|s| command_detail(s, registry)),
                 sort_text: Some(builtin_sort_text(name, count)),
@@ -2392,7 +2443,7 @@ fn builtin_completions(
                 documentation: spec
                     .and_then(|s| s.hover.as_ref())
                     .map(|h| h.summary.to_owned()),
-            }
+            })
         })
         .collect()
 }
@@ -2789,7 +2840,7 @@ fn fuzzy_command_fallback(
     {
         let present: FxHashSet<String> = universe.iter().map(|i| i.label.clone()).collect();
         universe.extend(
-            scoped_command_completions(env, "")
+            scoped_command_completions(env, "", prefix.config())
                 .into_iter()
                 .filter(|item| !present.contains(&item.label)),
         );
@@ -2802,6 +2853,177 @@ fn fuzzy_command_fallback(
         decorate_fuzzy_items(&mut items, &partial);
     }
     items
+}
+
+#[cfg(test)]
+mod source_catalogue_word_tests {
+    use super::*;
+
+    fn value(item: &CompletionItem, config: tcl_lexer::LexerConfig) -> Vec<u8> {
+        let image = tcl_lexer::SourceImage::document(&item.insert_text);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, item.insert_text.len() as u32),
+            config,
+        )
+        .unwrap();
+        assert!(plan.fatal_tail.is_none());
+        let [command] = plan.commands.as_slice() else {
+            panic!("one command")
+        };
+        let [word] = command.words.as_slice() else {
+            panic!("one source word")
+        };
+        assert_eq!(
+            word.span(),
+            tcl_lexer::Span::new(0, item.insert_text.len() as u32)
+        );
+        tcl_syntax::word_rules::original_static_word_unicode_value(word).unwrap()
+    }
+
+    #[test]
+    fn source_catalogue_insertions_encode_provider_data_before_packaging_labels() {
+        use tcl_registry::scoped::{ScopedCommand, ScopedCommandEnv};
+        static OPS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: r"op\x41",
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        static COMMANDS: &[ScopedCommand] = &[ScopedCommand {
+            name: "café $[literal]",
+            arity: tcl_registry::arity::Arity::any(),
+            subcommands: OPS,
+            allow_unknown_subcommands: false,
+            detail: "",
+            hover: None,
+        }];
+        static ENV: ScopedCommandEnv = ScopedCommandEnv {
+            name: "source catalogue",
+            commands: COMMANDS,
+            include_sibling_definitions: false,
+            allow_unknown_commands: false,
+        };
+        static NESTED: tcl_registry::SubSubCommand = tcl_registry::SubSubCommand {
+            name: r"nested\u0041",
+            ..tcl_registry::SubSubCommand::DEFAULT
+        };
+        static VALUE: tcl_registry::ArgValue = tcl_registry::ArgValue {
+            value: r"value\uD800",
+            ..tcl_registry::ArgValue::DEFAULT
+        };
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        for (items, expected) in [
+            (
+                scoped_command_completions(&ENV, "", config),
+                COMMANDS[0].name,
+            ),
+            (scoped_op_completions(&COMMANDS[0], "", config), OPS[0].name),
+            (
+                arg_value_completions_from_subcommands(vec![&OPS[0]], "", config),
+                OPS[0].name,
+            ),
+            (
+                sub_subcommand_completions(vec![&NESTED], "", config),
+                NESTED.name,
+            ),
+            (
+                arg_value_completions_from(vec![&VALUE], "", config),
+                VALUE.value,
+            ),
+        ] {
+            let [item] = items.as_slice() else {
+                panic!("one provider candidate")
+            };
+            assert_eq!(item.label, expected);
+            assert_eq!(value(item, config), expected.as_bytes());
+            assert_ne!(item.insert_text, expected);
+        }
+    }
+
+    #[test]
+    fn actual_builtin_catalogue_names_keep_literal_unicode_and_escape_data() {
+        for name in [r"take\x41", "café name"] {
+            let mut registry = tcl_registry::CommandRegistry::build_default();
+            registry.insert(tcl_registry::CommandSpec {
+                name,
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+            let source = if name.starts_with("take") {
+                "ta"
+            } else {
+                "caf"
+            };
+            let analysis = crate::refactor::test_logical_analysis(
+                source,
+                "tcl",
+                std::sync::Arc::new(registry),
+            );
+            let items = completions(
+                source,
+                0,
+                source.len() as u32,
+                &analysis,
+                None,
+                None,
+                analysis.resolved_profile().unwrap(),
+            );
+            let item = items.iter().find(|item| item.label == name).unwrap();
+            assert_eq!(
+                value(item, analysis.body_lexer_config.unwrap()),
+                name.as_bytes()
+            );
+            assert_ne!(item.insert_text, name);
+            assert!(source_method_name_word(&analysis, "a\0b").is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(
+                completions(
+                    source,
+                    0,
+                    source.len() as u32,
+                    &missing,
+                    None,
+                    None,
+                    analysis.resolved_profile().unwrap()
+                )
+                .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn event_candidates_use_the_actual_configured_placement() {
+        use tcl_compiler::analyser::Analyser;
+        let old = Analyser::new()
+            .with_bigip_version(Some("9.4.0".to_owned()))
+            .analyse("when ", "f5-irules");
+        let current = Analyser::new()
+            .with_bigip_version(Some("16.1.0".to_owned()))
+            .analyse("when ", "f5-irules");
+        let old_items = event_name_completions("", &old);
+        assert!(old_items.iter().any(|item| item.label == "HTTP_REQUEST"));
+        assert!(
+            old_items
+                .iter()
+                .any(|item| item.label == "XML_BEGIN_DOCUMENT")
+        );
+        let current_items = event_name_completions("", &current);
+        assert!(
+            current_items
+                .iter()
+                .any(|item| item.label == "HTTP_REQUEST")
+        );
+        assert!(
+            !current_items
+                .iter()
+                .any(|item| item.label == "XML_BEGIN_DOCUMENT")
+        );
+        let mut missing = current.clone();
+        missing.resolved_input = None;
+        assert!(event_name_completions("", &missing).is_empty());
+        let mut changed = current.clone();
+        changed.body_lexer_config = Some(tcl_lexer::LexerConfig::for_dialect("jim"));
+        assert!(event_name_completions("", &changed).is_empty());
+    }
 }
 
 #[cfg(test)]

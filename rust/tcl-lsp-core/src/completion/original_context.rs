@@ -24,6 +24,7 @@ pub(super) fn items(
 ) -> Option<Vec<CompletionItem>> {
     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let selected = select(source, analysis, cursor)?;
+    let config = current.config();
     let context = current.context();
     let spec = &selected.spec;
     let profile = analysis.resolved_profile()?;
@@ -35,6 +36,7 @@ pub(super) fn items(
         .flatten();
     let switches = SwitchAdvice {
         analysis,
+        config,
         spec,
         context: context.context(),
         floor,
@@ -45,7 +47,7 @@ pub(super) fn items(
     }
     if selected.active == 0 {
         if spec.traits.contains(Traits::IS_EVENT_HANDLER) {
-            return Some(super::event_name_completions(partial));
+            return Some(super::event_name_completions(partial, analysis));
         }
         if spec.traits.contains(Traits::INVOKES_USER_PROC) {
             return Some(super::invoked_proc_completions(analysis, partial));
@@ -57,7 +59,9 @@ pub(super) fn items(
                 .into_iter()
                 .filter(|sub| sub.available_for_version(floor))
                 .collect::<Vec<_>>();
-            return Some(super::arg_value_completions_from_subcommands(subs, partial));
+            return Some(super::arg_value_completions_from_subcommands(
+                subs, partial, config,
+            ));
         }
     }
     if let Some(sub) = sub {
@@ -67,6 +71,7 @@ pub(super) fn items(
                     .context()
                     .available_sub_subcommands(spec, sub, floor),
                 partial,
+                config,
             ));
         }
         if let Some(index) = selected
@@ -76,11 +81,11 @@ pub(super) fn items(
         {
             let values = sub.available_arg_values_at(index, floor);
             if !values.is_empty() {
-                return Some(super::arg_value_completions_from(values, partial));
+                return Some(super::arg_value_completions_from(values, partial, config));
             }
         }
     }
-    if let Some(items) = option_values(spec, &selected, floor, partial) {
+    if let Some(items) = option_values(spec, &selected, floor, partial, config) {
         return Some(items);
     }
     if spec.traits.contains(Traits::IS_EVENT_HANDLER)
@@ -95,10 +100,11 @@ pub(super) fn items(
     }
     let index = u8::try_from(selected.active).ok()?;
     let values = spec.available_arg_values_at(index, floor);
-    (!values.is_empty()).then(|| super::arg_value_completions_from(values, partial))
+    (!values.is_empty()).then(|| super::arg_value_completions_from(values, partial, config))
 }
 
 struct SwitchAdvice<'a> {
+    config: tcl_lexer::LexerConfig,
     analysis: &'a AnalysisResult,
     spec: &'a CommandSpec,
     context: &'a tcl_registry::model::ResolvedContext,
@@ -139,6 +145,7 @@ impl SwitchAdvice<'_> {
                     &switch_partial,
                     edit,
                     self.floor,
+                    self.config,
                 ));
             }
         }
@@ -151,6 +158,7 @@ fn option_values(
     selected: &SelectedContext,
     floor: Option<&str>,
     partial: &str,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<CompletionItem>> {
     let prev = selected
         .arguments
@@ -174,11 +182,11 @@ fn option_values(
         .filter(|value| value.available_for_version(floor))
         .collect::<Vec<_>>();
     if !values.is_empty() {
-        return Some(super::arg_value_completions_from(values, partial));
+        return Some(super::arg_value_completions_from(values, partial, config));
     }
     option
         .value_is_boolean()
-        .then(|| super::boolean_value_completions(partial))
+        .then(|| super::boolean_value_completions(partial, config))
 }
 
 fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<SelectedContext> {
