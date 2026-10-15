@@ -25,24 +25,22 @@
 //! the F5 `::when::` lowering. We recognise that call, map the event via our own
 //! table, and re-lower each handler body independently.
 
-use tcl_compiler::cfg_builder::build_cfg_function;
-use tcl_compiler::ir::CommandTokens;
-use tcl_compiler::{Script, Statement};
+#[cfg(test)]
+use crate::template::collect_templates;
+#[cfg(test)]
+use tcl_compiler::Script;
+use tcl_compiler::{Module, Statement};
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_registry::bpf_op::BpfDeclKind;
 use tcl_registry::model::ingress::static_context_for;
 
-use crate::capability::{CapabilityPolicy, check_policy, collect_policy};
 use crate::deploy::resolve_attach;
 use crate::diag::{BpfDiag, BpfError};
 use crate::event::{BpfEventId, event_id, known_event_names, prog_type_of};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
-use crate::lower::{lower_function_with_config, parse_int};
-use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
-use crate::source::{OriginalBpfSource, lower_bpf_source};
-use crate::template::{TemplateDef, collect_templates, expand_uses};
-use crate::unroll::unroll_loops;
+use crate::lower::{lower_prepared_function, parse_int};
+use crate::source::{BpfSourceScript, OriginalBpfSource, lower_bpf_source};
 
 /// Compile a `.bpftcl` translation unit into a bundle of typed programs.
 ///
@@ -56,36 +54,17 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // re-lower ourselves — a separate event space from F5's `::when::`.
     let registry = bpf_registry();
     let module = lower_bpf_source(source, registry);
-    let source = OriginalBpfSource::from_module(&module);
-    source.validate_script(&module.top_level, registry, BpfDiag::OutOfSubset)?;
-
-    // The (optional) active profile — the top-layer config selected for the file.
-    let profile = collect_profile(&module.top_level, registry, &source)?;
-    // Reusable parameterised handlers a `use` site can splice in.
-    let templates = collect_templates(&module.top_level, registry, &source)?;
-    // The capability policy that sandboxes each handler's operations.
-    let policy = collect_policy(&module.top_level, registry, &source)?;
+    let phase = BpfSourceScript::from_module(&module, registry)?;
+    let source = phase.original_source();
 
     let mut programs = Vec::new();
     let mut saw_when = false;
 
-    for stmt in &module.top_level.statements {
+    for stmt in &phase.script().statements {
         let kind = source.declaration_kind(stmt, registry, BpfDiag::OutOfSubset)?;
-        if let Statement::Call {
-            args, tokens, span, ..
-        } = stmt
-            && kind == Some(BpfDeclKind::When)
-        {
+        if matches!(stmt, Statement::Call { .. }) && kind == Some(BpfDeclKind::When) {
             saw_when = true;
-            programs.push(lower_when_decl(
-                args,
-                (tokens.as_ref(), &source),
-                *span,
-                registry,
-                profile.as_ref(),
-                &templates,
-                &policy,
-            )?);
+            programs.push(lower_when_decl(stmt, &phase, &module, registry)?);
         }
     }
 
@@ -95,10 +74,10 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // silently dropped from the emitted program with no diagnostic, a silent
     // mishandle. Reject it instead.
     if saw_when {
-        for stmt in &module.top_level.statements {
+        for stmt in &phase.script().statements {
             let kind = source.declaration_kind(stmt, registry, BpfDiag::OutOfSubset)?;
             let is_when = matches!(stmt, Statement::Call { .. }) && kind == Some(BpfDeclKind::When);
-            if !is_when && !is_decl(stmt, registry, &source)? {
+            if !is_when && !is_decl(stmt, registry, source)? {
                 let (name, span) = stray_stmt_info(stmt);
                 return Err(BpfError::new(
                     BpfDiag::StrayTopLevel,
@@ -115,22 +94,10 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // No framework envelope: treat the top level (minus profile/field decls) as a
     // single anonymous SOCKET_FILTER program (the raw-DSL path, handy for tests).
     if !saw_when {
-        let body = strip_decls(&module.top_level, registry, &source)?;
-        if !body.statements.is_empty() {
-            let used = expand_uses(&body, &templates, registry)?;
-            let unrolled = unroll_loops(&used, registry, &source)?;
-            let expanded = match profile.as_ref() {
-                Some(p) => expand_fields(&unrolled, p, registry)?,
-                None => unrolled,
-            };
-            check_policy(&expanded, &policy, registry)?;
-            let cfg = build_cfg_function("main", &expanded, false, registry, false);
-            let program = lower_function_with_config(
-                &cfg,
-                ProgType::SocketFilter,
-                registry,
-                module.native_lexer_config(),
-            )?;
+        let body = phase.clone().without_declarations(registry)?;
+        if !body.script().statements.is_empty() {
+            let cfg = body.prepare_function(&module, "main", registry)?;
+            let program = lower_prepared_function(&cfg, ProgType::SocketFilter, registry)?;
             programs.push(BpfProgramDecl {
                 event: "SOCKET_FILTER".to_owned(),
                 event_id: crate::event::event_id_for_prog_type(ProgType::SocketFilter).ok_or_else(
@@ -151,7 +118,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     }
 
     // Hang the (optional) deployment target off each program it governs.
-    resolve_attach(&module.top_level, &mut programs, registry, &source)?;
+    resolve_attach(phase.script(), &mut programs, registry, source)?;
 
     // Deterministic order: ascending priority (lower = runs first, F5-style),
     // then event name as a tiebreaker.
@@ -195,16 +162,50 @@ fn bpf_registry() -> &'static CommandRegistry {
 /// (F5-inspired: lower runs first).
 const DEFAULT_PRIORITY: u32 = 500;
 
-fn lower_when_decl(
-    args: &[String],
-    original: (Option<&CommandTokens>, &OriginalBpfSource),
-    call_span: Span,
+pub(crate) struct SelectedWhenDeclaration<'a> {
+    phase: &'a BpfSourceScript,
+    statement: &'a Statement,
+    body: OriginalBpfSource,
+    event: String,
+    event_id: BpfEventId,
+    prog_type: ProgType,
+    priority: u32,
+}
+
+impl SelectedWhenDeclaration<'_> {
+    pub(crate) fn original_body(&self) -> (&BpfSourceScript, &Statement, &OriginalBpfSource) {
+        (self.phase, self.statement, &self.body)
+    }
+}
+
+pub(crate) fn select_when_declaration<'a>(
+    statement: &'a Statement,
+    phase: &'a BpfSourceScript,
     registry: &CommandRegistry,
-    profile: Option<&BpfProfileSpec>,
-    templates: &[TemplateDef],
-    policy: &CapabilityPolicy,
-) -> Result<BpfProgramDecl, BpfError> {
-    let (tokens, source) = original;
+) -> Result<SelectedWhenDeclaration<'a>, BpfError> {
+    let source = phase.original_source();
+    if source.declaration_kind(statement, registry, BpfDiag::BadArity)? != Some(BpfDeclKind::When) {
+        return Err(BpfError::new(
+            BpfDiag::BadArity,
+            statement.span(),
+            "original when declaration required",
+        ));
+    }
+    let Statement::Call {
+        args,
+        tokens,
+        span: call_span,
+        ..
+    } = statement
+    else {
+        return Err(BpfError::new(
+            BpfDiag::BadArity,
+            statement.span(),
+            "original when call required",
+        ));
+    };
+    let tokens = tokens.as_ref();
+    let call_span = *call_span;
     // The span of header word `i`, falling back to the whole call.
     let word_span = |i: usize| {
         tokens
@@ -278,39 +279,42 @@ fn lower_when_decl(
     let (event_id, prog_type) = resolve_event(&event, word_span(0))?;
 
     let body_idx = args.len() - 1;
-    let body_source = source.body(tokens, args, body_idx).ok_or_else(|| {
+    let body = source.body(tokens, args, body_idx).ok_or_else(|| {
         BpfError::new(
             BpfDiag::BadArity,
             word_span(body_idx),
             "when body requires unchanged original literal source",
         )
     })?;
-    let source_base = body_source.base();
-    let body_module = body_source.lower(registry);
-    let used = expand_uses(&body_module.top_level, templates, registry)
-        .map_err(|e| e.offset(source_base))?;
-    let unrolled =
-        unroll_loops(&used, registry, &body_source).map_err(|e| e.offset(source_base))?;
-    let expanded = match profile {
-        Some(p) => expand_fields(&unrolled, p, registry).map_err(|e| e.offset(source_base))?,
-        None => unrolled,
-    };
-    check_policy(&expanded, policy, registry).map_err(|e| e.offset(source_base))?;
-    let cfg = build_cfg_function(
-        &format!("::bpf::{event}"),
-        &expanded,
-        false,
-        registry,
-        false,
-    );
-    let program =
-        lower_function_with_config(&cfg, prog_type, registry, body_module.native_lexer_config())
-            .map_err(|e| e.offset(source_base))?;
-
-    Ok(BpfProgramDecl {
+    Ok(SelectedWhenDeclaration {
+        phase,
+        statement,
+        body,
         event,
         event_id,
+        prog_type,
         priority,
+    })
+}
+
+fn lower_when_decl(
+    statement: &Statement,
+    phase: &BpfSourceScript,
+    module: &Module,
+    registry: &CommandRegistry,
+) -> Result<BpfProgramDecl, BpfError> {
+    let selected = select_when_declaration(statement, phase, registry)?;
+    let body = phase.handler_body(&selected, registry)?;
+    let source_base = body.original_source().base();
+    let cfg = body
+        .prepare_function(module, &format!("::bpf::{}", selected.event), registry)
+        .map_err(|e| e.offset(source_base))?;
+    let program = lower_prepared_function(&cfg, selected.prog_type, registry)
+        .map_err(|e| e.offset(source_base))?;
+    Ok(BpfProgramDecl {
+        event: selected.event,
+        event_id: selected.event_id,
+        priority: selected.priority,
         program,
         attach: None,
         source_base,
@@ -355,6 +359,7 @@ fn resolve_event(event: &str, span: Span) -> Result<(BpfEventId, ProgType), BpfE
 /// (metadata, macro definitions, or policy — not executable code). A stray
 /// `field` outside a `profile` body is deliberately *not* stripped: it flows
 /// into lowering, which rejects it with a pointer to where fields belong.
+#[cfg(test)]
 fn strip_decls(
     script: &Script,
     registry: &CommandRegistry,

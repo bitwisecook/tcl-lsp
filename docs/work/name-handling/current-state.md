@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Reviewed BPF consumers
+
+The next checkpoint adopts the typed BPF source/generated command carrier through a private actual-Module source phase, full configured syntax/census, immutable source-selected environment and same-phase when-header witness. Fixed template/unroll/profile/capability transforms preserve genuine command/body origin and typed generated operations. The actual CFG factory issues an immutable prepared-function owner; positive lowering requires it, while public unowned lower_function retains rejection diagnostics and cannot publish positive output. The explicit RuntimeSelected namespace factory does not derive namespace identity from a generated function label.
+
+This is source-reviewed, formatted and unexecuted; four new mixed-origin/generated-collision/changed-module/lost-receipt controls and all old assertions require fresh execution. It does not close the pre-existing final-instruction diagnostic-origin mismatch after template expansion or general CFG is_proc_body label policy. Full backend/host/API/gates acceptance remains unfinished.
+
 ## Corrected source and L7 build feedback
 
 L7 frozen66d24a8ac failed101 in596.675043022s with15testELFs/0tests/source drift{}. Its11diagnostics are old Core completion tests still calling the retired six-argument cursor API. The test-local adapter now issues the genuine typed cursor from unchanged actual source/currentconfig and checks exact UTF16/partial/trigger correspondence. Seven original test bodies/fixtures/assertions/positions remain byte-exact; production is unchanged. The unsafe generic Lambda publication was not replayed or accepted; corrected source below requires a fresh build.

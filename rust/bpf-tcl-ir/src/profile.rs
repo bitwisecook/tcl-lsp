@@ -47,7 +47,10 @@ use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::{OriginalBpfSource, source_command_head, synthetic_operation_call};
+use crate::source::{
+    OriginalBpfSource, selected_arguments, selected_command, selected_head,
+    selected_original_words, synthetic_operation_call,
+};
 use crate::ty::ByteOrder;
 
 /// A named header field at a fixed packet offset.
@@ -238,7 +241,9 @@ fn parse_user_profile(
                 "only `field` declarations are allowed inside a `profile` body",
             ));
         };
-        let cmd = source_command_head(stmt).unwrap_or(command);
+        let cmd = body
+            .original_head(stmt, registry, BpfDiag::BadProfile)?
+            .unwrap_or_else(|| command.clone());
         if body.declaration_kind(stmt, registry, BpfDiag::BadProfile)?
             != Some(tcl_registry::bpf_op::BpfDeclKind::Field)
         {
@@ -344,12 +349,15 @@ fn expand_script(
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
         match stmt {
-            Statement::Call { args, span, .. } => {
-                let Some(cmd) = source_command_head(stmt) else {
-                    out.push(stmt.clone());
-                    continue;
-                };
-                if let Some(f) = profile.field(cmd) {
+            Statement::Call { span, .. } => {
+                let _ = selected_command(stmt, registry)?;
+                let cmd = selected_head(stmt, registry)?;
+                // Generated operations keep their selected typed identity even
+                // when a user field has the same display spelling.
+                let field =
+                    selected_original_words(stmt, registry)?.and_then(|_| profile.field(cmd));
+                if let Some(f) = field {
+                    let args = selected_arguments(stmt, registry)?;
                     if args.len() != 1 {
                         return Err(BpfError::new(
                             BpfDiag::BadArity,
@@ -408,6 +416,10 @@ fn expand_script(
                     else_body,
                     else_span: *else_span,
                 });
+            }
+            Statement::Barrier { .. } => {
+                let _ = selected_command(stmt, registry)?;
+                out.push(stmt.clone());
             }
             other => out.push(other.clone()),
         }

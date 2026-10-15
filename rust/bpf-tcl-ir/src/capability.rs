@@ -40,7 +40,7 @@ use tcl_registry::CanonicalCommandDescriptorKey;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
-use crate::source::{OriginalBpfSource, source_command_spec};
+use crate::source::{OriginalBpfSource, selected_command};
 
 /// Is `cmd` something `allow`/`deny` may name (a gated verb or a verdict)?
 fn is_governable(cmd: &str, registry: &CommandRegistry) -> bool {
@@ -174,9 +174,6 @@ pub fn check_policy(
     policy: &CapabilityPolicy,
     registry: &CommandRegistry,
 ) -> Result<(), BpfError> {
-    if policy.is_unrestricted() {
-        return Ok(());
-    }
     check_script(script, policy, registry)
 }
 
@@ -187,8 +184,8 @@ fn check_script(
 ) -> Result<(), BpfError> {
     for stmt in &script.statements {
         match stmt {
-            Statement::Call { span, .. } => {
-                let Some(spec) = source_command_spec(stmt, registry) else {
+            Statement::Call { span, .. } | Statement::Barrier { span, .. } => {
+                let Some(spec) = selected_command(stmt, registry)? else {
                     continue;
                 };
                 let cmd = spec.name;

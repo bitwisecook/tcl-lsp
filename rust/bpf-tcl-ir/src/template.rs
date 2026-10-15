@@ -38,7 +38,7 @@ use tcl_syntax::number::NumberSyntax;
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
 pub use crate::source::OriginalBpfSource;
-use crate::source::{source_declaration_kind, synthetic_operation_call};
+use crate::source::{selected_arguments, selected_command, synthetic_operation_call};
 
 /// The deepest a `use` may nest (one template using another), a guard against
 /// mutually-recursive templates expanding forever.
@@ -163,12 +163,21 @@ fn expand_script(
 ) -> Result<Script, BpfError> {
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
+        let kind = match stmt {
+            Statement::Call { .. } | Statement::Barrier { .. } => selected_command(stmt, registry)?
+                .and_then(|spec| spec.bpf_op)
+                .map(|op| op.kind),
+            _ => None,
+        };
         match stmt {
-            Statement::Call { args, span, .. }
-                if source_declaration_kind(stmt, registry)
-                    == Some(tcl_registry::bpf_op::BpfDeclKind::Use) =>
+            Statement::Call { span, .. }
+                if kind
+                    == Some(tcl_registry::bpf_op::BpfOpKind::Framework(
+                        tcl_registry::bpf_op::BpfDeclKind::Use,
+                    )) =>
             {
-                expand_use(args, *span, templates, registry, depth, &mut out)?;
+                let args = selected_arguments(stmt, registry)?;
+                expand_use(&args, *span, templates, registry, depth, &mut out)?;
             }
             Statement::If {
                 span,
@@ -281,7 +290,10 @@ fn expand_use(
     }
 
     // Splice the body, expanding any nested `use` one level deeper.
-    let expanded = expand_script(&tmpl.body, templates, registry, depth + 1)
+    let expanded = tmpl
+        .source
+        .prepared_body(registry)
+        .and_then(|body| expand_script(&body, templates, registry, depth + 1))
         .and_then(|body| crate::unroll::unroll_loops(&body, registry, &tmpl.source))
         // A reached expansion diagnostic belongs to this actual use site; the
         // template body's independent coordinates cannot become handler offsets.

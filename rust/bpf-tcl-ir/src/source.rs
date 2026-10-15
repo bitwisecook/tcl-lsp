@@ -24,6 +24,9 @@ use tcl_compiler::{Module, Script, Statement, parse_expr_for_profile, rebase_scr
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span};
 use tcl_registry::registry::CommandRegistry;
 
+mod phase;
+pub(crate) use phase::{BpfPreparedFunction, BpfSourceScript};
+
 /// Original Document source for one DSL script. Child regions retain the full
 /// image and configuration; their IR and diagnostics use region-local spans.
 #[derive(Debug, Clone)]
@@ -87,71 +90,13 @@ impl OriginalBpfSource {
         tokens: Option<&tcl_compiler::ir::CommandTokens>,
         args: &[String],
     ) -> Option<Vec<NativeWord>> {
-        let tokens = tokens?;
-        if tokens.synthetic.is_some()
-            || !tokens.original_words_match_argv_text()
-            || tokens.words().len() != args.len() + 1
-            || tokens.words()[1..]
-                .iter()
-                .zip(args)
-                .any(|(word, arg)| word.legacy_text() != *arg)
-            || tokens
-                .expand_word
-                .as_ref()
-                .is_some_and(|words| words.iter().any(|expanded| *expanded))
-        {
-            return None;
-        }
-        let text = self.text()?;
-        let first = tokens
-            .words()
-            .first()?
-            .original_written_span(text.as_bytes())?;
-        let expected_head = Span::new(
-            self.base().checked_add(first.start())?,
-            self.base().checked_add(first.end())?,
-        );
-        let plan = tcl_lexer::native_script_words_in_with_purpose(
+        tokens?.original_configured_command_words(
             self.image.clone(),
             self.region,
             self.config,
             self.purpose,
+            args,
         )
-        .ok()?;
-        // A word inside another command cannot become a command head merely
-        // because a consumer supplies a shorter span.
-        let command = plan.commands.into_iter().find(|command| {
-            command
-                .words
-                .first()
-                .is_some_and(|word| word.span() == expected_head)
-        })?;
-        if command.words.len() != tokens.words().len() {
-            return None;
-        }
-        let map = tcl_lexer::SourceMap::new(self.image.try_text().ok()?);
-        for (actual, supplied) in command.words.iter().zip(tokens.words()) {
-            let local = supplied.original_written_span(text.as_bytes())?;
-            let expected = Span::new(
-                self.base().checked_add(local.start())?,
-                self.base().checked_add(local.end())?,
-            );
-            if actual.span() != expected {
-                return None;
-            }
-            let parsed = WordExpr::from_word(
-                &map,
-                self.config,
-                actual.tokens(),
-                &supplied.legacy_text(),
-                false,
-                None,
-            );
-            if parsed.legacy_text() != supplied.legacy_text() {
-                return None;
-            }
-        }
-        Some(command.words)
     }
 
     pub(crate) fn argument(
@@ -174,6 +119,17 @@ impl OriginalBpfSource {
         registry: &CommandRegistry,
         missing: crate::diag::BpfDiag,
     ) -> Result<Option<&'static tcl_registry::CommandSpec>, crate::diag::BpfError> {
+        Ok(self
+            .original_head(statement, registry, missing)?
+            .and_then(|head| registry.get_for_surface(&head, registry.own_surface_query())))
+    }
+
+    pub(crate) fn original_head(
+        &self,
+        statement: &Statement,
+        registry: &CommandRegistry,
+        missing: crate::diag::BpfDiag,
+    ) -> Result<Option<String>, crate::diag::BpfError> {
         self.check_registry(registry, missing, statement.span())?;
         let (args, tokens) = match statement {
             Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => {
@@ -199,7 +155,7 @@ impl OriginalBpfSource {
                     "DSL command head must be an original static scalar",
                 )
             })?;
-        Ok(registry.get_for_surface(&head, registry.own_surface_query()))
+        Ok(Some(head))
     }
 
     pub(crate) fn declaration_kind(
@@ -312,6 +268,20 @@ impl OriginalBpfSource {
         )
     }
 
+    pub(crate) fn selected_body(
+        &self,
+        statement: &Statement,
+        index: usize,
+        registry: &CommandRegistry,
+    ) -> Option<Self> {
+        let words = selected_original_words(statement, registry).ok()??;
+        let word = words.get(index.checked_add(1)?)?;
+        // A retained command from a foreign source cannot borrow this input's
+        // module context merely because the catalogue selection is current.
+        (word.image() == &self.image).then_some(())?;
+        Self::from_body(word, self.registry.clone(), self.module_context.clone())
+    }
+
     fn check_registry(
         &self,
         registry: &CommandRegistry,
@@ -333,6 +303,13 @@ impl OriginalBpfSource {
         }
     }
 
+    pub(crate) fn prepared_body(
+        &self,
+        registry: &CommandRegistry,
+    ) -> Result<Script, crate::diag::BpfError> {
+        phase::prepared_body(self, registry)
+    }
+
     pub(crate) fn lower(&self, registry: &CommandRegistry) -> Module {
         let text = self.text().expect("checked original Unicode body");
         let mut module =
@@ -342,7 +319,118 @@ impl OriginalBpfSource {
     }
 }
 
-/// The authored head is source syntax; canonical analysis labels cannot replace it.
+/// The actual selected row for the unchanged command vector. An authenticated
+/// unknown catalogue head is distinct from unavailable naming representation.
+pub(crate) fn selected_command(
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> Result<Option<&'static tcl_registry::CommandSpec>, crate::diag::BpfError> {
+    let (args, tokens) = selected_tokens(statement)?;
+    tokens
+        .source_bpf_command
+        .as_ref()
+        .and_then(|binding| binding.descriptor(tokens, args, registry))
+        .ok_or_else(|| missing_selection(statement.span()))
+}
+
+pub(crate) fn selected_head<'a>(
+    statement: &'a Statement,
+    registry: &CommandRegistry,
+) -> Result<&'a str, crate::diag::BpfError> {
+    let (args, tokens) = selected_tokens(statement)?;
+    tokens
+        .source_bpf_command
+        .as_ref()
+        .and_then(|binding| binding.head(tokens, args, registry))
+        .ok_or_else(|| missing_selection(statement.span()))
+}
+
+fn selected_tokens(
+    statement: &Statement,
+) -> Result<(&[String], &tcl_compiler::ir::CommandTokens), crate::diag::BpfError> {
+    match statement {
+        Statement::Call {
+            args,
+            tokens: Some(tokens),
+            ..
+        }
+        | Statement::Barrier {
+            args,
+            tokens: Some(tokens),
+            ..
+        } => Ok((args, tokens)),
+        _ => Err(missing_selection(statement.span())),
+    }
+}
+
+pub(crate) fn selected_original_words<'a>(
+    statement: &'a Statement,
+    registry: &CommandRegistry,
+) -> Result<Option<&'a [NativeWord]>, crate::diag::BpfError> {
+    let (args, tokens) = selected_tokens(statement)?;
+    let binding = tokens
+        .source_bpf_command
+        .as_ref()
+        .ok_or_else(|| missing_selection(statement.span()))?;
+    let _ = binding
+        .descriptor(tokens, args, registry)
+        .ok_or_else(|| missing_selection(statement.span()))?;
+    Ok(binding.original_words(tokens, args, registry))
+}
+
+pub(crate) fn selected_argument(
+    statement: &Statement,
+    index: usize,
+    registry: &CommandRegistry,
+) -> Result<Option<String>, crate::diag::BpfError> {
+    let (args, _) = selected_tokens(statement)?;
+    Ok(match selected_original_words(statement, registry)? {
+        None => args.get(index).cloned(),
+        Some(words) => index
+            .checked_add(1)
+            .and_then(|index| words.get(index))
+            .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+            .and_then(|bytes| String::from_utf8(bytes).ok()),
+    })
+}
+
+/// Original operands are decoded by the shared word owner. Generated operands
+/// are already immutable DSL data from the selected typed operation producer.
+pub(crate) fn selected_arguments(
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> Result<Vec<String>, crate::diag::BpfError> {
+    let (args, _) = selected_tokens(statement)?;
+    match selected_original_words(statement, registry)? {
+        None => Ok(args.to_vec()),
+        Some(words) => words
+            .iter()
+            .skip(1)
+            .map(|word| {
+                tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .ok_or_else(|| {
+                        crate::diag::BpfError::new(
+                            crate::diag::BpfDiag::OutOfSubset,
+                            statement.span(),
+                            "DSL operand requires its original static scalar",
+                        )
+                    })
+            })
+            .collect(),
+    }
+}
+
+fn missing_selection(span: Span) -> crate::diag::BpfError {
+    crate::diag::BpfError::new(
+        crate::diag::BpfDiag::OutOfSubset,
+        span,
+        "DSL command requires its retained original or typed generated selection",
+    )
+}
+
+/// Rejection-only compatibility display for unowned CFG diagnostics. This
+/// projection cannot issue an executable BPF program or a source binding.
 pub(crate) fn source_command_head(statement: &Statement) -> Option<&str> {
     let (command, tokens) = match statement {
         Statement::Call {
@@ -386,16 +474,6 @@ pub(crate) fn source_bpf_operation(
     source_command_spec(statement, registry)?.bpf_op
 }
 
-pub(crate) fn source_declaration_kind(
-    statement: &Statement,
-    registry: &CommandRegistry,
-) -> Option<tcl_registry::bpf_op::BpfDeclKind> {
-    match source_bpf_operation(statement, registry)?.kind {
-        tcl_registry::bpf_op::BpfOpKind::Framework(kind) => Some(kind),
-        _ => None,
-    }
-}
-
 pub(crate) fn synthetic_operation_call(
     operation: tcl_registry::bpf_op::BpfOpKind,
     args: Vec<String>,
@@ -409,6 +487,9 @@ pub(crate) fn synthetic_operation_call(
             format!("Registry has no BPF operation {operation:?}"),
         )
     })?;
+    let tokens =
+        tcl_compiler::ir::CommandTokens::generated_bpf_operation(operation, &args, span, registry)
+            .ok_or_else(|| missing_selection(span))?;
     Ok(Statement::Call {
         span,
         command: command.to_owned(),
@@ -418,7 +499,7 @@ pub(crate) fn synthetic_operation_call(
         reads: Vec::new(),
         reads_own_defs: false,
         safe_on_uninit: false,
-        tokens: None,
+        tokens: Some(tokens),
         foreach_groups: None,
     })
 }

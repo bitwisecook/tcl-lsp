@@ -44,7 +44,10 @@ use crate::ir::{
     Block, BlockId, BpfProgram, CmpOp, Inst, IntBinOp, MapConcurrency, MapDef, MapKind, OobAction,
     ProgType, SlotId, Term, UnOp,
 };
-use crate::source::{source_bpf_operation, source_command_head, source_command_spec};
+use crate::source::{
+    BpfPreparedFunction, selected_arguments, selected_command, selected_head, source_bpf_operation,
+    source_command_head, source_command_spec,
+};
 use crate::ty::{ByteOrder, Region, Ty, Width};
 use tcl_syntax::number::{Number, NumberSyntax, ParseFlags, parse_whole_with};
 
@@ -54,18 +57,16 @@ use tcl_syntax::number::{Number, NumberSyntax, ParseFlags, parse_whole_with};
 /// pathological expansion fails fast instead of allocating without bound.
 const MAX_RAW_SLOTS: usize = 4096;
 
-/// Lower a single CFG function to a typed [`BpfProgram`] of the given type.
+/// Diagnose an unowned CFG function without granting executable BPF output.
+/// Use [`crate::compile_module`] to retain the original closed-DSL phase.
 ///
-/// `registry` must be the profile-stamped BPF registry: its `BpfOpSpec`
-/// descriptors drive command dispatch and its Tcl 9.0 embedding supplies the
-/// numeric grammar. Slot allocation (liveness-based reuse + the 512-byte stack
-/// cap) runs as part of lowering, so the returned program is ready for any
-/// codegen target.
+/// `registry` selects the diagnostic vocabulary and numeric grammar. This
+/// compatibility entry preserves subset diagnostics for hand-built CFGs; it
+/// cannot establish original source, transformation coverage or naming owners.
 ///
 /// # Errors
-/// Returns a [`BpfError`] for any construct outside the typed DSL subset, a
-/// handler path with no explicit verdict, or a program that exceeds the eBPF
-/// stack even after slot reuse.
+/// Always returns an error: the reached subset diagnostic, or missing original
+/// phase ownership if the graph would otherwise lower successfully.
 pub fn lower_function(
     func: &Function,
     prog_type: ProgType,
@@ -76,15 +77,35 @@ pub fn lower_function(
         .map_or_else(LexerConfig::default, |profile| {
             LexerConfig::from_grammar(profile.grammar)
         });
-    lower_function_with_config(func, prog_type, registry, config)
+    lower_function_with_config(func, prog_type, registry, config, true)?;
+    Err(BpfError::new(
+        BpfDiag::OutOfSubset,
+        Span::empty(0),
+        "executable BPF lowering requires the original closed-DSL phase",
+    ))
+}
+
+pub(crate) fn lower_prepared_function(
+    prepared: &BpfPreparedFunction,
+    prog_type: ProgType,
+    registry: &CommandRegistry,
+) -> Result<BpfProgram, BpfError> {
+    lower_function_with_config(
+        prepared.function(registry)?,
+        prog_type,
+        registry,
+        prepared.config(),
+        false,
+    )
 }
 
 /// The source frontend retains native grammar independently of its registry.
-pub(crate) fn lower_function_with_config(
+fn lower_function_with_config(
     func: &Function,
     prog_type: ProgType,
     registry: &CommandRegistry,
     lexer_config: LexerConfig,
+    diagnostic_only: bool,
 ) -> Result<BpfProgram, BpfError> {
     // v1 supports no loops; reject any back-edge up front. Bounded loops are a
     // planned follow-on.
@@ -98,6 +119,7 @@ pub(crate) fn lower_function_with_config(
     let mut l = Lowerer {
         func,
         registry,
+        diagnostic_only,
         // Numerals in the DSL follow the grammar of the dialect this registry
         // was loaded for — the same compile-target rule the bytecode backend
         // uses. With no profile loaded, fall back to the grammar the process
@@ -148,6 +170,7 @@ pub(crate) fn lower_function_with_config(
 
 struct Lowerer<'f> {
     func: &'f Function,
+    diagnostic_only: bool,
     /// The profile-stamped BPF command registry whose `BpfOpSpec` descriptors
     /// drive all command dispatch.
     registry: &'f CommandRegistry,
@@ -240,10 +263,18 @@ impl Lowerer<'_> {
         for block in func.blocks.values() {
             for stmt in &block.statements {
                 if let Statement::Call { args, span, .. } = stmt {
-                    if source_bpf_operation(stmt, self.registry).map(|op| op.kind)
-                        == Some(BpfOpKind::MapDeclare)
-                    {
-                        self.declare_map(args, *span)?;
+                    let operation = if self.diagnostic_only {
+                        source_bpf_operation(stmt, self.registry)
+                    } else {
+                        selected_command(stmt, self.registry)?.and_then(|spec| spec.bpf_op)
+                    };
+                    if operation.map(|op| op.kind) == Some(BpfOpKind::MapDeclare) {
+                        let selected = if self.diagnostic_only {
+                            args.clone()
+                        } else {
+                            selected_arguments(stmt, self.registry)?
+                        };
+                        self.declare_map(&selected, *span)?;
                     }
                 }
             }
@@ -640,15 +671,36 @@ impl Lowerer<'_> {
                 span,
                 ..
             } => {
-                let head = source_command_head(stmt);
-                self.lower_call(
-                    head.unwrap_or(command),
-                    source_command_spec(stmt, self.registry),
-                    head.is_some(),
-                    args,
+                if self.diagnostic_only {
+                    let head = source_command_head(stmt);
+                    self.lower_call(
+                        head.unwrap_or(command),
+                        source_command_spec(stmt, self.registry),
+                        head.is_some(),
+                        args,
+                        *span,
+                        insts,
+                    )
+                } else {
+                    let spec = selected_command(stmt, self.registry)?;
+                    let head = selected_head(stmt, self.registry)?;
+                    let args = selected_arguments(stmt, self.registry)?;
+                    self.lower_call(head, spec, true, &args, *span, insts)
+                }
+            }
+            Statement::Barrier { span, .. } if !self.diagnostic_only => {
+                let selected = selected_command(stmt, self.registry)?;
+                if let Some(spec) = selected {
+                    let args = selected_arguments(stmt, self.registry)?;
+                    if self.is_coroutine_primitive(spec.name, &args) {
+                        return Err(concurrency_error(spec.name, *span));
+                    }
+                }
+                Err(BpfError::new(
+                    BpfDiag::OutOfSubset,
                     *span,
-                    insts,
-                )
+                    "opaque runtime barriers are outside the closed BPF-Tcl subset",
+                ))
             }
             Statement::Barrier {
                 command,

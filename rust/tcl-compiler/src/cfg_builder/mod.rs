@@ -3773,6 +3773,25 @@ pub fn build_cfg_function_with_config(
     builder.build_function(name, script)
 }
 
+/// Build a closed-language phase whose command scope is explicitly selected
+/// by its caller. The generated function label grants no namespace identity;
+/// source correspondence and target-language admission remain caller duties.
+#[must_use]
+pub fn build_cfg_function_in_runtime_selected_scope(
+    name: &str,
+    script: &Script,
+    inline_loops: bool,
+    registry: &CommandRegistry,
+    plain_command_dispatch: bool,
+    config: tcl_lexer::LexerConfig,
+) -> Function {
+    CfgBuilder::new(inline_loops, registry)
+        .with_lexer_config(config)
+        .with_command_surface(plain_command_dispatch)
+        .with_invocation_namespace(crate::ir::ExecutionNamespace::RuntimeSelected)
+        .build_function(name, script)
+}
+
 /// Build a secondary analysis body in its retained execution namespace.
 /// Possible body regions and exceptional continuations remain analysis facts;
 /// the synthetic unit label does not select a command lookup namespace.
