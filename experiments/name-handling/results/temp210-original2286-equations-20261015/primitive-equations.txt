@@ -1,0 +1,27 @@
+TEMP SSA ORIGIN round=32 blocks=8 definitions=4 duplicate_targets=0 zero_targets=0
+TEMP SSA UPDATE ordinal=0 kind=clobber symbol=0 prior=2 fresh=3
+TEMP SSA ORIGIN_VALUE phase=old symbol=0 version=3 kind=4 incoming=false site_count=0
+TEMP SSA ORIGIN_VALUE phase=new symbol=0 version=3 kind=2 incoming=false site_count=1
+TEMP SSA ORIGIN_SITE phase=new symbol=0 version=3 ordinal=0 source_offset=5
+TEMP SSA UPDATE ordinal=1 kind=phi symbol=0 version=2 incoming_count=3
+TEMP SSA ORIGIN_VALUE phase=old symbol=0 version=2 kind=2 incoming=false site_count=1
+TEMP SSA ORIGIN_SITE phase=old symbol=0 version=2 ordinal=0 source_offset=5
+TEMP SSA ORIGIN_VALUE phase=new symbol=0 version=2 kind=4 incoming=false site_count=0
+TEMP SSA EDGE symbol=0 target=2 predecessor=0 source=1
+TEMP SSA ORIGIN_VALUE phase=input symbol=0 version=1 kind=2 incoming=false site_count=1
+TEMP SSA ORIGIN_SITE phase=input symbol=0 version=1 ordinal=0 source_offset=5
+TEMP SSA EDGE symbol=0 target=2 predecessor=4 source=4
+TEMP SSA ORIGIN_VALUE phase=input symbol=0 version=4 kind=4 incoming=false site_count=0
+TEMP SSA EDGE symbol=0 target=2 predecessor=6 source=4
+TEMP SSA ORIGIN_VALUE phase=input symbol=0 version=4 kind=4 incoming=false site_count=0
+TEMP SSA UPDATE ordinal=2 kind=phi symbol=0 version=4 incoming_count=2
+TEMP SSA ORIGIN_VALUE phase=old symbol=0 version=4 kind=4 incoming=false site_count=0
+TEMP SSA ORIGIN_VALUE phase=new symbol=0 version=4 kind=2 incoming=false site_count=1
+TEMP SSA ORIGIN_SITE phase=new symbol=0 version=4 ordinal=0 source_offset=5
+TEMP SSA EDGE symbol=0 target=4 predecessor=0 source=1
+TEMP SSA ORIGIN_VALUE phase=input symbol=0 version=1 kind=2 incoming=false site_count=1
+TEMP SSA ORIGIN_SITE phase=input symbol=0 version=1 ordinal=0 source_offset=5
+TEMP SSA EDGE symbol=0 target=4 predecessor=1 source=3
+TEMP SSA ORIGIN_VALUE phase=input symbol=0 version=3 kind=2 incoming=false site_count=1
+TEMP SSA ORIGIN_SITE phase=input symbol=0 version=3 ordinal=0 source_offset=5
+TEMP SSA UPDATE_TOTAL round=32 total=3 shown=3

@@ -106,7 +106,9 @@ pub use variable_geometry::{
     VariableLookupBase, variable_namespace_lookup_bases,
 };
 mod variable_spelling;
-pub use variable_spelling::{NativeScalarSourceSpelling, native_scalar_source_spelling};
+pub use variable_spelling::{
+    NativeScalarSourceSpelling, native_scalar_source_spelling, scalar_source_reference,
+};
 mod jim_enumeration;
 mod jim_table_key;
 pub use jim_table_key::NativeJimCommandTableKey;

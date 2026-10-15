@@ -1,7 +1,8 @@
 # Procedure body activation
 
-Procedure definitions retain formal and body objects, the actual
-namespace token, persistent static storage, and native header registration.
+Procedure definitions retain formal and body objects, their original body
+namespace context, persistent static storage and native header registration.
+The command's publication slot remains separate from its body execution context.
 Defining a procedure validates its declaration without parsing or compiling
 its body. `info body` reads the retained declaration body. C Tcl captures a
 shared body as a new plain string, preserving the complete original bytes and
@@ -29,7 +30,12 @@ empty assembly or compiler provenance. Host definitions, `apply`, ordinary
 `PreparedProcedureActivation` carries the selected declaration and its actual
 execution unit. Callers enter that unit through the shared activation owner;
 they do not prepare a body while publishing a definition. A namespace spelling
-cannot replace the retained namespace token.
+cannot replace the retained body namespace owner. C activations retain their
+actual token. A VM Jim lambda can instead retain its original namespace object
+without a materialised coordinate; Script preparation, parsing and local binding
+do not obtain its namespace String getter. See the
+[original Jim context contract](original-command-arguments.md#original-jim-procedure-namespaces)
+for reached lookup, cache comparison and compiler-admission boundaries.
 
 | Engine | Activation ordering | Body ownership |
 | --- | --- | --- |

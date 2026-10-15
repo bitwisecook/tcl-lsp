@@ -2822,6 +2822,8 @@ after an unset, remain separate from those synthetic refresh versions.
 
 For arrays, retain a bounded root when the index is dynamic. An unknown index can overlap every element of that root without clobbering every variable. `SsaReadContents` retains possible represented stores, incoming contents, and an explicit unknown residual. Join values from actual overlapping stores; do not identify a value by the written array name alone.
 
+`represented_contents_origins` treats phi results and analysis-only scalar-copy results as pending until a predecessor contributes an origin; an uncomputed derived version is bottom, rather than evidence of an unknown store. Authentic missing definitions, may-defs and destructions retain `Unknown`, version-zero inputs retain `Incoming`, and copying lineage creates no executable store or physical read proof.
+
 Incoming formal contents do not need a fabricated scalar SSA definition. `SsaSourceView::read_expression_incoming_slot` returns a `SsaIncomingSlotRead` for the exact source read and all actual cell identities represented by that logical formal. It rejects nonlocal or static ownership, observers, writes and unresolved residuals. `NativeOperandIdentity::IncomingSlot` lets bounded analysis join distinct caller activations while retaining those physical alternatives. Typed WASM emission declines that identity until a separate frame-materialisation and object-coercion contract proves how to consume it. Never substitute a display-name match or version zero for that missing proof.
 
 `SsaStatement::destruction_defs` records contents invalidation, not successful
@@ -6693,6 +6695,17 @@ The explicitly selected logical declaration-advice branch is a separate
 compatibility surface; unavailable Native metadata cannot activate it.
 
 ### Exact scalar source proposals
+
+`scalar_source_reference` proposes a complete reference from literal Unicode
+name data under the caller's full `LexerConfig`. The shared whole-scalar
+reference scanner must consume the entire proposal and reproduce the same
+name. The selected brace grammar retains C8/Jim first-close and C9 nested-brace
+differences; literal sigils, backslashes and newlines remain name data. Combined
+array-element names decline this scalar constructor. Logical variable completion
+uses it for local and cross-namespace insertions after exact current source,
+input and scope eligibility checks, including prefix and fuzzy candidates.
+This pure source proposal issues no Native naming recipe, cell, current value,
+read or edit permission.
 
 `native_scalar_source_spelling` accepts original bytes, the source channel,
 complete `LexerConfig` and selected native name protocol. It requires unchanged

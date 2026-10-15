@@ -505,10 +505,7 @@ mod evaluation_entry_tests {
             let mut vm = crate::native_fixture::core(profile);
             let original = Value::new_native_string_bytes(source.as_bytes());
             let unit = vm
-                .prepare_native_jim_script_unit(
-                    &original,
-                    tcl_core_types::ByteNamespacePath::root(),
-                )
+                .prepare_native_jim_script_unit(&original, vm.current_namespace_execution_context())
                 .unwrap();
             let mut frame = Frame::new(unit, false);
             assert!(!frame.jim_evaluation.evaluation_frame_entered);

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Literal source proposals for one exact unqualified scalar operand.
+//! Scalar source spelling with independent source and Native purposes.
 
 use super::{NativeNameProtocol, NativeNameQualification};
 
@@ -25,6 +25,26 @@ impl NativeScalarSourceSpelling {
     pub fn reference(&self) -> &str {
         &self.reference
     }
+}
+
+/// Propose one complete scalar reference under the selected source grammar.
+/// Names remain literal data; this supplies no native name recipe, cell, read,
+/// current value, source eligibility or edit permission.
+#[must_use]
+pub fn scalar_source_reference(
+    name: &str,
+    config: tcl_lexer::LexerConfig,
+    require_braces: bool,
+) -> Option<String> {
+    if !require_braces && super::is_bare_var_name(name) {
+        let reference = format!("${name}");
+        if super::whole_scalar_variable_reference_name(&reference, config) == Some(name) {
+            return Some(reference);
+        }
+    }
+    let reference = format!("${{{name}}}");
+    (super::whole_scalar_variable_reference_name(&reference, config) == Some(name))
+        .then_some(reference)
 }
 
 /// Render an exact local scalar name and reference under the complete source
@@ -128,6 +148,50 @@ mod tests {
                 protocol.is_jim084(),
                 "{dialect}",
             );
+        }
+    }
+    #[test]
+    fn source_scalar_references_keep_selected_braces_and_literal_name_data() {
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = LexerConfig::for_dialect(environment);
+            assert_eq!(
+                scalar_source_reference("alpha", config, false).as_deref(),
+                Some("$alpha")
+            );
+            assert_eq!(
+                scalar_source_reference("alpha", config, true).as_deref(),
+                Some("${alpha}")
+            );
+            for name in [
+                "",
+                "two words",
+                "$literal",
+                "[literal]",
+                r"a\b",
+                "a\nb",
+                "a(b",
+                "::rooted",
+            ] {
+                let reference = scalar_source_reference(name, config, true).unwrap();
+                assert_eq!(reference, format!("${{{name}}}"), "{environment}");
+            }
+            let nested = config.braced_var == tcl_dialect::BracedVarStyle::Tcl9Nesting;
+            assert_eq!(
+                scalar_source_reference("a{b}c", config, false).is_some(),
+                nested,
+                "{environment}"
+            );
+            assert_eq!(
+                scalar_source_reference("a{b", config, true).is_some(),
+                !nested,
+                "{environment}"
+            );
+            for name in ["a_}_closebrace", "array(key)"] {
+                assert!(
+                    scalar_source_reference(name, config, false).is_none(),
+                    "{environment} {name}"
+                );
+            }
         }
     }
 }

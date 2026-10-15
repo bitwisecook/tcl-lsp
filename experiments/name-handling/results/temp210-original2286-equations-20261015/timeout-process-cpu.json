@@ -1,0 +1,13 @@
+{
+  "clock_ticks_per_second": 100,
+  "memory": [
+    "VmSize:\t  333140 kB",
+    "VmHWM:\t  232844 kB",
+    "VmRSS:\t  232844 kB"
+  ],
+  "pid": 523080,
+  "state": "S",
+  "system_ticks": 11,
+  "thread_count": 2,
+  "user_ticks": 17976
+}

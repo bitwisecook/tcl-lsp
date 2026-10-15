@@ -6787,9 +6787,21 @@ fn represented_contents_origins(
     clobbers: &ValueClobbers,
 ) -> HashMap<(Symbol, Version), ContentsOrigin> {
     let mut origins = HashMap::new();
-    let phi_versions: HashSet<_> = blocks
+    // Both merges and analysis-only scalar copies start at bottom until a
+    // predecessor contributes. Missing copy results are not unknown stores.
+    let derived_versions: HashSet<_> = blocks
         .values()
         .flat_map(|block| block.phis.iter().map(|phi| (phi.name, phi.version)))
+        .chain(
+            clobbers
+                .values()
+                .flat_map(|markers| markers.values())
+                .flat_map(|versions| {
+                    versions
+                        .iter()
+                        .map(|(&symbol, &(_, fresh))| (symbol, fresh))
+                }),
+        )
         .collect();
     for block in blocks.values() {
         for statement in &block.statements {
@@ -6818,7 +6830,10 @@ fn represented_contents_origins(
                 let origin = if prior == 0 {
                     Some(ContentsOrigin::Incoming)
                 } else {
-                    origins.get(&(symbol, prior)).cloned()
+                    origins.get(&(symbol, prior)).cloned().or_else(|| {
+                        (!derived_versions.contains(&(symbol, prior)))
+                            .then_some(ContentsOrigin::Unknown)
+                    })
                 };
                 if let Some(origin) = origin
                     && origins.get(&(symbol, fresh)) != Some(&origin)
@@ -6838,7 +6853,7 @@ fn represented_contents_origins(
                             Some(ContentsOrigin::Incoming)
                         } else {
                             origins.get(&(phi.name, version)).cloned().or_else(|| {
-                                (!phi_versions.contains(&(phi.name, version)))
+                                (!derived_versions.contains(&(phi.name, version)))
                                     .then_some(ContentsOrigin::Unknown)
                             })
                         }
@@ -12768,6 +12783,88 @@ mod cell_resolution_tests {
         statement.destruction_defs.insert(symbol);
         let origins = represented_contents_origins(&ssa.blocks, &ssa.value_clobbers);
         assert_eq!(origins[&(symbol, fresh)], ContentsOrigin::Unknown);
+    }
+
+    #[test]
+    fn scalar_copy_cycles_defer_uncomputed_results_without_losing_the_store() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut function = crate::cfg::Function::new("::f", "entry");
+        let mut store = assignment("x");
+        let Statement::AssignConst { span, .. } = &mut store else {
+            unreachable!();
+        };
+        *span = Span::new(5, 6);
+        function
+            .blocks
+            .get_mut(&function.entry)
+            .unwrap()
+            .statements
+            .push(store);
+        let ssa = build_ssa(&function, &registry);
+        let entry = ssa.blocks[&function.entry].clone();
+        let (&symbol, &written) = entry.statements[0].defs.iter().next().unwrap();
+        let empty = |name: &str| SsaBlock {
+            name: name.to_owned(),
+            phis: Vec::new(),
+            statements: Vec::new(),
+            entry_versions: HashMap::new(),
+            exit_versions: HashMap::new(),
+        };
+        // Four unique definitions cycle through an analysis-only copy:
+        // x1 = store(5), x3 = copy(x2), x2 = join(x1, x4, x4),
+        // x4 = join(x1, x3). Both phis have an independent store edge.
+        let mut blocks = HashMap::from([(function.entry, entry)]);
+        for id in 1..8 {
+            blocks.insert(BlockId(id), empty("retained"));
+        }
+        // Evaluate the header phi before the backedge phi under the actual
+        // map walk so a premature Unknown would circulate around the cycle.
+        let order: Vec<_> = blocks
+            .keys()
+            .copied()
+            .filter(|id| *id != function.entry)
+            .collect();
+        let (header, backedge) = (order[0], order[1]);
+        blocks.get_mut(&header).unwrap().phis.push(Phi {
+            name: symbol,
+            version: written + 1,
+            incoming: HashMap::from([
+                (BlockId(0), written),
+                (BlockId(4), written + 3),
+                (BlockId(6), written + 3),
+            ]),
+        });
+        blocks.get_mut(&backedge).unwrap().phis.push(Phi {
+            name: symbol,
+            version: written + 3,
+            incoming: HashMap::from([(BlockId(0), written), (BlockId(1), written + 2)]),
+        });
+        let copies = HashMap::from([(
+            header,
+            HashMap::from([(0, HashMap::from([(symbol, (written + 1, written + 2))]))]),
+        )]);
+        let origins = represented_contents_origins(&blocks, &copies);
+        for version in written..=written + 3 {
+            assert_eq!(origins[&(symbol, version)], ContentsOrigin::WrittenAt(5));
+        }
+        // An actually absent predecessor remains unknown, independently of
+        // the deferred derived keys above.
+        blocks.get_mut(&backedge).unwrap().phis[0]
+            .incoming
+            .insert(BlockId(1), written + 4);
+        let origins = represented_contents_origins(&blocks, &copies);
+        assert_eq!(origins[&(symbol, written + 3)], ContentsOrigin::Unknown);
+        assert_eq!(origins[&(symbol, written + 1)], ContentsOrigin::Unknown);
+        blocks.get_mut(&backedge).unwrap().phis[0]
+            .incoming
+            .insert(BlockId(1), written + 2);
+        let copies = HashMap::from([(
+            header,
+            HashMap::from([(0, HashMap::from([(symbol, (written + 4, written + 2))]))]),
+        )]);
+        let origins = represented_contents_origins(&blocks, &copies);
+        assert_eq!(origins[&(symbol, written + 2)], ContentsOrigin::Unknown);
+        assert_eq!(origins[&(symbol, written + 3)], ContentsOrigin::Unknown);
     }
 
     #[test]

@@ -311,6 +311,32 @@ impl NativeNameWorld {
         Ok(id)
     }
 
+    /// Publish already-selected native namespace components under their actual anchor.
+    pub(super) fn ensure_namespace_at_components(
+        &mut self,
+        anchor: NsId,
+        components: &[NameBytes],
+    ) -> (Result<NsId, NativePublicationError>, Vec<NsId>) {
+        if !self.live || !self.namespace_available(anchor) {
+            return (Err(NativePublicationError::NamespaceExpired), Vec::new());
+        }
+        let mut selected = anchor;
+        let mut created = Vec::new();
+        for tail in components {
+            selected = match self.namespace_child_token(selected, tail.as_bytes()) {
+                Some(child) => child,
+                None => match self.create_child(selected, tail) {
+                    Ok(child) => {
+                        created.push(child);
+                        child
+                    }
+                    Err(error) => return (Err(error), created),
+                },
+            };
+        }
+        (Ok(selected), created)
+    }
+
     fn holder_from_qualifiers(
         &mut self,
         base: NsId,

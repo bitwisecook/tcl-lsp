@@ -1,0 +1,16 @@
+[
+  {
+    "original_name": "source-before.json",
+    "original_sha256": "1f38535c30b2d69c8c38abf327aaf4c9dd7401dd506f13ec44bfb2d29fbe13a4",
+    "retained_name": "source-before.json.gz",
+    "retained_sha256": "c68f06b547f3aa40415424ee6a38fdbac89d878629cae37bad9187ca0233ae25",
+    "encoding": "gzip; decompressed bytes exact"
+  },
+  {
+    "original_name": "source-after.json",
+    "original_sha256": "1f38535c30b2d69c8c38abf327aaf4c9dd7401dd506f13ec44bfb2d29fbe13a4",
+    "retained_name": "source-after.json.gz",
+    "retained_sha256": "c68f06b547f3aa40415424ee6a38fdbac89d878629cae37bad9187ca0233ae25",
+    "encoding": "gzip; decompressed bytes exact"
+  }
+]

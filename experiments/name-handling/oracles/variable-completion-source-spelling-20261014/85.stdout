@@ -1,0 +1,13 @@
+plain code 0 exact 1 reference {${alpha}} value VALUE_plain
+space code 0 exact 1 reference {${two words}} value VALUE_space
+sigil code 0 exact 1 reference {${$literal}} value VALUE_sigil
+bracket code 0 exact 1 reference {${[literal]}} value VALUE_bracket
+backslash code 0 exact 1 reference {${a\b}} value VALUE_backslash
+newline code 0 exact 1 reference {${a
+b}} value VALUE_newline
+open code 0 exact 1 reference \$\{a\{b\} value VALUE_open
+balanced code 0 exact 0 reference {${a{b}c}} value {VALUE_openc\}}
+close code 1 exact 0 reference \$\{a_\}_closebrace\} value {can't read "a_": no such variable}
+rooted code 0 exact 1 reference {${::selected_root}} value VALUE_rooted
+empty code 0 exact 1 reference {${}} value VALUE_empty
+array code 0 exact 1 reference {${selected_array(key)}} value VALUE_array

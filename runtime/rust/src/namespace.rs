@@ -2929,9 +2929,19 @@ impl Namespaces {
         if let Some(existing) = self.namespace_at_components(current, components) {
             return existing;
         }
-        components.iter().fold(current, |parent, part| {
-            self.ensure_child(parent, part.as_bytes())
-        })
+        components
+            .iter()
+            .enumerate()
+            .fold(current, |parent, (index, part)| {
+                if index + 1 < components.len() {
+                    if let Some(existing) =
+                        self.namespace_token_at_components(parent, std::slice::from_ref(part))
+                    {
+                        return existing;
+                    }
+                }
+                self.ensure_child(parent, part.as_bytes())
+            })
     }
 
     /// Whether `ns` still denotes a public namespace token. A dying arena node

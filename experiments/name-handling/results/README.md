@@ -55,3 +55,5 @@ a completed C release gate or Jim/F5 agreement.
 [TEMP209 SSA diagnostic preflight](temp209-ssa-preflight-20261014/README.md) retains the failed combined build and actual artifact scope; temporary SSA is excluded from production checkpoints.
 
 [TEMP210 SSA diagnostic preflight](temp210-ssa-preflight-20261014/README.md) retains the failed combined build and actual artifact scope; temporary SSA is excluded from production checkpoints.
+
+[Original #2286 SSA equation diagnostic](temp210-original2286-equations-20261015/README.md) retains the actual unique-definition oscillation graph, unchanged180-second timeout, partial-build scope and exact production restoration.

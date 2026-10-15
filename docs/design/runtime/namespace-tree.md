@@ -390,6 +390,19 @@ sidecars remain in the separate binding map, with each registration stamped
 by command generation. Retirement removes the dying token's registrations
 without removing a replacement token's registrations.
 
+Native C descendant creation follows the already selected physical namespace
+anchor and original component boundaries. Runtime `ensure_namespace_at_components` preserves
+a dying intermediate parent's actual token instead of rebuilding an ancestor
+from its spelling. The VM's `NativeNameWorld::ensure_namespace_at_components`
+uses the existing child publication owner under that same actual anchor;
+new children receive their own variable tables, and real creation invalidates
+command lookup and compiled command-environment guards. Entering a missing
+child during teardown therefore retains its actual ancestor for later cleanup.
+Final-target conflicts and the original trailing-parent return rule remain
+separate checks; selected name geometry alone does not publish a namespace or
+enter its frame. This contract does not establish the C8.4 public
+`namespace exists` distinction, Jim behaviour or full lifecycle conformance.
+
 `namespace delete` **is** implemented (`cmd_namespace.rs::ns_delete`, mirroring
 C's `NamespaceDeleteCmd`): it deletes each named namespace with its children,
 commands, and variables, errors on a missing namespace, and destroys any object
@@ -586,7 +599,9 @@ means:
 
 - entering a **procedure** uses the token its binding lives in — C hands
   `Tcl_PushCallFrame` the `Namespace *` from `procPtr->cmdPtr->nsPtr`, and the
-  VM carries the same thing as `ProcDef::ns_id`. A retained procedure called
+  VM retains the entered-body owner as `ProcDef::execution_namespace`, separate
+  from the command-table publication token `ProcDef::command_ns_id`. A retained
+  procedure called
   after its namespace was recreated still runs in the retained token; one
   reached by absolute name in the recreation runs in that one;
 - `namespace eval` / `inscope` follow the qualifier: a **relative** name walks

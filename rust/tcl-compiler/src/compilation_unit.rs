@@ -2371,6 +2371,8 @@ impl FunctionUnit {
     /// unit yields byte-identical taints to its rebased counterpart.  This is the
     /// property the salsa-native `taint_cascade` memo relies on — it propagates
     /// over the offset-0 baseline and installs the result into the rebased unit.
+    /// This function-only entry retains its supplied metadata but cannot import
+    /// Module-owned procedure or global-receiver facts.
     #[must_use]
     pub fn interproc_taints(
         &self,
@@ -2378,20 +2380,30 @@ impl FunctionUnit {
         ia: &InterproceduralAnalysis,
         _dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> HashMap<ValueKey, TaintLattice> {
-        let instance_classes = instance_classes_for_function(
-            &self.cfg,
+        self.interproc_taints_with_source(
             registry,
-            Some(ia),
-            true,
+            ia,
             TaintSourceContext::for_function(registry, self),
-        );
+            true,
+        )
+    }
+
+    fn interproc_taints_with_source(
+        &self,
+        registry: &CommandRegistry,
+        ia: &InterproceduralAnalysis,
+        source: TaintSourceContext<'_>,
+        include_globals: bool,
+    ) -> HashMap<ValueKey, TaintLattice> {
+        let instance_classes =
+            instance_classes_for_function(&self.cfg, registry, Some(ia), include_globals, source);
         propagate_taints(
             &TaintGraph::new(&self.cfg, &self.ssa, &self.sccp),
             TaintPropagationInputs {
                 registry,
                 rendered_props: Some(&self.rendered_props),
                 interproc: Some(ia),
-                source: TaintSourceContext::for_function(registry, self),
+                source,
                 param_taints: None,
                 taint_summaries: None,
                 instance_classes: &instance_classes,
@@ -3168,6 +3180,31 @@ struct BuiltProcedureUnits {
 }
 
 impl CompilationUnit {
+    /// Re-run one actual body's taints with its complete current source owner.
+    /// Missing metadata or a foreign body ID cannot borrow a function-only context.
+    #[must_use]
+    pub fn original_interproc_taints_for_body(
+        &self,
+        body: Option<crate::ir::ProcedureId>,
+        registry: &CommandRegistry,
+        analysis: &InterproceduralAnalysis,
+    ) -> Option<HashMap<ValueKey, TaintLattice>> {
+        let function = self.function_for_body(body)?;
+        let source = TaintSourceContext::for_module_function(registry, &self.ir_module, function);
+        source.metadata_context()?;
+        source.module()?;
+        let owner = self.ir_module.retained_source_bindings.as_deref()?;
+        if analysis.global_instance_class_owner.as_deref() != Some(owner)
+            || analysis.global_instance_class_input.as_ref()
+                != self.ir_module.source_metadata_input.as_ref()
+        {
+            return None;
+        }
+        (source.body_id() == body).then(|| {
+            function.interproc_taints_with_source(registry, analysis, source, body.is_some())
+        })
+    }
+
     #[cfg(test)]
     pub(crate) fn from_branch_folding_fixture(source: &str, fu: FunctionUnit) -> Self {
         CompilationUnit {
@@ -4282,9 +4319,14 @@ impl CompilationUnit {
 
         // Top level is built fresh (no offset-0 lattice key), so its taint
         // re-run stays inline.
+        // A refused Module owner retains the bounded function-only projection;
+        // it cannot reconstruct global receiver or procedure correspondence.
         let top_taints = self
-            .top_level
-            .interproc_taints(registry, &interproc, dialect);
+            .original_interproc_taints_for_body(None, registry, &interproc)
+            .unwrap_or_else(|| {
+                self.top_level
+                    .interproc_taints(registry, &interproc, dialect)
+            });
         self.top_level.taints = Arc::new(top_taints);
 
         // Compute each procedure's taints (memoised via `taint_cb`, or fresh on a
@@ -4296,8 +4338,12 @@ impl CompilationUnit {
             if self.original_procedure_for_body(*qname).is_none() {
                 continue;
             }
-            let taints = taint_cb(*qname, &fu.name, &interproc)
-                .unwrap_or_else(|| Arc::new(fu.interproc_taints(registry, &interproc, dialect)));
+            let taints = taint_cb(*qname, &fu.name, &interproc).unwrap_or_else(|| {
+                Arc::new(
+                    self.original_interproc_taints_for_body(Some(*qname), registry, &interproc)
+                        .unwrap_or_else(|| fu.interproc_taints(registry, &interproc, dialect)),
+                )
+            });
             new_taints.push((qname.clone(), taints));
         }
         for (qname, taints) in new_taints {
@@ -5160,6 +5206,133 @@ mod tests {
             missing.source_metadata_input = None;
             assert!(missing.invocation_metadata_context(&registry).is_none());
         }
+    }
+
+    #[test]
+    fn original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tk").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_registry::model::ingress::resolve_environment("tk").unit_profile();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "entry .e; proc danger {} {set value [.e get]; exec $value}";
+        let build = |source| {
+            CompilationUnit::build_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            )
+        };
+        let unit = build(source);
+        let body = *unit
+            .ir_module
+            .original_source_procedure_bodies()
+            .next()
+            .unwrap()
+            .0;
+        let direct = unit.clone().with_interprocedural(registry, Some(profile));
+        let analysis = direct.interproc.as_ref().unwrap();
+        assert!(analysis.global_instance_classes[&body].contains_key(".e"));
+        let expected = direct.function_for_body(Some(body)).unwrap();
+        assert!(expected.taints.values().any(|taint| taint.is_tainted()));
+        assert_eq!(
+            unit.original_interproc_taints_for_body(Some(body), registry, analysis),
+            Some(expected.taints.as_ref().clone()),
+        );
+        let mut observed = 0;
+        let memoised = unit.clone().with_interprocedural_memoized(
+            registry,
+            Some(profile),
+            &mut |actual_body, _, _| {
+                assert_eq!(actual_body, body);
+                observed += 1;
+                None
+            },
+        );
+        assert_eq!(observed, 1);
+        assert_eq!(memoised.top_level.taints, direct.top_level.taints);
+        assert_eq!(
+            memoised.function_for_body(Some(body)).unwrap().taints,
+            expected.taints
+        );
+
+        let other = build("entry .other; proc danger {} {set value [.other get]; exec $value}");
+        let foreign_body = *other
+            .ir_module
+            .original_source_procedure_bodies()
+            .next()
+            .unwrap()
+            .0;
+        assert!(
+            unit.original_interproc_taints_for_body(Some(foreign_body), registry, analysis)
+                .is_none()
+        );
+        let other = other.with_interprocedural(registry, Some(profile));
+        assert!(
+            unit.original_interproc_taints_for_body(
+                Some(body),
+                registry,
+                other.interproc.as_ref().unwrap()
+            )
+            .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.retained_source_bindings = None;
+        assert!(
+            missing
+                .original_interproc_taints_for_body(Some(body), registry, analysis)
+                .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        assert!(
+            missing
+                .original_interproc_taints_for_body(Some(body), registry, analysis)
+                .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.top_level.source_metadata_input = None;
+        assert!(
+            missing
+                .original_interproc_taints_for_body(None, registry, analysis)
+                .is_none()
+        );
+        let mut changed = unit.clone();
+        changed.ir_module.source =
+            tcl_lexer::SourceImage::document(&format!("{source}; puts CHANGED"));
+        assert!(
+            changed
+                .original_interproc_taints_for_body(Some(body), registry, analysis)
+                .is_none()
+        );
+        let mut foreign_registry = registry.project_for_profile(profile);
+        let mut extra = registry.get("puts").unwrap().clone();
+        extra.name = "taint_source_owner_control";
+        foreign_registry.insert(extra);
+        assert!(
+            unit.original_interproc_taints_for_body(Some(body), &foreign_registry, analysis)
+                .is_none()
+        );
+        let mut missing_analysis = analysis.clone();
+        missing_analysis.global_instance_class_owner = None;
+        assert!(
+            unit.original_interproc_taints_for_body(Some(body), registry, &missing_analysis)
+                .is_none()
+        );
     }
 
     #[test]

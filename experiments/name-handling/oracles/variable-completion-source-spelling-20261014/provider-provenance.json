@@ -1,0 +1,49 @@
+{
+  "existing_extent_receipt": "../variable-completion-extent-20261014/manifest.json",
+  "existing_extent_receipt_sha256": "ed3b785afc917160334caea99d1bb55379134ddff12bc2533b1df8b1fcb75571",
+  "scope": "Recorded executable identity comparison only; no new provider version query or full startup/library closure attestation. Original capture receipts and output bytes are unchanged.",
+  "providers": [
+    {
+      "provider": "84",
+      "original_executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "recorded_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "recorded_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "matches_existing_extent_provider": true
+    },
+    {
+      "provider": "85",
+      "original_executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "recorded_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "recorded_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "matches_existing_extent_provider": true
+    },
+    {
+      "provider": "86",
+      "original_executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "recorded_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "recorded_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "matches_existing_extent_provider": true
+    },
+    {
+      "provider": "90",
+      "original_executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "recorded_sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "recorded_sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "matches_existing_extent_provider": true
+    },
+    {
+      "provider": "91",
+      "original_executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "recorded_sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "recorded_sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "matches_existing_extent_provider": true
+    },
+    {
+      "provider": "JIM",
+      "original_executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "recorded_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "recorded_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "matches_existing_extent_provider": true
+    }
+  ]
+}

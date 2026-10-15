@@ -1,0 +1,160 @@
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -6807,8 +6807,91 @@
+             }
+         }
+     }
++    fn diagnostic_origin(
++        phase: &str,
++        symbol: Symbol,
++        version: Version,
++        origin: Option<&ContentsOrigin>,
++    ) {
++        let (kind, incoming, sites): (u8, bool, &[u32]) = match origin {
++            None => (0, false, &[]),
++            Some(ContentsOrigin::Incoming) => (1, true, &[]),
++            Some(ContentsOrigin::WrittenAt(site)) => (2, false, std::slice::from_ref(site)),
++            Some(ContentsOrigin::Alternatives { incoming, writes }) => (3, *incoming, writes),
++            Some(ContentsOrigin::Unknown) => (4, false, &[]),
++        };
++        eprintln!(
++            "TEMP SSA ORIGIN_VALUE phase={} symbol={} version={} kind={} incoming={} site_count={}",
++            phase,
++            symbol.0,
++            version,
++            kind,
++            incoming,
++            sites.len()
++        );
++        for (ordinal, site) in sites.iter().enumerate().take(16) {
++            eprintln!(
++                "TEMP SSA ORIGIN_SITE phase={} symbol={} version={} ordinal={} source_offset={}",
++                phase, symbol.0, version, ordinal, site
++            );
++        }
++    }
++    let mut diagnostic_round = 0usize;
+     loop {
++        diagnostic_round += 1;
++        if diagnostic_round == 32 {
++            let mut owners: HashMap<(Symbol, Version), Vec<(u8, u32, usize)>> = HashMap::new();
++            for (&block_id, block) in blocks {
++                for (index, statement) in block.statements.iter().enumerate() {
++                    for (&symbol, &version) in &statement.defs {
++                        owners
++                            .entry((symbol, version))
++                            .or_default()
++                            .push((1, block_id.0, index));
++                    }
++                }
++                for (index, phi) in block.phis.iter().enumerate() {
++                    owners
++                        .entry((phi.name, phi.version))
++                        .or_default()
++                        .push((2, block_id.0, index));
++                }
++            }
++            for (&block_id, markers) in clobbers {
++                for (&index, versions) in markers {
++                    for (&symbol, &(_, fresh)) in versions {
++                        owners
++                            .entry((symbol, fresh))
++                            .or_default()
++                            .push((3, block_id.0, index));
++                    }
++                }
++            }
++            let duplicates = owners.values().filter(|entries| entries.len() > 1).count();
++            eprintln!(
++                "TEMP SSA ORIGIN round={} blocks={} definitions={} duplicate_targets={} zero_targets={}",
++                diagnostic_round,
++                blocks.len(),
++                owners.len(),
++                duplicates,
++                owners.keys().filter(|(_, version)| *version == 0).count()
++            );
++            let mut targets: Vec<_> = owners
++                .iter()
++                .filter(|(_, entries)| entries.len() > 1)
++                .collect();
++            targets.sort_by_key(|((symbol, version), _)| (symbol.0, *version));
++            for (&(symbol, version), entries) in targets.into_iter().take(64) {
++                for &(kind, block, index) in entries.iter().take(16) {
++                    eprintln!(
++                        "TEMP SSA OWNER symbol={} version={} kind={} block={} index={}",
++                        symbol.0, version, kind, block, index
++                    );
++                }
++            }
++        }
+         let mut changed = false;
++        let mut diagnostic_updates = 0usize;
+         // A scalar barrier creates a widened analysis value, not an
+         // executable store. Keep its exact binding's original contents
+         // lineage so retained reads select the fresh lattice key rather than
+@@ -6823,6 +6906,15 @@
+                 if let Some(origin) = origin
+                     && origins.get(&(symbol, fresh)) != Some(&origin)
+                 {
++                    if diagnostic_round == 32 && diagnostic_updates < 128 {
++                        eprintln!(
++                            "TEMP SSA UPDATE ordinal={} kind=clobber symbol={} prior={} fresh={}",
++                            diagnostic_updates, symbol.0, prior, fresh
++                        );
++                        diagnostic_origin("old", symbol, fresh, origins.get(&(symbol, fresh)));
++                        diagnostic_origin("new", symbol, fresh, Some(&origin));
++                    }
++                    diagnostic_updates += 1;
+                     origins.insert((symbol, fresh), origin);
+                     changed = true;
+                 }
+@@ -6847,10 +6939,49 @@
+                 if let Some(origin) = joined
+                     && origins.get(&(phi.name, phi.version)) != Some(&origin)
+                 {
++                    if diagnostic_round == 32 && diagnostic_updates < 128 {
++                        eprintln!(
++                            "TEMP SSA UPDATE ordinal={} kind=phi symbol={} version={} incoming_count={}",
++                            diagnostic_updates,
++                            phi.name.0,
++                            phi.version,
++                            phi.incoming.len()
++                        );
++                        diagnostic_origin(
++                            "old",
++                            phi.name,
++                            phi.version,
++                            origins.get(&(phi.name, phi.version)),
++                        );
++                        diagnostic_origin("new", phi.name, phi.version, Some(&origin));
++                        let mut edges: Vec<_> = phi.incoming.iter().collect();
++                        edges.sort_by_key(|(block, version)| (block.0, **version));
++                        for (&block, &version) in edges.into_iter().take(16) {
++                            eprintln!(
++                                "TEMP SSA EDGE symbol={} target={} predecessor={} source={}",
++                                phi.name.0, phi.version, block.0, version
++                            );
++                            diagnostic_origin(
++                                "input",
++                                phi.name,
++                                version,
++                                origins.get(&(phi.name, version)),
++                            );
++                        }
++                    }
++                    diagnostic_updates += 1;
+                     origins.insert((phi.name, phi.version), origin);
+                     changed = true;
+                 }
+             }
++        }
++        if diagnostic_round == 32 {
++            eprintln!(
++                "TEMP SSA UPDATE_TOTAL round={} total={} shown={}",
++                diagnostic_round,
++                diagnostic_updates,
++                diagnostic_updates.min(128)
++            );
+         }
+         if !changed {
+             return origins;

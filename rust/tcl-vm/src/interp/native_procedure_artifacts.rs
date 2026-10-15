@@ -218,7 +218,7 @@ mod tests {
         let native = artifact(&vm, Some(context(&vm, left)));
         vm.merge_foreign_procs(&native);
         let selected = vm.module_proc("a:::b::p", "", "return SAME", left).unwrap();
-        assert_eq!(selected.source_namespace, left_path);
+        assert_eq!(selected.source_namespace.compiled_path(), Some(&left_path));
         assert!(
             selected
                 .compiler

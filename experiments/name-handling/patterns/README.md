@@ -71,6 +71,13 @@ retain distinct C5/Jim quoted/default/escaped-parent formal reports. Current rea
 source geometry keeps Native topology separate from Logical declaration advice;
 W214 quote markers are a reporting convention. The F5 packet is unanswered.
 
+The [original scalar-reference insertion controls](../oracles/variable-completion-source-spelling-20261014/README.md)
+retain seeded C8.4–9.1 and latest Jim complete braced references for literal
+sigils, spaces, backslashes, newlines and release-selected brace boundaries.
+The combined-array row remains an array-element operation. These observations
+supply no scalar/read or Native permission; Logical insertion checks retain
+separate current source and grammar owners. F5 is untested.
+
 ## Source evidence
 
 The [maintained corpus manifest](../../../scripts/perf/MANIFEST.toml) pins all

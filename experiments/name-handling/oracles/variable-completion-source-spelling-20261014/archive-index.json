@@ -1,0 +1,107 @@
+{
+  "original_receipt_sha256": "9e145db419c33f571b88a8931be2215e59aea8ca39d897ed06c7e415052133d6",
+  "scope": "Portable archival metadata only; all original receipt/source/output bytes preserved. No original receipt mutation, new provider version query or implementation execution claim.",
+  "original_path_map": {
+    "/tmp/name-logical-variable-insertion-oracle-20261014/probe.tcl": "probe.tcl",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/manifest.json": "manifest.json",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/84.stdout": "84.stdout",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/84.stderr": "84.stderr",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/85.stdout": "85.stdout",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/85.stderr": "85.stderr",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/86.stdout": "86.stdout",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/86.stderr": "86.stderr",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/90.stdout": "90.stdout",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/90.stderr": "90.stderr",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/91.stdout": "91.stdout",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/91.stderr": "91.stderr",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/JIM.stdout": "JIM.stdout",
+    "/tmp/name-logical-variable-insertion-oracle-20261014/JIM.stderr": "JIM.stderr"
+  },
+  "artifacts": [
+    {
+      "path": "84.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "84.stdout",
+      "sha256": "6e6339db85e1f23b91fcf4c42e1ed26b45b562cb7c08e3d82cdcc001a555e667",
+      "bytes": 804
+    },
+    {
+      "path": "85.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "85.stdout",
+      "sha256": "6e6339db85e1f23b91fcf4c42e1ed26b45b562cb7c08e3d82cdcc001a555e667",
+      "bytes": 804
+    },
+    {
+      "path": "86.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "86.stdout",
+      "sha256": "6e6339db85e1f23b91fcf4c42e1ed26b45b562cb7c08e3d82cdcc001a555e667",
+      "bytes": 804
+    },
+    {
+      "path": "90.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "90.stdout",
+      "sha256": "415057992dcd9a4006014c3c329a220bba0ec1e75b3d1d7577abbff3c3b49b4f",
+      "bytes": 832
+    },
+    {
+      "path": "91.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "91.stdout",
+      "sha256": "415057992dcd9a4006014c3c329a220bba0ec1e75b3d1d7577abbff3c3b49b4f",
+      "bytes": 832
+    },
+    {
+      "path": "JIM.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "JIM.stdout",
+      "sha256": "6e6339db85e1f23b91fcf4c42e1ed26b45b562cb7c08e3d82cdcc001a555e667",
+      "bytes": 804
+    },
+    {
+      "path": "README.md",
+      "sha256": "8c103743901b3cb75c5bd04bd92d3b18e140a7bbf8eeaa69d8e4a1fc35026967",
+      "bytes": 2399
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "9e145db419c33f571b88a8931be2215e59aea8ca39d897ed06c7e415052133d6",
+      "bytes": 4507
+    },
+    {
+      "path": "probe.tcl",
+      "sha256": "91ba391365acad6a6cf77e2ea20fad5ab59bb78fa43f0c6be9ce95b53bffd153",
+      "bytes": 566
+    },
+    {
+      "path": "provider-provenance.json",
+      "sha256": "4a35f17170b6bec6da0168cac5cb7520003d5e77a8f7dcd20e1f3c63667ec162",
+      "bytes": 2558
+    },
+    {
+      "path": "verify.py",
+      "sha256": "2c40b5b935ffab3e831dd953eaacf95dac7194c58baa85d5d2b0af238b23f6d5",
+      "bytes": 1764
+    }
+  ]
+}

@@ -689,16 +689,6 @@ fn snippet_partial_at_position(source: &str, line: u32, character: u32) -> Strin
     chars[start..col].iter().collect()
 }
 
-/// `true` when offering `$<name>` / `${<name>}` would round-trip back to
-/// the runtime variable — i.e. the raw scope key carries no `}` / `\` /
-/// newline that the brace parser couldn't reproduce.  The full
-/// backslash analysis isn't needed: a name with a `\` or `}` is dropped
-/// from the suggestion set, which is what the
-/// `omits_unsubstitutable_brace_names` case requires.
-fn var_is_substitutable(name: &str) -> bool {
-    !name.contains('}') && !name.contains('\\') && !name.contains('\n')
-}
-
 /// `::`-qualify a global variable name reached from a local (proc / nested
 /// namespace) context; leave already-qualified names and locals untouched.
 /// `qualify_globals` is the set of root-scope names that need it (`None` at
@@ -785,7 +775,7 @@ fn variable_completions(
     }
 
     // Source visibility and rooted insertion share the checked scope selector.
-    let names = visible_substitutable_names(&advice, partial);
+    let names = visible_variable_names(&advice, partial);
 
     let qualify_globals = crate::definition::global_vars_needing_qualification(&advice);
 
@@ -793,6 +783,7 @@ fn variable_completions(
         start: edit_start,
         end: edit_end,
         has_open_brace,
+        config,
     };
     let mut items = Vec::new();
     push_local_var_items(&mut items, names, qualify_globals.as_ref(), edit);
@@ -810,7 +801,7 @@ fn variable_completions(
     let mut universe = Vec::new();
     push_local_var_items(
         &mut universe,
-        visible_substitutable_names(&advice, ""),
+        visible_variable_names(&advice, ""),
         qualify_globals.as_ref(),
         edit,
     );
@@ -834,14 +825,14 @@ fn variable_completions(
     fallback
 }
 
-/// Sorted source candidates matching the fragment and substitution grammar.
-fn visible_substitutable_names(
+/// Sorted current source names matching the fragment before insertion validation.
+fn visible_variable_names(
     advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
     partial: &str,
 ) -> Vec<String> {
     let mut names: Vec<String> = crate::definition::visible_variable_names(advice)
         .into_iter()
-        .filter(|n| n.starts_with(partial) && var_is_substitutable(n))
+        .filter(|n| n.starts_with(partial))
         .collect();
     names.sort_unstable();
     names.dedup();
@@ -863,11 +854,10 @@ fn push_local_var_items(
         // `::`-qualify a global reached from a local context; leave already
         // qualified names and locals untouched.
         let qname = qualified_var_name(&name, qualify_globals);
-        let use_brace = edit.has_open_brace || !is_bare_var_name(&qname);
-        let new_text = if use_brace {
-            format!("${{{qname}}}")
-        } else {
-            format!("${qname}")
+        let Some(new_text) =
+            tcl_syntax::naming::scalar_source_reference(&qname, edit.config, edit.has_open_brace)
+        else {
+            continue;
         };
         let text_edit = edit.start.map(|start_char| CompletionEdit {
             start_char,
@@ -894,6 +884,7 @@ struct VarEdit {
     start: Option<u32>,
     end: u32,
     has_open_brace: bool,
+    config: tcl_lexer::LexerConfig,
 }
 
 /// Append fully-qualified `::ns::var` candidates from namespaces outside the
@@ -921,18 +912,17 @@ fn push_cross_namespace_vars(
     qnames.sort_unstable();
     qnames.dedup();
     for qname in qnames {
-        if !qname.starts_with(partial) || !var_is_substitutable(&qname) {
+        if !qname.starts_with(partial) {
             continue;
         }
         let label = format!("${qname}");
         if !seen.insert(label.clone()) {
             continue;
         }
-        let use_brace = edit.has_open_brace || !is_bare_var_name(&qname);
-        let new_text = if use_brace {
-            format!("${{{qname}}}")
-        } else {
-            format!("${qname}")
+        let Some(new_text) =
+            tcl_syntax::naming::scalar_source_reference(&qname, edit.config, edit.has_open_brace)
+        else {
+            continue;
         };
         let text_edit = edit.start.map(|start_char| CompletionEdit {
             start_char,
@@ -6782,6 +6772,67 @@ mod configured_receiver_completion_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn logical_variable_insertions_use_exact_current_reference_grammar() {
+        let source = "set {a{b}c} VALUE\nset {a\\b} SLASH\nset a_\\}_closebrace BAD\nputs $";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let selected = tcl_registry::model::ingress::resolve_environment(environment);
+            let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+            let analysis = Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(source, "display only");
+            let items = variable_completions(source, 3, 6, &analysis, "", '$');
+            assert!(
+                items.iter().any(|item| item.insert_text == "${a\\b}"),
+                "{environment}: {items:?}"
+            );
+            let nested = config.braced_var == tcl_dialect::BracedVarStyle::Tcl9Nesting;
+            assert_eq!(
+                items.iter().any(|item| item.insert_text == "${a{b}c}"),
+                nested,
+                "{environment}: {items:?}"
+            );
+            assert!(items.iter().all(|item| !item.label.contains("closebrace")));
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(variable_completions(source, 3, 6, &missing, "", '$').is_empty());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config.as_mut().unwrap().braced_var = if nested {
+                tcl_dialect::BracedVarStyle::FirstClose
+            } else {
+                tcl_dialect::BracedVarStyle::Tcl9Nesting
+            };
+            assert!(variable_completions(source, 3, 6, &changed, "", '$').is_empty());
+            assert!(
+                variable_completions(&format!("#{source}"), 3, 6, &analysis, "", '$').is_empty()
+            );
+        }
+        let native = Analyser::new().analyse(source, "tcl9.1");
+        assert!(variable_completions(source, 3, 6, &native, "", '$').is_empty());
+        let source = "namespace eval N {set {a{b}c} VALUE}\nputs $";
+        let selected = tcl_registry::model::ingress::resolve_environment("tcl9.1");
+        let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+        let analysis = Analyser::new()
+            .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                selected.default_context_registry(),
+                config,
+            ))
+            .analyse(source, "display only");
+        let items = variable_completions(source, 1, 6, &analysis, "", '$');
+        assert!(
+            items.iter().any(|item| item.insert_text == "${::N::a{b}c}"),
+            "{items:?}"
+        );
     }
 
     #[test]

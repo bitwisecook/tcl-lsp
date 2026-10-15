@@ -2622,10 +2622,9 @@ fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> O
 /// The `[start, end)` char-index bounds of the bare Tcl word around `col`
 /// in `chars` (one source line), using [`WORD_DELIMS`].
 ///
-/// This is the single word-bounding rule shared by every cursor-word
-/// consumer, so hover, definition, references, and rename all agree on
-/// where a word starts and ends.  It deliberately follows the *lexer's*
-/// notion of a bare word — bounded by whitespace and the structural
+/// Test-only method-name bounds using the standalone cursor presentation
+/// rule. This supplies no original source, command identity or editable span.
+/// Bare words are bounded by whitespace and the structural
 /// characters `;{}[]"$` — rather than a programming-language identifier
 /// rule.  Tcl puts no character restriction on a command or method name, so
 /// `with-dash`, `a.b`, and TIP 558's generated property accessors
@@ -2641,18 +2640,19 @@ fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> O
 /// `namespace eval ns { proc c:d {} … }` all work).  What *is* handled is the
 /// residual-`::` case: when the left scan stops on a substitution closer
 /// (`}` / `]`), a leading `::` in the word is the tail of a **computed** name
-/// (`${ns}::setdef`), not an absolute one — see [`word_char_bounds`]'s return
+/// (`${ns}::setdef`), not an absolute one — see [`word_char_bounds_kinded`]'s return
 /// value.
 ///
 /// Deliberately *not* handled: a word split across lines by a
 /// backslash-newline continuation, and the interior structure of a word
 /// that mixes literal text with substitutions (`pre[cmd]post`) — the
 /// caller sees the literal slice only.
+#[cfg(test)]
 pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usize)> {
     word_char_bounds_kinded(chars, col).map(|(start, end, _)| (start, end))
 }
 
-/// [`word_char_bounds`] also reporting whether the word is the **residual
+/// Standalone lexical bounds, also reporting whether the word is the **residual
 /// tail of a computed name** — the literal fragment that follows a `${var}` /
 /// `[cmd]` substitution inside the same word (`${ns}::setdef` → `::setdef`).
 ///
@@ -2661,9 +2661,8 @@ pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usi
 /// genuinely absolute `::setdef` and resolution looks for a global proc of
 /// that literal name — finding nothing, and reporting no definition for a
 /// call that statically resolves fine (`${ns}::setdef` with `ns ==
-/// "::ticklecharts"`).  Reporting the fact here, in the one shared
-/// word-bounding rule, keeps every consumer (hover, definition, references,
-/// rename) on the same answer.
+/// "::ticklecharts"`). The flag separates standalone absolute spellings from
+/// computed tails; it supplies no lookup identity.
 pub(crate) fn word_char_bounds_kinded(chars: &[char], col: usize) -> Option<(usize, usize, bool)> {
     let mut start = col.min(chars.len());
     while start > 0 && !WORD_DELIMS.contains(&chars[start - 1]) {

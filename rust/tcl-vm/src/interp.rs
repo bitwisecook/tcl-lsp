@@ -95,6 +95,8 @@ mod native_control_expression_tests;
 mod native_coroutine_names;
 pub(crate) mod native_dictionary;
 #[cfg(test)]
+mod native_dying_descendant_tests;
+#[cfg(test)]
 mod native_embed_registration_tests;
 mod native_ensemble_objects;
 #[cfg(test)]
@@ -10869,8 +10871,29 @@ impl Vm {
                 if !absolute && let Some(token) = self.retained_token_at_path(&path) {
                     return Ok(token);
                 }
-                self.declare_namespace_path_with_origin(path.clone(), absolute);
-                Ok(self.definition_namespace_token_at_path(&path, absolute))
+                let current = self.current_ns_id();
+                let anchor = if absolute { ROOT_NS } else { current };
+                let prefix = if absolute {
+                    0
+                } else {
+                    self.ns_path(current).as_segments().len()
+                };
+                let components = path.as_segments().get(prefix..).ok_or_else(|| {
+                    self.refuse_host_command(
+                        "native namespace creation anchor geometry unavailable".into(),
+                    )
+                })?;
+                let (publication, created) = self
+                    .name_world
+                    .borrow_mut()
+                    .ensure_namespace_at_components(anchor, components);
+                for child in created {
+                    self.ns_vars.entry(child).or_default();
+                    self.note_namespace_creation_environment();
+                }
+                publication.map_err(|error| {
+                    self.refuse_host_command(format!("native namespace creation: {error}"))
+                })
             }
         }
     }
@@ -12381,10 +12404,8 @@ impl Vm {
         world.dying_namespaces.contains(&namespace) || world.dead_namespaces.contains(&namespace)
     }
 
-    /// Whether `ns` lies at or below a namespace whose token is currently
-    /// being torn down. Existing descendants remain live until recursive
-    /// teardown reaches them, but Tcl must reject attempts to create a new
-    /// namespace anywhere below a dying ancestor.
+    /// Support-path activation does not republish a dying subtree. Native
+    /// namespace creation uses the actual token-anchored publication owner.
     fn namespace_in_dying_subtree_path(&self, ns: &NamespacePath) -> bool {
         let mut candidate = ns.clone();
         loop {
@@ -12458,15 +12479,17 @@ impl Vm {
         );
     }
 
-    /// Insert a newly-created namespace's tail into its parent's retained Tcl
-    /// string-hash table. `ns` is already the canonical, unrooted key.
-    fn note_namespace_created(&mut self, parent: NsId, tail: &NameBytes) {
-        // Creation changes qualified-name lookup even before the new namespace
-        // has commands: an earlier global fallback may no longer be selected.
-        // Publish only actual creation, never mere namespace-token interning.
+    /// Invalidate command resolution after actual namespace publication.
+    fn note_namespace_creation_environment(&mut self) {
         self.bump_cmd_epoch();
         self.invalidate_compiled_command_semantics();
         self.invalidate_guard_domain(GuardDomain::CommandEnvironment);
+    }
+
+    /// Insert a newly-created tail into its parent's retained Tcl string-hash table.
+    fn note_namespace_created(&mut self, parent: NsId, tail: &NameBytes) {
+        // Creation changes qualified-name lookup before a command is installed.
+        self.note_namespace_creation_environment();
         self.name_world
             .borrow_mut()
             .ns_child_order
@@ -25952,8 +25975,8 @@ impl Vm {
         Ok(completion)
     }
 
-    /// Prepare an original native script object through the byte compiler door.
-    /// Its materialization, entry namespace and source channel remain explicit.
+    /// Prepare an original script through its native Script or C bytecode owner.
+    /// Preserve each owner's source and execution namespace requirements.
     pub(crate) fn prepare_script_commands_value(
         &mut self,
         value: &Value,

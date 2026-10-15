@@ -3337,11 +3337,10 @@ pub fn taint_cascade<'db>(
     let taints = capsule.unit().interproc.as_ref().map_or_else(
         || (*capsule.function().taints).clone(),
         |analysis| {
-            capsule.function().interproc_taints(
-                &registry,
-                analysis,
-                capsule.unit().ir_module.dialect_profile,
-            )
+            capsule
+                .unit()
+                .original_interproc_taints_for_body(Some(capsule.body_id()), &registry, analysis)
+                .unwrap_or_else(|| (*capsule.function().taints).clone())
         },
     );
     Arc::new(taints)
@@ -10052,7 +10051,112 @@ p\uD801 ordinary";
     }
 
     #[test]
-    fn callback_arity_unavailable_package_descriptors_do_not_select_local_headers() {
+    fn callback_arity_closed_tk_descriptors_do_not_select_local_headers() {
+        let available = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let commands = Arc::clone(available.commands());
+        let available = Arc::new(available.with_command_store(Arc::clone(&commands)));
+        let unavailable = Arc::new(
+            tcl_registry::model::ingress::static_context_for("bpf")
+                .with_command_store(Arc::clone(&commands)),
+        );
+        assert!(Arc::ptr_eq(available.commands(), unavailable.commands()));
+        assert!(
+            available
+                .context()
+                .resolve_spec(&commands, "scale")
+                .is_some()
+        );
+        assert!(
+            unavailable
+                .context()
+                .resolve_spec(&commands, "scale")
+                .is_none()
+        );
+        assert!(!unavailable.context().required_package_available(Some("Tk")));
+        assert_eq!(unavailable.context().environment.id.as_str(), "bpf");
+        assert_eq!(
+            unavailable
+                .context()
+                .environment
+                .policy_defaults
+                .closed_world,
+            tcl_dialect::model::WorldPolicy::Closed
+        );
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let input = |context| {
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config)
+        };
+        let analyse = |source: &str, context| {
+            tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input(context))
+                .analyse(source, "tcl9.0")
+        };
+        let db = TclDatabase::default();
+        let project = Project::new(&db, Vec::new());
+        for source in [
+            "proc cb {} {}; scale .s -command cb",
+            "proc cb {} {}; scale .s -command ::cb",
+            "package require Tk; proc cb {} {}; scale .s -command ::cb",
+        ] {
+            let analysis = analyse(source, Arc::clone(&unavailable));
+            let supplied = input(Arc::clone(&unavailable));
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&supplied));
+            assert!(
+                analysis
+                    .retained_command_realm()
+                    .unwrap()
+                    .matches_resolved_analysis_input(&supplied)
+            );
+            assert!(
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                )
+            );
+            assert!(
+                analysis
+                    .resolved_input
+                    .as_ref()
+                    .unwrap()
+                    .borrowed_context_registry()
+                    .context()
+                    .resolve_spec(&commands, "scale")
+                    .is_none()
+            );
+            let diagnostics =
+                project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| {
+                    false
+                });
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| matches!(diagnostic.code, DiagCode::E002 | DiagCode::E003))
+            );
+        }
+        let source = "proc cb {} {}; scale .s -command ::cb";
+        let analysis = analyse(source, Arc::clone(&available));
+        assert!(
+            analysis
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .borrowed_context_registry()
+                .context()
+                .resolve_spec(&commands, "scale")
+                .is_some()
+        );
+        let diagnostics =
+            project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| false);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E003)
+        );
+    }
+
+    #[test]
+    fn callback_arity_foreign_library_source_contexts_do_not_select_local_headers() {
         // naming.database.original-project-callback-projection
         // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
         let available = tcl_registry::model::ingress::static_context_for("tcl9.0");
@@ -10079,7 +10183,7 @@ p\uD801 ordinary";
                 unavailable
                     .context()
                     .resolve_spec(&commands, command)
-                    .is_none()
+                    .is_some()
             );
         }
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
@@ -10132,8 +10236,11 @@ p\uD801 ordinary";
             "package require struct::graph; proc cb {x y} {}; struct::graph g; g walk root -command ::cb",
             "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb",
         ] {
-            let analysis = analyse(source, Arc::clone(&unavailable));
+            // These library descriptors remain available in the closed model.
+            // Its supplied input cannot borrow the other source producer's receipts.
+            let mut analysis = analyse(source, Arc::clone(&available));
             let supplied = input(Arc::clone(&unavailable));
+            analysis.resolved_input = Some(supplied.clone());
             assert!(
                 analysis.resolved_input.as_ref() == Some(&supplied),
                 "{source}: exact retained editing input"
@@ -10151,12 +10258,12 @@ p\uD801 ordinary";
                 "struct::tree",
             ] {
                 assert!(
-                    current.context().resolve_spec(&commands, command).is_none(),
-                    "{source}: {command} must remain excluded after analysis"
+                    current.context().resolve_spec(&commands, command).is_some(),
+                    "{source}: ordinary library metadata remains available"
                 );
             }
             assert!(
-                analysis
+                !analysis
                     .retained_command_realm()
                     .unwrap()
                     .matches_resolved_analysis_input(&supplied)
@@ -10175,7 +10282,7 @@ p\uD801 ordinary";
             let control_source = format!(
                 "proc availability_control {{x}} {{}}; lsort -command ::availability_control {{2 1}}; {source}"
             );
-            let control = analyse(&control_source, Arc::clone(&unavailable));
+            let control = analyse(&control_source, Arc::clone(&available));
             assert!(control.matches_original_source_image(
                 &tcl_lexer::SourceImage::document(&control_source),
                 config

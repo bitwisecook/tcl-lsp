@@ -119,7 +119,6 @@ fn origin_canonical_root_relative_retains_the_actual_original_header() {
         .unwrap();
     let mut backend = super::native_command_names::JimNamespaceOriginBackend {
         vm: &mut vm,
-        current: super::ROOT_NS,
         entered: &entered,
         protocol,
     };

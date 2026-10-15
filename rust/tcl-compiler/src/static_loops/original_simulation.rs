@@ -456,7 +456,12 @@ fn exec_statement(
             env.insert(name.clone(), StaticValue::Str(value.clone()));
             true
         }
-        Statement::Incr { name, amount, .. } => {
+        Statement::Incr {
+            name,
+            amount,
+            amount_braced,
+            ..
+        } => {
             let Some(b) = env
                 .get(name)
                 .and_then(|value| static_integer(value, simulation.policy))
@@ -466,9 +471,13 @@ fn exec_statement(
             let amt = match amount.as_deref() {
                 None => 1,
                 Some(text) => {
-                    let operand = simple_var_ref(text)
-                        .and_then(|name| env.get(&name).cloned())
-                        .unwrap_or_else(|| StaticValue::Str(text.to_owned()));
+                    let operand = if *amount_braced {
+                        StaticValue::Str(text.to_owned())
+                    } else {
+                        simple_var_ref(text)
+                            .and_then(|name| env.get(&name).cloned())
+                            .unwrap_or_else(|| StaticValue::Str(text.to_owned()))
+                    };
                     let Some(amount) = static_integer(&operand, simulation.policy) else {
                         return false;
                     };
@@ -974,6 +983,72 @@ mod tests {
             .collect();
         orders.sort_unstable();
         assert_eq!(orders, (0..36).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn original_increment_amount_keeps_braced_data_separate_from_reads() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for (amount, braced, supported) in [
+                ("{$delta}", true, false),
+                ("$delta", false, true),
+                ("{2}", true, true),
+            ] {
+                let source = format!("set n 1; set delta 2; incr n {amount}");
+                let fixture = crate::provider_fixtures::original_native_module(&source, dialect);
+                let (context, module) = &*fixture;
+                let statement = module.top_level.statements.last().unwrap();
+                let Statement::Incr { amount_braced, .. } = statement else {
+                    panic!("actual source increment must retain its typed amount");
+                };
+                assert_eq!(*amount_braced, braced);
+                assert!(
+                    module
+                        .top_level
+                        .retained_source_tokens_for_statement(statement)
+                        .is_some()
+                );
+                let policy = FoldPolicy::for_retained_entry(
+                    context.commands(),
+                    Some(tcl_registry::InvocationDialect::of_profile(
+                        module
+                            .source_metadata_input
+                            .as_ref()
+                            .unwrap()
+                            .unit_profile(),
+                    )),
+                    &module.native_lexer_config(),
+                );
+                let observations = std::cell::RefCell::new(Vec::new());
+                let increments = std::cell::RefCell::new(Vec::new());
+                let preparations = std::cell::RefCell::new(Vec::new());
+                let dependencies = std::cell::RefCell::new(Vec::new());
+                let evaluation_order = std::cell::Cell::new(0);
+                let simulation = StaticSimulation {
+                    policy,
+                    purpose: SimulationPurpose::Analysis,
+                    observations: &observations,
+                    increments: &increments,
+                    preparations: &preparations,
+                    dependencies: &dependencies,
+                    evaluation_order: &evaluation_order,
+                };
+                let mut environment = StaticEnv::new();
+                assert_eq!(
+                    exec_script(&module.top_level, &mut environment, simulation),
+                    supported
+                );
+                if supported {
+                    assert_eq!(environment.get("n"), Some(&StaticValue::Int(3)));
+                    assert_eq!(increments.borrow().len(), 1);
+                } else {
+                    assert_eq!(
+                        environment.get("n"),
+                        Some(&StaticValue::Str("1".to_owned()))
+                    );
+                    assert!(increments.borrow().is_empty());
+                }
+            }
+        }
     }
 
     #[test]

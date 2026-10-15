@@ -120,11 +120,17 @@ extents separate. C8.6 retires the key's internal representation after a
 nonidentity temporary-table lookup; C9 preserves it. Error options are validated
 at the selected native frontier and retain their original key/value handles.
 
-Deferred scripts use `prepare_script_commands_value`: materialize the original
-object once, retain a native `SourceImage`, capture the actual compiler entry and
-namespace token, and compile its complete byte-command prefix. A script's
-`SourceImage` retains its input channel and original offsets. Unicode document
-views do not replace native value source.
+`prepare_script_commands_value` selects the actual native script owner. When the
+C path requires source bytes, it obtains them from the original object and retains
+a native `SourceImage`. It captures the actual compiler entry and namespace token
+and prepares the complete
+byte-command prefix under the selected evaluation purpose. A script's
+`SourceImage` retains its input channel and original offsets; Unicode document
+views do not replace native value source. The Jim path retains the original
+Script object and `NamespaceExecutionContext` without requiring a compiler entry
+or materialising the namespace coordinate. Reached command lookup owns that
+namespace getter, as described in the
+[original Jim context contract](original-command-arguments.md#original-jim-procedure-namespaces).
 
 Try handlers retain original selectors, binding names and script objects. C
 validates clauses before body evaluation. Jim validates them after the body and

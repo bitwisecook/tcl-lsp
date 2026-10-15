@@ -806,33 +806,6 @@ impl<'a> FrameWalk<'a> {
                 Vec::new()
             })
     }
-
-    /// Every region inside `command`, at any same-frame depth, that runs in a
-    /// variable frame of its own, appended to `out`.
-    ///
-    /// A `proc` nested in an `if` branch is found as readily as one at
-    /// `command`'s own top level.
-    pub(crate) fn frame_shifted_regions_within(
-        &self,
-        source: &str,
-        command: &SegmentedCommand,
-        out: &mut Vec<(u32, u32)>,
-    ) {
-        let mut push = |regions: Vec<(usize, usize)>| {
-            for (start, end) in regions {
-                let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
-                    continue;
-                };
-                out.push((start, end));
-            }
-        };
-        push(self.frame_shifted_regions(source, command));
-        let mut nested = Vec::new();
-        self.nested_same_frame_commands(source, command, &mut nested);
-        for inner in &nested {
-            push(self.frame_shifted_regions(source, inner));
-        }
-    }
 }
 
 fn byte_len(source: &str) -> u32 {
