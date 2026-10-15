@@ -600,69 +600,73 @@ pub(crate) fn classic_double(r: f64) -> Result<Value, TclError> {
 /// 8.4's binary arithmetic: 64-bit integers that wrap, shifts by C's rules
 /// (a count of 64 or more gives 0, a negative one is taken modulo 64), and
 /// a double divided by zero or overflowing as an error.
-fn classic_arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
-    use BinOp::{Add, BitAnd, BitOr, BitXor, Div, LShift, Mod, Mul, RShift, Sub};
-    let x = classic_operand(a, errors::OperandSide::Left, op.as_str())?;
-    let y = classic_operand(b, errors::OperandSide::Right, op.as_str())?;
-    if let (Num::Int(x), Num::Int(y)) = (&x, &y) {
-        let (x, y) = (*x, *y);
-        let shift = |count: i64| u32::try_from(count & 63).unwrap_or(0);
-        let r = match op {
-            Add => x.wrapping_add(y),
-            Sub => x.wrapping_sub(y),
-            Mul => x.wrapping_mul(y),
-            Div | Mod if y == 0 => return Err(divzero()),
-            Div => {
-                let q = x.wrapping_div(y);
-                if x.wrapping_rem(y) != 0 && ((x < 0) != (y < 0)) {
-                    q.wrapping_sub(1)
-                } else {
-                    q
-                }
-            }
-            Mod => {
-                let r = x.wrapping_rem(y);
-                if r != 0 && ((r < 0) != (y < 0)) {
-                    r.wrapping_add(y)
-                } else {
-                    r
-                }
-            }
-            LShift if y >= 64 => 0,
-            LShift => x.wrapping_shl(shift(y)),
-            RShift if y >= 64 => {
-                if x < 0 {
-                    -1
-                } else {
-                    0
-                }
-            }
-            RShift => x.wrapping_shr(shift(y)),
-            BitAnd => x & y,
-            BitOr => x | y,
-            BitXor => x ^ y,
-            _ => return Err(TclError::new("unsupported integer operator")),
-        };
-        return Ok(Value::int(r));
+fn classic_arith(op: BinOp, left: &Value, right: &Value) -> Result<Value, TclError> {
+    let lhs = classic_operand(left, errors::OperandSide::Left, op.as_str())?;
+    let rhs = classic_operand(right, errors::OperandSide::Right, op.as_str())?;
+    if let (Num::Int(x), Num::Int(y)) = (&lhs, &rhs) {
+        return classic_int_arith(op, *x, *y);
     }
     if is_int_only(op) {
-        let (bad, side) = if matches!(x, Num::Dbl(_)) {
-            (a, errors::OperandSide::Left)
+        let (bad, side) = if matches!(lhs, Num::Dbl(_)) {
+            (left, errors::OperandSide::Left)
         } else {
-            (b, errors::OperandSide::Right)
+            (right, errors::OperandSide::Right)
         };
         return Err(float_operand_err(bad, side, op));
     }
-    let (x, y) = (num_f(&x), num_f(&y));
-    let r = match op {
-        Add => x + y,
-        Sub => x - y,
-        Mul => x * y,
-        Div if y == 0.0 => return Err(divzero()),
-        Div => x / y,
+    let (x, y) = (num_f(&lhs), num_f(&rhs));
+    let result = match op {
+        BinOp::Add => x + y,
+        BinOp::Sub => x - y,
+        BinOp::Mul => x * y,
+        BinOp::Div if y == 0.0 => return Err(divzero()),
+        BinOp::Div => x / y,
         _ => return Err(TclError::new("unsupported floating-point operator")),
     };
-    classic_double(r)
+    classic_double(result)
+}
+
+/// [`classic_arith`] over two 64-bit integers.
+fn classic_int_arith(op: BinOp, x: i64, y: i64) -> Result<Value, TclError> {
+    use BinOp::{Add, BitAnd, BitOr, BitXor, Div, LShift, Mod, Mul, RShift, Sub};
+    let shift = |count: i64| u32::try_from(count & 63).unwrap_or(0);
+    let result = match op {
+        Add => x.wrapping_add(y),
+        Sub => x.wrapping_sub(y),
+        Mul => x.wrapping_mul(y),
+        Div | Mod if y == 0 => return Err(divzero()),
+        Div => {
+            let quotient = x.wrapping_div(y);
+            if x.wrapping_rem(y) != 0 && ((x < 0) != (y < 0)) {
+                quotient.wrapping_sub(1)
+            } else {
+                quotient
+            }
+        }
+        Mod => {
+            let rem = x.wrapping_rem(y);
+            if rem != 0 && ((rem < 0) != (y < 0)) {
+                rem.wrapping_add(y)
+            } else {
+                rem
+            }
+        }
+        LShift if y >= 64 => 0,
+        LShift => x.wrapping_shl(shift(y)),
+        RShift if y >= 64 => {
+            if x < 0 {
+                -1
+            } else {
+                0
+            }
+        }
+        RShift => x.wrapping_shr(shift(y)),
+        BitAnd => x & y,
+        BitOr => x | y,
+        BitXor => x ^ y,
+        _ => return Err(TclError::new("unsupported integer operator")),
+    };
+    Ok(Value::int(result))
 }
 
 /// Apply an arithmetic / bitwise / shift binary operator to two values.

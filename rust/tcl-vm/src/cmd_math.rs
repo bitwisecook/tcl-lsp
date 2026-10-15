@@ -229,6 +229,8 @@ fn classic_mathfunc(
     int_width: IntWidth,
 ) -> Completion<Value> {
     const NOT_NUMERIC: &str = "argument to math function didn't have numeric value";
+    // 2^63, the `(double) LONG_MAX` C compares against.
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
     let arity = match name {
         "rand" => 0,
         "atan2" | "fmod" | "hypot" | "pow" => 2,
@@ -257,8 +259,6 @@ fn classic_mathfunc(
             tcl_syntax::expr::errors::IOVERFLOW_CODE,
         )
     };
-    // 2^63, the `(double) LONG_MAX` C compares against.
-    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
     let to_long = |d: f64| {
         if d < -LIMIT || d > LIMIT {
             None

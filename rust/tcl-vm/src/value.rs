@@ -663,7 +663,7 @@ fn wide_string(n: i64) -> String {
 }
 
 fn garbles_wide_min() -> bool {
-    number::runtime_release().is_some_and(|release| release.garbles_wide_min())
+    number::runtime_release().is_some_and(tcl_dialect::TclVersion::garbles_wide_min)
 }
 
 /// The bytes `items` measure to with a separator between each, stopping once

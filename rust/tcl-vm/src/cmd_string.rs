@@ -164,9 +164,8 @@ const STRING_OPTIONS_8_4: &[&str] = &[
 fn byte_length(s: &str) -> usize {
     s.chars()
         .map(|c| match u32::from(c) {
-            0 => 2,
             1..0x80 => 1,
-            0x80..0x800 => 2,
+            0 | 0x80..0x800 => 2,
             _ => 3,
         })
         .sum()
