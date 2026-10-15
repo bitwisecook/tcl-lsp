@@ -305,6 +305,24 @@ fn unresolved_point_source_name_roles(
     input: &crate::analyser::ResolvedAnalysisInput,
 ) -> Option<SourceNameRoleInventory> {
     let binding = tokens.source_binding.as_ref()?;
+    binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+    let site = binding.invocation_site()?;
+    let words = super::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        binding.original_lexer_config_for_tokens(tokens)?,
+    )?;
+    source_name_roles_from_point_words(registry, tokens, input, &words)
+}
+
+fn source_name_roles_from_point_words(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    words: &[tcl_lexer::NativeWord],
+) -> Option<SourceNameRoleInventory> {
+    let binding = tokens.source_binding.as_ref()?;
     let metadata = binding.original_invocation_metadata_for_input(tokens, input, registry)?;
     let held = metadata.source_analysis_input()?;
     let config = binding.original_lexer_config_for_tokens(tokens)?;
@@ -317,12 +335,15 @@ fn unresolved_point_source_name_roles(
     if recorded.words() != tokens.words() || command.argv.first()?.span.start() != site.offset {
         return None;
     }
-    let words = super::original_native_compiler_words(
+    let original = super::original_native_compiler_words(
         site.source.source_image(),
         tokens.words(),
         site.offset,
         config,
     )?;
+    if original.as_slice() != words {
+        return None;
+    }
     let values = words
         .iter()
         .map(|word| {
@@ -450,8 +471,15 @@ pub(crate) fn original_source_name_roles(
     if let Some(context) = metadata {
         let input = context.source_analysis_input()?;
         if !input.has_logical_source_name_context() && !input.has_hosted_source_name_context() {
-            let words = binding.original_native_source_words(tokens, input, registry)?;
-            return from_source_words(&words, input);
+            // A present child owner keeps its own terminal source obligations.
+            // Root compiler syntax has a distinct source-only metadata purpose.
+            if binding.has_original_native_source_command() {
+                let words = binding.original_native_source_words(tokens, input, registry)?;
+                return from_source_words(&words, input);
+            }
+            let words = binding
+                .original_compiler_point_words_for_source_metadata(tokens, input, registry)?;
+            return source_name_roles_from_point_words(registry, tokens, input, &words);
         }
         let invocation = super::original_logical_operation_invocation_with_metadata_context(
             registry, context, tokens,

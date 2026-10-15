@@ -33,7 +33,7 @@ fn procedure_pack(defines: bool) -> tcl_spectcl::pack::PackSet {
             dependency_tier: None,
         },
         format!(
-            "speclib project_source356 1.0 {{\ncommand project_source356::define {{\narity 3\narg 0 -role Name\narg 1 -role Params\narg 2 -role Body\n{hook}\n}}\n}}\n"
+            "speclib project_source356 1.0 {{\ncommand project_source356::define {{\narity 3\narg 0 -role Name\narg 1 -role ParamList\narg 2 -role Body\n{hook}\n}}\n}}\n"
         ),
     )]);
     assert!(packs.notices.is_empty(), "{:#?}", packs.notices);

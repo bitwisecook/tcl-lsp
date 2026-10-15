@@ -1000,7 +1000,9 @@ refusal and result publication do not gain a second namespace or table owner.
 MCP request hints retain the original iRules source context's actual unit-profile
 expression axes and complete lexical configuration; public currentness also
 checks both retained profile cache keys. Shared expression topology
-and fixed literal operands replace quote/brace trimming; command substitutions
+and configured whole-word static Unicode values replace quote/brace trimming;
+literal trailing dollars and escape-produced sigils or quotes remain data, while
+genuine variable or command components refuse. Command substitutions
 retain their shared original component and whole-word operand geometry. Generated
 hint operands roundtrip both as literal source words and as bytes inside the
 generated braced script container. Completed Switch pattern values retain literal
@@ -1082,3 +1084,25 @@ fresh-head/original-operand dispatcher. The helper's original tailcall/List/empt
 object stages remain owned by that invocation; selected C linking is independent.
 The original observer cases do not execute linking, and their padding/header
 measurements remain separate from four genuine unchanged link-worker scripts.
+
+VM dispatch takes its actual current NamespaceExecutionContext directly. The
+fixed Jim namespace-upvar relay supplies ROOT_NS to the existing original
+command-value owner, and coroutine lookup retains its actual original namespace
+object; a report spelling cannot recreate an incarnation.
+
+URI-family metadata uses shared written-tail geometry for Registry descriptor
+labels and preserves the exact counted prefix for path/query siblings. Actual
+iRules descriptor availability and sibling membership remain independent; the
+catalogue establishes no runtime command lookup or selected invocation.
+
+Logical procedure formal counts come from the genuine current retained header
+and complete original formal text. Both shared C and Jim parsers must reproduce
+the exact retained vector and agree on count shape; NUL, invalid or disagreeing
+forms stay Unknown. LogicalSource records descriptive body-free bounds with no
+selected parameter grammar, formal topology, Native policy, slot or frame grant.
+
+Conditional source metadata may separately use an authentic retained compiler
+point with current full input/store/site/vector/configuration, Generic or Unknown
+selection and no known target, handler or concrete preparation. Its schema keeps
+an unknown execution residual. A present original Native child route remains
+terminal; compiler syntax supplies no body, frame, lookup or executable facts.

@@ -32,6 +32,8 @@ pub enum SourceFormalCountOrigin {
     OriginalSource,
     /// Projected from explicit authored declaration metadata.
     Authored,
+    /// Unanimous descriptive count from a current Logical declaration header.
+    LogicalSource,
 }
 
 /// Stable declaration header metadata, independent of source-image/body bytes.
@@ -44,6 +46,50 @@ pub struct SourceFormalCountProjection {
 }
 
 impl SourceFormalCountProjection {
+    pub(crate) fn from_logical_formals(
+        text: &str,
+        parameters: &[tcl_syntax::formal_params::FormalParameter],
+    ) -> Self {
+        if text.as_bytes().contains(&0)
+            || parameters.iter().any(|parameter| {
+                parameter.name.as_bytes().contains(&0)
+                    || parameter
+                        .default
+                        .as_ref()
+                        .is_some_and(|value| value.as_bytes().contains(&0))
+            })
+            || [ParameterGrammar::Tcl, ParameterGrammar::Jim]
+                .into_iter()
+                .any(|grammar| {
+                    !tcl_syntax::formal_params::parse_formal_parameters_in(text, grammar)
+                        .is_ok_and(|parsed| parsed == parameters)
+                })
+        {
+            return SourceFormalCount::unknown_projection();
+        }
+        let shape = |grammar| {
+            tcl_syntax::formal_params::formal_argument_count_shape(
+                parameters
+                    .iter()
+                    .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+                grammar,
+            )
+        };
+        let c_shape = shape(ParameterGrammar::Tcl);
+        let jim_shape = shape(ParameterGrammar::Jim);
+        if c_shape != jim_shape {
+            return SourceFormalCount::unknown_projection();
+        }
+        let Some(arity) = super::arity::arity_from_count_shape(c_shape) else {
+            return SourceFormalCount::unknown_projection();
+        };
+        Self {
+            arity,
+            origin: SourceFormalCountOrigin::LogicalSource,
+            grammar: None,
+        }
+    }
+
     /// Inclusive descriptive count bounds; unknown contracts remain open.
     #[must_use]
     pub const fn arity(self) -> Arity {

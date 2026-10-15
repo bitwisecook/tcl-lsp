@@ -229,6 +229,60 @@ pub(super) struct SourceOriginalCompilerWords {
     pub words: Arc<[crate::ir::WordExpr]>,
 }
 
+impl SourceInvocationBinding {
+    /// Exact retained compiler syntax for conditional point metadata only.
+    /// Generic/unknown selection preserves unbounded execution; this supplies
+    /// no entered handler, body owner, frame, cell or native instruction.
+    pub(crate) fn original_compiler_point_words_for_source_metadata(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        if tokens.source_binding.as_ref() != Some(self)
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || !self.has_original_source_layout_owner()
+            || self.lookup_state.is_none()
+            || self.has_original_native_source_command()
+            || input.has_logical_source_name_context()
+            || input.has_hosted_source_name_context()
+            || !self.execution_is_unknown()
+            || self.execution_targets().next().is_some()
+            || self.proved_handler_target().is_some()
+            || self.compiler_policy.is_none()
+            || !matches!(
+                self.native_compilation_admission,
+                Some(NativeCompilationSelection::Generic | NativeCompilationSelection::Unknown)
+            )
+            || self.native_compiler_admission.is_some()
+            || self.native_structured_preparation.is_some()
+            || self.native_switch_preparation.is_some()
+            || self.native_operand_layout.is_some()
+            || self.conditional_expression_evaluations.is_some()
+            || self.native_handler_envelope.is_some()
+        {
+            return None;
+        }
+        self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        let original = self.original_compiler_words.as_ref()?;
+        let config = self.original_lexer_config_for_tokens(tokens)?;
+        if original.config != config
+            || config != input.lexer_config()
+            || &original.site != self.invocation_site()?
+            || original.words.as_ref() != tokens.words()
+        {
+            return None;
+        }
+        crate::registry_invocation::original_native_compiler_words(
+            original.site.source.source_image(),
+            &original.words,
+            original.site.offset,
+            original.config,
+        )
+    }
+}
+
 /// Original compiler declaration geometry, including a declined prefix.
 /// This grants no reached namespace alias, variable store or emitted opcode.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3886,6 +3940,126 @@ mod original_logical_compiler_purpose_tests {
                 .invocation_at_source("", 0)
                 .native_compilation_admission,
             Some(NativeCompilationSelection::Unknown)
+        );
+    }
+}
+
+#[cfg(test)]
+mod compiler_point_source_metadata_tests {
+    use super::*;
+
+    fn fixture(source: &str) -> (crate::ir::Module, crate::analyser::ResolvedAnalysisInput) {
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut registry = baseline.commands().project_for_profile(profile);
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(puts);
+        let registry = registry.project_for_profile(profile);
+        let context = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input.clone());
+        (lowerer.lower(source).clone(), input)
+    }
+
+    fn tokens(module: &crate::ir::Module) -> &crate::ir::CommandTokens {
+        module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap()
+    }
+
+    #[test]
+    fn native_compiler_point_source_metadata_keeps_original_words_and_unknown_execution() {
+        for (source, expected) in [("puts {$literal}", Some("$literal")), ("puts $value", None)] {
+            let (module, input) = fixture(source);
+            let tokens = tokens(&module);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            assert!(module.source_entry.native_entry.is_none());
+            assert!(binding.has_nonpoint_original_source_name_role_owner());
+            assert!(!binding.has_original_native_source_command());
+            assert!(
+                binding
+                    .original_compiler_point_words_for_source_metadata(tokens, &input, registry)
+                    .is_some()
+            );
+            let inventory = crate::registry_invocation::original_source_metadata_name_roles(
+                registry, tokens, &input,
+            )
+            .expect("authentic retained root compiler words supply conditional source metadata");
+            assert_eq!(inventory.facts().descriptor_key().label(), "puts");
+            assert_eq!(inventory.argument_literal(0).as_deref(), expected);
+            assert!(inventory.has_unknown_residual());
+            assert!(inventory.direct_written_arguments());
+            assert!(binding.execution_is_unknown());
+            assert!(binding.execution_targets().next().is_none());
+            assert!(binding.proved_handler_target().is_none());
+        }
+    }
+
+    #[test]
+    fn native_compiler_point_source_metadata_refuses_missing_changed_or_foreign_carriers() {
+        let (module, input) = fixture("puts VALUE");
+        let tokens = tokens(&module);
+        let registry = input.borrowed_context_registry().commands();
+        let mut missing = tokens.clone();
+        missing
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .original_compiler_words = None;
+        let mut changed = tokens.clone();
+        Arc::make_mut(
+            changed
+                .source_binding
+                .as_mut()
+                .unwrap()
+                .original_compiler_words
+                .as_mut()
+                .unwrap(),
+        )
+        .site
+        .offset += 1;
+        let mut argv = tokens.clone();
+        argv.argv_texts[1] = "OTHER".to_owned();
+        let mut unselected = tokens.clone();
+        unselected
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .native_compilation_admission = None;
+        for negative in [&missing, &changed, &argv, &unselected] {
+            assert!(
+                negative
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_compiler_point_words_for_source_metadata(negative, &input, registry)
+                    .is_none()
+            );
+        }
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_compiler_point_words_for_source_metadata(tokens, &input, foreign)
+                .is_none()
+        );
+        assert!(
+            crate::registry_invocation::original_source_metadata_name_roles(
+                registry, &changed, &input
+            )
+            .is_none()
         );
     }
 }

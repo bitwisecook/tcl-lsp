@@ -267,7 +267,7 @@ fn tracked_document_input_keeps_keyed_availability_on_the_same_command_store() {
         file_analysis_incremental(&db, file, config)
             .diagnostics
             .iter()
-            .any(|row| row.code == tcl_core_types::DiagCode::W150)
+            .any(|row| row.code == tcl_core_types::DiagCode::W135)
     );
 
     config
@@ -300,6 +300,6 @@ fn tracked_document_input_keeps_keyed_availability_on_the_same_command_store() {
         !analysis
             .diagnostics
             .iter()
-            .any(|row| row.code == tcl_core_types::DiagCode::W150)
+            .any(|row| row.code == tcl_core_types::DiagCode::W135)
     );
 }

@@ -103,6 +103,22 @@ impl LogicalSourceProcedureDeclaration {
         ))
     }
 
+    /// Descriptive argument bounds agreed by both current formal grammars over
+    /// this original Logical header. Both parsers must retain its exact formals;
+    /// NUL or disagreement remains unknown. This selects no engine grammar,
+    /// formal binding, installed command or activation.
+    #[must_use]
+    pub fn formal_count_projection(
+        &self,
+    ) -> Option<crate::signature_scan::formal_count::SourceFormalCountProjection> {
+        self.matches_source(&self.image, &self.input).then(|| {
+            crate::signature_scan::formal_count::SourceFormalCountProjection::from_logical_formals(
+                self.body.parameters_text(),
+                self.body.parameters(),
+            )
+        })
+    }
+
     /// Quoted insertion data from the retained source namespace and header.
     #[must_use]
     pub fn source_word(&self, config: LexerConfig) -> Option<String> {

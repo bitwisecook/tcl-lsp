@@ -340,17 +340,25 @@ impl ItemTree {
             })
             .map(|(qualified, metadata)| (qualified, metadata, None));
         for (qualified, proc, original_declaration) in original_procs.chain(advisory_procs) {
+            let logical = result.logical_source_procedure_declaration(proc);
+            let formal_count = logical.map_or_else(
+                || proc.formal_count_projection(),
+                |declaration| {
+                    declaration
+                        .formal_count_projection()
+                        .unwrap_or_else(|| SourceFormalCount::Unknown.projection(&[], false))
+                },
+            );
             items.push(Item {
                 sig: ItemSig {
-                    logical_source_coordinate: result.logical_source_procedure_declaration(proc)
-                        .and_then(super::types::LogicalSourceProcedureDeclaration::source_candidate_coordinate),
+                    logical_source_coordinate: logical.and_then(super::types::LogicalSourceProcedureDeclaration::source_candidate_coordinate),
                     original_declaration,
                     source_name: proc.source_name.clone(),
                     id: ItemId::new(ItemKind::Proc, qualified.clone()),
                     namespace: enclosing_namespace(qualified),
                     params: proc.params.clone(),
                     params_computed: proc.params_computed,
-                    formal_count: proc.formal_count_projection(),
+                    formal_count,
                     name_span: proc.name_span,
                 },
                 body_span: Some(proc.body_span),
@@ -758,6 +766,58 @@ mod tests {
                     .formal_count_projection(),
                 count
             );
+        }
+    }
+
+    #[test]
+    fn logical_header_counts_keep_original_formals_without_selecting_an_engine() {
+        use crate::signature_scan::formal_count::SourceFormalCountOrigin;
+        let analyse = |source: &str| {
+            let mut analyser = Analyser::new();
+            let result = analyser.analyse(source, "tcl");
+            ItemTree::from_analysis(&result, &analyser.ensemble_namespaces)
+        };
+        for (formals, expected) in [
+            ("", tcl_registry::Arity::new(0, 0)),
+            ("left right", tcl_registry::Arity::new(2, 2)),
+            ("left {right DEFAULT}", tcl_registry::Arity::new(1, 2)),
+            (
+                "left args",
+                tcl_registry::Arity::new(1, tcl_registry::Arity::UNLIMITED),
+            ),
+        ] {
+            let before = analyse(&format!("proc subject {{{formals}}} {{}}"));
+            let after = analyse(&format!(
+                "proc subject {{{formals}}} {{return A_LONGER_BODY}}"
+            ));
+            let signature = &before.items[0].sig;
+            assert!(signature.logical_source_coordinate.is_some());
+            assert!(signature.original_declaration.is_none());
+            assert_eq!(signature.formal_count.arity(), expected);
+            assert_eq!(
+                signature.formal_count.origin(),
+                SourceFormalCountOrigin::LogicalSource
+            );
+            assert_eq!(signature.formal_count.parameter_grammar(), None);
+            assert_eq!(before.sigs(), after.sigs());
+        }
+        for (formals, requires_card) in [
+            ("{optional DEFAULT} required", true),
+            ("first args last", true),
+            (r"{arg\s}", false),
+            ("arg\0suffix", false),
+            (r"{arg \u0000}", false),
+        ] {
+            let tree = analyse(&format!("proc subject {{{formals}}} {{}}"));
+            let signature = &tree.items[0].sig;
+            if requires_card {
+                assert!(signature.logical_source_coordinate.is_some());
+            }
+            assert_eq!(
+                signature.formal_count.origin(),
+                SourceFormalCountOrigin::Unknown
+            );
+            assert_eq!(signature.formal_count.arity(), tcl_registry::Arity::any());
         }
     }
 
