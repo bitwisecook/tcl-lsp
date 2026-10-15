@@ -306,7 +306,8 @@ impl PathEncoding {
 /// The first element that does not encode.
 pub fn check_index_path(path: &[Vec<u8>]) -> Result<(), IndexPathError> {
     for spec in path {
-        PathEncoding::of(&String::from_utf8_lossy(spec)).map_err(|refusal| path_error(spec, refusal))?;
+        PathEncoding::of(&String::from_utf8_lossy(spec))
+            .map_err(|refusal| path_error(spec, refusal))?;
     }
     Ok(())
 }
