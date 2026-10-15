@@ -13150,13 +13150,13 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "checkpoint_utc": "2026-10-15T20:30:37.237719+00:00",
-    "checkpoint_basis": "Main2966e7442; immutable cc24 repository audit with separately recorded successor annex",
+    "checkpoint_utc": "2026-10-15T20:47:56.978416+00:00",
+    "checkpoint_basis": "Main1fe4992fb plus Root tracking; immutable cc24 repository audit checkpoint20:46 with successor annex",
     "current_status": "M12 selected1546:1133PASS410FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT after7 unchanged permission-repair PASS; all1491 predecessors retained4gains0priorPASS regressions0drops; original2286FIRSTPASS71.841791191/180. No whole-codebase acceptance.",
     "canonical_status": "current-state.md",
     "live_independent_audit": "repository-consumer-audit.md",
     "portable_work": "handoff/README.md",
-    "scope": "Historical330 rows unchanged. Repository-wide remaining-consumer total UNKNOWN. Disjoint110709-path baseline roster; production reads, omitted inline operational tests, fixed data/provenance, consumer work, shared-owner extensions and validation-only work explicitly separated. Latest20:17 portable snapshot3246 provisional purpose rows is NOT migration count.",
+    "scope": "Historical330 rows unchanged. Whole-repository remaining-consumer total UNKNOWN. Disjoint110709-path baseline roster. Latest20:46 portable snapshot4226 provisional purpose rows/323 hash-verified members is NOT migration count. Root344 source/provenance dispositions+known inline operations read; independent work-kind/purpose/callsite reconciliation and other owners unexamined production, harnesses, generated and authored guidance remain.",
     "gates": "Fullproof frozen6294 still2128 structural errors; rust-check/prep-pr/generated/owner/fullgates unfinished. No PR or issue closure."
   }
 }
