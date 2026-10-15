@@ -2659,10 +2659,6 @@ impl<'a> CfgBuilder<'a> {
         };
 
         let expands = raw_args.iter().any(|arg| arg.contains("{*}"));
-        // `catch script ?resultVarName? ?optionVarName?` and no more. A fourth
-        // argument is a `wrong # args` error C raises *before* running the
-        // body; inlining would run it and silently ignore the extra word.
-        let over_arity = raw_args.len() > 3;
         // The destination words have to be written as plain scalar locals.
         // Lowering normalises `$dst` to `dst` and `a(key)` to `a`, so the
         // names alone no longer say what was written: inlining
@@ -2677,7 +2673,6 @@ impl<'a> CfgBuilder<'a> {
             || raw_args.is_empty()
             || body.statements.is_empty()
             || expands
-            || over_arity
             || indirect_destination
             || !self.catch_body_is_one_block(body)
         {

@@ -57,7 +57,7 @@ pub fn index<O: ValueOps>(
     idx: &O::Value,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    let chars: Vec<char> = ops.as_chars(s).chars().collect();
     let i = index::resolve_with(&ops.as_str(idx), chars.len(), numbers)?;
     if i < 0 {
         return Ok(ops.empty());
@@ -76,7 +76,7 @@ pub fn range<O: ValueOps>(
     last: &O::Value,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    let chars: Vec<char> = ops.as_chars(s).chars().collect();
     let len = chars.len();
     let lo = index::resolve_with(&ops.as_str(first), len, numbers)?.max(0);
     let hi = index::resolve_with(&ops.as_str(last), len, numbers)?;
@@ -93,7 +93,7 @@ pub fn range<O: ValueOps>(
 
 /// `string reverse str`.
 pub fn reverse<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
-    let out: String = ops.as_str(s).chars().rev().collect();
+    let out: String = ops.as_chars(s).chars().rev().collect();
     ops.new_string(out)
 }
 
@@ -474,7 +474,7 @@ pub fn replace<O: ValueOps>(
             "string replace string first last ?string?",
         ));
     }
-    let chars: Vec<char> = ops.as_str(&args[0]).chars().collect();
+    let chars: Vec<char> = ops.as_chars(&args[0]).chars().collect();
     let len = chars.len();
     let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
     let first = index::resolve_with(&ops.as_str(&args[1]), len, numbers)?;
@@ -577,8 +577,8 @@ pub fn first<O: ValueOps>(
     start: Option<&O::Value>,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let hay: Vec<char> = ops.as_str(haystack).chars().collect();
-    let needle: Vec<char> = ops.as_str(needle).chars().collect();
+    let hay: Vec<char> = ops.as_chars(haystack).chars().collect();
+    let needle: Vec<char> = ops.as_chars(needle).chars().collect();
     let start = match start {
         None => 0,
         Some(s) => usize::try_from(index::resolve_with(&ops.as_str(s), hay.len(), numbers)?.max(0))
@@ -608,8 +608,8 @@ pub fn last<O: ValueOps>(
     last_index: Option<&O::Value>,
     numbers: NumberSyntax,
 ) -> Result<O::Value, CmdError> {
-    let hay: Vec<char> = ops.as_str(haystack).chars().collect();
-    let needle: Vec<char> = ops.as_str(needle).chars().collect();
+    let hay: Vec<char> = ops.as_chars(haystack).chars().collect();
+    let needle: Vec<char> = ops.as_chars(needle).chars().collect();
     let last: i64 = match last_index {
         None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
         Some(s) => index::resolve_with(&ops.as_str(s), hay.len(), numbers)?,
@@ -712,7 +712,13 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
     for c in items.as_chunks::<2>().0 {
         map.push((ops.as_str(&c[0]).to_string(), ops.as_str(&c[1]).to_string()));
     }
-    let string = ops.as_str(text).to_string();
+    // An empty map leaves the string unread; any other reads it by character.
+    let string = if map.is_empty() {
+        ops.as_str(text)
+    } else {
+        ops.as_chars(text)
+    }
+    .to_string();
 
     // Case-insensitive matching folds full Unicode case (like `string equal
     // -nocase` and `tolower`), not just ASCII, and matches/advances by

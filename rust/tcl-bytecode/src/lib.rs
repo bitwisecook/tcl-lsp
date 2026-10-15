@@ -1284,6 +1284,12 @@ pub struct ReleaseCompiled {
     /// in place before it invokes, so a canonical list there is no longer
     /// one.
     pub script_word: Option<u8>,
+    /// The words, one bit per index counting the command word, that must name
+    /// compiled locals of the procedure frame the command runs in. A script
+    /// the release compiles outside a procedure body creates no locals and
+    /// reaches only that frame's (`TclFindCompiledLocal` without a
+    /// `procPtr`), so it compiles the command only where every one is.
+    pub frame_local_words: u8,
 }
 
 impl Instruction {

@@ -1594,7 +1594,7 @@ impl CodegenCtx<'_> {
             }
             Some((InlineCodegenHookId::Catch, _))
                 if self.is_proc
-                    && (1..=3).contains(&args.len())
+                    && self.release_admits_arity(cmd, args.len())
                     && Self::catch_inline_args_are_static(args) =>
             {
                 self.used_inline_cmd_subst = true;

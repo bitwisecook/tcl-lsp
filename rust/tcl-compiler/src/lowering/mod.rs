@@ -1793,9 +1793,11 @@ impl<'r> Lowerer<'r> {
                 self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_while(seg, namespace))
             }
-            LoweringHookId::Catch => {
-                Some(self.lower_catch_with_binding(seg, namespace, canonical_command))
-            }
+            // A count the release's `catch` refuses is its `wrong # args`, which
+            // the command raises before it runs the body.
+            LoweringHookId::Catch => self
+                .release_admits_arity(canonical_command, args.len())
+                .then(|| self.lower_catch_with_binding(seg, namespace, canonical_command)),
             LoweringHookId::Try => {
                 self.record_consumed_command_binding(seg, namespace, canonical_command);
                 Some(self.lower_try(seg, namespace))
@@ -1957,6 +1959,15 @@ impl<'r> Lowerer<'r> {
                 canonical_command,
             ),
         });
+    }
+
+    /// Whether the release's signature of `command` admits `count` arguments.
+    fn release_admits_arity(&self, command: &str, count: usize) -> bool {
+        self.registry.get(command).is_none_or(|spec| {
+            self.registry
+                .release_arity(spec)
+                .accepts(u16::try_from(count).unwrap_or(u16::MAX))
+        })
     }
 
     fn lower_catch_with_binding(

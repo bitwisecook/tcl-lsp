@@ -2315,6 +2315,7 @@ impl Vm {
             words
         });
         self.push_call_frame(Some(proc.name.clone()), call_argv);
+        self.set_frame_compiled_body(Rc::clone(&proc.body.asm));
 
         let mut i = 0;
         let n = proc.params.len();
@@ -3174,12 +3175,8 @@ impl Vm {
             Op::APPEND_SCALAR1 | Op::APPEND_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
                 let v = pop(f);
-                let mut s = self
-                    .get_var(&name)
-                    .map(|x| x.to_str().to_string())
-                    .unwrap_or_default();
-                s.push_str(&v.to_str());
-                let nv = Value::string(s);
+                let cur = self.get_var(&name);
+                let nv = tcl_cmd_core::var::append_bytes(self, cur, std::slice::from_ref(&v));
                 let stored = try_op!(self.store_var_result(&name, nv));
                 f.stack.push(stored);
             }
@@ -3187,12 +3184,8 @@ impl Vm {
                 let name = lvt_name(imm0(instr));
                 let v = pop(f);
                 let key = pop(f).to_str();
-                let mut s = self
-                    .get_array_elem(&name, &key)
-                    .map(|x| x.to_str().to_string())
-                    .unwrap_or_default();
-                s.push_str(&v.to_str());
-                let nv = Value::string(s);
+                let cur = self.get_array_elem(&name, &key);
+                let nv = tcl_cmd_core::var::append_bytes(self, cur, std::slice::from_ref(&v));
                 let stored = try_op!(self.store_elem_result(&name, &key, nv));
                 f.stack.push(stored);
             }
@@ -3257,12 +3250,8 @@ impl Vm {
             Op::APPEND_STK => {
                 let v = pop(f);
                 let name = pop(f).to_str();
-                let mut s = self
-                    .get_var(&name)
-                    .map(|x| x.to_str().to_string())
-                    .unwrap_or_default();
-                s.push_str(&v.to_str());
-                let nv = Value::string(s);
+                let cur = self.get_var(&name);
+                let nv = tcl_cmd_core::var::append_bytes(self, cur, std::slice::from_ref(&v));
                 let stored = try_cmd!(self.store_var_result(&name, nv));
                 f.stack.push(stored);
             }
@@ -3285,12 +3274,8 @@ impl Vm {
                 let v = pop(f);
                 let key = pop(f).to_str();
                 let name = pop(f).to_str();
-                let mut s = self
-                    .get_array_elem(&name, &key)
-                    .map(|x| x.to_str().to_string())
-                    .unwrap_or_default();
-                s.push_str(&v.to_str());
-                let nv = Value::string(s);
+                let cur = self.get_array_elem(&name, &key);
+                let nv = tcl_cmd_core::var::append_bytes(self, cur, std::slice::from_ref(&v));
                 let stored = try_op!(self.store_elem_result(&name, &key, nv));
                 f.stack.push(stored);
             }
@@ -3912,7 +3897,7 @@ impl Vm {
 
             // String ops (inline; char-based, mirroring the reference VM)
             Op::STR_LEN => {
-                let s = pop(f).to_str();
+                let s = pop(f).to_char_str();
                 f.stack.push(Value::int(ilen(string_char_len(
                     &s,
                     self.runtime_version(),
@@ -3926,7 +3911,7 @@ impl Vm {
             // the empty string, so a garbage index looked like a miss.
             Op::STR_INDEX => {
                 let idx = pop(f);
-                let s = pop(f).to_str();
+                let s = pop(f).to_char_str();
                 let chars: Vec<char> = s.chars().collect();
                 let i = match checked_index_value(&idx, chars.len()) {
                     Ok(i) => i,
@@ -3949,7 +3934,7 @@ impl Vm {
             Op::STR_RANGE => {
                 let to = pop(f);
                 let from = pop(f);
-                let s = pop(f).to_str();
+                let s = pop(f).to_char_str();
                 let chars: Vec<char> = s.chars().collect();
                 let lo = match checked_index_value(&from, chars.len()) {
                     Ok(i) => i,
@@ -3962,20 +3947,20 @@ impl Vm {
                 f.stack.push(char_range(&chars, lo, hi));
             }
             Op::STR_RANGE_IMM => {
-                let s = pop(f).to_str();
+                let s = pop(f).to_char_str();
                 let chars: Vec<char> = s.chars().collect();
                 let lo = imm_index(imm0(instr), chars.len());
                 let hi = imm_index(imm_at(instr, 1), chars.len());
                 f.stack.push(char_range(&chars, lo, hi));
             }
             Op::STR_FIND => {
-                let s = pop(f).to_str();
-                let needle = pop(f).to_str();
+                let s = pop(f).to_char_str();
+                let needle = pop(f).to_char_str();
                 f.stack.push(Value::int(char_find(&s, &needle, false)));
             }
             Op::STR_RFIND => {
-                let s = pop(f).to_str();
-                let needle = pop(f).to_str();
+                let s = pop(f).to_char_str();
+                let needle = pop(f).to_char_str();
                 f.stack.push(Value::int(char_find(&s, &needle, true)));
             }
             Op::STR_MATCH => {
@@ -4019,7 +4004,7 @@ impl Vm {
                 f.stack.push(Value::string(out));
             }
             Op::STR_REVERSE => {
-                let s = pop(f).to_str();
+                let s = pop(f).to_char_str();
                 f.stack
                     .push(Value::string(s.chars().rev().collect::<String>()));
             }
@@ -4028,7 +4013,7 @@ impl Vm {
             // stack is `from to string` — the subject on top — and the mapping
             // itself is the `string map` command's (`cmd_string::map_apply`).
             Op::STR_MAP => {
-                let s = pop(f).to_str();
+                let s = pop(f).to_char_str();
                 let to = pop(f).to_str().to_string();
                 let from = pop(f).to_str().to_string();
                 let limit = self.value_size_limit_value();
@@ -4236,15 +4221,17 @@ impl Vm {
                     return Tick::Return(err("invoke: stack underflow"));
                 }
                 let words = f.stack.split_off(f.stack.len() - argc);
-                if let Some(word) = instr
-                    .release_compiled
+                let release_compiled = instr.release_compiled.filter(|compiled| {
+                    self.frame_compiled_locals_named(compiled.frame_local_words, &words)
+                });
+                if let Some(word) = release_compiled
                     .and_then(|compiled| compiled.script_word)
                     .and_then(|index| words.get(usize::from(index)))
                 {
                     word.compile_as_script();
                 }
                 let entered = f.take_entered_command();
-                self.pending.release_compiled = instr.release_compiled;
+                self.pending.release_compiled = release_compiled;
                 let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
                 self.pending.release_compiled = None;
                 match dispatched {
@@ -4607,7 +4594,7 @@ impl Vm {
                 let newstr = pop(f);
                 let last = pop(f);
                 let first = pop(f);
-                let string = pop(f).to_str().to_string();
+                let string = pop(f).to_char_str().to_string();
                 let chars: Vec<char> = string.chars().collect();
                 let len = chars.len();
                 let bad = |spec: &str| {
@@ -4707,7 +4694,7 @@ impl Vm {
                 let Some(class) = tcl_bytecode::str_class_name(class_id) else {
                     return Tick::Return(err(format!("strclass: bad class id {class_id}")));
                 };
-                let s = pop(f).to_str();
+                let s = pop(f).to_char_str();
                 let numbers = self.runtime_version().number_syntax();
                 let (member, _fail) =
                     tcl_cmd_core::string_is::class_check(class, &s, false, numbers);

@@ -2103,13 +2103,24 @@ fn cmd_continue(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `catch script ?resultVarName? ?optionsVarName?`.
 fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let arity = tcl_registry::default_registry()
+        .get("catch")
+        .map_or(tcl_registry::Arity::new(1, 3), |spec| {
+            spec.arity_at(Some(vm.runtime_version().version_string()))
+        });
     let (script, resvar, optvar) = match args {
+        _ if !arity.accepts(u16::try_from(args.len()).unwrap_or(u16::MAX)) => {
+            // 8.4's `Tcl_CatchObjCmd` names the words of its narrower form.
+            return err(if arity.max < 3 {
+                "wrong # args: should be \"catch command ?varName?\""
+            } else {
+                "wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\""
+            });
+        }
         [s] => (s, None, None),
         [s, r] => (s, Some(r), None),
         [s, r, o] => (s, Some(r), Some(o)),
-        _ => {
-            return err("wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"");
-        }
+        _ => unreachable!("every release's catch takes one to three words"),
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
     // yieldable: compile it and hand it to the trampoline via

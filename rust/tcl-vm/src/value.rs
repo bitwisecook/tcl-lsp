@@ -478,6 +478,20 @@ impl Value {
     /// does: the bytecode replaces a list rep, so a canonical list is no longer
     /// one and a later evaluation of the same value compiles it too.
     pub(crate) fn compile_as_script(&self) {
+        self.forget_canonical_list();
+    }
+
+    /// The string as C's character-indexed reads take it (`Tcl_GetCharLength`,
+    /// `Tcl_GetUnicodeFromObj`), which convert the value to a string: a
+    /// canonical list is no longer one, so a later evaluation compiles it.
+    pub(crate) fn to_char_str(&self) -> Rc<str> {
+        self.forget_canonical_list();
+        self.to_str()
+    }
+
+    /// Keep the list a canonical list holds, read from the string it renders
+    /// to, as it would be once C replaces the list rep.
+    fn forget_canonical_list(&self) {
         if !self.is_canonical_list() {
             return;
         }

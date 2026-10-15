@@ -120,9 +120,11 @@ fn regex_err(error: &core_re::RegexError) -> Completion<Value> {
 }
 
 fn cmd_regsub(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // C reads every word as a pattern or by character, converting it to a
+    // string or a regexp: a canonical list among them is one no longer.
     let bytes: Vec<Vec<u8>> = args
         .iter()
-        .map(|v| v.to_str().as_bytes().to_vec())
+        .map(|v| v.to_char_str().as_bytes().to_vec())
         .collect();
     let refs: Vec<&[u8]> = bytes.iter().map(Vec::as_slice).collect();
     // The core owns `-command` (option table, prefix split, per-match word

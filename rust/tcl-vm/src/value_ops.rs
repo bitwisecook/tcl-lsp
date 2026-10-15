@@ -127,8 +127,12 @@ impl ValueOps for Vm {
         v.to_str()
     }
 
+    fn as_chars(&mut self, v: &Value) -> Rc<str> {
+        v.to_char_str()
+    }
+
     fn char_len(&mut self, v: &Value) -> usize {
-        string_char_len(&v.to_str(), self.runtime_version())
+        string_char_len(&v.to_char_str(), self.runtime_version())
     }
 
     fn as_int(&mut self, v: &Value) -> Result<i64, ValueError> {

@@ -466,7 +466,7 @@ puts "missing=[catch {::A2::outer} message]:$message:$::errorCode"
     Vector {
         name: "upvar validates namespace targets and rejects inverted proc links",
         script: r#"namespace eval x { variable ok READY }
-puts "control=[catch {upvar #0 ::x::ok top} m opts]:[set top]"
+puts "control=[catch {upvar #0 ::x::ok top} m]:[set top]"
 proc p {} {
     set proc_local 1
     puts "inverted=[catch {upvar 0 proc_local ::x::link(k)} m]:$m:$::errorCode"

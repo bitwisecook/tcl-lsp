@@ -10062,6 +10062,24 @@ impl Vm {
         self.frames.len() - 1
     }
 
+    /// Whether each of `words` that `mask` marks, one bit per index, names a
+    /// compiled local of the procedure the current frame activates
+    /// ([`tcl_bytecode::ReleaseCompiled::frame_local_words`]).
+    pub(crate) fn frame_compiled_locals_named(&self, mask: u8, words: &[Value]) -> bool {
+        if mask == 0 {
+            return true;
+        }
+        let Some(body) = self.frames.last().and_then(|f| f.compiled_body.as_ref()) else {
+            return false;
+        };
+        (0..u8::BITS).filter(|bit| mask >> bit & 1 == 1).all(|bit| {
+            usize::try_from(bit)
+                .ok()
+                .and_then(|index| words.get(index))
+                .is_some_and(|word| body.lvt.is_source_local(&word.to_str()))
+        })
+    }
+
     /// Whether the current frame is a **procedure** activation.
     ///
     /// A proc frame carries its name; the global frame and a `namespace eval`
@@ -10082,6 +10100,13 @@ impl Vm {
             .push(CallFrame::new(level, ROOT_NS, proc_name, call_argv));
         self.recursion_depth += 1;
         level
+    }
+
+    /// Record the compiled body of the procedure the current frame activates.
+    pub(crate) fn set_frame_compiled_body(&mut self, body: Rc<tcl_bytecode::FunctionAsm>) {
+        if let Some(frame) = self.frames.last_mut() {
+            frame.compiled_body = Some(body);
+        }
     }
 
     pub(crate) fn pop_call_frame(&mut self) {

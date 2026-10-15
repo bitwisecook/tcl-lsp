@@ -310,6 +310,13 @@ pub trait ValueOps {
     /// (`Tcl_GetString`). Always valid UTF-8 — the seam never exposes bytes.
     fn as_str(&mut self, v: &Self::Value) -> Rc<str>;
 
+    /// The string as a character-indexed read takes it (C's
+    /// `Tcl_GetUnicodeFromObj`), which converts the value to a string. A
+    /// runtime whose values keep a list's canonical status drops it here.
+    fn as_chars(&mut self, v: &Self::Value) -> Rc<str> {
+        self.as_str(v)
+    }
+
     /// The character length for this runtime's selected Tcl release.
     ///
     /// Stateless adapters default to Tcl 9 scalar counting. Runtime adapters

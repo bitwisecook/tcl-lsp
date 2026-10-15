@@ -222,7 +222,7 @@ impl CodegenCtx<'_> {
     /// The release compiles none of these in a command it evaluates directly,
     /// and binds a handler or result variable only to a local of a procedure
     /// body; a script `eval` compiles in a procedure frame can bind one of the
-    /// procedure's existing locals, which this compile cannot see.
+    /// procedure's existing locals, which the VM checks as the command runs.
     pub(crate) fn release_compiled(
         &mut self,
         command: &str,
@@ -246,39 +246,55 @@ impl CodegenCtx<'_> {
         }
         let hook = resolved.lowering_hook?;
         let binding = self.command_binding_identity(command, resolved.spec.name);
-        let compiled = match hook {
-            LoweringHookId::Catch => self.release_compiles_catch(&words),
-            LoweringHookId::Try => self.release_compiles_try(command, &words, &arg_refs),
-            LoweringHookId::For => {
-                matches!(words.as_slice(), [_, test, next, body]
+        let frame_local_words = match hook {
+            LoweringHookId::Catch => self
+                .release_admits_arity(command, args.len())
+                .then(|| self.release_compiles_catch(&words))
+                .flatten(),
+            LoweringHookId::Try => self
+                .release_compiles_try(command, &words, &arg_refs)
+                .then_some(0),
+            LoweringHookId::For => matches!(words.as_slice(), [_, test, next, body]
                     if test.simple() && next.simple() && body.simple())
-            }
-            _ => false,
-        };
-        if !compiled {
-            return None;
-        }
+            .then_some(0),
+            _ => None,
+        }?;
         self.require_command_binding(&binding);
         Some(tcl_bytecode::ReleaseCompiled {
             script_word: words
                 .first()
                 .is_some_and(|script| !script.simple())
                 .then_some(1),
+            frame_local_words,
         })
     }
 
-    /// `TclCompileCatchCmd`: a result or options variable needs a procedure
-    /// local.
-    fn release_compiles_catch(&self, words: &[ReleaseWord<'_>]) -> bool {
-        let Some((_, vars)) = words.split_first() else {
-            return false;
-        };
-        vars.len() <= 2
-            && (vars.is_empty()
-                || (self.compiles_locals()
-                    && vars
-                        .iter()
-                        .all(|var| var.simple() && is_release_local_scalar_name(var.text))))
+    /// Whether the release's signature of `command` admits `count` arguments.
+    pub(crate) fn release_admits_arity(&self, command: &str, count: usize) -> bool {
+        self.registry.get(command).is_none_or(|spec| {
+            self.registry
+                .release_arity(spec)
+                .accepts(u16::try_from(count).unwrap_or(u16::MAX))
+        })
+    }
+
+    /// `TclCompileCatchCmd`: a result or options variable needs a local. A
+    /// procedure body creates one; any other script finds only those of the
+    /// procedure frame it runs in, so the answer is the words the VM checks
+    /// there ([`tcl_bytecode::ReleaseCompiled::frame_local_words`]).
+    fn release_compiles_catch(&self, words: &[ReleaseWord<'_>]) -> Option<u8> {
+        let (_, vars) = words.split_first()?;
+        if !vars
+            .iter()
+            .all(|var| var.simple() && is_release_local_scalar_name(var.text))
+        {
+            return None;
+        }
+        if self.compiles_locals() {
+            return Some(0);
+        }
+        // The variables follow the command word and the script.
+        Some((2..2 + vars.len()).fold(0, |mask, word| mask | 1 << word))
     }
 
     /// `TclCompileTryCmd`: every handler's selector and variable list known,
@@ -1953,7 +1969,19 @@ mod tests {
             Some(1)
         );
         assert_eq!(word(false, "catch", &[b]), Some(1));
-        assert_eq!(word(false, "catch", &[b, ("r", false)]), None);
+        // Outside a procedure body the variable must already be a local of
+        // the frame the script runs in.
+        assert_eq!(
+            compiled(false, "catch", &[b, ("r", false)]),
+            Some(tcl_bytecode::ReleaseCompiled {
+                script_word: Some(1),
+                frame_local_words: 0b100,
+            })
+        );
+        assert_eq!(
+            compiled(true, "catch", &[b, ("r", false)]).map(|c| c.frame_local_words),
+            Some(0)
+        );
         assert_eq!(word(true, "catch", &[b, ("::r", false)]), None);
         assert_eq!(word(true, "catch", &[b, ("a(x)", false)]), None);
         assert_eq!(word(true, "catch", &[b, ("$r", false)]), None);
@@ -2017,7 +2045,10 @@ mod tests {
             ("e", true),
             ("list $r", true),
         ];
-        let literal = Some(tcl_bytecode::ReleaseCompiled { script_word: None });
+        let literal = Some(tcl_bytecode::ReleaseCompiled {
+            script_word: None,
+            frame_local_words: 0,
+        });
         assert_eq!(compiled(true, "try", &falls_through), literal);
         assert_eq!(compiled(false, "try", &falls_through), None);
         let mut dynamic = falls_through;

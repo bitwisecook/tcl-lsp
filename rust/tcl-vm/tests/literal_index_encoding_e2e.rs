@@ -30,6 +30,10 @@
 //! there reads as at run time: the VM runs that file with
 //! `Vm::eval_source_directly`, and stdin with `Vm::eval_source`.
 //!
+//! The same literal shows which scripts 8.6 compiles in a procedure frame and
+//! which values its string commands leave canonical lists, and the harness
+//! also pins 8.4's narrower `catch`.
+//!
 //! The vectors are measured on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0,
 //! each script run as the file `tclsh` is given and on its stdin, and are
 //! compared with the release's `tclsh` again wherever one is installed.
@@ -337,7 +341,158 @@ const COMPILED_86_STDIN: &str = "proc: <abcdefghijkl> <abcdefghijkl> <abcdefghij
 <abcdefghijkl> <abcdefghijkl> <> <> <> <abcdefghijkl>\n\
 script: <abcdefghijkl> <> <abcdefghijkl>\n";
 
+/// A script `eval`, `uplevel` or `apply` compiles in a procedure frame
+/// creates no locals of its own: `catch` compiles with a result or options
+/// variable only where the frame's procedure already has it as a compiled
+/// local (`TclFindCompiledLocal` reads the frame's `localCachePtr`), and a
+/// `try` with a handler, which needs locals of its own, never compiles there.
+const FRAME_LOCALS: &str = r#"proc L {} { list string range abcdefghijkl 0 [set e end-2147483649] }
+proc local {b} { set r x; eval {catch $b r}; set r }
+proc later {b} { set r x; eval {catch $b r}; eval $b }
+proc notlocal {b} { eval {catch $b zz}; eval $b }
+proc novar {b} { eval {catch $b}; eval $b }
+proc both {b} { set r 1; set o 1; eval {catch $b r o}; set r }
+proc onelocal {b} { set r 1; eval {catch $b r o}; set r }
+proc element {b} { set r(x) 1; eval {catch $b r(x)}; set r(x) }
+proc linked {b} { global g; eval {catch $b g}; set g }
+proc nested {b} { set r 1; eval {eval {catch $b r}}; set r }
+proc level0 {b} { set r 1; uplevel 0 {catch $b r}; set r }
+proc caller {b} { set r 1; callee $b; set r }
+proc callee {b} { uplevel 1 {catch $b r} }
+proc text {b} { set r 1; set s {catch $b r}; eval $s; set r }
+proc handler {b} { set r 1; eval {try $b on ok {r} {set r}} }
+proc lambda {b} { apply {{b} {set r 1; eval {catch $b r}; set r}} $b }
+foreach p {local later notlocal novar both onelocal element linked nested level0 caller text handler lambda} {
+    lappend out "$p=<[$p [L]]>"
+}
+puts $out
+set r 1; eval {catch [L] r}; puts "global=<$r>"
+"#;
+
+const FRAME_LOCALS_READ: &str = "local=<> later=<> notlocal=<> novar=<> both=<> onelocal=<> \
+element=<> linked=<> nested=<> level0=<> caller=<> text=<> handler=<> lambda=<>\nglobal=<>\n";
+
+const FRAME_LOCALS_86: &str = "local=<abcdefghijkl> later=<abcdefghijkl> notlocal=<> \
+novar=<abcdefghijkl> both=<abcdefghijkl> onelocal=<> element=<> linked=<abcdefghijkl> \
+nested=<abcdefghijkl> level0=<abcdefghijkl> caller=<abcdefghijkl> text=<abcdefghijkl> \
+handler=<> lambda=<abcdefghijkl>\nglobal=<>\n";
+
+/// 8.6 converts a value its character-indexed string commands read to a
+/// string, so a canonical list read so is one no longer and a later `eval`
+/// compiles it; `string equal`, `string match`, an empty `string map` and the
+/// list commands leave it a list. `append` onto an unset variable stores the
+/// value appended itself, and appending an empty string leaves a value alone.
+const SHIMMER: &str = r#"proc L {} { list string range abcdefghijkl 0 [set e end-2147483649] }
+proc show {tag v} { upvar 1 out out; lappend out "$tag=<[eval $v]>" }
+set out {}
+set l [L]; string length $l; show length $l
+set l [L]; string index $l 0; show index $l
+set l [L]; string range $l 0 1; show range $l
+set l [L]; string first a $l; show first $l
+set l [L]; string last $l abc; show last $l
+set l [L]; string replace $l 0 0 s; show replace $l
+set l [L]; string map {zz y} $l; show map $l
+set l [L]; string map {} $l; show emptymap $l
+set l [L]; regsub a $l b; show regsub $l
+set l [L]; string length $l; llength $l; show relisted $l
+set l [L]; string equal $l x; show equal $l
+set l [L]; string match x* $l; show match $l
+set l [L]; string toupper $l; show toupper $l
+set l [L]; llength $l; show llength $l
+set l [L]; unset -nocomplain v; append v $l; show append $v
+set l [L]; unset -nocomplain v; append v $l ""; show appendempty $v
+set l [L]; set v $l; append v ""; show appendnothing $v
+set l [L]; set v ""; append v $l; show appendstring $v
+puts "top: $out"
+proc p {} {
+    set out {}
+    set l [L]; string length $l; show length $l
+    set l [L]; set v [string index $l 0]; show index $l
+    set l [L]; set v [string range $l 0 1]; show range $l
+    set l [L]; set v [string first a $l]; show first $l
+    set l [L]; set v [string last $l abc]; show last $l
+    set l [L]; set v [string map {a b} $l]; show map $l
+    set l [L]; set v [string is alpha $l]; show isalpha $l
+    set l [L]; regsub a $l b; show regsub $l
+    set l [L]; string equal $l x; show equal $l
+    set l [L]; unset -nocomplain v; append v $l; show append $v
+    set l [L]; append w $l ""; show appendempty $w
+    set l [L]; set v ""; append v $l; show appendstring $v
+    return $out
+}
+puts "proc: [p]"
+"#;
+
+const SHIMMER_READ: &str = "top: length=<> index=<> range=<> first=<> last=<> replace=<> \
+map=<> emptymap=<> regsub=<> relisted=<> equal=<> match=<> toupper=<> llength=<> append=<> \
+appendempty=<> appendnothing=<> appendstring=<>\nproc: length=<> index=<> range=<> first=<> \
+last=<> map=<> isalpha=<> regsub=<> equal=<> append=<> appendempty=<> appendstring=<>\n";
+
+const SHIMMER_86: &str = "top: length=<abcdefghijkl> index=<abcdefghijkl> \
+range=<abcdefghijkl> first=<abcdefghijkl> last=<abcdefghijkl> replace=<abcdefghijkl> \
+map=<abcdefghijkl> emptymap=<> regsub=<abcdefghijkl> relisted=<abcdefghijkl> equal=<> \
+match=<> toupper=<> llength=<> append=<> appendempty=<> appendnothing=<> \
+appendstring=<abcdefghijkl>\nproc: length=<abcdefghijkl> index=<abcdefghijkl> \
+range=<abcdefghijkl> first=<abcdefghijkl> last=<abcdefghijkl> map=<abcdefghijkl> \
+isalpha=<abcdefghijkl> regsub=<abcdefghijkl> equal=<> append=<> appendempty=<> \
+appendstring=<abcdefghijkl>\n";
+
+/// Tcl 8.4's `catch` takes the result variable alone; an options variable is
+/// its `wrong # args`, from the command and from the compiled `catch` alike.
+const CATCH_ARITY: &str = r#"proc stmt {} { catch {set x 1} r o; list $r $o }
+proc value {} { set y [catch {set x 1} r o]; list $y $r }
+proc subst {b} { catch $b r o; list $r }
+proc short {} { list [catch {set x 1} r] $r }
+foreach p {stmt value {subst {set x 1}} short} { lappend out [list [catch $p m] $m] }
+puts "proc: $out"
+puts "top: [list [catch {catch {set x 1} r o} m] $m] [list [catch {catch} m] $m]"
+set c catch
+puts "dynamic: [list [catch {$c {set x 1} r o} m] $m]"
+"#;
+
+const CATCH_ARITY_84: &str = "proc: {1 {wrong # args: should be \"catch command ?varName?\"}} \
+{1 {wrong # args: should be \"catch command ?varName?\"}} \
+{1 {wrong # args: should be \"catch command ?varName?\"}} {0 {0 1}}\n\
+top: 1 {wrong # args: should be \"catch command ?varName?\"} \
+1 {wrong # args: should be \"catch command ?varName?\"}\n\
+dynamic: 1 {wrong # args: should be \"catch command ?varName?\"}\n";
+
+const CATCH_ARITY_85: &str = "proc: {0 {1 {-code 0 -level 0}}} {0 {0 1}} {0 1} {0 {0 1}}\n\
+top: 0 0 1 {wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"}\n\
+dynamic: 0 0\n";
+
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "catch's arity",
+        script: CATCH_ARITY,
+        want: &[
+            (TclVersion::V8_4, CATCH_ARITY_84, CATCH_ARITY_84),
+            (TclVersion::V8_5, CATCH_ARITY_85, CATCH_ARITY_85),
+            (TclVersion::V8_6, CATCH_ARITY_85, CATCH_ARITY_85),
+            (TclVersion::V9_0, CATCH_ARITY_85, CATCH_ARITY_85),
+            (TclVersion::V9_1, CATCH_ARITY_85, CATCH_ARITY_85),
+        ],
+    },
+    Vector {
+        name: "a script compiled in a procedure frame",
+        script: FRAME_LOCALS,
+        want: &[
+            (TclVersion::V8_6, FRAME_LOCALS_86, FRAME_LOCALS_86),
+            (TclVersion::V9_0, FRAME_LOCALS_READ, FRAME_LOCALS_READ),
+            (TclVersion::V9_1, FRAME_LOCALS_READ, FRAME_LOCALS_READ),
+        ],
+    },
+    Vector {
+        name: "a canonical list read as a string",
+        script: SHIMMER,
+        want: &[
+            (TclVersion::V8_4, SHIMMER_READ, SHIMMER_READ),
+            (TclVersion::V8_5, SHIMMER_READ, SHIMMER_READ),
+            (TclVersion::V8_6, SHIMMER_86, SHIMMER_86),
+            (TclVersion::V9_0, SHIMMER_READ, SHIMMER_READ),
+            (TclVersion::V9_1, SHIMMER_READ, SHIMMER_READ),
+        ],
+    },
     Vector {
         name: "bodies a command evaluates",
         script: BODIES,
