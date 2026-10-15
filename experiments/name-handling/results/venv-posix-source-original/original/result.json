@@ -1,0 +1,275 @@
+{
+  "question": "Does the actual selected POSIX shell preserve original Unicode literal argv and raw inherited environment suffix bytes under the source-word recipe, without evaluating metacharacters?",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "driver_sha256": "eb28055a9e288e4eddfb40a9c64ea2082adb9c6b62da740b66e5e9f87326de78",
+  "shell_before": {
+    "invocation_path": "/bin/sh",
+    "resolved_path": "/usr/bin/dash",
+    "sha256": "a6f559e00b69a4aa4d8cb607be18d9386c5aee55c509e2c075549dcf00e00fc7",
+    "device": 27,
+    "inode": 9223372036855107653,
+    "size": 129736,
+    "mtime_ns": 1738674882000000000
+  },
+  "shell_after": {
+    "invocation_path": "/bin/sh",
+    "resolved_path": "/usr/bin/dash",
+    "sha256": "a6f559e00b69a4aa4d8cb607be18d9386c5aee55c509e2c075549dcf00e00fc7",
+    "device": 27,
+    "inode": 9223372036855107653,
+    "size": 129736,
+    "mtime_ns": 1738674882000000000
+  },
+  "shell_unchanged": true,
+  "rows": [
+    {
+      "case": 0,
+      "input": "",
+      "input_utf8_hex": "",
+      "source_file": "case-0.sh",
+      "source_sha256": "4de80cf7dfdbb2de03ed85e52ee1c974b6058550a7aaef4647046e66dce7d52f",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/case-0.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "LANG": "432e5554462d38"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.0025885409995680675,
+      "stdout_hex": "00",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": 1,
+      "input": "plain",
+      "input_utf8_hex": "706c61696e",
+      "source_file": "case-1.sh",
+      "source_sha256": "63907d6d0f571d10994fc7053c87e8a360f19ddfd90161cdd823448e4293ba61",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/case-1.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "LANG": "432e5554462d38"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.0015554049969068728,
+      "stdout_hex": "706c61696e00",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": 2,
+      "input": "a b",
+      "input_utf8_hex": "612062",
+      "source_file": "case-2.sh",
+      "source_sha256": "11f8d6704b8724d9f6674974376fb72da4d72dd6586bbc3860e7a482fe2a36aa",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/case-2.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "LANG": "432e5554462d38"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.0037246130013954826,
+      "stdout_hex": "61206200",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": 3,
+      "input": "quote'double\"",
+      "input_utf8_hex": "71756f746527646f75626c6522",
+      "source_file": "case-3.sh",
+      "source_sha256": "e3f3df12ddca9ebab9d2193ba3352f1683b5f296e73a4a2edf350c615c0c85a4",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/case-3.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "LANG": "432e5554462d38"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.0022853000009490643,
+      "stdout_hex": "71756f746527646f75626c652200",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": 4,
+      "input": "$literal`quote`;$(literal)",
+      "input_utf8_hex": "246c69746572616c6071756f7465603b24286c69746572616c29",
+      "source_file": "case-4.sh",
+      "source_sha256": "887dcec99c19a9807056d7d8f87c4e291eb4602d340904cf8d307283e43d6e83",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/case-4.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "LANG": "432e5554462d38"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.0010602080001262948,
+      "stdout_hex": "246c69746572616c6071756f7465603b24286c69746572616c2900",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": 5,
+      "input": "back\\slash",
+      "input_utf8_hex": "6261636b5c736c617368",
+      "source_file": "case-5.sh",
+      "source_sha256": "eccee08e6c55cb9f2944df1d357ac5b5eb20766db6f5cefabe95d0454954ce28",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/case-5.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "LANG": "432e5554462d38"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.0014909970013832208,
+      "stdout_hex": "6261636b5c736c61736800",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": 6,
+      "input": "line\nnext",
+      "input_utf8_hex": "6c696e650a6e657874",
+      "source_file": "case-6.sh",
+      "source_sha256": "f3101acba4580e97c53f580bdbf30a7535e1f2d57126a2907ec3413540053f9b",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/case-6.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "LANG": "432e5554462d38"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.004002046000096016,
+      "stdout_hex": "6c696e650a6e65787400",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": 7,
+      "input": "café",
+      "input_utf8_hex": "636166c3a9",
+      "source_file": "case-7.sh",
+      "source_sha256": "f6d564b2f974c1fcfc3a50aa5fc8a0cb7803117c7f7dcf53fc87c6bfc2066a62",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/case-7.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "LANG": "432e5554462d38"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.0011400879993743729,
+      "stdout_hex": "636166c3a900",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": "suffix-0",
+      "original_suffix_hex": null,
+      "source_file": "suffix.sh",
+      "source_sha256": "29424bbb40a72ed32779dd165817e8ee086c278b4da28ef495ed6ddf94817d51",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/suffix.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.0033859930008475203,
+      "stdout_hex": "7b6e65772070617468205b6c69746572616c5d3b2476616c75657d00",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": "suffix-1",
+      "original_suffix_hex": "",
+      "source_file": "suffix.sh",
+      "source_sha256": "29424bbb40a72ed32779dd165817e8ee086c278b4da28ef495ed6ddf94817d51",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/suffix.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "TCLLIBPATH": ""
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.001845557002525311,
+      "stdout_hex": "7b6e65772070617468205b6c69746572616c5d3b2476616c75657d00",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": "suffix-2",
+      "original_suffix_hex": "20207b6f6c6420706174687d20090a",
+      "source_file": "suffix.sh",
+      "source_sha256": "29424bbb40a72ed32779dd165817e8ee086c278b4da28ef495ed6ddf94817d51",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/suffix.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "TCLLIBPATH": "20207b6f6c6420706174687d20090a"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.002073570001812186,
+      "stdout_hex": "7b6e65772070617468205b6c69746572616c5d3b2476616c75657d2020207b6f6c6420706174687d20090a00",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    },
+    {
+      "case": "suffix-3",
+      "original_suffix_hex": "6f726967696e616c2dff",
+      "source_file": "suffix.sh",
+      "source_sha256": "29424bbb40a72ed32779dd165817e8ee086c278b4da28ef495ed6ddf94817d51",
+      "argv": [
+        "/bin/sh",
+        "/workspace/name-session/venv-posix-source-original/suffix.sh"
+      ],
+      "environment_hex": {
+        "PATH": "2f7573722f62696e3a2f62696e",
+        "TCLLIBPATH": "6f726967696e616c2dff"
+      },
+      "exit_code": 0,
+      "completed": true,
+      "elapsed_seconds": 0.002523503000702476,
+      "stdout_hex": "7b6e65772070617468205b6c69746572616c5d3b2476616c75657d206f726967696e616c2dff00",
+      "stderr_hex": "",
+      "exact_argv_check": true
+    }
+  ],
+  "limitations": "This observes the exact captured /bin/sh binary and source recipes only. No Rust implementation, Tcl interpreter, Fish or Docker grammar was executed. The suffix observation concerns shell OS-byte transport, not Tcl decoding or filesystem selection."
+}

@@ -101,6 +101,7 @@ pub mod native_variable_words;
 pub mod ns_op_conformance;
 pub mod number;
 pub mod number_tower;
+pub mod posix_shell;
 pub mod raw_string;
 pub mod release_expectations;
 pub mod scalar_getter;

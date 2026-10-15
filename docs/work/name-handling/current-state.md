@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## Generated POSIX source and shared rendering
+
+Reviewed generated-source consumers now share the single Syntax POSIX literal renderer with existing query @sh output. Package executable/path/prompt source separately checks actual selected Path, generation cwd, Unicode/NUL and PATH-component admissibility. Complete supported source is staged before create/update writes. Static POSIX activation TCLLIBPATH uses the independent list constructor before shell literal construction; jq descriptive NUL behaviour remains unchanged. Original @sh test body is byte-exact; four new Rust controls are unexecuted. Actual shell recipe evidence retains12checks and unchanged original shell identity/hash, verified36original/39outer entries; it does not execute the Rust implementation. Runtime-derived wrapper VENV/pwd newline behaviour and Tcl-list prefix, Fish/Docker, config-line encoding and empty/unset restoration remain unfinished.
+
 ## Conditional lambda source-frame issuer
 
 The reviewed existing frame owner now retains the genuine original Apply call/fields/formals/input/site/body/namespace and independent actual-argc consensus for a distinct conditional lexical layout. Cursor selection first chooses the nearest Scope; actual Apply boundaries with missing receipts fail terminally rather than borrowing an outer procedure. The unchanged direct-script scanner is shared with the existing procedure path and excludes inert braced data. No entered activation, body/formal source symbols, physical cells, normal completion or edits are granted. One new control is unexecuted. Purpose-specific lambda child binding/alias graphs and Logical nested-field occurrence carriers remain unfinished.

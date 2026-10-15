@@ -1195,3 +1195,185 @@ fn direct_tcllibpath_producers_refuse_invalid_or_opaque_source_before_entry() {
     }
     std::fs::remove_dir_all(base).unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn generated_posix_venv_source_preserves_executable_arguments_and_activation_values() {
+    use std::os::unix::fs::PermissionsExt;
+    let base = temp_dir("venv-posix-source");
+    let selected_dir = base.join("selected '$literal`quote` directory");
+    std::fs::create_dir_all(&selected_dir).unwrap();
+    let selected = selected_dir.join("tclsh9.0");
+    let target = r#"#!/bin/sh
+if [ "$1" = - ]; then printf '9.0.4\n'; exit 0; fi
+printf '%s\000' "$0" "$@" "$TCL_VENV" "$TCLLIBPATH" > "$RECEIPT"
+"#;
+    std::fs::write(&selected, target).unwrap();
+    std::fs::set_permissions(&selected, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let venv = base.join("venv '$literal`quote` {path}");
+    let prompt = "prompt '$literal`quote`\";\nsecond line";
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&venv)
+        .args(["--prompt", prompt])
+        .env("PATH", selected_dir.file_name().unwrap())
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let receipt = base.join("wrapper-receipt");
+    let arguments = ["one argument", "'$literal`quote`\";", "line\nend", ""];
+    let output = Command::new("/bin/sh")
+        .arg(venv.join("bin/tclsh"))
+        .args(arguments)
+        .env("RECEIPT", &receipt)
+        .env("PATH", "/bin:/usr/bin")
+        .env("TCLLIBPATH", "{original suffix}")
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(output.stderr.is_empty(), "{output:?}");
+    let raw = std::fs::read(&receipt).unwrap();
+    let values = raw
+        .strip_suffix(&[0])
+        .unwrap()
+        .split(|byte| *byte == 0)
+        .collect::<Vec<_>>();
+    assert_eq!(values[0], selected.to_str().unwrap().as_bytes());
+    for (actual, expected) in values[1..5].iter().zip(arguments) {
+        assert_eq!(*actual, expected.as_bytes());
+    }
+    assert_eq!(values[5], venv.to_str().unwrap().as_bytes());
+    let activation_receipt = base.join("activation-receipt");
+    let driver = base.join("activation-driver.sh");
+    std::fs::write(
+        &driver,
+        r#". "$ACTIVATION"
+printf '%s\000' "$TCL_VENV" "$PATH" "$PS1" "$TCLLIBPATH" > "$RECEIPT"
+deactivate
+printf '%s\000' "$PATH" "$PS1" "$TCLLIBPATH" "${TCL_VENV+x}" >> "$RECEIPT"
+"#,
+    )
+    .unwrap();
+    let original_path = "before path:original tail";
+    let original_prompt = "original '$prompt`value` ";
+    let original_suffix = r"{original path} tail\ ";
+    let output = Command::new("/bin/sh")
+        .arg(&driver)
+        .env("ACTIVATION", venv.join("bin/activate"))
+        .env("RECEIPT", &activation_receipt)
+        .env("PATH", original_path)
+        .env("PS1", original_prompt)
+        .env("TCLLIBPATH", original_suffix)
+        .env_remove("TCL_VENV")
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(output.stderr.is_empty(), "{output:?}");
+    let raw = std::fs::read(activation_receipt).unwrap();
+    let values = raw
+        .strip_suffix(&[0])
+        .unwrap()
+        .split(|byte| *byte == 0)
+        .collect::<Vec<_>>();
+    let expected_list = tcl_pkg::venv::prepare_tcllibpath(
+        &venv.join("lib"),
+        Some(std::ffi::OsStr::new(original_suffix)),
+    )
+    .unwrap();
+    let expected_path = format!("{}:{original_path}", venv.join("bin").to_str().unwrap());
+    let expected_prompt = format!("({prompt}) {original_prompt}");
+    assert_eq!(
+        values,
+        [
+            venv.to_str().unwrap().as_bytes(),
+            expected_path.as_bytes(),
+            expected_prompt.as_bytes(),
+            expected_list.to_str().unwrap().as_bytes(),
+            original_path.as_bytes(),
+            original_prompt.as_bytes(),
+            original_suffix.as_bytes(),
+            b""
+        ]
+    );
+    std::fs::remove_dir_all(base).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn generated_posix_venv_source_refuses_opaque_paths_before_writing() {
+    use std::os::unix::ffi::OsStringExt;
+    use std::os::unix::fs::PermissionsExt;
+    let base = temp_dir("venv-posix-opaque");
+    let selected_dir = base.join("selected");
+    std::fs::create_dir_all(&selected_dir).unwrap();
+    let selected = selected_dir.join("tclsh9.0");
+    std::fs::write(&selected, "#!/bin/sh\nprintf '9.0.4\\n'\n").unwrap();
+    std::fs::set_permissions(&selected, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let colon = base.join("venv:component");
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&colon)
+        .env("PATH", &selected_dir)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(!colon.exists());
+    let opaque = base.join(std::ffi::OsString::from_vec(b"venv-\xff".to_vec()));
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&opaque)
+        .args(["--prompt", "explicit"])
+        .env("PATH", &selected_dir)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(!opaque.exists());
+    let opaque_selected = base.join(std::ffi::OsString::from_vec(b"selected-\xff".to_vec()));
+    std::fs::create_dir_all(&opaque_selected).unwrap();
+    std::fs::copy(&selected, opaque_selected.join("tclsh9.0")).unwrap();
+    let venv = base.join("new-venv");
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "create"])
+        .arg(&venv)
+        .env("PATH", &opaque_selected)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(!venv.exists());
+    std::fs::create_dir_all(venv.join("bin")).unwrap();
+    std::fs::write(
+        venv.join("tclvenv.cfg"),
+        "venv_tool = tcl-lsp\ntcl_executable = original\n",
+    )
+    .unwrap();
+    std::fs::write(venv.join("bin/tclsh"), "original wrapper\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["venv", "update"])
+        .arg(&venv)
+        .args(["--tcl", "9.0"])
+        .env("PATH", &opaque_selected)
+        .env("XDG_CACHE_HOME", base.join("cache"))
+        .current_dir(&base)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert_eq!(
+        std::fs::read_to_string(venv.join("tclvenv.cfg")).unwrap(),
+        "venv_tool = tcl-lsp\ntcl_executable = original\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(venv.join("bin/tclsh")).unwrap(),
+        "original wrapper\n"
+    );
+    std::fs::remove_dir_all(base).unwrap();
+}

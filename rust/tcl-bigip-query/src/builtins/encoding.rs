@@ -34,7 +34,7 @@
 //! - `fromjson` parses JSON into the value model (objects preserve key
 //!   order, integers stay `Int`). The JSON parse-error wording is custom
 //!   (divergent), a documented divergence kept out of the fixture.
-//! - `sh` is jq's `@sh` force-single-quote (not POSIX shell quoting): every value
+//! - `sh` is jq's `@sh` force-single-quote format: every value
 //!   is wrapped in `'…'` with embedded `'` emitted as `'\''`; a list /
 //!   stream becomes space-separated quoted fields.
 
@@ -181,7 +181,11 @@ fn bi_sh(args: &[Value]) -> Result<Value, QueryError> {
         Value::List(items) | Value::Stream(items) => {
             let parts: Result<Vec<String>, QueryError> = items
                 .iter()
-                .map(|item| Ok(sh_quote(&as_str(item, "sh", 1)?)))
+                .map(|item| {
+                    Ok(tcl_syntax::posix_shell::quote_literal(&as_str(
+                        item, "sh", 1,
+                    )?))
+                })
                 .collect();
             Ok(Value::Str(parts?.join(" ")))
         }
@@ -192,14 +196,9 @@ fn bi_sh(args: &[Value]) -> Result<Value, QueryError> {
                     type_name(other)
                 ))
             })?;
-            Ok(Value::Str(sh_quote(&s)))
+            Ok(Value::Str(tcl_syntax::posix_shell::quote_literal(&s)))
         }
     }
-}
-
-/// jq `@sh` quoting — force single quotes, embedded `'` → `'\''`.
-fn sh_quote(text: &str) -> String {
-    format!("'{}'", text.replace('\'', "'\\''"))
 }
 
 #[cfg(test)]
@@ -249,6 +248,11 @@ mod tests {
             "'a' 'b c'"
         );
         assert_eq!(call(bi_sh, &[s("a'b")]), "'a'\\''b'");
+    }
+
+    #[test]
+    fn sh_rendering_preserves_descriptive_nul_without_shell_admission() {
+        assert_eq!(call(bi_sh, &[s("a\0b")]), "'a\0b'");
     }
 
     /// A `serde_json::Value` nested `depth` levels deep, wrapping a single

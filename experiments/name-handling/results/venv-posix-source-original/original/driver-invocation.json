@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "python3",
+    "/workspace/name-session/venv-posix-source-original/run.py"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "completed": true,
+  "exit_code": 0,
+  "stdout": "{\"completed\": 12, \"exact_checks\": 12, \"shell_unchanged\": true}\n",
+  "stderr": "",
+  "provenance": "Retained from the completed exec tool response; no runner rerun."
+}
