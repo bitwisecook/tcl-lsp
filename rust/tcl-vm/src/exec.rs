@@ -7963,7 +7963,7 @@ impl Vm {
         words: &crate::NativeListItems,
         entered: Option<&EnteredCommand>,
     ) -> Result<Option<Tick>, Completion<Value>> {
-        self.dispatch_words_selected(f, words, entered, None, &[])
+        self.dispatch_words_selected(f, words, entered, &[])
     }
 
     fn dispatch_words_selected(
@@ -7971,20 +7971,13 @@ impl Vm {
         f: &mut Frame,
         words: &crate::NativeListItems,
         entered: Option<&EnteredCommand>,
-        lookup_namespace: Option<&str>,
         usage: &[crate::command::NativeArgumentUsageRewrite],
     ) -> Result<Option<Tick>, Completion<Value>> {
         let original_scope = match NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(error) => return Err(crate::command::completion_from_cmd_error(self, error)),
         };
-        let reached = self.dispatch_words_selected_in_original_scope(
-            f,
-            words,
-            entered,
-            lookup_namespace,
-            usage,
-        );
+        let reached = self.dispatch_words_selected_in_original_scope(f, words, entered, usage);
         self.finish_original_dispatch(&original_scope, reached)
     }
 
@@ -7993,18 +7986,9 @@ impl Vm {
         f: &mut Frame,
         words: &crate::NativeListItems,
         entered: Option<&EnteredCommand>,
-        lookup_namespace: Option<&str>,
         usage: &[crate::command::NativeArgumentUsageRewrite],
     ) -> Result<Option<Tick>, Completion<Value>> {
-        let context = match lookup_namespace {
-            Some(namespace) => {
-                crate::interp::namespace_context::NamespaceExecutionContext::Resolved(
-                    self.native_command_lookup_context(Some(namespace))
-                        .map_err(|error| self.refuse_host_command(error.to_string()))?,
-                )
-            }
-            None => self.current_namespace_execution_context(),
-        };
+        let context = self.current_namespace_execution_context();
         self.dispatch_words_entry_in_context(f, words, entered, &context, usage, false)
     }
 
@@ -9584,48 +9568,6 @@ impl Vm {
         frame.command = name;
         frame.is_procedure = matches!(command, Command::Proc(_));
         frame.invocation = invocation;
-    }
-
-    /// Resolve a coroutine relay in its captured namespace without changing
-    /// the resumer's variable frame or the target's authored invocation name.
-    pub(crate) fn invoke_command_in_lookup_namespace(
-        &mut self,
-        namespace: &str,
-        name: &str,
-        argv: &[Value],
-    ) -> Completion<Value> {
-        self.invoke_command_in_lookup_namespace_with_usage(namespace, name, argv, &[])
-    }
-
-    pub(crate) fn invoke_command_in_lookup_namespace_with_usage(
-        &mut self,
-        namespace: &str,
-        name: &str,
-        argv: &[Value],
-        usage: &[crate::command::NativeArgumentUsageRewrite],
-    ) -> Completion<Value> {
-        self.invoke_command_in_lookup_namespace_with_origin(
-            namespace,
-            name,
-            argv,
-            usage,
-            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-        )
-    }
-
-    pub(crate) fn invoke_command_in_lookup_namespace_with_origin(
-        &mut self,
-        namespace: &str,
-        name: &str,
-        argv: &[Value],
-        usage: &[crate::command::NativeArgumentUsageRewrite],
-        origin: tcl_registry::command_lookup::CommandLookupOrigin,
-    ) -> Completion<Value> {
-        let context = match self.native_command_lookup_context(Some(namespace)) {
-            Ok(context) => context,
-            Err(error) => return self.refuse_host_command(error.to_string()),
-        };
-        self.invoke_command_value_at(context, &Value::string(name), argv, usage, origin)
     }
 
     /// Invoke an already-resolved command without consulting the visible

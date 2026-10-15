@@ -135,6 +135,8 @@ pub type UriFamilies = HashMap<String, (Option<String>, Option<String>)>;
 /// Scans the command registry for `*::uri` commands that have a
 /// sibling `*::path` and/or `*::query` registered for the iRules
 /// dialect.
+/// Descriptor labels follow the shared written-tail convention; their exact
+/// prefix bytes form sibling labels. This catalogue selects no runtime command.
 #[must_use]
 pub fn uri_families(registry: &CommandRegistry) -> UriFamilies {
     let mut all_names: HashSet<String> = HashSet::new();
@@ -148,13 +150,14 @@ pub fn uri_families(registry: &CommandRegistry) -> UriFamilies {
     }
 
     let mut families: UriFamilies = HashMap::new();
-    for uri in all_names.iter().filter(|n| n.ends_with("::uri")) {
-        let Some(ns_end) = uri.rfind("::") else {
+    for uri in &all_names {
+        let tail = tcl_syntax::naming::written_command_tail(uri.as_bytes());
+        if tail != b"uri" || tail.len() == uri.len() {
             continue;
-        };
-        let ns = &uri[..ns_end];
-        let path_cmd = format!("{ns}::path");
-        let query_cmd = format!("{ns}::query");
+        }
+        let prefix = &uri[..uri.len() - tail.len()];
+        let path_cmd = format!("{prefix}path");
+        let query_cmd = format!("{prefix}query");
         let path = all_names.contains(&path_cmd).then_some(path_cmd);
         let query = all_names.contains(&query_cmd).then_some(query_cmd);
         if path.is_some() || query.is_some() {
@@ -1805,5 +1808,82 @@ set m [string match "/api/??" $uri]"#,
             r#"if { [HTTP::uri] starts_with "/api" || [HTTP::uri] starts_with "/api" } { log local0. x }"#,
         );
         assert_eq!(ws.len(), 1, "expected dedup, got {ws:?}");
+    }
+}
+
+#[cfg(test)]
+mod registry_label_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn uri_family_catalogue_keeps_exact_descriptor_prefixes_and_availability() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let available = registry.get_exact("HTTP::uri").unwrap().clone();
+        let names = [
+            "GROUP::uri",
+            "GROUP::path",
+            "::ROOTED::uri",
+            "::ROOTED::query",
+            "ODD:::uri",
+            "ODD:::path",
+            "::::uri",
+            "::::query",
+            "Counted\0::uri",
+            "Counted\0::path",
+            "uri",
+            "path",
+            "single:uri",
+            "single:path",
+            "EMPTY::",
+            "EMPTY::path",
+            "MISSING::uri",
+            "UNAVAILABLE::uri",
+            "UNAVAILABLE::path",
+        ];
+        for name in names {
+            let mut spec = available.clone();
+            spec.name = name;
+            if name == "UNAVAILABLE::uri" {
+                spec.surface = Some(tcl_dialect::model::SpecSurface::JIM);
+            }
+            registry.insert_static(Box::leak(Box::new(spec)));
+        }
+        let context = crate::environment_ingress::irules_context();
+        assert!(
+            context
+                .context()
+                .spec_available(registry.get_exact("GROUP::uri").unwrap())
+        );
+        assert!(
+            !context
+                .context()
+                .spec_available(registry.get_exact("UNAVAILABLE::uri").unwrap())
+        );
+        let families = uri_families(&registry);
+        for (name, path, query) in [
+            ("GROUP::uri", Some("GROUP::path"), None),
+            ("::ROOTED::uri", None, Some("::ROOTED::query")),
+            ("ODD:::uri", Some("ODD:::path"), None),
+            ("::::uri", None, Some("::::query")),
+            ("Counted\0::uri", Some("Counted\0::path"), None),
+        ] {
+            let family = families
+                .get(name)
+                .expect("exact registered metadata family");
+            assert_eq!(family.0.as_deref(), path);
+            assert_eq!(family.1.as_deref(), query);
+        }
+        for name in [
+            "uri",
+            "single:uri",
+            "EMPTY::",
+            "MISSING::uri",
+            "UNAVAILABLE::uri",
+        ] {
+            assert!(!families.contains_key(name), "{name:?}");
+        }
+        assert!(!families.contains_key("ODD::uri"));
+        assert!(!families.contains_key("::uri"));
     }
 }

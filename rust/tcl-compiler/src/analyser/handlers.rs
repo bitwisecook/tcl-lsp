@@ -13194,10 +13194,8 @@ mod tests {
         let mut a = Analyser::new();
         dispatch_words(&mut a, &["namespace", "upvar", "::a", "x", "$local"]);
         assert!(!a.result.global_scope.variables.contains_key("local"));
-        // A computed namespace or `otherVar` word links the local to the cell
-        // as written, marker and all: the workspace index reads the marker
-        // (`alias_cell_is_computed`) to refuse a rename beside an alias whose
-        // cell it cannot name, so dropping the link would lose the refusal.
+        // Legacy alias reports preserve computed namespace/otherVar spellings.
+        // Core candidates and rename coverage use typed source receipts instead.
         let mut a = Analyser::new();
         dispatch_words(&mut a, &["namespace", "upvar", "$ns", "x", "l"]);
         assert_eq!(

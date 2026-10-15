@@ -10237,51 +10237,6 @@ impl Vm {
             .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)
     }
 
-    pub(crate) fn native_command_lookup_context(
-        &self,
-        source_namespace: Option<&str>,
-    ) -> Result<NsId, NativeCommandLookupUnavailable> {
-        let current = self
-            .current_namespace_execution_context()
-            .resolved_token()
-            .filter(|token| self.native_namespace_token_has_owner(*token));
-        let Some(source_namespace) = source_namespace else {
-            return current.ok_or(NativeCommandLookupUnavailable::NamespaceContextUnavailable);
-        };
-        if let Some(token) = current
-            && self
-                .resolution_stacks
-                .ns_stack
-                .last()
-                .and_then(Option::as_ref)
-                .and_then(|name| name.try_utf8().ok())
-                == Some(source_namespace)
-        {
-            return Ok(token);
-        }
-        if source_namespace.is_empty() || source_namespace == "::" {
-            return Ok(ROOT_NS);
-        }
-        let protocol = self
-            .name_policy_protocol()
-            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
-            .recipe();
-        let rooted = format!("::{source_namespace}");
-        let world = self.name_world.borrow();
-        let mut matches = world.ns_intern.iter().filter_map(|(path, token)| {
-            (tcl_syntax::naming::native_namespace_source_spelling(protocol, path).as_deref()
-                == Some(rooted.as_str()))
-            .then_some(*token)
-        });
-        let selected = matches
-            .next()
-            .ok_or(NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
-        if matches.next().is_some() {
-            return Err(NativeCommandLookupUnavailable::NamespaceContextUnavailable);
-        }
-        Ok(selected)
-    }
-
     pub(crate) fn lookup_command_bytes_checked(
         &self,
         context: NsId,

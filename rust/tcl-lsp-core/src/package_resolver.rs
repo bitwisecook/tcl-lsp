@@ -556,11 +556,10 @@ fn push_auto_entry(
 /// Package-name candidates from literal `package require NAME` (with optional
 /// `-exact`) and version-bearing `package provide NAME VERSION` declarations.
 ///
-/// Used to chase the *transitive* closure of a `package require` — a package
-/// whose implementation does `package require Tk` (transitively) makes `Tk`
-/// available, exactly as C Tcl would once that package's `ifneeded` script
-/// runs. A non-literal name (`package require $x`) is skipped: its provided
-/// set is unknowable statically, and the caller treats that conservatively.
+/// Used to survey transitive source dependencies: a literal `package require Tk`
+/// contributes `Tk` as a candidate even when the containing command may never
+/// run. A non-literal name (`package require $x`) is skipped; the survey does
+/// not establish the complete provided set or successful package loading.
 /// This explicit standalone survey retains the default source configuration;
 /// selected Registry source ordinals and decoded literal data grant no package
 /// lookup, installation or successful loading authority.
@@ -1107,18 +1106,15 @@ impl PackageResolver {
         self.packages.contains_key(name)
     }
 
-    /// The transitive set of package names available once `roots` are
-    /// required.
+    /// Transitive package-name candidates from indexed implementation sources.
     ///
     /// Starts from `roots` (a document's own `package require` names) and, for
-    /// each *resolvable* package, reads its implementation files (`read_file`)
-    /// and folds in the packages they `require` / `provide`, to a fixpoint.
-    /// This mirrors C Tcl evaluating each `ifneeded` script, which may itself
-    /// `package require` further packages: e.g. a wrapper whose body does
-    /// `package require Tk` makes `Tk` available transitively. The returned
-    /// set includes `roots`. Unresolvable roots simply contribute only
-    /// themselves (their provided set is unknowable here — the caller decides
-    /// how to treat that).
+    /// each indexed package, reads its implementation files (`read_file`) and
+    /// folds in the literal names they `require` / `provide`, to a fixpoint.
+    /// This source survey can include commands that never run and establishes
+    /// neither successful `ifneeded` evaluation nor installed packages. The
+    /// returned set includes `roots`; roots with no readable implementation
+    /// contribute only themselves, without proving their full provided set.
     #[must_use]
     pub fn transitive_available_packages(
         &self,

@@ -1047,3 +1047,38 @@ existing directory fallback independently. Existing
 version validation, conditions, directory/existence and fallback conventions stay
 independent. These source-data surveys establish no installed package, reached
 registration or handler, deferred body/frame, supplied analysis or Native lookup.
+
+A VM-owned temporary Jim lambda Proc publishes in the genuine ROOT flat command
+table with its entire minted name. Its original lambda execution namespace remains
+a separate object/context and may stay stringless and unresolved. C publication
+namespace/tail selection is unchanged; this software binding supplies no namespace
+coordinate/getter or native Jim commandless apply-storage equivalence.
+
+Namespace-variable compatibility interfaces consume checked outward C coordinate
+projections of actual original typed symbols. Exact held-policy namespace/simple
+roundtrip excludes local, Jim, element and unrepresentable forms; a compatibility
+String never constructs a symbol or a physical namespace/cell. Optional single
+root-marker removal normalises query data only.
+
+Workspace variable declarations, references and alias candidates retain current
+original name-input and conditional template receipts, excluding mutable Scope
+names, link_target and qualified-reference report labels. Missing alias-source
+coverage remains an unknown barrier across occupied document slots, even with
+empty target rows. The shared coverage predicate retains actual unknown/dynamic,
+obligation-to-receipt and conflict checks; rename keeps its prior Realm/formal
+gate and independent original coverage, collision and container edit owner.
+Coverage is neither runtime census nor successful alias/target continuity.
+
+Workspace variable rename keeps original cursor selection terminal. A readonly
+Logical coordinate without its original cursor symbol cannot issue sibling edits.
+Actual typed proposed-symbol collisions determine refusal; independently present
+declarations and checked outward C keys may format the URI-list reason only.
+The complete indexed-document scan and current source/target/unknown/coverage/
+collision/container gates remain required, separately from readonly navigation.
+
+The selected Jim Upvar helper carries its exact pinned ns args declaration and
+minimum-one unbounded public arity through the existing actual publication and
+fresh-head/original-operand dispatcher. The helper's original tailcall/List/empty
+object stages remain owned by that invocation; selected C linking is independent.
+The original observer cases do not execute linking, and their padding/header
+measurements remain separate from four genuine unchanged link-worker scripts.

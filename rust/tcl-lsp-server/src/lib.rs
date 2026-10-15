@@ -17299,20 +17299,10 @@ impl Backend {
         {
             return Some(Err(rename_refusal_error(&refusal)));
         }
-        // Namespace-variable tier: the cursor names a `::`-rooted cell, so
-        // rename it across every document that declares, aliases, or names it.
-        match self
-            .cross_document_variable_rename(uri, doc, analysis, pos, new_name)
-            .await
-        {
-            Err(refusal) => Some(Err(rename_refusal_error(&refusal))),
-            Ok(changes) if !changes.is_empty() => Some(Ok(Some(WorkspaceEdit {
-                changes: Some(changes),
-                document_changes: None,
-                change_annotations: None,
-            }))),
-            Ok(_) => None,
-        }
+        // Original variable selection above is terminal. A readonly Logical
+        // coordinate without an original cursor symbol cannot issue edits in
+        // sibling documents; the local fallback retains its own source gates.
+        None
     }
 
     /// Rename the **namespace** the cursor names, across the whole workspace.
@@ -17649,15 +17639,29 @@ impl Backend {
         let candidates = if symbol.is_namespace() {
             let _rehoming_guard = self.rehomed_index_guard().await;
             let index = self.workspace_index.read().await;
-            if proposed != *symbol
-                && index
+            if proposed != *symbol {
+                let occupied = index
                     .original_variable_occurrences(&proposed, "")
-                    .next()
-                    .is_some()
-            {
-                return Err(refuse(
-                    "the replacement names another variable in this workspace",
-                ));
+                    .collect::<Vec<_>>();
+                if !occupied.is_empty() {
+                    let mut declarations = occupied
+                        .iter()
+                        .filter(|(_, occurrence)| occurrence.is_declaration())
+                        .map(|(owner, _)| (*owner).to_owned())
+                        .collect::<Vec<_>>();
+                    declarations.sort();
+                    declarations.dedup();
+                    let reason = symbol
+                        .checked_c_namespace_key()
+                        .zip(proposed.checked_c_namespace_key())
+                        .and_then(|(selected, proposed)| {
+                            describe_variable_collision(&selected, &proposed, &declarations)
+                        })
+                        .unwrap_or_else(|| {
+                            "the replacement names another variable in this workspace".to_owned()
+                        });
+                    return Err(refuse(&reason));
+                }
             }
             let mut candidates = index.document_uris();
             candidates.push(uri.as_str().to_owned());
@@ -17701,164 +17705,6 @@ impl Backend {
                         })
                         .collect(),
                 );
-            }
-        }
-        Ok(changes)
-    }
-
-    /// Rename the **namespace variable** cell at `pos` across the workspace —
-    /// the rename half of the cross-document variable tier that serves
-    /// go-to-definition, hover and find-references.
-    ///
-    /// The cell is resolved by the one shared entry point
-    /// ([`Self::qualified_variable_cell`]), which already applies the
-    /// inert-text gate every other provider applies — a `$::ns::v`-shaped
-    /// substring inside a comment or a brace-quoted data word substitutes
-    /// nothing and is not an occurrence.
-    ///
-    /// Every candidate document is re-analysed and its share of the edit set
-    /// computed by [`core_rename::namespace_variable_rename_edits`], so a
-    /// proc-local `variable v` alias and its unqualified `$v` reads are
-    /// rewritten alongside the declaration.  Candidates come from four index
-    /// sources, and all four are needed — no one of them subsumes another:
-    /// the documents **declaring** the cell, those **naming it qualified**,
-    /// those with any code **in its namespace**
-    /// ([`WorkspaceIndex::documents_in_namespace`], which catches an
-    /// unqualified `variable v` alias written inside `::ns`), and those
-    /// **aliasing** it from anywhere at all
-    /// ([`WorkspaceIndex::documents_aliasing_variable`], which catches a
-    /// `namespace upvar ::ns v local` written from `::`).
-    ///
-    /// `Err` is a **refusal**, not a miss: the new name would collide with an
-    /// existing cell, some document aliases a cell computed at run time that
-    /// might be this one, or a candidate document computes a variable name
-    /// that might be this very cell.
-    async fn cross_document_variable_rename(
-        &self,
-        uri: &Uri,
-        doc: &DocumentState,
-        analysis: &AnalysisResult,
-        pos: Position,
-        new_name: &str,
-    ) -> Result<std::collections::HashMap<Uri, Vec<TextEdit>>, core_rename_safety::RenameRefusal>
-    {
-        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
-            std::collections::HashMap::new();
-        // Resolved once for the whole rename.
-        let profile = tcl_lsp_core::profile_for_dialect(&analysis.dialect);
-        let Some(cell) = Self::qualified_variable_cell(&doc.text, profile, analysis, pos) else {
-            return Ok(changes);
-        };
-        if !core_rename::is_safe_symbol_name(new_name) {
-            return Ok(changes);
-        }
-        let candidates: Vec<String> = {
-            let _rehoming_guard = self.rehomed_index_guard().await;
-            let (namespace, _) = tcl_compiler::naming::key_holder_and_tail(&cell);
-            let new_cell = tcl_compiler::naming::qualify(namespace, new_name);
-            let index = self.workspace_index.read().await;
-            // Collision gate: the target cell already exists, so the rename
-            // would silently merge two distinct namespace variables.
-            // A document that only *aliases* the target cell is proof it
-            // exists just as much as a declaration is, and merging onto it is
-            // just as destructive — so both tables gate the collision.
-            //
-            // The refusal names the documents it found, because "already
-            // declared in this workspace" is unfalsifiable from the editor
-            // when the workspace's only visible Tcl file plainly declares no
-            // such cell. The workspace the
-            // gate reads is not the set of files the user has in mind — it
-            // spans every scanned folder — so the one fact that makes the
-            // refusal checkable is *which* document declares the cell.
-            let mut colliding: Vec<String> = index
-                .variable_definitions_qualified(&new_cell, "")
-                .into_iter()
-                .map(|v| v.uri.clone())
-                .chain(index.documents_aliasing_variable(&new_cell))
-                .collect();
-            colliding.sort();
-            colliding.dedup();
-            if let Some(reason) = describe_variable_collision(&cell, &new_cell, &colliding) {
-                return Err(core_rename_safety::RenameRefusal {
-                    reason,
-                    range: None,
-                });
-            }
-            // Coverage gate: an alias whose cell is computed
-            // (`namespace upvar $ns version local`) names no fixed variable,
-            // so no candidate scan can find it and no edit can keep it
-            // consistent.  Refuse rather than rename out from under it.
-            if let Some(u) = index.documents_with_ambiguous_alias_of(&cell).first() {
-                return Err(core_rename_safety::RenameRefusal {
-                    reason: format!(
-                        "cannot rename `{cell}`: `{u}` aliases a namespace variable whose \
-                             cell is computed at run time, so this rename can neither prove \
-                             that alias names `{cell}` nor prove it does not. Renaming the \
-                             declaration would leave it bound to a variable that no longer \
-                             exists."
-                    ),
-                    range: None,
-                });
-            }
-            let mut c: Vec<String> = index
-                .variable_definitions_qualified(&cell, "")
-                .into_iter()
-                .map(|v| v.uri.clone())
-                .chain(
-                    index
-                        .variable_refs_of(&cell, "")
-                        .into_iter()
-                        .map(|v| v.uri.clone()),
-                )
-                .chain(index.documents_in_namespace(namespace))
-                // Documents that merely *bind* the cell — a global `proc p {}
-                // { namespace upvar ::ns v local; … }` sits in none of the
-                // three sources above, yet its alias breaks the moment the
-                // declaration moves without it.
-                .chain(index.documents_aliasing_variable(&cell))
-                .collect();
-            c.push(uri.as_str().to_owned());
-            c.sort();
-            c.dedup();
-            c
-        };
-        for u in candidates {
-            let Ok(parsed) = Uri::from_str(&u) else {
-                continue;
-            };
-            let Some(target_doc) = self.read_document(&parsed).await else {
-                continue;
-            };
-            let target_analysis = self
-                .analysis_for(&parsed, target_doc.text.clone(), target_doc.dialect.clone())
-                .await;
-            if let Some(refusal) = core_rename_safety::namespace_variable_rename_hazard(
-                &target_doc.text,
-                tcl_lsp_core::profile_for_dialect(&target_doc.dialect),
-                &target_analysis,
-                &cell,
-                &target_doc.line_index,
-            ) {
-                return Err(refusal);
-            }
-            let edits = core_rename::namespace_variable_rename_edits(
-                &target_doc.text,
-                &target_analysis,
-                &cell,
-                new_name,
-            );
-            if edits.is_empty() {
-                continue;
-            }
-            let bucket = changes.entry(parsed).or_default();
-            for e in edits {
-                let range = lift_lsp_range(e.range);
-                if !bucket.iter().any(|x| x.range == range) {
-                    bucket.push(TextEdit {
-                        range,
-                        new_text: e.new_text,
-                    });
-                }
             }
         }
         Ok(changes)
@@ -33762,6 +33608,53 @@ fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn namespace_coordinates_without_original_variable_symbols_do_not_start_workspace_edits()
+    {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///conditional-variable-coordinate.tcl").unwrap();
+        let source = "namespace eval ::N {set value 1}";
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::new(source.to_owned(), "tcl".to_owned()),
+        );
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        analysis.original_variable_symbols.clear();
+        analysis.qualified_var_refs.clear();
+        let offset = u32::try_from(source.find("value").unwrap()).unwrap();
+        let position = tcl_lexer::LineIndex::new(source).position_at_utf16(offset, source);
+        let position = Position::new(position.line, position.character.get());
+        assert!(matches!(
+            tcl_lsp_core::variable_symbol::select(
+                source,
+                &analysis,
+                position.line,
+                position.character
+            ),
+            std::ops::ControlFlow::Continue(())
+        ));
+        assert_eq!(
+            core_definition::qualified_variable_cell_at(
+                source,
+                analysis.resolved_profile().unwrap(),
+                &analysis,
+                position.line,
+                position.character
+            )
+            .as_deref(),
+            Some("::N::value")
+        );
+        let doc = backend.read_document(&uri).await.unwrap();
+        assert!(
+            backend
+                .gated_rename_tiers(&uri, &doc, &analysis, position, "changed")
+                .await
+                .is_none()
+        );
+    }
+
     use tower_lsp_server::ls_types::{
         Diagnostic, NumberOrString, PartialResultParams, Range, ReferenceContext,
         TextDocumentIdentifier, WorkDoneProgressParams,

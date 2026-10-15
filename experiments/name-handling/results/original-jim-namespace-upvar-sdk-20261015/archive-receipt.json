@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "scope": "Exact645 original namespace-upvar helper rows; no Runtime/fullSDK/lifecycle acceptance.",
+  "original_capture_manifest_sha256": "c813ae19aa546fb1edbeae2641ab27d6eef139276e3473e37f954345a0516d35",
+  "retained_files": [
+    {
+      "path": "capture.py",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/capture.py",
+      "bytes": 2211,
+      "sha256": "89bdbb0497785e37dd657e6491ccbd0174d0f21b573900f437a674d276ab0fe8"
+    },
+    {
+      "path": "check-upstream.py",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/check-upstream.py",
+      "bytes": 1541,
+      "sha256": "d56ce16a3cd2c71e9483489cf957a348fe732d406eea81e2443802dafe4d7338"
+    },
+    {
+      "path": "compile.stderr",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/compile.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "compile.stdout",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/compile.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "manifest.json",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/manifest.json",
+      "bytes": 4609,
+      "sha256": "c813ae19aa546fb1edbeae2641ab27d6eef139276e3473e37f954345a0516d35"
+    },
+    {
+      "path": "probe.c",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/probe.c",
+      "bytes": 6322,
+      "sha256": "4a5e9192bfe494ee598655d87fe3cb8e85df9f87c9a69ca6a3daf1908fe5d794"
+    },
+    {
+      "path": "stderr",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "stdout.tsv",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/stdout.tsv",
+      "bytes": 28694,
+      "sha256": "03c6aab9a203ae1cdebc2ec84d89beceb8de311f3dc02424b4cacea627e58f2b"
+    },
+    {
+      "path": "upstream-check/local.stderr",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/upstream-check/local.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "upstream-check/local.stdout",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/upstream-check/local.stdout",
+      "bytes": 41,
+      "sha256": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243"
+    },
+    {
+      "path": "upstream-check/receipt.json",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/upstream-check/receipt.json",
+      "bytes": 1776,
+      "sha256": "d0499636ec4ffb6b420fee5ea61d8ee7e55d08788d4844434a68babc42744549"
+    },
+    {
+      "path": "upstream-check/remote.stderr",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/upstream-check/remote.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "upstream-check/remote.stdout",
+      "original": "/tmp/name-jim-namespace-upvar-sdk-20261015/upstream-check/remote.stdout",
+      "bytes": 46,
+      "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2539,
+      "sha256": "0bd7aa1c18c20d734bae3c983aacda98403efbd62bada6879da64704dcc7afdc",
+      "origin": "portable archive explanation/verifier; not original provider output"
+    },
+    {
+      "path": "verify.py",
+      "bytes": 1216,
+      "sha256": "06be88e5f9abb0111d0f9718140d53a6f68d154951036be90fda051141f894f7",
+      "origin": "portable archive explanation/verifier; not original provider output"
+    }
+  ],
+  "referenced_provider_snapshots": [
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.h",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.h",
+      "bytes": 56502,
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+    },
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.c",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim.c",
+      "bytes": 546686,
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+    },
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-namespace.c",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-namespace.c",
+      "bytes": 11686,
+      "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+    },
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-config.h",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/jim-config.h",
+      "bytes": 200,
+      "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+    },
+    {
+      "repository_path": "experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/Makefile",
+      "relative_path": "../original-jim-lambda-context-sdk-20261014/captures/lambda-deferred-namespace/provider-sources/Makefile",
+      "bytes": 6153,
+      "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+    },
+    {
+      "repository_path": "rust/tcl-registry/tests/data/native_jim_namespace_which/nshelper.tcl",
+      "relative_path": "../../../../rust/tcl-registry/tests/data/native_jim_namespace_which/nshelper.tcl",
+      "bytes": 3917,
+      "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627"
+    }
+  ],
+  "excluded_binaries": {
+    "probe": "d8691dacff58c67ba31bfd928ea1b15586070e4d9b62151184d40387e02ec751",
+    "library": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61"
+  },
+  "accepted_rows": 645,
+  "accepted_cases": 16,
+  "accepted_phases": 32,
+  "separate_real_worker_cases": 4,
+  "exact_original_nonbinary_files": 13
+}

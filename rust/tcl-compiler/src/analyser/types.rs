@@ -5758,8 +5758,6 @@ mod original_definition_suffix_purpose_tests {
 
 #[cfg(test)]
 mod source_alias_coverage_tests {
-    use super::*;
-
     #[test]
     fn selected_alias_source_coverage_requires_current_input_and_all_actual_receipts() {
         let source = "proc p {} {global shared; puts $shared}";

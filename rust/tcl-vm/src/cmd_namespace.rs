@@ -788,7 +788,13 @@ fn ns_upvar(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 argv.push(Value::from_string_bytes(target));
                 argv.push(local_word.map_or_else(Value::empty, |word| rest[word].clone()));
             }
-            return vm.invoke_command_in_lookup_namespace("::", "upvar", &argv);
+            return vm.invoke_command_value_at(
+                tcl_core_types::ROOT_NS,
+                &Value::string("upvar"),
+                &argv,
+                &[],
+                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+            );
         }
         let namespace = match vm.namespace_object_lookup(&rest[0]) {
             Ok(Some(namespace)) => namespace,

@@ -1574,6 +1574,14 @@ fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `NamespaceUpvarCmd`: the other-var is looked up with the var frame's
 /// namespace temporarily set to `ns`).
 fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if let Some(helper) = interp
+        .native_invocation_dialect()
+        .native_jim_namespace_helper(
+            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Upvar,
+        )
+    {
+        return interp.dispatch_stock_jim_namespace_helper(argv, helper);
+    }
     let Some(grammar) = interp
         .native_invocation_dialect()
         .native_namespace_upvar_protocol()
@@ -1592,19 +1600,6 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(protocol) => protocol,
         Err(error) => return crate::builtins::var_error(interp, b"", error),
     };
-    if protocol.is_jim084() {
-        let Some(jim) = interp
-            .native_invocation_dialect()
-            .native_jim_lookup_protocol()
-        else {
-            return interp.refuse_native_access(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "Jim namespace upvar target protocol",
-                ),
-            );
-        };
-        return ns_upvar_jim(interp, &argv[2..], arguments, jim);
-    }
     let ns = match interp.native_namespace_object_lookup(argv[2]) {
         Ok(Some(namespace)) => namespace,
         Ok(None) => {
@@ -1641,49 +1636,6 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result_bytes(b"");
     Code::Ok
-}
-
-/// Jim's helper canonicalizes once, pads an odd local and tailcalls actual upvar.
-fn ns_upvar_jim(
-    interp: &mut Interp,
-    original: &[*mut TclObj],
-    arguments: tcl_registry::native_namespace_upvar::NativeNamespaceUpvarArguments,
-    protocol: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
-) -> Code {
-    let current = match interp.jim_current_namespace_object() {
-        Ok(current) => current,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
-    let canonical = match interp.jim_canonical_namespace_object(&current, original[0]) {
-        Ok(canonical) => canonical,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
-    let namespace = match interp.native_string_bytes(&canonical.as_ptr()) {
-        Ok(namespace) => namespace,
-        Err(error) => return interp.report_cmd_error(error.into()),
-    };
-    let mut owned = vec![
-        obj::Owned::fresh(obj::new_string_bytes(b"upvar")),
-        obj::Owned::fresh(obj::new_string_bytes(b"0")),
-    ];
-    let mut forwarded = vec![owned[0].as_ptr(), owned[1].as_ptr()];
-    for (target_word, local_word) in arguments.pairs() {
-        let other = match interp.native_string_bytes(&original[target_word]) {
-            Ok(other) => other,
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
-        let target = protocol.namespace_upvar_target(&namespace, &other);
-        owned.push(obj::Owned::fresh(obj::new_string_bytes(&target)));
-        forwarded.push(owned.last().expect("generated target owner").as_ptr());
-        forwarded.push(match local_word {
-            Some(word) => original[word],
-            None => {
-                owned.push(obj::Owned::fresh(obj::new_string_bytes(b"")));
-                owned.last().expect("Jim odd-tail padding owner").as_ptr()
-            }
-        });
-    }
-    interp.dispatch_in_lookup_namespace(GLOBAL, &forwarded)
 }
 
 // ensemble
@@ -7225,3 +7177,7 @@ mod native_jim_inscope_tests;
 #[cfg(test)]
 #[path = "cmd_namespace/native_jim_delete_tests.rs"]
 mod native_jim_delete_tests;
+
+#[cfg(test)]
+#[path = "cmd_namespace/native_jim_upvar_tests.rs"]
+mod native_jim_upvar_tests;
