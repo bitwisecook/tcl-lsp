@@ -375,16 +375,6 @@ fn line_of(src: &[u8], offset: usize) -> u32 {
         .count() as u32
 }
 
-/// Where the chunk `tclsh` reads from its stdin that starts with
-/// `commands[0]` ends: at the first of them whose terminator ends a line, or
-/// at the end of the script.
-fn chunk_end(src: &[u8], commands: &[parse::Command<'_>]) -> usize {
-    commands
-        .iter()
-        .find(|command| src.get(command.end) != Some(&b';'))
-        .map_or(src.len(), |command| command.end)
-}
-
 /// `(compiling body of proc "NAME", line N)`: the frame `TclProcCompileProc`
 /// adds where a body fails to compile, the name cut at 50 bytes.
 fn compiling_body_frame(name: &[u8], line: u32) -> Vec<u8> {
@@ -1099,9 +1089,6 @@ pub struct InterpState {
     proc_body: Cell<bool>,
     /// Whether the next script loop that owns a frame runs a procedure body.
     next_proc_body: Cell<bool>,
-    /// Whether the next script loop that owns a frame runs commands `tclsh`
-    /// reads from its stdin, which it compiles a complete chunk at a time.
-    next_chunked: Cell<bool>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
@@ -1504,7 +1491,6 @@ impl Interp {
             compiled_literals: RefCell::new(Vec::new()),
             proc_body: Cell::new(false),
             next_proc_body: Cell::new(false),
-            next_chunked: Cell::new(false),
             eval_depth: Cell::new(0),
             var_trace_epoch: Cell::new(1),
             cmd_count: Cell::new(0),
@@ -3615,6 +3601,13 @@ impl Interp {
         let code = self.eval_framed_unpublished(script, frame);
         self.script_stack.borrow_mut().pop();
         let code = self.settle_return(code);
+        if code == Code::Error {
+            self.append_frame_line(&tcl_cmd_core::error::file_frame_text(
+                name,
+                self.runtime_version(),
+            ));
+            self.clear_error_logged();
+        }
         let projected = project(self, code);
         self.finish_outermost_eval(code);
         projected
@@ -7481,12 +7474,76 @@ impl Interp {
     /// [`Self::eval_completion`] with each command compiled, as `tclsh`
     /// compiles every command its stdin feeds it.
     pub fn eval_compiled_completion(&mut self, script: &[u8]) -> tcl_runtime_api::ScriptCompletion {
-        self.next_chunked.set(self.cmd_frames.borrow().is_empty());
         self.eval_str_boundary(
             script,
             CommandEvaluation::Compiled,
             crate::completion::capture_bytes,
         )
+    }
+
+    /// One chunk `tclsh` read from its stdin, compiled and evaluated with no
+    /// command active: a completion leaving it is settled as C settles one at
+    /// `numLevels == 0` (`TclUpdateReturnInfo`, then
+    /// `ProcessUnexpectedResult`).
+    fn eval_top_level_chunk(&mut self, chunk: &[u8]) -> tcl_runtime_api::ScriptCompletion {
+        if self.eval_depth.get() == 0 {
+            self.clear_return_options();
+        }
+        let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
+        if owned.is_some() {
+            self.next_evaluation.set(Some(CommandEvaluation::Compiled));
+        }
+        let code = self.eval_script_mode_unpublished(chunk, owned, false);
+        let code = match self.settle_return(code) {
+            settled @ (Code::Ok | Code::Error) => settled,
+            unexpected => {
+                let message = match unexpected {
+                    Code::Break => b"invoked \"break\" outside of a loop".to_vec(),
+                    Code::Continue => b"invoked \"continue\" outside of a loop".to_vec(),
+                    other => format!("command returned bad code: {}", other.as_int()).into_bytes(),
+                };
+                let error_code = if self.runtime_version().has_unexpected_result_error_codes() {
+                    format!("TCL UNEXPECTED_RESULT_CODE {}", unexpected.as_int()).into_bytes()
+                } else {
+                    b"NONE".to_vec()
+                };
+                self.raise_with_info(&message, &message, &error_code)
+            }
+        };
+        let projected = crate::completion::capture_bytes(self, code);
+        self.finish_outermost_eval(code);
+        projected
+    }
+
+    /// The commands `tclsh` reads from its stdin `script`: line by line until
+    /// the lines read form complete commands
+    /// ([`tcl_lexer::stdin_chunk_ends`]), each such chunk evaluated by
+    /// [`Self::eval_compiled_completion`]. A chunk that does not complete
+    /// normally hands its result to `report`, and the next runs, as `tclsh`
+    /// prints the error and reads on; an `exit` ends the run, and an
+    /// incomplete last chunk never runs. The completion is the last chunk's.
+    pub fn eval_stdin(
+        &mut self,
+        script: &[u8],
+        mut report: impl FnMut(&mut Self, &[u8]),
+    ) -> tcl_runtime_api::ScriptCompletion {
+        let mut completion = tcl_runtime_api::ScriptCompletion::new(
+            tcl_runtime_api::Code::Ok,
+            Vec::new(),
+            b"-code 0 -level 0".to_vec(),
+        );
+        let mut start = 0;
+        for end in tcl_lexer::stdin_chunk_ends(script) {
+            completion = self.eval_top_level_chunk(&script[start..end]);
+            start = end;
+            if self.exit_pending() {
+                break;
+            }
+            if !completion.is_ok() {
+                report(self, &completion.result);
+            }
+        }
+        completion
     }
 
     /// Evaluate `src` as the body of its own `info frame` level (`frame` is
@@ -7549,7 +7606,6 @@ impl Interp {
         // bailing out here needs no unwind: `owned` (not yet pushed) simply
         // drops normally.
         let next_proc_body = self.next_proc_body.replace(false);
-        let next_chunked = self.next_chunked.replace(false);
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
@@ -7562,8 +7618,7 @@ impl Interp {
         // A release that compiles a script whole refuses it before any of it
         // runs; a procedure body is compiled as its procedure is called, and
         // stdin a chunk at a time.
-        let chunked = pushed && next_chunked;
-        if pushed && evaluation == CommandEvaluation::Compiled && !next_proc_body && !chunked {
+        if pushed && evaluation == CommandEvaluation::Compiled && !next_proc_body {
             if let Some(failure) = self.compile_failure_84(src, false) {
                 return self.raise_compile_failure(&failure, b"");
             }
@@ -7590,16 +7645,7 @@ impl Interp {
             // {}`, or an `lmap`/`foreach` body that produces nothing).
             self.set_result_bytes(b"");
         }
-        let mut compiled_to = 0;
-        for (index, cmd) in commands.iter().enumerate() {
-            if chunked && evaluation == CommandEvaluation::Compiled && cmd.start >= compiled_to {
-                compiled_to = chunk_end(src, &commands[index..]);
-                if let Some(failure) = self.compile_failure_84(&src[cmd.start..compiled_to], false)
-                {
-                    last = self.raise_compile_failure(&failure, b"");
-                    break;
-                }
-            }
+        for cmd in &commands {
             last = self.eval_command(src, cmd, owns_frame);
             if last != Code::Ok {
                 break; // error/return/break/continue propagate up

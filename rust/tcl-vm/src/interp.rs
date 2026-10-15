@@ -13301,24 +13301,13 @@ impl Vm {
         if c.code == Code::Return {
             self.update_return_info(&mut c);
         } else if c.code == Code::Error {
-            const LIMIT: usize = 150;
-            let mut shown = path;
-            let mut marker = "";
-            if path.len() > LIMIT {
-                let mut end = LIMIT;
-                while !path.is_char_boundary(end) {
-                    end -= 1;
-                }
-                shown = &path[..end];
-                if self.runtime_version().marks_truncated_file_path() {
-                    marker = "...";
-                }
-            }
+            let text =
+                tcl_cmd_core::error::file_frame_text(path.as_bytes(), self.runtime_version());
             let line = self.error_line();
             let message = c.result.to_str().to_string();
             self.seed_error_info_frame(
                 &message,
-                &format!("\n    (file \"{shown}{marker}\" line {line})"),
+                &format!("\n    ({} line {line})", String::from_utf8_lossy(&text)),
             );
         }
         c
@@ -13614,23 +13603,16 @@ impl Vm {
     }
 }
 
-/// The chunks `tclsh` evaluates from its stdin: lines read until they form
-/// complete commands.
+/// The chunks `tclsh` evaluates from its stdin
+/// ([`tcl_lexer::stdin_chunk_ends`]).
 fn stdin_chunks(src: &str) -> impl Iterator<Item = &str> {
     let mut start = 0;
-    src.split_inclusive('\n')
-        .scan(0, |end, line| {
-            *end += line.len();
-            Some(*end)
-        })
-        .chain(std::iter::once(src.len()))
-        .filter_map(move |end| {
-            let chunk = src.get(start..end)?;
-            if chunk.is_empty() || !tcl_lexer::script_is_complete(chunk) {
-                return None;
-            }
+    tcl_lexer::stdin_chunk_ends(src.as_bytes())
+        .into_iter()
+        .map(move |end| {
+            let chunk = &src[start..end];
             start = end;
-            Some(chunk)
+            chunk
         })
 }
 

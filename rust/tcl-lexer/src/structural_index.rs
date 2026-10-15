@@ -1135,6 +1135,38 @@ pub fn script_is_complete(source: &str) -> bool {
     }
 }
 
+/// Where each chunk `tclsh` evaluates from its stdin ends: it reads lines
+/// until the lines read form complete commands (`Tcl_CommandComplete`) and
+/// evaluates them. An incomplete last chunk never runs, so has no end here.
+#[must_use]
+pub fn stdin_chunk_ends(src: &[u8]) -> Vec<usize> {
+    // Completeness reads only the ASCII structure: each other byte stands as
+    // one letter, keeping every offset.
+    let text: String = src
+        .iter()
+        .map(|&byte| {
+            if byte.is_ascii() {
+                char::from(byte)
+            } else {
+                'a'
+            }
+        })
+        .collect();
+    let line_ends = text
+        .match_indices('\n')
+        .map(|(at, _)| at + 1)
+        .chain(std::iter::once(text.len()));
+    let mut ends = Vec::new();
+    let mut start = 0;
+    for end in line_ends {
+        if end > start && script_is_complete(&text[start..end]) {
+            ends.push(end);
+            start = end;
+        }
+    }
+    ends
+}
+
 /// `true` when `b` ends with a backslash-newline continuation: an odd
 /// run of backslashes immediately before the final LF.
 fn ends_with_line_continuation(b: &[u8]) -> bool {
@@ -2599,6 +2631,16 @@ while {1} {
     }
 
     // Unified script completeness (`script_is_complete` vs `info complete`).
+
+    #[test]
+    fn stdin_chunks_end_where_the_lines_read_complete_commands() {
+        assert_eq!(
+            stdin_chunk_ends(b"set a 1\nset b {\n2}\nputs \"\xe9"),
+            [8, 19]
+        );
+        assert_eq!(stdin_chunk_ends(b"a; b\nc"), [5, 6]);
+        assert_eq!(stdin_chunk_ends(b""), Vec::<usize>::new());
+    }
 
     #[test]
     fn script_is_complete_matches_reference_pins() {

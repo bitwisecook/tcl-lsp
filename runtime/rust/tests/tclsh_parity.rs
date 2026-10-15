@@ -167,14 +167,15 @@ fn runtime_output(script: &str, release: TclVersion, entry: Entry) -> String {
             }
         }
         Entry::Stdin => {
-            let completion = interp.eval_compiled_completion(script.as_bytes());
-            if completion.code == CompletionCode::Ok {
-                String::new()
+            let mut reported = String::new();
+            interp.eval_stdin(script.as_bytes(), |_, message| {
+                reported.push_str(&String::from_utf8_lossy(message));
+                reported.push('\n');
+            });
+            if reported.is_empty() {
+                reported
             } else {
-                format!(
-                    "--- stderr\n{}\n",
-                    String::from_utf8_lossy(&completion.result)
-                )
+                format!("--- stderr\n{reported}")
             }
         }
     };
