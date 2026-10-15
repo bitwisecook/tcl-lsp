@@ -1241,6 +1241,11 @@ pub struct InterpState {
     /// `errorInfo` trace (C's `iPtr->errorLine`) — the line the `(procedure …
     /// line N)` / `("while" body line N)` frames report.
     error_line: u32,
+    /// The outermost command a directly evaluated script is running
+    /// ([`tcl_bytecode::Instruction::script_command`]), which
+    /// [`Vm::settle_top_level`] names when it turns an unexpected completion
+    /// code into an error.
+    script_command: Option<(Rc<FunctionAsm>, usize)>,
     /// The word a builtin was invoked under (the source `objv[0]`, before
     /// namespace-path resolution). Lets a builtin report its invocation name in
     /// error messages — e.g. `::tcl::mathop::!` reached via `namespace path` says
@@ -1528,11 +1533,11 @@ struct CommandIdentityIndex {
     generations: HashMap<String, u64>,
     next_generation: u64,
     handles: RefCell<CmdArena>,
-    /// Under a release that keeps the commands running bytecode compiled, the
-    /// builtins command-table changes removed from their keys, which an
+    /// Under a release that keeps the commands running bytecode compiled, what
+    /// each change to a key the release may compile found there, so that an
     /// invocation the release compiled into a unit entered before the change
-    /// still runs.
-    replaced_builtins: crate::release_units::ReplacedBuiltins,
+    /// still runs the command it was compiled against.
+    table_history: crate::release_units::CommandTableHistory,
 }
 
 /// External command handles intern one exact command-token generation. Names
@@ -2220,6 +2225,7 @@ impl InterpState {
     /// A fresh interpreter state writing `puts` output to `out` — no commands
     /// registered yet ([`Vm::with_shared_output`] / [`Vm::fork_child`] follow
     /// up with `register_builtins`).
+    #[allow(clippy::too_many_lines)] // One initialiser per interpreter field.
     fn fresh(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
         let (guards, unpinned, command_surface_point) = Self::fresh_semantic_environment();
         Self {
@@ -2292,6 +2298,7 @@ impl InterpState {
             error_logged: false,
             error_stack: ErrorStack::default(),
             error_line: 1,
+            script_command: None,
             invoked_name: None,
             invoked_sidecar: None,
             channels: HashMap::new(),
@@ -3497,6 +3504,8 @@ impl Vm {
         // intermediate state and then retaining the replaced implementation.
         if replacing_command {
             self.invalidate_compiled_command_semantics_for_key(name);
+        } else {
+            self.record_table_change(name);
         }
         let replaced_token = replacing_command
             .then(|| self.command_token_identity(&CommandSidecarKey::visible(name)))
@@ -6236,25 +6245,64 @@ impl Vm {
     /// remain optimised when those identities still match (including after a
     /// rename is reversed) and deoptimise only when they do not.
     fn invalidate_compiled_command_semantics_for_key(&mut self, key: &str) {
-        if !self.runtime_version.revalidates_running_bytecode()
-            && self.command_semantics.get() == CommandSemantics::Tracking
-            && let Some(&Command::Builtin(builtin)) = self.commands.get(key)
-        {
-            let epoch = self.trace_deopt_epoch();
-            self.command_identity
-                .replaced_builtins
-                .record(epoch, key, builtin);
-        }
+        self.record_table_change(key);
         self.invalidate_compiled_command_semantics();
     }
 
-    /// The builtin `key` held when a unit was entered at `entered`, where a
-    /// command-table change since has removed it
-    /// ([`crate::release_units::ReplacedBuiltins::at_entry`]).
-    pub(crate) fn builtin_at_unit_entry(&self, key: &str, entered: u64) -> Option<BuiltinFn> {
+    /// Record what `key` holds before a change to it, where a release that
+    /// keeps the commands running bytecode compiled may compile its command.
+    fn record_table_change(&mut self, key: &str) {
+        let tail = key.rsplit("::").next().unwrap_or(key);
+        if self.command_semantics.get() != CommandSemantics::Tracking
+            || !tcl_registry::release_compilation::may_compile(self.runtime_version, tail)
+        {
+            return;
+        }
+        let held = self.held_at_key(key);
+        let epoch = self.trace_deopt_epoch();
         self.command_identity
-            .replaced_builtins
-            .at_entry(key, entered)
+            .table_history
+            .record(epoch, key, held);
+    }
+
+    /// What the command table holds at `key` now.
+    fn held_at_key(&self, key: &str) -> crate::release_units::Held {
+        match self.commands.get(key) {
+            None => crate::release_units::Held::Absent,
+            Some(&Command::Builtin(builtin)) => crate::release_units::Held::Builtin(builtin),
+            Some(_) => crate::release_units::Held::Other,
+        }
+    }
+
+    /// The builtin an invocation of `name` the release compiled into a unit
+    /// entered at `entered` runs: the one `name` resolved to then, as 8.4
+    /// resolves a command (the current namespace, then the global one), where
+    /// a change since has made the table answer otherwise.
+    pub(crate) fn builtin_at_unit_entry(&self, name: &str, entered: u64) -> Option<BuiltinFn> {
+        let candidates = match name.strip_prefix("::") {
+            Some(absolute) => vec![absolute.to_owned()],
+            None if self.current_ns().is_empty() => vec![name.to_owned()],
+            None => vec![format!("{}::{name}", self.current_ns()), name.to_owned()],
+        };
+        let history = &self.command_identity.table_history;
+        if candidates
+            .iter()
+            .all(|key| history.held_at(key, entered).is_none())
+        {
+            return None;
+        }
+        candidates
+            .iter()
+            .map(|key| {
+                history
+                    .held_at(key, entered)
+                    .unwrap_or_else(|| self.held_at_key(key))
+            })
+            .find(|held| !matches!(held, crate::release_units::Held::Absent))
+            .and_then(|held| match held {
+                crate::release_units::Held::Builtin(builtin) => Some(builtin),
+                _ => None,
+            })
     }
 
     /// Advance the compilation generation after a non-table mutation changes
@@ -13006,25 +13054,44 @@ impl Vm {
     /// N`, under `TCL UNEXPECTED_RESULT_CODE N` from 8.6. An error left
     /// uncaught publishes `errorInfo` and `errorCode`, which the next command
     /// at the same prompt can read.
-    pub fn settle_top_level(&mut self, mut completion: Completion<Value>) -> Completion<Value> {
-        if completion.code == Code::Return {
-            let level = crate::command::opt_get(&completion.options, "-level")
-                .and_then(|v| v.as_int().ok())
-                .unwrap_or(1);
-            if level <= 1 {
-                completion.code = crate::command::opt_get(&completion.options, "-code")
-                    .and_then(|v| v.as_int().ok())
-                    .and_then(|n| i32::try_from(n).ok())
-                    .map_or(Code::Ok, Code::from_int);
-            }
+    pub fn settle_top_level(&mut self, completion: Completion<Value>) -> Completion<Value> {
+        let completion = self.settle_level_zero(completion);
+        self.publish_settled(&completion);
+        completion
+    }
+
+    /// [`Self::settle_top_level`] for the script file `tclsh` is given: an
+    /// error also records where in `path` it occurred, as C's
+    /// `Tcl_FSEvalFileEx` does after its level-0 evaluation settles.
+    pub fn settle_top_level_script(
+        &mut self,
+        path: &str,
+        completion: Completion<Value>,
+    ) -> Completion<Value> {
+        let completion = self.settle_level_zero(completion);
+        if completion.code == Code::Error {
+            self.append_file_frame(path);
         }
+        self.publish_settled(&completion);
+        completion
+    }
+
+    /// Settle a completion as C's level-0 evaluation of the outermost command
+    /// does, before anything is published.
+    fn settle_level_zero(&mut self, completion: Completion<Value>) -> Completion<Value> {
+        let returned = completion.code == Code::Return;
+        let mut completion = self.update_return_info(completion);
         let message = match completion.code {
-            Code::Ok | Code::Error => None,
+            Code::Ok => None,
+            Code::Error => returned.then(|| completion.result.to_str().to_string()),
             Code::Break => Some("invoked \"break\" outside of a loop".to_owned()),
             Code::Continue => Some("invoked \"continue\" outside of a loop".to_owned()),
             other => Some(format!("command returned bad code: {}", other.as_int())),
         };
-        if let Some(message) = message {
+        let Some(message) = message else {
+            return completion;
+        };
+        if completion.code != Code::Error {
             let code = completion.code.as_int();
             completion = if self.runtime_version() < tcl_dialect::TclVersion::V8_6 {
                 err(message.clone())
@@ -13034,8 +13101,26 @@ impl Vm {
                     &format!("TCL UNEXPECTED_RESULT_CODE {code}"),
                 )
             };
-            self.seed_error_info(message);
         }
+        // The command that produced the code logs the error, unless a
+        // `return -errorinfo` already supplied the trace.
+        match crate::command::opt_get(&completion.options, "-errorinfo") {
+            Some(info) => self.seed_error_info(info.to_str().to_string()),
+            None => match self.script_command() {
+                Some((text, line)) => {
+                    self.error_info = None;
+                    self.error_logged = false;
+                    self.log_command_info_only(&text, &message, line);
+                }
+                None => self.seed_error_info(message),
+            },
+        }
+        completion
+    }
+
+    /// Publish an uncaught error's `errorInfo` and `errorCode`, which the next
+    /// command at the same prompt can read.
+    fn publish_settled(&mut self, completion: &Completion<Value>) {
         if completion.code == Code::Error {
             let info = self
                 .error_info_value()
@@ -13043,6 +13128,35 @@ impl Vm {
             let code = crate::command::opt_get(&completion.options, "-errorcode")
                 .unwrap_or_else(|| Value::string("NONE"));
             self.publish_error(&info, &code);
+        }
+    }
+
+    /// C's `TclUpdateReturnInfo`: a `return` completion counts one level
+    /// down, and its `-code` takes effect at level 0. Not `Code::from_int` on
+    /// a 0..=4-only map: `return -code N` for a non-standard N surfaces
+    /// `Code::Other(N)` (coroutine-2.4).
+    pub(crate) fn update_return_info(&mut self, mut completion: Completion<Value>) -> Completion<Value> {
+        if completion.code != Code::Return {
+            return completion;
+        }
+        let level = crate::command::opt_get(&completion.options, "-level")
+            .and_then(|v| v.as_int().ok())
+            .unwrap_or(1);
+        if level > 1 {
+            completion.options = crate::command::with_return_level(&completion.options, level - 1);
+        } else {
+            let code = crate::command::opt_get(&completion.options, "-code")
+                .and_then(|v| v.as_int().ok())
+                .and_then(|n| i32::try_from(n).ok())
+                .map_or(Code::Ok, Code::from_int);
+            completion.options = crate::command::with_return_level(&completion.options, 0);
+            completion.code = code;
+            if code == Code::Error {
+                // A carried `-errorinfo` suppresses the `return` command's
+                // own frame, but whoever receives the settled error must still
+                // append its own.
+                self.clear_error_logged();
+            }
         }
         completion
     }
@@ -13078,7 +13192,64 @@ impl Vm {
     /// time and without compiling them, where it compiles every body they
     /// evaluate and every script `source` reads ([`CommandEvaluation`]).
     pub fn eval_source_directly(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
+        self.script_command = None;
         self.eval_source_as(src, CommandEvaluation::Direct)
+    }
+
+    /// Note that a directly evaluated script is running the command that
+    /// `asm`'s instruction `pc` starts.
+    pub(crate) fn enter_script_command(&mut self, asm: &Rc<FunctionAsm>, pc: usize) {
+        self.script_command = Some((Rc::clone(asm), pc));
+    }
+
+    /// The text and line of the outermost command a directly evaluated script
+    /// last ran.
+    fn script_command(&self) -> Option<(String, u32)> {
+        let (asm, pc) = self.script_command.as_ref()?;
+        let instruction = asm.instructions.get(*pc)?;
+        Some((instruction.source_cmd_text.clone(), instruction.source_line))
+    }
+
+    /// Settle the completion of a script `source` read from `path` as C's
+    /// `Tcl_FSEvalFileEx` does: a `return` takes effect
+    /// ([`Self::update_return_info`]), and an error records where in `path`
+    /// it occurred, `(file "PATH" line N)` naming the script's line of the
+    /// command that raised it.
+    pub(crate) fn settle_sourced_script(
+        &mut self,
+        path: &str,
+        completion: Completion<Value>,
+    ) -> Completion<Value> {
+        let returned = completion.code == Code::Return;
+        let completion = self.update_return_info(completion);
+        if completion.code == Code::Error && !returned {
+            self.append_file_frame(path);
+        }
+        completion
+    }
+
+    /// Append the `(file "PATH" line N)` frame C adds to `errorInfo` for an
+    /// error in a script file, `PATH` cut at 150 bytes, with `...` from 8.5.
+    pub(crate) fn append_file_frame(&mut self, path: &str) {
+        let limit = 150;
+        let (shown, overflow) = if path.len() > limit {
+            let mut end = limit;
+            while !path.is_char_boundary(end) {
+                end -= 1;
+            }
+            (&path[..end], true)
+        } else {
+            (path, false)
+        };
+        let ellipsis = if overflow && self.runtime_version() != tcl_dialect::TclVersion::V8_4 {
+            "..."
+        } else {
+            ""
+        };
+        let line = self.error_line();
+        let info = self.error_info.get_or_insert_with(String::new);
+        info.push_str(&format!("\n    (file \"{shown}{ellipsis}\" line {line})"));
+        self.error_logged = false;
     }
 
     /// [`Self::eval_source`], the script's own commands evaluated as

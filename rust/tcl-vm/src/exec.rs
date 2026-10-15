@@ -1417,7 +1417,10 @@ impl Vm {
                 .filter(|parent| parent.each_loop.is_some())
                 .and_then(|parent| parent.release_units.inherited())
         });
-        if let Some(unit) = inherited {
+        if let Some(mut unit) = inherited {
+            // A `catch` activation runs the script body of a `catch` the
+            // release compiled into the unit.
+            unit.kind.in_catch_body |= frame.catch.is_some();
             frame.inherit_release_unit(unit);
         }
         acts.push(frame);
@@ -2254,32 +2257,10 @@ impl Vm {
         }
         self.pop_call_frame();
         self.pop_ns();
-        if c.code == Code::Return {
-            // While the carried return level stays positive the TCL_RETURN keeps
-            // unwinding one proc level at a time; when it reaches 0 the carried
-            // `-code` takes effect. `Code::from_int` (never a 0..=4-only map):
-            // `return -code N` for a non-standard N must surface `Code::Other(N)`,
-            // not collapse to `Ok` (coroutine-2.4).
-            let level = crate::command::opt_get(&c.options, "-level")
-                .and_then(|v| v.as_int().ok())
-                .unwrap_or(1);
-            if level > 1 {
-                c.options = crate::command::with_return_level(&c.options, level - 1);
-            } else {
-                let code = crate::command::opt_get(&c.options, "-code")
-                    .and_then(|v| v.as_int().ok())
-                    .and_then(|n| i32::try_from(n).ok())
-                    .map_or(Code::Ok, Code::from_int);
-                c.options = crate::command::with_return_level(&c.options, 0);
-                c.code = code;
-                if code == Code::Error {
-                    // A carried `-errorinfo` suppresses the `return` command's
-                    // own frame, but the call site that receives the settled
-                    // error must still be appended.
-                    self.clear_error_logged();
-                }
-            }
-        }
+        // While the carried return level stays positive the TCL_RETURN keeps
+        // unwinding one proc level at a time; when it reaches 0 the carried
+        // `-code` takes effect.
+        *c = self.update_return_info(c.clone());
         self.error_stack_push_proc_call(body_code, c.code, &call_words);
         if c.code == Code::Error
             && let Some((cmd, line)) = acts.last().and_then(|parent| {
@@ -2573,7 +2554,7 @@ impl Vm {
                 !unit.entry.stale
                     && instr
                         .release_hold
-                        .is_some_and(|hold| hold.binds(unit.in_procedure))
+                        .is_some_and(|hold| hold.binds(unit.kind))
             })
             && self.function_inlined_facts_hold(asm, f.manifest.as_deref())
     }
@@ -2588,7 +2569,7 @@ impl Vm {
         words: &[Value],
     ) -> Option<EnteredCommand> {
         let unit = f.release_units.current(instr)?;
-        if !instr.release_binding?.binds(unit.in_procedure) {
+        if !instr.release_binding?.binds(unit.kind) {
             return None;
         }
         let entry = unit.entry;
@@ -2596,10 +2577,7 @@ impl Vm {
             return None;
         }
         let name = words.first()?.to_str().to_string();
-        let key = self
-            .resolve_command_fqn(self.current_ns(), &name)
-            .unwrap_or_else(|| name.trim_start_matches("::").to_owned());
-        let builtin = self.builtin_at_unit_entry(&key, entry.epoch)?;
+        let builtin = self.builtin_at_unit_entry(&name, entry.epoch)?;
         Some(EnteredCommand {
             resume: f.pc,
             continuation: f.pc,
@@ -2644,6 +2622,9 @@ impl Vm {
             ));
         }
         let instr = &asm.instructions[f.pc];
+        if instr.script_command && !f.is_script {
+            self.enter_script_command(&asm, f.pc);
+        }
         if !self.runtime_version().revalidates_running_bytecode() && f.release_units.enters(instr) {
             let stale = !self.function_command_bindings_match(&asm, f.manifest.as_deref());
             f.release_units.enter(
@@ -4278,7 +4259,7 @@ impl Vm {
                 } else {
                     (pop(f), Value::empty())
                 };
-                let c = crate::command::cmd_return(
+                let c = crate::command::return_with_options(
                     self,
                     &[
                         Value::string("-options"),
@@ -4307,7 +4288,7 @@ impl Vm {
                 let result = pop(f);
                 let opts = pop(f);
                 let c =
-                    crate::command::cmd_return(self, &[Value::string("-options"), opts, result]);
+                    crate::command::return_with_options(self, &[Value::string("-options"), opts, result]);
                 if let Err(c) = Self::deliver_sync(f, c) {
                     return Tick::Return(c);
                 }
@@ -4334,7 +4315,7 @@ impl Vm {
                 let unit = f.release_units.current(instr).filter(|unit| {
                     instr
                         .release_binding
-                        .is_some_and(|binding| binding.binds(unit.in_procedure))
+                        .is_some_and(|binding| binding.binds(unit.kind))
                 });
                 let dispatched = self.dispatch_words_in_unit(f, &words, entered.as_ref(), unit);
                 self.pending.release_compiled = None;

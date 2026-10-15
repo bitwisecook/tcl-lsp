@@ -800,7 +800,7 @@ impl CodegenCtx<'_> {
             return None;
         }
         let words: Vec<&str> = args.iter().map(|(arg, _)| arg.as_str()).collect();
-        let shape = Self::invocation_shape(&words, |index| args[index].1);
+        let shape = self.invocation_shape(&words, |index| args[index].1);
         let args: Vec<String> = args.iter().map(|(arg, _)| arg.clone()).collect();
         let site = applicable_codegen_binding(self, command, &args)?;
         self.require_site_binding(&site, &shape);
@@ -1287,7 +1287,7 @@ impl CodegenCtx<'_> {
     ) -> Option<(InlineCodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
         let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
         let (hook, site) = self.inline_codegen_resolution(cmd, &arg_refs)?;
-        let shape = Self::invocation_shape(&arg_refs, |index| args[index].1);
+        let shape = self.invocation_shape(&arg_refs, |index| args[index].1);
         self.require_site_binding(&site, &shape);
         Some((hook, site.binding))
     }
@@ -1304,7 +1304,7 @@ impl CodegenCtx<'_> {
         args: &[&str],
     ) -> Option<InlineCodegenHookId> {
         let (hook, site) = self.inline_codegen_resolution(cmd, args)?;
-        self.require_site_binding(&site, &Self::invocation_shape(args, |_| false));
+        self.require_site_binding(&site, &self.invocation_shape(args, |_| false));
         Some(hook)
     }
 
@@ -1473,7 +1473,7 @@ impl CodegenCtx<'_> {
         }
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
-        let shape = Self::invocation_shape(args, |index| {
+        let shape = self.invocation_shape(args, |index| {
             self.cmd_arg_braced.get(index).copied().unwrap_or(false)
         });
         self.require_site_binding(&site, &shape);

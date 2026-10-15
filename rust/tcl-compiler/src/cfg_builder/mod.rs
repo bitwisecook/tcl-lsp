@@ -2280,7 +2280,9 @@ impl<'a> CfgBuilder<'a> {
             self.command_binding_sites.push(CommandBindingSite {
                 span: *span,
                 binding: binding.clone(),
-                shape: tcl_registry::release_compilation::InvocationShape::default(),
+                shape: tcl_registry::release_compilation::InvocationShape::counted(usize::from(
+                    value.is_some() || expr.is_some(),
+                )),
             });
         }
         // No value, a braced one, or a literal word: nothing can raise before

@@ -1267,6 +1267,11 @@ pub struct Instruction {
     /// across a command-table change rather than evaluating the command
     /// afresh.
     pub release_hold: Option<tcl_runtime_api::ReleaseBinding>,
+    /// A boundary of one of the commands of a script the release evaluates
+    /// directly, as `tclsh` evaluates the script file it is given: the
+    /// outermost command running, which C's level-0 evaluation names when it
+    /// turns an unexpected completion code into an error.
+    pub script_command: bool,
     /// Under such a release, the script body this compiler inlined that this
     /// instruction runs part of: `0` for none, otherwise one more than the
     /// body's index in the function.
@@ -1344,6 +1349,7 @@ impl Instruction {
             evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             release_binding: None,
             release_hold: None,
+            script_command: false,
             release_body: 0,
             release_body_entry: None,
             entered_command: None,

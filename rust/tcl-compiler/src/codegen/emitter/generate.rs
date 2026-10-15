@@ -1032,6 +1032,14 @@ fn finalize_function(
         }
     }
 
+    let direct_commands = std::mem::take(&mut ctx.direct_commands);
+    for instruction in &mut ctx.instructions {
+        instruction.script_command = instruction.source_command_boundary.is_start()
+            && instruction
+                .source_span
+                .is_some_and(|span| direct_commands.contains(&span));
+    }
+    ctx.direct_commands = direct_commands;
     stamp_release_units(ctx, cfg, block_order);
 
     // Loop-target table: each loop-body instruction → its loop's break/continue

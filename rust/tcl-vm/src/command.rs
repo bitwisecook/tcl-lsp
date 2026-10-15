@@ -345,19 +345,16 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Track the path so `info script` (and callers like `[file dirname [info
     // script]]`) resolve relative to the file being sourced.
     vm.push_script(path.to_string());
-    let mut result = match vm.eval_source(&contents) {
+    let result = match vm.eval_source(&contents) {
         Ok(c) => c,
         Err(e) => err(e.message),
     };
     vm.pop_script();
     // A top-level `return` in the sourced file ends the *file*, not the caller:
-    // `source` absorbs the `TCL_RETURN` and returns its value normally (like C
-    // Tcl's `Tcl_FSEvalFileEx`). Without this a `return` — e.g. the early-out at
-    // the top of a compatibility shim — unwinds the script that called `source`.
-    if result.code == Code::Return {
-        result.code = Code::Ok;
-    }
-    result
+    // `source` settles the `TCL_RETURN` as C Tcl's `Tcl_FSEvalFileEx` does.
+    // Without this a `return` — e.g. the early-out at the top of a
+    // compatibility shim — unwinds the script that called `source`.
+    vm.settle_sourced_script(&path, result)
 }
 
 /// `tcl::build-info ?option?` — report build-time configuration. With no
@@ -566,13 +563,8 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let old_name = old.to_str();
     let new_name = new.to_str();
-    // Tcl rejects a rename onto an existing command (leaving both intact), so
-    // check the destination before removing the source.
-    if !new_name.is_empty() && vm.rename_destination_exists(&new_name) {
-        return err(format!(
-            "can't rename to \"{new_name}\": command already exists"
-        ));
-    }
+    // C's `TclRenameCommand` looks the source up first, so a missing source is
+    // the error even when the destination is taken.
     let Some((cmd, mut rename)) = vm.prepare_command_rename(&old_name) else {
         // Renaming to the empty name is a delete; C words the miss accordingly.
         let verb = if new_name.is_empty() {
@@ -580,10 +572,23 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         } else {
             "rename"
         };
-        return err(format!(
-            "can't {verb} \"{old_name}\": command doesn't exist"
-        ));
+        let message = format!("can't {verb} \"{old_name}\": command doesn't exist");
+        return if vm.runtime_version().has_rename_error_codes() {
+            lookup_error(message, "COMMAND", &old_name)
+        } else {
+            err(message)
+        };
     };
+    // Tcl rejects a rename onto an existing command (leaving both intact), so
+    // check the destination before removing the source.
+    if !new_name.is_empty() && vm.rename_destination_exists(&new_name) {
+        let message = format!("can't rename to \"{new_name}\": command already exists");
+        return if vm.runtime_version().has_rename_error_codes() {
+            err_with_code(message, "TCL OPERATION RENAME TARGET_EXISTS")
+        } else {
+            err(message)
+        };
+    }
     let old_key = rename.old_key().to_owned();
     // A coroutine's state travels with its command: a delete (`rename $coro {}`)
     // drops it (no `finally` runs — the frozen continuation is inert data,
@@ -1724,6 +1729,64 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 /// `Tcl_SetReturnOptions`), which behaves exactly like
 /// `return -options $opts $result`.
 pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if vm.runtime_version() == tcl_dialect::TclVersion::V8_4 {
+        return return_without_options_dict(vm, args);
+    }
+    return_with_options(vm, args)
+}
+
+/// Tcl 8.4's `return` (`Tcl_ReturnObjCmd`): option and value pairs ahead of
+/// the result, the option one of `-code`, `-errorcode` and `-errorinfo`, and
+/// `-code` a code name spelt in full or an integer. TIP 90's `-level` and
+/// `-options` arrived at 8.5.
+fn return_without_options_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let mut merged = Vec::new();
+    let mut i = 0;
+    while args.len() - i > 1 {
+        let option = args[i].to_str();
+        let arg = &args[i + 1];
+        match &*option {
+            "-code" => {
+                let code = match &*arg.to_str() {
+                    "ok" => 0,
+                    "error" => 1,
+                    "return" => 2,
+                    "break" => 3,
+                    "continue" => 4,
+                    _ => match arg.as_int() {
+                        Ok(code) => code,
+                        Err(_) => {
+                            return err(format!(
+                                "bad completion code \"{}\": must be ok, error, return, break, \
+                                 continue, or an integer",
+                                arg.to_str()
+                            ));
+                        }
+                    },
+                };
+                merged.push(Value::string("-code"));
+                merged.push(Value::int(code));
+            }
+            "-errorcode" | "-errorinfo" => {
+                merged.push(args[i].clone());
+                merged.push(arg.clone());
+            }
+            _ => {
+                return err(format!(
+                    "bad option \"{option}\": must be -code, -errorcode, or -errorinfo"
+                ));
+            }
+        }
+        i += 2;
+    }
+    merged.push(args.get(i).cloned().unwrap_or_else(Value::empty));
+    return_with_options(vm, &merged)
+}
+
+/// `return` as TIP 90 reads it (8.5 onwards): option and value pairs ahead of
+/// the result, any word an option, `-options` a dict of them, and `-code` and
+/// `-level` driving the completion. The VM's return opcodes reach it directly.
+pub(crate) fn return_with_options(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Apply one option pair, from a direct argument or an expanded `-options`
     // dict. `-code`/`-level` drive the completion and are validated once
     // merged; every other key (`-errorcode`, `-errorinfo`, or a user option
@@ -1773,7 +1836,9 @@ pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 j += 2;
             }
             i += 2;
-        } else if a.starts_with('-') && a.len() > 1 && i + 1 < args.len() {
+        } else if i + 1 < args.len() {
+            // C's `TclMergeReturnOptions` reads every pair ahead of the
+            // result as an option, whatever its spelling.
             apply(
                 &a,
                 &args[i + 1],
@@ -1782,11 +1847,9 @@ pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 &mut extra,
             );
             i += 2;
-        } else if i == args.len() - 1 {
+        } else {
             value = args[i].clone();
             i += 1;
-        } else {
-            return err(format!("bad option \"{a}\""));
         }
     }
     let (ret_code, level) = match return_code_and_level(code_word.as_ref(), level_word.as_ref()) {

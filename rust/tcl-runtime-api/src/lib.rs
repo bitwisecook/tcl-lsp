@@ -580,30 +580,47 @@ pub enum ReleaseBinding {
     /// Compiled inline only in a procedure body, whose local variable table
     /// its `compileProc` needs; looked up elsewhere.
     CompiledInProcedure,
+    /// Compiled inline only in a procedure body and outside the script body
+    /// of a `catch` compiled into it (8.4's `return`).
+    CompiledInProcedureOutsideCatch,
+}
+
+/// What a release's compile of a unit can see where a command stands.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct UnitKind {
+    /// The unit is a procedure body.
+    pub in_procedure: bool,
+    /// The command stands in the script body of a `catch` the release
+    /// compiled into the unit.
+    pub in_catch_body: bool,
 }
 
 impl ReleaseBinding {
-    /// Whether the command is bound at compile time in a unit that is
-    /// (`in_procedure`) or is not a procedure body.
+    /// Whether the command is bound at compile time where a unit of `kind`
+    /// holds it.
     #[must_use]
-    pub fn binds(self, in_procedure: bool) -> bool {
+    pub fn binds(self, kind: UnitKind) -> bool {
         match self {
             Self::Invoked => false,
             Self::Compiled => true,
-            Self::CompiledInProcedure => in_procedure,
+            Self::CompiledInProcedure => kind.in_procedure,
+            Self::CompiledInProcedureOutsideCatch => kind.in_procedure && !kind.in_catch_body,
         }
     }
 
-    /// The binding that holds where both `self` and `other` hold.
+    /// The binding that holds where both `self` and `other` hold. Each
+    /// binding holds wherever the next one in `Invoked`,
+    /// `CompiledInProcedureOutsideCatch`, `CompiledInProcedure`, `Compiled`
+    /// does.
     #[must_use]
     pub fn meet(self, other: Self) -> Self {
-        match (self, other) {
-            (Self::Invoked, _) | (_, Self::Invoked) => Self::Invoked,
-            (Self::CompiledInProcedure, _) | (_, Self::CompiledInProcedure) => {
-                Self::CompiledInProcedure
-            }
-            (Self::Compiled, Self::Compiled) => Self::Compiled,
-        }
+        let rank = |binding: Self| match binding {
+            Self::Invoked => 0,
+            Self::CompiledInProcedureOutsideCatch => 1,
+            Self::CompiledInProcedure => 2,
+            Self::Compiled => 3,
+        };
+        if rank(self) <= rank(other) { self } else { other }
     }
 }
 

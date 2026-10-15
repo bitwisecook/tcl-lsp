@@ -257,10 +257,11 @@ fn set_argv(vm: &mut Vm, argv0: &str, argv: &[String]) {
 }
 
 /// Compile and run a whole script once, reporting any error to stderr. Returns
-/// the process exit code. `direct` runs it as `tclsh` runs the script file it
-/// is given ([`Vm::eval_source_directly`]).
-fn run_script(vm: &mut Vm, src: &str, direct: bool) -> i32 {
-    let result = if direct {
+/// the process exit code. A script `file` runs as `tclsh` runs the script file
+/// it is given ([`Vm::eval_source_directly`]), and an error in it reports its
+/// whole `errorInfo` trace, ending with where in the file it occurred.
+fn run_script(vm: &mut Vm, src: &str, file: Option<&str>) -> i32 {
+    let result = if file.is_some() {
         vm.eval_source_directly(src)
     } else {
         vm.eval_source(src)
@@ -270,10 +271,18 @@ fn run_script(vm: &mut Vm, src: &str, direct: bool) -> i32 {
     if let Some(code) = vm.take_exit() {
         return code;
     }
-    match result.map(|comp| vm.settle_top_level(comp)) {
+    let settled = result.map(|comp| match file {
+        Some(path) => vm.settle_top_level_script(path, comp),
+        None => vm.settle_top_level(comp),
+    });
+    match settled {
         Ok(comp) if comp.code.is_ok() => 0,
         Ok(comp) => {
-            vm.report_stderr_text(&comp.result.to_str());
+            let report = file
+                .and_then(|_| vm.get_var("::errorInfo"))
+                .map(|info| info.to_str().to_string())
+                .unwrap_or_else(|| comp.result.to_str().to_string());
+            vm.report_stderr_text(&report);
             1
         }
         Err(e) => {
@@ -297,7 +306,7 @@ fn run() -> i32 {
         }
         Mode::Command(script) => {
             let mut vm = new_vm(&options);
-            run_script(&mut vm, &script, false)
+            run_script(&mut vm, &script, None)
         }
         Mode::Repl => {
             let stdin = std::io::stdin();
@@ -314,7 +323,7 @@ fn run() -> i32 {
             };
             let mut vm = new_vm(&options);
             set_argv(&mut vm, &path, &argv);
-            run_script(&mut vm, &src, true)
+            run_script(&mut vm, &src, Some(&path))
         }
         Mode::Stdin => {
             if std::io::stdin().is_terminal() {
@@ -328,7 +337,7 @@ fn run() -> i32 {
                     return 1;
                 }
                 let mut vm = new_vm(&options);
-                run_script(&mut vm, &src, false)
+                run_script(&mut vm, &src, None)
             }
         }
     }

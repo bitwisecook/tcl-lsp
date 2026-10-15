@@ -420,17 +420,18 @@ impl<'r> CodegenCtx<'r> {
         let args: Vec<&str> = words.iter().map(|&(text, _)| text).collect();
         self.release_binding_of(
             command,
-            &Self::invocation_shape(&args, |index| words[index].1),
+            &self.invocation_shape(&args, |index| words[index].1),
         )
     }
 
     /// The shape of an invocation whose words after the command are `args`,
     /// the word at each index braced where `braced` says so.
     pub(crate) fn invocation_shape<S: AsRef<str>>(
+        &self,
         args: &[S],
         braced: impl Fn(usize) -> bool,
     ) -> tcl_registry::release_compilation::InvocationShape {
-        tcl_registry::release_compilation::InvocationShape::of(args, |index| {
+        tcl_registry::release_compilation::InvocationShape::of(self.vm_release(), args, |index| {
             !tcl_syntax::naming::word_is_dynamic(args[index].as_ref(), braced(index))
         })
     }
