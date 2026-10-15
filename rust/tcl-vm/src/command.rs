@@ -26,6 +26,7 @@
 use std::rc::Rc;
 
 use tcl_cmd_core::CmdError;
+use tcl_dialect::TclVersion;
 use tcl_runtime_api::completion_options::{self as shared_options, ErrorOptions, OptionValue};
 use tcl_runtime_api::error_stack::{ErrorStackValueError, validate_error_stack};
 use tcl_runtime_api::{Code, Completion, NsId, OoId};
@@ -1622,24 +1623,28 @@ pub(crate) fn settle_control_options(
 /// An explicit `-errorcode` in the completion's options wins (set by
 /// `error` / `throw` / `return -errorcode`, even when it is the literal
 /// `NONE`). A bare builtin error (`err(...)`, which carries no options) defaults
-/// to `NONE` — except a "wrong # args" usage error, which C's
+/// to `NONE` — except, from 8.6, a "wrong # args" usage error, which C's
 /// `Tcl_WrongNumArgs` tags `TCL WRONGARGS`. Matching that lets the many
 /// `… errors` tests (join-2.1, split-2.1, …) see the right `$errorCode` without
 /// retagging every wrong-args call site.
-pub(crate) fn resolved_error_code(comp: &Completion<Value>) -> Value {
+pub(crate) fn resolved_error_code(comp: &Completion<Value>, release: TclVersion) -> Value {
     if let Some(ec) = opt_get(&comp.options, "-errorcode") {
         return ec;
     }
-    Value::string(default_error_code(&comp.result.to_str()))
+    Value::string(default_error_code(&comp.result.to_str(), release))
 }
 
 /// The `errorCode` a bare builtin error (no carried `-errorcode`) defaults to,
 /// keyed off its message — the codes C's `Tcl_WrongNumArgs` / list parser
-/// (`tclUtil.c`) attach. Only consulted when the completion carries no explicit
-/// `-errorcode`, so a user `error msg` (which sets `-errorcode NONE`) is never
-/// reclassified. Anything unrecognised is `NONE`.
-fn default_error_code(message: &str) -> &'static str {
-    if message.starts_with("wrong # args:") {
+/// (`tclUtil.c`) attach where the release has them
+/// ([`TclVersion::tags_usage_error_codes`]). Only consulted when the
+/// completion carries no explicit `-errorcode`, so a user `error msg` (which
+/// sets `-errorcode NONE`) is never reclassified. Anything unrecognised is
+/// `NONE`.
+fn default_error_code(message: &str, release: TclVersion) -> &'static str {
+    if !release.tags_usage_error_codes() {
+        "NONE"
+    } else if message.starts_with("wrong # args:") {
         "TCL WRONGARGS"
     } else if message == "unmatched open brace in list" {
         "TCL VALUE LIST BRACE"
@@ -2185,7 +2190,7 @@ impl Vm {
         };
         let active_error = code == Code::Error && comp.code == Code::Error && level == 0;
         let error = (code == Code::Error).then(|| ErrorOptions {
-            error_code: Some(resolved_error_code(comp)),
+            error_code: Some(resolved_error_code(comp, self.runtime_version())),
             error_info: active_error.then(|| {
                 self.error_info_value().map_or_else(
                     || opt_get(&comp.options, "-errorinfo").unwrap_or_else(|| comp.result.clone()),
@@ -2265,7 +2270,8 @@ impl Vm {
                 || comp.result.to_str().to_string(),
                 |value| value.to_str().to_string(),
             );
-            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(&comp));
+            let ecode = opt_get(&opts, "-errorcode")
+                .unwrap_or_else(|| resolved_error_code(&comp, self.runtime_version()));
             (einfo, ecode)
         });
         let _ = self.take_error_info();
@@ -2309,7 +2315,8 @@ impl Vm {
                 || comp.result.to_str().to_string(),
                 |value| value.to_str().to_string(),
             );
-            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(comp));
+            let ecode = opt_get(&opts, "-errorcode")
+                .unwrap_or_else(|| resolved_error_code(comp, self.runtime_version()));
             let _ = self.take_error_info();
             self.publish_error(&einfo, &ecode);
             opts

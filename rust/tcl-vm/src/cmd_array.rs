@@ -365,7 +365,7 @@ mod tests {
             r#"can't unset "a": variable is a constant"#
         );
         assert_eq!(
-            crate::command::resolved_error_code(&completion)
+            crate::command::resolved_error_code(&completion, vm.runtime_version())
                 .to_str()
                 .as_ref(),
             "TCL UNSET CONST"

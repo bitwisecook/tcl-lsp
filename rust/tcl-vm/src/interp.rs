@@ -5476,10 +5476,9 @@ impl Vm {
         let usage = tcl_syntax::list::join_list(
             std::iter::once(ens_name).chain(parameters.iter().map(String::as_str)),
         );
-        err_with_code(
-            format!("wrong # args: should be \"{usage} subcommand ?arg ...?\""),
-            "TCL WRONGARGS",
-        )
+        err(format!(
+            "wrong # args: should be \"{usage} subcommand ?arg ...?\""
+        ))
     }
 
     pub(crate) fn dispatch_ensemble(

@@ -380,7 +380,7 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
         return TryOutcome::Deliver(body_comp);
     }
     let errorcode = if body_comp.code == Code::Error {
-        crate::command::resolved_error_code(&body_comp)
+        crate::command::resolved_error_code(&body_comp, vm.runtime_version())
     } else {
         Value::empty()
     };

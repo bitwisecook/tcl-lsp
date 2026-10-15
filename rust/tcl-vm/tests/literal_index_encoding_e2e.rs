@@ -32,7 +32,7 @@
 //!
 //! The same literal shows which scripts 8.6 compiles in a procedure frame and
 //! which values its string commands leave canonical lists, and the harness
-//! also pins 8.4's narrower `catch`.
+//! also pins 8.4's narrower `catch` and the error codes each release sets.
 //!
 //! The vectors are measured on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0,
 //! each script run as the file `tclsh` is given and on its stdin, and are
@@ -461,7 +461,34 @@ const CATCH_ARITY_85: &str = "proc: {0 {1 {-code 0 -level 0}}} {0 {0 1}} {0 1} {
 top: 0 0 1 {wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"}\n\
 dynamic: 0 0\n";
 
+/// `Tcl_WrongNumArgs` and the list parser tag their errors `TCL WRONGARGS`
+/// and `TCL VALUE LIST …` from 8.6; 8.4 and 8.5 set no error code, so
+/// `$errorCode` is `NONE` for every command's usage error and malformed list.
+const ERROR_CODES: &str = r#"proc code {script} { catch {uplevel 1 $script}; return $::errorCode }
+proc p {a} {}
+proc q {} { list [code {llength}] [code {p}] [code {set}] [code [list llength "\{a"]] }
+puts "top: [code {llength}] / [code {p 1 2}] / [code {string length}] / [code [list llength "\"a"]] / [code [list lindex "\{a\}b" 0]]"
+puts "proc: [q]"
+"#;
+
+const ERROR_CODES_NONE: &str = "top: NONE / NONE / NONE / NONE / NONE\nproc: NONE NONE NONE NONE\n";
+
+const ERROR_CODES_TAGGED: &str = "top: TCL WRONGARGS / TCL WRONGARGS / TCL WRONGARGS / \
+TCL VALUE LIST QUOTE / TCL VALUE LIST JUNK\n\
+proc: {TCL WRONGARGS} {TCL WRONGARGS} {TCL WRONGARGS} {TCL VALUE LIST BRACE}\n";
+
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "usage and list error codes",
+        script: ERROR_CODES,
+        want: &[
+            (TclVersion::V8_4, ERROR_CODES_NONE, ERROR_CODES_NONE),
+            (TclVersion::V8_5, ERROR_CODES_NONE, ERROR_CODES_NONE),
+            (TclVersion::V8_6, ERROR_CODES_TAGGED, ERROR_CODES_TAGGED),
+            (TclVersion::V9_0, ERROR_CODES_TAGGED, ERROR_CODES_TAGGED),
+            (TclVersion::V9_1, ERROR_CODES_TAGGED, ERROR_CODES_TAGGED),
+        ],
+    },
     Vector {
         name: "catch's arity",
         script: CATCH_ARITY,

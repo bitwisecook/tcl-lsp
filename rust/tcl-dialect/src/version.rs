@@ -698,6 +698,14 @@ impl TclVersion {
         matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
     }
 
+    /// Whether this release tags a `wrong # args` usage error
+    /// (`Tcl_WrongNumArgs`) and a malformed list (`TclFindElement`) with a
+    /// `TCL …` error code. 8.4 and 8.5 set none, so `$errorCode` is `NONE`.
+    #[must_use]
+    pub fn tags_usage_error_codes(self) -> bool {
+        matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
+    }
+
     /// Does this release **definitely** satisfy any of `requirements` — the
     /// answer `package vsatisfies [package provide Tcl] REQ ?REQ …?` gives on
     /// every build of the release line?

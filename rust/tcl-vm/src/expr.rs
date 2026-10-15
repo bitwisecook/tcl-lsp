@@ -821,11 +821,9 @@ fn word_or(left: &Value, right: &Value) -> Result<bool, TclError> {
 /// compiled as `expr {…}` but `NONE` when evaluated from a variable.
 fn call_error(c: &tcl_runtime_api::Completion<Value>) -> TclError {
     let message = c.result.to_str().to_string();
-    let code = crate::command::resolved_error_code(c).to_str().to_string();
-    if code == "NONE" {
-        TclError::new(message)
-    } else {
-        TclError::with_error_code(message, code)
+    match crate::command::opt_get(&c.options, "-errorcode") {
+        Some(code) => TclError::with_error_code(message, code.to_str().to_string()),
+        None => TclError::new(message),
     }
 }
 
