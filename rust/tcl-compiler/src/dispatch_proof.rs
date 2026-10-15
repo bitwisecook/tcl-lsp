@@ -747,6 +747,7 @@ impl AliasLedger {
 /// The complete abstract world at one program point.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct WorldContents {
+    variable_grammar: Option<tcl_lexer::LexerConfig>,
     versions: [TrackVersion; WorldTrack::ALL.len()],
     bindings: IdentityLedger,
     namespace_lookup_stable: bool,
@@ -762,6 +763,7 @@ struct WorldContents {
 impl WorldContents {
     fn entry(assumption: DispatchEntryAssumption) -> Self {
         let mut state = Self {
+            variable_grammar: None,
             versions: [TrackVersion::Entry; WorldTrack::ALL.len()],
             bindings: IdentityLedger::default(),
             namespace_lookup_stable: true,
@@ -829,13 +831,17 @@ impl WorldContents {
         self.aliases.join(&other.aliases);
     }
 
-    /// Whether any access to variable `name` (read or write) may fire a
-    /// variable trace, following one alias hop.
+    /// Whether source substitution may run an observer or an unmodelled
+    /// index evaluation, following one alias hop.
     fn variable_access_may_observe(&self, spelling: &str) -> bool {
-        let Some(reference) = parse_variable_reference(spelling) else {
-            return !self.variable_traces.completely_absent();
+        let Some(reference) = self
+            .variable_grammar
+            .and_then(|config| parse_variable_reference(spelling, config))
+        else {
+            return true;
         };
-        self.resolved_variable_access_may_observe(&reference)
+        matches!(reference.element, ElementAccess::Dynamic)
+            || self.resolved_variable_access_may_observe(&reference)
     }
 
     /// A native name operand and an alias target are already evaluated names.
@@ -889,39 +895,26 @@ fn literal_variable_reference(name: &str) -> VariableReference<'_> {
     }
 }
 
-/// Parse a `$name`, `${name}`, or bare-name spelling.
-///
-/// Returns `None` when the spelling embeds substitutions this pass cannot
-/// evaluate (a nested `[...]`, or a `$` inside the name text), which callers
-/// must treat as an unknown variable reference.
-fn parse_variable_reference(spelling: &str) -> Option<VariableReference<'_>> {
-    let name = spelling.strip_prefix('$').unwrap_or(spelling);
-    let name = match name.strip_prefix('{') {
-        Some(inner) => inner.strip_suffix('}')?,
-        None => name,
+/// Project a complete substitution under its retained source grammar.
+/// Combined braced names remain literal data; separately substituted or
+/// escape-decoded indexes retain an unknown element relation.
+fn parse_variable_reference(
+    spelling: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<VariableReference<'_>> {
+    let reference = tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config).ok()??;
+    let base = std::str::from_utf8(reference.name).ok()?;
+    let Some(index) = reference.index else {
+        return Some(literal_variable_reference(base));
     };
-    if name.is_empty() || name.contains('[') || name.contains(']') {
-        return None;
-    }
-    if let Some(open) = name.find('(') {
-        let base = &name[..open];
-        if base.is_empty() || base.contains('$') {
-            return None;
-        }
-        let element = name[open..].strip_prefix('(')?.strip_suffix(')')?;
-        let element = if element.contains('$') || element.contains('[') {
-            ElementAccess::Dynamic
-        } else {
-            ElementAccess::Known(element)
-        };
-        return Some(VariableReference { base, element });
-    }
-    if name.contains('$') {
-        return None;
-    }
+    let index = std::str::from_utf8(index).ok()?;
     Some(VariableReference {
-        base: name,
-        element: ElementAccess::Scalar,
+        base,
+        element: if tcl_syntax::naming::array_key_is_literal(index) {
+            ElementAccess::Known(index)
+        } else {
+            ElementAccess::Dynamic
+        },
     })
 }
 
@@ -1133,7 +1126,7 @@ pub fn analyse_dispatch_stability(
     function: &ExecutableFunction,
     entry: DispatchEntryAssumption,
 ) -> DispatchProofAnalysis {
-    analyse_dispatch_stability_using(function, entry, &|_, facts| {
+    analyse_dispatch_stability_using(function, entry, None, &|_, facts| {
         Some(normalise_name(&facts.canonical_command).into_owned())
     })
 }
@@ -1148,7 +1141,11 @@ pub(crate) fn analyse_original_dispatch_stability(
     registry: &tcl_registry::CommandRegistry,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> DispatchProofAnalysis {
-    analyse_dispatch_stability_using(function, entry, &|invoke, facts| {
+    let grammar = metadata
+        .filter(|metadata| metadata.matches_registry(registry))
+        .and_then(|metadata| metadata.source_analysis_input())
+        .map(crate::analyser::ResolvedAnalysisInput::lexer_config);
+    analyse_dispatch_stability_using(function, entry, grammar, &|invoke, facts| {
         original_ledger_subject(invoke, facts, registry, metadata)
     })
 }
@@ -1204,6 +1201,7 @@ fn original_ledger_subject(
 fn analyse_dispatch_stability_using(
     function: &ExecutableFunction,
     entry: DispatchEntryAssumption,
+    grammar: Option<tcl_lexer::LexerConfig>,
     subject: &dyn Fn(
         &crate::executable_ir::GenericInvoke,
         &tcl_registry::InvocationFacts,
@@ -1224,7 +1222,9 @@ fn analyse_dispatch_stability_using(
     }
     let shape = CfgShape::of(function);
     let entry_index = function.entry.index();
-    let entry_state = Arc::new(WorldContents::entry(entry));
+    let mut initial = WorldContents::entry(entry);
+    initial.variable_grammar = grammar;
+    let entry_state = Arc::new(initial);
 
     let mut edge_out: Vec<Vec<Option<Arc<WorldContents>>>> = shape
         .successors
@@ -2926,27 +2926,74 @@ mod tests {
 
     #[test]
     fn variable_references_parse_scalars_elements_and_dynamic_elements() {
-        let scalar = parse_variable_reference("$items").expect("scalar parses");
+        let config = tcl_lexer::LexerConfig::for_profile(Some(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        ));
+        let scalar = parse_variable_reference("$items", config).expect("scalar parses");
         assert_eq!(scalar.base, "items");
         assert!(matches!(scalar.element, ElementAccess::Scalar));
-        let braced = parse_variable_reference("${a(1)}").expect("braced element parses");
+        let braced = parse_variable_reference("${a(1)}", config).expect("braced element parses");
         assert_eq!(braced.base, "a");
         assert!(matches!(braced.element, ElementAccess::Known("1")));
-        let dynamic = parse_variable_reference("$a($i)").expect("dynamic element parses");
+        let dynamic = parse_variable_reference("$a($i)", config).expect("dynamic element parses");
         assert!(matches!(dynamic.element, ElementAccess::Dynamic));
         assert!(
-            parse_variable_reference("$a([cmd])").is_none() || {
+            parse_variable_reference("$a([cmd])", config).is_none() || {
                 // A bracketed element must never be treated as a literal.
                 matches!(
-                    parse_variable_reference("$a([cmd])")
+                    parse_variable_reference("$a([cmd])", config)
                         .expect("parsed")
                         .element,
                     ElementAccess::Dynamic
                 )
             }
         );
-        assert!(parse_variable_reference("$").is_none());
-        assert!(parse_variable_reference("${unclosed").is_none());
+        assert!(parse_variable_reference("$", config).is_none());
+        assert!(parse_variable_reference("${unclosed", config).is_none());
+    }
+
+    #[test]
+    fn source_reference_grammar_keeps_literal_names_and_unknown_indexes() {
+        let c8 = tcl_lexer::LexerConfig::for_profile(Some(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        ));
+        let jim = tcl_lexer::LexerConfig::for_profile(Some(
+            tcl_registry::model::ingress::resolve_known_environment("jimtcl")
+                .unwrap()
+                .unit_profile(),
+        ));
+        for name in ["", "$literal", "[literal]", " with space "] {
+            let spelling = format!("${{{name}}}");
+            let selected = parse_variable_reference(&spelling, c8).unwrap();
+            assert_eq!(selected.base, name);
+            assert!(matches!(selected.element, ElementAccess::Scalar));
+        }
+        assert!(parse_variable_reference("$café", c8).is_none());
+        assert_eq!(parse_variable_reference("$café", jim).unwrap().base, "café");
+        assert!(parse_variable_reference("items", c8).is_none());
+        assert!(parse_variable_reference("$items suffix", c8).is_none());
+        let escaped = parse_variable_reference(r"$a(\x31)", c8).unwrap();
+        assert!(matches!(escaped.element, ElementAccess::Dynamic));
+        let literal = parse_variable_reference(r"${a(\x31)}", c8).unwrap();
+        assert!(matches!(literal.element, ElementAccess::Known(r"\x31")));
+        let mut state = WorldContents::entry(DispatchEntryAssumption::PristineRegistryWorld);
+        state
+            .variable_traces
+            .cell_mut("other")
+            .unwrap()
+            .add(TraceKey {
+                operations: vec![TraceOperation::Read],
+                prefix: Some("observe".to_owned()),
+            });
+        assert!(state.variable_access_may_observe("$untraced"));
+        state.variable_grammar = Some(c8);
+        assert!(!state.variable_access_may_observe("$untraced"));
+        assert!(state.variable_access_may_observe("$other"));
+        let mut quiet = WorldContents::entry(DispatchEntryAssumption::PristineRegistryWorld);
+        quiet.variable_grammar = Some(c8);
+        assert!(!quiet.variable_access_may_observe("$ordinary"));
+        assert!(quiet.variable_access_may_observe("$a([arbitrary_command])"));
+        assert!(quiet.variable_access_may_observe("$a($index)"));
     }
 
     #[test]
@@ -2970,6 +3017,9 @@ mod tests {
     #[test]
     fn observer_names_and_alias_targets_keep_literal_sigils_and_keys() {
         let mut state = WorldContents::entry(DispatchEntryAssumption::PristineRegistryWorld);
+        state.variable_grammar = Some(tcl_lexer::LexerConfig::for_profile(Some(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        )));
         let key = || TraceKey {
             operations: vec![TraceOperation::Read],
             prefix: Some("observe".to_owned()),

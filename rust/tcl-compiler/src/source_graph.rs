@@ -437,6 +437,37 @@ pub fn hosted_procedure_body_for_procedure<'a>(
         .then_some(body.as_ref())
 }
 
+/// Select a hosted declaration's current Module-issued body through its retained
+/// original words and body card. No publication or entered frame is established.
+#[must_use]
+pub fn hosted_procedure_body_for_declaration<'a>(
+    source: &str,
+    analysis: &AnalysisResult,
+    module: &'a Module,
+    declaration: &crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata<ProcDef>,
+) -> Option<(ProcedureId, &'a Procedure)> {
+    let (image, config) = current_analysis(source, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let registry = analysis.resolved_registry()?;
+    if module.source != image
+        || module.lexer_config != config
+        || module.source_metadata_input.as_ref() != Some(input)
+        || !analysis
+            .original_vendor_procedure_declarations()
+            .any(|row| row == declaration)
+        || !declaration.name_input().matches_source(&image, config)
+    {
+        return None;
+    }
+    let mut bodies = module.body_units.iter().filter_map(|(id, procedure)| {
+        let body = hosted_procedure_body_for_procedure(module, id, procedure, registry)?;
+        body.matches_declaration(declaration)
+            .then_some((*id, procedure))
+    });
+    let body = bodies.next()?;
+    bodies.next().is_none().then_some(body)
+}
+
 /// The genuine hosted source declaration retained by its own current function.
 /// This source-only correspondence issues neither event nor Native authority.
 #[must_use]

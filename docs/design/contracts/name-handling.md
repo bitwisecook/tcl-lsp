@@ -62,6 +62,14 @@ consume the complete traversal. Each command still needs its own original role,
 class, factory/body and whole-word correspondence; traversal supplies no executed
 binding, receiver, stored handle or Native capability.
 
+Logical semantic class-body context reads the name operand from the actual
+selected definition grammar's `command_installation` descriptor. A generic
+`Name` argument role is not required to rediscover that independently authored
+installation layout. Existing original head/input, literal name and written
+operand correspondence still govern the context; dynamic or captured operands
+cannot borrow a call-site declaration span. This supplies class-body source
+metadata without a created class, current receiver or Native method dispatch.
+
 ## Source-read and body selection
 
 `OriginalDeclaredLogicalBodyContext` keeps original declaration ancestry separate
@@ -202,6 +210,12 @@ Native issuer accepts only an already typed `Switch` with its actual closed
 handler. Captured prefix values retain their origins; only original whole words
 supply geometry. Unknown option/body selection and possible no-match remain
 explicit. This view grants no compiler admission, completed handler or frame.
+Source-aware static loop analysis uses `StaticLoopSource` from the actual CFG
+metadata and fold Registry. It requires exact subject data or a complete scalar
+reference, literal original patterns and ordered contiguous original body
+extents. Unsupported glob/regexp/nocase and missing or changed correspondence
+decline. Readonly case advice cannot erase Native Switch evaluation without
+an independent retained execution-obligation carrier.
 
 ## Conditional dictionary source phases
 

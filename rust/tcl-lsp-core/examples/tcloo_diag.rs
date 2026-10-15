@@ -336,13 +336,10 @@ fn receiver_form(
 ) -> Option<(&'static str, String)> {
     match head.kind {
         TokenType::Var => {
-            // Strip the leading `$` (and `${…}`) to the bare variable name.
-            let t = seg.texts.first()?.trim();
-            let name = t.strip_prefix('$').map_or(t, |r| {
-                r.strip_prefix('{')
-                    .and_then(|x| x.strip_suffix('}'))
-                    .unwrap_or(r)
-            });
+            let name = tcl_syntax::naming::whole_scalar_variable_reference_name(
+                seg.texts.first()?,
+                config,
+            )?;
             Some(("$var", name.to_owned()))
         }
         TokenType::Cmd => {

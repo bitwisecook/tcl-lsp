@@ -125,7 +125,7 @@ impl Namespaces {
                     binding: Some(previous),
                 });
             if self.native_command_at_node(generation).is_none() {
-                self.note_jim_command_retirement(generation);
+                self.note_retained_jim_command_retirement(generation);
             }
         }
     }

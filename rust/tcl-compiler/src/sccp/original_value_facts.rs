@@ -2983,7 +2983,7 @@ fn const_to_static(c: &ConstValue) -> crate::static_loops::StaticValue {
 /// Fold `condition` via a static summary of the `for` loop whose exit block is
 /// `bn`, or `None` when `bn` is not a loop exit or the loop cannot be
 /// summarised. The simulation is seeded with the constants known at the
-/// pre-loop block's exit and run by [`crate::static_loops::summarise_for_statement`].
+/// pre-loop block's exit under the retained CFG metadata and fold Registry.
 fn loop_summary_decision(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -3044,12 +3044,13 @@ fn loop_summary_decision(
             fold,
         );
     }
-    let summarised = crate::static_loops::summarise_for_statement_with_dependencies(
+    let summarised = crate::static_loops::summarise_for_statement_with_source_dependencies(
         &node.statement,
         &start_env,
         crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
         policy,
         Some(loop_math),
+        crate::static_loops::StaticLoopSource::new(fold.registry, &cfg.metadata_context),
     )?;
     let v =
         crate::static_loops::evaluate_expr_with_constants(condition, &summarised.values, policy)?;
@@ -3076,12 +3077,13 @@ fn semantic_loop_summary_decision(
     let ledger = fold.math_dependencies?;
     let point = ExpressionEvaluationPoint::Branch { block };
     ledger.loops.borrow_mut().remove(&point);
-    let analysis = crate::static_loops::analyse_for_statement_with_dependencies(
+    let analysis = crate::static_loops::analyse_for_statement_with_source_dependencies(
         statement,
         initial,
         crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
         fold.policy,
         Some(bindings),
+        crate::static_loops::StaticLoopSource::new(fold.registry, &cfg.metadata_context),
     )?;
     let environment = analysis
         .values

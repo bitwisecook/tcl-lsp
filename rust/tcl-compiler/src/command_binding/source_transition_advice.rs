@@ -355,29 +355,33 @@ pub(crate) struct SourceAdviceWord {
     pub(crate) origin: crate::registry_invocation::InvocationWordOrigin,
 }
 
-/// Genuine script/member issuers for conditional readonly body schemas.
+/// Genuine script/member/expression issuers for conditional readonly schemas.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum OriginalSourceCatalogueBody {
     Script(Arc<crate::registry_invocation::OriginalSourceScriptBody>),
     Member(Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>),
+    Expression(Arc<body_effects::OriginalSourceExpressionCommand>),
 }
 impl OriginalSourceCatalogueBody {
     pub(crate) fn content_span(&self) -> tcl_lexer::Span {
         match self {
             Self::Script(body) => body.content_span(),
             Self::Member(body) => body.content_span(),
+            Self::Expression(body) => body.content_span(),
         }
     }
     pub(crate) fn matches_source(&self, source: &SourceImage, config: LexerConfig) -> bool {
         match self {
             Self::Script(body) => body.matches_source(source, config),
             Self::Member(body) => body.matches_source(source, config),
+            Self::Expression(body) => body.matches_source(source, config),
         }
     }
     pub(crate) fn matches_context(&self, context: &ContextRegistry) -> bool {
         match self {
             Self::Script(body) => body.matches_context(context),
             Self::Member(body) => body.matches_context(context),
+            Self::Expression(body) => body.matches_context(context),
         }
     }
 }
@@ -1901,6 +1905,7 @@ impl AdviceInvocationContext<'_> {
     ) -> Option<()> {
         self.retain_schema_advice(tape, invocation, graph, schema)?;
         self.retain_native_expression_syntax_inventory(tape, graph, invocation, schema);
+        self.retain_original_expression_catalogue(tape, graph, invocation, schema);
         self.retain_c_source_lifecycle_inventory(tape, graph, invocation, schema, None, 0);
         self.retain_authored_command_prefix(tape, invocation, graph, schema, None);
         self.retain_definition_member_prefix_inventory(tape, graph, invocation, schema);

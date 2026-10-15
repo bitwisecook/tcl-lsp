@@ -1,8 +1,22 @@
 // tcl-lsp — a language server and toolchain for Tcl
-// Copyright (C) 2026 James Deucker (bitwisecook)
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Conditional hosted taint metadata, independent of handler/effect receipts.
+//! Conditional source taint metadata, independent of handler/effect receipts.
 
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -217,10 +231,175 @@ pub(crate) fn hosted_source_taint_invocation(
     context.invocation(registry, tokens)
 }
 
+/// Conditional Native source warning metadata under a current issued body.
+/// Lookup uncertainty and unsupported alternatives remain independent.
+pub(crate) struct NativeSourceTaintInvocation {
+    pub(crate) words: super::source_structure::OriginalRegistryWords,
+    pub(crate) effective: super::EffectiveCommandWords,
+}
+
+pub(crate) fn native_source_taint_invocation(
+    registry: &CommandRegistry,
+    context: super::InvocationMetadataContext<'_>,
+    module: &crate::ir::Module,
+    body: crate::ir::ProcedureId,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<NativeSourceTaintInvocation> {
+    let input = module.source_metadata_input.as_ref()?;
+    let supplied = context.source_analysis_input()?;
+    if input.has_logical_source_name_context()
+        || input.has_hosted_source_name_context()
+        || (supplied != input && supplied != &input.for_nested_source())
+        || !context.matches_registry(registry)
+        || !module
+            .retained_source_bindings
+            .as_ref()?
+            .matches_module(module, registry)
+    {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    if !binding.original_native_source_owner_for_body(tokens, module, body, registry) {
+        return None;
+    }
+    let words = binding.original_native_source_words(tokens, input, registry)?;
+    if words.origins().len() != tokens.words().len()
+        || words
+            .origins()
+            .iter()
+            .enumerate()
+            .any(|(ordinal, origin)| *origin != super::InvocationWordOrigin::Written(ordinal))
+        || tokens
+            .words()
+            .iter()
+            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+    {
+        return None;
+    }
+    words.with_source_schema(input.borrowed_context_registry(), |schema| {
+        (schema.facts().arity_accepts_frozen_arguments() == Some(true)
+            && schema.facts().canonical_command == words.command())
+        .then_some(())
+    })??;
+    let effective = super::compose_original_effective_words(tokens, words.command(), &[])?;
+    Some(NativeSourceTaintInvocation { words, effective })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::CommandTokens;
+    fn native_fixture(source: &str) -> (crate::ir::Module, crate::analyser::ResolvedAnalysisInput) {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input.clone()),
+            source,
+        );
+        (module, input)
+    }
+
+    #[test]
+    fn native_source_taint_keeps_the_actual_body_and_missing_execution_separate() {
+        let (module, input) = native_fixture("proc run {value} {exec $value}");
+        let registry = input.borrowed_context_registry().commands();
+        let (&body, _) = module
+            .original_native_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        let tokens = module.body_units[&body].body.statements[0]
+            .tokens()
+            .unwrap();
+        let metadata =
+            super::super::InvocationMetadataContext::for_module(registry, &module).unwrap();
+        let selected = native_source_taint_invocation(registry, metadata, &module, body, tokens)
+            .expect("genuine unentered Native source warning candidate");
+        assert_eq!(selected.words.command(), "exec");
+        assert_eq!(selected.effective.written_argument(0), Some(0));
+        assert!(!selected.words.operands_preserve_source_lookup());
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .proved_handler_target()
+                .is_none()
+        );
+        let mut changed = module.clone();
+        changed.source = SourceImage::document("proc run {value} {exec $value} ");
+        assert!(
+            native_source_taint_invocation(registry, metadata, &changed, body, tokens).is_none()
+        );
+        let (foreign, _) = native_fixture("proc run {value} {exec $value}");
+        let (&foreign_body, _) = foreign
+            .original_native_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        assert!(
+            native_source_taint_invocation(registry, metadata, &module, foreign_body, tokens)
+                .is_none()
+        );
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            native_source_taint_invocation(registry, metadata, &missing, body, tokens).is_none()
+        );
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(
+            native_source_taint_invocation(registry, metadata, &module, body, &missing).is_none()
+        );
+        let foreign_registry =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        assert!(
+            native_source_taint_invocation(
+                foreign_registry.commands(),
+                metadata,
+                &module,
+                body,
+                tokens
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn native_source_taint_does_not_guess_dynamic_heads_or_expanded_argv() {
+        for source in [
+            "proc run {callee value} {$callee $value}",
+            "proc run {value} {exec {*}$value}",
+            "proc run {value} {exec {*}{one two} $value}",
+        ] {
+            let (module, input) = native_fixture(source);
+            let registry = input.borrowed_context_registry().commands();
+            let (&body, _) = module
+                .original_native_declaration_body_units
+                .iter()
+                .next()
+                .unwrap();
+            let tokens = module.body_units[&body].body.statements[0]
+                .tokens()
+                .unwrap();
+            let metadata =
+                super::super::InvocationMetadataContext::for_module(registry, &module).unwrap();
+            assert!(
+                native_source_taint_invocation(registry, metadata, &module, body, tokens).is_none(),
+                "{source}"
+            );
+        }
+    }
+
     #[test]
     fn hosted_taint_lowering_keeps_the_invocations_whole_original_image() {
         // Implementation contract: naming.consumer.hosted-source-taint-descriptor

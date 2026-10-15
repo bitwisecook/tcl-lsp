@@ -85,6 +85,7 @@ mod native_jim_increment;
 mod native_jim_links;
 mod native_jim_lookup;
 mod native_jim_namespace;
+pub(crate) mod native_jim_tailcall;
 pub(crate) mod native_literal_pool;
 mod native_namespace_names;
 mod native_precision;
@@ -1316,7 +1317,8 @@ pub struct InterpState {
         RefCell<Vec<std::rc::Weak<native_literal_pool::NativeRuntimeLiteralArray>>>,
     native_execution_constants: RefCell<Option<[obj::Owned; 2]>>,
     jim_local_depth: Cell<usize>,
-    jim_active_command_workers: RefCell<Vec<(u64, Command)>>,
+    jim_active_command_workers: RefCell<Vec<native_jim_tailcall::JimCommandReference>>,
+    jim_command_references: RefCell<Vec<Weak<native_jim_tailcall::JimCommandReferenceData>>>,
     pub(crate) frames: RefCell<FrameStack>,
     /// The command-table-as-core-service: the namespace tree + the one
     /// `resolve(currentNs, name)` resolver.
@@ -1975,6 +1977,7 @@ impl Interp {
             native_compiler_pass_owner: std::cell::OnceCell::new(),
             jim_local_depth: Cell::new(0),
             jim_active_command_workers: RefCell::new(Vec::new()),
+            jim_command_references: RefCell::new(Vec::new()),
             frames: RefCell::new(FrameStack::new()),
             namespaces: RefCell::new(Namespaces::new()),
             native_alias_registrations: RefCell::new(Default::default()),
@@ -14877,6 +14880,16 @@ impl Interp {
         generation: Option<u64>,
         argv: &[*mut TclObj],
     ) -> Code {
+        self.invoke_bound_with_jim_reference(cmd, generation, argv, None)
+    }
+
+    fn invoke_bound_with_jim_reference(
+        &mut self,
+        cmd: Command,
+        generation: Option<u64>,
+        argv: &[*mut TclObj],
+        selected: Option<native_jim_tailcall::JimCommandReference>,
+    ) -> Code {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -14888,6 +14901,10 @@ impl Interp {
                 }
                 return Code::Error;
             }
+        };
+        let mut jim_command = match self.retain_active_jim_command(&cmd, generation, selected) {
+            Ok(command) => command,
+            Err(error) => return self.report_cmd_error(error.into()),
         };
         let code = (|| {
             if self.check_entered_native_operation().is_err() {
@@ -14913,13 +14930,12 @@ impl Interp {
                 };
                 self.set_result(context.empty_object().as_ptr());
             }
-            let jim_command = self.retain_active_jim_command(&cmd, generation);
             let code = self.invoke_bound_body(cmd, generation, argv);
             // Retirement releases reached owners even after a Host refusal.
             let retirement = self.retire_pending_native_ensemble_roles();
             // Final current and previous worker cleanup is part of this operation,
             // before Guest projection or a success status can leave the boundary.
-            drop(jim_command);
+            drop(jim_command.take());
             if retirement.is_err() {
                 return Code::Error;
             }
@@ -14934,6 +14950,7 @@ impl Interp {
             }
             code
         })();
+        drop(jim_command);
         // Also covers early reporting and the actual invocation-scope cleanup.
         if scope.currency().ensure_current_or_refuse().is_err() {
             return Code::Error;
@@ -17095,26 +17112,7 @@ impl Interp {
                 crate::obj::Owned::fresh(crate::list::new_list_obj_native(&members, strings));
             return self.schedule_original_tailcall_list(original);
         }
-        self.set_result_bytes(b"");
-        if words.is_empty() && !protocol.schedules_empty() {
-            return Code::Ok;
-        }
-        let request = crate::frame::PendingTailcall {
-            namespace: self.current_ns.get(),
-            namespace_name: self
-                .namespaces
-                .borrow()
-                .qualified_name(self.current_ns.get()),
-            original_list: None,
-            words: words
-                .iter()
-                .map(|word| crate::obj::Owned::retain(*word))
-                .collect(),
-        };
-        if !self.replace_pending_tailcall(Some(request)) {
-            return self.error(b"tailcall can only be called from a proc, lambda or method");
-        }
-        Code::from_int(protocol.pending_code())
+        self.schedule_jim_tailcall(words)
     }
 
     pub(crate) fn schedule_original_tailcall_list(&mut self, original: crate::obj::Owned) -> Code {
@@ -17143,12 +17141,7 @@ impl Interp {
             self.set_result_bytes(b"");
             return Code::Return;
         }
-        let request = crate::frame::PendingTailcall {
-            namespace: self.current_ns.get(),
-            namespace_name: Vec::new(),
-            words: Vec::new(),
-            original_list: Some(original),
-        };
+        let request = crate::frame::PendingTailcall::OriginalNamespaceList(original);
         if !self.replace_pending_tailcall(Some(request)) {
             return self.error(b"tailcall can only be called from a proc, lambda or method");
         }
@@ -17171,34 +17164,14 @@ impl Interp {
     }
 
     fn dispatch_tailcall(&mut self, request: crate::frame::PendingTailcall) -> Code {
-        if let Some(original) = request.original_list.as_ref() {
-            return self.invoke_original_namespace_list(original.as_ptr());
-        }
-        let words: Vec<_> = request
-            .words
-            .iter()
-            .map(crate::obj::Owned::as_ptr)
-            .collect();
-        let lookup = {
-            let namespaces = self.namespaces.borrow();
-            if namespaces.namespace_is_live(request.namespace) {
-                Some(request.namespace)
-            } else {
-                namespaces.find_namespace(GLOBAL, &request.namespace_name)
+        match request {
+            crate::frame::PendingTailcall::OriginalNamespaceList(original) => {
+                self.invoke_original_namespace_list(original.as_ptr())
             }
-        };
-        let Some(lookup) = lookup else {
-            let message = [
-                b"namespace \"".as_slice(),
-                &request.namespace_name,
-                b"\" not found",
-            ]
-            .concat();
-            let error_code =
-                error_code_list(&[b"TCL", b"LOOKUP", b"NAMESPACE", &request.namespace_name]);
-            return self.error_with_code(&message, &error_code);
-        };
-        self.dispatch_original_words_at(&words, lookup)
+            crate::frame::PendingTailcall::Jim(request) => {
+                self.invoke_selected_jim_tailcall(request)
+            }
+        }
     }
 
     pub(crate) fn invoke_original_namespace_list(&mut self, original: *mut TclObj) -> Code {

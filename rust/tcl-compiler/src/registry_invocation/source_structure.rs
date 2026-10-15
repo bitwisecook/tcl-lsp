@@ -1650,6 +1650,8 @@ pub(crate) struct OriginalSourceCase {
     patterns: Vec<String>,
     subject: crate::ir::WordExpr,
     folded_subject: Option<crate::ir::WordExpr>,
+    subject_literal: Option<String>,
+    scripts: Vec<super::OriginalSourceScriptBody>,
     config: tcl_lexer::LexerConfig,
 }
 
@@ -1675,6 +1677,55 @@ impl OriginalSourceCase {
 
     pub(crate) const fn folds_case(&self) -> bool {
         self.layout.nocase || self.folded_subject.is_some()
+    }
+
+    /// Literal data or complete scalar syntax from the original subject word.
+    pub(crate) fn subject_data(&self) -> Option<&str> {
+        self.subject_literal.as_deref()
+    }
+
+    pub(crate) fn matches_subject_presentation(&self, subject: &str, braced: bool) -> bool {
+        self.subject.legacy_text() == subject
+            && matches!(&self.subject, crate::ir::WordExpr::BracedLiteral { .. }) == braced
+    }
+
+    pub(crate) fn scalar_subject_name(&self) -> Option<&str> {
+        let (reference, source) = self.subject.sole_variable_substitution()?;
+        (source.provenance == crate::ir::Provenance::Source).then_some(())?;
+        tcl_syntax::naming::whole_scalar_variable_reference_name(reference, self.config)
+    }
+
+    /// Match each current IR body to its genuine case-source script extent.
+    /// Source correspondence grants no Native body entry or executable erasure.
+    pub(crate) fn matches_statement_bodies(
+        &self,
+        arms: &[crate::ir::SwitchArm],
+        default: Option<&crate::ir::Script>,
+    ) -> bool {
+        let actual = arms
+            .iter()
+            .filter_map(|arm| arm.body.as_ref())
+            .chain(default)
+            .collect::<Vec<_>>();
+        actual.len() == self.scripts.len()
+            && self.scripts.len() == self.bodies.bodies.len()
+            && actual.iter().zip(&self.scripts).all(|(script, body)| {
+                let Some(executed) = script.executed_source.as_deref() else {
+                    return false;
+                };
+                let crate::command_binding::ExecutedScriptMapping::Contiguous { base } =
+                    executed.mapping
+                else {
+                    return false;
+                };
+                let span = body.content_span();
+                executed.origin.source_image() == body.original_container().image()
+                    && base == span.start()
+                    && usize::try_from(span.end() - span.start()).ok()
+                        == Some(executed.text.bytes().len())
+                    && executed.origin.source_image().bytes().get(span.as_range())
+                        == Some(executed.text.bytes())
+            })
     }
 }
 
@@ -1834,12 +1885,19 @@ fn original_source_case_projection(
     let subject = tokens.words().get(written + 1)?.clone();
     let patterns = original_case_patterns(&words, case, &bodies)?;
     let folded_subject = original_folded_case_subject(tokens, &subject, registry, metadata);
+    let subject_literal = super::original_literal_argument_data(tokens, written);
+    let scripts = words.source_script_bodies_for(
+        input.borrowed_context_registry(),
+        super::OriginalSourceScriptPurpose::PotentialEvaluation,
+    );
     Some(OriginalSourceCase {
         layout,
         bodies,
         patterns,
         subject,
         folded_subject,
+        subject_literal,
+        scripts,
         config,
     })
 }

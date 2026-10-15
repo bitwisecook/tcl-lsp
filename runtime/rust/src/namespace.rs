@@ -1248,8 +1248,13 @@ impl Namespaces {
         self.jim_retired_tokens.clear();
     }
     fn note_jim_command_retirement(&mut self, token: u64) {
-        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084)
-            || self.jim_active_commands.contains_key(&token)
+        if self.variable_name_protocol != Some(tcl_syntax::naming::NativeNameProtocol::Jim084) {
+            return;
+        }
+        self.note_retained_jim_command_retirement(token);
+    }
+    fn note_retained_jim_command_retirement(&mut self, token: u64) {
+        if self.jim_active_commands.contains_key(&token)
             || self
                 .jim_previous_commands
                 .values()
@@ -1277,7 +1282,7 @@ impl Namespaces {
         if *count == 0 {
             self.jim_active_commands.remove(&token);
             if self.native_command_at_node(token).is_none() {
-                self.note_jim_command_retirement(token);
+                self.note_retained_jim_command_retirement(token);
             }
         }
     }

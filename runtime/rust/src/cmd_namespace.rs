@@ -75,6 +75,7 @@ pub fn install(interp: &mut Interp) {
         STOCK_MEMBERS,
         admitted,
     );
+    interp.install_stock_jim_namespace_which();
 }
 
 const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
@@ -716,6 +717,16 @@ fn namespace_text_result(
 /// `namespace which ?-command? ?-variable? name` — the FQN `name` resolves to.
 /// The variable query uses the actual selected C cell or Jim textual helper.
 fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if interp
+        .native_invocation_dialect()
+        .native_jim_namespace_which_helper()
+        .is_some()
+    {
+        if !matches!(argv.len(), 3 | 4) {
+            return interp.wrong_args_for_prefix(argv, 2, b"?-command|-variable? name");
+        }
+        return interp.dispatch_stock_jim_namespace_which(argv);
+    }
     let args = match argv[2..]
         .iter()
         .map(|arg| {
@@ -2261,8 +2272,248 @@ fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[cfg(test)]
 mod tests {
-    use crate::interp::{Code, Interp};
+    use crate::interp::{Code, Command, Interp};
     use crate::{counters, list, obj};
+
+    thread_local! {
+        static WHICH_NAMESPACE: std::cell::Cell<*mut obj::TclObj> = const {
+            std::cell::Cell::new(std::ptr::null_mut())
+        };
+        static WHICH_NAME_OBSERVATIONS: std::cell::RefCell<Vec<bool>> = const {
+            std::cell::RefCell::new(Vec::new())
+        };
+    }
+
+    extern "C" fn update_which_probe_name(value: *mut obj::TclObj) {
+        let resident = WHICH_NAMESPACE.with(|namespace| obj::has_string_rep(namespace.get()));
+        WHICH_NAME_OBSERVATIONS.with(|observations| observations.borrow_mut().push(resident));
+        let bytes: &[u8] = match obj::internal_rep(value) {
+            0 => b"::absent",
+            1 => b"absent",
+            2 => b"::return",
+            3 => b"return",
+            _ => unreachable!("fixed original name control"),
+        };
+        // SAFETY: the updater owns the live original object's String slot.
+        unsafe { obj::set_string_rep(value, bytes) };
+    }
+
+    static WHICH_PROBE_NAME: obj::TclObjType = obj::TclObjType {
+        name: c"which-name-probe".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update_which_probe_name),
+        set_from_any_proc: None,
+    };
+
+    #[test]
+    fn original_jim_which_helper_preserves_public_and_direct_cold_and_hot_getter_order() {
+        use tcl_runtime_api::Namespaces;
+        let evidence =
+            include_str!("../tests/data/native_jim_namespace_canonical/which-helper-20261015.tsv");
+        let row = |kind: &str, label: &str| {
+            evidence
+                .lines()
+                .find(|line| {
+                    let mut fields = line.split('|');
+                    fields.next() == Some(kind) && fields.next() == Some(label)
+                })
+                .unwrap()
+                .split('|')
+                .collect::<Vec<_>>()
+        };
+        for (label, option, case, direct) in [
+            (
+                "PUBLIC_VARIABLE_ABSOLUTE",
+                b"-variable".as_slice(),
+                0,
+                false,
+            ),
+            (
+                "PUBLIC_VARIABLE_RELATIVE",
+                b"-variable".as_slice(),
+                1,
+                false,
+            ),
+            ("PUBLIC_COMMAND_ABSOLUTE", b"-command".as_slice(), 2, false),
+            ("PUBLIC_COMMAND_RELATIVE", b"-command".as_slice(), 3, false),
+            ("DIRECT_VARIABLE_ABSOLUTE", b"-variable".as_slice(), 0, true),
+            ("DIRECT_VARIABLE_RELATIVE", b"-variable".as_slice(), 1, true),
+            ("DIRECT_COMMAND_ABSOLUTE", b"-command".as_slice(), 2, true),
+            ("DIRECT_COMMAND_RELATIVE", b"-command".as_slice(), 3, true),
+        ] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jimtcl"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let context = interp.native_jim_object_context().unwrap();
+            let namespace = obj::Owned::fresh(obj::new_wide_int_obj(42));
+            crate::native_source::bind_context(namespace.as_ptr(), &context).unwrap();
+            let name = obj::Owned::fresh(obj::alloc_typed(&WHICH_PROBE_NAME, case));
+            crate::native_source::bind_context(name.as_ptr(), &context).unwrap();
+            let head = obj::Owned::fresh(obj::new_string_bytes(if direct {
+                b"namespace which"
+            } else {
+                b"namespace"
+            }));
+            let which = obj::Owned::fresh(obj::new_string_bytes(b"which"));
+            let option = obj::Owned::fresh(obj::new_string_bytes(option));
+            let argv = if direct {
+                vec![head.as_ptr(), option.as_ptr(), name.as_ptr()]
+            } else {
+                vec![
+                    head.as_ptr(),
+                    which.as_ptr(),
+                    option.as_ptr(),
+                    name.as_ptr(),
+                ]
+            };
+            let body = obj::Owned::fresh(interp.new_list_object(&argv));
+            WHICH_NAMESPACE.with(|slot| slot.set(namespace.as_ptr()));
+            for hot in [false, true] {
+                let phase = format!("{label}_{}", if hot { "HOT" } else { "COLD" });
+                if hot {
+                    assert_eq!(
+                        obj::with_jim_command_cache(head.as_ptr(), |cache| cache
+                            .namespace
+                            .as_ptr()),
+                        Some(namespace.as_ptr()),
+                    );
+                    obj::invalidate_string(namespace.as_ptr());
+                    obj::invalidate_string(name.as_ptr());
+                }
+                let current = interp
+                    .namespaces_mut()
+                    .retain_unmaterialized_jim_namespace(obj::Owned::retain(namespace.as_ptr()));
+                assert_eq!(
+                    obj::has_string_rep(namespace.as_ptr()),
+                    row("NAMESPACE_BEFORE", &phase)[2] == "1"
+                );
+                assert!(interp.namespaces().jim_namespace_bytes(current).is_none());
+                assert!(interp
+                    .namespace_variable_name_bytes_checked(
+                        tcl_runtime_api::NsId(current as u32),
+                        b"absent"
+                    )
+                    .is_err());
+                assert!(!obj::has_string_rep(namespace.as_ptr()));
+                WHICH_NAME_OBSERVATIONS.with(|observations| observations.borrow_mut().clear());
+                assert_eq!(
+                    interp.ns_eval_in_token(
+                        current,
+                        &[],
+                        None,
+                        false,
+                        Some((
+                            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                            body.as_ptr()
+                        )),
+                        None
+                    ),
+                    Code::Ok,
+                    "{phase}"
+                );
+                assert_eq!(
+                    WHICH_NAME_OBSERVATIONS.with(|observations| observations.borrow().clone()),
+                    vec![row("NAMESPACE_AT_NAME_GETTER", &phase)[2] == "1"]
+                );
+                assert_eq!(
+                    obj::has_string_rep(namespace.as_ptr()),
+                    row("NAMESPACE_AFTER", &phase)[2] == "1"
+                );
+                assert_eq!(
+                    obj::obj_type_ptr(name.as_ptr()),
+                    &WHICH_PROBE_NAME as *const obj::TclObjType
+                );
+
+                let expected = row("RESULT", &phase)[3]
+                    .as_bytes()
+                    .chunks_exact(2)
+                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                    .collect::<Vec<_>>();
+                assert_eq!(interp.result_bytes(), expected, "{phase}");
+                assert!(interp.native_execution_refusal().is_none());
+            }
+            interp.set_current_ns(crate::namespace::GLOBAL);
+            WHICH_NAMESPACE.with(|slot| slot.set(std::ptr::null_mut()));
+        }
+    }
+
+    #[test]
+    fn jim_namespace_which_dispatches_the_actual_replaceable_helper_allocation() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let helper = interp
+            .resolve_cmd_token(b"namespace which")
+            .expect("actual helper allocation");
+        assert!(matches!(
+            interp.raw_command_by_generation(helper),
+            Some(Command::Proc(_))
+        ));
+        assert_eq!(
+            interp.eval_str(b"namespace which -variable absent"),
+            Code::Ok
+        );
+        assert_eq!(interp.result_bytes(), b"::absent");
+        assert_eq!(interp.eval_str(b"rename {namespace which} saved"), Code::Ok);
+        assert_eq!(interp.resolve_cmd_token(b"saved"), Some(helper));
+        assert_eq!(
+            interp.eval_str(
+                b"proc {namespace which} args {return OVERRIDE}; namespace which -variable absent"
+            ),
+            Code::Ok
+        );
+        assert_eq!(interp.result_bytes(), b"OVERRIDE");
+        let replacement = interp.resolve_cmd_token(b"namespace which").unwrap();
+        assert_ne!(replacement, helper);
+        interp.install_stock_jim_namespace_which();
+        assert_eq!(
+            interp.resolve_cmd_token(b"namespace which"),
+            Some(replacement)
+        );
+        assert_eq!(
+            interp.eval_str(b"{namespace which} -variable absent"),
+            Code::Ok
+        );
+        assert_eq!(interp.result_bytes(), b"OVERRIDE");
+        assert_eq!(
+            interp.eval_str(b"rename {namespace which} {}; namespace which -variable absent"),
+            Code::Error
+        );
+        assert!(interp.resolve_cmd_token(b"namespace which").is_none());
+        assert!(interp.native_execution_refusal().is_none());
+    }
+
+    #[test]
+    fn jim_namespace_which_refresh_preserves_the_actual_replacement() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jimtcl"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            interp.eval_str(b"proc {namespace which} args {return SELECTED}"),
+            Code::Ok
+        );
+        let selected = interp.resolve_cmd_token(b"namespace which").unwrap();
+        interp.set_dialect_profile(crate::environment::profile_for_dialect("tcl8.6"));
+        assert_eq!(interp.resolve_cmd_token(b"namespace which"), Some(selected));
+        interp.set_dialect_profile(crate::environment::profile_for_dialect("jimtcl"));
+        assert_eq!(interp.resolve_cmd_token(b"namespace which"), Some(selected));
+        assert_eq!(
+            interp.eval_str(b"namespace which -variable ignored"),
+            Code::Ok
+        );
+        assert_eq!(interp.result_bytes(), b"SELECTED");
+        assert!(interp.native_execution_refusal().is_none());
+    }
 
     #[test]
     fn origin_reuses_the_original_stringless_command_cache() {

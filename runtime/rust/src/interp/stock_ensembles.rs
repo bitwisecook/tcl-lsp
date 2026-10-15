@@ -371,6 +371,133 @@ impl Interp {
         }
     }
 
+    /// Publish the actual selected distribution helper, preserving an existing slot.
+    pub(crate) fn install_stock_jim_namespace_which(&mut self) {
+        let Some(helper) = self
+            .native_invocation_dialect()
+            .native_jim_namespace_which_helper()
+        else {
+            return;
+        };
+        let scope = match NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
+        let family = EnsembleImplementationFamily::Namespace;
+        let Some(mut installed) = self.stock_ensembles.borrow_mut().families.remove(&family) else {
+            return;
+        };
+        let reached = (|| {
+            if self.resolve_cmd_token(installed.public) != Some(installed.generation)
+                || !self.stock_ensemble_config_matches(&installed)
+            {
+                return None;
+            }
+            let existing = self
+                .namespaces()
+                .resolve_generation(GLOBAL, helper.name().as_bytes());
+            let generation = if let Some(generation) = existing {
+                generation
+            } else {
+                if self.current_ns() != GLOBAL {
+                    self.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "Jim namespace helper global installation context",
+                        )
+                        .into(),
+                    );
+                    return None;
+                }
+                let parameters_obj =
+                    crate::obj::Owned::fresh(super::new_string(helper.parameters().as_bytes()));
+                let parameters = match crate::cmd_proc::parse_params_object(
+                    self,
+                    parameters_obj.as_ptr(),
+                    b"",
+                ) {
+                    Ok(parameters) => parameters,
+                    Err(error) => {
+                        self.report_cmd_error(error);
+                        return None;
+                    }
+                };
+                let body = crate::obj::Owned::fresh(super::new_string(helper.body().as_bytes()));
+                let reached = self.install_proc_original_storage_publication(
+                    helper.name().as_bytes(),
+                    parameters,
+                    Some(parameters_obj.as_ptr()),
+                    body.as_ptr(),
+                    None,
+                    None,
+                );
+                drop(body);
+                drop(parameters_obj);
+                if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                    self.refuse_native_execution(first);
+                    return None;
+                }
+                let publication = reached?;
+                self.check_original_procedure_publication(
+                    publication.namespace,
+                    &publication.tail,
+                    publication.generation,
+                    &publication.binding,
+                )
+                .ok()?;
+                publication.generation
+            };
+            let declared = StockRegistrationSlot::capture(self, generation)?;
+            let publication =
+                OriginalStockSlots::capture(self, [installed.generation, generation])?;
+            installed.scripted_helpers.push(ScriptedHelperRegistration {
+                declared,
+                generation,
+            });
+            Some(publication)
+        })();
+        // The public Namespace token remains its actual primitive allocation.
+        let _ = self.publish_stock_family(family, installed, &scope, reached.as_ref());
+    }
+
+    /// Jim's public fallback obtains a fresh helper header and performs real lookup.
+    pub(crate) fn dispatch_stock_jim_namespace_which(&mut self, argv: &[*mut TclObj]) -> Code {
+        let Some(helper) = self
+            .native_invocation_dialect()
+            .native_jim_namespace_which_helper()
+        else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "Jim namespace which helper issuer",
+                )
+                .into(),
+            );
+        };
+        if !matches!(argv.len(), 3 | 4) {
+            return self.wrong_args_for_prefix(argv, 2, b"?-command|-variable? name");
+        }
+        let arguments = match super::native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let code = (|| {
+            let context = match self.native_jim_object_context() {
+                Ok(context) => context,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let head = crate::obj::Owned::fresh(super::new_string(helper.name().as_bytes()));
+            if let Err(error) = crate::native_source::bind_context(head.as_ptr(), &context) {
+                return self.report_cmd_error(error.into());
+            }
+            let mut words = vec![head.as_ptr()];
+            words.extend_from_slice(&argv[2..]);
+            self.dispatch(&words)
+        })();
+        arguments.finish(code)
+    }
+
     fn ensure_stock_namespace(
         &self,
         name: &[u8],
@@ -753,11 +880,10 @@ impl Interp {
             .families
             .values()
             .any(|installed| {
-                installed.scripted
-                    && installed
-                        .scripted_helpers
-                        .iter()
-                        .any(|helper| helper.generation == generation)
+                installed
+                    .scripted_helpers
+                    .iter()
+                    .any(|helper| helper.generation == generation)
             })
     }
 
@@ -768,11 +894,10 @@ impl Interp {
             return;
         };
         for installed in self.stock_ensembles.borrow_mut().families.values_mut() {
-            if installed.scripted
-                && installed
-                    .scripted_helpers
-                    .iter()
-                    .any(|helper| helper.declared.same_physical_slot(&current))
+            if installed
+                .scripted_helpers
+                .iter()
+                .any(|helper| helper.declared.same_physical_slot(&current))
             {
                 installed.scripted_helpers.push(ScriptedHelperRegistration {
                     declared: current.clone(),

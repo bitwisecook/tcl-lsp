@@ -885,25 +885,8 @@ fn source_class_ordinal(
         .authored_source_descriptors()
         .command
         .definition_body?;
-    if matches!(
-        grammar.family,
-        tcl_registry::definer::DefinerFamily::Snit | tcl_registry::definer::DefinerFamily::Itcl
-    ) {
-        let (roles, complete) = schema.authored_source_argument_roles();
-        if complete {
-            return roles
-                .into_iter()
-                .find(|(_, role)| *role == tcl_registry::ArgRole::Name)
-                .and_then(|(ordinal, _)| {
-                    schema
-                        .semantics
-                        .argument_offset
-                        .checked_add(usize::from(ordinal))
-                })
-                .map(|ordinal| (ordinal, true));
-        }
-    }
-    None
+    let installation = grammar.command_installation()?;
+    Some((usize::from(installation.name_at), true))
 }
 
 pub(super) fn definition_class_name<'a>(
@@ -1736,6 +1719,72 @@ mod original_source_schema_tests {
             context,
             tcl_lexer::LexerConfig::for_profile(Some(profile)),
         )
+    }
+
+    #[test]
+    fn logical_definer_class_context_uses_the_selected_installation_name_operand() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let mut spec = registry.get("itcl::class").unwrap().clone();
+        spec.name = "selected_class";
+        spec.required_package = None;
+        assert!(
+            !spec
+                .arg_roles
+                .iter()
+                .any(|(_, role)| *role == tcl_registry::ArgRole::Name)
+        );
+        registry.insert(spec);
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl9.1")
+                .with_command_store(std::sync::Arc::new(registry)),
+        );
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let source = "selected_class C {\nmethod m {} {}\nmethod run {} {\n${this} m\n}\n}";
+        let analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "report");
+        let config = analysis.body_lexer_config.unwrap();
+        let command =
+            tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
+        let words =
+            crate::original_invocation::source_registry_words(source, &analysis, &command).unwrap();
+        let selected = words
+            .with_source_schema(&input.context_registry(), source_class_ordinal)
+            .flatten();
+        assert_eq!(selected, Some((0, true)));
+        let method = source.rfind(" m").unwrap() + 1;
+        assert!(colour_at(source, &analysis, method, TokenKind::Method, 0));
+        let dynamic = source.replace("selected_class C", "selected_class $name");
+        let dynamic_analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(&dynamic, "report");
+        assert!(!colour_at(
+            &dynamic,
+            &dynamic_analysis,
+            dynamic.rfind(" m").unwrap() + 1,
+            TokenKind::Method,
+            0
+        ));
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            full_with_cu_and_analysis(
+                source,
+                profile,
+                analysis.resolved_registry().unwrap(),
+                None,
+                Some(&missing),
+            )
+            .data
+            .is_empty()
+        );
     }
 
     #[test]

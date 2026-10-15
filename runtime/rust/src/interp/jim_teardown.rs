@@ -93,6 +93,8 @@ impl JimInterpreterTeardown for Interp {
             let retired = self.frames.borrow_mut().take_top_for_jim_retirement();
             drop(retired);
         }
+        let deferred = std::mem::take(&mut *self.deferred_tailcalls.borrow_mut());
+        drop(deferred);
         let retired = self.namespaces.borrow_mut().take_jim_frame_owners();
         drop(retired);
         let targets = std::mem::take(&mut *self.array_operation_targets.borrow_mut());

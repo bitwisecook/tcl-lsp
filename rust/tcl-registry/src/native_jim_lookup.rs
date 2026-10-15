@@ -1,7 +1,75 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 // SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Authentic pinned Jim original-object lookup policy.
 
+/// Authored pinned distribution procedure source, not a published callable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeJimNamespaceWhichHelper {
+    name: &'static str,
+    parameters: &'static str,
+    body: &'static str,
+}
+impl NativeJimNamespaceWhichHelper {
+    /// Original compound registration spelling and fresh public fallback head.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        self.name
+    }
+    /// Actual original procedure formal syntax.
+    #[must_use]
+    pub const fn parameters(self) -> &'static str {
+        self.parameters
+    }
+    /// Original helper body; actual procedure/frame publication is backend-owned.
+    #[must_use]
+    pub const fn body(self) -> &'static str {
+        self.body
+    }
+}
+
 impl crate::InvocationDialect {
+    /// Select the pinned namespace-which distribution procedure source.
+    /// This descriptor grants no installed slot, header or Native compiler entry.
+    #[must_use]
+    pub fn native_jim_namespace_which_helper(self) -> Option<NativeJimNamespaceWhichHelper> {
+        self.native_jim_lookup_protocol()
+            .map(|_| NativeJimNamespaceWhichHelper {
+                name: "namespace which",
+                parameters: "{type -command} name",
+                body: r#"
+	set nsname ::[uplevel 1 [list ::namespace canon $name]]
+	if {$type eq "-variable"} {
+		return $nsname
+	}
+	if {$type eq "-command"} {
+		if {[exists -command $nsname]} {
+			return $nsname
+		} elseif {[exists -command ::$name]} {
+			return ::$name
+		}
+		return ""
+	}
+	return -code error {wrong # args: should be "namespace which ?-command? ?-variable? name"}
+"#,
+            })
+    }
+
     /// Actual pinned Jim lookup-cache policy; compatibility versions and C
     /// command-name caches cannot supply this original-object protocol.
     #[must_use]
@@ -82,5 +150,33 @@ pub fn native_jim_namespace_origin<B: NativeJimNamespaceOriginBackend>(
                 .map(NativeJimNamespaceOriginOutcome::Found);
         }
         return Ok(NativeJimNamespaceOriginOutcome::Missing(original));
+    }
+}
+
+#[cfg(test)]
+mod namespace_helper_source_tests {
+    #[test]
+    fn which_helper_descriptor_keeps_the_original_pinned_declaration() {
+        let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();
+        let helper = crate::InvocationDialect::of_profile(environment.unit_profile())
+            .native_jim_namespace_which_helper()
+            .unwrap();
+        let source = include_str!("../tests/data/native_jim_namespace_which/nshelper.tcl");
+        let declaration = format!(
+            "proc {{{}}} {{{}}} {{{}}}",
+            helper.name(),
+            helper.parameters(),
+            helper.body()
+        );
+        assert!(source.contains(&declaration));
+        for version in tcl_dialect::TclVersion::ALL {
+            let environment =
+                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+            assert!(
+                crate::InvocationDialect::of_profile(environment.unit_profile())
+                    .native_jim_namespace_which_helper()
+                    .is_none()
+            );
+        }
     }
 }

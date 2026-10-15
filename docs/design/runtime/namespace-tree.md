@@ -28,7 +28,7 @@ retained object or tree kind across policy changes: nonGLOBAL Jim objects
 require already reached bytes, physical C namespaces keep their tree geometry,
 and the permanent real GLOBAL C root remains independent. Display supplies no
 current operation or namespace coordinate.
-`namespace canonical` acquires the original name before namespace bytes. Its
+The direct canonical helper acquires the original name before namespace bytes. Its
 absolute branch returns a fresh CString-extent suffix without obtaining the
 namespace String. Relative construction reaches the guarded actual namespace
 getter, then returns the original root-relative operand or duplicates and
@@ -44,6 +44,23 @@ frames own local variables, while qualified globals use the root flat table.
 no variable exists. Procedure namespace objects derive from the counted flat
 publication key. Jim command enumeration and imports use the shared native
 name/glob owners and do not require a C namespace node to exist.
+
+The public Jim `namespace which` adapter preserves its own native arity check,
+then dispatches a fresh original compound helper head and the untouched original
+operands through ordinary lookup. Registry owns the pinned helper declaration
+through `InvocationDialect::native_jim_namespace_which_helper`; its immutable
+name, formal and body bytes do not establish an installed callable. Runtime
+publishes actual procedure objects under the real global Jim installation
+context or preserves the existing helper and its replacement. Physical slot,
+generation and original procedure lifecycle remain independent. The selected
+helper can be called directly, renamed, replaced or deleted; its actual source
+owns reached lookup, uplevel, canonicalisation and cached literal operations.
+The public Namespace primitive supplies no helper compiler identity, and
+immutable namespace snapshots acquire no getter. Other scripted namespace
+helpers remain separate consumers. Original public/direct cold/hot observations
+and the direct canonical contract do not establish unexecuted Runtime parity.
+
+Jim tailcall resolves the original target header in its actual current namespace before issuer teardown. The selected physical command reference and a new original argument List survive independently of the issuing variable frame. A valid same-pointer cache can leave the namespace String absent. After cleanup the invocation consumes that retained command rather than looking up its spelling again, and its raw completion is preserved. The weak observer index keeps no command or interpreter alive; actual active and pending references own their native ledger roles. Uninvoked pending cancellation retires the command before its List; an entered selected evaluation retires the List before the command. Both release paths attach the original saved operation for mandatory cleanup and cannot issue fresh work after withdrawal. C retains its own namespace-prefixed original List protocol. These owners supply no public Jim defer/trace implementation or full Native lifecycle acceptance; the original SDK executed/defer-error observations remain scoped evidence independent of software owner controls.
 
 ## 1. Goal & non-goals
 

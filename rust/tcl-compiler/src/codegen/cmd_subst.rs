@@ -626,37 +626,53 @@ impl CodegenCtx<'_> {
 
     /// Inline compile `[list {*}$a {*}$b]` as `load a; load b; listConcat`.
     ///
-    /// Only matches the exact two-argument form — `[list {*}$x]` (one
-    /// argument) and three-or-more-argument variants fall back to the
-    /// generic path. The matched pattern is: `[list` followed by two
-    /// `{*}$name` tokens separated by whitespace, closed by `]`.
-    ///
-    /// Returns `true` if the pattern matched and the bytecode was
-    /// emitted.
+    /// Only two expanded whole scalar references are eligible. The configured
+    /// original word owner supplies command boundaries and expansion markers;
+    /// the shared variable scanner supplies the complete reference shape.
+    /// Registry and retained command-binding checks remain independent.
     pub fn try_list_expand_concat(&mut self, value: &str) -> bool {
-        if self.plain_command_dispatch {
+        if self.plain_command_dispatch || !value.starts_with('[') || !value.ends_with(']') {
             return false;
         }
-        let Some(inner) = value
-            .strip_prefix("[list")
-            .and_then(|s| s.strip_suffix(']'))
-        else {
+        let Ok(end) = u32::try_from(value.len()) else {
             return false;
         };
-        let mut names: Vec<&str> = Vec::new();
-        let mut call_args: Vec<&str> = Vec::new();
-        for tok in inner.split_whitespace() {
-            let Some(name) = tok.strip_prefix("{*}$") else {
-                return false;
-            };
-            if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        let config = self.lexer_config();
+        let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
+            tcl_lexer::SourceImage::document(value),
+            tcl_lexer::Span::new(1, end - 1),
+            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        ) else {
+            return false;
+        };
+        if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+            return false;
+        }
+        let [head, left, right] = plan.commands[0].words.as_slice() else {
+            return false;
+        };
+        if head.written_bytes() != b"list" {
+            return false;
+        }
+        let mut references = Vec::new();
+        let mut call_args = Vec::new();
+        for word in [left, right] {
+            if !word.group().expand || word.group().kind != tcl_lexer::WordKind::Bare {
                 return false;
             }
-            names.push(name);
-            call_args.push(tok);
-        }
-        if names.len() != 2 {
-            return false;
+            let Ok(reference) = std::str::from_utf8(word.bytes()) else {
+                return false;
+            };
+            if tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config).is_none()
+            {
+                return false;
+            }
+            let Ok(written) = std::str::from_utf8(word.written_bytes()) else {
+                return false;
+            };
+            references.push(reference);
+            call_args.push(written);
         }
         let Some(binding) =
             self.trusted_inline_codegen_binding("list", &call_args, InlineCodegenHookId::List)
@@ -664,8 +680,9 @@ impl CodegenCtx<'_> {
             return false;
         };
         self.require_command_binding(&binding);
-        self.load_var(names[0]);
-        self.load_var(names[1]);
+        for reference in references {
+            assert!(self.emit_variable_reference(reference));
+        }
         self.emit(Op::LIST_CONCAT, vec![]);
         true
     }
@@ -2107,11 +2124,12 @@ impl CodegenCtx<'_> {
         prev_inline: bool,
         entered: (&str, &tcl_runtime_api::CommandBindingIdentity),
         wrap_start_command: bool,
-        target_subcmd: &str,
+        target: (&str, &[u8]),
         flag_args: &[&str],
         operand_args: &[(String, bool)],
     ) {
         let (entered_command, entered_binding) = entered;
+        let (target_subcmd, target_address) = target;
         self.used_inline_cmd_subst = prev_inline;
         let sc_end = wrap_start_command.then(|| {
             let label = self.fresh_label("subcmd_end");
@@ -2131,7 +2149,7 @@ impl CodegenCtx<'_> {
         for (index, (a, b)) in operand_args.iter().enumerate() {
             self.emit_native_argument_word(1 + flag_args.len() + index, a, *b);
         }
-        self.push_lit(&format!("::tcl::string::{target_subcmd}"));
+        self.push_lit_bytes_exact(target_address);
         let argc = bytecode_imm(2 + flag_args.len() + operand_args.len());
         self.emit(
             Op::INVOKE_REPLACE,
@@ -2157,20 +2175,20 @@ impl CodegenCtx<'_> {
         args: &[(String, bool)],
         wrap_start_command: bool,
     ) -> bool {
-        if self
+        let Some(((subcmd, _), sargs)) = args.split_first() else {
+            return false;
+        };
+        let Some(target_address) = self
             .registry
             .profile()
             .map(tcl_registry::InvocationDialect::of_profile)
             .and_then(|dialect| {
-                dialect.ensemble_implementation_namespace(
+                dialect.ensemble_implementation_command_address(
                     tcl_registry::EnsembleImplementationFamily::String,
+                    subcmd.as_bytes(),
                 )
             })
-            .is_none()
-        {
-            return false;
-        }
-        let Some(((subcmd, _), sargs)) = args.split_first() else {
+        else {
             return false;
         };
         match subcmd.as_str() {
@@ -2179,7 +2197,7 @@ impl CodegenCtx<'_> {
                     prev_inline,
                     (entered_command, entered_binding),
                     wrap_start_command,
-                    "equal",
+                    ("equal", &target_address),
                     &["-nocase"],
                     &sargs[1..],
                 );
@@ -2190,7 +2208,7 @@ impl CodegenCtx<'_> {
                     prev_inline,
                     (entered_command, entered_binding),
                     wrap_start_command,
-                    "compare",
+                    ("compare", &target_address),
                     &["-nocase"],
                     &sargs[1..],
                 );
@@ -2201,7 +2219,7 @@ impl CodegenCtx<'_> {
                     prev_inline,
                     (entered_command, entered_binding),
                     wrap_start_command,
-                    "compare",
+                    ("compare", &target_address),
                     &["-length"],
                     &sargs[1..],
                 );
@@ -2251,17 +2269,18 @@ impl CodegenCtx<'_> {
             vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
             "",
         );
-        let namespace = self
+        let target_address = self
             .registry
             .profile()
             .map(tcl_registry::InvocationDialect::of_profile)
             .and_then(|dialect| {
-                dialect.ensemble_implementation_namespace(
+                dialect.ensemble_implementation_command_address(
                     tcl_registry::EnsembleImplementationFamily::String,
+                    subcmd.as_bytes(),
                 )
             });
-        if let Some(namespace) = namespace {
-            self.push_lit(&format!("{namespace}::{subcmd}"));
+        if let Some(address) = target_address.as_deref() {
+            self.push_lit_bytes_exact(address);
         } else {
             self.push_lit(entered_command);
             self.push_lit(subcmd);
@@ -2269,7 +2288,7 @@ impl CodegenCtx<'_> {
         for (index, (a, b)) in sargs.iter().enumerate() {
             self.emit_native_argument_word(index + 1, a, *b);
         }
-        let argc = bytecode_imm(usize::from(namespace.is_none()) + 1 + sargs.len());
+        let argc = bytecode_imm(usize::from(target_address.is_none()) + 1 + sargs.len());
         let invoke_op = if argc < 256 {
             Op::INVOKE_STK1
         } else {
@@ -2693,13 +2712,14 @@ impl CodegenCtx<'_> {
                 self.emit_generic_cmd_subst(entered_command, args);
             }
         } else if (sub == "names" || sub == "size") && !rest.is_empty() {
-            let Some(namespace) = self
+            let Some(target_address) = self
                 .registry
                 .profile()
                 .map(tcl_registry::InvocationDialect::of_profile)
                 .and_then(|dialect| {
-                    dialect.ensemble_implementation_namespace(
+                    dialect.ensemble_implementation_command_address(
                         tcl_registry::EnsembleImplementationFamily::Array,
+                        sub.as_bytes(),
                     )
                 })
             else {
@@ -2713,8 +2733,7 @@ impl CodegenCtx<'_> {
                 vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
                 "",
             );
-            let fqn = format!("{namespace}::{sub}");
-            self.push_lit(&fqn);
+            self.push_lit_bytes_exact(&target_address);
             for (index, (a, b)) in rest.iter().enumerate() {
                 self.emit_native_argument_word(index + 1, a, *b);
             }
@@ -4040,6 +4059,65 @@ mod tests {
                 Op::LIST_CONCAT,
             ]
         );
+    }
+
+    #[test]
+    fn list_expand_concat_keeps_configured_whole_scalar_words() {
+        let registry = CommandRegistry::build_default();
+        for (source, names) in [
+            (
+                "[list {*}${with space} {*}${$literal}]",
+                ["with space", "$literal"],
+            ),
+            ("[list {*}${::N::value} {*}${}]", ["::N::value", ""]),
+        ] {
+            let mut context = CodegenCtx::new(false, &[], &registry);
+            assert!(context.try_list_expand_concat(source), "{source}");
+            for name in names {
+                assert!(
+                    context
+                        .literals
+                        .entries()
+                        .iter()
+                        .any(|literal| literal == name)
+                );
+            }
+            assert_eq!(context.instructions.last().unwrap().op, Op::LIST_CONCAT);
+            assert_eq!(context.command_binding_requirements.len(), 1);
+        }
+        for source in [
+            "[list{*}$a {*}$b]",
+            "[list {*}$a {*}$b; missing]",
+            "[list {*}$array(key) {*}$b]",
+            "[list {*}${array(key)} {*}$b]",
+            "[list {*}$a-tail {*}$b]",
+            "[list {*}{$a} {*}$b]",
+        ] {
+            let mut context = CodegenCtx::new(false, &[], &registry);
+            assert!(!context.try_list_expand_concat(source), "{source}");
+            assert!(context.instructions.is_empty());
+            assert!(context.command_binding_requirements.is_empty());
+        }
+        let source = "[list {*}${a{b}c} {*}$other]";
+        for (style, expected) in [
+            (tcl_dialect::BracedVarStyle::FirstClose, false),
+            (tcl_dialect::BracedVarStyle::Tcl9Nesting, true),
+        ] {
+            let mut context = CodegenCtx::new(false, &[], &registry);
+            context.ingress_lexer_config = Some(tcl_lexer::LexerConfig {
+                braced_var: style,
+                ..context.lexer_config()
+            });
+            assert_eq!(context.try_list_expand_concat(source), expected);
+        }
+        let mut context = CodegenCtx::new(false, &[], &registry);
+        context.ingress_lexer_config = Some(tcl_lexer::LexerConfig {
+            expand_syntax: false,
+            ..context.lexer_config()
+        });
+        assert!(!context.try_list_expand_concat("[list {*}$a {*}$b]"));
+        assert!(context.instructions.is_empty());
+        assert!(context.command_binding_requirements.is_empty());
     }
 
     #[test]

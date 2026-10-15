@@ -23,7 +23,7 @@
 use tcl_compiler::analyser::AnalysisResult;
 
 use super::source_rewrite::{RewriteObligation, select};
-use super::{RefactorEdit, Refactoring, token_end_offset};
+use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
 
 /// Convert the `expr` command at `cursor` to braced form, or `None` when the
@@ -48,14 +48,12 @@ pub fn brace_expr(source: &str, cursor: u32, analysis: &AnalysisResult) -> Optio
         return None;
     }
 
-    // The raw source span of every argument after `expr`. The first argument
-    // starts the span; the closing delimiter belongs to the final argument, so
-    // widen its end via `token_end_offset` (the authoritative word-closer) so an
-    // empty trailing `{}` / `[]` / `""` is not overshot.
-    let first_arg = cmd.argv.get(1)?;
-    let last_arg = *cmd.argv.last()?;
-    let raw_start = first_arg.span.start();
-    let raw_end = token_end_offset(source, last_arg);
+    // Complete original words own the argument range, including variable
+    // closers. Reporting token endpoints do not supply edit geometry.
+    let walk = super::FrameWalk::new(source, analysis)?;
+    let words = walk.native_words(source, &cmd)?;
+    let raw_start = words.get(1)?.span().start();
+    let raw_end = words.last()?.span().end();
     let raw = source.get(raw_start as usize..raw_end as usize)?;
 
     // Already braced — nothing to do.
@@ -64,7 +62,6 @@ pub fn brace_expr(source: &str, cursor: u32, analysis: &AnalysisResult) -> Optio
     }
 
     if let Some(obligation) = obligation {
-        let walk = super::FrameWalk::new(source, analysis)?;
         let tokens = walk.tokens(source, &cmd);
         let permission = tokens.source_binding.as_ref().and_then(|binding| {
             binding.original_literal_expression_bracing(&tokens, analysis.resolved_registry()?)
@@ -163,6 +160,19 @@ mod tests {
         let src = "expr \"1\" + \"2\"\n";
         let r = run(src, offset(src, 0, 0)).expect("expr at cursor");
         assert_eq!(r.apply(src), "expr {\"1\" + \"2\"}\n");
+    }
+
+    #[test]
+    fn logical_expr_edit_consumes_the_complete_original_scalar_operand() {
+        let source = "expr $left + ${right}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let action = brace_expr(source, 0, &analysis).unwrap();
+        assert!(action.disabled.is_none());
+        assert_eq!(action.edits[0].end, u32::try_from(source.len()).unwrap());
+        assert_eq!(action.apply(source), "expr {$left + ${right}}");
+        let mut missing = analysis;
+        missing.resolved_input = None;
+        assert!(brace_expr(source, 0, &missing).is_none());
     }
 
     #[test]

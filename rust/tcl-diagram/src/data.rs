@@ -924,21 +924,12 @@ fn source_procedure_nodes(
         context.analysis.original_vendor_procedure_declarations().enumerate().map(|(ordinal, declaration)| {
             let metadata = declaration.metadata();
             let input = declaration.name_input();
-            let occurrence = declaration.original_occurrence();
-            let original_body = occurrence.original_words().last().filter(|word|
-                word.group().kind == tcl_lexer::WordKind::Braced
-                    && word.content_span().ok() == Some(metadata.body_span));
-            let body = regular_procs.iter().filter(|(_, procedure)|
-                original_body.is_some()
-                    && procedure.span.start() == occurrence.site().offset
-                    && procedure.body_offset == metadata.body_span.start()
-                    && procedure.body_source.as_deref() == context.source.get(
-                        metadata.body_span.start() as usize..metadata.body_span.end() as usize))
-                .collect::<Vec<_>>();
-            let (body_id, body_key, flow) = match body.as_slice() {
-                [(id, procedure)] => (Some(id.ordinal()), Some(id.reporting_key()), Some(walk_script(&procedure.body, context, 0))),
-                _ => (None, None, None),
-            };
+            let body = tcl_compiler::source_graph::hosted_procedure_body_for_declaration(
+                context.source, context.analysis, module, declaration,
+            );
+            let body_id = body.map(|(id, _)| id.ordinal());
+            let body_key = body.map(|(id, _)| id.reporting_key());
+            let flow = body.map(|(_, procedure)| walk_script(&procedure.body, context, 0));
             let name = tcl_syntax::native_string::resident_name_label(input.original_word().try_text().unwrap_or("").as_bytes());
             json!({ "id": format!("declaration-{ordinal}"), "name": name,
                 "name_span": {"start": input.span().start(), "end": input.span().end()},
@@ -2066,6 +2057,33 @@ mod original_source_tests {
             analysis.body_lexer_config = original_config;
             assert_eq!(selected(&analysis, source).as_deref(), expected);
         }
+    }
+
+    #[test]
+    fn hosted_diagram_procedures_require_the_current_body_card() {
+        let source = "proc ordinary {value {fallback DEFAULT}} {return $value}";
+        let (analysis, unit, availability) = analysed(source, "f5-irules");
+        let data = diagram_data_for_analysis(source, &analysis, &unit.ir_module, &availability);
+        let procedures = data["procedures"].as_array().unwrap();
+        assert_eq!(procedures.len(), 1);
+        assert_eq!(procedures[0]["name"], "ordinary");
+        assert!(!procedures[0]["bodyId"].is_null());
+        assert!(!procedures[0]["flow"].is_null());
+        let mut missing = unit.ir_module.clone();
+        missing.original_hosted_declaration_body_units.clear();
+        let data = diagram_data_for_analysis(source, &analysis, &missing, &availability);
+        assert_eq!(data["procedures"].as_array().unwrap().len(), 1);
+        assert!(data["procedures"][0]["bodyId"].is_null());
+        assert!(data["procedures"][0]["flow"].is_null());
+        let (_, other, _) = analysed("proc foreign {} {return OTHER}", "f5-irules");
+        let mut foreign = unit.ir_module.clone();
+        foreign.original_hosted_declaration_body_units = other
+            .ir_module
+            .original_hosted_declaration_body_units
+            .clone();
+        let data = diagram_data_for_analysis(source, &analysis, &foreign, &availability);
+        assert!(data["procedures"][0]["bodyId"].is_null());
+        assert!(data["procedures"][0]["flow"].is_null());
     }
 
     #[test]

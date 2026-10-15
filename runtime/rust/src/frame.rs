@@ -1583,14 +1583,10 @@ impl Drop for VarTable {
 
 // FrameStack — the proc call frames (level 0 is the global context).
 
-/// One call frame: its local variable table, absolute level, and the namespace
-/// it runs in (so `uplevel` can restore the target frame's namespace context —
-/// the `CallFrame.nsPtr` analogue).
-pub(crate) struct PendingTailcall {
-    pub(crate) namespace: NsId,
-    pub(crate) namespace_name: Vec<u8>,
-    pub(crate) words: Vec<crate::obj::Owned>,
-    pub(crate) original_list: Option<crate::obj::Owned>,
+/// A selected replacement retains its actual native transport through frame cleanup.
+pub(crate) enum PendingTailcall {
+    OriginalNamespaceList(crate::obj::Owned),
+    Jim(crate::interp::native_jim_tailcall::JimSelectedTailcall),
 }
 
 struct Frame {

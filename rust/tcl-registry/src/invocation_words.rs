@@ -757,6 +757,25 @@ impl InvocationDialect {
         }
     }
 
+    /// Construct counted input for an independently selected private ensemble worker.
+    /// The authored implementation namespace supplies exact constructed components;
+    /// the selected tail remains byte data. This supplies no lookup, command identity,
+    /// native compilation admission or original object representation.
+    #[must_use]
+    pub fn ensemble_implementation_command_address(
+        self,
+        family: EnsembleImplementationFamily,
+        tail: &[u8],
+    ) -> Option<Vec<u8>> {
+        let namespace = self.ensemble_implementation_namespace(family)?;
+        let path = tcl_core_types::ByteNamespacePath::from_segments(
+            tcl_syntax::naming::key_segments(namespace),
+        );
+        let slot =
+            tcl_core_types::ByteCommandSlot::new(path, tcl_core_types::NameBytes::from(tail));
+        Some(tcl_syntax::naming::constructed_command_address_bytes(&slot))
+    }
+
     /// Authored initial map entries that do not publish a worker command.
     #[must_use]
     pub fn ensemble_bootstrap_deferred_members(
@@ -1744,6 +1763,62 @@ mod tests {
             None
         );
     }
+    #[test]
+    fn private_ensemble_addresses_preserve_selected_tail_bytes_and_engine_refusals() {
+        use tcl_dialect::TclVersion;
+        for version in TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(version);
+            for (family, namespace, first) in [
+                (
+                    EnsembleImplementationFamily::String,
+                    "::tcl::string",
+                    TclVersion::V8_5,
+                ),
+                (
+                    EnsembleImplementationFamily::Dict,
+                    "::tcl::dict",
+                    TclVersion::V8_5,
+                ),
+                (
+                    EnsembleImplementationFamily::Namespace,
+                    "::tcl::namespace",
+                    TclVersion::V8_6,
+                ),
+                (
+                    EnsembleImplementationFamily::Array,
+                    "::tcl::array",
+                    TclVersion::V8_6,
+                ),
+            ] {
+                for tail in [b"worker".as_slice(), b"::literal", b"\xff\0tail", b""] {
+                    let address = dialect.ensemble_implementation_command_address(family, tail);
+                    if version < first {
+                        assert!(address.is_none());
+                    } else {
+                        let mut expected = namespace.as_bytes().to_vec();
+                        expected.extend_from_slice(b"::");
+                        expected.extend_from_slice(tail);
+                        assert_eq!(address, Some(expected));
+                    }
+                }
+            }
+        }
+        let jim = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        for family in [
+            EnsembleImplementationFamily::String,
+            EnsembleImplementationFamily::Dict,
+            EnsembleImplementationFamily::Namespace,
+            EnsembleImplementationFamily::Array,
+        ] {
+            assert!(
+                jim.ensemble_implementation_command_address(family, b"worker")
+                    .is_none()
+            );
+        }
+    }
+
     #[test]
     fn invocation_context_survives_argument_projection_and_expansion() {
         let dialect = InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);

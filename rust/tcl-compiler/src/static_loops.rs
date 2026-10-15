@@ -50,6 +50,10 @@ pub use original_simulation::{
     evaluate_expr_with_constants_and_math_bindings, parse_literal_value,
     summarise_for_statement_with_dependencies, summarise_for_statement_with_math_bindings,
 };
+pub(crate) use original_simulation::{
+    StaticLoopSource, analyse_for_statement_with_source_dependencies,
+    summarise_for_statement_with_source_dependencies,
+};
 
 /// Default cap on iteration count — beyond this we give up and
 /// return `None` rather than simulate any further.

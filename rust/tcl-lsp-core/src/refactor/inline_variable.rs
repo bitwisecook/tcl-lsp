@@ -20,11 +20,11 @@
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::types::{Scope, VarDef};
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_lexer::{LexerConfig, LineIndex, Token, TokenType};
+use tcl_compiler::segmenter::SegmentedCommand;
+use tcl_lexer::{LexerConfig, LineIndex, Span};
 use tcl_registry::CommandRegistry;
 
-use super::{MAX_COMMAND_SEARCH_DEPTH, RefactorEdit, Refactoring, token_end_offset};
+use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
 
 /// Inline the variable defined by the `set` command at byte offset
@@ -41,8 +41,8 @@ pub fn inline_variable(
     _registry: &CommandRegistry,
     line_index: &LineIndex,
 ) -> Option<Refactoring> {
-    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
-    let config = current.config();
+    let _current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let walk = super::FrameWalk::new(source, analysis)?;
     let cmd = super::find_original_command_at(source, cursor, analysis)?;
     let (var_name, ref_span, value_index) = if analysis.allows_lexical_declaration_advice() {
         let (var_name, value_index) = logical_set_operands(source, analysis, &cmd)?;
@@ -61,18 +61,16 @@ pub fn inline_variable(
         original_inline_binding(source, analysis, &cmd)?
     };
 
-    // The value word, verbatim from source (widened to include any
-    // closing quote / brace / bracket).
-    let value_tok = *cmd.argv.get(value_index)?;
-    let value_start = value_tok.span.start() as usize;
-    let value_end = token_end_offset(source, value_tok) as usize;
-    let value_text = source.get(value_start..value_end)?;
+    // Complete original value geometry preserves every selected delimiter.
+    let words = walk.native_words(source, &cmd)?;
+    let value = words.get(value_index)?.span();
+    let value_text = source.get(value.as_range())?;
 
     // Delete the `set` command, and with it the whole line when the
     // command is alone on one: the leading indentation belongs to the
     // deleted line, so leaving it behind would push the following line
     // out by that much.
-    let (mut cmd_start, mut cmd_end) = super::command_span_offsets(source, &cmd);
+    let (mut cmd_start, mut cmd_end) = walk.command_span_offsets(source, &cmd)?;
     let line_start = source[..cmd_start as usize]
         .rfind('\n')
         .map_or(0, |nl| nl + 1);
@@ -92,22 +90,9 @@ pub fn inline_variable(
         new_text: String::new(),
     };
 
-    // Resolve the reference's VAR token + enclosing word so we know,
-    // from the tokens alone, whether the reference is a standalone word
-    // or interpolated inside a larger word.
-    let ctx = reference_token(source, ref_span.start(), config, analysis)?;
-
-    // The `$var` / `${var}` span to replace.  The VAR token starts at
-    // `$`; its end omits the braced form's `}`, so re-add it.
-    let ref_start = ctx.var_tok.span.start();
-    let mut ref_end = token_end_offset(source, ctx.var_tok);
-    if source
-        .get(ref_start as usize..ref_start as usize + 2)
-        .is_some_and(|s| s == "${")
-        && source.as_bytes().get(ref_end as usize) == Some(&b'}')
-    {
-        ref_end += 1;
-    }
+    let ctx = reference_context(source, ref_span.start(), &var_name, analysis, &walk)?;
+    let ref_start = ctx.reference.start();
+    let ref_end = ctx.reference.end();
 
     // A standalone word keeps the value verbatim (preserving quotes /
     // braces so it stays one word).  Interpolated inside a larger word,
@@ -385,88 +370,60 @@ fn value_read_binding(
     Some((label, function.abs_span(read.source.span)))
 }
 
-/// Resolved reference context — the VAR token, whether it is its own
-/// word, and the enclosing word's start offset.
+/// Exact selected variable component and its unchanged containing word.
 struct RefContext {
-    var_tok: Token,
+    reference: Span,
     word_is_single: bool,
     word_start: u32,
 }
 
-/// Resolve `ref_off` through the segmenter
-/// to its VAR token and enclosing word.
-fn reference_token(
+/// Reborrow the single original reference and containing whole word. Child
+/// commands come from the shared source structure; token ends cannot supply
+/// a closer or substitute an enclosing array reference for an index child.
+fn reference_context(
     source: &str,
     ref_off: u32,
-    config: LexerConfig,
+    name: &str,
     analysis: &AnalysisResult,
+    walk: &super::FrameWalk<'_>,
 ) -> Option<RefContext> {
-    let cmd = super::find_original_command_at(source, ref_off, analysis)?;
-    resolve_in_command(source, &cmd, ref_off, config, 0)
-}
-
-/// Resolve `ref_off` against `cmd`'s own tokens, descending into the
-/// command substitution that holds it when it is not one of them.
-///
-/// `set r [f $x]` reaches `$x` only through the `[f $x]` word, and it is
-/// the *inner* command's words that decide how the value may be spliced:
-/// `$x` is a whole word of `f`, so the value keeps its own quoting.
-fn resolve_in_command(
-    source: &str,
-    cmd: &SegmentedCommand,
-    ref_off: u32,
-    config: LexerConfig,
-    depth: u32,
-) -> Option<RefContext> {
-    let var_tok = cmd.all_tokens.iter().copied().find(|tok| {
-        tok.kind == TokenType::Var
-            && tok.span.start() <= ref_off
-            && ref_off <= token_end_offset(source, *tok)
+    let command = super::find_original_command_at(source, ref_off, analysis)?;
+    let references = walk.variable_references(source, &command)?;
+    let mut matching = references.iter().filter(|reference| {
+        reference.name == name
+            && reference.span.start() <= ref_off
+            && ref_off < reference.span.end()
     });
-
-    let Some(var_tok) = var_tok else {
-        if MAX_COMMAND_SEARCH_DEPTH.exceeded(depth) {
-            return None;
-        }
-        let (start, end) = substitution_interior(cmd, ref_off)?;
-        let interior = source.get(start as usize..end as usize)?;
-        let inner = segment_commands_with_offset_and_config(interior, start, config)
-            .into_iter()
-            .find(|c| c.span.start() <= ref_off && ref_off <= c.span.end())?;
-        return resolve_in_command(source, &inner, ref_off, config, depth + 1);
-    };
-
-    for (word_tok, &is_single) in cmd.argv.iter().zip(cmd.single_token_word.iter()) {
-        let word_start = word_tok.span.start();
-        let word_end = token_end_offset(source, *word_tok);
-        if word_start <= var_tok.span.start() && var_tok.span.start() < word_end {
-            return Some(RefContext {
-                var_tok,
-                word_is_single: is_single,
-                word_start,
-            });
-        }
+    let reference = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    let words = walk.native_words(source, &command)?;
+    let mut containers = words.iter().enumerate().filter(|(_, word)| {
+        word.span().start() <= reference.span.start() && reference.span.end() <= word.span().end()
+    });
+    let (index, word) = containers.next()?;
+    if containers.next().is_some() {
+        return None;
+    }
+    // An index child needs its own insertion grammar, beyond a scalar-word
+    // splice. Its enclosing array component cannot donate that permission.
+    if word.executable_parts().all_parts().any(|part| {
+        matches!(
+            part.part,
+            tcl_lexer::ExecutablePart::Variable { index: Some(_), .. }
+        ) && part.span != reference.span
+            && part.span.start() <= reference.span.start()
+            && reference.span.end() <= part.span.end()
+    }) {
+        return None;
     }
     Some(RefContext {
-        var_tok,
-        word_is_single: true,
-        word_start: var_tok.span.start(),
+        reference: reference.span,
+        word_is_single: command.single_token_word.get(index).copied()?
+            && word.span() == reference.span,
+        word_start: word.span().start(),
     })
-}
-
-/// Byte range of the interior (brackets excluded) of `cmd`'s command
-/// substitution containing `ref_off`.
-fn substitution_interior(cmd: &SegmentedCommand, ref_off: u32) -> Option<(u32, u32)> {
-    cmd.all_tokens
-        .iter()
-        .filter(|tok| tok.kind == TokenType::Cmd)
-        .map(|tok| {
-            (
-                tok.span.start() + u32::from(tok.content_offset),
-                tok.span.end(),
-            )
-        })
-        .find(|&(start, end)| start <= ref_off && ref_off < end)
 }
 
 /// Strip one layer of matching `"…"` or `{…}` delimiters.
@@ -542,6 +499,32 @@ mod tests {
         let cursor = u32::try_from(replaced.find("set held").unwrap()).unwrap();
         let command = super::super::find_original_command_at(replaced, cursor, &analysis).unwrap();
         assert!(logical_set_operands(replaced, &analysis, &command).is_none());
+    }
+
+    #[test]
+    fn logical_inline_keeps_original_value_and_reference_component_extents() {
+        for (source, expected) in [
+            ("set held ${other}\nputs ${held}", Some("puts ${other}")),
+            (
+                "set held VALUE\nputs pre-${held}-post",
+                Some("puts pre-VALUE-post"),
+            ),
+            ("set held VALUE\nputs $array($held)", None),
+            ("set held {literal $inert}\nputs \"$held\"", None),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let registry = analysis.resolved_registry().unwrap();
+            let index = LineIndex::new(source);
+            let action = inline_variable(source, 0, &analysis, registry, &index);
+            if let Some(expected) = expected {
+                assert_eq!(action.unwrap().apply(source), expected);
+            } else {
+                assert!(action.is_none());
+            }
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(inline_variable(source, 0, &missing, registry, &index).is_none());
+        }
     }
 
     #[test]

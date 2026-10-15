@@ -77,6 +77,28 @@ impl OriginalHostedProcedureBody {
         self.retained_entry = Some(entry.clone());
         self
     }
+    pub(crate) fn matches_declaration(
+        &self,
+        declaration: &crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata<
+            crate::analyser::ProcDef,
+        >,
+    ) -> bool {
+        let occurrence = declaration.original_occurrence();
+        declaration.purpose() == VendorSourceNamePurpose::ProcedureName
+            && declaration.name_input() == &self.name
+            && occurrence.site() == &self.site
+            && occurrence.original_words() == self.words.as_ref()
+            && declaration.metadata().body_span.start() == self.source.base()
+            && self
+                .site
+                .source
+                .source_image()
+                .try_text()
+                .ok()
+                .and_then(|source| source.get(declaration.metadata().body_span.as_range()))
+                == self.source.try_text().ok()
+    }
+
     pub(crate) fn matches_procedure(
         &self,
         module: &crate::ir::Module,

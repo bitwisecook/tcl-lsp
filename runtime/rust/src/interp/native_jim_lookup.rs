@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original pinned Jim name objects, active command leases and weak VarVal caches.
 
-use super::{native_arguments::OriginalArguments, Code, Command, Interp};
+use super::{
+    native_arguments::OriginalArguments, native_jim_tailcall::JimCommandReference, Code, Command,
+    Interp,
+};
 use crate::{
     frame::JimVariableRead,
     namespace::NsId,
@@ -80,22 +83,21 @@ impl OriginalJimLookupNamespace {
 
 pub(super) struct JimActiveCommandScope {
     interp: Interp,
-    token: u64,
+    reference: JimCommandReference,
 }
 impl Drop for JimActiveCommandScope {
     fn drop(&mut self) {
-        let (token, command) = {
-            let mut active = self.interp.jim_active_command_workers.borrow_mut();
-            active.pop().expect("owned synchronous Jim invocation")
-        };
-        assert_eq!(token, self.token);
-        // The actual current worker retires before its previous-command edge.
-        // Neither its delete hook nor previous cleanup may run under a borrow.
-        drop(command);
-        self.interp.namespaces.borrow_mut().leave_jim_command(token);
-        if let Err(first) = self.interp.retire_pending_native_ensemble_roles() {
-            self.interp.refuse_native_execution(first);
-        }
+        let active = self
+            .interp
+            .jim_active_command_workers
+            .borrow_mut()
+            .pop()
+            .expect("owned synchronous Jim invocation");
+        assert!(JimCommandReference::same_reference(
+            &self.reference,
+            &active
+        ));
+        drop(active);
     }
 }
 impl Interp {
@@ -103,18 +105,39 @@ impl Interp {
         &self,
         command: &Command,
         token: Option<u64>,
-    ) -> Option<JimActiveCommandScope> {
-        self.native_invocation_dialect()
-            .native_jim_lookup_protocol()?;
-        let token = token?;
+        selected: Option<JimCommandReference>,
+    ) -> Result<Option<JimActiveCommandScope>, ValueError> {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Ok(None);
+        }
+        let Some(token) = token else {
+            return Ok(None);
+        };
+        let reference = match selected {
+            Some(reference) => {
+                JimCommandReference::check(&reference, self)?;
+                if JimCommandReference::token(&reference) != token
+                    || !JimCommandReference::command(&reference).is_same_binding(command)
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "selected Jim worker mismatch",
+                    ));
+                }
+                reference
+            }
+            None => self.capture_jim_command_reference(command, token)?,
+        };
         self.jim_active_command_workers
             .borrow_mut()
-            .push((token, command.clone()));
-        self.namespaces.borrow_mut().enter_jim_command(token);
-        Some(JimActiveCommandScope {
+            .push(reference.clone());
+        Ok(Some(JimActiveCommandScope {
             interp: self.clone(),
-            token,
-        })
+            reference,
+        }))
     }
     pub(super) fn resolve_original_jim_command(
         &mut self,
@@ -198,14 +221,16 @@ impl Interp {
                     ));
                 }
                 let world = self.namespaces.borrow();
-                let command = world.jim_node_command(token).or_else(|| {
-                    self.jim_active_command_workers
-                        .borrow()
-                        .iter()
-                        .rev()
-                        .find(|(actual, _)| *actual == token)
-                        .map(|(_, command)| command.clone())
-                });
+                let command = match world.jim_node_command(token) {
+                    Some(command) => Some(command),
+                    None => match self.retained_jim_command_reference(token) {
+                        Some(reference) => {
+                            JimCommandReference::check(&reference, self)?;
+                            Some(JimCommandReference::command(&reference))
+                        }
+                        None => None,
+                    },
+                };
                 if recipe.command_is_current(
                     epoch,
                     world.jim_procedure_epoch(),

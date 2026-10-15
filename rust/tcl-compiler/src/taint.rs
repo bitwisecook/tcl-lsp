@@ -5023,9 +5023,26 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
                 .map(|shape| (shape.command, shape.effective, None)),
         );
     }
-    // Readonly source bodies retain conditional header metadata separately
-    // from executed handler candidates. The actual Module owner is mandatory.
-    if candidates.is_empty()
+    let native_source = tokens
+        .source_binding
+        .as_ref()
+        .is_some_and(|binding| binding.has_original_native_source_command());
+    // Present Native source ownership is terminal, independently of reached argv.
+    if candidates.is_empty() && native_source {
+        if let (Some(module), Some(body), Some(metadata)) = (
+            context.source.module(),
+            context.source.body_id(),
+            context.source.metadata,
+        ) && let Some(selected) = crate::registry_invocation::native_source_taint_invocation(
+            context.registry, metadata, module, body, tokens,
+        ) {
+            candidates.push((
+                selected.words.command().to_owned(),
+                selected.effective.clone(),
+                Some(SourceWarningMetadata::Native(Box::new(selected))),
+            ));
+        }
+    } else if candidates.is_empty()
         && context.source.module().is_some()
         && let Some(assistance) =
             crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
@@ -5043,21 +5060,21 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
     }
     if let Some(hosted) =
         crate::registry_invocation::hosted_source_taint_invocation(context.registry, tokens)
-            .filter(|_| context.source.metadata.is_some())
+            .filter(|_| context.source.metadata.is_some() && !native_source)
     {
         candidates.push((
             hosted.metadata.shape().command().to_owned(),
             hosted.effective,
-            Some(hosted.metadata),
+            Some(SourceWarningMetadata::Hosted(Box::new(hosted.metadata))),
         ));
     }
-    for (command, effective, hosted) in candidates {
+    for (command, effective, source_metadata) in candidates {
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
             eprintln!(
-                "HOSTED_TAINT_CANDIDATE site={} hosted={} spellings={} origins={} uses={}",
+                "HOSTED_TAINT_CANDIDATE site={} conditional_source={} spellings={} origins={} uses={}",
                 statement.statement.span().start(),
-                hosted.is_some(),
+                source_metadata.is_some(),
                 effective.argument_spellings(args).is_some(),
                 effective.origins.len(),
                 statement.uses.len()
@@ -5075,7 +5092,7 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
                 tokens: Some(tokens),
                 registry: context.registry,
                 effective: Some(&effective),
-                source_read: hosted.as_ref().map(|metadata| HostedSourceRead {
+                source_read: source_metadata.as_ref().map(|metadata| SourceWarningRead {
                     metadata,
                     point: source,
                 }),
@@ -6238,14 +6255,18 @@ fn original_sink_argument<'a>(call: &SinkCall<'a>, index: usize) -> Option<&'a W
     }
 }
 
-/// Exact conditional hosted source read at the current SSA operation. A source
-/// role cannot select a compatibility name's cell or contents version.
+enum SourceWarningMetadata {
+    Hosted(Box<crate::registry_invocation::OriginalConditionalVendorRegistryMetadata>),
+    Native(Box<crate::registry_invocation::NativeSourceTaintInvocation>),
+}
+
+/// Conditional original source reads retain exact positioned value authority.
 #[derive(Clone, Copy)]
-struct HostedSourceRead<'a> {
-    metadata: &'a crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+struct SourceWarningRead<'a> {
+    metadata: &'a SourceWarningMetadata,
     point: crate::ssa::SsaSourceView<'a>,
 }
-impl HostedSourceRead<'_> {
+impl SourceWarningRead<'_> {
     fn taint<S: std::hash::BuildHasher>(
         self,
         name: &str,
@@ -6253,24 +6274,41 @@ impl HostedSourceRead<'_> {
         taints: &HashMap<ValueKey, TaintLattice, S>,
     ) -> Option<TaintLattice> {
         let (reference, site) = original.sole_variable_substitution()?;
-        let config = self.metadata.shape().original_words().first()?.config();
-        if reference_root_with_config(reference, config) != Some(name)
-            || !self
-                .metadata
-                .shape()
-                .original_words()
-                .iter()
-                .any(|word| word.span() == original.source().span)
-        {
+        let (config, owns_word) = match self.metadata {
+            SourceWarningMetadata::Hosted(metadata) => (
+                metadata.shape().original_words().first()?.config(),
+                metadata
+                    .shape()
+                    .original_words()
+                    .iter()
+                    .any(|word| word.span() == original.source().span),
+            ),
+            SourceWarningMetadata::Native(selected) => (
+                selected.words.original_argument_word(0)?.config(),
+                (0..selected.words.arguments().len()).any(|argument| {
+                    selected
+                        .words
+                        .original_argument_word(argument)
+                        .is_some_and(|word| word.span() == original.source().span)
+                }),
+            ),
+        };
+        if reference_root_with_config(reference, config) != Some(name) || !owns_word {
             return None;
         }
         // Only the exact positioned read receipt can select represented
         // contents. Missing cells or versions retain an unknown MAY value;
         // no SSA symbol, presence, effect or Normal receipt is created here.
         let read = self.point.read_reference(site, reference);
-        let value = read
-            .and_then(|read| read.version.map(|version| (read.symbol, version)))
-            .and_then(|key| taints.get(&key).copied());
+        let key = match self.metadata {
+            SourceWarningMetadata::Hosted(_) => {
+                read.and_then(|read| read.version.map(|version| (read.symbol, version)))
+            }
+            SourceWarningMetadata::Native(_) => {
+                self.point.read_occurrence_reference(site, reference)
+            }
+        };
+        let value = key.and_then(|key| taints.get(&key).copied());
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
             eprintln!(
@@ -6296,8 +6334,8 @@ struct TaintScan<'a, S> {
     ssa: &'a SsaFunction,
     /// Uses mentioned only in brace-quoted words at this statement.
     quoted_uses: Option<&'a HashSet<Symbol>>,
-    /// Current hosted metadata cannot turn an unrepresented read into clean SSA.
-    source_read: Option<HostedSourceRead<'a>>,
+    /// Current source metadata cannot turn an unrepresented read into clean SSA.
+    source_read: Option<SourceWarningRead<'a>>,
     /// Retained grammar and metadata for wrapper mitigation candidates.
     source: TaintSourceContext<'a>,
 }
@@ -7005,8 +7043,8 @@ struct SinkCall<'a> {
     tokens: Option<&'a CommandTokens>,
     /// Candidate-specific lexical origins, including aliases; no effect/result proof.
     effective: Option<&'a crate::registry_invocation::EffectiveCommandWords>,
-    /// Sealed conditional hosted read advice, independently of SSA cell authority.
-    source_read: Option<HostedSourceRead<'a>>,
+    /// Sealed conditional source read advice, independently of SSA cell authority.
+    source_read: Option<SourceWarningRead<'a>>,
     /// First argument in the retained effective invocation for a sliced sink region.
     argument_offset: usize,
 }

@@ -1,4 +1,4 @@
-#include "tclshim.h"
+#include "tcl.h"
 
 static const char *persistent_table[] = {"alpha", "beta", NULL};
 

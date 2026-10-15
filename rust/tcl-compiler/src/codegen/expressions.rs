@@ -538,7 +538,10 @@ impl CodegenCtx<'_> {
             self.emit(Op::EXPR_STK, vec![]);
             return false;
         }
-        self.push_lit(&format!("tcl::mathfunc::{function}"));
+        let rooted = tcl_registry::mathfunc::qualified_name(function);
+        let relative = tcl_syntax::naming::unroot_rooted_key(&rooted)
+            .expect("constructed math function label has a root marker");
+        self.push_lit(relative);
         for arg in args {
             self.emit_expr_at(arg, depth + 1);
         }

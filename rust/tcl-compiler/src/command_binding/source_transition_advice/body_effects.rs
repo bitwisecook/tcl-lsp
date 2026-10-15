@@ -26,6 +26,44 @@ fn trace_body_inventory(stage: &str, offset: Option<u32>, passed: bool, count: u
     );
 }
 
+/// One original expression command region under its retained parent schema.
+/// This source-only owner supplies neither a script Body role nor execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalSourceExpressionCommand {
+    parent: Arc<OriginalSourceCommandTransitionAdvice>,
+    ordinal: usize,
+    original: NativeWord,
+    command: Span,
+}
+
+impl OriginalSourceExpressionCommand {
+    pub(super) fn content_span(&self) -> Span {
+        self.command
+    }
+
+    pub(super) fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.parent.matches_source(image, config)
+            && self.original.image() == image
+            && self.original.config() == config
+            && self
+                .parent
+                .arguments()
+                .get(self.ordinal)
+                .is_some_and(|word| word.original == self.original)
+            && self.original.content_span().is_ok_and(|extent| {
+                extent.start() <= self.command.start() && self.command.end() <= extent.end()
+            })
+    }
+
+    pub(super) fn matches_context(&self, context: &tcl_registry::model::ContextRegistry) -> bool {
+        self.parent.matches_context(context)
+    }
+}
+
 pub(super) struct BodyEffectProjection {
     pub(super) effects_complete: bool,
     pub(super) inventory: OriginalSourceTransitionAdviceTape,
@@ -409,6 +447,57 @@ impl AdviceInvocationContext<'_> {
         // Complete source prefixes keep their separately owned fatal tail.
         let _ = walk.script(&mut branch, body.content_span(), 0);
         tape.extend_inventory(walk.authored_prefixes);
+    }
+
+    pub(super) fn retain_original_expression_catalogue(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        let (roles, complete) = self.authored_roles(schema);
+        if !complete
+            || !roles
+                .iter()
+                .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+            || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+            || schema.semantics.frame_effect.is_some()
+            || schema.semantics.traits.intersects(
+                tcl_registry::traits::FRAME_REACH_TRAITS | tcl_registry::Traits::DEFERS_BODY,
+            )
+            || invocation.native.iter().any(|word| word.group().expand)
+            || schema.semantics.body_interpreter.resolve_with(|ordinal| {
+                std::str::from_utf8(invocation.arguments.get(ordinal)?.value.as_deref()?).ok()
+            }) != tcl_registry::world_effect::InterpreterScope::Current
+        {
+            return;
+        }
+        let Some(advice) = self.schema_advice(invocation, graph, schema) else {
+            return;
+        };
+        let mut branch = graph.clone();
+        let mut walk = BodyWalk {
+            context: self,
+            visited: 0,
+            unavailable_lifecycle_effects: false,
+            inventory: None,
+            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+            source_body: None,
+            logical_scope: None,
+            member_catalogue_body: None,
+            catalogue_body: None,
+        };
+        if walk
+            .expression_commands(&mut branch, &advice, schema, 0, true)
+            .is_none()
+        {
+            return;
+        }
+        // Only immutable child schemas leave the discarded expression branch.
+        for (offset, receipt) in walk.authored_prefixes.body_catalogue {
+            super::source_class::merge_receipt(&mut tape.body_catalogue, offset, receipt);
+        }
     }
 
     pub(super) fn retain_native_expression_syntax_inventory(
@@ -832,6 +921,17 @@ impl BodyWalk<'_, '_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         depth: usize,
     ) -> Option<()> {
+        self.expression_commands(graph, advice, schema, depth, false)
+    }
+
+    fn expression_commands(
+        &mut self,
+        graph: &mut AdviceGraph,
+        advice: &OriginalSourceCommandTransitionAdvice,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        depth: usize,
+        catalogue: bool,
+    ) -> Option<()> {
         let (roles, complete) = self.context.authored_roles(schema);
         #[cfg(test)]
         trace_body_inventory(
@@ -926,7 +1026,26 @@ impl BodyWalk<'_, '_> {
                     .checked_add(command.end())?
                     .checked_sub(1)?;
                 let mut branch = original.clone();
+                let parent_catalogue = self.catalogue_body.clone();
+                if catalogue {
+                    let owner = OriginalSourceExpressionCommand {
+                        parent: Arc::new(advice.clone()),
+                        ordinal,
+                        original: argument.original.clone(),
+                        command: Span::new(start, end),
+                    };
+                    if !owner
+                        .matches_source(self.context.origin.source_image(), self.context.config)
+                        || !owner.matches_context(self.context.context)
+                    {
+                        return None;
+                    }
+                    self.catalogue_body = Some(super::OriginalSourceCatalogueBody::Expression(
+                        Arc::new(owner),
+                    ));
+                }
                 let walked = self.script(&mut branch, Span::new(start, end), depth.checked_add(1)?);
+                self.catalogue_body = parent_catalogue;
                 #[cfg(test)]
                 trace_body_inventory(
                     "expressions.child",
@@ -1859,5 +1978,110 @@ mod original_expression_purpose_frontier_tests {
         assert_eq!(native.visited, 0);
         assert!(advice.original_head().native_input().is_none());
         assert_eq!(advice.logical_source_input(), Some(&input));
+    }
+}
+
+#[cfg(test)]
+mod original_expression_catalogue_tests {
+    use crate::registry_invocation::source_structure::{
+        OriginalRegistrySource, source_registry_words,
+    };
+
+    fn child(
+        source: &str,
+        spelling: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> crate::segmenter::SegmentedCommand {
+        let start = source.rfind(spelling).unwrap();
+        crate::segmenter::segment_commands_with_offset_and_config(
+            &source[start..start + spelling.len()],
+            u32::try_from(start).unwrap(),
+            config.nested(),
+        )
+        .remove(0)
+    }
+
+    #[test]
+    fn original_expression_children_keep_the_parent_word_without_reached_lookup() {
+        let source = "expr {{${inert} [missing $also_inert]} eq \"${active}\" && $array($index) ne [set value $nested]}";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let config = input.lexer_config();
+            let command = child(source, "set value $nested", config);
+            let offset = command.argv[0].span.start();
+            let realm = analysis.retained_command_realm().unwrap();
+            let original = realm.source_bindings_ref().invocation_at_source("", offset);
+            assert!(original.lookup_state.is_none());
+            assert!(original.unknown && original.targets.is_empty());
+            let words = source_registry_words(source, &analysis, &command).expect(dialect);
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("original expression child catalogue")
+            };
+            let Some(super::super::OriginalSourceCatalogueBody::Expression(owner)) =
+                advice.original_catalogue_source_body()
+            else {
+                panic!("checked original expression parent required")
+            };
+            assert_eq!(owner.content_span().start(), offset);
+            assert_eq!(
+                owner.original.written_bytes(),
+                &source.as_bytes()[5..source.len()]
+            );
+            assert!(owner.matches_source(&tcl_lexer::SourceImage::document(source), config));
+            assert!(owner.matches_context(input.borrowed_context_registry()));
+            assert!(advice.logical_source_body().is_none());
+            assert!(advice.original_procedure_source_body().is_none());
+            assert!(!words.operands_preserve_source_lookup());
+            assert!(advice.obligations().contains(&super::SourceCommandTransitionObligation::ConditionalOriginalBodyCatalogueApplicability));
+            assert!(matches!(
+                realm
+                    .source_bindings_ref()
+                    .original_source_transition_advice_tape(input.borrowed_context_registry())
+                    .unwrap()
+                    .lookup(offset),
+                super::super::OriginalSourceTransitionAdviceLookup::Unrepresented
+            ));
+            assert!(source_registry_words(&format!("{source} "), &analysis, &command).is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(source_registry_words(source, &missing, &command).is_none());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+            assert!(source_registry_words(source, &changed, &command).is_none());
+        }
+    }
+
+    #[test]
+    fn original_expression_catalogue_keeps_aliases_and_rejects_inert_or_replaced_commands() {
+        for source in [
+            "expr {{[set inert $unread]} eq \"${active}\" && [set value $nested]}",
+            "interp alias {} expression {} expr; expression {[set value $nested]}",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let config = analysis.body_lexer_config.unwrap();
+            let selected = child(source, "set value $nested", config);
+            assert!(source_registry_words(source, &analysis, &selected).is_some());
+            if source.contains("set inert") {
+                let inert = child(source, "set inert $unread", config);
+                assert!(source_registry_words(source, &analysis, &inert).is_none());
+            }
+            let foreign = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+            let mut changed = analysis.clone();
+            changed.resolved_input = foreign.resolved_input;
+            assert!(source_registry_words(source, &changed, &selected).is_none());
+        }
+        for source in [
+            "proc expr {args} {}; expr {[set value $nested]}",
+            "proc set {args} {}; expr {[set value $nested]}",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let selected = child(
+                source,
+                "set value $nested",
+                analysis.body_lexer_config.unwrap(),
+            );
+            assert!(source_registry_words(source, &analysis, &selected).is_none());
+        }
     }
 }

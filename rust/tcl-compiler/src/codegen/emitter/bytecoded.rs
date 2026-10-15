@@ -423,12 +423,14 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             ctx.emit(Op::POP, vec![]);
             return true;
         }
-        let Some(namespace) =
-            native_ensemble_namespace(ctx, tcl_registry::EnsembleImplementationFamily::Dict)
-        else {
+        let Some(target_address) = native_ensemble_command_address(
+            ctx,
+            tcl_registry::EnsembleImplementationFamily::Dict,
+            sub,
+        ) else {
             return false;
         };
-        dict_ensemble(ctx, namespace, sub, rest);
+        dict_ensemble(ctx, &target_address, sub, rest);
         return true;
     }
 
@@ -575,28 +577,31 @@ fn dict_lappend(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
     true
 }
 
+fn native_ensemble_command_address(
+    ctx: &CodegenCtx,
+    family: tcl_registry::EnsembleImplementationFamily,
+    tail: &str,
+) -> Option<Vec<u8>> {
+    ctx.registry
+        .profile()
+        .map(tcl_registry::InvocationDialect::of_profile)
+        .and_then(|dialect| {
+            dialect.ensemble_implementation_command_address(family, tail.as_bytes())
+        })
+}
+
 /// Emit a top-level mutating `dict <sub> …` as the ensemble-rewrite
 /// `INVOKE_REPLACE` form tclsh uses (`push dict <sub> <args…> ::tcl::dict::<sub>;
 /// invokeReplace objc 2`). `sub_args` is the words after the subcommand (e.g.
 /// the var name, keys, value); `sub` must have a registered
 /// `::tcl::dict::<sub>` implementation.
-fn native_ensemble_namespace(
-    ctx: &CodegenCtx,
-    family: tcl_registry::EnsembleImplementationFamily,
-) -> Option<&'static str> {
-    ctx.registry
-        .profile()
-        .map(tcl_registry::InvocationDialect::of_profile)
-        .and_then(|dialect| dialect.ensemble_implementation_namespace(family))
-}
-
-fn dict_ensemble(ctx: &mut CodegenCtx, namespace: &str, sub: &str, sub_args: &[String]) {
+fn dict_ensemble(ctx: &mut CodegenCtx, target_address: &[u8], sub: &str, sub_args: &[String]) {
     ctx.push_lit("dict");
     ctx.push_lit(sub);
     for a in sub_args {
         ctx.emit_value_interpolated(a);
     }
-    ctx.push_lit(&format!("{namespace}::{sub}"));
+    ctx.push_lit_bytes_exact(target_address);
     let objc = bytecode_imm(2 + sub_args.len());
     ctx.emit(
         Op::INVOKE_REPLACE,
@@ -623,9 +628,11 @@ fn namespace_cmd(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mu
     if args.first().map(String::as_str) != Some("eval") || args.len() < 3 {
         return false;
     }
-    let Some(namespace) =
-        native_ensemble_namespace(ctx, tcl_registry::EnsembleImplementationFamily::Namespace)
-    else {
+    let Some(target_address) = native_ensemble_command_address(
+        ctx,
+        tcl_registry::EnsembleImplementationFamily::Namespace,
+        "eval",
+    ) else {
         return false;
     };
     ctx.push_lit("namespace");
@@ -637,7 +644,7 @@ fn namespace_cmd(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mu
     for (i, a) in args.iter().enumerate().skip(1) {
         ctx.emit_word_arg(i, a);
     }
-    ctx.push_lit(&format!("{namespace}::eval"));
+    ctx.push_lit_bytes_exact(&target_address);
     // objc = all original words (`namespace eval ns body ...`); replace the
     // two-word `namespace eval` prefix with the resolved implementation.
     let objc = bytecode_imm(1 + args.len());
@@ -671,12 +678,14 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
     // braced body are pushed verbatim), then `invokeStk1 4`. Analysis still
     // sees the `array` barrier (registry-aware), so this is codegen-only.
     if sub == "for" && rest.len() == 3 {
-        let Some(namespace) =
-            native_ensemble_namespace(ctx, tcl_registry::EnsembleImplementationFamily::Array)
-        else {
+        let Some(target_address) = native_ensemble_command_address(
+            ctx,
+            tcl_registry::EnsembleImplementationFamily::Array,
+            "for",
+        ) else {
             return false;
         };
-        ctx.push_lit(&format!("{namespace}::for"));
+        ctx.push_lit_bytes_exact(&target_address);
         for (i, a) in rest.iter().enumerate() {
             // `emit_word_arg` reads `cmd_arg_braced[idx]`, indexed by the
             // original arg list (arg 0 is the `for` subcommand word), so
@@ -702,12 +711,14 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
     }
     match sub {
         "names" | "size" if !rest.is_empty() => {
-            let Some(namespace) =
-                native_ensemble_namespace(ctx, tcl_registry::EnsembleImplementationFamily::Array)
-            else {
+            let Some(target_address) = native_ensemble_command_address(
+                ctx,
+                tcl_registry::EnsembleImplementationFamily::Array,
+                sub,
+            ) else {
                 return false;
             };
-            ctx.push_lit(&format!("{namespace}::{sub}"));
+            ctx.push_lit_bytes_exact(&target_address);
             for a in rest {
                 ctx.emit_value_interpolated(a);
             }

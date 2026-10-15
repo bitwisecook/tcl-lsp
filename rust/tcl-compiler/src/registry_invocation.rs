@@ -114,7 +114,9 @@ pub(crate) use source_scoped_body::{
 };
 mod source_taint;
 pub use source_taint::HostedSourceTaintContext;
-pub(crate) use source_taint::hosted_source_taint_invocation;
+pub(crate) use source_taint::{
+    NativeSourceTaintInvocation, hosted_source_taint_invocation, native_source_taint_invocation,
+};
 mod vendor_advice;
 mod vendor_source_barriers;
 pub use vendor_advice::{VendorRegistryInvocationShape, vendor_registry_invocation_shape};

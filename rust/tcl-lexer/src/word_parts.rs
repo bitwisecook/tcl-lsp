@@ -1494,7 +1494,7 @@ mod tests {
                 "\u{feff}interp alias {{}} \u{feff}quote {{}} regex::quote\nregexp {written} VALUE"
             );
             for image in [
-                crate::SourceImage::document(source.clone()),
+                crate::SourceImage::document(&source),
                 crate::SourceImage::native(source.as_bytes()),
             ] {
                 let plan = crate::native_script_words_in(

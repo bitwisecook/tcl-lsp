@@ -28,7 +28,9 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
 use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue};
 
-use super::{StaticEnv, StaticValue, simple_var_ref};
+#[cfg(test)]
+use super::simple_var_ref;
+use super::{StaticEnv, StaticValue};
 
 impl StaticValue {
     /// Project mathematical contents, without proving a fresh native object.
@@ -93,6 +95,7 @@ pub fn evaluate_expr_with_constants_and_math_bindings(
     let increments = std::cell::RefCell::new(Vec::new());
     let evaluation_order = std::cell::Cell::new(0);
     StaticSimulation {
+        source: None,
         purpose: SimulationPurpose::Execution,
         observations: &observations,
         increments: &increments,
@@ -137,16 +140,10 @@ fn strip_word_delimiters(text: &str) -> String {
 fn resolve_switch_subject(text: &str, env: &StaticEnv, policy: FoldPolicy) -> Option<String> {
     let stripped = text.trim();
     if stripped.contains('$') || stripped.contains('[') {
-        let name = simple_var_ref(stripped)?;
-        let v = env.get(&name)?;
-        return Some(match v {
-            StaticValue::Int(i) => i.to_string(),
-            StaticValue::Float(f) => {
-                crate::tcl_expr_eval::format_tcl_value_with_policy(&TclValue::Float(*f), policy)?
-            }
-            StaticValue::Bool(b) => (if *b { "1" } else { "0" }).to_string(),
-            StaticValue::Str(s) => s.clone(),
-        });
+        let config =
+            tcl_lexer::LexerConfig::from_grammar(policy.preparation_context()?.lexer_grammar);
+        let name = tcl_syntax::naming::whole_scalar_variable_reference_name(stripped, config)?;
+        return static_string_contents(env.get(name)?, policy);
     }
     Some(strip_word_delimiters(stripped))
 }
@@ -211,8 +208,56 @@ enum SimulationPurpose {
     Analysis,
 }
 
+/// Exact source metadata retained by the current CFG, separate from catalogue simulation.
+#[derive(Clone, Copy)]
+pub(crate) struct StaticLoopSource<'a> {
+    registry: &'a tcl_registry::CommandRegistry,
+    metadata: &'a crate::registry_invocation::OwnedInvocationMetadataContext,
+}
+
+impl<'a> StaticLoopSource<'a> {
+    pub(crate) const fn new(
+        registry: &'a tcl_registry::CommandRegistry,
+        metadata: &'a crate::registry_invocation::OwnedInvocationMetadataContext,
+    ) -> Self {
+        Self { registry, metadata }
+    }
+
+    fn case(
+        self,
+        script: &Script,
+        statement: &Statement,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalSourceCase> {
+        let metadata = self.metadata.metadata_context(self.registry)??;
+        let tokens = script.retained_source_tokens_for_statement(statement)?;
+        let binding = tokens.source_binding.as_ref()?;
+        let metadata = binding.original_invocation_metadata_for_input(
+            tokens,
+            metadata.source_analysis_input()?,
+            self.registry,
+        )?;
+        if binding.original_invocation_source_purpose(tokens, metadata, self.registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+        {
+            crate::registry_invocation::source_structure::original_logical_source_case_for_tokens(
+                tokens,
+                self.registry,
+                metadata,
+            )
+        } else {
+            crate::registry_invocation::source_structure::original_native_source_case_for_statement(
+                script,
+                statement,
+                self.registry,
+                metadata,
+            )
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct StaticSimulation<'a> {
+    source: Option<StaticLoopSource<'a>>,
     policy: FoldPolicy,
     purpose: SimulationPurpose,
     observations: &'a std::cell::RefCell<Vec<StaticExpressionObligation>>,
@@ -549,8 +594,17 @@ fn exec_statement(
             arms,
             default_body,
             mode,
+            nocase,
             ..
-        } => exec_switch(subject, arms, default_body.as_ref(), *mode, env, simulation),
+        } => {
+            if simulation.source.is_some() {
+                exec_original_switch(source, stmt, env, simulation)
+            } else if *mode == SwitchMode::Exact && !nocase {
+                exec_switch(subject, arms, default_body.as_ref(), env, simulation)
+            } else {
+                false
+            }
+        }
         // Calls, barriers, returns, loops (other than the
         // top-level summarised `for`) — out of supported subset.
         _ => false,
@@ -591,11 +645,83 @@ fn exec_if(
     }
 }
 
+fn exec_original_switch(
+    source: &Script,
+    statement: &Statement,
+    environment: &mut StaticEnv,
+    simulation: StaticSimulation<'_>,
+) -> bool {
+    let Statement::Switch {
+        arms,
+        default_body,
+        subject,
+        subject_braced,
+        mode,
+        nocase,
+        ..
+    } = statement
+    else {
+        return false;
+    };
+    let Some(case) = simulation
+        .source
+        .and_then(|source_owner| source_owner.case(source, statement))
+    else {
+        return false;
+    };
+    if *mode != SwitchMode::Exact
+        || *nocase
+        || !case.matches_subject_presentation(subject, *subject_braced)
+        || case.mode() != tcl_registry::spec::CaseMatchMode::Exact
+        || case.folds_case()
+        || case.body_operands().selection_unknown
+        || !case
+            .patterns()
+            .iter()
+            .map(String::as_str)
+            .eq(arms.iter().map(|arm| arm.pattern.as_str()))
+        || !case.matches_statement_bodies(arms, default_body.as_ref())
+        || matches!(simulation.purpose, SimulationPurpose::Execution)
+    {
+        return false;
+    }
+    let subject = case.subject_data().map(str::to_owned).or_else(|| {
+        let value = environment.get(case.scalar_subject_name()?)?;
+        static_string_contents(value, simulation.policy)
+    });
+    let Some(subject) = subject.filter(|value| !value.contains('\0')) else {
+        return false;
+    };
+    let mut fallthrough = false;
+    for (pattern, arm) in case.patterns().iter().zip(arms) {
+        if *pattern != subject && !fallthrough {
+            continue;
+        }
+        if let Some(body) = &arm.body {
+            return exec_script(body, environment, simulation);
+        }
+        fallthrough = true;
+    }
+    default_body
+        .as_ref()
+        .is_none_or(|body| exec_script(body, environment, simulation))
+}
+
+fn static_string_contents(value: &StaticValue, policy: FoldPolicy) -> Option<String> {
+    Some(match value {
+        StaticValue::Int(value) => value.to_string(),
+        StaticValue::Float(value) => {
+            crate::tcl_expr_eval::format_tcl_value_with_policy(&TclValue::Float(*value), policy)?
+        }
+        StaticValue::Bool(value) => (if *value { "1" } else { "0" }).to_owned(),
+        StaticValue::Str(value) => value.clone(),
+    })
+}
+
 fn exec_switch(
     subject: &str,
     arms: &[SwitchArm],
     default_body: Option<&Script>,
-    _mode: SwitchMode,
     env: &mut StaticEnv,
     simulation: StaticSimulation<'_>,
 ) -> bool {
@@ -627,6 +753,7 @@ fn exec_switch(
 
 #[derive(Clone, Copy)]
 struct StaticForCondition<'a> {
+    source: Option<StaticLoopSource<'a>>,
     purpose: SimulationPurpose,
     expression: &'a ExprNode,
     bindings: Option<crate::math_function_binding::ExpressionMathBindings<'a>>,
@@ -648,6 +775,7 @@ fn summarise_static_for_selected(
     let increments = std::cell::RefCell::new(Vec::new());
     let evaluation_order = std::cell::Cell::new(0);
     let simulation = StaticSimulation {
+        source: condition.source,
         policy,
         purpose: condition.purpose,
         observations: &observations,
@@ -683,6 +811,82 @@ fn summarise_static_for_selected(
         values: env,
         required_math_invocations: dependencies.into_inner(),
         required_expression_preparations: preparations.into_inner(),
+    })
+}
+
+/// Analysis retains original case/source ownership without licensing loop erasure.
+pub(crate) fn analyse_for_statement_with_source_dependencies(
+    statement: &Statement,
+    initial: &StaticEnv,
+    maximum: u64,
+    policy: FoldPolicy,
+    bindings: Option<crate::math_function_binding::ExpressionMathBindings<'_>>,
+    source: StaticLoopSource<'_>,
+) -> Option<StaticLoopAnalysis> {
+    let Statement::For {
+        init,
+        condition,
+        next,
+        body,
+        ..
+    } = statement
+    else {
+        return None;
+    };
+    summarise_static_for_selected(
+        init,
+        StaticForCondition {
+            source: (!source.metadata.is_standalone()).then_some(source),
+            purpose: SimulationPurpose::Analysis,
+            expression: condition,
+            bindings,
+        },
+        next,
+        body,
+        initial,
+        maximum,
+        policy,
+    )
+}
+
+/// Supplied execution keeps the source owner; readonly case syntax cannot
+/// stand in for a retained Native Switch execution obligation.
+pub(crate) fn summarise_for_statement_with_source_dependencies(
+    statement: &Statement,
+    initial: &StaticEnv,
+    maximum: u64,
+    policy: FoldPolicy,
+    bindings: Option<crate::math_function_binding::ExpressionMathBindings<'_>>,
+    source: StaticLoopSource<'_>,
+) -> Option<StaticLoopSummary> {
+    let Statement::For {
+        init,
+        condition,
+        next,
+        body,
+        ..
+    } = statement
+    else {
+        return None;
+    };
+    summarise_static_for_selected(
+        init,
+        StaticForCondition {
+            source: (!source.metadata.is_standalone()).then_some(source),
+            purpose: SimulationPurpose::Execution,
+            expression: condition,
+            bindings,
+        },
+        next,
+        body,
+        initial,
+        maximum,
+        policy,
+    )
+    .map(|analysis| StaticLoopSummary {
+        values: analysis.values,
+        required_math_invocations: analysis.required_math_invocations,
+        required_expression_preparations: analysis.required_expression_preparations,
     })
 }
 
@@ -729,6 +933,7 @@ pub fn summarise_for_statement_with_dependencies(
     summarise_static_for_selected(
         init,
         StaticForCondition {
+            source: None,
             purpose: SimulationPurpose::Execution,
             expression: condition,
             bindings: condition_bindings,
@@ -769,6 +974,7 @@ pub fn analyse_for_statement_with_dependencies(
     summarise_static_for_selected(
         init,
         StaticForCondition {
+            source: None,
             purpose: SimulationPurpose::Analysis,
             expression: condition,
             bindings: condition_bindings,
@@ -847,6 +1053,7 @@ mod tests {
         summarise_static_for_selected(
             init,
             StaticForCondition {
+                source: None,
                 purpose: SimulationPurpose::Analysis,
                 expression: condition,
                 bindings: None,
@@ -887,6 +1094,7 @@ mod tests {
                 let summary = summarise_static_for_selected(
                     &empty,
                     StaticForCondition {
+                        source: None,
                         purpose: SimulationPurpose::Analysis,
                         expression: &expression,
                         bindings: None,
@@ -968,6 +1176,7 @@ mod tests {
         let summary = summarise_static_for_selected(
             &empty_script(),
             StaticForCondition {
+                source: None,
                 purpose: SimulationPurpose::Execution,
                 expression: &expression,
                 bindings: Some(positioned),
@@ -1104,6 +1313,7 @@ mod tests {
                 let dependencies = std::cell::RefCell::new(Vec::new());
                 let evaluation_order = std::cell::Cell::new(0);
                 let simulation = StaticSimulation {
+                    source: None,
                     policy,
                     purpose: SimulationPurpose::Analysis,
                     observations: &observations,
@@ -1168,6 +1378,7 @@ mod tests {
                 let dependencies = std::cell::RefCell::new(Vec::new());
                 let evaluation_order = std::cell::Cell::new(0);
                 let simulation = StaticSimulation {
+                    source: None,
                     policy,
                     purpose: SimulationPurpose::Analysis,
                     observations: &observations,
@@ -1235,6 +1446,7 @@ mod tests {
                 let dependencies = std::cell::RefCell::new(Vec::new());
                 let evaluation_order = std::cell::Cell::new(0);
                 let simulation = StaticSimulation {
+                    source: None,
                     policy,
                     purpose: SimulationPurpose::Analysis,
                     observations: &observations,
@@ -1262,6 +1474,195 @@ mod tests {
         }
     }
 
+    fn simulate_case_source(
+        script: &Script,
+        registry: &tcl_registry::CommandRegistry,
+        metadata: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        policy: FoldPolicy,
+        purpose: SimulationPurpose,
+        environment: &mut StaticEnv,
+    ) -> bool {
+        let observations = std::cell::RefCell::new(Vec::new());
+        let increments = std::cell::RefCell::new(Vec::new());
+        let preparations = std::cell::RefCell::new(Vec::new());
+        let dependencies = std::cell::RefCell::new(Vec::new());
+        let evaluation_order = std::cell::Cell::new(0);
+        exec_script(
+            script,
+            environment,
+            StaticSimulation {
+                source: Some(StaticLoopSource::new(registry, metadata)),
+                policy,
+                purpose,
+                observations: &observations,
+                increments: &increments,
+                preparations: &preparations,
+                dependencies: &dependencies,
+                evaluation_order: &evaluation_order,
+            },
+        )
+    }
+
+    #[test]
+    fn original_exact_case_simulation_keeps_subject_names_and_literal_patterns() {
+        for name in ["$literal", "[literal]", "with space", " with space "] {
+            let source = format!(
+                "switch -exact -- ${{{name}}} {{{{ a }} {{set result MATCH}} default {{set result MISS}}}}"
+            );
+            let fixture = crate::provider_fixtures::original_native_module(&source, "tcl8.6");
+            let (context, module) = &*fixture;
+            assert!(matches!(
+                module.top_level.statements[0],
+                Statement::Switch { .. }
+            ));
+            let input = module.source_metadata_input.as_ref().unwrap();
+            let metadata =
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    input,
+                ));
+            let policy = FoldPolicy::for_retained_entry(
+                context.commands(),
+                Some(tcl_registry::InvocationDialect::of_profile(
+                    input.unit_profile(),
+                )),
+                &module.native_lexer_config(),
+            );
+            let mut environment =
+                StaticEnv::from([(name.to_owned(), StaticValue::Str(" a ".to_owned()))]);
+            assert!(
+                simulate_case_source(
+                    &module.top_level,
+                    context.commands(),
+                    &metadata,
+                    policy,
+                    SimulationPurpose::Analysis,
+                    &mut environment
+                ),
+                "{source}"
+            );
+            assert_eq!(
+                environment.get("result"),
+                Some(&StaticValue::Str("MATCH".to_owned())),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_case_simulation_refuses_changed_subject_body_and_missing_owner() {
+        let fixture = crate::provider_fixtures::original_native_module(
+            "switch -exact -- $value {a {set result MATCH} default {set result MISS}}",
+            "tcl8.6",
+        );
+        let (context, module) = &*fixture;
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let metadata = crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
+            Some(input),
+        );
+        let policy = FoldPolicy::for_retained_entry(
+            context.commands(),
+            Some(tcl_registry::InvocationDialect::of_profile(
+                input.unit_profile(),
+            )),
+            &module.native_lexer_config(),
+        );
+        let environment = StaticEnv::from([("value".to_owned(), StaticValue::Str("a".to_owned()))]);
+        assert!(simulate_case_source(
+            &module.top_level,
+            context.commands(),
+            &metadata,
+            policy,
+            SimulationPurpose::Analysis,
+            &mut environment.clone()
+        ));
+        let mut changed = module.top_level.clone();
+        let Statement::Switch { subject, .. } = &mut changed.statements[0] else {
+            panic!("original typed Switch")
+        };
+        *subject = "DIFFERENT".to_owned();
+        assert!(!simulate_case_source(
+            &changed,
+            context.commands(),
+            &metadata,
+            policy,
+            SimulationPurpose::Analysis,
+            &mut environment.clone()
+        ));
+        let mut changed = module.top_level.clone();
+        let Statement::Switch {
+            arms, default_body, ..
+        } = &mut changed.statements[0]
+        else {
+            panic!("original typed Switch")
+        };
+        std::mem::swap(&mut arms[0].body, default_body);
+        assert!(!simulate_case_source(
+            &changed,
+            context.commands(),
+            &metadata,
+            policy,
+            SimulationPurpose::Analysis,
+            &mut environment.clone()
+        ));
+        assert!(!simulate_case_source(
+            &module.top_level,
+            context.commands(),
+            &crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable,
+            policy,
+            SimulationPurpose::Analysis,
+            &mut environment.clone()
+        ));
+        assert!(!simulate_case_source(
+            &module.top_level,
+            context.commands(),
+            &metadata,
+            policy,
+            SimulationPurpose::Execution,
+            &mut environment.clone()
+        ));
+    }
+
+    #[test]
+    fn standalone_case_simulation_declines_unsupported_matching_modes() {
+        for mode in [SwitchMode::Glob, SwitchMode::Regexp] {
+            let mut statement = mode_switch();
+            let Statement::Switch { mode: selected, .. } = &mut statement else {
+                unreachable!()
+            };
+            *selected = mode;
+            let body = script_of(vec![statement]);
+            assert!(
+                analyse_static_for(
+                    &script_of(vec![assign_const("i", "0")]),
+                    &parse_expr("$i < 1", None),
+                    &script_of(vec![incr("i", None)]),
+                    &body,
+                    &StaticEnv::from([("mode".to_owned(), StaticValue::Str("a".to_owned()))]),
+                    1,
+                    selected_analysis_policy()
+                )
+                .is_none()
+            );
+        }
+        let mut statement = mode_switch();
+        let Statement::Switch { nocase, .. } = &mut statement else {
+            unreachable!()
+        };
+        *nocase = true;
+        assert!(
+            analyse_static_for(
+                &script_of(vec![assign_const("i", "0")]),
+                &parse_expr("$i < 1", None),
+                &script_of(vec![incr("i", None)]),
+                &script_of(vec![statement]),
+                &StaticEnv::from([("mode".to_owned(), StaticValue::Str("a".to_owned()))]),
+                1,
+                selected_analysis_policy()
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn semantic_selected_result_preserves_native_bytes() {
         let policy = FoldPolicy::default().with_invocation_dialect(
@@ -1275,6 +1676,7 @@ mod tests {
         let dependencies = std::cell::RefCell::new(Vec::new());
         let evaluation_order = std::cell::Cell::new(0);
         let simulation = StaticSimulation {
+            source: None,
             policy,
             purpose: SimulationPurpose::Analysis,
             observations: &observations,
