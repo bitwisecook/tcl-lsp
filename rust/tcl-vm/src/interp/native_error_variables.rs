@@ -1387,7 +1387,7 @@ mod tests {
             .unwrap();
         let fields = row.split('|').collect::<Vec<_>>();
         let level = vm.current_level();
-        let namespace = vm.current_namespace_token();
+        let namespace = vm.current_namespace_execution_context();
         let local = vm
             .get_var_bytes(b"errorCode")
             .unwrap()
@@ -1399,7 +1399,11 @@ mod tests {
         vm.restore_guest_error_code(supplied.clone());
         assert_eq!(vm.native_errors.c84_global_code_set, fields[4] == "1");
         assert_eq!(vm.current_level() == level, fields[5] == "1");
-        assert_eq!(vm.current_namespace_token() == namespace, fields[6] == "1");
+        assert_eq!(
+            vm.current_namespace_execution_context()
+                .same_context(&namespace),
+            fields[6] == "1"
+        );
         assert_eq!(
             vm.get_var_bytes(b"errorCode")
                 .unwrap()

@@ -12,7 +12,7 @@ fn record(vm: &mut Vm, args: &[Value], value: i64) -> Completion<Value> {
         *observed.borrow_mut() = Some((
             args.len() + 1,
             bytes,
-            vm.current_ns_id() == crate::interp::ROOT_NS,
+            vm.current_ns_id() == tcl_core_types::ROOT_NS,
         ))
     });
     let code = MODE.with(|mode| match mode.get() {
