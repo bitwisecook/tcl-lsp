@@ -227,7 +227,12 @@ fn clauses(
     Ok((selected, finally))
 }
 
-fn bind(interp: &mut Interp, name: &Owned, value: &Owned) -> bool {
+enum HandlerValue<'a> {
+    Result,
+    Options(&'a crate::interp::OriginalJimErrorCodeCapture, Code),
+}
+
+fn bind(interp: &mut Interp, name: &Owned, value: HandlerValue<'_>) -> bool {
     let original =
         match crate::interp::native_arguments::OriginalArguments::enter(interp, &[name.as_ptr()]) {
             Ok(original) => original,
@@ -250,7 +255,28 @@ fn bind(interp: &mut Interp, name: &Owned, value: &Owned) -> bool {
         interp.report_cmd_error(error);
         return false;
     }
-    let assigned = interp.assign_original_named_variable(name.as_ptr(), value.as_ptr());
+    let options = match value {
+        HandlerValue::Result => None,
+        HandlerValue::Options(captured, code) => {
+            match crate::cmd_error::jim_options_object_with_captured_error_code(
+                interp, captured, code,
+            ) {
+                Ok(options) => Some(options),
+                Err(error) => {
+                    interp.refuse_native_execution(error);
+                    return false;
+                }
+            }
+        }
+    };
+    if let Err(error) = original.check_original_for(interp, 0, name.as_ptr()) {
+        interp.report_cmd_error(error);
+        return false;
+    }
+    let value = options
+        .as_ref()
+        .map_or_else(|| interp.get_obj_result(), Owned::as_ptr);
+    let assigned = interp.assign_original_named_variable(name.as_ptr(), value);
     if let Err(error) = original.check_original_for(interp, 0, name.as_ptr()) {
         interp.report_cmd_error(error);
         return false;
@@ -311,22 +337,13 @@ pub(crate) fn command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
     }
     if let Some(handler) = handler {
-        let result = Owned::retain(interp.get_obj_result());
         let result_bound = handler
             .vars
             .first()
-            .is_none_or(|name| bind(interp, name, &result));
+            .is_none_or(|name| bind(interp, name, HandlerValue::Result));
         let options_bound = if result_bound {
             if let Some(name) = handler.vars.get(1) {
-                let options = match crate::cmd_error::jim_options_object_with_captured_error_code(
-                    interp,
-                    &body_error_code,
-                    code,
-                ) {
-                    Ok(options) => options,
-                    Err(error) => return interp.refuse_native_execution(error),
-                };
-                bind(interp, name, &options)
+                bind(interp, name, HandlerValue::Options(&body_error_code, code))
             } else {
                 true
             }

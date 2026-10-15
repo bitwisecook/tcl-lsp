@@ -124,10 +124,8 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if selected.ignores(code.as_int()) {
         return code;
     }
-    // Snapshot the body's result BEFORE we overwrite the interp result with the
-    // catch return value (read the value before clearing the result). `var_set`
-    // retains it into the result var, so it survives the later `set_result`.
-    let result = crate::obj::Owned::retain(interp.get_obj_result());
+    // C captures before output construction; Jim reads after the name's Length.
+    let result = (!jim).then(|| crate::obj::Owned::retain(interp.get_obj_result()));
     let options = if !jim && selected.options_var_at.is_some() {
         match completion_options(interp, code) {
             Ok(options) => Some(crate::obj::Owned::fresh(options)),
@@ -190,7 +188,9 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .expect("options requested above")
                 .as_ptr()
         } else {
-            result.as_ptr()
+            result
+                .as_ref()
+                .map_or_else(|| interp.get_obj_result(), obj::Owned::as_ptr)
         };
         if let Some(original) = &original {
             if let Err(error) = original.check_original_for(interp, 0, argv[index + 1]) {
@@ -1088,6 +1088,7 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[cfg(test)]
 mod tests {
+    mod jim_output_name_stages;
     mod original_c_output_names;
     mod original_c_try_output_names;
     mod original_jim_output_keys;
