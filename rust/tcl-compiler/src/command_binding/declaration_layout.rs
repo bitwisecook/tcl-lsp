@@ -411,14 +411,62 @@ fn original_alias_template_local_is_byte_unique(
 
 /// Immutable original local-frame naming owner. This is a conditional source
 /// declaration identity, not an entered activation or a physical local table.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceOriginalVariableFrame {
     source: super::ExecutedScriptSource,
     frame: crate::var_resolve::VariableExecutionFrame,
     config: tcl_lexer::LexerConfig,
+    logical_lambda: Option<Arc<crate::analyser::OriginalInterpreterLambdaBody>>,
+}
+
+impl std::hash::Hash for SourceOriginalVariableFrame {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.source, state);
+        std::hash::Hash::hash(&self.frame, state);
+        std::hash::Hash::hash(&self.config, state);
+    }
 }
 
 impl SourceOriginalVariableFrame {
+    /// Conditional lexical lambda layout from its held call and source fields.
+    /// This does not issue an entered frame, installed local or Native recipe.
+    pub(crate) fn from_logical_lambda_source(
+        receipt: Arc<crate::analyser::OriginalInterpreterLambdaBody>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Self> {
+        let (origin, offset, body, namespace) = receipt.logical_frame_source(input)?;
+        let crate::signature_scan::scope::SignatureNamespaceScope::C(path) = namespace else {
+            return None;
+        };
+        let namespace = super::SourceNamespaceKey::authored(
+            tcl_syntax::naming::checked_namespace_path_key(&path)?,
+        );
+        let text = origin
+            .source_image()
+            .try_text()
+            .ok()?
+            .get(body.as_range())?;
+        let source = super::ExecutedScriptSource::contiguous_image(
+            Arc::clone(&origin),
+            tcl_lexer::SourceImage::document(text),
+            body.start(),
+        )?;
+        Some(Self {
+            source,
+            frame: crate::var_resolve::VariableExecutionFrame::Procedure {
+                namespace: namespace.display()?,
+                identity: super::source_activation_name(
+                    Some(&origin),
+                    "logical-lambda-layout",
+                    offset,
+                ),
+            }
+            .with_namespace_identity(namespace),
+            config: input.lexer_config(),
+            logical_lambda: Some(receipt),
+        })
+    }
+
     pub(crate) fn from_logical_procedure_source(
         card: &super::OriginalLogicalProcedureBody,
         input: &crate::analyser::ResolvedAnalysisInput,
@@ -452,6 +500,7 @@ impl SourceOriginalVariableFrame {
             source,
             frame: super::declaration_preview::declared_procedure_frame(card.site(), &namespace),
             config: input.lexer_config(),
+            logical_lambda: None,
         })
     }
 
@@ -503,10 +552,37 @@ impl SourceOriginalVariableFrame {
                 ),
             },
             config: input.lexer_config(),
+            logical_lambda: None,
         })
     }
 
-    /// Genuine original procedure/method frame selected by its body recipe.
+    /// A cursor in this exact retained body, excluding inert braced operands.
+    /// This establishes lexical source membership, never body entry.
+    pub(crate) fn source_cursor_is_direct(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        offset: u32,
+    ) -> bool {
+        let Some(end) = u32::try_from(self.source.text.bytes().len())
+            .ok()
+            .and_then(|len| self.source.base().checked_add(len))
+        else {
+            return false;
+        };
+        self.source.origin.source_image() == image
+            && self.source.base() <= offset
+            && offset <= end
+            && direct_script_cursor(
+                image,
+                self.config,
+                tcl_lexer::Span::new(self.source.base(), end),
+                offset,
+                0,
+            )
+    }
+
+    /// Conditional procedure, method or lambda layout selected by its source
+    /// body recipe. This supplies no entered activation or physical local table.
     #[must_use]
     pub const fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
         &self.frame
@@ -523,6 +599,47 @@ impl SourceOriginalVariableFrame {
     pub const fn lexer_config(&self) -> tcl_lexer::LexerConfig {
         self.config
     }
+}
+
+/// A braced operand without its own selected body receipt cannot inherit the
+/// enclosing procedure's locals. Command substitutions retain the same frame.
+fn direct_script_cursor(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    span: tcl_lexer::Span,
+    offset: u32,
+    depth: usize,
+) -> bool {
+    if depth > 64 {
+        return false;
+    }
+    let Ok(plan) = tcl_lexer::native_script_words_in(image.clone(), span, config) else {
+        return false;
+    };
+    if plan.fatal_tail.is_some() {
+        return false;
+    }
+    for command in plan.commands {
+        for word in command.words {
+            if word.group().kind == tcl_lexer::WordKind::Braced
+                && word
+                    .content_span()
+                    .is_ok_and(|content| content.start() <= offset && offset <= content.end())
+            {
+                return false;
+            }
+            let arena = word.executable_parts();
+            for part in arena.all_parts() {
+                if let tcl_lexer::ExecutablePart::Command { body } = part.part
+                    && body.start() <= offset
+                    && offset <= body.end()
+                {
+                    return direct_script_cursor(image, config, body, offset, depth + 1);
+                }
+            }
+        }
+    }
+    true
 }
 
 impl SourceCommandBindings {
@@ -1133,6 +1250,7 @@ impl SourceCommandBindings {
                 source: row.entry.source().clone(),
                 frame: row.entry.frame().clone(),
                 config,
+                logical_lambda: None,
             };
             for field in fields {
                 let agrees = rows.clone().all(|row| {
@@ -1281,6 +1399,7 @@ impl SourceCommandBindings {
                 source: first.entry.source().clone(),
                 frame: first.entry.frame().clone(),
                 config,
+                logical_lambda: None,
             };
             match &found {
                 Some(previous) if previous.source.text.len() < frame.source.text.len() => {}
@@ -1347,6 +1466,7 @@ impl SourceCommandBindings {
                 source: first.entry.source().clone(),
                 frame: first.entry.frame().clone(),
                 config,
+                logical_lambda: None,
             };
             match &found {
                 Some(previous) if previous.source.text.len() < frame.source.text.len() => {}

@@ -3446,6 +3446,7 @@ impl Analyser {
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &child_path)
         {
             scope.body_span = Some(body_span);
+            scope.requires_original_lambda_source_context = true;
             if let Some((namespace, domain)) = original_namespace {
                 scope.naming_scope = Some(namespace);
                 scope.original_interpreter_source_domain = domain;

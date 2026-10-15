@@ -161,13 +161,6 @@ impl OriginalSourceTransitionAdviceTape {
             || scope.body().content_span() != Span::new(*start, *end)
             || !scope.body().matches_source(image, input.lexer_config())
             || scope.frame_recipe() != OriginalDeclaredSourceBodyFrame::Procedure
-            || !direct_script_cursor(
-                image,
-                input.lexer_config(),
-                scope.body().content_span(),
-                offset,
-                0,
-            )
         {
             return None;
         }
@@ -187,48 +180,8 @@ impl OriginalSourceTransitionAdviceTape {
         crate::command_binding::SourceOriginalVariableFrame::from_logical_procedure_source(
             card, input,
         )
+        .filter(|frame| frame.source_cursor_is_direct(image, offset))
     }
-}
-
-/// A braced operand without its own selected body receipt cannot inherit the
-/// enclosing procedure's locals. Command substitutions retain the same frame.
-fn direct_script_cursor(
-    image: &tcl_lexer::SourceImage,
-    config: tcl_lexer::LexerConfig,
-    span: Span,
-    offset: u32,
-    depth: usize,
-) -> bool {
-    if depth > MAX_DEPTH {
-        return false;
-    }
-    let Ok(plan) = tcl_lexer::native_script_words_in(image.clone(), span, config) else {
-        return false;
-    };
-    if plan.fatal_tail.is_some() {
-        return false;
-    }
-    for command in plan.commands {
-        for word in command.words {
-            if word.group().kind == tcl_lexer::WordKind::Braced
-                && word
-                    .content_span()
-                    .is_ok_and(|content| content.start() <= offset && offset <= content.end())
-            {
-                return false;
-            }
-            let arena = word.executable_parts();
-            for part in arena.all_parts() {
-                if let tcl_lexer::ExecutablePart::Command { body } = part.part
-                    && body.start() <= offset
-                    && offset <= body.end()
-                {
-                    return direct_script_cursor(image, config, body, offset, depth + 1);
-                }
-            }
-        }
-    }
-    true
 }
 
 struct LogicalBodyWalk<'context, 'source> {

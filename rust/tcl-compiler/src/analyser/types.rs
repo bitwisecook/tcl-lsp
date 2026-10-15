@@ -2145,6 +2145,9 @@ pub struct Scope {
     /// This supplies no lambda activation, formal binding or physical frame.
     pub(super) original_logical_lambda_namespace:
         Option<std::sync::Arc<super::interp_visibility::OriginalInterpreterLambdaBody>>,
+    /// An actual lambda body cannot borrow an enclosing source frame when
+    /// its own call/formal/source context is unavailable.
+    pub(super) requires_original_lambda_source_context: bool,
     /// An independently walked interpreter script has its own source root.
     pub(super) isolated_interpreter_source_body: bool,
     /// Retained authored namespace geometry; supplies no actual activation or token.
@@ -2248,6 +2251,7 @@ impl Scope {
             kind,
             original_interpreter_source_domain: None,
             original_logical_lambda_namespace: None,
+            requires_original_lambda_source_context: false,
             isolated_interpreter_source_body: false,
             naming_scope: None,
             original_member_context: None,
@@ -3731,6 +3735,56 @@ impl AnalysisResult {
             .then_some(())?;
         let input = self.resolved_input.as_ref()?;
         if input.has_logical_source_name_context() {
+            let mut pending = vec![&self.global_scope];
+            let mut nearest = Vec::new();
+            let mut length = u32::MAX;
+            while let Some(scope) = pending.pop() {
+                pending.extend(&scope.children);
+                let Some(span) = scope
+                    .body_span
+                    .filter(|span| span.start() <= offset && offset <= span.end())
+                else {
+                    continue;
+                };
+                let size = span.end() - span.start();
+                if size < length {
+                    nearest.clear();
+                    length = size;
+                }
+                if size == length {
+                    nearest.push(scope);
+                }
+            }
+            if nearest
+                .iter()
+                .any(|scope| scope.requires_original_lambda_source_context)
+            {
+                let first = *nearest.first()?;
+                let receipt = first.original_logical_lambda_namespace.as_ref()?;
+                if nearest.iter().any(|scope| {
+                    !scope.requires_original_lambda_source_context
+                        || scope.body_span != first.body_span
+                        || scope.original_logical_lambda_namespace.as_ref() != Some(receipt)
+                }) {
+                    return None;
+                }
+                let frame = crate::command_binding::SourceOriginalVariableFrame::from_logical_lambda_source(
+                    std::sync::Arc::clone(receipt), input,
+                )?;
+                let span = first.body_span?;
+                if span.start().checked_add(1) != Some(frame.source().base())
+                    || span.end()
+                        != frame
+                            .source()
+                            .base()
+                            .checked_add(u32::try_from(frame.source().text.bytes().len()).ok()?)?
+                    || image.bytes().get(span.start() as usize) != Some(&b'{')
+                    || !frame.source_cursor_is_direct(image, offset)
+                {
+                    return None;
+                }
+                return Some(frame);
+            }
             return self
                 .retained_command_realm()?
                 .original_logical_variable_frame_at_offset(input, image, offset);

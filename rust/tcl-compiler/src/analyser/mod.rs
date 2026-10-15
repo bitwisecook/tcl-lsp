@@ -100,6 +100,7 @@ pub use diagnostic_subject::{
     SourceUnresolvedCommandSubject, SourceUnresolvedMathFunctionSubject,
 };
 pub use input::ResolvedAnalysisInput;
+pub(crate) use interp_visibility::OriginalInterpreterLambdaBody;
 pub use interp_visibility::{
     ConditionalInterpreterVisibilitySubject, InterpreterVisibilityObligation,
     OriginalInterpreterSourceDomain, OriginalInterpreterSourceLoad,

@@ -452,7 +452,7 @@ impl OriginalInterpreterInvocation {
 /// This retains source materialisation and future-entry assumptions; it is not
 /// an entered lambda, native frame or namespace allocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct OriginalInterpreterLambdaBody {
+pub(crate) struct OriginalInterpreterLambdaBody {
     input: ResolvedAnalysisInput,
     lambda: NativeWord,
     producer: Vec<NativeWord>,
@@ -519,7 +519,7 @@ impl OriginalInterpreterLambdaBody {
         )?;
         let namespace = SignatureNamespaceScope::from_logical_lambda_list(&fields)?;
         let formals = crate::signature_scan::formal_parameters::LogicalSourceFormalParameters::from_lambda_fields(
-            &fields, crate::command_binding::source_analysis_entry::source_input_dialect(input),
+            &fields, crate::command_binding::source_input_dialect(input),
         ).map(Arc::new);
         Some(Self {
             input: input.clone(),
@@ -534,6 +534,73 @@ impl OriginalInterpreterLambdaBody {
                 formals,
             }),
         })
+    }
+
+    pub(crate) fn logical_frame_source(
+        &self,
+        input: &ResolvedAnalysisInput,
+    ) -> Option<(
+        Arc<crate::command_binding::SourceOriginId>,
+        u32,
+        Span,
+        SignatureNamespaceScope,
+    )> {
+        if self.input != *input
+            || !input.has_logical_source_name_context()
+            || self.lambda.config() != input.lexer_config()
+            || self.producer.is_empty()
+            || self.producer.iter().any(|word| {
+                word.image() != self.lambda.image() || word.config() != input.lexer_config()
+            })
+        {
+            return None;
+        }
+        let logical = self.logical.as_ref()?;
+        let context = input.context_registry();
+        if !logical
+            .words
+            .matches_source(self.lambda.image(), input.lexer_config())
+            || !logical.words.matches_registry(context.commands())
+            || logical.words.context() != Some(context.context())
+        {
+            return None;
+        }
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = logical.words.source()
+        else {
+            return None;
+        };
+        if advice.logical_source_input() != Some(input) || advice.original_words() != self.producer
+        {
+            return None;
+        }
+        let body = logical.words.original_lambda_body_geometry(&context)?;
+        if body.original_container() != &self.lambda
+            || body.content_span() != self.content
+            || SignatureNamespaceScope::from_logical_lambda_list(&logical.fields).as_ref()
+                != Some(&self.namespace)
+        {
+            return None;
+        }
+        let call = logical
+            .words
+            .with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+        let formals = logical.formals.as_deref()?;
+        if call.count.indeterminate {
+            return None;
+        }
+        crate::signature_scan::formal_count::logical_formal_argument_bindings(
+            formals.parameter_field().value(),
+            formals.parameters(),
+            usize::from(call.count.minimum),
+        )?;
+        Some((
+            Arc::clone(&advice.site().source),
+            advice.site().offset,
+            self.content,
+            self.namespace.clone(),
+        ))
     }
 
     pub(super) fn has_logical_source_namespace(&self) -> bool {
@@ -2095,6 +2162,110 @@ mod tests {
             .iter()
             .filter_map(super::super::Diagnostic::conditional_interpreter_visibility)
             .collect()
+    }
+
+    #[test]
+    fn logical_lambda_cursor_frames_retain_actual_call_formals_and_nearest_scope() {
+        fn lambda_scope(scope: &mut crate::analyser::Scope) -> Option<&mut crate::analyser::Scope> {
+            if scope.requires_original_lambda_source_context {
+                return Some(scope);
+            }
+            scope.children.iter_mut().find_map(lambda_scope)
+        }
+        let source = "apply {{} {set first 1; }}; apply {{} {set second 2; }}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        let first_offset = u32::try_from(source.find("first").unwrap()).unwrap();
+        let second_offset = u32::try_from(source.find("second").unwrap()).unwrap();
+        let first = analysis
+            .original_variable_frame_in_source(&image, config, first_offset)
+            .expect("actual first source call and empty formals");
+        let second = analysis
+            .original_variable_frame_in_source(&image, config, second_offset)
+            .expect("actual second source call and empty formals");
+        assert_ne!(first, second);
+        assert!(first.source().text.try_text().unwrap().contains("first"));
+        let mut report_changed = analysis.clone();
+        lambda_scope(&mut report_changed.global_scope).unwrap().name =
+            "unrelated report label".to_owned();
+        assert_eq!(
+            report_changed.original_variable_frame_in_source(&image, config, first_offset),
+            Some(first.clone())
+        );
+        lambda_scope(&mut report_changed.global_scope)
+            .unwrap()
+            .original_logical_lambda_namespace = None;
+        assert!(
+            report_changed
+                .original_variable_frame_in_source(&image, config, first_offset)
+                .is_none()
+        );
+        let mut changed_config = config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        assert!(
+            analysis
+                .original_variable_frame_in_source(&image, changed_config, first_offset)
+                .is_none()
+        );
+        assert!(
+            analysis
+                .original_variable_frame_in_source(
+                    &tcl_lexer::SourceImage::document(&source.replace("first", "other")),
+                    config,
+                    first_offset,
+                )
+                .is_none()
+        );
+        for source in [
+            "proc outer {} {apply {{arg} {set inner 1}}}",
+            "proc outer {} {apply {{{arg DEFAULT}} {set inner 1}} A B}",
+            "proc outer {} {apply {{{arg D\\u0045FAULT}} {set inner 1}}}",
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+            let config = analysis.body_lexer_config.unwrap();
+            let image = tcl_lexer::SourceImage::document(source);
+            let cursor = u32::try_from(source.find("inner").unwrap()).unwrap();
+            assert!(
+                analysis
+                    .original_variable_frame_in_source(&image, config, cursor)
+                    .is_none(),
+                "{source}"
+            );
+        }
+        let source = "apply {{} {set value {inert}; set done 1}}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let config = analysis.body_lexer_config.unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        assert!(
+            analysis
+                .original_variable_frame_in_source(
+                    &image,
+                    config,
+                    u32::try_from(source.find("inert").unwrap()).unwrap()
+                )
+                .is_none()
+        );
+        assert!(
+            analysis
+                .original_variable_frame_in_source(
+                    &image,
+                    config,
+                    u32::try_from(source.find("done").unwrap()).unwrap()
+                )
+                .is_some()
+        );
+        let source = "apply {{} {}}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(
+            analysis
+                .original_variable_frame_in_source(
+                    &tcl_lexer::SourceImage::document(source),
+                    analysis.body_lexer_config.unwrap(),
+                    u32::try_from(source.len() - 2).unwrap()
+                )
+                .is_some()
+        );
     }
 
     #[test]

@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Conditional lambda source-frame issuer
+
+The reviewed existing frame owner now retains the genuine original Apply call/fields/formals/input/site/body/namespace and independent actual-argc consensus for a distinct conditional lexical layout. Cursor selection first chooses the nearest Scope; actual Apply boundaries with missing receipts fail terminally rather than borrowing an outer procedure. The unchanged direct-script scanner is shared with the existing procedure path and excludes inert braced data. No entered activation, body/formal source symbols, physical cells, normal completion or edits are granted. One new control is unexecuted. Purpose-specific lambda child binding/alias graphs and Logical nested-field occurrence carriers remain unfinished.
+
+L12 frozen15ac46522 fails before tests on a private-module qualifier for an already public reexport. The reviewed single-path repair calls the same source_input_dialect owner through command_binding; no grammar/guard/assertion changes. Fresh compilation remains required.
+
 ## Jim captured output-option metadata
 
 Reviewed Runtime catch/Try now capture the actual quiet global errorCode header once at the original reached stage and transport it neutrally through output-variable writes. Shared return-state base pairs and raw-Error metadata selection keep nonError options independent of unused retired headers/stack traces; Error options acquire the actual late receipt. Context/currentness and fresh publication cleanup remain checked. Two original SDK captures retain6+12rows with fresh clean5bac/provider247unchanged/original79suite, including safe nonError controls; no Runtime Rust control has executed. Compiled Try, full allocation counts and public Import acceptance remain unfinished; public Import stays refused.
