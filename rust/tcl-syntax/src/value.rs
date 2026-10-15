@@ -101,6 +101,10 @@ pub fn narrow_to_c_int(wide: i64) -> Result<i32, ValueError> {
 pub enum ValueError {
     /// The value is not a wide integer (`expected integer but got "…"`).
     NotInteger(String),
+    /// The value already holds a double, which `Tcl_GetWideIntFromObj`
+    /// refuses as no integer without reparsing its spelling (`tclObj.c`:
+    /// `expected integer but got "…"`, `TCL VALUE INTEGER`).
+    DoubleNotInteger(String),
     /// The value is not a float (`expected floating-point number but got "…"`).
     NotDouble(String),
     /// The value is not a boolean (`expected boolean value but got "…"`).
@@ -126,6 +130,7 @@ impl ValueError {
                     crate::list::describe_bad_value(s)
                 )
             }
+            ValueError::DoubleNotInteger(s) => format!("expected integer but got \"{s}\""),
             ValueError::NotDouble(s) => format!(
                 "expected floating-point number but got {}",
                 crate::list::describe_bad_value(s)
@@ -142,15 +147,17 @@ impl ValueError {
     }
 
     /// The `-errorcode` C sets beside [`Self::message`]: `TclParseNumber`'s
-    /// `TCL VALUE NUMBER` for an unparsable spelling, `ARITH IOVERFLOW` for an
-    /// integer past the wide range. A list failure's code depends on the parse
-    /// fault, which [`ValueError::BadList`] no longer carries, so it has none.
+    /// `TCL VALUE NUMBER` for an unparsable spelling, `TCL VALUE INTEGER` for
+    /// a held double, `ARITH IOVERFLOW` for an integer past the wide range. A
+    /// list failure's code depends on the parse fault, which
+    /// [`ValueError::BadList`] no longer carries, so it has none.
     #[must_use]
     pub fn error_code(&self) -> Option<&'static str> {
         match self {
             ValueError::NotInteger(_) | ValueError::NotDouble(_) | ValueError::NotBoolean(_) => {
                 Some("TCL VALUE NUMBER")
             }
+            ValueError::DoubleNotInteger(_) => Some("TCL VALUE INTEGER"),
             ValueError::IntegerOverflow => Some(crate::expr::errors::IOVERFLOW_CODE),
             ValueError::BadList(_) => None,
         }

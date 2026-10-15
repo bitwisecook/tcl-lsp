@@ -81,13 +81,17 @@ fn str_to_bytes(s: &str) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 
-/// A failed integer read as the shared seam's error: the overflow keeps its
-/// own variant, and anything else is the non-integer `v` spells.
+/// A failed integer read as the shared seam's error: the overflow and a held
+/// double keep their own variants, and anything else is the non-integer `v`
+/// spells.
 fn value_error(v: *mut TclObj, error: &crate::typed_value::TypedError) -> ValueError {
+    let text = || String::from_utf8_lossy(&obj_bytes(v)).into_owned();
     if error.is_overflow() {
         ValueError::IntegerOverflow
+    } else if error.code == crate::typed_value::HELD_DOUBLE_CODE {
+        ValueError::DoubleNotInteger(text())
     } else {
-        ValueError::NotInteger(String::from_utf8_lossy(&obj_bytes(v)).into_owned())
+        ValueError::NotInteger(text())
     }
 }
 
@@ -163,6 +167,10 @@ impl ValueOps for Interp {
         radix: Radix,
         syntax: tcl_dialect::NumberSyntax,
     ) -> Result<IntegerMagnitude, ValueError> {
+        // A held double is refused before its spelling is read.
+        if let Some(error) = crate::typed_value::held_double(*v) {
+            return Err(value_error(*v, &error));
+        }
         let (negative, digits) =
             crate::bignum::integer_magnitude(*v, radix, syntax).ok_or_else(|| {
                 ValueError::NotInteger(String::from_utf8_lossy(&obj_bytes(*v)).into_owned())

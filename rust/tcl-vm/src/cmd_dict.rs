@@ -21,7 +21,7 @@
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
-use crate::command::{BuiltinFn, settle_control_options};
+use crate::command::{BuiltinFn, completion_from_cmd_error, settle_control_options};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -158,11 +158,30 @@ fn lookup<'a>(ps: &'a [(String, Value)], key: &str) -> Option<&'a Value> {
 /// Read the dict in variable `varname`, transform the value at `key` via `f`
 /// (given the current value, if any), write it back, and return the new dict.
 /// Shared by `dict incr`/`append`/`lappend`.
+/// `dict incr`'s step: an existing value goes through `TclIncrObj`, while a
+/// new key only checks the increment is an integer of any size
+/// (`Tcl_GetBignumFromObj`), so a new key's `1.5` is `TCL VALUE NUMBER`.
+pub(crate) fn dict_incr(old: Option<&Value>, inc: &Value) -> Result<Value, Completion<Value>> {
+    let refused = |error: tcl_syntax::value::ValueError| {
+        crate::command::completion_from_cmd_error(error.into())
+    };
+    if old.is_none() && crate::expr::value_as_bigint(inc).is_none() {
+        let error = match inc.as_int() {
+            Err(e) if e.error_code.as_deref() == Some("TCL VALUE INTEGER") => {
+                tcl_syntax::value::ValueError::DoubleNotInteger(inc.to_str().to_string())
+            }
+            _ => tcl_syntax::value::ValueError::NotInteger(inc.to_str().to_string()),
+        };
+        return Err(refused(error));
+    }
+    crate::value_ops::int_add(old, inc).map_err(refused)
+}
+
 fn dict_update(
     vm: &mut Vm,
     varname: &Value,
     key: &Value,
-    f: impl FnOnce(Option<&Value>) -> Result<Value, String>,
+    f: impl FnOnce(Option<&Value>) -> Result<Value, Completion<Value>>,
 ) -> Completion<Value> {
     let name = varname.to_str();
     let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
@@ -177,7 +196,7 @@ fn dict_update(
     let k = key.to_str();
     let newv = match f(lookup(&ps, &k)) {
         Ok(v) => v,
-        Err(e) => return err(e),
+        Err(e) => return e,
     };
     upsert(&mut ps, &k, newv);
     let result = from_pairs_with_hash_bucket_count(&ps, bucket_count);
@@ -229,18 +248,14 @@ fn set_path(
 }
 
 /// Remove the nested `keys` path from dict `cur` (`dict unset` with multiple
-/// keys). A missing intermediate key is a no-op, matching `dict unset`.
+/// keys). A missing intermediate key is C's `key "…" not known in
+/// dictionary` (`TclTraceDictPath` with `DICT_PATH_UPDATE`).
 ///
 /// Same unbounded per-key-segment recursion hazard as [`set_path`]
 /// (`dict unset d {*}[lrepeat 100000 k]`), walked iteratively for the
 /// same reason. Walk down while each key is present, recording each level's
-/// parsed pairs and the key followed; stop early — without erroring or
-/// descending further — at the first missing intermediate key, matching
-/// `dict unset`'s no-op semantics for that case exactly (the halted level's
-/// pairs are simply re-serialised unchanged, precisely what a naive
-/// recursive version would do by falling through its `if`/`else if` with
-/// neither arm taken. The final key is removed via `retain`, matching that
-/// leaf case. Rebuild bottom-up via the recorded frames.
+/// parsed pairs and the key followed. The final key is removed via `retain`,
+/// present or not. Rebuild bottom-up via the recorded frames.
 fn unset_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
     let mut frames: Vec<DictPathFrame> = Vec::with_capacity(keys.len());
     let mut node = cur.clone();
@@ -265,9 +280,9 @@ fn unset_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Complet
             parent_was_copied = copied;
             i += 1;
         } else {
-            // Missing intermediate key: no-op at and below this level.
-            new_value = from_pairs_with_hash_bucket_count(&ps, bucket_count);
-            break;
+            return Err(completion_from_cmd_error(
+                tcl_cmd_core::dict::key_not_known(&k),
+            ));
         }
     }
     for (mut ps, k, bucket_count) in frames.into_iter().rev() {
@@ -295,7 +310,11 @@ fn get_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completio
         let ks = key.to_str();
         match lookup(&ps, &ks) {
             Some(found) => v = found.clone(),
-            None => return Err(err(format!("key \"{ks}\" not known in dictionary"))),
+            None => {
+                return Err(completion_from_cmd_error(
+                    tcl_cmd_core::dict::key_not_known(&ks),
+                ));
+            }
         }
     }
     Ok(v)
@@ -371,9 +390,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<
             // overflow error).
             let one = Value::int(1);
             let inc = amt.first().unwrap_or(&one);
-            dict_update(vm, varname, key, |old| {
-                crate::value_ops::int_add(old, inc).map_err(|e| e.message())
-            })
+            dict_update(vm, varname, key, |old| dict_incr(old, inc))
         }
         "append" => {
             let [varname, key, strs @ ..] = rest else {
@@ -395,7 +412,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<
                 let mut items = match old {
                     Some(v) => match v.as_list() {
                         Ok(i) => (*i).clone(),
-                        Err(e) => return Err(e.message),
+                        Err(e) => return Err(crate::command::completion_from_tcl_error(e)),
                     },
                     None => Vec::new(),
                 };
@@ -839,12 +856,13 @@ mod tests {
         let nested_unset = unset_path(vm, &outer, &[s("a"), s("b")]).unwrap();
         assert_eq!(top_pairs(vm, &nested_unset), [("a".into(), "c 2".into())]);
 
-        // A missing intermediate key two levels deep is a no-op, not an
-        // error, and does not disturb sibling keys.
-        let nested_absent = unset_path(vm, &outer, &[s("a"), s("z"), s("q")]).unwrap();
+        // A missing intermediate key is C's lookup failure (tclsh 9.0.4).
+        let Err(absent) = unset_path(vm, &outer, &[s("a"), s("z"), s("q")]) else {
+            panic!("a missing intermediate key must fail");
+        };
         assert_eq!(
-            top_pairs(vm, &nested_absent),
-            [("a".into(), "b 1 c 2".into())]
+            &*absent.result.to_str(),
+            "key \"z\" not known in dictionary"
         );
     }
 }

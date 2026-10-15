@@ -176,7 +176,10 @@ fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match scanned {
         b"idle" => {
             if argv.len() < 3 {
-                return err(interp, b"wrong # args: should be \"after idle script\"");
+                return err(
+                    interp,
+                    b"wrong # args: should be \"after idle script ?script ...?\"",
+                );
             }
             let script = join_args(&argv[2..]);
             let id = interp.events_mut().push_idle(script);

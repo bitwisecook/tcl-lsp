@@ -39,9 +39,10 @@
     clippy::similar_names
 )]
 
-use tcl_syntax::value::ValueOps;
+use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::error::CmdError;
+use crate::prefix::OptionTable;
 
 /// The clean integer-overflow error tclsh raises when a `clock` computation
 /// leaves the wide range (e.g. `clock add 0 9223372036854775807 weeks`). Every
@@ -101,8 +102,8 @@ where
         "milliseconds" => nullary(ops, rest, "milliseconds", now.millis),
         "microseconds" => nullary(ops, rest, "microseconds", now.micros),
         "clicks" => clicks(ops, rest, now),
-        "format" => format(ops, rest, local_offset),
-        "add" => add(ops, rest, local_offset),
+        "format" => format(ops, rest, now, local_offset),
+        "add" => add(ops, rest, now, local_offset),
         // Unreachable: `CLOCK_SUBS` has exactly the seven arms here.
         _ => scan(ops, rest, now, local_offset),
     }
@@ -138,108 +139,280 @@ fn clicks<O, V>(ops: &mut O, rest: &[V], now: &Now) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V>,
 {
+    const SWITCHES: OptionTable =
+        OptionTable::abbreviating("option", &["-milliseconds", "-microseconds"]);
     let val = match rest {
         [] => now.micros,
-        [opt] => match &*ops.as_str(opt) {
-            "-milliseconds" => now.millis,
-            "-microseconds" => now.micros,
-            other => {
-                return Err(CmdError::bad_choice(
-                    "option",
-                    other,
-                    "-milliseconds or -microseconds",
-                ));
-            }
+        [opt] => match SWITCHES.index_of_cmd(ops.as_str(opt).as_bytes())? {
+            0 => now.millis,
+            _ => now.micros,
         },
-        _ => {
-            return Err(CmdError::wrong_args(
-                "clock clicks ?-milliseconds|-microseconds?",
-            ));
-        }
+        _ => return Err(CmdError::wrong_args("clock clicks ?-switch?")),
     };
     Ok(ops.new_int(val))
 }
 
 const DEFAULT_FORMAT: &str = "%a %b %d %H:%M:%S %Z %Y";
 
-/// `clock format clockval ?-format string? ?-gmt boolean? ?-timezone z? ?-locale l?`.
-fn format<O, V>(ops: &mut O, rest: &[V], local_offset: &dyn Fn(i64) -> i32) -> Result<V, CmdError>
+/// The bounds `ClockParseFmtScnArgs` accepts for a clock value or `-base`
+/// (`tclDate.h`: `TCL_MIN_SECONDS`/`TCL_MAX_SECONDS`), which also bound a
+/// `clock add` count of hours, minutes or seconds.
+const MAX_SECONDS: i64 = 0x00F0_0000_0000_0000;
+
+/// Which of the three commands sharing C's `ClockParseFmtScnArgs` is parsing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ClockOp {
+    Format,
+    Scan,
+    Add,
+}
+
+impl ClockOp {
+    /// The usage `Tcl_WrongNumArgs` reports (with `CLOCK wrongNumArgs`).
+    fn usage(self) -> &'static str {
+        match self {
+            ClockOp::Format => {
+                "clock format clockval|now ?-format string? ?-gmt boolean? \
+                 ?-locale LOCALE? ?-timezone ZONE?"
+            }
+            ClockOp::Scan => {
+                "clock scan string ?-base seconds? ?-format string? ?-gmt boolean? \
+                 ?-locale LOCALE? ?-timezone ZONE? ?-validate boolean?"
+            }
+            ClockOp::Add => {
+                "clock add clockval|now ?number units?...?-gmt boolean? \
+                 ?-locale LOCALE? ?-timezone ZONE?"
+            }
+        }
+    }
+
+    /// The option list a rejected option word's message enumerates.
+    fn choices(self) -> &'static str {
+        match self {
+            ClockOp::Format => "-format, -gmt, -locale, or -timezone",
+            ClockOp::Scan => "-base, -format, -gmt, -locale, -timezone or -validate",
+            ClockOp::Add => "-gmt, -locale, or -timezone",
+        }
+    }
+}
+
+const OPTIONS: OptionTable = OptionTable::abbreviating(
+    "option",
+    &[
+        "-base",
+        "-format",
+        "-gmt",
+        "-locale",
+        "-timezone",
+        "-validate",
+    ],
+);
+const OPT_BASE: usize = 0;
+const OPT_FORMAT: usize = 1;
+const OPT_GMT: usize = 2;
+const OPT_TIMEZONE: usize = 4;
+const OPT_VALIDATE: usize = 5;
+
+/// The options `ClockParseFmtScnArgs` extracted, with the clock value or
+/// `-base` already read as seconds.
+struct ClockArgs {
+    base: i64,
+    format: Option<String>,
+    gmt: bool,
+    validate: bool,
+}
+
+/// `CLOCK badOption <word>`, the identity every rejected option, clock value
+/// and `-base` carries.
+fn bad_option(message: impl Into<String>, word: &str) -> CmdError {
+    CmdError::with_error_code(
+        message,
+        tcl_syntax::list::join_list(["CLOCK", "badOption", word]),
+    )
+}
+
+/// C's `ClockParseFmtScnArgs`. `rest[0]` is the clock value (format/add) or
+/// the input string (scan); the option words sit at the odd positions, and
+/// `clock add` passes over any that read as wide integers (its counts).
+fn parse_args<O, V>(ops: &mut O, rest: &[V], op: ClockOp, now: i64) -> Result<ClockArgs, CmdError>
 where
     O: ValueOps<Value = V>,
 {
-    let Some((cv, opts)) = rest.split_first() else {
-        return Err(CmdError::wrong_args(
-            "clock format clockval ?-format string? ?-gmt boolean? ?-locale locale? ?-timezone zone?",
+    if rest.len().is_multiple_of(2) {
+        return Err(CmdError::with_error_code(
+            format!("wrong # args: should be \"{}\"", op.usage()),
+            "CLOCK wrongNumArgs",
         ));
-    };
-    let clockval = ops.as_int(cv)?;
-    let mut fmt = DEFAULT_FORMAT.to_string();
-    let mut gmt = false;
-    let mut i = 0;
-    while i < opts.len() {
-        let name = ops.as_str(&opts[i]).to_string();
-        let value = opts
-            .get(i + 1)
-            .ok_or_else(|| CmdError::new(format!("value for \"{name}\" missing")))?;
-        match name.as_str() {
-            "-format" => fmt = ops.as_str(value).to_string(),
-            "-gmt" => gmt = ops.as_bool(value)?,
-            "-timezone" | "-locale" => {} // accepted, not yet honoured
-            other => {
-                return Err(CmdError::bad_choice(
-                    "option",
-                    other,
-                    "-format, -gmt, -locale, or -timezone",
-                ));
-            }
-        }
-        i += 2;
     }
-    let offset = if gmt { 0 } else { local_offset(clockval) };
-    // `clockval` is user input; a near-`i64::MAX` value plus the zone offset must
-    // not wrap before we break it into a civil date.
+    let mut args = ClockArgs {
+        base: now,
+        format: None,
+        gmt: false,
+        validate: true,
+    };
+    let mut base = (op != ClockOp::Scan).then_some(0);
+    let mut saw: u32 = if op == ClockOp::Scan {
+        0
+    } else {
+        1 << OPT_BASE
+    };
+    for i in (1..rest.len()).step_by(2) {
+        if op == ClockOp::Add && ops.as_int(&rest[i]).is_ok() {
+            continue;
+        }
+        let word = ops.as_str(&rest[i]).to_string();
+        let bad_msg = || {
+            bad_option(
+                format!("bad option \"{word}\": must be {}", op.choices()),
+                &word,
+            )
+        };
+        let Ok(index) = OPTIONS.index_of_cmd(word.as_bytes()) else {
+            return Err(bad_msg());
+        };
+        if saw & (1 << index) != 0 {
+            if index == OPT_BASE && op != ClockOp::Scan {
+                return Err(bad_msg());
+            }
+            return Err(bad_option(
+                format!("bad option \"{word}\": doubly present"),
+                &word,
+            ));
+        }
+        let value = &rest[i + 1];
+        match index {
+            OPT_FORMAT if op == ClockOp::Add => return Err(bad_msg()),
+            OPT_FORMAT => args.format = Some(ops.as_str(value).to_string()),
+            OPT_GMT => args.gmt = ops.as_bool(value)?,
+            OPT_BASE => base = Some(i + 1),
+            OPT_VALIDATE if op != ClockOp::Scan => return Err(bad_msg()),
+            OPT_VALIDATE => args.validate = ops.as_bool(value)?,
+            // `-locale` and `-timezone` are accepted, not yet honoured.
+            _ => {}
+        }
+        saw |= 1 << index;
+    }
+    if saw & (1 << OPT_GMT) != 0 && saw & (1 << OPT_TIMEZONE) != 0 {
+        return Err(CmdError::with_error_code(
+            "cannot use -gmt and -timezone in same call",
+            "CLOCK gmtWithTimezone",
+        ));
+    }
+    if let Some(at) = base {
+        args.base = read_seconds(ops, &rest[at], now)?;
+    }
+    Ok(args)
+}
+
+/// Read a clock value or `-base` as C does: a wide integer within
+/// `±MAX_SECONDS`, or exactly `now`/`-now`.
+fn read_seconds<O, V>(ops: &mut O, value: &V, now: i64) -> Result<i64, CmdError>
+where
+    O: ValueOps<Value = V>,
+{
+    let word = ops.as_str(value).to_string();
+    match ops.as_int(value) {
+        Ok(secs) if (-MAX_SECONDS..=MAX_SECONDS).contains(&secs) => Ok(secs),
+        Ok(_) | Err(ValueError::IntegerOverflow) => {
+            Err(bad_option("integer value too large to represent", &word))
+        }
+        Err(_) if word == "now" || word == "-now" => Ok(now),
+        Err(_) => Err(bad_option(
+            format!("bad seconds \"{word}\": must be now or integer"),
+            &word,
+        )),
+    }
+}
+
+/// `clock format clockval|now ?-format string? ?-gmt boolean? ?-locale l? ?-timezone z?`.
+fn format<O, V>(
+    ops: &mut O,
+    rest: &[V],
+    now: &Now,
+    local_offset: &dyn Fn(i64) -> i32,
+) -> Result<V, CmdError>
+where
+    O: ValueOps<Value = V>,
+{
+    let args = parse_args(ops, rest, ClockOp::Format, now.secs)?;
+    let clockval = args.base;
+    let fmt = args.format.as_deref().unwrap_or(DEFAULT_FORMAT);
+    let offset = if args.gmt { 0 } else { local_offset(clockval) };
     let local = clockval
         .checked_add(i64::from(offset))
         .ok_or_else(overflow)?;
     let civil = Civil::from_secs(local);
-    Ok(ops.new_str(&render(&civil, &fmt, offset, clockval)))
+    Ok(ops.new_str(&render(&civil, fmt, offset, clockval)))
 }
 
-/// `clock add clockval ?count unit ...? ?-gmt boolean? ?-timezone z? ?-locale l?`.
-fn add<O, V>(ops: &mut O, rest: &[V], local_offset: &dyn Fn(i64) -> i32) -> Result<V, CmdError>
+/// `clock add`'s units, in C's table order (`week` beside `weeks` so `week`
+/// is no ambiguous prefix).
+const UNITS: OptionTable = OptionTable::abbreviating(
+    "unit",
+    &[
+        "years", "months", "week", "weeks", "days", "weekdays", "hours", "minutes", "seconds",
+    ],
+);
+
+/// A resolved `clock add` unit.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Unit {
+    Years,
+    Months,
+    Weeks,
+    Days,
+    Weekdays,
+    Hours,
+    Minutes,
+    Seconds,
+}
+
+impl Unit {
+    fn from_index(index: usize) -> Self {
+        match index {
+            0 => Unit::Years,
+            1 => Unit::Months,
+            2 | 3 => Unit::Weeks,
+            4 => Unit::Days,
+            5 => Unit::Weekdays,
+            6 => Unit::Hours,
+            7 => Unit::Minutes,
+            _ => Unit::Seconds,
+        }
+    }
+
+    /// The largest count magnitude C accepts: a C `int` for the date units,
+    /// the clock-value bound for the time units.
+    fn max_count(self) -> i64 {
+        match self {
+            Unit::Hours | Unit::Minutes | Unit::Seconds => MAX_SECONDS,
+            _ => 0x7fff_ffff,
+        }
+    }
+}
+
+/// `clock add clockval|now ?count unit ...? ?-gmt boolean? ?-locale l? ?-timezone z?`.
+fn add<O, V>(
+    ops: &mut O,
+    rest: &[V],
+    now: &Now,
+    local_offset: &dyn Fn(i64) -> i32,
+) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V>,
 {
-    let Some((cv, rest)) = rest.split_first() else {
-        return Err(CmdError::wrong_args(
-            "clock add clockval ?number units ...? ?-option value?",
-        ));
-    };
-    let mut t = ops.as_int(cv)?;
-    let mut gmt = false;
-    let mut i = 0;
-    while i < rest.len() {
-        let word = ops.as_str(&rest[i]).to_string();
-        match word.as_str() {
-            "-gmt" | "-timezone" | "-locale" | "-base" => {
-                let value = rest
-                    .get(i + 1)
-                    .ok_or_else(|| CmdError::new(format!("value for \"{word}\" missing")))?;
-                if word == "-gmt" {
-                    gmt = ops.as_bool(value)?;
-                }
-                i += 2;
-            }
-            _ => {
-                // A `count unit` pair (count may be negative).
-                let count = ops.as_int(&rest[i])?;
-                let unit = rest
-                    .get(i + 1)
-                    .ok_or_else(|| CmdError::new("missing unit of measure"))?;
-                let unit = ops.as_str(unit).to_string();
-                t = add_units(t, count, &unit, gmt, local_offset)?;
-                i += 2;
-            }
+    let args = parse_args(ops, rest, ClockOp::Add, now.secs)?;
+    let mut t = args.base;
+    for i in (1..rest.len()).step_by(2) {
+        let Ok(count) = ops.as_int(&rest[i]) else {
+            continue;
+        };
+        let unit = Unit::from_index(UNITS.index_of_cmd(ops.as_str(&rest[i + 1]).as_bytes())?);
+        if !(-unit.max_count()..=unit.max_count()).contains(&count) {
+            return Err(overflow());
+        }
+        if count != 0 {
+            t = add_units(t, count, unit, args.gmt, local_offset)?;
         }
     }
     Ok(ops.new_int(t))
@@ -253,44 +426,65 @@ where
 /// than wrapped. Comfortably below where `era * 146097` could exceed `i64`.
 const MAX_CIVIL_YEAR: i64 = 300_000_000_000;
 
+/// C's `ClockWeekdaysOffs`: the calendar days spanning `offs` weekdays from a
+/// day whose ISO weekday (Monday 1 … Sunday 7) is `day_of_week`.
+fn weekdays_offs(day_of_week: i64, offs: i64) -> i64 {
+    let mut weeks = offs / 5;
+    let mut offs = offs % 5;
+    if offs < 0 {
+        offs += 5;
+        weeks -= 1;
+    }
+    offs += 7 * weeks;
+    let mut result_day = day_of_week + offs.rem_euclid(7);
+    if day_of_week > 5 {
+        let adj = 5 - day_of_week;
+        offs += adj;
+        result_day += adj;
+    }
+    if result_day > 5 {
+        offs += 2;
+    }
+    offs
+}
+
 /// Apply `count` of `unit` to the timestamp `t` (UTC seconds). Fixed units add a
 /// constant; calendar units (months/years) go through the civil date in the
 /// active zone, clamping the day to the target month's length.
 fn add_units(
     t: i64,
     count: i64,
-    unit: &str,
+    unit: Unit,
     gmt: bool,
     local_offset: &dyn Fn(i64) -> i32,
 ) -> Result<i64, CmdError> {
+    let offset = if gmt { 0 } else { i64::from(local_offset(t)) };
     let fixed = match unit {
-        "seconds" | "second" | "secs" | "sec" => Some(1),
-        "minutes" | "minute" | "mins" | "min" => Some(60),
-        "hours" | "hour" => Some(3600),
-        "days" | "day" => Some(86_400),
-        "weeks" | "week" => Some(7 * 86_400),
-        _ => None,
+        Unit::Seconds => Some((count, 1)),
+        Unit::Minutes => Some((count, 60)),
+        Unit::Hours => Some((count, 3600)),
+        Unit::Days => Some((count, 86_400)),
+        Unit::Weeks => Some((count, 7 * 86_400)),
+        Unit::Weekdays => {
+            let local = t.checked_add(offset).ok_or_else(overflow)?;
+            let weekday = Civil::from_secs(local).weekday;
+            let iso = if weekday == 0 { 7 } else { weekday };
+            Some((weekdays_offs(iso, count), 86_400))
+        }
+        Unit::Months | Unit::Years => None,
     };
-    if let Some(scale) = fixed {
+    if let Some((count, scale)) = fixed {
         // `count` and `t` are both user-controlled wides; compute `t + count*scale`
         // in i128 so neither the multiply nor the add can wrap before the range
-        // check (the precedent `lseq` uses i128 intermediates for the same reason).
+        // check.
         let secs = i128::from(t) + i128::from(count) * i128::from(scale);
         return i64::try_from(secs).map_err(|_| overflow());
     }
-    let months = match unit {
-        "months" | "month" => i128::from(count),
-        // `count * 12` (years→months) can itself overflow i64 for an extreme
-        // count, so keep the whole month tally in i128.
-        "years" | "year" => i128::from(count) * 12,
-        other => {
-            return Err(CmdError::new(format!(
-                "unknown unit of measure \"{other}\": must be \
-                 seconds, minutes, hours, days, weeks, months, or years"
-            )));
-        }
+    let months = if unit == Unit::Years {
+        i128::from(count) * 12
+    } else {
+        i128::from(count)
     };
-    let offset = if gmt { 0 } else { i64::from(local_offset(t)) };
     // `t + offset` is bounded by the offset (seconds), but guard it anyway since
     // `t` may sit at the wide boundary.
     let local_in = t.checked_add(offset).ok_or_else(overflow)?;
@@ -318,9 +512,9 @@ fn add_units(
     i64::try_from(result).map_err(|_| overflow())
 }
 
-/// `clock scan inputString -format formatString ?-gmt boolean? ?-base clock? …` —
-/// parse `inputString` per `formatString` into an epoch timestamp. Free-form
-/// scanning (no `-format`) is not yet supported.
+/// `clock scan inputString -format formatString ?-base seconds? ?-gmt boolean?
+/// ?-validate boolean? …` — parse `inputString` per `formatString` into an
+/// epoch timestamp. Free-form scanning (no `-format`) is not yet supported.
 fn scan<O, V>(
     ops: &mut O,
     rest: &[V],
@@ -330,42 +524,14 @@ fn scan<O, V>(
 where
     O: ValueOps<Value = V>,
 {
-    let Some((input, opts)) = rest.split_first() else {
-        return Err(CmdError::wrong_args(
-            "clock scan inputString ?-base clockVal? ?-format string? ?-gmt boolean? ?-locale locale? ?-timezone zone?",
-        ));
-    };
-    let input = ops.as_str(input).to_string();
-    let mut fmt: Option<String> = None;
-    let mut gmt = false;
-    let mut base = now.secs;
-    let mut i = 0;
-    while i < opts.len() {
-        let name = ops.as_str(&opts[i]).to_string();
-        let value = opts
-            .get(i + 1)
-            .ok_or_else(|| CmdError::new(format!("value for \"{name}\" missing")))?;
-        match name.as_str() {
-            "-format" => fmt = Some(ops.as_str(value).to_string()),
-            "-gmt" => gmt = ops.as_bool(value)?,
-            "-base" => base = ops.as_int(value)?,
-            "-timezone" | "-locale" => {}
-            other => {
-                return Err(CmdError::bad_choice(
-                    "option",
-                    other,
-                    "-base, -format, -gmt, -locale, or -timezone",
-                ));
-            }
-        }
-        i += 2;
-    }
+    let args = parse_args(ops, rest, ClockOp::Scan, now.secs)?;
+    let input = ops.as_str(&rest[0]).to_string();
     // Free-form (natural-language) scanning is not implemented; `-format` only.
-    let Some(fmt) = fmt else {
+    let Some(fmt) = args.format else {
         return Err(CmdError::new("free-form clock scan is not yet supported"));
     };
-    let base_offset = if gmt { 0 } else { local_offset(base) };
-    // `-base` is user input; guard the offset add before breaking it into a date.
+    let base = args.base;
+    let base_offset = if args.gmt { 0 } else { local_offset(base) };
     let base_local = base
         .checked_add(i64::from(base_offset))
         .ok_or_else(overflow)?;
@@ -377,8 +543,15 @@ where
     let year = fields.year.unwrap_or(base_civil.year);
     let month = fields.month.unwrap_or(base_civil.month);
     let day = fields.day.unwrap_or(base_civil.day);
-    if day == 0 || day > days_in_month(year, month) {
-        return Err(CmdError::new("unable to convert input string: invalid day"));
+    // C's `ClockValidDate`, on by default: without it an out-of-range month
+    // or day rolls over into the next (`days_from_civil` is linear in both).
+    if args.validate {
+        if !(1..=12).contains(&month) {
+            return Err(invalid_input("month"));
+        }
+        if day == 0 || day > days_in_month(year, month) {
+            return Err(invalid_input("day"));
+        }
     }
     let hour = fields.hour.unwrap_or(0);
     let min = fields.min.unwrap_or(0);
@@ -391,9 +564,18 @@ where
         + i128::from(min) * 60
         + i128::from(sec);
     let local = i64::try_from(local_i128).map_err(|_| overflow())?;
-    let offset = if gmt { 0 } else { local_offset(local) };
+    let offset = if args.gmt { 0 } else { local_offset(local) };
     let result = i128::from(local) - i128::from(offset);
     Ok(ops.new_int(i64::try_from(result).map_err(|_| overflow())?))
+}
+
+/// `unable to convert input string: invalid <field>`, C's `ClockValidDate`
+/// refusal (`CLOCK invInpStr <field>`).
+fn invalid_input(field: &str) -> CmdError {
+    CmdError::with_error_code(
+        format!("unable to convert input string: invalid {field}"),
+        tcl_syntax::list::join_list(["CLOCK", "invInpStr", field]),
+    )
 }
 
 /// The date/time fields a `-format` scan extracted (each `None` if its specifier
@@ -411,7 +593,10 @@ struct ScanFields {
 
 /// `input string does not match supplied format` — the scan mismatch error.
 fn no_match() -> CmdError {
-    CmdError::new("input string does not match supplied format")
+    CmdError::with_error_code(
+        "input string does not match supplied format",
+        "CLOCK badInputString",
+    )
 }
 
 /// Read up to `max` decimal digits (at least one) from `inb` at `*ip`.
@@ -426,7 +611,12 @@ fn read_uint(inb: &[u8], ip: &mut usize, max: usize) -> Result<i64, CmdError> {
         val = val
             .checked_mul(10)
             .and_then(|v| v.checked_add(i64::from(inb[*ip] - b'0')))
-            .ok_or_else(overflow)?;
+            .ok_or_else(|| {
+                CmdError::with_error_code(
+                    "integer value too large to represent",
+                    "CLOCK dateTooLarge",
+                )
+            })?;
         *ip += 1;
     }
     if *ip == start {
@@ -450,9 +640,7 @@ fn read_month_name(inb: &[u8], ip: &mut usize) -> Result<u32, CmdError> {
             return Ok(idx as u32 + 1);
         }
     }
-    Err(CmdError::new(
-        "unable to convert input string: invalid month",
-    ))
+    Err(no_match())
 }
 
 /// Parse `input` against the strftime-style `fmt`, extracting the date/time
@@ -493,15 +681,7 @@ fn parse_with_format(input: &str, fmt: &str) -> Result<ScanFields, CmdError> {
                 let yy = read_uint(inb, &mut ip, 2)?;
                 f.year = Some(if yy < 69 { 2000 + yy } else { 1900 + yy });
             }
-            'm' => {
-                let m = read_uint(inb, &mut ip, 2)?;
-                if !(1..=12).contains(&m) {
-                    return Err(CmdError::new(
-                        "unable to convert input string: invalid month",
-                    ));
-                }
-                f.month = Some(m as u32);
-            }
+            'm' => f.month = Some(read_uint(inb, &mut ip, 2)? as u32),
             'b' | 'B' | 'h' => f.month = Some(read_month_name(inb, &mut ip)?),
             'd' | 'e' => f.day = Some(read_uint(inb, &mut ip, 2)? as u32),
             'H' | 'k' | 'I' | 'l' => f.hour = Some(read_uint(inb, &mut ip, 2)?),
@@ -899,17 +1079,17 @@ mod tests {
             parse_with_format("1700000000", "%s").unwrap().epoch,
             Some(1_700_000_000)
         );
-        // Errors: bad month, then a literal/format mismatch.
+        // A month past 12 is left for the validation step; a mismatch or an
+        // unknown month name is `CLOCK badInputString`.
         assert_eq!(
-            parse_with_format("2023-13-01", "%Y-%m-%d")
-                .unwrap_err()
-                .message(),
-            "unable to convert input string: invalid month"
+            parse_with_format("2023-13-01", "%Y-%m-%d").unwrap().month,
+            Some(13)
         );
-        assert_eq!(
-            parse_with_format("xyz", "%Y").unwrap_err().message(),
-            "input string does not match supplied format"
-        );
+        for (input, fmt) in [("xyz", "%Y"), ("Foo", "%b")] {
+            let err = parse_with_format(input, fmt).unwrap_err();
+            assert_eq!(err.message(), "input string does not match supplied format");
+            assert_eq!(err.error_code(), Some("CLOCK badInputString"));
+        }
     }
 
     #[test]
@@ -938,10 +1118,10 @@ mod tests {
         let off = |_: i64| 0;
         // +2 days and +3 calendar months from 2023-11-14.
         assert_eq!(
-            add_units(1_700_000_000, 2, "days", true, &off).unwrap(),
+            add_units(1_700_000_000, 2, Unit::Days, true, &off).unwrap(),
             1_700_172_800
         );
-        let plus3 = add_units(1_700_000_000, 3, "months", true, &off).unwrap();
+        let plus3 = add_units(1_700_000_000, 3, Unit::Months, true, &off).unwrap();
         let c = Civil::from_secs(plus3);
         assert_eq!((c.year, c.month, c.day), (2024, 2, 14));
     }
@@ -953,32 +1133,45 @@ mod tests {
         let off = |_: i64| 0;
         let msg = "integer value too large to represent";
         assert_eq!(
-            add_units(0, i64::MAX, "weeks", true, &off)
+            add_units(0, i64::MAX, Unit::Weeks, true, &off)
                 .unwrap_err()
                 .message(),
             msg
         );
         assert_eq!(
-            add_units(i64::MAX, 1, "seconds", true, &off)
+            add_units(i64::MAX, 1, Unit::Seconds, true, &off)
                 .unwrap_err()
                 .message(),
             msg
         );
         // Calendar months/years go through the i128 month tally + civil clamp.
         assert_eq!(
-            add_units(0, i64::MAX, "months", true, &off)
+            add_units(0, i64::MAX, Unit::Months, true, &off)
                 .unwrap_err()
                 .message(),
             msg
         );
         assert_eq!(
-            add_units(0, i64::MAX, "years", true, &off)
+            add_units(0, i64::MAX, Unit::Years, true, &off)
                 .unwrap_err()
                 .message(),
             msg
         );
         // A non-overflowing add still works on the i128 path.
-        assert_eq!(add_units(0, 1, "weeks", true, &off).unwrap(), 7 * 86_400);
+        assert_eq!(
+            add_units(0, 1, Unit::Weeks, true, &off).unwrap(),
+            7 * 86_400
+        );
+    }
+
+    #[test]
+    fn weekdays_skip_the_weekend_as_c_does() {
+        // ISO weekdays: Thursday 4, Sunday 7 (tclsh 9.0 `clock add … weekdays`).
+        assert_eq!(weekdays_offs(4, 1), 1);
+        assert_eq!(weekdays_offs(4, 5), 7);
+        assert_eq!(weekdays_offs(4, -1), -1);
+        assert_eq!(weekdays_offs(7, 1), 1);
+        assert_eq!(weekdays_offs(5, 1), 3);
     }
 
     #[test]
@@ -988,6 +1181,7 @@ mod tests {
         let mut ip = 0;
         let err = read_uint(b"9999999999999999999", &mut ip, 19).unwrap_err();
         assert_eq!(err.message(), "integer value too large to represent");
+        assert_eq!(err.error_code(), Some("CLOCK dateTooLarge"));
         // In-range values still parse.
         let mut ip = 0;
         assert_eq!(read_uint(b"2023", &mut ip, 4).unwrap(), 2023);

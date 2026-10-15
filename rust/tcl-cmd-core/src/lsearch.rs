@@ -417,7 +417,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
                         // A search cut short is raised, never counted as an
                         // element that did not match.
                         crate::regex::RegexpPrecision::Declined(decline) => {
-                            return Err(LsearchError::msg(decline.into_error().0));
+                            return Err(LsearchError::msg(decline.into_error().message));
                         }
                     }
                 }

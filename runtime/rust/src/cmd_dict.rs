@@ -1123,11 +1123,13 @@ fn bad_dict(interp: &mut Interp, e: crate::dict::DictError) -> Code {
     interp.error_with_code(&e.message_bytes(), e.error_code())
 }
 
+/// `key "…" not known in dictionary` with `TCL LOOKUP DICT <key>`.
 fn key_not_known(interp: &mut Interp, key: &[u8]) -> Code {
     let mut m = b"key \"".to_vec();
     m.extend_from_slice(key);
     m.extend_from_slice(b"\" not known in dictionary");
-    interp.set_error(&m)
+    let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"DICT", key]);
+    interp.error_with_code(&m, &code)
 }
 
 fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {

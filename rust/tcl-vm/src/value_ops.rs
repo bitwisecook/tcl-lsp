@@ -52,18 +52,36 @@ pub(crate) fn int_add(a: Option<&Value>, b: &Value) -> Result<Value, ValueError>
         return Ok(crate::expr::int_value(sum));
     }
     // Bignum tier: an operand (or the sum) exceeds `i128`. A non-integer
-    // operand is still the `NotInteger` error — the stored value's error
+    // operand is the `TclIncrObj` refusal — the stored value's error
     // surfacing before the increment's, as in C.
-    let to_big = |v: &Value| {
-        crate::expr::value_as_bigint(v)
-            .ok_or_else(|| ValueError::NotInteger(v.to_str().to_string()))
-    };
+    let to_big = |v: &Value| crate::expr::value_as_bigint(v).ok_or_else(|| incr_refusal(v));
     let xb = match a {
         Some(v) => to_big(v)?,
         None => num_bigint::BigInt::from(0),
     };
     let yb = to_big(b)?;
     Ok(crate::expr::big_value(&(xb + yb)))
+}
+
+/// Why `TclIncrObj` refuses a non-integer operand: it reads the value as a
+/// number first, so a number that is no integer is refused as the double it
+/// then holds (`TCL VALUE INTEGER`), and anything else as unparsable.
+fn incr_refusal(v: &Value) -> ValueError {
+    let text = v.to_str().to_string();
+    if v.as_double().is_ok() {
+        ValueError::DoubleNotInteger(text)
+    } else {
+        ValueError::NotInteger(text)
+    }
+}
+
+/// The error a failed integer read reports through the shared seam.
+fn int_refusal(v: &Value, error: &crate::error::TclError) -> ValueError {
+    match error.error_code.as_deref() {
+        Some(tcl_syntax::expr::errors::IOVERFLOW_CODE) => ValueError::IntegerOverflow,
+        Some("TCL VALUE INTEGER") => ValueError::DoubleNotInteger(v.to_str().to_string()),
+        _ => ValueError::NotInteger(v.to_str().to_string()),
+    }
 }
 
 impl ValueOps for Vm {
@@ -114,13 +132,7 @@ impl ValueOps for Vm {
     }
 
     fn as_int(&mut self, v: &Value) -> Result<i64, ValueError> {
-        v.as_int().map_err(|error| {
-            if error.error_code.as_deref() == Some(tcl_syntax::expr::errors::IOVERFLOW_CODE) {
-                ValueError::IntegerOverflow
-            } else {
-                ValueError::NotInteger(v.to_str().to_string())
-            }
-        })
+        v.as_int().map_err(|error| int_refusal(v, &error))
     }
 
     fn integer_magnitude(
@@ -143,8 +155,12 @@ impl ValueOps for Vm {
                     .ok_or_else(|| ValueError::NotInteger(v.to_str().to_string()))?;
                 if negative { -value } else { value }
             }
+            // A refusal is the wide read's, so a held double is `TCL VALUE INTEGER`.
             Some(Number::Double(_) | Number::Nan { .. }) | None => {
-                return Err(ValueError::NotInteger(v.to_str().to_string()));
+                return Err(match self.as_int(v) {
+                    Err(error) => error,
+                    Ok(_) => ValueError::NotInteger(v.to_str().to_string()),
+                });
             }
         };
         Ok(IntegerMagnitude {

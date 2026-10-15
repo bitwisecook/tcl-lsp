@@ -47,6 +47,7 @@ pub mod encoding;
 pub mod ensemble;
 pub mod error;
 pub mod format;
+pub mod frame;
 pub mod index;
 pub mod info;
 pub mod irules;

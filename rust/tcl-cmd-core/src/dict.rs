@@ -150,6 +150,16 @@ pub fn create<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, C
     Ok(ops.new_dict(pairs))
 }
 
+/// `key "…" not known in dictionary` with `TCL LOOKUP DICT <key>`, C's
+/// refusal for a missing key on a `dict get`/`unset`/`with` path.
+#[must_use]
+pub fn key_not_known(key: &str) -> CmdError {
+    CmdError::with_error_code(
+        format!("key \"{key}\" not known in dictionary"),
+        tcl_syntax::list::join_list(["TCL", "LOOKUP", "DICT", key]),
+    )
+}
+
 /// `dict get dictionary ?key ...?` — descend nested keys; a missing key errors.
 pub fn get<O: ValueOps>(
     ops: &mut O,
@@ -162,11 +172,7 @@ pub fn get<O: ValueOps>(
         let pairs = ops.dict_pairs(&cur)?;
         match lookup(ops, &pairs, &ks) {
             Some(v) => cur = v,
-            None => {
-                return Err(CmdError::new(format!(
-                    "key \"{ks}\" not known in dictionary"
-                )));
-            }
+            None => return Err(key_not_known(&ks)),
         }
     }
     // `dict get` parses its dictionary argument even with no keys, so a

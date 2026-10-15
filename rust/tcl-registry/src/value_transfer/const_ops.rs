@@ -773,9 +773,10 @@ impl<'ctx> ConstOps<'ctx> {
                 let raised = Raised::parse_failure(&self.target, message);
                 self.decline_raising(raised)
             }
-            ValueError::NotInteger(_) | ValueError::NotDouble(_) | ValueError::NotBoolean(_) => {
-                self.decline_raising(Raised::unproven())
-            }
+            ValueError::NotInteger(_)
+            | ValueError::DoubleNotInteger(_)
+            | ValueError::NotDouble(_)
+            | ValueError::NotBoolean(_) => self.decline_raising(Raised::unproven()),
             // The fixed-width tower's overflow is a value the target
             // computes — 8.4 wraps where 8.5 widens — and no error the
             // program raises: the model does not compute it, and the run

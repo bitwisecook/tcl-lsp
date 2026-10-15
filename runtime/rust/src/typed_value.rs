@@ -82,6 +82,10 @@ impl TypedError {
     }
 }
 
+/// The code `tclObj.c` sets when an integer read meets an object holding a
+/// double.
+pub(crate) const HELD_DOUBLE_CODE: &[u8] = b"TCL VALUE INTEGER";
+
 /// Read `obj` as a Tcl wide integer — `Tcl_GetWideIntFromObj`.
 ///
 /// A double-typed object is refused under C's own wording and `TCL VALUE
@@ -89,17 +93,26 @@ impl TypedError {
 /// [`TypedError::overflow`]; anything else unparsable is `TclParseNumber`'s
 /// `TCL VALUE NUMBER`.
 pub(crate) fn wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
-    if obj::obj_type_ptr(obj) == &obj::TCL_DOUBLE_TYPE {
-        let bytes = obj::bytes_of(obj);
-        let mut message = b"expected integer but got \"".to_vec();
-        message.extend_from_slice(&bytes);
-        message.push(b'"');
-        return Err(TypedError {
-            message,
-            code: b"TCL VALUE INTEGER",
-        });
+    if let Some(error) = held_double(obj) {
+        return Err(error);
     }
     read_wide_int(obj)
+}
+
+/// The refusal every integer read makes of an object already holding a
+/// double, before any reparse of its spelling (`tclObj.c`).
+pub(crate) fn held_double(obj: *mut TclObj) -> Option<TypedError> {
+    if obj::obj_type_ptr(obj) != &obj::TCL_DOUBLE_TYPE {
+        return None;
+    }
+    let bytes = obj::bytes_of(obj);
+    let mut message = b"expected integer but got \"".to_vec();
+    message.extend_from_slice(&bytes);
+    message.push(b'"');
+    Some(TypedError {
+        message,
+        code: HELD_DOUBLE_CODE,
+    })
 }
 
 /// Read `obj` as C Tcl reads a 64-bit `long` (`Tcl_GetLongFromObj` on an LP64

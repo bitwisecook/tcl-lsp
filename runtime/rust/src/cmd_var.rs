@@ -378,62 +378,23 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// The absolute frame level an `upvar`/`uplevel` `?level?` word selects.
-pub(crate) enum FrameLevel {
-    /// The word is a level and names this frame.
-    Named(usize),
-    /// No word, or one that is not a level: the frame one up.
-    Default(usize),
-}
+pub(crate) use tcl_cmd_core::frame::FrameLevel;
 
-/// Resolve a `?level?` word as C's `TclObjGetFrame` does, raising `bad level`
+/// Resolve a `?level?` word as C's `TclObjGetFrame` does
+/// ([`tcl_cmd_core::frame::frame_level`]), raising `bad level`
 /// (`TCL LOOKUP LEVEL`) when it names no frame.
-///
-/// A relative level is a C `int` read, so `0x1`, ` 1 ` and `+1` count, and a
-/// negative or past-`INT_MAX` one is a bad level; `#N` is absolute. An integer
-/// too large for the `int` read is a bad level too, while any other word is
-/// not a level at all — `uplevel` then runs it as the command.
 pub(crate) fn frame_level(
     interp: &mut Interp,
     word: Option<*mut TclObj>,
 ) -> Result<FrameLevel, Code> {
     let current = interp.current_level();
-    let Some(word) = word else {
-        return current
-            .checked_sub(1)
-            .map(FrameLevel::Default)
-            .ok_or_else(|| bad_level(interp, b"1"));
-    };
-    let spec = obj_bytes(word);
-    let named = match crate::typed_value::int(word) {
-        Ok(_) => match crate::typed_value::wide_int(word) {
-            Ok(up) if (0..=i64::from(i32::MAX)).contains(&up) => usize::try_from(up)
-                .ok()
-                .and_then(|up| current.checked_sub(up)),
-            _ => None,
-        },
-        Err(error) if error.is_overflow() => None,
-        Err(_) => match spec.strip_prefix(b"#") {
-            Some(absolute) => {
-                let absolute_obj = obj::new_string_bytes(absolute);
-                let level = crate::typed_value::int(absolute_obj).ok();
-                drop_fresh(absolute_obj);
-                level
-                    .filter(|&level| level == 0 || (level > 0 && !absolute.starts_with(b"-")))
-                    .and_then(|level| usize::try_from(level).ok())
-                    .filter(|&level| level <= current)
-            }
-            None => {
-                return current
-                    .checked_sub(1)
-                    .map(FrameLevel::Default)
-                    .ok_or_else(|| bad_level(interp, b"1"));
-            }
-        },
-    };
-    named
-        .map(FrameLevel::Named)
-        .ok_or_else(|| bad_level(interp, &spec))
+    tcl_cmd_core::frame::frame_level(interp, word.as_ref(), current).map_err(|bad| {
+        let spec = match (bad, word) {
+            (tcl_cmd_core::frame::BadLevel::Word, Some(word)) => obj_bytes(word),
+            _ => b"1".to_vec(),
+        };
+        bad_level(interp, &spec)
+    })
 }
 
 /// `bad level "…"`, with the `TCL LOOKUP LEVEL` code C sets beside it.

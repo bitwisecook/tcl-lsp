@@ -10821,11 +10821,8 @@ mod tests {
             "lrepeat",
             "lassign",
             // Tcl 9.0+: a flat native dispatch over `tcl-cmd-core::lseq`
-            // (`tcl-vm/src/cmd_lseq.rs::cmd_lseq`) with no script-body eval
-            // fallback of its own — its only recursive edge is evaluating
-            // one argument word as an *expression* via `Vm::eval_expr`,
-            // the same evaluator `expr` (also on this list) runs on, not a
-            // general eval-a-script fallback — see `commands/tcl/lseq.rs`.
+            // (`tcl-vm/src/cmd_lseq.rs::cmd_lseq`) that evaluates nothing —
+            // see `commands/tcl/lseq.rs`.
             "lseq",
             "concat",
             "split",

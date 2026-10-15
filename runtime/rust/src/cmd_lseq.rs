@@ -25,20 +25,18 @@
 //! ```
 //!
 //! A thin adapter over [`tcl_cmd_core::lseq`] — the shared core runs the
-//! argument-decode key (`..`/`to`/`count`/`by`), the int-vs-double selection,
-//! and the precision-matched generation; this adapter supplies the two
-//! per-runtime edges: the **expression-valued-argument** evaluation (through the
-//! interp's `expr`) and the element construction over the bignum runtime's
-//! `ValueOps`. The whole module is gated on `have_tommath` like `if`/`while`/`for`
-//! because the expr edge needs the numeric tower.
+//! argument-decode key (`..`/`to`/`count`/`by`), the reads C makes of each
+//! value, the int-vs-double selection, and the precision-matched generation;
+//! this adapter only builds the elements over the bignum runtime's `ValueOps`.
+//! The module is gated on `have_tommath` with the other numeric commands.
 //!
 //! Semantics match tclsh 9.0.
 //!
 #![cfg(have_tommath)]
 
 use crate::interp::{obj_bytes, Code, Interp};
-use crate::obj::{self, TclObj};
-use tcl_cmd_core::lseq::{self, LseqError, Num};
+use crate::obj::TclObj;
+use tcl_cmd_core::lseq;
 
 /// Register `lseq`.
 pub fn install(interp: &mut Interp) {
@@ -46,38 +44,16 @@ pub fn install(interp: &mut Interp) {
 }
 
 fn lseq(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // Slice off the command name and snapshot each argument's bytes (the obj's
-    // string rep is copied out, so the borrows below don't alias the interp).
     let args: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
     let refs: Vec<&[u8]> = args.iter().map(Vec::as_slice).collect();
-
-    // Decode first (the eval callback borrows the interp), then generate (the
-    // interp is borrowed as the value-ops) — two separate calls, no conflict.
-    let plan = match lseq::decode(&refs, |src| eval_num(interp, src)) {
-        Ok(p) => p,
-        Err(LseqError::Message(m)) => return interp.set_error(&m),
-        // The expr edge already set the interp's error; just propagate the code.
-        Err(LseqError::Eval(c)) => return c,
-    };
-    match lseq::generate(interp, &plan) {
+    let generated = lseq::decode(&refs).and_then(|plan| lseq::generate(interp, &plan));
+    match generated {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok
         }
-        Err(m) => interp.set_error(m),
+        Err(e) => interp.report_cmd_error(e),
     }
-}
-
-/// Evaluate `src` as an expression and classify its result as a number — the
-/// `lseq` expression-valued-argument edge. `Ok(None)` = evaluated but not a
-/// number (the core maps that to a syntax error); `Err(Code)` = the evaluation
-/// itself failed (the interp's error is already set).
-fn eval_num(interp: &mut Interp, src: &[u8]) -> Result<Option<Num>, Code> {
-    let result = crate::builtins::eval_expr_obj(interp, src)?;
-    let text = obj_bytes(result);
-    // SAFETY: `result` is the owned (+1) expr result; we are done with it.
-    unsafe { obj::decr_ref_count(result) };
-    Ok(lseq::as_number(&text))
 }
 
 #[cfg(test)]
@@ -127,7 +103,7 @@ mod tests {
         assert_eq!(ok(b"lseq 10 .. 1"), b"10 9 8 7 6 5 4 3 2 1");
         assert_eq!(ok(b"lseq 1 to 10 by 2"), b"1 3 5 7 9");
         assert_eq!(ok(b"lseq 1 to 10 by -2"), b""); // wrong-sign step → empty
-        assert_eq!(ok(b"lseq 1 to 5 by 0"), b""); // zero step → empty
+        assert_eq!(ok(b"lseq 1 to 5 by 0"), b"1"); // zero step → one element
         assert_eq!(ok(b"lseq 5 count 5"), b"5 6 7 8 9");
         assert_eq!(ok(b"lseq 5 count 5 by -2"), b"5 3 1 -1 -3");
         assert_eq!(ok(b"lseq 3 by 2"), b"0 2 4");
@@ -149,9 +125,13 @@ mod tests {
     }
 
     #[test]
-    fn lseq_expression_args() {
-        assert_eq!(ok(b"lseq 1+2 to 10"), b"3 4 5 6 7 8 9 10");
-        assert_eq!(ok(b"set n 3; lseq $n*2"), b"0 1 2 3 4 5");
+    fn lseq_words_are_numbers_not_expressions() {
+        // tclsh 9.0.4/9.1.0 evaluate no expression in an `lseq` word.
+        assert_eq!(err(b"lseq 1+2 to 10"), b"expected number but got \"1+2\"");
+        assert_eq!(
+            err(b"set n 3; lseq $n*2"),
+            b"expected number but got \"3*2\""
+        );
     }
 
     #[test]

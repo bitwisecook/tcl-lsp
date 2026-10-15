@@ -1029,9 +1029,12 @@ fn lseq_shared() {
     assert_eq!(run("lseq 25. to 5. by -5").1, "25.0 20.0 15.0 10.0 5.0");
     // A double-valued count stays an integer sequence.
     assert_eq!(run("lseq 5 count 5.0").1, "5 6 7 8 9");
-    // Expression-valued arguments (the eval edge).
-    assert_eq!(run("lseq 1+2 to 10").1, "3 4 5 6 7 8 9 10");
-    assert_eq!(run("set n 3; lseq $n*2").1, "0 1 2 3 4 5");
+    // A word is a number or a keyword, never an expression (tclsh 9.0.4/9.1.0).
+    assert_eq!(run("lseq 1+2 to 10").1, "expected number but got \"1+2\"");
+    assert_eq!(
+        run("set n 3; lseq $n*2").1,
+        "expected number but got \"3*2\""
+    );
     // Errors.
     let (ok, msg, _) = run("lseq");
     assert!(!ok);
