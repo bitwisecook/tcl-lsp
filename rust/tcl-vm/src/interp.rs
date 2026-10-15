@@ -1620,8 +1620,8 @@ enum VarTraceCallback {
     Script { command: String, old_style: bool },
     /// C's `EnvTraceProc`: the array-level trace `TclSetupEnv` puts on the
     /// global `env` array to keep it in step with the host environment.
-    /// Scripts can neither see nor remove it, and it runs before the script
-    /// traces of its group.
+    /// Scripts can neither see nor remove it, and as the oldest trace on the
+    /// array it runs after the script traces of its group.
     HostEnv,
 }
 
@@ -9781,11 +9781,12 @@ impl Vm {
             // at once, and C's walk then skips it — so the id is re-found in
             // the table before every callback rather than trusting a snapshot.
             // A taken list is nobody's to remove any more, so it fires whole.
-            // The native host-environment hook goes ahead of the script
-            // traces, so a callback already sees the host updated.
+            // The native host-environment hook is the array's oldest trace,
+            // so it runs after the script traces on `env` and before the
+            // element's own group (tclsh 8.6 and 9.0).
             fn ordered(list: &[VarTrace]) -> impl Iterator<Item = &VarTrace> {
                 let native = list.iter().filter(|t| t.is_native());
-                native.chain(list.iter().rev().filter(|t| !t.is_native()))
+                list.iter().rev().filter(|t| !t.is_native()).chain(native)
             }
             let steps: Vec<Step> = match &group {
                 TraceGroup::Live(key) => self.var_traces.get(key).map_or_else(Vec::new, |list| {

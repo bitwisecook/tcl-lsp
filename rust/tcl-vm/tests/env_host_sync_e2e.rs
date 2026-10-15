@@ -321,27 +321,29 @@ fn a_whole_array_unset_leaves_the_host_alone_and_detaches_the_array() {
 }
 
 #[test]
-fn the_hook_is_invisible_and_runs_before_script_traces() {
+fn the_hook_is_invisible_and_runs_between_array_and_element_script_traces() {
     for version in RELEASES {
         let env = vars(&[]);
         let mut vm = vm_on(version, &env);
         assert_eq!(ok(&mut vm, "trace info variable env"), "");
         ok(
             &mut vm,
-            "trace add variable env write {apply {args {lappend ::seen [interp eval c {set env(FOO)}]}}}\n\
-             trace add variable env(FOO) write {apply {args {lappend ::seen [interp eval c {set env(FOO)}]}}}\n\
+            "trace add variable env write {apply {args {lappend ::seen [interp eval c {info exists env(FOO)}]}}}\n\
+             trace add variable env(FOO) write {apply {args {lappend ::seen [interp eval c {info exists env(FOO)}]}}}\n\
              interp create c\n\
              set env(FOO) 1",
         );
-        assert_eq!(ok(&mut vm, "set seen"), "1 1");
+        // As the array's oldest trace it runs after the script traces on
+        // `env` and before the element's own (tclsh 8.6 and 9.0: `0 1`).
+        assert_eq!(ok(&mut vm, "set seen"), "0 1");
         assert_eq!(
             ok(&mut vm, "trace info variable env"),
-            "{write {apply {args {lappend ::seen [interp eval c {set env(FOO)}]}}}}"
+            "{write {apply {args {lappend ::seen [interp eval c {info exists env(FOO)}]}}}}"
         );
         ok(
             &mut vm,
-            "trace remove variable env write {apply {args {lappend ::seen [interp eval c {set env(FOO)}]}}}\n\
-             trace remove variable env(FOO) write {apply {args {lappend ::seen [interp eval c {set env(FOO)}]}}}\n\
+            "trace remove variable env write {apply {args {lappend ::seen [interp eval c {info exists env(FOO)}]}}}\n\
+             trace remove variable env(FOO) write {apply {args {lappend ::seen [interp eval c {info exists env(FOO)}]}}}\n\
              trace remove variable env {read write unset array} EnvTraceProc",
         );
         ok(&mut vm, "set env(FOO) 2");

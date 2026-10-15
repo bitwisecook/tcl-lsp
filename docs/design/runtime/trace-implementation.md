@@ -132,8 +132,9 @@ subcommand re-syncs the whole array from the host in place; a whole-array
 unset leaves the host alone and takes the hook with it. Because it lives in
 the trace table, every store path, the 9.x element-alias recovery and the
 active-cell suppression treat it as any array-level trace, but it is hidden
-from `trace info`, cannot be removed by `trace remove`, and fires ahead of the
-script traces in its group. `var_trace_may_fire` keeps the untraced fast path
+from `trace info`, cannot be removed by `trace remove`, and, as the array's
+oldest trace, fires after the script traces on `env` and before the element's
+own. `var_trace_may_fire` keeps the untraced fast path
 for ordinary variables while the hook is the only trace: an access then needs
 the trace walk only when its name contains `env`, or once a link has reached
 the hooked array or one of its elements under another name. Witnesses:
