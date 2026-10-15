@@ -8,13 +8,23 @@ The current retained metadata snapshot is449 exact issue reads captured15October
 at11:06:53UTC:97OPEN/352CLOSED. It combines the previous346 catalogue IDs with103
 new search hits; all329 prior state rows/318 unique issues are unchanged. Thirteen
 strong naming omissions are individually classified in [issues.md](issues.md),
-all CLOSED; the full103-hit discovery pool in
-[audit-next-issues.json](audit-next-issues.json) remains explicitly UNCLASSIFIED
-until individual scope review. Metadata state is not execution acceptance.
+all CLOSED. The immutable [discovery sidecar](audit-next-issues.json) preserves its
+original UNCLASSIFIED status; subsequent per-record scope review classifies all103
+hits as53 direct naming,27 semantic dependency,9 validation infrastructure,
+5 presentation/documentation,4 generated editor projection,2 adjacent non-naming
+and3 insufficient-detail reports. The hashed record-level classification is
+`/workspace/name-session/issue-discovery-scope-review/classification.json`
+(`dba7b4a179a25dd318bc034e380ee9c04c6e144931ad1be41c9b85a3e20a4444`).
+Reported scope and metadata state are not current-source execution acceptance.
 
 Published `0fd42b29f` is the historical source bound at the start of this local
 refresh. Later Main checkpoints have no semantic acceptance from an isolated
-earlier source or a type-only repair. K remains the latest sealed ordinary result:
+earlier source or a type-only repair. The coordinator reports completed isolated
+L15:1491 controls,1076 strictPASS/412FAIL/1TIMEOUT/2 hostNOT_ACCEPTED_RUN_COUNT.
+All1027 K predecessors remain,8 gains,2 Core array prior-PASS regressions,0drops.
+Its23-package build passed with source drift0; six initial signal-write EPERM
+aborts and exact successful permission-repair reruns are retained separately.
+Later Main source does not inherit L15 acceptance. K is the previous sealed result:
 frozen `c448d18f6fdb8ffbbba89156222af4c7b8a692d9`,1027controls,
 696PASS/330FAIL/1TIMEOUT. All992F predecessors remain, with1gain,
 4prior-PASS regressions and0drops;35 additions give22PASS/13FAIL. The
@@ -26,8 +36,9 @@ retain exact source, selectors, original budgets and unchanged artifact guards.
 The exact snapshot keeps#2286 OPEN, updated2026-10-12T22:29:51Z. Its unchanged
 original selector
 `analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion`
-ran first in K and PASS73.301624588s under the original180-second budget.
-K still has330failures and1timeout. A single original-program PASS does not close
+ran first in isolated L15 and PASS75.412753406s under the original180-second
+budget (previous K:73.301624588s). L15 still has412failures,1timeout and2
+host-not-accepted controls. A single original-program PASS does not close
 remaining naming consumers, import/read/refusal obligations or complete#2286
 acceptance; no closure action is authorised by this result alone.
 

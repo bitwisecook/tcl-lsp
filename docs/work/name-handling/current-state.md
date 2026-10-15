@@ -1,5 +1,10 @@
 # Current centralised naming work
 
+Current source includes the public Logical formal input, genuine authored ProcHook declarations, VM retained C84 error headers/Jim prefix dispatch and FileOps source-action transport. Fresh M/M2/M3 builds stopped before tests (respectively production adapter typing, private test config access, finite concrete auto-trait depth); source drift{} in each. Minimal reviewed repairs are retained. Frozen333140c39 M4 build is running, with no execution acceptance yet. Recursive rustfmt check exposed inherited formatting differences; required gates remain red or unrun.49 portable packets verify.
+
+Repository-wide review is now tracked in [the complete-file audit](repository-consumer-audit.md). Its 110,709-path roster is complete; semantic consumer review and the remaining-consumer total are still unfinished. Earlier bounded counts must not be used as the repository total.
+
+
 ## Completed L15 replay and exact permission repairs
 
 Frozen4faff complete1491 selected attempts retain all1027 K controls,8 predecessor gains,2 prior-PASS array-completion regressions and0drops. Strict initial results:1070PASS412FAIL6ABORT1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. The six aborts show wait_timeout signal-handler writes refused with EPERM; independent outside-sandbox reruns of the same six exact selectors/assertions/budgets/artifacts/source and unchanged runner all PASS. Combined latest per selector:1076PASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. The two Host tests legitimately launch a second original test harness; the unchanged one-run guard rejects their raw exit0 captures, so they remain NOT accepted. No guard is relaxed or inferred test success substituted.

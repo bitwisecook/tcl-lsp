@@ -101,3 +101,7 @@ full host/backend coverage and required repository gates remain unaccepted.
 ## L15 selected replay and separate permission repairs
 
 Concatenate both `validation-4faff-l15-ordinary1491.tar.gz.part-*` files before extracting; the exact archive SHA is557a0f6fc99c61dbdb8bb0f1f4e3ccb66a5bed046dda9cf578695988fffbeab0. The raw1491 attempts include6abort/2nested-harness guard refusals; the latter remain unaccepted. `l15-permission-repair-and-source-followups.tar.gz` retains independent unchanged-selector6PASS repairs outside the sandbox and the original failed attempts remain in the first archive. Combinedlatest1076PASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT. All47 packet digests verify. No newer Main or full Native/repository acceptance follows.
+
+## Complete-file audit baseline and subsequent source receipts
+
+`complete-file-audit-baseline-cc24.tar.gz` retains the exact110,709-path Git roster and independently verified seven disjoint assignments. It is an inventory, not completed source review or a remaining-consumer count. `reviewed-formal-fileops-runtime-and-m-build-feedback.tar.gz` retains bounded reviewed source manifests and actual failed M/M2/M3 zero-test builds. M4 is a separate current-source build in progress. All49 packet digests verify; semantic consumer audit, current Rust acceptance and required repository gates remain unfinished.

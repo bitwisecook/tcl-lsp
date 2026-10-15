@@ -233,5 +233,15 @@
     "file": "l15-permission-repair-and-source-followups.tar.gz",
     "sha256": "beefcf217ae1380adfd17c5ec2cf710210ebdf5dc502dbd28fc5e82255900a15",
     "status": "Independent unchanged4faff permission-repair6controls PASS after original wait_timeout signal-handler EPERM aborts, alloriginalfailures retained separately. Combined1491 latest:1076strictPASS412FAIL1TIMEOUT2NOT_ACCEPTED_RUN_COUNT; Hostnestedharnessguard rejections remainnotaccepted. Sameoriginalselectors/assertions/budgets/source/artifact/runner guards. Includes later bounded source receipts, no newer Main Rust acceptance."
+  },
+  {
+    "file": "complete-file-audit-baseline-cc24.tar.gz",
+    "sha256": "8e6008921aa2586b459e3701a304abbfcf6923b95f147c8b38f6f90129474c3e",
+    "status": "Complete immutable110709-path baseline cc24c394004fc187378ba0eefb6c2c5b2615fb00 and independently reconciled7 disjoint review assignments;0missing/extra/overlap. File inventory only, NOT semantic review/completion or remaining-consumer total. All assigned semantic reviews in progress; unexamined stays unfinished."
+  },
+  {
+    "file": "reviewed-formal-fileops-runtime-and-m-build-feedback.tar.gz",
+    "sha256": "2c961ee235bf9e5419985618d5bb64b0f1bea9374fc156f2085b9265ebfd1710",
+    "status": "Exact reviewed source receipts for actual Logical formal inputs, VM C84 retained headers/Jim prefixes, authored ProcHook and FileOps action. M/M2/M3 failed builds each0tests with unchanged sources; partial ELF counts are not acceptance. M4 fresh333140c39 build currently running. FileOps987old bodies retained/7newunexecuted. All source peers bounded, no current Main Rust acceptance."
   }
 ]

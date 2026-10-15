@@ -5,9 +5,14 @@ contains449 exact issue reads:97OPEN/352CLOSED. Its scope is the previous346
 catalogue IDs plus103 additional search hits, not every repository issue.
 All329 prior explicit state rows, covering318 unique issues, match that snapshot.
 Thirteen strong naming omissions are classified below from those exact records;
-all are CLOSED. The original103-hit discovery pool remains explicitly UNCLASSIFIED
-in the retained sidecar until each candidate receives its own scope review;
-the thirteen separately reviewed additions do not classify the rest by keyword.
+all are CLOSED. The immutable discovery sidecar retains its original UNCLASSIFIED
+status. A subsequent per-record scope review now classifies all103 retained hits:
+53 direct naming consumers,27 semantic dependencies,9 validation infrastructure,
+5 presentation/documentation,4 generated editor projections,2 adjacent non-naming
+and3 insufficient-detail reports. This classifies reported scope, not current
+source behavior or acceptance. The exact per-record dispositions and body hashes
+are retained at `/workspace/name-session/issue-discovery-scope-review/classification.json`
+(SHA-256 `dba7b4a179a25dd318bc034e380ee9c04c6e144931ad1be41c9b85a3e20a4444`).
 Exact queries, metadata and limits are in [audit-next-issues.json](audit-next-issues.json).
 No GitHub issue action was performed by this refresh.
 
@@ -15,8 +20,14 @@ Earlier12–14October searches and narrower254-ID snapshots are historical evide
 retained below. Issue state is independent of source or execution acceptance.
 Published `0fd42b29f` is the historical source bound at the start of this local
 refresh. Later Main checkpoints do not inherit results from an isolated earlier
-source or a type-only repair. K is the latest sealed semantic replay:1027controls,
-696PASS/330FAIL/1TIMEOUT on frozen `c448d18f6fdb8ffbbba89156222af4c7b8a692d9`.
+source or a type-only repair. The coordinator reports completed isolated L15:
+1491 controls,1076 strict PASS/412 FAIL/1 TIMEOUT/2 host NOT_ACCEPTED_RUN_COUNT;
+all1027 K predecessors retained,8 gains,2 Core array prior-PASS regressions and
+0 drops. Its build completed23/23 packages with zero source drift. Six initial
+sandbox signal-write EPERM aborts and the exact six successful permission-repair
+reruns remain retained separately. Later Main source does not inherit these results.
+K remains the previous sealed semantic bound:1027 controls,696PASS/330FAIL/1TIMEOUT
+on frozen `c448d18f6fdb8ffbbba89156222af4c7b8a692d9`.
 See [current-state.md](current-state.md) and the [portable K receipt](handoff/README.md).
 An open issue supplies an acceptance target; its state alone establishes no
 current source behavior, and a closed issue remains a regression obligation.
@@ -40,7 +51,7 @@ Rust receipts retain separate authority.
 - [The retained native lifecycle question](../../design/analysis/name-resolution-proofs/tcltest-original-alias-caller-frame-lifecycle.md)
   measures all five C packages and Jim's distinct global-test protocol. It does
   not execute the full tclopt constructors or assert Rust diagnostics.
-- The exact15October snapshot keeps#2286 OPEN, updated2026-10-12T22:29:51Z. Its unchanged original selector ran first in K and PASS73.301624588s under the original180-second budget. Earlier ordinary272/source238 PASS72.400995379s and frozen551f PASS68.977646515s, one-versus-two warnings, namespace-import failures and180/600-second timeouts remain scoped historical receipts. All original sources, negative/shared-read/import controls and matching init/Tcltest inputs remain required. K still has330failures and1timeout; this single PASS does not close complete acceptance or the all-consumer migration.
+- The exact15October snapshot keeps#2286 OPEN, updated2026-10-12T22:29:51Z. Its unchanged original selector ran first in isolated L15 and PASS75.412753406s under the original180-second budget; K previously PASS73.301624588s. Earlier ordinary272/source238 PASS72.400995379s and frozen551f PASS68.977646515s, one-versus-two warnings, namespace-import failures and180/600-second timeouts remain scoped historical receipts. All original sources, negative/shared-read/import controls and matching init/Tcltest inputs remain required. L15 still has412failures,1timeout and2 host-not-accepted controls; this single PASS does not close complete acceptance or the all-consumer migration.
 - Both complete packaged highlighting regressions now pass, including the
   import moved inside `::nativeTest`, option pairs and nested commands.
   [Exact C-source receipts](../../../experiments/name-handling/results/c-source-namespace-advice/outcomes.json)
@@ -406,11 +417,11 @@ regressions; closure does not prove that a subsequent migration preserves them.
 The issue metadata and exact API capture are in the isolated issue refresh
 delivery; they contain no execution acceptance and grant no issue action.
 
-Historical source238/ordinary272 receipts remain in [current-state.md](current-state.md#current272-selected-scopes). K is the latest sealed semantic replay for its frozen source; [portable receipts](handoff/README.md) retain both captures and their independent bounds. Neither accepts newer Rust changes.
+Historical source238/ordinary272 receipts remain in [current-state.md](current-state.md#current272-selected-scopes). K is the previous sealed semantic replay for its frozen source; the completed isolated L15 totals above are coordinator-reported separately. [Portable receipts](handoff/README.md) retain independent source bounds. Neither accepts newer Rust changes.
 
 ## Expanded naming regression catalogue — 15 October 2026
 
-The expanded read-only audit exact-fetched all346 issue IDs referenced by the previous catalogue; all329 explicit state rows (318 unique issues) match the retained GitHub snapshot. Four related searches returned103 additional candidates. Their449 combined exact metadata reads report97OPEN/352CLOSED. The immutable discovery pool is explicitly UNCLASSIFIED; the thirteen individually reviewed omissions below have a separate narrow naming disposition. This is a bounded search, not a complete issue census. Exact queries, metadata and candidate scope are retained in [audit-next-issues.json](audit-next-issues.json). No issue state changed.
+The expanded read-only audit exact-fetched all346 issue IDs referenced by the previous catalogue; all329 explicit state rows (318 unique issues) match the retained GitHub snapshot. Four related searches returned103 additional candidates. Their449 combined exact metadata reads report97OPEN/352CLOSED. The immutable discovery sidecar preserves its original UNCLASSIFIED status; the later per-record scope classification described above covers all103 hits without asserting current implementation or test outcomes. The thirteen strong omissions below retain their separate narrow catalogue disposition. This is a bounded search, not a complete issue census. Exact queries, metadata and candidate scope are retained in [audit-next-issues.json](audit-next-issues.json). No issue state changed.
 
 All following issues are CLOSED. The catalogue preserves their naming acceptance targets; it does not claim current execution. Source-verified selectors remain unexecuted in this continuation unless separately recorded. Mixed-scope issues contribute only their naming/source-ownership regressions.
 

@@ -16,8 +16,33 @@ source peers do not reduce the remaining total. The timed source-hash ledger is
 `c5020f1eeed0a89fdfba120afc3e52b896b07bb7929e16bd27dba9ebdd881610`.
 URI and Studio are among the twelve awaiting validation. Isolated L15 built all
 23 selected packages with zero source drift and its original #2286 first run
-passed in75.412753406 seconds against180; the1491-control replay is still running.
-Neither result accepts later Main implementations.
+passed in75.412753406 seconds against180. The coordinator reports completed
+L15:1491 controls,1076 strictPASS/412FAIL/1TIMEOUT/2 hostNOT_ACCEPTED_RUN_COUNT;
+all1027 K controls retained,8 gains,2 Core array prior-PASS regressions,0drops.
+Six initial signal-write EPERM aborts and exact successful permission-repair
+reruns remain distinct. Neither result accepts later Main implementations.
+
+Subsequent retained scope review classifies all103 discovery hits individually
+without changing the historical sidecar:53 direct naming,27 semantic dependency,
+9 validation infrastructure,5 presentation/documentation,4 generated editor
+projection,2 adjacent non-naming and3 insufficient-detail reports. Record-level
+source/test acceptance remains unestablished. The classification SHA-256 is
+`dba7b4a179a25dd318bc034e380ee9c04c6e144931ad1be41c9b85a3e20a4444`
+at `/workspace/name-session/issue-discovery-scope-review/classification.json`.
+
+Whole-production roster01 covers8 production files plus2 generated assets
+(56 function/purpose rows), SHA-256
+`ca943dfa843c66fa4d284c86ccc6b0d80a6f4f149ea6cae27a89d147c0538284`.
+Roster02 covers18 production files across editor AI, MCP, debugger and codegen
+(81 function/contract rows), plus6 copied assets and8 targeted caller annexes,
+SHA-256 `4cd38fa5b6389b5ed0b9873431284d46561916c3935db509da6d2fc227b720eb`.
+Both are retained under `/workspace/name-session/audit-production-roster-0N.json`.
+These are bounded examined rosters, not repository totals. New findings outside
+the dated27 include debugger OS argv Unicode admission, generated HTTP event
+lifecycle drift and three stale copied AI prompt/diagnostic assets. SourceGraph
+package inheritance remains conditional removal-warning/navigation advice in
+the traced consumers; no package-present or Normal-execution grant was found
+in that targeted route. Other callers remain unexamined.
 
 ## Actionable consumers
 
@@ -3164,7 +3189,7 @@ unlinked records. This is not a green census or permission to refresh inventory
 as acceptance. Isolated L15 added only the reviewed retained test-helper TokenType
 qualifier repair to its frozen predecessor and built all23 selected packages;
 later Main graph, constructor and callback changes cannot inherit that isolated
-build or the still-running replay. This audit executed no checker, Rust build or
+build or the later completed L15 replay for newer Main source. This audit executed no checker, Rust build or
 semantic test for either source.
 
 The private Logical formal-field carrier passes bounded source/API peer after an
