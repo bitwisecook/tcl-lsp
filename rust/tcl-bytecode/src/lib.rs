@@ -1133,6 +1133,29 @@ pub enum ErrorStackContext {
     },
 }
 
+/// The command C's `TclLogCommandInfo` names: the command's source up to its
+/// terminator, trailing whitespace included, and for an instruction lowered
+/// from a command substitution the command inside the brackets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErrorInfoCommand {
+    pub text: String,
+    pub line: u32,
+    /// Names a command inside a substitution, so an enclosing substitution
+    /// keeps it.
+    pub nested: bool,
+}
+
+impl Instruction {
+    /// The command text and line `errorInfo` logs for this instruction.
+    #[must_use]
+    pub fn error_info_text(&self) -> (&str, u32) {
+        self.error_info_command.as_ref().map_or(
+            (self.source_cmd_text.as_str(), self.source_line),
+            |command| (command.text.as_str(), command.line),
+        )
+    }
+}
+
 // Instruction
 
 /// Whether an instruction begins an executable source command.
@@ -1196,6 +1219,9 @@ pub struct Instruction {
     pub source_cmd_text: String,
     /// Runtime-only recipe for structured error-stack logging.
     pub error_stack_context: Option<ErrorStackContext>,
+    /// The command `errorInfo` names for this instruction where C's differs
+    /// from [`Self::source_cmd_text`], which stays the replayable statement.
+    pub error_info_command: Option<ErrorInfoCommand>,
     /// Canonical unrooted constructed namespace in which
     /// [`Self::source_cmd_text`] resolves when this instruction is an
     /// executable command boundary. Empty denotes the global namespace.
@@ -1300,6 +1326,7 @@ impl Instruction {
             source_line: 0,
             source_cmd_text: String::new(),
             error_stack_context: None,
+            error_info_command: None,
             source_command_namespace: String::new(),
             source_command_boundary: SourceCommandBoundary::None,
             completion_option_scope: None,

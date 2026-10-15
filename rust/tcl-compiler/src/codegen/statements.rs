@@ -874,6 +874,19 @@ impl CodegenCtx<'_> {
         value: &str,
         tokens: Option<&crate::ir::CommandTokens>,
     ) -> bool {
+        let start = self.instructions.len();
+        let emitted = self.try_emit_whole_cmd_subst_with_tokens_unstamped(value, tokens);
+        if emitted {
+            self.stamp_substitution_error_info(start, value.trim());
+        }
+        emitted
+    }
+
+    fn try_emit_whole_cmd_subst_with_tokens_unstamped(
+        &mut self,
+        value: &str,
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) -> bool {
         if value.contains("\\[")
             || value.contains("\\]")
             || value.contains("{*}")

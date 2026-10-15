@@ -1506,6 +1506,18 @@ impl CodegenCtx<'_> {
         text: &str,
         tokens: Option<&CommandTokens>,
     ) {
+        let start = self.instructions.len();
+        self.emit_inline_cmd_subst_with_tokens_unstamped(text, tokens);
+        if !has_command_separator(text) {
+            self.stamp_substitution_error_info(start, text);
+        }
+    }
+
+    fn emit_inline_cmd_subst_with_tokens_unstamped(
+        &mut self,
+        text: &str,
+        tokens: Option<&CommandTokens>,
+    ) {
         // Multi-command scripts (a `;`/newline separator outside quotes/braces)
         // fall back to runtime eval — checked *before* the `{*}` form below so a
         // body that has both (`[set y 1; list {*}$a]`) runs as two commands

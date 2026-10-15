@@ -1771,13 +1771,14 @@ impl Vm {
                             }
                             None => Value::string(instruction.source_cmd_text.as_str()),
                         };
+                        let (source_text, line) = instruction.error_info_text();
                         let text = match instruction.error_stack_context.as_ref() {
                             Some(ErrorStackContext::CommandResult {
                                 error_info_command, ..
                             }) => error_info_command.clone(),
-                            None => instruction.source_cmd_text.clone(),
+                            None => source_text.to_owned(),
                         };
-                        (text, instruction.source_line, context)
+                        (text, line, context)
                     })
             })
         {
@@ -1944,7 +1945,10 @@ impl Vm {
                 .asm
                 .instructions
                 .get(parent.pc.saturating_sub(1))
-                .map(|instruction| (instruction.source_cmd_text.clone(), instruction.source_line))
+                .map(|instruction| {
+                    let (text, line) = instruction.error_info_text();
+                    (text.to_owned(), line)
+                })
         }) {
             self.log_command_info(&cmd, "", line);
         }
@@ -1991,8 +1995,9 @@ impl Vm {
             if c.code == Code::Error {
                 self.apply_activation_error_context(&act, acts);
             }
+            let mut scheduled_tailcall = None;
             if act.is_proc {
-                self.unwind_proc_frame(&act, acts, &mut c);
+                scheduled_tailcall = self.unwind_proc_frame(&act, acts, &mut c);
             } else if let Some(previous) = act.replay_namespace_restore.take() {
                 self.leave_replay_namespace(previous);
             }
@@ -2014,6 +2019,17 @@ impl Vm {
             // `eval_source` returns.
             if let Some(name) = act.cleanup_proc.take() {
                 self.take_command_unchecked(&name);
+            }
+            // A `tailcall` an `uplevel`ed body scheduled on this procedure
+            // runs in its place, its result delivered as the procedure's.
+            if let Some((namespace, words)) = scheduled_tailcall {
+                match self.scheduled_tailcall_frame(&namespace, words) {
+                    Ok(frame) => {
+                        acts.push(frame);
+                        return None;
+                    }
+                    Err(failed) => c = failed,
+                }
             }
             // A `catch` activation absorbs the body's completion of *any* code:
             // its epilogue binds the result / options variables and yields the
@@ -2172,7 +2188,12 @@ impl Vm {
     /// `TclUpdateReturnInfo` (a proc boundary decrements a carried `-code`/`-level`
     /// return), and on error log the caller's `invoked from
     /// within "…"` frame. Mutates `c` in place. Split out of [`Vm::unwind`].
-    fn unwind_proc_frame(&mut self, act: &Frame, acts: &[Frame], c: &mut Completion<Value>) {
+    fn unwind_proc_frame(
+        &mut self,
+        act: &Frame,
+        acts: &[Frame],
+        c: &mut Completion<Value>,
+    ) -> Option<(String, Vec<Value>)> {
         let body_code = c.code;
         let call_words = self.frame_argv(self.current_level()).unwrap_or_default();
         // C's `InterpProcNR2` proc epilogue (`tclProc.c:1864`): a proc body that
@@ -2213,6 +2234,7 @@ impl Vm {
         // body-relative instruction lines with `body_base_line == 0`, so the line
         // is used as-is; a proc compiled inside a module carries absolute lines, so
         // subtract its definition line (`absolute − base + 1`).
+        let mut lambda_call = None;
         if c.code == Code::Error
             && let Some(name) = self.current_proc_name()
         {
@@ -2225,8 +2247,15 @@ impl Vm {
                     .saturating_add(1)
                     .max(1)
             };
-            self.append_proc_frame(&name, n);
+            match self.current_lambda_term() {
+                Some((lambda, key)) => {
+                    self.append_lambda_frame(&lambda.to_str(), n);
+                    lambda_call = Some(key);
+                }
+                None => self.append_proc_frame(&name, n),
+            }
         }
+        let scheduled_tailcall = self.current_frame_tailcall().and_then(Option::take);
         self.pop_call_frame();
         self.pop_ns();
         if c.code == Code::Return {
@@ -2245,7 +2274,19 @@ impl Vm {
                     .and_then(|v| v.as_int().ok())
                     .and_then(|n| i32::try_from(n).ok())
                     .map_or(Code::Ok, Code::from_int);
-                c.options = crate::command::with_return_level(&c.options, 0);
+                // C's `TclUpdateReturnInfo` resets the carried options once
+                // the level is spent: a `-code return` reaching its level is a
+                // plain `return` (`-code 0 -level 1`) one level further out,
+                // which the next procedure boundary absorbs.
+                c.options = if code == Code::Return {
+                    crate::command::with_return_option(
+                        &crate::command::with_return_level(&c.options, 1),
+                        "-code",
+                        Value::int(0),
+                    )
+                } else {
+                    crate::command::with_return_level(&c.options, 0)
+                };
                 c.code = code;
                 if code == Code::Error {
                     // A carried `-errorinfo` suppresses the `return` command's
@@ -2256,16 +2297,55 @@ impl Vm {
             }
         }
         self.error_stack_push_proc_call(body_code, c.code, &call_words);
-        if c.code == Code::Error
-            && let Some((cmd, line)) = acts.last().and_then(|parent| {
-                parent
-                    .asm
-                    .instructions
-                    .get(parent.pc.saturating_sub(1))
-                    .map(|i| (i.source_cmd_text.clone(), i.source_line))
-            })
-        {
-            self.log_command_info(&cmd, "", line);
+        if c.code == Code::Error {
+            self.log_procedure_invocation(acts, lambda_call.as_deref(), &call_words);
+        }
+        scheduled_tailcall.filter(|_| c.code == Code::Ok)
+    }
+
+    /// Log the command that invoked a procedure an error unwound out of: the
+    /// parent's command, or for an `apply` lambda (`lambda_key`, its internal
+    /// procedure) the command that ran `apply`.
+    fn log_procedure_invocation(
+        &mut self,
+        acts: &[Frame],
+        lambda_key: Option<&str>,
+        call_words: &[Value],
+    ) {
+        // A lambda runs through `apply`'s internal call script, which is
+        // transparent: the command C logs is the one that ran `apply`, or the
+        // `apply` invocation itself when only an internal launcher (a
+        // coroutine's) called the lambda's procedure by its private name.
+        let invoker = if lambda_key.is_some() {
+            acts.iter()
+                .rev()
+                .find(|parent| parent.cleanup_proc.is_none())
+        } else {
+            acts.last()
+        };
+        let logged = invoker.and_then(|parent| {
+            parent
+                .asm
+                .instructions
+                .get(parent.pc.saturating_sub(1))
+                .map(|i| {
+                    let (text, line) = i.error_info_text();
+                    (text.to_owned(), line)
+                })
+        });
+        let invocation = || Value::list(call_words.to_vec()).to_str().to_string();
+        match (logged, lambda_key) {
+            (Some((cmd, line)), Some(key))
+                if cmd
+                    .split_whitespace()
+                    .next()
+                    .is_some_and(|head| head.trim_start_matches("::") == key) =>
+            {
+                self.log_command_info(&invocation(), "", line);
+            }
+            (Some((cmd, line)), _) => self.log_command_info(&cmd, "", line),
+            (None, Some(_)) => self.log_command_info(&invocation(), "", 0),
+            (None, None) => {}
         }
     }
 
@@ -2690,8 +2770,8 @@ impl Vm {
                 match $e {
                     Ok(v) => v,
                     Err(c) => {
-                        let cmd_text = instr.source_cmd_text.clone();
-                        let line = instr.source_line;
+                        let (cmd_text, line) = instr.error_info_text();
+                        let cmd_text = cmd_text.to_owned();
                         let msg = c.result.to_str().to_string();
                         self.log_command_info(&cmd_text, &msg, line);
                         return Tick::Return(c);
@@ -4251,9 +4331,9 @@ impl Vm {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
                     Err(c) => {
-                        let cmd_text = instr.source_cmd_text.clone();
+                        let (cmd_text, line) = instr.error_info_text();
+                        let cmd_text = cmd_text.to_owned();
                         let msg = c.result.to_str().to_string();
-                        let line = instr.source_line;
                         self.log_command_info_with_context(
                             &cmd_text,
                             Value::list(words),
@@ -4311,9 +4391,9 @@ impl Vm {
                         Ok(Some(call)) => return call,
                         Ok(None) => {}
                         Err(c) => {
-                            let cmd_text = instr.source_cmd_text.clone();
+                            let (cmd_text, line) = instr.error_info_text();
+                            let cmd_text = cmd_text.to_owned();
                             let msg = c.result.to_str().to_string();
-                            let line = instr.source_line;
                             self.log_command_info_with_context(
                                 &cmd_text,
                                 Value::list(words),
@@ -4357,13 +4437,14 @@ impl Vm {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
                     Err(c) => {
-                        let cmd_text = instr.source_cmd_text.clone();
+                        let (cmd_text, line) = instr.error_info_text();
+                        let cmd_text = cmd_text.to_owned();
                         let msg = c.result.to_str().to_string();
                         self.log_command_info_with_context(
                             &cmd_text,
                             Value::list(rewritten),
                             &msg,
-                            instr.source_line,
+                            line,
                         );
                         return Tick::Return(c);
                     }
@@ -5985,14 +6066,14 @@ impl Vm {
             let c = err("tailcall can only be called from a proc, lambda or method");
             return self.unwind(acts, c).map(RunExit::Done);
         };
-        // A body redirected to another level (`uplevel N`) is not transparent:
-        // its tailcall would replace the proc at the target level, which the
-        // trampoline does not model, so it stays the error it was when such a
-        // body ran on a nested drive.
+        if acts[proc_index + 1..]
+            .iter()
+            .any(|frame| frame.level_restore.is_some())
+        {
+            return self.schedule_frame_tailcall(acts, words);
+        }
         if acts[proc_index + 1..].iter().any(|frame| {
-            !frame.is_script
-                || frame.level_restore.is_some()
-                || (frame.body_label.is_none() && frame.cleanup_proc.is_none())
+            !frame.is_script || (frame.body_label.is_none() && frame.cleanup_proc.is_none())
         }) {
             let c = err("tailcall can only be called from a proc, lambda or method");
             return self.unwind(acts, c).map(RunExit::Done);
@@ -6073,6 +6154,47 @@ impl Vm {
             Ok(None) => None,
             Err(completion) => self.unwind(acts, completion).map(RunExit::Done),
         }
+    }
+
+    /// A `tailcall` reached through a body `uplevel` redirected to another
+    /// level names the procedure at *that* level, as C's
+    /// `TclNRTailcallObjCmd` stores it on `varFramePtr`: the command is
+    /// scheduled on the target frame, run in that procedure's place once it
+    /// completes `ok`, and the `tailcall` itself returns like `return`, so the
+    /// procedures in between return empty.
+    fn schedule_frame_tailcall(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        words: &[Value],
+    ) -> Option<RunExit> {
+        let c = if self.current_frame_is_proc() {
+            let namespace = self.current_ns().to_owned();
+            if let Some(slot) = self.current_frame_tailcall() {
+                *slot = (!words.is_empty()).then(|| (namespace, words.to_vec()));
+            }
+            Completion::new(Code::Return, Value::empty(), Value::empty())
+        } else {
+            err("tailcall can only be called from a proc, lambda or method")
+        };
+        self.settle_completion(acts, c).map(RunExit::Done)
+    }
+
+    /// The activation that runs a scheduled `tailcall` in place of its
+    /// completed procedure: the command resolves from the namespace it was
+    /// scheduled in and runs at the caller's level.
+    fn scheduled_tailcall_frame(
+        &mut self,
+        namespace: &str,
+        mut words: Vec<Value>,
+    ) -> Result<Frame, Completion<Value>> {
+        if let Some(key) = self.resolve_command_fqn(namespace, &words[0].to_str()) {
+            words[0] = Value::string(format!("::{key}"));
+        }
+        let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
+        let unit = self
+            .compile_script_cached(&script)
+            .map_err(|e| err(e.message))?;
+        Ok(Frame::new_script(unit, None))
     }
 
     /// `incr` helper shared by the scalar/stk increment opcodes.

@@ -183,10 +183,12 @@
 3	tcl-vm::cross_version_info_surface_e2e	test	tcl-vm	cross_version_info_surface_e2e
 3	tcl-vm::cross_version_lset_e2e	test	tcl-vm	cross_version_lset_e2e
 3	tcl-vm::embed_api_e2e	test	tcl-vm	embed_api_e2e
+3	tcl-vm::error_info_text_e2e	test	tcl-vm	error_info_text_e2e
 3	tcl-vm::legacy_variable_traces_e2e	test	tcl-vm	legacy_variable_traces_e2e
 3	tcl-vm::literal_index_encoding_e2e	test	tcl-vm	literal_index_encoding_e2e
 3	tcl-vm::mathfunc_derivation_e2e	test	tcl-vm	mathfunc_derivation_e2e
 3	tcl-vm::namespace_surface_e2e	test	tcl-vm	namespace_surface_e2e
+3	tcl-vm::return_code_boundary_e2e	test	tcl-vm	return_code_boundary_e2e
 3	tcl-vm::run_script	test	tcl-vm	run_script
 3	tcl-vm::tricky_resolution_e2e	test	tcl-vm	tricky_resolution_e2e
 3	tcl-vm::uplevel_coro_e2e	test	tcl-vm	uplevel_coro_e2e
@@ -368,3 +370,4 @@
 5	tcl-vm::opcode_catch_parity	test	tcl-vm	opcode_catch_parity
 5	tcl-vm::safe_interp_e2e	test	tcl-vm	safe_interp_e2e
 5	tcl-vm::step_trace_inline_e2e	test	tcl-vm	step_trace_inline_e2e
+5	tcl-vm::tailcall_uplevel_e2e	test	tcl-vm	tailcall_uplevel_e2e

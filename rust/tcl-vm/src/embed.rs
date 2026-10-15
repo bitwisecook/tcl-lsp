@@ -164,6 +164,7 @@ impl Vm {
             body_src: Value::string(body),
             usage_name: None,
             call_identity: None,
+            lambda_term: None,
         });
         Ok(())
     }

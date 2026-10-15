@@ -10265,6 +10265,20 @@ impl Vm {
         self.script_stack.last().map_or("", String::as_str)
     }
 
+    /// The `tailcall` scheduled on the current procedure frame (see
+    /// [`crate::frame::CallFrame::tailcall`]).
+    pub(crate) fn current_frame_tailcall(&mut self) -> Option<&mut Option<(String, Vec<Value>)>> {
+        self.frames.last_mut().map(|frame| &mut frame.tailcall)
+    }
+
+    /// Whether the current call frame is a procedure's (not the global frame
+    /// or a `namespace eval` body) — what `tailcall` may replace.
+    pub(crate) fn current_frame_is_proc(&self) -> bool {
+        self.frames.last().is_some_and(|frame| {
+            frame.level > 0 && frame.proc_name.is_some() && frame.ns_eval.is_none()
+        })
+    }
+
     /// The namespace a script run at the existing frame `target` resolves
     /// in: the one [`Self::enter_level`] leaves current.
     pub(crate) fn namespace_at_level(&self, target: usize) -> String {
@@ -12227,13 +12241,45 @@ impl Vm {
     /// `line` is the proc-relative line of the innermost logged command. Clears
     /// `error_logged` so the call site then logs its `invoked from within` frame.
     pub(crate) fn append_proc_frame(&mut self, name: &str, line: u32) {
+        self.append_callable_frame("procedure", name, line);
+    }
+
+    /// Append a `(lambda term "<lambda>" line N)` frame — the frame an `apply`
+    /// lambda body adds in place of a procedure's (C's `MakeLambdaError`).
+    pub(crate) fn append_lambda_frame(&mut self, lambda: &str, line: u32) {
+        self.append_callable_frame("lambda term", lambda, line);
+    }
+
+    /// C's `MakeProcError`/`MakeLambdaError`: the name is cut at 60 bytes
+    /// with `...`.
+    fn append_callable_frame(&mut self, kind: &str, name: &str, line: u32) {
+        const LIMIT: usize = 60;
+        let shown = if name.len() > LIMIT {
+            let mut end = LIMIT;
+            while !name.is_char_boundary(end) {
+                end -= 1;
+            }
+            format!("{}...", &name[..end])
+        } else {
+            name.to_owned()
+        };
         let info = self.error_info.get_or_insert_with(String::new);
-        info.push_str("\n    (procedure \"");
-        info.push_str(name);
+        info.push_str("\n    (");
+        info.push_str(kind);
+        info.push_str(" \"");
+        info.push_str(&shown);
         info.push_str("\" line ");
         info.push_str(&line.to_string());
         info.push(')');
         self.error_logged = false;
+    }
+
+    /// The lambda expression of the `apply` lambda whose body the current call
+    /// frame runs, with the internal procedure key it runs under, if it is one.
+    pub(crate) fn current_lambda_term(&self) -> Option<(Value, String)> {
+        let key = self.frames.last()?.proc_name.as_ref()?;
+        let lambda = self.proc_def(&format!("::{key}"))?.lambda_term.clone()?;
+        Some((lambda, key.clone()))
     }
 
     /// Append a `(<op> trace on "<name>")` frame — the context frame C's

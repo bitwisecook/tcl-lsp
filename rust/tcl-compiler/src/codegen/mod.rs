@@ -714,6 +714,75 @@ impl<'r> CodegenCtx<'r> {
 
     /// The whole Tcl command represented by [`Self::current_span`], or empty
     /// when the span belongs only to compiler-generated control machinery.
+    /// C logs a command's source through any whitespace before its
+    /// terminator (`error x }` names `error x `); `None` when there is none.
+    fn trailing_space_error_info(&self, text: &str) -> Option<tcl_bytecode::ErrorInfoCommand> {
+        let span = self.current_span.filter(|_| !text.is_empty())?;
+        let trailing = self.space_after(span);
+        (!trailing.is_empty()).then(|| tcl_bytecode::ErrorInfoCommand {
+            text: format!("{text}{trailing}"),
+            line: self.span_line(),
+            nested: false,
+        })
+    }
+
+    /// The word separators between `span` and the terminator after it, by
+    /// this dialect's grammar.
+    fn space_after(&self, span: Span) -> &str {
+        let separators = self.lexer_config().word_separators;
+        let rest = self.source.get(span.end() as usize..).unwrap_or("");
+        let end = rest
+            .bytes()
+            .position(|byte| !separators.is_separator(byte))
+            .unwrap_or(rest.len());
+        &rest[..end]
+    }
+
+    /// [`Self::source_text`] through the whitespace before the command's
+    /// terminator, as C's `errorInfo` names a command.
+    pub(crate) fn error_info_source_text(&self, span: Span) -> String {
+        format!("{}{}", self.source_text(span), self.space_after(span))
+    }
+
+    /// Name the command inside the substitution `spelling` (`[cmd …]`) in
+    /// the `errorInfo` of every instruction emitted for it from `start`, as
+    /// C logs the inner command rather than the enclosing statement. A more
+    /// deeply nested substitution's stamp is kept.
+    pub(crate) fn stamp_substitution_error_info(&mut self, start: usize, spelling: &str) {
+        let Some(inner) = spelling
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+        else {
+            return;
+        };
+        let separators = self.lexer_config().word_separators;
+        let text = inner.trim_start_matches(|c: char| {
+            c == '\n' || u8::try_from(c).is_ok_and(|byte| separators.is_separator(byte))
+        });
+        if text.trim().is_empty() {
+            return;
+        }
+        let statement = self.command_span_text();
+        let before = statement
+            .find(spelling)
+            .map_or(0, |at| statement[..at].matches('\n').count())
+            + inner[..inner.len() - text.len()].matches('\n').count();
+        let line = self.span_line() + u32::try_from(before).unwrap_or(0);
+        for instruction in self.instructions.iter_mut().skip(start) {
+            if instruction
+                .error_info_command
+                .as_ref()
+                .is_none_or(|command| !command.nested)
+            {
+                instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                    text: text.to_owned(),
+                    line,
+                    nested: true,
+                });
+            }
+        }
+    }
+
     fn command_span_text(&self) -> String {
         if self.current_span_is_command {
             self.span_text()
@@ -769,6 +838,7 @@ impl<'r> CodegenCtx<'r> {
         instr.evaluation = self.command_evaluation();
         instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
+        instr.error_info_command = self.trailing_space_error_info(&instr.source_cmd_text);
         if !instr.source_cmd_text.is_empty() {
             instr
                 .source_command_namespace
@@ -789,6 +859,7 @@ impl<'r> CodegenCtx<'r> {
         instr.evaluation = self.command_evaluation();
         instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
+        instr.error_info_command = self.trailing_space_error_info(&instr.source_cmd_text);
         if !instr.source_cmd_text.is_empty() {
             instr
                 .source_command_namespace

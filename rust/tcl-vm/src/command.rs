@@ -102,6 +102,9 @@ pub struct ProcDef {
     /// is an implementation detail (`apply` lambdas and `TclOO` method bodies).
     /// Ordinary procs derive them from the dispatched head and arguments.
     pub(crate) call_identity: Option<Vec<Value>>,
+    /// For an `apply` lambda, the lambda expression C names in the
+    /// `(lambda term "…" line N)` errorInfo frame in place of a procedure's.
+    pub(crate) lambda_term: Option<Value>,
 }
 
 /// A registered command.
@@ -510,6 +513,7 @@ pub(crate) fn build_lambda_proc(
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
         call_identity: Some(call_identity),
+        lambda_term: Some(lambda.clone()),
     });
     Ok(name)
 }
@@ -1444,6 +1448,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body_src: body_text.clone(),
         usage_name: None,
         call_identity: None,
+        lambda_term: None,
     });
     ok(Value::empty())
 }
@@ -1889,6 +1894,11 @@ pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// opcode performs (this fallback runs in the proc's own frame).
 fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.is_empty() {
+        // An argument-less `tailcall` also cancels one already scheduled on
+        // this frame by an `uplevel`ed body.
+        if let Some(scheduled) = vm.current_frame_tailcall() {
+            *scheduled = None;
+        }
         return Completion::new(Code::Return, Value::empty(), Value::empty());
     }
     let name = args[0].to_str().to_string();

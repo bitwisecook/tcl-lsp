@@ -229,7 +229,7 @@ fn regsub_command_error_appends_the_c_error_info_trailer() {
     assert_eq!(msg, "boom");
     assert_eq!(
         info,
-        "{boom\n    while executing\n\"error boom\"\n    (procedure \"boomp\" line 1)\n    \
+        "{boom\n    while executing\n\"error boom \"\n    (procedure \"boomp\" line 1)\n    \
          (-command substitution computation script)\n    invoked from within\n\"regsub -command \
          {.x.} abcxdef boomp\"}"
     );

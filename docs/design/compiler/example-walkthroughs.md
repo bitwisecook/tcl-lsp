@@ -551,7 +551,10 @@ pub struct Instruction {
     pub comment: String,           // for disassembly
     pub offset: i32,               // filled by the layout pass; -1 before it
     pub source_line: u32,          // 1-based, for errorInfo
-    pub source_cmd_text: String,   // original command text, for errorInfo
+    pub source_cmd_text: String,   // the statement's text, for replay
+    pub error_info_command: Option<ErrorInfoCommand>, // what errorInfo names, where C's
+                                   // differs: through trailing separators, or the
+                                   // command inside a substitution
     pub source_span: Option<Span>, // byte span this was lowered from
     // …plus the per-opcode emitter hints (jump_table, foreach_vars, dict_vars,
     //   no_fold, foreach_collect, push_verbatim)

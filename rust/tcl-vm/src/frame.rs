@@ -47,6 +47,11 @@ pub(crate) struct CallFrame {
     /// the shared variable resolver. This is what makes `uplevel`/`upvar` into
     /// a namespace-eval body resolve to namespace variables.
     pub ns_eval: Option<String>,
+    /// A `tailcall` scheduled on this procedure frame from a body `uplevel`
+    /// redirected here (C's `framePtr->tailcallPtr`): the namespace its
+    /// command resolves in and its words. It replaces the procedure's result
+    /// once the procedure completes `ok`.
+    pub tailcall: Option<(String, Vec<Value>)>,
 }
 
 impl CallFrame {
@@ -59,6 +64,7 @@ impl CallFrame {
             proc_name,
             call_argv,
             ns_eval: None,
+            tailcall: None,
         }
     }
 }
