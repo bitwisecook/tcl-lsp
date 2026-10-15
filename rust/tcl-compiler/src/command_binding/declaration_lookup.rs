@@ -31,6 +31,13 @@ impl super::ModuleCommandBindings {
             CommandLookupBase, NativeNameContext, NativeNameProtocol, NativeNameQualification,
             command_lookup_bases,
         };
+        match input {
+            crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_)
+            | crate::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_) => {}
+            crate::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_) => {
+                return None;
+            }
+        }
         let policy = input.policy();
         let recipe = policy.recipe();
         let scope = self.original_command_world.scope(namespace, policy)?;

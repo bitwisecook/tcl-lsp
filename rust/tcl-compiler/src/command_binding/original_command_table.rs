@@ -844,6 +844,111 @@ mod tests {
     }
 
     #[test]
+    fn evaluated_command_roles_do_not_consume_lexical_root_units() {
+        let (state, config, policy) = catalogue_state(tcl_dialect::TclVersion::V8_6);
+        let root_namespace = state.source_root_namespace_key().unwrap();
+        let operand = catalogue_input("proc", config, policy);
+        let word = operand.original_word_key().unwrap().original_word();
+        let value = SignatureSourceNameInput::OriginalValue(
+            crate::signature_scan::scope::SignatureSourceNameValue::from_original_static_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap(),
+        );
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document("$proc"),
+            tcl_lexer::Span::new(0, 5),
+            config,
+        )
+        .unwrap();
+        let word = &plan.commands[0].words[0];
+        let root = SignatureSourceNameInput::OriginalVariableRoot(
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+                word,
+                word.span(),
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap(),
+        );
+        assert_eq!(root.bytes(), operand.bytes());
+        assert_eq!(root.policy(), operand.policy());
+        for input in [&operand, &value] {
+            assert!(
+                state
+                    .original_command_paths_for_input(&root_namespace, input)
+                    .is_some()
+            );
+            assert!(
+                state
+                    .original_alias_loop_paths_for_input(&root_namespace, input)
+                    .is_some()
+            );
+            assert!(
+                state
+                    .original_targets_for_input(
+                        input,
+                        &root_namespace,
+                        super::super::CommandTargetLookup::CompilerSlots,
+                    )
+                    .is_some()
+            );
+            assert!(
+                state
+                    .original_publication_key(
+                        &root_namespace,
+                        input,
+                        super::super::namespace_slots::PublicationPurpose::Command,
+                    )
+                    .is_some()
+            );
+        }
+        assert!(
+            state
+                .original_command_paths_for_input(&root_namespace, &root)
+                .is_none()
+        );
+        assert!(
+            state
+                .original_alias_loop_paths_for_input(&root_namespace, &root)
+                .is_none()
+        );
+        assert!(
+            state
+                .original_targets_for_input(
+                    &root,
+                    &root_namespace,
+                    super::super::CommandTargetLookup::CompilerSlots,
+                )
+                .is_none()
+        );
+        assert!(
+            state
+                .original_publication_key(
+                    &root_namespace,
+                    &root,
+                    super::super::namespace_slots::PublicationPurpose::Command,
+                )
+                .is_none()
+        );
+        assert!(!state.original_diagnostic_qualifier_is_retained(&root, &root_namespace));
+        let subject = TransitionSubject::LocatedLiteral {
+            value: "proc".into(),
+            argument_index: 0,
+        };
+        let mut operands = OriginalCommandOperands {
+            inputs: vec![(subject.clone(), operand)],
+            procedure_body: false,
+            namespace_ensure: None,
+        };
+        assert!(operands.input(&subject).is_some());
+        operands.inputs[0].1 = root;
+        assert!(operands.input(&subject).is_none());
+    }
+
+    #[test]
     fn original_catalogue_advice_retains_unloaded_metadata_without_runtime_holder() {
         let (state, config, policy) = catalogue_state(tcl_dialect::TclVersion::V8_6);
         let root = state.source_root_namespace_key().unwrap();
@@ -1321,6 +1426,11 @@ impl OriginalCommandOperands {
             .filter(|(owned, _)| owned == subject)
             .map(|(_, input)| input);
         let first = selected.next()?;
+        match first {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         selected.all(|input| input == first).then_some(first)
     }
 
@@ -1585,6 +1695,11 @@ impl ModuleCommandBindings {
         input: &SignatureSourceNameInput,
         kind: CommandBindingDefinitionKind,
     ) -> Option<SourceCommandKey> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         let scope = if input.bytes().starts_with(b"::") {
             SignatureNamespaceScope::root(Some(input.policy()))
         } else {
@@ -1664,6 +1779,11 @@ impl ModuleCommandBindings {
         input: &SignatureSourceNameInput,
         purpose: super::namespace_slots::PublicationPurpose,
     ) -> Option<SourceCommandKey> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         let scope = if input.bytes().starts_with(b"::") {
             SignatureNamespaceScope::root(Some(input.policy()))
         } else {
@@ -1742,6 +1862,11 @@ impl ModuleCommandBindings {
         current: &SourceNamespaceKey,
         input: &SignatureSourceNameInput,
     ) -> Option<Vec<Vec<SourceCommandKey>>> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         self.original_command_paths_for_bytes(current, input.bytes(), input.policy())
     }
 
@@ -1753,6 +1878,11 @@ impl ModuleCommandBindings {
         current: &SourceNamespaceKey,
         input: &SignatureSourceNameInput,
     ) -> Option<OriginalAliasLoopPaths> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         self.original_command_slot_paths_for_bytes(current, input.bytes(), input.policy())?
             .into_iter()
             .map(|path| {
@@ -2098,6 +2228,11 @@ impl ModuleCommandBindings {
         Vec<super::OriginalCatalogueSourceObligation>,
     )> {
         use super::OriginalCatalogueSourceObligation as Obligation;
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         let policy = input.policy();
         if self
             .baseline
@@ -2654,6 +2789,11 @@ impl ModuleCommandBindings {
         input: &SignatureSourceNameInput,
         current: &SourceNamespaceKey,
     ) -> bool {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return false,
+        }
         self.original_command_slot_paths_for_bytes(current, input.bytes(), input.policy())
             .is_some_and(|paths| {
                 !paths.is_empty()

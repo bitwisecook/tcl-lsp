@@ -510,6 +510,13 @@ impl OriginalSourceMemberEffect {
         inputs: Vec<SignatureSourceNameInput>,
         purpose: tcl_registry::definer::DefinitionMemberNamePurpose,
     ) -> Option<Self> {
+        for input in &inputs {
+            match input {
+                SignatureSourceNameInput::OriginalWord(_)
+                | SignatureSourceNameInput::OriginalValue(_) => {}
+                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            }
+        }
         let first = inputs.first()?;
         if inputs.iter().any(|input| {
             input.policy() != first.policy()
@@ -800,6 +807,11 @@ impl OriginalSourceMemberLedger {
         side: MemberSide,
         input: &SignatureSourceNameInput,
     ) -> Option<OriginalSourceMethodMetadata> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         self.methods(side)?.into_iter().find(|method| {
             method
                 .purpose
@@ -854,6 +866,11 @@ impl OriginalSourceMemberLedger {
         default_exported: bool,
         before: Option<&CommandAllocationSite>,
     ) -> Option<bool> {
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
         self.inherited_visibility_for_bytes(
             side,
             input.policy(),
@@ -979,4 +996,103 @@ fn apply_effect(
         }
     }
     Some(())
+}
+
+#[cfg(test)]
+mod input_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn member_operands_and_effects_require_values_instead_of_lexical_roots() {
+        let analysis = crate::analyser::Analyser::new().analyse(
+            "oo::class create C {method ping {} {}; export inherited}",
+            "tcl8.6",
+        );
+        let class = analysis.original_class_declarations().next().unwrap();
+        let ledger = &class.metadata().original_members;
+        let method = ledger.methods(MemberSide::Instance).unwrap().remove(0);
+        let input = method.original_name_input();
+        let word = input.original_word_key().unwrap().original_word();
+        let config = word.config();
+        let policy = input.policy();
+        let value = SignatureSourceNameInput::OriginalValue(
+            crate::signature_scan::scope::SignatureSourceNameValue::from_original_static_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap(),
+        );
+        let root = |name: &str| {
+            let source = format!("${name}");
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(&source),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let word = &plan.commands[0].words[0];
+            SignatureSourceNameInput::OriginalVariableRoot(
+                crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+                    word,
+                    word.span(),
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    policy,
+                ).unwrap(),
+            )
+        };
+        let lexical = root("ping");
+        assert_eq!(lexical.bytes(), input.bytes());
+        assert_eq!(lexical.policy(), input.policy());
+        for operand in [input, &value] {
+            assert!(
+                ledger
+                    .method_for_input(MemberSide::Instance, operand)
+                    .is_some()
+            );
+            assert!(
+                OriginalSourceMemberEffect::new(
+                    method.declaration().site().clone(),
+                    MemberSide::Instance,
+                    OriginalSourceMemberEffectKind::Visibility(true),
+                    vec![operand.clone()],
+                    method.name_purpose(),
+                )
+                .is_some()
+            );
+        }
+        assert!(
+            ledger
+                .method_for_input(MemberSide::Instance, &lexical)
+                .is_none()
+        );
+        assert!(
+            OriginalSourceMemberEffect::new(
+                method.declaration().site().clone(),
+                MemberSide::Instance,
+                OriginalSourceMemberEffectKind::Visibility(true),
+                vec![lexical],
+                method.name_purpose(),
+            )
+            .is_none()
+        );
+        let inherited = ledger
+            .effects()
+            .find_map(|effect| {
+                effect
+                    .inputs
+                    .iter()
+                    .find(|input| input.bytes() == b"inherited")
+            })
+            .unwrap();
+        assert_eq!(
+            ledger.inherited_visibility_for_input(MemberSide::Instance, inherited, false),
+            Some(true)
+        );
+        assert!(
+            ledger
+                .inherited_visibility_for_input(MemberSide::Instance, &root("inherited"), false)
+                .is_none()
+        );
+    }
 }

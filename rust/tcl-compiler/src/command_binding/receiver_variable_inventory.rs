@@ -37,6 +37,13 @@ impl OriginalReceiverVariableInventory {
         slot: Option<SlotSpec>,
         arguments: Vec<SignatureSourceNameInput>,
     ) -> Option<()> {
+        for input in &arguments {
+            match input {
+                SignatureSourceNameInput::OriginalWord(_)
+                | SignatureSourceNameInput::OriginalValue(_) => {}
+                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            }
+        }
         if arguments.iter().any(|input| input.policy() != self.policy) {
             return None;
         }
@@ -136,6 +143,50 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn receiver_declaration_operands_keep_values_separate_from_lexical_roots() {
+        let version = tcl_dialect::TclVersion::V8_6;
+        let operand = inputs(version, b"variable ping").remove(0);
+        let word = operand.original_word_key().unwrap().original_word();
+        let config = word.config();
+        let policy = operand.policy();
+        let value = SignatureSourceNameInput::OriginalValue(
+            crate::signature_scan::scope::SignatureSourceNameValue::from_original_static_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap(),
+        );
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::native(b"$ping".as_slice()),
+            tcl_lexer::Span::new(0, 5),
+            config,
+        )
+        .unwrap();
+        let word = &plan.commands[0].words[0];
+        let root = SignatureSourceNameInput::OriginalVariableRoot(
+            crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+                word,
+                word.span(),
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap(),
+        );
+        assert_eq!(root.bytes(), operand.bytes());
+        assert_eq!(root.policy(), operand.policy());
+        let mut inventory =
+            OriginalReceiverVariableInventory::empty(&tcl_registry::definer::TCLOO_GRAMMAR, policy)
+                .unwrap();
+        for input in [operand, value] {
+            inventory.apply(None, vec![input]).unwrap();
+        }
+        let before = inventory.clone();
+        assert!(inventory.apply(None, vec![root]).is_none());
+        assert_eq!(inventory, before);
     }
 
     #[test]

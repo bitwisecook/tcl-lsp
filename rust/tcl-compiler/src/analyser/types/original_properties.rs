@@ -35,6 +35,13 @@ impl OriginalSourcePropertyMetadata {
         setter: Option<SignatureSourceNameInput>,
         accessor_advice: tcl_registry::definer::SourcePropertyAccessorAdvice,
     ) -> Option<Self> {
+        for input in getter.iter().chain(setter.iter()) {
+            match input {
+                SignatureSourceNameInput::OriginalWord(_)
+                | SignatureSourceNameInput::OriginalValue(_) => {}
+                SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+            }
+        }
         let key = declaration.name_input();
         if accessor_advice.recipe() != key.policy().recipe()
             || metadata.name_span != key.span()
@@ -113,9 +120,12 @@ impl OriginalSourcePropertyMetadata {
         selector: &SignatureSourceNameInput,
         arguments: usize,
     ) -> Option<tcl_registry::definer::SourcePropertyAccessorLayout> {
-        if selector.policy() != self.input.policy()
-            || matches!(selector, SignatureSourceNameInput::OriginalVariableRoot(_))
-        {
+        match selector {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
+        if selector.policy() != self.input.policy() {
             return None;
         }
         self.accessor_advice.layout(selector.bytes(), arguments)
@@ -129,9 +139,12 @@ impl OriginalSourcePropertyMetadata {
         ordinal: usize,
         arguments: usize,
     ) -> Option<tcl_registry::definer::SourcePropertyCompletionRole> {
-        if selector.policy() != self.input.policy()
-            || matches!(selector, SignatureSourceNameInput::OriginalVariableRoot(_))
-        {
+        match selector {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
+        if selector.policy() != self.input.policy() {
             return None;
         }
         self.accessor_advice
@@ -250,8 +263,10 @@ impl OriginalSourcePropertyLedger {
         side: MemberSide,
         input: &SignatureSourceNameInput,
     ) -> Option<&OriginalSourcePropertyMetadata> {
-        if matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_)) {
-            return None;
+        match input {
+            SignatureSourceNameInput::OriginalWord(_)
+            | SignatureSourceNameInput::OriginalValue(_) => {}
+            SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
         }
         self.properties(side)?
             .into_iter()

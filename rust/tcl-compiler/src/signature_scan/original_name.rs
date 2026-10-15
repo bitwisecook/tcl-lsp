@@ -872,12 +872,12 @@ impl SourceNamespacePattern {
         input: &super::scope::SignatureSourceNameInput,
     ) -> Option<tcl_core_types::ByteCommandSlot> {
         use tcl_syntax::naming::NativeNameContext;
-        if input.policy() != self.input.policy()
-            || matches!(
-                input,
-                super::scope::SignatureSourceNameInput::OriginalVariableRoot(_)
-            )
-        {
+        match input {
+            super::scope::SignatureSourceNameInput::OriginalWord(_)
+            | super::scope::SignatureSourceNameInput::OriginalValue(_) => {}
+            super::scope::SignatureSourceNameInput::OriginalVariableRoot(_) => return None,
+        }
+        if input.policy() != self.input.policy() {
             return None;
         }
         let slot = input
