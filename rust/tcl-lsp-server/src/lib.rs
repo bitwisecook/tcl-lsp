@@ -59154,7 +59154,7 @@ proc p {} {
         let source = "source \"lib/old.tcl\"\n";
         backend
             .did_open(DidOpenTextDocumentParams {
-                text_document: TextDocumentItem {
+                text_document: tower_lsp_server::ls_types::TextDocumentItem {
                     uri: uri.clone(),
                     language_id: "tcl".to_owned(),
                     version: 17,
