@@ -114,6 +114,20 @@ impl OriginalSourceClassRelationProvider {
         self.input.policy()
     }
 
+    pub(crate) fn matches_definition_parent(&self, body: &OriginalSourceScriptBody) -> bool {
+        &self.body == body
+    }
+
+    pub(crate) fn contains_definition_site(
+        &self,
+        site: &crate::command_binding::CommandAllocationSite,
+    ) -> bool {
+        let content = self.body.content_span();
+        site.source == self.parent.site().source
+            && content.start() <= site.offset
+            && site.offset < content.end()
+    }
+
     /// Exact fresh declaration/header/body correspondence. Configuration
     /// parents need their own target association before supplying this view.
     #[must_use]

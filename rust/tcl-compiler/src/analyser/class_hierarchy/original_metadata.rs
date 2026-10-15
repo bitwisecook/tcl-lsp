@@ -5,8 +5,10 @@
 //! Class relation order for retained source declaration advice.
 //!
 //! This view joins exact declaration publications before the shared MRO walk.
-//! It supplies no call-point table, registered ancestor, maker or native
-//! delegate attachment. Missing source providers and ambiguous joins abstain.
+//! Pure declaration orders supply no registered ancestor. A separate provider
+//! view retains actual parent-horizon Registry roots. Neither supplies a
+//! call-point table, maker or native delegate attachment. Missing providers and
+//! ambiguous joins abstain.
 
 use crate::analyser::types::{MemberSide, OriginalSourceClassRelationKind};
 use crate::analyser::{AnalysisResult, ClassDef};
@@ -116,6 +118,58 @@ pub fn original_instance_metadata_order_for_inventory(
         mixins.insert(index, mixed);
     }
     tcl_syntax::mro::tcloo_linearise(&root_index, &supers, &mixins).ok()
+}
+
+/// Original own-table methods associated with this actual fresh definition.
+/// Missing parent geometry and source-installer applicability remain terminal;
+/// no displayed method map selects a member or repairs an unrepresented owner.
+#[must_use]
+pub(crate) fn original_definition_members_for_class(
+    analysis: &AnalysisResult,
+    class: &ClassDef,
+    side: MemberSide,
+) -> Option<Vec<crate::analyser::types::OriginalSourceMethodMetadata>> {
+    let parents = class.original_relations.resolve(
+        MemberSide::Instance,
+        OriginalSourceClassRelationKind::Superclass,
+        |relation| {
+            let provider = relation.source_provider()?;
+            (provider.matches_analysis(analysis)
+                && provider.matches_relation(relation.name_input(), relation.lookup())
+                && provider.matches_class_definition(class))
+            .then(|| provider.clone())
+        },
+    )?;
+    // This view is for the original fresh definition only. A later
+    // configuration cannot alter an earlier factory through its final ledger.
+    for method in class
+        .original_members
+        .declarations()
+        .filter(|method| method.side() == side)
+    {
+        let parent = method.definition_parent()?;
+        if method.declaration().source_installer().is_some()
+            || !parents
+                .iter()
+                .any(|provider| provider.matches_definition_parent(parent))
+        {
+            return None;
+        }
+    }
+    for effect in class
+        .original_members
+        .effects()
+        .filter(|effect| effect.side() == side)
+    {
+        if !parents
+            .iter()
+            .any(|provider| provider.contains_definition_site(effect.site()))
+        {
+            return None;
+        }
+    }
+    let methods = class.original_members.methods(side)?;
+    Some(methods)
 }
 
 /// Registry metaclass metadata reached through closed original superclass
@@ -335,6 +389,96 @@ mod registry_provider_tests {
         let mut stand_in = class.clone();
         stand_in.metaclass_provenance = MetaclassProvenance::StandIn;
         assert!(original_registry_metaclass_provider(&analysis, &stand_in, &context).is_none());
+    }
+
+    #[test]
+    fn original_factory_members_require_their_actual_class_body_parent() {
+        let source = "oo::class create Meta {superclass ::oo::class; self method create {name body} {next $name $body}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let class = analysis
+            .all_classes
+            .values()
+            .find(|class| class.name == "Meta")
+            .unwrap();
+        let members =
+            original_definition_members_for_class(&analysis, class, MemberSide::ClassObject)
+                .unwrap();
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].original_name_input().bytes(), b"create");
+        let signature = members[0]
+            .original_parameter_names_and_body(&analysis)
+            .unwrap();
+        assert_eq!(
+            signature.parameter_names().collect::<Vec<_>>(),
+            ["name", "body"]
+        );
+
+        let mut report_only = class.clone();
+        report_only.class_methods.clear();
+        report_only.class_exports.clear();
+        report_only.class_unexports.clear();
+        assert_eq!(
+            original_definition_members_for_class(&analysis, &report_only, MemberSide::ClassObject)
+                .unwrap(),
+            members
+        );
+
+        let mut missing_parent = class.clone();
+        missing_parent.original_members = Default::default();
+        missing_parent
+            .original_members
+            .declare(members[0].clone().with_definition_parent(None).unwrap());
+        assert!(
+            original_definition_members_for_class(
+                &analysis,
+                &missing_parent,
+                MemberSide::ClassObject
+            )
+            .is_none()
+        );
+        let mut outside_effect = class.clone();
+        let mut site = members[0].declaration().site().clone();
+        site.offset = class.name_span.start();
+        outside_effect.original_members.effect(
+            crate::analyser::types::OriginalSourceMemberEffect::new(
+                site,
+                MemberSide::ClassObject,
+                crate::analyser::types::OriginalSourceMemberEffectKind::Visibility(false),
+                vec![members[0].original_name_input().clone()],
+                members[0].name_purpose(),
+            )
+            .unwrap(),
+        );
+        assert!(
+            original_definition_members_for_class(
+                &analysis,
+                &outside_effect,
+                MemberSide::ClassObject
+            )
+            .is_none()
+        );
+
+        let foreign = Analyser::new().analyse("oo::class create Other {superclass ::oo::class; self method create {x script} {next $x $script}}", "tcl8.6").clone();
+        let foreign_class = foreign
+            .all_classes
+            .values()
+            .find(|class| class.name == "Other")
+            .unwrap();
+        let mut foreign_parent = class.clone();
+        foreign_parent.original_members = foreign_class.original_members.clone();
+        assert!(
+            original_definition_members_for_class(
+                &analysis,
+                &foreign_parent,
+                MemberSide::ClassObject
+            )
+            .is_none()
+        );
+        assert!(
+            members[0]
+                .original_parameter_names_and_body(&foreign)
+                .is_none()
+        );
     }
 
     #[test]

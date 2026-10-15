@@ -54,7 +54,8 @@ use crate::value_transfer::{WordForm, literal_selection};
 
 use super::state::Analyser;
 use super::types::{
-    ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, MetaclassProvenance, ProcDef,
+    ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, MemberSide,
+    MetaclassProvenance, ProcDef,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
 use tcl_dialect::model::SpecSurface;
@@ -6967,41 +6968,46 @@ impl Analyser {
     /// argument 3, not 2, and splices a superclass the caller never wrote.
     fn class_factory_of(&self, class: &ClassDef) -> Option<ClassFactory> {
         let meta = self.user_metaclass_of_class(class)?;
-        let overrides = class
-            .class_methods
-            .iter()
-            .filter_map(|(subcommand, override_def)| {
-                let builtin = meta.grammar.manufacturer(subcommand)?;
-                let default_positions = Some((
-                    usize::from(builtin.names_instance_at?),
-                    usize::from(builtin.definition_body_at?),
-                ));
-                let positions = self.manufacturer_word_positions(override_def);
-                let (name_arg, body_arg) = positions.or(default_positions)?;
-                let injected = positions
-                    .and_then(|_| self.manufacturer_injected_template(&meta, override_def));
-                Some((
-                    subcommand.clone(),
+        let members =
+            super::class_hierarchy::original_metadata::original_definition_members_for_class(
+                &self.result,
+                class,
+                MemberSide::ClassObject,
+            )?;
+        let mut overrides = std::collections::BTreeMap::new();
+        let mut exported_manufacturers = std::collections::BTreeSet::new();
+        for builtin in meta.grammar.manufacturers {
+            let own = members.iter().find(|method| {
+                method.original_name_input().policy() == meta.root_policy
+                    && method.original_name_input().bytes() == builtin.keyword.as_bytes()
+            });
+            let exported = if let Some(method) = own {
+                let override_def = method.original_parameter_names_and_body(&self.result)?;
+                let (name_arg, body_arg) = self.manufacturer_word_positions(&override_def)?;
+                overrides.insert(
+                    builtin.keyword.to_owned(),
                     super::types::ManufacturerSpec {
                         name_arg,
                         body_arg,
-                        injected,
+                        injected: self.manufacturer_injected_template(&meta, &override_def),
                     },
-                ))
-            })
-            .collect();
+                );
+                method.exported()
+            } else {
+                class
+                    .original_members
+                    .inherited_visibility_for_metadata_keyword(
+                        MemberSide::ClassObject,
+                        meta.root_policy,
+                        builtin.keyword,
+                        builtin.visibility == tcl_registry::definer::MemberVisibility::Exported,
+                    )?
+            };
+            if exported {
+                exported_manufacturers.insert(builtin.keyword.to_owned());
+            }
+        }
         let unknown_binds_instance = self.unknown_dispatch_binds_instance(&meta, class);
-        let exported_manufacturers = meta
-            .grammar
-            .manufacturers
-            .iter()
-            .filter(|method| {
-                !class.class_unexports.contains(method.keyword)
-                    && (method.visibility == tcl_registry::definer::MemberVisibility::Exported
-                        || class.class_exports.contains(method.keyword))
-            })
-            .map(|method| method.keyword.to_owned())
-            .collect();
         Some(ClassFactory {
             root_metaclass: meta.root_command,
             overrides,
@@ -7060,19 +7066,34 @@ impl Analyser {
         let Some(keyword) = meta.grammar.unknown_dispatch_method else {
             return false;
         };
-        let Some(member) = class.methods.get(keyword) else {
+        let Some(members) =
+            super::class_hierarchy::original_metadata::original_definition_members_for_class(
+                &self.result,
+                class,
+                MemberSide::Instance,
+            )
+        else {
             return false;
         };
-        if member.params_computed {
+        let Some(original) = members.iter().find(|method| {
+            method.original_name_input().policy() == meta.root_policy
+                && method.original_name_input().bytes() == keyword.as_bytes()
+        }) else {
             return false;
-        }
-        let Some(word_param) = member.params.first().map(|p| p.name.as_str()) else {
+        };
+        let Some(member) = original.original_parameter_names_and_body(&self.result) else {
+            return false;
+        };
+        let Some(word_param) = member.parameter_names().next() else {
+            return false;
+        };
+        let Some(body_token) = member.body_word().tokens().first() else {
             return false;
         };
         let Some(proof) = self.unknown_script_path_proof(
             meta,
             class,
-            member.body_span,
+            body_token.span,
             word_param,
             vec![false],
             0,
@@ -9909,17 +9930,13 @@ impl Analyser {
     /// parameter reference is the name, the last is the body (the body is
     /// always spliced in last — everything between is the definition
     /// prologue the manufacturer builds).  Returns `None` when the override
-    /// cannot be read that way, and the caller falls back to the builtin
-    /// positions with inheritance marked unknown.
+    /// cannot be read that way; a present unreadable override supplies no
+    /// builtin layout.
     fn manufacturer_word_positions(
         &self,
-        override_def: &super::types::MethodDef,
+        override_def: &super::types::OriginalSourceMethodNameBody<'_>,
     ) -> Option<(usize, usize)> {
-        let params: Vec<&str> = override_def
-            .params
-            .iter()
-            .map(|p| p.name.as_str())
-            .collect();
+        let params = override_def.parameter_names().collect::<Vec<_>>();
         let next_seg = self.manufacturer_next_call(override_def)?;
         // Parameter `i` of the override binds argument `i + 1` of the call
         // (argument 0 being the manufacturer subcommand itself).
@@ -9940,21 +9957,16 @@ impl Analyser {
     /// own source bytes.
     fn manufacturer_next_call(
         &self,
-        override_def: &super::types::MethodDef,
+        override_def: &super::types::OriginalSourceMethodNameBody<'_>,
     ) -> Option<SegmentedCommand> {
         let registry = self.registry.as_ref()?;
-        let start = override_def.body_span.start() as usize;
-        let end = override_def.body_span.end() as usize;
-        let raw = self.source.get(start..end)?;
-        // `MethodDef` keeps the body **word**'s span, whose start sits on
-        // the opening delimiter; the script is its content.
-        let (body, base) = raw
-            .strip_prefix(['{', '"'])
-            .map_or((raw, start), |inner| (inner, start.saturating_add(1)));
+        let original = override_def.body_word();
+        let content = original.content_span().ok()?;
+        let body = original.image().try_text().ok()?.get(content.as_range())?;
         crate::segmenter::segment_commands_with_offset_and_config(
             body,
-            u32::try_from(base).unwrap_or(0),
-            self.file_lexer_config().nested(),
+            content.start(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(original.config()),
         )
         .into_iter()
         .find(|seg| {
@@ -9996,13 +10008,9 @@ impl Analyser {
     fn manufacturer_injected_template(
         &self,
         meta: &UserMetaclass,
-        override_def: &super::types::MethodDef,
+        override_def: &super::types::OriginalSourceMethodNameBody<'_>,
     ) -> Option<Vec<FactoryMember>> {
-        let params: Vec<&str> = override_def
-            .params
-            .iter()
-            .map(|p| p.name.as_str())
-            .collect();
+        let params = override_def.parameter_names().collect::<Vec<_>>();
         let next_seg = self.manufacturer_next_call(override_def)?;
         // The definition word is `next`'s last argument that reads one of
         // the override's parameters — the builtin `create Name Body`
@@ -12007,6 +12015,43 @@ mod tests {
                         )
                         .is_none()
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn original_factory_overrides_require_readable_original_member_layout() {
+        for (source, represented) in [
+            (
+                "oo::class create Meta {superclass ::oo::class; self method create {name body} {next $name $body}}",
+                true,
+            ),
+            (
+                "oo::class create Meta {superclass ::oo::class; self method create {name body} {return opaque}}",
+                false,
+            ),
+            (
+                "oo::class create Meta {superclass ::oo::class; self forward create opaque}",
+                false,
+            ),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
+            let class = analyser
+                .result
+                .all_classes
+                .values()
+                .find(|class| class.name == "Meta")
+                .unwrap();
+            let factory = analyser.class_factory_of(class);
+            assert_eq!(factory.is_some(), represented, "{source}");
+            if let Some(factory) = factory {
+                let layout = factory.overrides.get("create").unwrap();
+                assert_eq!((layout.name_arg, layout.body_arg), (1, 2));
+                let mut report_only = class.clone();
+                report_only.class_methods.clear();
+                report_only.class_unexports.insert("create".to_owned());
+                assert_eq!(analyser.class_factory_of(&report_only), Some(factory));
             }
         }
     }

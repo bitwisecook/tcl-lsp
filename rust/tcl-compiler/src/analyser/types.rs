@@ -50,6 +50,7 @@ pub use original_configurations::{
 };
 pub use original_constructor_call::{OriginalConstructorArityAdvice, OriginalConstructorArityCall};
 pub use original_member_context::{OriginalLexicalMemberContext, OriginalLexicalNextCall};
+pub(crate) use original_members::OriginalSourceMethodNameBody;
 pub use original_members::{
     OriginalSourceMemberDeclaration, OriginalSourceMemberEffect, OriginalSourceMemberEffectKind,
     OriginalSourceMemberLedger, OriginalSourceMethodMetadata,

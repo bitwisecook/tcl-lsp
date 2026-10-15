@@ -132,6 +132,22 @@ pub struct OriginalSourceMethodMetadata {
     parameters: Option<tcl_lexer::NativeWord>,
     body: Option<tcl_lexer::NativeWord>,
     source_dialect: Option<tcl_registry::InvocationDialect>,
+    definition_parent: Option<crate::registry_invocation::OriginalSourceScriptBody>,
+}
+
+pub(crate) struct OriginalSourceMethodNameBody<'a> {
+    parameters: Vec<&'a str>,
+    body: &'a tcl_lexer::NativeWord,
+}
+impl<'a> OriginalSourceMethodNameBody<'a> {
+    pub(crate) fn parameter_names(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &'a str> + DoubleEndedIterator + '_ {
+        self.parameters.iter().copied()
+    }
+    pub(crate) const fn body_word(&self) -> &'a tcl_lexer::NativeWord {
+        self.body
+    }
 }
 
 impl OriginalSourceMethodMetadata {
@@ -161,6 +177,7 @@ impl OriginalSourceMethodMetadata {
             parameters: None,
             body: None,
             source_dialect: None,
+            definition_parent: None,
         })
     }
 
@@ -200,6 +217,7 @@ impl OriginalSourceMethodMetadata {
             parameters: None,
             body: None,
             source_dialect: None,
+            definition_parent: None,
         })
     }
 
@@ -223,6 +241,100 @@ impl OriginalSourceMethodMetadata {
         self.parameters = parameters;
         self.body = body;
         Some(self)
+    }
+
+    pub(crate) fn with_definition_parent(
+        mut self,
+        parent: Option<&crate::registry_invocation::OriginalSourceScriptBody>,
+    ) -> Option<Self> {
+        if let Some(parent) = parent {
+            let word = self.declaration.original_word();
+            let content = parent.content_span();
+            if word.image() != parent.original_container().image()
+                || word.config() != parent.original_container().config()
+                || self.declaration.site().source.source_image() != word.image()
+                || word.span().start() < content.start()
+                || word.span().end() > content.end()
+            {
+                return None;
+            }
+        }
+        self.definition_parent = parent.cloned();
+        Some(self)
+    }
+
+    /// Exact original lexical definition parent, without receiver allocation or
+    /// method dispatch. Independent class/ledger correspondence remains required.
+    #[must_use]
+    pub const fn definition_parent(
+        &self,
+    ) -> Option<&crate::registry_invocation::OriginalSourceScriptBody> {
+        self.definition_parent.as_ref()
+    }
+
+    /// Current original formal names and literal body. Defaults and other
+    /// report fields are not supplied by this view. Class association,
+    /// dispatch and invocation effects remain independent obligations.
+    #[must_use]
+    pub(crate) fn original_parameter_names_and_body(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> Option<OriginalSourceMethodNameBody<'_>> {
+        let metadata = self.metadata();
+        if metadata.params_computed
+            || self.native_class_delegate()
+            || self.forward_prefix().is_some()
+        {
+            return None;
+        }
+        let input = analysis.resolved_input.as_ref()?;
+        let parameters = self.parameters_word()?;
+        let body = self.body_word()?;
+        let original = self.declaration().original_word();
+        let content = body.content_span().ok()?;
+        if !analysis.matches_original_source_image(original.image(), input.lexer_config())
+            || original
+                .tokens()
+                .first()
+                .is_none_or(|token| token.span != metadata.name_span)
+            || body
+                .tokens()
+                .first()
+                .is_none_or(|token| token.span != metadata.body_span)
+            || body.image() != original.image()
+            || parameters.image() != original.image()
+            || body.config() != input.lexer_config()
+            || parameters.config() != input.lexer_config()
+            || tcl_syntax::word_rules::original_static_word_source_bytes(body).as_deref()
+                != body.image().bytes().get(content.as_range())
+        {
+            return None;
+        }
+        let policy = self.original_name_input().policy();
+        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            parameters,
+            tcl_syntax::word_rules::WordValueRules::from_config(&parameters.config()),
+            policy,
+        )?;
+        let topology =
+            crate::command_binding::formal_topology::OriginalFormalTopology::from_original_key(
+                key,
+                self.source_dialect()?,
+            )?;
+        (topology.parameters().len() == metadata.params.len()
+            && topology
+                .parameters()
+                .iter()
+                .zip(&metadata.params)
+                .all(|(actual, report)| actual.name.as_slice() == report.name.as_bytes()))
+        .then(|| OriginalSourceMethodNameBody {
+            parameters: metadata
+                .params
+                .iter()
+                .map(|parameter| parameter.name.as_str())
+                .collect(),
+            body,
+        })
     }
 
     /// Whole original formal-list argument selected by the declaration grammar.
@@ -639,6 +751,22 @@ impl OriginalSourceMemberLedger {
     ) -> Option<bool> {
         self.inherited_visibility_in_source_horizon(side, input, default_exported, Some(call))
     }
+    pub(crate) fn inherited_visibility_for_metadata_keyword(
+        &self,
+        side: MemberSide,
+        policy: NamePolicyProtocol,
+        keyword: &'static str,
+        default_exported: bool,
+    ) -> Option<bool> {
+        self.inherited_visibility_for_bytes(
+            side,
+            policy,
+            keyword.as_bytes(),
+            default_exported,
+            None,
+        )
+    }
+
     fn inherited_visibility_in_source_horizon(
         &self,
         side: MemberSide,
@@ -646,10 +774,28 @@ impl OriginalSourceMemberLedger {
         default_exported: bool,
         before: Option<&CommandAllocationSite>,
     ) -> Option<bool> {
+        self.inherited_visibility_for_bytes(
+            side,
+            input.policy(),
+            input.bytes(),
+            default_exported,
+            before,
+        )
+    }
+    fn inherited_visibility_for_bytes(
+        &self,
+        side: MemberSide,
+        policy: NamePolicyProtocol,
+        bytes: &[u8],
+        default_exported: bool,
+        before: Option<&CommandAllocationSite>,
+    ) -> Option<bool> {
+        let matches =
+            |input: &SignatureSourceNameInput| input.policy() == policy && input.bytes() == bytes;
         if self
             .methods_in_source_horizon(side, before)?
             .iter()
-            .any(|method| same_name(&method.input, input))
+            .any(|method| matches(&method.input))
         {
             return None;
         }
@@ -658,7 +804,7 @@ impl OriginalSourceMemberLedger {
             if !site_in_source_horizon(effect.site(), before)? {
                 continue;
             }
-            if !effect.inputs.iter().any(|owned| same_name(owned, input)) {
+            if !effect.inputs.iter().any(&matches) {
                 continue;
             }
             match effect.kind {

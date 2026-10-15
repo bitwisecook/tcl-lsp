@@ -1195,11 +1195,8 @@ impl Producer<'_> {
                     None,
                     self.grammar.member_name_purpose(member)?,
                 )?
-                .with_body_role_words(
-                    parameters.clone(),
-                    body.clone(),
-                    self.source_dialect,
-                )?,
+                .with_body_role_words(parameters.clone(), body.clone(), self.source_dialect)?
+                .with_definition_parent(self.class_relation_body)?,
             );
         }
         class.original_members.declare(
@@ -1212,7 +1209,8 @@ impl Producer<'_> {
                 forward_prefix,
                 self.grammar.member_name_purpose(member)?,
             )?
-            .with_body_role_words(parameters, body, self.source_dialect)?,
+            .with_body_role_words(parameters, body, self.source_dialect)?
+            .with_definition_parent(self.class_relation_body)?,
         );
         Some(())
     }
