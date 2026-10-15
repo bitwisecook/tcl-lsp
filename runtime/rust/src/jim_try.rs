@@ -2,7 +2,7 @@
 //! Selected Jim catch/try ordering over original runtime objects.
 
 use crate::{
-    interp::{new_string, obj_bytes, Code, Interp},
+    interp::{obj_bytes, Code, Interp},
     obj::{self, Owned, TclObj},
 };
 use tcl_cmd_core::{
@@ -202,22 +202,38 @@ fn clauses(
 }
 
 fn bind(interp: &mut Interp, name: &Owned, value: &Owned) -> bool {
-    let name = obj_bytes(name.as_ptr());
-    if name.is_empty() {
+    let original =
+        match crate::interp::native_arguments::OriginalArguments::enter(interp, &[name.as_ptr()]) {
+            Ok(original) => original,
+            Err(error) => {
+                interp.report_cmd_error(error);
+                return false;
+            }
+        };
+    let bytes = match original.bytes(0) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            interp.report_cmd_error(error);
+            return false;
+        }
+    };
+    if bytes.is_empty() {
         return true;
     }
-    match interp.var_set_named(&name, value.as_ptr()) {
-        Ok(()) => true,
-        Err(error) => {
-            crate::builtins::var_error(interp, &name, error);
-            false
-        }
+    if let Err(error) = original.check_original_for(interp, 0, name.as_ptr()) {
+        interp.report_cmd_error(error);
+        return false;
     }
+    let assigned = interp.assign_original_named_variable(name.as_ptr(), value.as_ptr());
+    if let Err(error) = original.check_original_for(interp, 0, name.as_ptr()) {
+        interp.report_cmd_error(error);
+        return false;
+    }
+    assigned.is_ok()
 }
 
 pub(crate) fn command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let none = Owned::fresh(new_string(b"NONE"));
-    let _ = interp.var_set(b"::errorCode", none.as_ptr());
+    let _ = interp.reset_original_jim_catch_error_code();
     if interp.host_refusal_pending() {
         return Code::Error;
     }

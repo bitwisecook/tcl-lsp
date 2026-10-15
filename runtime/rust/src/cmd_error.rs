@@ -137,7 +137,24 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.error(b"native catch output protocol is not selected");
     };
     for index in order.into_iter().flatten() {
-        let name = obj_bytes(argv[index + 1]);
+        let original = if jim {
+            match crate::interp::native_arguments::OriginalArguments::enter(
+                interp,
+                &[argv[index + 1]],
+            ) {
+                Ok(original) => Some(original),
+                Err(error) => return interp.report_cmd_error(error),
+            }
+        } else {
+            None
+        };
+        let name = match &original {
+            Some(original) => match original.bytes(0) {
+                Ok(bytes) => bytes.to_vec(),
+                Err(error) => return interp.report_cmd_error(error),
+            },
+            None => obj_bytes(argv[index + 1]),
+        };
         if jim && name.is_empty() {
             continue;
         }
@@ -158,7 +175,21 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         } else {
             result.as_ptr()
         };
-        if let Err(error) = set_var_or_elem(interp, &name, value) {
+        if let Some(original) = &original {
+            if let Err(error) = original.check_original_for(interp, 0, argv[index + 1]) {
+                return interp.report_cmd_error(error);
+            }
+            let assigned = interp.assign_original_named_variable(argv[index + 1], value);
+            if let Err(error) = original.check_original_for(interp, 0, argv[index + 1]) {
+                return interp.report_cmd_error(error);
+            }
+            if let Err(code) = assigned {
+                if interp.host_refusal_pending() {
+                    return code;
+                }
+                break;
+            }
+        } else if let Err(error) = set_var_or_elem(interp, &name, value) {
             return crate::builtins::var_error(interp, &name, error);
         }
     }
@@ -902,6 +933,7 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[cfg(test)]
 mod tests {
+    mod original_jim_output_keys;
     #[test]
     fn dynamic_catch_resets_error_state_in_all_six_native_engines() {
         fn decode(hex: &str) -> Vec<u8> {

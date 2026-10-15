@@ -1,5 +1,11 @@
 # Current centralised naming work
 
+## Current Runtime error/output consumers
+
+The next reviewed source checkpoint reuses the original global errorCode object setter for catch/Try resets and supplied Return -errorcode; catch/Try output-name setters retain actual original names and first-key/cache ownership. Actual getter/empty-name/result-to-options order and before/after currency checks remain. Original Jim output-setter guest failure stops later outputs while preserving the original catch completion0 or Try failure1; Native/Host refusal remains terminal and the C branch is unchanged.
+
+Three original Jim SDK captures retain18/27/33 exact rows, fresh upstream clean5bac checks (latest15:18),247 unchanged provider inputs and original namespace79/79 each. The f462 new test incorrectly presumed Jim array set creates C array storage. Its exact beforeimage is retained separately; the corrected new control derives actual dictionary success and genuine linked-element failure from original observations. Original174 assertions remain unchanged. All new Rust controls are unexecuted; public Source Import entry is still refused and separate Return physical-value controls remain unfinished.
+
 ## Next ordinary source freeze
 
 The shared mutation-coverage Body facade now explicitly refuses potentially evaluated LambdaLiteral until genuine lambda-container body transport is available. LSP's leaf census already included LambdaLiteral in its source-script inventory and refused selected Apply; the new explicit Lambda role guard narrows its initial scope, not a claimed fix for demonstrated old leaf absence. Both distinctions retain actual selected-role counterfactuals. Profile/HookContext/CLI also preserve original OsString argv/environment/path payloads and vars_os while retaining existing ASCII policy and expansion order. Native host executable/TCLLIBPATH/shell wrappers remain separate obligations.

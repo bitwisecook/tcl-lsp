@@ -46,7 +46,15 @@ fn original_jim_catch_error_code_keys_are_published_owned_and_retired_with_the_e
     assert!(actual.native_execution_refusal().is_none());
 }
 
-fn reset_in_selected_caller(actual: &mut Interp, argv: &[*mut TclObj]) -> Code {
+thread_local! {
+    static MODE: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+const GLOBAL_OBSERVATIONS: &str = include_str!(
+    "../../../tests/data/native_jim_catch_try_original_output_keys/observations-20261015.tsv"
+);
+
+fn reset_in_selected_caller(actual: &mut Interp, _: &[*mut TclObj]) -> Code {
     let frame = super::super::native_arguments::OriginalArgumentFrame::capture(actual);
     let namespace = actual.current_ns();
     assert_ne!(namespace, GLOBAL);
@@ -54,10 +62,14 @@ fn reset_in_selected_caller(actual: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let local = actual.var_get(b"errorCode").unwrap();
     let local = obj::NativeObjectLifetime::retain(local);
     let reached = actual.reset_original_jim_catch_error_code();
-    assert_eq!(
-        reached.is_err(),
-        crate::interp::obj_bytes(argv[1]) == b"failure"
-    );
+    let mode = MODE.with(std::cell::Cell::get);
+    let row = GLOBAL_OBSERVATIONS
+        .lines()
+        .find(|row| row.starts_with(&format!("GLOBAL_RESET|{mode}|")))
+        .unwrap()
+        .split('|')
+        .collect::<Vec<_>>();
+    assert_eq!(reached.is_err(), row[2] != "0");
     frame.check_frame(actual).unwrap();
     assert_eq!(actual.current_ns(), namespace);
     assert_eq!(
@@ -71,21 +83,20 @@ fn reset_in_selected_caller(actual: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[test]
 fn original_jim_global_reset_restores_the_actual_namespaced_caller_after_success_and_failure() {
-    for (setup, outcome) in [
-        (b"".as_slice(), "success"),
-        (
-            b"array set ::errorCode {member VALUE}".as_slice(),
-            "failure",
-        ),
-    ] {
+    for line in include_str!(
+        "../../../tests/data/native_jim_catch_try_original_output_keys/global-setups.tsv"
+    )
+    .lines()
+    {
+        let (mode, setup) = line.split_once('|').unwrap();
+        MODE.with(|selected| selected.set(mode.parse().unwrap()));
         let mut actual = jim();
         actual.register_builtin(b"reset_selected_error_code", reset_in_selected_caller);
-        assert_eq!(actual.eval_str(setup), Code::Ok);
-        let source = format!(
-            "namespace eval CatchKey {{proc p {{}} {{set errorCode LOCAL; reset_selected_error_code {outcome}}}; p}}"
-        );
+        assert_eq!(actual.eval_str(setup.as_bytes()), Code::Ok);
         assert_eq!(
-            actual.eval_str(source.as_bytes()),
+            actual.eval_str(include_bytes!(
+                "../../../tests/data/native_jim_catch_try_original_output_keys/global-call.tcl"
+            )),
             Code::Ok,
             "{:?}",
             actual.native_execution_refusal()

@@ -1,0 +1,3 @@
+0|list
+1|array set ::errorCode {member VALUE}
+2|set scalar ODD; upvar #0 scalar(member) errorCode

@@ -293,7 +293,7 @@ pub(crate) fn publish(
                     }
                 }
                 b"-errorcode" => {
-                    let _ = interp.var_set(b"::errorCode", pair.value.as_ptr());
+                    let _ = interp.assign_original_jim_global_error_code(pair.value.as_ptr());
                     if interp.host_refusal_pending() {
                         return Code::Error;
                     }

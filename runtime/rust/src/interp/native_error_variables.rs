@@ -84,8 +84,26 @@ impl Interp {
                     .into(),
             ));
         }
-        let caller = super::native_arguments::OriginalArgumentFrame::capture(self);
         let none = obj::Owned::fresh(new_string(b"NONE"));
+        self.assign_original_jim_global_error_code(none.as_ptr())
+    }
+
+    /// Jim_SetGlobalVariableStr constructs the bare name in the actual top frame.
+    pub(crate) fn assign_original_jim_global_error_code(
+        &mut self,
+        value: *mut obj::TclObj,
+    ) -> Result<(), super::Code> {
+        if self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_none()
+        {
+            return Err(self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("original Jim global error-code setter")
+                    .into(),
+            ));
+        }
+        let caller = super::native_arguments::OriginalArgumentFrame::capture(self);
         let reached = self.with_event_global_frame(|actual| {
             if actual.frames.borrow().current_frame_index() != 0 {
                 return Err(actual.report_cmd_error(
@@ -98,7 +116,7 @@ impl Interp {
                     .name()
                     .as_bytes(),
             ));
-            actual.assign_original_named_variable(name.as_ptr(), none.as_ptr())
+            actual.assign_original_named_variable(name.as_ptr(), value)
         });
         caller
             .check_frame(self)
