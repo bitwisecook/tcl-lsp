@@ -12780,7 +12780,7 @@ impl Interp {
             .read_original_jim_global_error_code()
             .map_err(|_| {
                 self.native_execution_refusal().unwrap_or_else(|| {
-                    self.refuse_completion_value_access(
+                    self.clone().refuse_completion_value_access(
                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                             "original Jim error-code receipt getter",
                         ),
@@ -12794,7 +12794,7 @@ impl Interp {
                 Ok(obj::Owned::retain(original))
             })
             .transpose()
-            .map_err(|error| self.refuse_completion_value_access(error))?;
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
             drop(error_code);
             let _ = scope.currency().ensure_current_or_refuse();

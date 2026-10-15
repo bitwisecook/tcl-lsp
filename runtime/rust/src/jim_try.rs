@@ -2,7 +2,7 @@
 //! Selected Jim catch/try ordering over original runtime objects.
 
 use crate::{
-    interp::{obj_bytes, Code, Interp},
+    interp::{Code, Interp},
     obj::{self, Owned, TclObj},
 };
 use tcl_cmd_core::{

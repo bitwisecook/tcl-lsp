@@ -87,3 +87,5 @@ source/provider inputs remained unchanged; no ENOSPC occurred. Current source,
 full host/backend coverage and required repository gates remain unaccepted.
 
 `successor-l-l2-l3-build-feedback.tar.gz` preserves the wrong-package setup separately from the corrected production compilation failures. All three ran0tests with source drift{}. The reviewed canonical import repair and source consumers require a fresh L4 build. `conditional-pairing-ingress-receipt.json` records219 unchanged original test bodies and the explicit test helper API adoption; it supplies no execution acceptance.
+
+`successor-l6-l7-l8-build-feedback.tar.gz` retains exact failed build channels and source snapshots for L6/L7/L8, zero executed tests, and the separate guarded L7 compiled-output retirement. The repaired source requires fresh execution; L7 had a known generic Lambda frame issue and was never admitted for semantic replay.
