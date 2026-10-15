@@ -557,9 +557,12 @@ fn pack_hex(s: &[u8], n: usize, high_first: bool) -> Result<Vec<u8>, CmdError> {
 fn int_value_error(arg: &[u8]) -> CmdError {
     let text = String::from_utf8_lossy(arg);
     if split_list(&text).is_ok_and(|e| e.len() != 1) {
-        CmdError::new("expected integer but got a list".to_string())
+        CmdError::with_error_code("expected integer but got a list", "TCL VALUE NUMBER")
     } else {
-        CmdError::new(format!("expected integer but got \"{text}\""))
+        CmdError::with_error_code(
+            format!("expected integer but got \"{text}\""),
+            "TCL VALUE NUMBER",
+        )
     }
 }
 
@@ -657,9 +660,8 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
                     let elems = split_field(arg)?;
                     let n = field_count(&count, elems.len())?;
                     for e in &elems[..n] {
-                        let v = parse_wide(e.as_bytes()).ok_or_else(|| {
-                            CmdError::new(format!("expected integer but got \"{e}\""))
-                        })?;
+                        let v = parse_wide(e.as_bytes())
+                            .ok_or_else(|| int_value_error(e.as_bytes()))?;
                         put(&mut out, &mut cur, &int_bytes(v, size, end));
                     }
                 }

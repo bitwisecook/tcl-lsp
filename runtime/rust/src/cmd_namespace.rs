@@ -800,7 +800,7 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // deliberately no `-namespace`.
         let resolved = match tcl_cmd_core::ensemble::CreateOption::resolve(&opt) {
             Ok(resolved) => resolved,
-            Err(message) => return interp.set_error(&message),
+            Err(error) => return interp.report_cmd_error(error),
         };
         let Some(shared) = resolved.shared() else {
             // `-command` names the command rather than configuring it. C
@@ -811,7 +811,7 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             continue;
         };
         if let Err(e) = apply_ensemble_option(&mut cfg, shared, &obj_bytes(pair[1]), &ns_fqn) {
-            return interp.set_error(&e);
+            return interp.report_cmd_error(e);
         }
     }
 
@@ -834,31 +834,34 @@ fn apply_ensemble_option(
     opt: tcl_cmd_core::ensemble::SharedOption,
     val: &[u8],
     map_ns: &[u8],
-) -> Result<(), Vec<u8>> {
+) -> Result<(), tcl_cmd_core::CmdError> {
     use tcl_cmd_core::ensemble::SharedOption;
     match opt {
-        SharedOption::Subcommands => {
-            cfg.subcommands =
-                Some(crate::parse::split_list(val).map_err(|e| e.message().to_vec())?);
-        }
+        SharedOption::Subcommands => cfg.subcommands = Some(split_option_list(val)?),
         SharedOption::Map => {
             // An empty `-map` clears it (C: a zero-length dict ⇒ no map).
             let m = parse_map(val, map_ns)?;
             cfg.map = if m.is_empty() { None } else { Some(m) };
         }
-        SharedOption::Parameters => {
-            cfg.parameters = crate::parse::split_list(val).map_err(|e| e.message().to_vec())?;
-        }
-        SharedOption::Unknown => {
-            cfg.unknown = crate::parse::split_list(val).map_err(|e| e.message().to_vec())?;
-        }
+        SharedOption::Parameters => cfg.parameters = split_option_list(val)?,
+        SharedOption::Unknown => cfg.unknown = split_option_list(val)?,
         SharedOption::Prefixes => {
             // The one typed-read owner, so `-prefixes tru` / `-prefixes 2`
             // are accepted here exactly as `tclsh9.0` accepts them.
-            cfg.prefixes = crate::typed_value::boolean_bytes(val).map_err(|e| e.message)?;
+            cfg.prefixes = crate::typed_value::boolean_bytes(val)?;
         }
     }
     Ok(())
+}
+
+/// A list-valued ensemble option, with the list owner's message and code.
+fn split_option_list(val: &[u8]) -> Result<Vec<Vec<u8>>, tcl_cmd_core::CmdError> {
+    crate::parse::split_list(val).map_err(|error| {
+        tcl_cmd_core::CmdError::with_error_code(
+            String::from_utf8_lossy(&crate::parse::list_error_message(val, error)),
+            String::from_utf8_lossy(error.error_code()),
+        )
+    })
 }
 
 /// `namespace ensemble configure cmd ?-option? ?value …?` — read or update an
@@ -905,7 +908,7 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 interp.set_result_bytes(&v);
                 Code::Ok
             }
-            Err(message) => interp.set_error(&message),
+            Err(error) => interp.report_cmd_error(error),
         };
     }
     // Update: `-option value` pairs. C's arity gate is
@@ -925,14 +928,14 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for pair in rest.chunks_exact(2) {
         let resolved = match tcl_cmd_core::ensemble::ConfigOption::resolve(&obj_bytes(pair[0])) {
             Ok(resolved) => resolved,
-            Err(message) => return interp.set_error(&message),
+            Err(error) => return interp.report_cmd_error(error),
         };
         let Some(shared) = resolved.shared() else {
             return interp
                 .error_with_code(b"option -namespace is read-only", b"TCL ENSEMBLE READ_ONLY");
         };
         if let Err(e) = apply_ensemble_option(&mut cfg, shared, &obj_bytes(pair[1]), &map_ns) {
-            return interp.set_error(&e);
+            return interp.report_cmd_error(e);
         }
     }
     token.configure(cfg);
@@ -1006,17 +1009,16 @@ fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Parse a `-map` dict (`sub {target prefix} …`) into (subcommand, prefix-words).
-fn parse_map(bytes: &[u8], map_ns: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
-    let kvs = crate::parse::split_list(bytes).map_err(|error| {
-        tcl_cmd_core::dict::worded_parse_error(&String::from_utf8_lossy(error.message()))
-            .into_bytes()
+fn parse_map(bytes: &[u8], map_ns: &[u8]) -> Result<EnsembleMap, tcl_cmd_core::CmdError> {
+    let kvs = crate::dict::scan_dict_pairs(bytes).map_err(|error| {
+        tcl_cmd_core::CmdError::with_error_code(
+            error.message(),
+            String::from_utf8_lossy(error.error_code()),
+        )
     })?;
-    if kvs.len() % 2 != 0 {
-        return Err(b"missing value to go with key".to_vec());
-    }
-    let mut map = Vec::with_capacity(kvs.len() / 2);
-    for pair in kvs.chunks_exact(2) {
-        let mut prefix = crate::parse::split_list(&pair[1]).map_err(|e| e.message().to_vec())?;
+    let mut map = Vec::with_capacity(kvs.len());
+    for (key, target) in kvs {
+        let mut prefix = split_option_list(&target)?;
         // Only the target word is qualified; the rest of the prefix is fixed
         // leading arguments. An empty prefix is left alone — the "must be
         // non-empty lists" check is a separate concern.
@@ -1027,13 +1029,12 @@ fn parse_map(bytes: &[u8], map_ns: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
         // value wins but keeps the first occurrence's position. Pushing blindly
         // would leave both copies, making the read-back disagree with tclsh and
         // dispatch pick the stale first target.
-        match map.iter_mut().find(|(k, _)| *k == pair[0]) {
+        match map.iter_mut().find(|(k, _)| *k == key) {
             Some((_, slot)) => *slot = prefix,
-            None => map.push((pair[0].clone(), prefix)),
+            None => map.push((key, prefix)),
         }
     }
-    tcl_cmd_core::ensemble::validate_map_targets(&map)
-        .map_err(|error| error.into_message().into_bytes())?;
+    tcl_cmd_core::ensemble::validate_map_targets(&map)?;
     Ok(map)
 }
 

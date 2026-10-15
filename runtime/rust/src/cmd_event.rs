@@ -63,7 +63,7 @@ impl EventQueue {
         self.seq += 1;
         self.timers.push(TimerEv {
             id,
-            deadline: Instant::now() + Duration::from_millis(ms),
+            deadline: deadline_after(ms),
             seq: self.seq,
             script,
         });
@@ -176,7 +176,10 @@ fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match scanned {
         b"idle" => {
             if argv.len() < 3 {
-                return err(interp, b"wrong # args: should be \"after idle script\"");
+                return err(
+                    interp,
+                    b"wrong # args: should be \"after idle script ?script ...?\"",
+                );
             }
             let script = join_args(&argv[2..]);
             let id = interp.events_mut().push_idle(script);
@@ -210,14 +213,17 @@ fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         _ => {
-            // `after ms ?script?`: a non-negative integer delay.
-            let ms = match parse_ms(&first) {
-                Some(ms) => ms,
-                None => {
+            // `after ms ?script?`: a wide-integer delay, a negative one taken as 0.
+            let ms = match crate::typed_value::wide_int(argv[1]) {
+                Ok(ms) => u64::try_from(ms).unwrap_or(0),
+                Err(_) => {
                     let mut m = b"bad argument \"".to_vec();
                     m.extend_from_slice(&first);
                     m.extend_from_slice(b"\": must be cancel, idle, info, or an integer");
-                    return err(interp, &m);
+                    let word = String::from_utf8_lossy(&first);
+                    let code =
+                        tcl_syntax::list::join_list(["TCL", "LOOKUP", "INDEX", "argument", &word]);
+                    return interp.error_with_code(&m, code.as_bytes());
                 }
             };
             if argv.len() == 2 {
@@ -341,7 +347,7 @@ fn run_event(interp: &mut Interp, script: &[u8]) -> Code {
 
 /// Bare `after ms`: block, servicing events, until `ms` has elapsed.
 fn delay(interp: &mut Interp, ms: u64) -> Code {
-    let end = Instant::now() + Duration::from_millis(ms);
+    let end = deadline_after(ms);
     while Instant::now() < end {
         if interp.events_mut().is_empty() {
             let remaining = end.saturating_duration_since(Instant::now());
@@ -356,6 +362,15 @@ fn delay(interp: &mut Interp, ms: u64) -> Code {
 
 // helpers
 
+/// The instant `ms` milliseconds from now; a delay past what the clock can
+/// represent saturates instead of overflowing the clock.
+fn deadline_after(ms: u64) -> Instant {
+    let now = Instant::now();
+    now.checked_add(Duration::from_millis(ms))
+        .or_else(|| now.checked_add(Duration::from_secs(u64::from(u32::MAX))))
+        .unwrap_or(now)
+}
+
 fn join_args(args: &[*mut TclObj]) -> Vec<u8> {
     let mut out = Vec::new();
     for (i, &a) in args.iter().enumerate() {
@@ -365,15 +380,6 @@ fn join_args(args: &[*mut TclObj]) -> Vec<u8> {
         out.extend_from_slice(&obj_bytes(a));
     }
     out
-}
-
-fn parse_ms(s: &[u8]) -> Option<u64> {
-    core::str::from_utf8(s)
-        .ok()?
-        .trim()
-        .parse::<i64>()
-        .ok()
-        .map(|n| n.max(0) as u64)
 }
 
 /// Set the result to the `after#<id>` token C returns for a scheduled event.

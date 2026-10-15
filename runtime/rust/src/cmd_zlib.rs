@@ -137,20 +137,18 @@ fn decompress_gzip(data: &[u8]) -> Option<Vec<u8>> {
 // argument helpers
 
 /// Parse an optional `level` (0..=9) argument for `compress`/`deflate`; the
-/// default (no argument) is zlib's `Z_DEFAULT_COMPRESSION` (level 6).
-fn parse_level(interp: &mut Interp, arg: Option<&[u8]>) -> Result<Compression, Code> {
-    match arg {
+/// default (no argument) is zlib's `Z_DEFAULT_COMPRESSION` (level 6). C reads
+/// the level as a C `int`.
+fn parse_level(interp: &mut Interp, arg: Option<*mut TclObj>) -> Result<Compression, Code> {
+    match arg.map(crate::typed_value::int) {
         None => Ok(Compression::default()),
-        Some(bytes) => match tcl_cmd_core::sort::parse_wide(bytes) {
-            Some(n) if (0..=9).contains(&n) => Ok(Compression::new(n as u32)),
-            Some(_) => Err(interp.set_error(b"level must be 0 to 9")),
-            None => {
-                let mut m = b"expected integer but got \"".to_vec();
-                m.extend_from_slice(bytes);
-                m.push(b'"');
-                Err(interp.set_error(&m))
+        Some(Ok(n)) => match u32::try_from(n) {
+            Ok(n) if n <= 9 => Ok(Compression::new(n)),
+            _ => {
+                Err(interp.error_with_code(b"level must be 0 to 9", b"TCL VALUE COMPRESSIONLEVEL"))
             }
         },
+        Some(Err(error)) => Err(interp.report_typed_error(&error)),
     }
 }
 
@@ -227,16 +225,11 @@ fn checksum(interp: &mut Interp, argv: &[*mut TclObj], adler: bool) -> Code {
     };
     // The start value defaults to the format's identity (adler starts at 1, crc
     // at 0) and is otherwise the running checksum to continue from.
+    // C reads the start value as a C `int` into an unsigned checksum.
     let init = if let Some(&a) = argv.get(3) {
-        let bytes = obj_bytes(a);
-        match tcl_cmd_core::sort::parse_wide(&bytes) {
-            Some(n) => n as u32,
-            None => {
-                let mut m = b"expected integer but got \"".to_vec();
-                m.extend_from_slice(&bytes);
-                m.push(b'"');
-                return interp.set_error(&m);
-            }
+        match crate::typed_value::int(a) {
+            Ok(n) => n as u32,
+            Err(error) => return interp.report_typed_error(&error),
         }
     } else if adler {
         1
@@ -261,7 +254,7 @@ fn compress(interp: &mut Interp, argv: &[*mut TclObj], format: Format) -> Code {
         };
         return interp.wrong_args(usage);
     }
-    let level = match parse_level(interp, argv.get(3).map(|&a| obj_bytes(a)).as_deref()) {
+    let level = match parse_level(interp, argv.get(3).copied()) {
         Ok(l) => l,
         Err(code) => return code,
     };
@@ -323,7 +316,7 @@ fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 let Some(&val) = argv.get(i + 1) else {
                     return interp.wrong_args(b"zlib gzip data ?-level level? ?-header header?");
                 };
-                level = match parse_level(interp, Some(&obj_bytes(val))) {
+                level = match parse_level(interp, Some(val)) {
                     Ok(l) => l,
                     Err(code) => return code,
                 };

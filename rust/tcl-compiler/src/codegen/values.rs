@@ -547,68 +547,73 @@ impl CodegenCtx<'_> {
     /// `key_is_literal` its element-key half — the same contract
     /// [`push_var_ref`](CodegenCtx::push_var_ref) documents, so a name the
     /// compiler already resolved is never word-substituted again by the VM.
-    pub fn emit_incr(&mut self, name: &str, key_is_literal: bool, amount: Option<&str>) {
+    ///
+    /// `amount_braced` says the amount word was braced: its text is then its
+    /// value (`incr x {$n}` raises `expected integer but got "$n"`).
+    pub fn emit_incr(
+        &mut self,
+        name: &str,
+        key_is_literal: bool,
+        amount: Option<&str>,
+        amount_braced: bool,
+    ) {
         if self.compiles_locals() && !is_qualified(name) {
-            self.emit_incr_local(name, amount);
+            self.emit_incr_local(name, key_is_literal, amount, amount_braced);
         } else {
-            self.emit_incr_global_or_array(name, key_is_literal, amount);
+            self.emit_incr_global_or_array(name, key_is_literal, amount, amount_braced);
         }
     }
 
-    /// `incr` against a local proc slot (LVT).
-    fn emit_incr_local(&mut self, name: &str, amount: Option<&str>) {
-        let slot = self.lvt.intern(name);
-        match amount {
-            None => {
-                self.emit_comment(
-                    Op::INCR_SCALAR1_IMM,
-                    vec![Operand::Imm(bytecode_imm(slot)), Operand::Imm(1)],
-                    &format!("var \"{name}\""),
-                );
+    /// `incr` against a local proc slot (LVT). An array element increments
+    /// through the array's slot with its key on the stack (`incrArray1`), as
+    /// C compiles it: naming a slot `a($k)` would increment an element whose
+    /// key is the unsubstituted text.
+    fn emit_incr_local(
+        &mut self,
+        name: &str,
+        key_is_literal: bool,
+        amount: Option<&str>,
+        amount_braced: bool,
+    ) {
+        let (var, slot, imm_op, stk_op) = match split_array_ref(name) {
+            Some((base, _)) => {
+                let slot = self.lvt.intern(base);
+                self.push_var_ref(name, key_is_literal);
+                (base, slot, Op::INCR_ARRAY1_IMM, Op::INCR_ARRAY1)
             }
-            Some(amt) if is_integer_literal(amt) => {
-                if let Some(imm) = self.parse_int_operand(amt) {
-                    if (-128..=127).contains(&imm) {
-                        self.emit_comment(
-                            Op::INCR_SCALAR1_IMM,
-                            vec![
-                                Operand::Imm(bytecode_imm(slot)),
-                                Operand::Imm(
-                                    i32::try_from(imm)
-                                        .expect("incr literal fits in i32 after range check"),
-                                ),
-                            ],
-                            &format!("var \"{name}\""),
-                        );
-                    } else {
-                        self.push_lit(amt);
-                        self.emit_comment(
-                            Op::INCR_SCALAR1,
-                            vec![Operand::Imm(bytecode_imm(slot))],
-                            &format!("var \"{name}\""),
-                        );
-                    }
-                } else {
-                    // Overflow — fall back to push + incr
-                    self.push_lit(amt);
-                    self.emit_comment(
-                        Op::INCR_SCALAR1,
-                        vec![Operand::Imm(bytecode_imm(slot))],
-                        &format!("var \"{name}\""),
-                    );
-                }
-            }
-            Some(amt) => {
-                // Variable amount — try to resolve as ${var} reference
-                let var_ref = parse_simple_var_ref(amt, self.braced_var);
-                self.load_var(var_ref.unwrap_or(amt));
-                self.emit_comment(
-                    Op::INCR_SCALAR1,
-                    vec![Operand::Imm(bytecode_imm(slot))],
-                    &format!("var \"{name}\""),
-                );
-            }
+            None => (
+                name,
+                self.lvt.intern(name),
+                Op::INCR_SCALAR1_IMM,
+                Op::INCR_SCALAR1,
+            ),
+        };
+        let comment = format!("var \"{var}\"");
+        let immediate = match amount {
+            None => Some(1),
+            Some(amt) if is_integer_literal(amt) => self
+                .parse_int_operand(amt)
+                .filter(|imm| (-128..=127).contains(imm))
+                .map(|imm| i32::try_from(imm).expect("incr literal fits in i32 after range check")),
+            Some(_) => None,
+        };
+        if let Some(imm) = immediate {
+            self.emit_comment(
+                imm_op,
+                vec![Operand::Imm(bytecode_imm(slot)), Operand::Imm(imm)],
+                &comment,
+            );
+            return;
         }
+        let amt = amount.expect("a missing amount is the immediate 1");
+        if is_integer_literal(amt) {
+            self.push_lit(amt);
+        } else {
+            // Any other amount is an ordinary word: a variable, a command
+            // substitution, a compound or braced word, a non-decimal number.
+            self.emit_word(amt, amount_braced);
+        }
+        self.emit_comment(stk_op, vec![Operand::Imm(bytecode_imm(slot))], &comment);
     }
 
     /// Push the `incr` target's name halves. A resolved name / array base is a
@@ -636,6 +641,7 @@ impl CodegenCtx<'_> {
         name: &str,
         key_is_literal: bool,
         amount: Option<&str>,
+        amount_braced: bool,
     ) {
         let is_array = split_array_ref(name).is_some();
         let step = |ctx: &mut Self, imm: i32| {
@@ -662,17 +668,17 @@ impl CodegenCtx<'_> {
                     }
                     // Out of the immediate range (or unparseable) — the generic
                     // `incr` invoke.
-                    _ => self.invoke_incr_fallback(name, key_is_literal, amt),
+                    _ => self.invoke_incr_fallback(name, key_is_literal, amt, amount_braced),
                 }
             }
             Some(amt) => {
                 let var_ref = parse_simple_var_ref(amt, self.braced_var);
-                if let (false, Some(vr)) = (is_array, var_ref) {
+                if let (false, false, Some(vr)) = (is_array, amount_braced, var_ref) {
                     self.push_incr_target(name, key_is_literal);
                     self.load_var(vr);
                     self.emit(Op::INCR_STK, vec![]);
                 } else {
-                    self.invoke_incr_fallback(name, key_is_literal, amt);
+                    self.invoke_incr_fallback(name, key_is_literal, amt, amount_braced);
                 }
             }
         }
@@ -699,7 +705,13 @@ impl CodegenCtx<'_> {
     /// live key through the substituting path — and joined into the one word
     /// the command takes. A fully resolved name (the scalar case, and any
     /// braced or escape-only target) is a single verbatim push as before.
-    fn invoke_incr_fallback(&mut self, name: &str, key_is_literal: bool, amt: &str) {
+    fn invoke_incr_fallback(
+        &mut self,
+        name: &str,
+        key_is_literal: bool,
+        amt: &str,
+        amount_braced: bool,
+    ) {
         self.push_lit("incr");
         match split_array_ref(name) {
             Some((base, elem)) if !key_is_literal => {
@@ -711,7 +723,7 @@ impl CodegenCtx<'_> {
             }
             _ => self.push_lit_exact(name),
         }
-        self.push_lit(amt);
+        self.emit_word(amt, amount_braced);
         self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(3)], "incr");
     }
 }
@@ -1228,7 +1240,7 @@ mod tests {
     fn emit_incr_default_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", true, None);
+        ctx.emit_incr("x", true, None, false);
         assert_eq!(ctx.instructions[0].op, Op::INCR_SCALAR1_IMM);
         // operands: slot 0, imm 1
         assert_eq!(
@@ -1241,7 +1253,7 @@ mod tests {
     fn emit_incr_literal_amount_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", true, Some("5"));
+        ctx.emit_incr("x", true, Some("5"), false);
         assert_eq!(ctx.instructions[0].op, Op::INCR_SCALAR1_IMM);
         assert_eq!(
             ctx.instructions[0].operands[1],
@@ -1253,7 +1265,7 @@ mod tests {
     fn emit_incr_large_amount_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", true, Some("999"));
+        ctx.emit_incr("x", true, Some("999"), false);
         // Large amount → push_lit + INCR_SCALAR1
         assert_eq!(ctx.instructions[0].op, Op::PUSH1); // push "999"
         assert_eq!(ctx.instructions[1].op, Op::INCR_SCALAR1);
@@ -1263,7 +1275,7 @@ mod tests {
     fn emit_incr_default_toplevel() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        ctx.emit_incr("x", true, None);
+        ctx.emit_incr("x", true, None, false);
         // push "x" then INCR_STK_IMM
         assert_eq!(ctx.instructions[0].op, Op::PUSH1);
         assert_eq!(ctx.instructions[1].op, Op::INCR_STK_IMM);
@@ -1273,7 +1285,7 @@ mod tests {
     fn emit_incr_large_amount_toplevel() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        ctx.emit_incr("x", true, Some("999"));
+        ctx.emit_incr("x", true, Some("999"), false);
         // Large → invokeStk fallback
         assert!(ctx.instructions.iter().any(|i| i.op == Op::INVOKE_STK1));
     }

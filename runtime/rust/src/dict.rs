@@ -348,6 +348,17 @@ impl DictError {
     pub fn message(&self) -> String {
         String::from_utf8_lossy(&self.message_bytes()).into_owned()
     }
+
+    /// The `-errorcode` C sets beside the message.
+    #[must_use]
+    pub fn error_code(&self) -> &'static [u8] {
+        match self {
+            Self::MissingValue | Self::NotUtf8 => b"TCL VALUE DICTIONARY",
+            Self::BraceJunk(_) | Self::QuoteJunk(_) => b"TCL VALUE DICTIONARY JUNK",
+            Self::UnmatchedBrace => b"TCL VALUE DICTIONARY BRACE",
+            Self::UnmatchedQuote => b"TCL VALUE DICTIONARY QUOTE",
+        }
+    }
 }
 
 /// The dict-worded form of a list-grammar failure. `SetDictFromAny` walks the
@@ -369,13 +380,13 @@ fn dict_error(err: tcl_syntax::list::ListError, src: &str) -> DictError {
 }
 
 /// Decoded (key, value) byte pairs from a dict's string rep.
-type BytePairs = Vec<(Vec<u8>, Vec<u8>)>;
+pub(crate) type BytePairs = Vec<(Vec<u8>, Vec<u8>)>;
 
 /// Parse `bytes` into dict (key, value) byte pairs — `SetDictFromAny`'s string
 /// path, over the shared list codec. A later duplicate key is *not* deduped
 /// here (the caller handles it); an odd element count is `missing value to go
 /// with key`.
-fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
+pub(crate) fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
     let Ok(src) = core::str::from_utf8(bytes) else {
         return Err(DictError::NotUtf8);
     };

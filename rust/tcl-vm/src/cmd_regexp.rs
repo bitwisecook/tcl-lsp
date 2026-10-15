@@ -77,7 +77,7 @@ pub(crate) fn regexp_matches(
         core_re::RegexpPrecision::Exact { .. } => Ok(true),
         core_re::RegexpPrecision::NoMatch => Ok(false),
         core_re::RegexpPrecision::Declined(decline) => {
-            Err(String::from_utf8_lossy(&decline.into_error().0).into_owned())
+            Err(String::from_utf8_lossy(&decline.into_error().message).into_owned())
         }
     }
 }
@@ -106,7 +106,16 @@ fn cmd_regexp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::int(count))
         }
-        Err(e) => err(String::from_utf8_lossy(&e.0).into_owned()),
+        Err(e) => regex_err(&e),
+    }
+}
+
+/// A `regexp`/`regsub` failure with the code the core carries.
+fn regex_err(error: &core_re::RegexError) -> Completion<Value> {
+    let message = String::from_utf8_lossy(&error.message).into_owned();
+    match &error.code {
+        Some(code) => crate::command::err_with_code(message, code),
+        None => err(message),
     }
 }
 
@@ -125,7 +134,7 @@ fn cmd_regsub(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     });
     let RegsubResult { text, count, var } = match outcome {
         Ok(r) => r,
-        Err(RegsubError::Regex(e)) => return err(String::from_utf8_lossy(&e.0).into_owned()),
+        Err(RegsubError::Regex(e)) => return regex_err(&e),
         Err(RegsubError::Eval(completion)) => {
             // C adds the context frame only for a genuine error; a
             // `break`/`continue`/custom code from the prefix propagates

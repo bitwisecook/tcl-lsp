@@ -393,17 +393,9 @@ fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         3 => {
             let spec = obj_bytes(argv[2]);
-            let n = match core::str::from_utf8(&spec)
-                .ok()
-                .and_then(|s| s.trim().parse::<i64>().ok())
-            {
-                Some(n) => n,
-                None => {
-                    let mut m = b"expected integer but got \"".to_vec();
-                    m.extend_from_slice(&spec);
-                    m.push(b'"');
-                    return interp.set_error(&m);
-                }
+            let n = match crate::typed_value::int(argv[2]) {
+                Ok(n) => i64::from(n),
+                Err(error) => return interp.report_typed_error(&error),
             };
             match interp.cmd_frame_info(n) {
                 Some(pairs) => {
@@ -414,7 +406,7 @@ fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp.set_result(crate::dict::new_dict_obj(&kv));
                     Code::Ok
                 }
-                None => bad_level(interp, &spec),
+                None => crate::cmd_var::bad_level(interp, &spec),
             }
         }
         _ => interp.wrong_args(b"info frame ?number?"),
@@ -424,13 +416,6 @@ fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `Tcl_CommandComplete` (approximation): a script is complete when no brace,
 /// bracket, or quote is left open and it doesn't end mid-escape. Inside braces
 /// only `{`/`}` nest; inside quotes `[...]` command substitution still nests.
-fn bad_level(interp: &mut Interp, spec: &[u8]) -> Code {
-    let mut m = b"bad level \"".to_vec();
-    m.extend_from_slice(spec);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 fn fixed(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], value: &[u8]) -> Code {
     if argv.len() != 2 {
         return interp.wrong_args(usage);

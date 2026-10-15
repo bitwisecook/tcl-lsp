@@ -894,6 +894,23 @@ mod tests {
             .surface_query()
     }
 
+    /// The variable the number-spelling release fact names
+    /// (`NumberSyntax::precision_variable`) is the special variable this
+    /// registry records, in exactly the releases that have it.
+    #[test]
+    fn the_precision_variable_is_the_registered_tcl_precision() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let named = profile.grammar.numbers.precision_variable();
+            let registered = special_var_in_dialect("tcl_precision", Some(d(dialect)));
+            assert_eq!(named.is_some(), registered.is_some(), "{dialect}");
+            if let (Some(named), Some(spec)) = (named, registered) {
+                assert_eq!(named, spec.name);
+                assert_eq!(spec.write_effect, Some(SideEffectTarget::InterpState));
+            }
+        }
+    }
+
     #[test]
     fn auto_path_is_externally_read_in_tcl() {
         // `set auto_path …` writes a runtime-observed

@@ -19,7 +19,7 @@
 //! **The typed-scalar read seam** — one owner for "read this `TclObj` as an
 //! integer / double / boolean", with C Tcl's exact message and error code.
 //!
-//! This is the runtime half of the `Tcl_Get{WideInt,Double,Boolean}FromObj`
+//! This is the runtime half of the `Tcl_Get{Int,Long,WideInt,Double,Boolean}FromObj`
 //! family. Three properties define it, and every consumer gets all three by
 //! coming through here rather than re-deriving one:
 //!
@@ -82,6 +82,10 @@ impl TypedError {
     }
 }
 
+/// The code `tclObj.c` sets when an integer read meets an object holding a
+/// double.
+pub(crate) const HELD_DOUBLE_CODE: &[u8] = b"TCL VALUE INTEGER";
+
 /// Read `obj` as a Tcl wide integer — `Tcl_GetWideIntFromObj`.
 ///
 /// A double-typed object is refused under C's own wording and `TCL VALUE
@@ -89,17 +93,26 @@ impl TypedError {
 /// [`TypedError::overflow`]; anything else unparsable is `TclParseNumber`'s
 /// `TCL VALUE NUMBER`.
 pub(crate) fn wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
-    if obj::obj_type_ptr(obj) == &obj::TCL_DOUBLE_TYPE {
-        let bytes = obj::bytes_of(obj);
-        let mut message = b"expected integer but got \"".to_vec();
-        message.extend_from_slice(&bytes);
-        message.push(b'"');
-        return Err(TypedError {
-            message,
-            code: b"TCL VALUE INTEGER",
-        });
+    if let Some(error) = held_double(obj) {
+        return Err(error);
     }
     read_wide_int(obj)
+}
+
+/// The refusal every integer read makes of an object already holding a
+/// double, before any reparse of its spelling (`tclObj.c`).
+pub(crate) fn held_double(obj: *mut TclObj) -> Option<TypedError> {
+    if obj::obj_type_ptr(obj) != &obj::TCL_DOUBLE_TYPE {
+        return None;
+    }
+    let bytes = obj::bytes_of(obj);
+    let mut message = b"expected integer but got \"".to_vec();
+    message.extend_from_slice(&bytes);
+    message.push(b'"');
+    Some(TypedError {
+        message,
+        code: HELD_DOUBLE_CODE,
+    })
 }
 
 /// Read `obj` as C Tcl reads a 64-bit `long` (`Tcl_GetLongFromObj` on an LP64
@@ -111,6 +124,58 @@ pub(crate) fn wide_int_modulo_unsigned(obj: *mut TclObj) -> Result<i64, TypedErr
     match wide_int(obj) {
         Err(error) if error.is_overflow() => unsigned_past_wide(obj).ok_or(error),
         read => read,
+    }
+}
+
+/// Read `obj` as C Tcl reads a `long` (`Tcl_GetLongFromObj`) on this target,
+/// as a wide integer for the caller to narrow. Where `long` is 32 bits
+/// (`wasm32`), an integer from `LONG_MIN` to `ULONG_MAX`, which the caller
+/// truncates; where it is 64 bits, [`wide_int_modulo_unsigned`]. Anything else
+/// is the overflow.
+pub(crate) fn long(obj: *mut TclObj) -> Result<i64, TypedError> {
+    if core::mem::size_of::<core::ffi::c_long>() == 4 {
+        let wide = wide_int(obj)?;
+        if (i64::from(i32::MIN)..=i64::from(u32::MAX)).contains(&wide) {
+            Ok(wide)
+        } else {
+            Err(TypedError::overflow())
+        }
+    } else {
+        wide_int_modulo_unsigned(obj)
+    }
+}
+
+/// Read `obj` as a C `int` — `Tcl_GetIntFromObj`, the read behind every
+/// `int`-typed count, level and option value: a [`long`] narrowed as C narrows
+/// it ([`tcl_syntax::value::narrow_to_c_int`]), so `4294967295` reads -1 and
+/// `4294967296` is the overflow.
+pub(crate) fn int(obj: *mut TclObj) -> Result<i32, TypedError> {
+    tcl_syntax::value::narrow_to_c_int(long(obj)?).map_err(|_| TypedError::overflow())
+}
+
+/// Check `obj` is an integer of any size — `Tcl_GetBignumFromObj`'s acceptance,
+/// with [`wide_int`]'s refusal for anything else.
+pub(crate) fn integer(obj: *mut TclObj) -> Result<(), TypedError> {
+    match wide_int(obj) {
+        Err(error) if !error.is_overflow() => Err(error),
+        _ => Ok(()),
+    }
+}
+
+/// Check `obj` is an `incr` operand the way `TclIncrObj` checks one: it reads
+/// the value as a number first, so a non-integer number is refused as the
+/// double it then holds (`TCL VALUE INTEGER`) and anything else as unparsable.
+pub(crate) fn incr_operand(obj: *mut TclObj) -> Result<(), TypedError> {
+    integer(obj).or_else(|error| match double(obj) {
+        Ok(_) => integer(obj),
+        Err(_) => Err(error),
+    })
+}
+
+impl From<TypedError> for tcl_cmd_core::CmdError {
+    fn from(error: TypedError) -> Self {
+        let code = String::from_utf8_lossy(error.code).into_owned();
+        Self::with_error_code(String::from_utf8_lossy(&error.message).into_owned(), code)
     }
 }
 

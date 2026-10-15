@@ -146,7 +146,10 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // before the shared core builds anything; the limit is the interpreter's,
     // which is why the guard is here and not in the core.
     if canonical == b"repeat" && argv.len() == 4 && interp.has_value_limit() {
-        if let Some(count) = parse_isize(&obj_bytes(argv[3])).filter(|&count| count > 0) {
+        if let Some(count) = crate::typed_value::wide_int(argv[3])
+            .ok()
+            .filter(|&count| count > 0)
+        {
             let wanted = (obj_bytes(argv[2]).len() as u64).saturating_mul(count as u64);
             if let Some(code) = interp.charge_allocation(wanted) {
                 return code;
@@ -560,9 +563,9 @@ fn str_repeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"string repeat string count");
     }
     let s = obj_bytes(argv[2]);
-    let count = match parse_isize(&obj_bytes(argv[3])) {
-        Some(c) => c,
-        None => return not_integer(interp, &obj_bytes(argv[3])),
+    let count = match crate::typed_value::wide_int(argv[3]) {
+        Ok(c) => c,
+        Err(error) => return interp.report_typed_error(&error),
     };
     if count <= 0 {
         interp.set_result_bytes(b"");
@@ -1089,10 +1092,6 @@ fn rfind_sub(hay: &[u8], needle: &[u8]) -> Option<usize> {
         .find(|&i| &hay[i..i + needle.len()] == needle)
 }
 
-fn parse_isize(b: &[u8]) -> Option<isize> {
-    core::str::from_utf8(b).ok()?.trim().parse::<isize>().ok()
-}
-
 /// `int` / `end` / `end-N` / `end+N` index spec against `len` chars.
 // Index specs (`end`, `int±int`, `end±int`, …) share the full
 // `TclGetIntForIndex` grammar with the list commands — reuse one parser.
@@ -1116,18 +1115,7 @@ fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {
     m.extend_from_slice(b"\": variable is array");
     interp.set_error(&m)
 }
-fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(bytes);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-fn bad_index(interp: &mut Interp, spec: &[u8]) -> Code {
-    let mut m = b"bad index \"".to_vec();
-    m.extend_from_slice(spec);
-    m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-    interp.set_error(&m)
-}
+use crate::cmd_list::bad_index;
 fn drop_fresh(obj: *mut TclObj) {
     // SAFETY: `obj` is a live rc-0 object; retain-then-release frees it cleanly.
     unsafe {

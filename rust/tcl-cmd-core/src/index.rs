@@ -240,35 +240,134 @@ pub fn encodes_apart(spec: &str, release: TclVersion) -> bool {
     encode(spec, release, true) != encode(spec, release, false)
 }
 
-/// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
-/// -index`): each spec steps one level. An out-of-range step is an error
-/// (`element <spec> missing from sublist "<list>"`); a non-list step stops,
-/// returning the current value (C's `TclLindexFlat` fallthrough). Returns the
-/// error **message bytes** so each command wraps them in its own error type.
+/// A failed `lsearch`/`lsort -index` path step: C's message and, where C sets
+/// one, its `-errorcode`.
+pub struct IndexPathError {
+    pub message: Vec<u8>,
+    pub code: Option<&'static [u8]>,
+}
+
+/// Why `TclIndexEncode` refuses an `-index` path element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Refusal {
+    /// Not index syntax at all.
+    Bad,
+    /// An index it cannot encode.
+    OutOfRange,
+}
+
+/// An `-index` path element as `TclIndexEncode` encodes it: an absolute index,
+/// or one `end` plus a non-positive offset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PathEncoding {
+    At(i64),
+    FromEnd(i64),
+}
+
+impl PathEncoding {
+    /// Encode `spec`, or refuse it: out of range is an absolute index outside
+    /// `0..=INT_MAX`, `end+N`, or `end-N` with `N` at or past `INT_MAX`
+    /// (measured on 64-bit tclsh 9.0.4). End-relativity is told apart by
+    /// resolving against two different lengths.
+    fn of(spec: &str) -> Result<Self, Refusal> {
+        const BIG: usize = 1 << 20;
+        let r_big = resolve_opt(spec, BIG + 1).ok_or(Refusal::Bad)?;
+        let r_small = resolve_opt(spec, 1).ok_or(Refusal::Bad)?;
+        let int_max = i64::from(i32::MAX);
+        if r_big == r_small {
+            return if (0..=int_max).contains(&r_big) {
+                Ok(Self::At(r_big))
+            } else {
+                Err(Refusal::OutOfRange)
+            };
+        }
+        let offset = r_big - i64::try_from(BIG).unwrap_or(i64::MAX);
+        if (1 - int_max..=0).contains(&offset) {
+            Ok(Self::FromEnd(offset))
+        } else {
+            Err(Refusal::OutOfRange)
+        }
+    }
+
+    /// The index into a level of `len` elements.
+    fn decode(self, len: usize) -> i64 {
+        match self {
+            Self::At(index) => index,
+            Self::FromEnd(offset) => i64::try_from(len).unwrap_or(i64::MAX) - 1 + offset,
+        }
+    }
+}
+
+/// Check every `-index` path element encodes (`TclIndexEncode` at option
+/// parse): a syntactically bad spec is `bad index`, an unencodable one `index
+/// "…" out of range`.
 ///
 /// # Errors
-/// `bad index`, the list-parse error, or `element … missing from sublist …`.
+/// The first element that does not encode.
+pub fn check_index_path(path: &[Vec<u8>]) -> Result<(), IndexPathError> {
+    for spec in path {
+        PathEncoding::of(&String::from_utf8_lossy(spec))
+            .map_err(|refusal| path_error(spec, refusal))?;
+    }
+    Ok(())
+}
+
+fn path_error(spec: &[u8], refusal: Refusal) -> IndexPathError {
+    match refusal {
+        Refusal::Bad => {
+            let mut message = b"bad index \"".to_vec();
+            message.extend_from_slice(spec);
+            message.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
+            IndexPathError {
+                message,
+                code: Some(b"TCL VALUE INDEX"),
+            }
+        }
+        Refusal::OutOfRange => {
+            let mut message = b"index \"".to_vec();
+            message.extend_from_slice(spec);
+            message.extend_from_slice(b"\" out of range");
+            IndexPathError {
+                message,
+                code: Some(b"TCL VALUE INDEX OUTOFRANGE"),
+            }
+        }
+    }
+}
+
+/// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
+/// -index`): each spec steps one level. A step past its level is `element <n>
+/// missing from sublist "<list>"`, naming the index as `release`'s
+/// `SelectObjFromSublists` does ([`failed_step_name`]); a non-list step stops,
+/// returning the current value (C's `TclLindexFlat` fallthrough).
+///
+/// # Errors
+/// `bad index` / `out of range`, the list-parse error, or `element … missing
+/// from sublist …`.
 pub fn drill<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
     path: &[Vec<u8>],
-) -> Result<O::Value, Vec<u8>> {
+    release: TclVersion,
+) -> Result<O::Value, IndexPathError> {
     let mut cur = value.clone();
     for spec in path {
-        let len = ops.list_len(&cur).map_err(|e| e.message().into_bytes())?;
-        let idx = resolve_opt(&String::from_utf8_lossy(spec), len).ok_or_else(|| {
-            let mut m = b"bad index \"".to_vec();
-            m.extend_from_slice(spec);
-            m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-            m
+        let len = ops.list_len(&cur).map_err(|e| IndexPathError {
+            message: e.message().into_bytes(),
+            code: e.error_code().map(str::as_bytes),
         })?;
+        let encoded = PathEncoding::of(&String::from_utf8_lossy(spec))
+            .map_err(|refusal| path_error(spec, refusal))?;
+        let idx = encoded.decode(len);
         if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) >= len {
-            let mut m = b"element ".to_vec();
-            m.extend_from_slice(spec);
-            m.extend_from_slice(b" missing from sublist \"");
-            m.extend_from_slice(&ops.as_bytes(&cur));
-            m.push(b'"');
-            return Err(m);
+            let named = failed_step_name(encoded, idx, release);
+            let mut message = format!("element {named} missing from sublist \"").into_bytes();
+            message.extend_from_slice(&ops.as_bytes(&cur));
+            message.push(b'"');
+            return Err(IndexPathError {
+                message,
+                code: (release >= TclVersion::V8_6).then_some(b"TCL OPERATION LSORT INDEXFAILED"),
+            });
         }
         match ops.list_index(&cur, usize::try_from(idx).unwrap_or(0)) {
             Ok(Some(e)) => cur = e,
@@ -278,25 +377,34 @@ pub fn drill<O: ValueOps>(
     Ok(cur)
 }
 
+/// How `release` names an `-index` step that falls outside its sublist.
+/// Measured (`lsort -index end-5 {{a b} {c d}}`, the step decoding to -4):
+/// tclsh 9.0.4 and 9.1.0 name the word (`end-5`) when an `end` step falls
+/// before the first element; 8.5.19 and 8.6.18 name the decoded index (`-4`);
+/// 8.4.20 names its encoding, `end` being -2 (`-7`). An index past the end is
+/// the decoded number everywhere.
+fn failed_step_name(step: PathEncoding, decoded: i64, release: TclVersion) -> String {
+    match step {
+        PathEncoding::FromEnd(offset) if decoded < 0 => match release {
+            TclVersion::V8_4 => (offset - 2).to_string(),
+            TclVersion::V8_5 | TclVersion::V8_6 => decoded.to_string(),
+            _ => format!("end-{}", -offset),
+        },
+        _ => decoded.to_string(),
+    }
+}
+
 /// Whether an index `spec` is *encodable* the way `TclIndexEncode` requires for
-/// `lsearch`/`lsort -index`: `Some(true)` for a normal index (a non-negative
-/// integer, or `end`/`end-N`), `Some(false)` for one that can never be in range
-/// (a negative integer, or `end+N`), and `None` for a syntactically bad spec.
-/// Length-independent: it classifies end-relativity by resolving against two
-/// different lengths.
+/// `lsearch`/`lsort -index`: `Some(true)` for a normal index (an integer in
+/// `0..=INT_MAX`, or `end`/`end-N`), `Some(false)` for one it refuses as out of
+/// range, and `None` for a syntactically bad spec.
 #[must_use]
 pub fn encodable(spec: &str) -> Option<bool> {
-    const BIG: usize = 1 << 20;
-    let r_big = resolve_opt(spec, BIG + 1)?; // None ⇒ syntactically bad
-    let r_small = resolve_opt(spec, 1)?;
-    let big = i64::try_from(BIG).unwrap_or(i64::MAX);
-    Some(if r_big == r_small {
-        // Absolute: encodable iff non-negative.
-        r_big >= 0
-    } else {
-        // End-relative: encodable iff it lands at or before `end` (offset ≤ 0).
-        r_big - big <= 0
-    })
+    match PathEncoding::of(spec) {
+        Ok(_) => Some(true),
+        Err(Refusal::OutOfRange) => Some(false),
+        Err(Refusal::Bad) => None,
+    }
 }
 
 /// Whose integer range reads an index's integers.
@@ -694,18 +802,66 @@ fn parse_int_whole(s: &str, numbers: NumberSyntax) -> Option<i64> {
     tail.trim_matches(is_space).is_empty().then_some(val)
 }
 
-/// The canonical `bad index "<spec>": …` error.
+/// The canonical `bad index "<spec>": …` error, as Tcl 8.6 and later raise it
+/// ([`bad_index_under`]).
 #[must_use]
 pub fn bad_index(spec: &str) -> CmdError {
-    CmdError::new(format!(
-        "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
-    ))
+    bad_index_under(spec, TclVersion::V8_6)
+}
+
+/// The `bad index` error `release` raises for `spec`: 8.4 words the grammar
+/// it reads (`integer or end?-integer?`), 8.5 on the sums too, and from 8.6
+/// the error carries `TCL VALUE INDEX` (measured, 8.4.20 to 9.1.0).
+#[must_use]
+pub fn bad_index_under(spec: &str, release: TclVersion) -> CmdError {
+    if release < TclVersion::V8_5 {
+        return CmdError::new(format!(
+            "bad index \"{spec}\": must be integer or end?-integer?"
+        ));
+    }
+    let message = format!("bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?");
+    if release < TclVersion::V8_6 {
+        CmdError::new(message)
+    } else {
+        CmdError::with_error_code(message, "TCL VALUE INDEX")
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::IndexReading::{At, Bad, HostLong};
     use super::*;
+
+    /// `lsort -index <step> {{a b} {c d}}` against each release (tclsh 8.4.20,
+    /// 8.5.19, 8.6.18, 9.0.4, 9.1.0): a step before the first element names
+    /// the word from 9.0, the decoded index in 8.5/8.6 and 8.4's `end` = -2
+    /// encoding; a step past the end is the number everywhere.
+    #[test]
+    fn a_failed_step_is_named_as_each_release_names_it() {
+        let rows: &[(&str, [&str; 5])] = &[
+            ("end-5", ["-7", "-4", "-4", "end-5", "end-5"]),
+            ("end-3", ["-5", "-2", "-2", "end-3", "end-3"]),
+            ("7", ["7", "7", "7", "7", "7"]),
+        ];
+        let releases = [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ];
+        for (spec, names) in rows {
+            let step = PathEncoding::of(spec).expect("encodes");
+            let decoded = step.decode(2);
+            for (release, name) in releases.iter().zip(names) {
+                assert_eq!(
+                    failed_step_name(step, decoded, *release),
+                    *name,
+                    "{spec} {release:?}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn resolve_integer_and_end_forms() {

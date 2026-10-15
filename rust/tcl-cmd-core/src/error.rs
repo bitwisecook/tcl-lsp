@@ -168,7 +168,10 @@ impl std::error::Error for CmdError {}
 
 impl From<ValueError> for CmdError {
     fn from(e: ValueError) -> Self {
-        Self::new(e.message())
+        match e.error_code() {
+            Some(code) => Self::with_error_code(e.message(), code),
+            None => Self::new(e.message()),
+        }
     }
 }
 

@@ -48,7 +48,7 @@
 use core::cmp::Ordering;
 
 use tcl_dialect::TclVersion;
-use tcl_syntax::value::ValueOps;
+use tcl_syntax::value::{ValueError, ValueOps};
 
 use tcl_syntax::list::split_list;
 
@@ -134,25 +134,40 @@ impl LsearchError {
     }
 }
 
+/// A failed integer read keeps the code the shared value seam carries.
+impl From<ValueError> for LsearchError {
+    fn from(error: ValueError) -> Self {
+        Self {
+            message: error.message().into_bytes(),
+            code: error.error_code().map(str::as_bytes),
+        }
+    }
+}
+
+/// A failed `-index` step keeps the code the shared index owner sets.
+impl From<index::IndexPathError> for LsearchError {
+    fn from(error: index::IndexPathError) -> Self {
+        Self {
+            message: error.message,
+            code: error.code,
+        }
+    }
+}
+
+const BADSTRIDE: &[u8] = b"TCL OPERATION LSEARCH BADSTRIDE";
+
 fn bad_index(spec: &[u8]) -> LsearchError {
     let mut m = b"bad index \"".to_vec();
     m.extend_from_slice(spec);
     m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-    LsearchError::msg(m)
-}
-
-fn not_integer(s: &[u8]) -> LsearchError {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(s);
-    m.push(b'"');
-    LsearchError::msg(m)
+    LsearchError::coded(m, b"TCL VALUE INDEX")
 }
 
 fn not_real(s: &[u8]) -> LsearchError {
     let mut m = b"expected floating-point number but got \"".to_vec();
     m.extend_from_slice(s);
     m.push(b'"');
-    LsearchError::msg(m)
+    LsearchError::coded(m, b"TCL VALUE NUMBER")
 }
 
 /// The parsed `lsearch` options.
@@ -169,6 +184,7 @@ struct Opts {
     group: usize,
     index_path: Vec<Vec<u8>>,
     start_spec: Option<Vec<u8>>,
+    release: TclVersion,
 }
 
 /// Drive `lsearch` over `args` (the command's arguments **without** the command
@@ -203,6 +219,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
         group: 1,
         index_path: Vec::new(),
         start_spec: None,
+        release: version,
     };
     // Options occupy everything before the trailing `list pattern`.
     let last_opt = n - 2; // first non-option index
@@ -242,11 +259,14 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
                         "\"-stride\" option must be followed by stride length",
                     ));
                 }
-                let sb = ops.as_bytes(&args[i + 1]);
-                match sort::parse_wide(&sb) {
-                    Some(w) if w >= 1 => o.group = usize::try_from(w).unwrap_or(usize::MAX),
-                    Some(_) => return Err(LsearchError::msg("stride length must be at least 1")),
-                    None => return Err(not_integer(&sb)),
+                match ops.as_int(&args[i + 1])? {
+                    w if w >= 1 => o.group = usize::try_from(w).unwrap_or(usize::MAX),
+                    _ => {
+                        return Err(LsearchError::coded(
+                            "stride length must be at least 1",
+                            BADSTRIDE,
+                        ));
+                    }
                 }
                 i += 1;
             }
@@ -277,8 +297,9 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
         .map_err(|e| LsearchError::msg(e.message()))?;
     let listc = elems.len();
     if o.group > 1 && listc % o.group != 0 {
-        return Err(LsearchError::msg(
+        return Err(LsearchError::coded(
             "list size must be a multiple of the stride length",
+            BADSTRIDE,
         ));
     }
 
@@ -292,8 +313,9 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
                 group_offset = usize::try_from(g).unwrap_or(0);
             }
             _ => {
-                return Err(LsearchError::msg(
+                return Err(LsearchError::coded(
                     "when used with \"-stride\", the leading \"-index\" value must be within the group",
+                    b"TCL OPERATION LSEARCH BADINDEX",
                 ));
             }
         }
@@ -314,8 +336,8 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
     let pattern = ops.as_bytes(&args[n - 1]).to_vec();
     // For numeric exact/sorted search, the pattern must parse as that type.
     if matches!(o.mode, SearchMode::Exact | SearchMode::Sorted) {
-        if o.dtype == SortMode::Integer && sort::parse_wide(&pattern).is_none() {
-            return Err(not_integer(&pattern));
+        if o.dtype == SortMode::Integer {
+            ops.as_int(&args[n - 1])?;
         }
         if o.dtype == SortMode::Real && sort::parse_real(&pattern).is_none() {
             return Err(not_real(&pattern));
@@ -344,7 +366,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
         while lower + (o.group as isize) != upper {
             let mut mid = (lower + upper) / 2;
             mid -= mid % o.group as isize;
-            let key = select_key(ops, &elems, mid as usize, group_offset, key_path)?;
+            let key = select_key(ops, &elems, mid as usize, group_offset, key_path, version)?;
             let ord = elem_cmp(ops, o.dtype, o.nocase, &pattern, &key)?;
             match ord {
                 Ordering::Equal => {
@@ -379,7 +401,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
         let mut matches: Vec<usize> = Vec::new();
         let mut g = start;
         while g < listc {
-            let key = select_key(ops, &elems, g, group_offset, key_path)?;
+            let key = select_key(ops, &elems, g, group_offset, key_path, version)?;
             let mut m = match o.mode {
                 SearchMode::Glob => {
                     let kb = ops.as_bytes(&key);
@@ -397,7 +419,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
                         // A search cut short is raised, never counted as an
                         // element that did not match.
                         crate::regex::RegexpPrecision::Declined(decline) => {
-                            return Err(LsearchError::msg(decline.into_error().0));
+                            return Err(LsearchError::msg(decline.into_error().message));
                         }
                     }
                 }
@@ -433,18 +455,20 @@ fn select_key<O: ValueOps>(
     base: usize,
     group_offset: usize,
     key_path: &[Vec<u8>],
+    release: TclVersion,
 ) -> Result<O::Value, LsearchError> {
-    select_by_index(ops, &elems[base + group_offset], key_path)
+    select_by_index(ops, &elems[base + group_offset], key_path, release)
 }
 
 /// Drill into a (nested) list value by an index `path` — the shared
-/// [`index::drill`], with the message wrapped in [`LsearchError`].
+/// [`index::drill`], with the error wrapped in [`LsearchError`].
 fn select_by_index<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
     path: &[Vec<u8>],
+    release: TclVersion,
 ) -> Result<O::Value, LsearchError> {
-    index::drill(ops, value, path).map_err(LsearchError::msg)
+    Ok(index::drill(ops, value, path, release)?)
 }
 
 /// Compare the search `pattern` against key `obj` under `dtype` (`-exact`/
@@ -460,7 +484,7 @@ fn elem_cmp<O: ValueOps>(
     Ok(match dtype {
         SortMode::Dictionary => sort::dictionary_compare(pattern, &ob),
         SortMode::Integer => {
-            let o = sort::parse_wide(&ob).ok_or_else(|| not_integer(&ob))?;
+            let o = i128::from(ops.as_int(obj)?);
             sort::parse_wide(pattern).unwrap_or(0).cmp(&o)
         }
         SortMode::Real => {
@@ -579,7 +603,7 @@ fn inline_leaf<O: ValueOps>(
     key_path: &[Vec<u8>],
 ) -> Result<O::Value, LsearchError> {
     if o.subindices && !key_path.is_empty() {
-        select_by_index(ops, &elems[base + group_offset], key_path)
+        select_by_index(ops, &elems[base + group_offset], key_path, o.release)
     } else {
         Ok(elems[base + group_offset].clone())
     }
@@ -616,22 +640,9 @@ fn split_index(arg: &[u8]) -> Result<Vec<Vec<u8>>, LsearchError> {
 }
 
 /// Validate each `-index` value's scale at parse time (`TclIndexEncode`): a
-/// syntactically-bad spec is `bad index`, an unencodable one (negative, or
-/// `end+N`) is `out of range`.
+/// syntactically-bad spec is `bad index`, an unencodable one `out of range`.
 fn validate_index_path(path: &[Vec<u8>]) -> Result<(), LsearchError> {
-    for spec in path {
-        match index::encodable(&str_of(spec)) {
-            Some(true) => {}
-            Some(false) => {
-                let mut m = b"index \"".to_vec();
-                m.extend_from_slice(spec);
-                m.extend_from_slice(b"\" out of range");
-                return Err(LsearchError::coded(m, b"TCL VALUE INDEX OUTOFRANGE"));
-            }
-            None => return Err(bad_index(spec)),
-        }
-    }
-    Ok(())
+    Ok(index::check_index_path(path)?)
 }
 
 /// `&[u8]` → owned `String` (lossy-safe: index/option specs are ASCII).

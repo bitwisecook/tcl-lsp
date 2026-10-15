@@ -1019,63 +1019,29 @@ fn irules_matches_regex_is_never_folded() {
 
 // iRules `in` / `ni`
 
+/// The F5 interpreters run an 8.4.6 core and lack 8.5's `in` and `ni`
+/// (`docs/design/f5/bigip-irule-parser-measurements.md`, "No 8.5 features
+/// anywhere"; W003 reports them), so a membership test folds nothing there:
+/// the program raises, and no fold may give it a value.
 #[test]
-fn irules_in_list_membership() {
-    assert_eq!(
-        eval_irules(r#""apple" in "apple banana cherry""#),
-        Some(int(1))
-    );
-    assert_eq!(
-        eval_irules(r#""grape" in "apple banana cherry""#),
-        Some(int(0))
-    );
-    assert_eq!(eval_irules(r#""apple" in "apple""#), Some(int(1)));
-    assert_eq!(eval_irules(r#""apple" in """#), Some(int(0)));
-    // Braced grouping: {hello world} is one element.
-    assert_eq!(
-        eval_irules(r#""hello world" in "{hello world} simple""#),
-        Some(int(1))
-    );
-    // A prefix is not a list element.
-    assert_eq!(eval_irules(r#""app" in "apple banana""#), Some(int(0)));
+fn irules_in_and_ni_fold_nothing() {
+    for expression in [
+        r#""apple" in "apple banana cherry""#,
+        r#""grape" in "apple banana cherry""#,
+        r#""hello world" in "{hello world} simple""#,
+        r#""grape" ni "apple banana cherry""#,
+        r#""apple" ni """#,
+    ] {
+        assert_eq!(eval_irules(expression), None, "{expression}");
+    }
     assert_eq!(
         eval_irules_env(
             r#"$method in "GET HEAD OPTIONS""#,
             &env_str("method", "GET")
         ),
-        Some(int(1))
-    );
-    assert_eq!(
-        eval_irules_env(
-            r#"$method in "GET HEAD OPTIONS""#,
-            &env_str("method", "POST")
-        ),
-        Some(int(0))
+        None
     );
 }
-
-#[test]
-fn irules_ni_negated_membership() {
-    assert_eq!(
-        eval_irules(r#""grape" ni "apple banana cherry""#),
-        Some(int(1))
-    );
-    assert_eq!(
-        eval_irules(r#""apple" ni "apple banana cherry""#),
-        Some(int(0))
-    );
-    assert_eq!(eval_irules(r#""apple" ni """#), Some(int(1)));
-    assert_eq!(
-        eval_irules_env(r#"$method ni "GET HEAD""#, &env_str("method", "POST")),
-        Some(int(1))
-    );
-    assert_eq!(
-        eval_irules_env(r#"$method ni "GET HEAD""#, &env_str("method", "GET")),
-        Some(int(0))
-    );
-}
-
-// iRules word logical (`and`/`or`/`not`)
 
 #[test]
 fn irules_word_logical_and_or_not() {
@@ -1127,7 +1093,7 @@ fn irules_combined_with_variables() {
     env.insert("method".into(), EnvValue::Str("GET".into()));
     env.insert("uri".into(), EnvValue::Str("/api/data".into()));
     assert_eq!(
-        eval_irules_env(r#"$method in "GET HEAD" and $uri starts_with "/api""#, &env),
+        eval_irules_env(r#"$method eq "GET" and $uri starts_with "/api""#, &env),
         Some(int(1))
     );
 

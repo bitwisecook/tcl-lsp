@@ -1197,6 +1197,8 @@ impl ModuleCommandBindings {
                 .iter()
                 .cloned()
                 .collect(),
+            // A variable fact, which the source scan owns.
+            precision_written: PrecisionWrites::Unwritten,
         }
     }
 
@@ -4221,6 +4223,14 @@ pub struct ModuleCommandMutations {
     /// unaffected, which is what keeps `namespace import ::lib::*` into
     /// `::app` from distrusting `::lib::helper` itself.
     opaque_namespaces: std::collections::HashSet<String>,
+    /// The module may set the variable through which the target's releases
+    /// change how a computed double is spelled
+    /// ([`tcl_dialect::NumberSyntax::precision_variable`], `tcl_precision`
+    /// through 8.6) — see [`module_may_set_precision`]. Not a command
+    /// binding, but the same kind of whole-module fact every fold reads: a
+    /// double folded to text under the default spelling would print
+    /// differently from the one the program computes.
+    precision_written: PrecisionWrites,
 }
 
 /// Prepared, narrow procedure-binding trust projection for call-site
@@ -4260,6 +4270,14 @@ impl std::hash::Hash for ModuleCommandMutations {
 }
 
 impl ModuleCommandMutations {
+    /// Whether the module may set the target's precision variable, so no
+    /// computed double has a spelling known at compile time
+    /// ([`tcl_dialect::NumberSpelling::with_precision_written`]).
+    #[must_use]
+    pub const fn may_set_precision(&self) -> bool {
+        matches!(self.precision_written, PrecisionWrites::MayBeWritten)
+    }
+
     /// Whether any command-table mutation has a dynamic source or target.
     ///
     /// Consumers retaining typed proof declines need to distinguish this
@@ -4366,6 +4384,7 @@ impl ModuleCommandMutations {
             runtime_selected_frames: true,
             resolution_changed: true,
             opaque_namespaces: std::collections::HashSet::new(),
+            precision_written: PrecisionWrites::MayBeWritten,
         }
     }
 
@@ -4389,6 +4408,7 @@ impl ModuleCommandMutations {
                 v.sort_unstable();
                 v
             },
+            precision_written: self.precision_written,
         }
     }
 
@@ -4452,6 +4472,9 @@ pub struct CommandTrustSnapshot {
     /// unperturbed must not be reused once a `namespace import` appears.
     resolution_changed: bool,
     opaque_namespaces: Vec<String>,
+    /// Part of the key: a double folded while the default spelling held
+    /// must not be replayed once a `set tcl_precision` appears.
+    precision_written: PrecisionWrites,
 }
 
 impl CommandTrustSnapshot {
@@ -4479,6 +4502,7 @@ impl CommandTrustSnapshot {
             runtime_selected_frames: self.runtime_selected_frames,
             resolution_changed: self.resolution_changed,
             opaque_namespaces: self.opaque_namespaces.iter().cloned().collect(),
+            precision_written: self.precision_written,
         }
     }
 }
@@ -4984,7 +5008,53 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
         runtime_selected_frames,
         resolution_changed,
         opaque_namespaces,
+        precision_written: module_may_set_precision(ir_module, registry),
     }
+}
+
+/// Whether `ir_module` may set the variable that changes how `registry`'s
+/// release spells a computed double
+/// ([`tcl_dialect::NumberSyntax::precision_variable`]): its source names the
+/// variable anywhere — `set`, `global`, `upvar`, a script string — or a
+/// command writes a variable whose name, or a script that it runs, the
+/// program computes ([`crate::dynamic_names::statement_barrier`]). Code the
+/// module loads (`source`, `package require`) is not seen, as no fold sees
+/// it.
+fn module_may_set_precision(
+    ir_module: &crate::ir::Module,
+    registry: &CommandRegistry,
+) -> PrecisionWrites {
+    let Some(variable) = registry.numbers().precision_variable() else {
+        return PrecisionWrites::Unwritten;
+    };
+    if ir_module.source.contains(variable) {
+        return PrecisionWrites::MayBeWritten;
+    }
+    let config = crate::dynamic_names::lexer_config_for(registry);
+    let declared = &ir_module.declared_frame_effects;
+    let mut written = false;
+    for (script, _) in ir_module.executable_script_roots() {
+        crate::ir::for_each_statement(script, &mut |stmt| {
+            written = written
+                || crate::dynamic_names::statement_barrier(stmt, registry, declared, config).writes;
+        });
+    }
+    if written {
+        PrecisionWrites::MayBeWritten
+    } else {
+        PrecisionWrites::Unwritten
+    }
+}
+
+/// Whether a module may set its release's precision variable — see
+/// [`ModuleCommandMutations::may_set_precision`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+enum PrecisionWrites {
+    /// Nothing in the module can name it.
+    #[default]
+    Unwritten,
+    /// The module names it, or writes a variable whose name it computes.
+    MayBeWritten,
 }
 
 #[cfg(test)]
@@ -5143,10 +5213,11 @@ mod tests {
             runtime_selected_frames: true,
             resolution_changed: true,
             opaque_namespaces: std::iter::once("::ns".to_owned()).collect(),
+            precision_written: PrecisionWrites::MayBeWritten,
         };
         assert_eq!(every.snapshot().to_mutations(), every);
         let base = ModuleCommandMutations::default();
-        let one_field: [ModuleCommandMutations; 7] = [
+        let one_field: [ModuleCommandMutations; 8] = [
             ModuleCommandMutations {
                 names: every.names.clone(),
                 ..base.clone()
@@ -5173,6 +5244,10 @@ mod tests {
             },
             ModuleCommandMutations {
                 opaque_namespaces: every.opaque_namespaces.clone(),
+                ..base.clone()
+            },
+            ModuleCommandMutations {
+                precision_written: PrecisionWrites::MayBeWritten,
                 ..base.clone()
             },
         ];

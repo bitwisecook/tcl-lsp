@@ -29,13 +29,10 @@
 use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
 
 use crate::frame::{split_array_ref, VarError};
-use crate::interp::{obj_bytes, Code, Interp};
-use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStackValueError};
-// The transient `1` of a tower `incr` is the only fresh object left to drop
-// by hand; every other path now stores through `store_var_result`.
-#[cfg(have_tommath)]
 use crate::interp::drop_fresh;
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
+use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStackValueError};
 
 /// Register the starter builtins on a fresh interp.
 pub fn install(interp: &mut Interp) {
@@ -348,7 +345,7 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     drop_fresh(one); // the transient `1` (used or not) is no longer needed
     let sum = match sum {
         Ok(s) => s, // rc 0
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e.into()),
     };
 
     // The protected store: a write trace that rewrites or unsets
@@ -449,6 +446,14 @@ fn parse_code(b: &[u8]) -> Option<Code> {
     }
 }
 
+/// A `return -level` word as C reads it: a C `int` that is not negative.
+fn return_level(word: &[u8]) -> Option<usize> {
+    let obj = obj::new_string_bytes(word);
+    let level = crate::typed_value::int(obj).ok();
+    drop_fresh(obj);
+    level.and_then(|level| usize::try_from(level).ok())
+}
+
 /// `exit ?returnCode?` — record the requested exit code and unwind uncatchably.
 ///
 /// The embedded runtime never terminates the host process (that would kill the
@@ -467,7 +472,7 @@ fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     let mut m = b"expected integer but got \"".to_vec();
                     m.extend_from_slice(&bytes);
                     m.push(b'"');
-                    return interp.set_error(&m);
+                    return interp.error_with_code(&m, b"TCL VALUE NUMBER");
                 }
             }
         }
@@ -491,8 +496,10 @@ pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
 
-    let mut code = Code::Ok;
-    let mut level: usize = 1;
+    // `-code` and `-level` merge last-wins across the flags and any `-options`
+    // dict, and are validated once merged (`TclMergeReturnOptions`).
+    let mut code_word: Option<Vec<u8>> = None;
+    let mut level_word: Option<Vec<u8>> = None;
     let mut errorcode: Option<Vec<u8>> = None;
     let mut errorinfo: Option<Vec<u8>> = None;
     let mut errorstack: Option<Vec<u8>> = None;
@@ -502,24 +509,8 @@ pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     while i + 1 < argv.len() {
         let opt = obj_bytes(argv[i]);
         match opt.as_slice() {
-            b"-code" => match parse_code(&obj_bytes(argv[i + 1])) {
-                Some(c) => code = c,
-                None => {
-                    let mut m = b"bad completion code \"".to_vec();
-                    m.extend_from_slice(&obj_bytes(argv[i + 1]));
-                    m.extend_from_slice(
-                        b"\": must be ok, error, return, break, continue, or an integer",
-                    );
-                    return interp.set_error(&m);
-                }
-            },
-            b"-level" => match core::str::from_utf8(&obj_bytes(argv[i + 1]))
-                .ok()
-                .and_then(|s| s.trim().parse::<usize>().ok())
-            {
-                Some(l) => level = l,
-                None => return interp.set_error(b"bad -level value"),
-            },
+            b"-code" => code_word = Some(obj_bytes(argv[i + 1])),
+            b"-level" => level_word = Some(obj_bytes(argv[i + 1])),
             b"-errorcode" => {
                 let value = obj_bytes(argv[i + 1]);
                 set_carried(&mut carried, &opt, &value);
@@ -547,13 +538,8 @@ pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 let mut j = 0;
                 while j + 1 < d.len() {
                     match d[j].as_slice() {
-                        b"-code" => code = parse_code(&d[j + 1]).unwrap_or(code),
-                        b"-level" => {
-                            level = core::str::from_utf8(&d[j + 1])
-                                .ok()
-                                .and_then(|s| s.trim().parse().ok())
-                                .unwrap_or(level);
-                        }
+                        b"-code" => code_word = Some(d[j + 1].clone()),
+                        b"-level" => level_word = Some(d[j + 1].clone()),
                         b"-errorcode" => errorcode = Some(d[j + 1].clone()),
                         b"-errorinfo" => errorinfo = Some(d[j + 1].clone()),
                         b"-errorstack" => errorstack = Some(d[j + 1].clone()),
@@ -569,6 +555,32 @@ pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         i += 2;
     }
+    let code = match code_word {
+        None => Code::Ok,
+        Some(word) => match parse_code(&word) {
+            Some(code) => code,
+            None => {
+                let mut m = b"bad completion code \"".to_vec();
+                m.extend_from_slice(&word);
+                m.extend_from_slice(
+                    b"\": must be ok, error, return, break, continue, or an integer",
+                );
+                return interp.error_with_code(&m, b"TCL RESULT ILLEGAL_CODE");
+            }
+        },
+    };
+    let level = match level_word {
+        None => 1,
+        Some(word) => match return_level(&word) {
+            Some(level) => level,
+            None => {
+                let mut m = b"bad -level value: expected non-negative integer but got \"".to_vec();
+                m.extend_from_slice(&word);
+                m.push(b'"');
+                return interp.error_with_code(&m, b"TCL RESULT ILLEGAL_LEVEL");
+            }
+        },
+    };
     // Validate -errorcode / -errorstack (`TclMergeReturnOptions`). A malformed
     // value errors before the return takes effect, with a specific `-errorcode`.
     if let Some(ec) = &errorcode {

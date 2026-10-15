@@ -83,16 +83,11 @@ fn time_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return interp.wrong_args(b"time command ?count?");
     }
-    let count: i128 = if argv.len() == 3 {
-        let bytes = obj_bytes(argv[2]);
-        match tcl_cmd_core::sort::parse_wide(&bytes) {
-            Some(n) => n,
-            None => {
-                let mut m = b"expected integer but got \"".to_vec();
-                m.extend_from_slice(&bytes);
-                m.push(b'"');
-                return interp.set_error(&m);
-            }
+    // C reads the count as a C `int`, so `4294967295` is -1 iterations.
+    let count = if argv.len() == 3 {
+        match crate::typed_value::int(argv[2]) {
+            Ok(n) => i64::from(n),
+            Err(error) => return interp.report_typed_error(&error),
         }
     } else {
         1
@@ -197,18 +192,16 @@ fn timerate_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut max_ms: i128 = i128::MIN;
     let mut max_cnt: u128 = u128::MAX;
     if i < argv.len() {
-        let b = obj_bytes(argv[i]);
-        let Some(v) = tcl_cmd_core::sort::parse_wide(&b) else {
-            return expected_integer(interp, &b);
+        max_ms = match crate::typed_value::wide_int(argv[i]) {
+            Ok(v) => i128::from(v),
+            Err(error) => return interp.report_typed_error(&error),
         };
-        max_ms = v;
         i += 1;
         if i < argv.len() {
-            let b = obj_bytes(argv[i]);
-            let Some(v) = tcl_cmd_core::sort::parse_wide(&b) else {
-                return expected_integer(interp, &b);
+            max_cnt = match crate::typed_value::wide_int(argv[i]) {
+                Ok(v) => u128::try_from(v).unwrap_or(0),
+                Err(error) => return interp.report_typed_error(&error),
             };
-            max_cnt = if v > 0 { v as u128 } else { 0 };
         }
     }
 
@@ -251,13 +244,6 @@ fn timerate_usage(interp: &mut Interp) -> Code {
     interp.wrong_args(
         b"timerate ?-direct? ?-calibrate? ?-overhead double? command ?time ?max-count??",
     )
-}
-
-fn expected_integer(interp: &mut Interp, got: &[u8]) -> Code {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(got);
-    m.push(b'"');
-    interp.set_error(&m)
 }
 
 /// The measurement loop: evaluate `script` until `max_ms` elapses or `max_cnt`

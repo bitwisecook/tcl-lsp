@@ -82,6 +82,11 @@ pub struct AnalysisContext {
     pub traced_variables: BTreeSet<String>,
     /// Whether a trace targets a computed name, making every place traced.
     pub has_dynamic_variable_trace: bool,
+    /// Whether the module may set the variable that changes how the target
+    /// spells a computed double (`tcl_precision` through 8.6,
+    /// [`tcl_dialect::NumberSyntax::precision_variable`]), so no double it
+    /// computes has a spelling known here.
+    pub precision_written: bool,
     /// The escaping set: places writable from outside the function.
     pub escaping: BTreeSet<String>,
     /// The call-site seeds and transfer-summary revision.
@@ -116,6 +121,7 @@ impl AnalysisContext {
             grammar: profile.map_or_else(LexerGrammar::default, |p| p.grammar),
             traced_variables: BTreeSet::new(),
             has_dynamic_variable_trace: false,
+            precision_written: false,
             escaping: BTreeSet::new(),
             seeds_revision: 0,
             evaluator_revision: 0,

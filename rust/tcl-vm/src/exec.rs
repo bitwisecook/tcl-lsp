@@ -864,7 +864,8 @@ impl Vm {
     }
 
     /// Remove the nested `keys` path from dict `cur`. Returns the new top-level
-    /// dict value (a no-op if the path is absent, matching `dict unset`).
+    /// dict value; a missing intermediate key is `key "…" not known in
+    /// dictionary`, as in C.
     fn dict_unset_path(&mut self, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
         self.dict_unset_path_cow(cur, keys, 2, false)
     }
@@ -886,6 +887,10 @@ impl Vm {
         } else if let Some(idx) = ps.iter().position(|(pk, _)| pk == &k) {
             let inner = ps[idx].1.clone();
             ps[idx].1 = self.dict_unset_path_cow(&inner, &keys[1..], 3, copied)?;
+        } else {
+            return Err(crate::command::completion_from_cmd_error(
+                tcl_cmd_core::dict::key_not_known(&k),
+            ));
         }
         Ok(dict_from_pairs_with_hash_bucket_count(&ps, bucket_count))
     }
@@ -2875,7 +2880,7 @@ impl Vm {
                 let amount = pop(f);
                 match amount.as_int() {
                     Ok(a) => try_op!(self.incr_var(f, &name, a)),
-                    Err(e) => return Tick::Return(err(e.message)),
+                    Err(e) => return Tick::Return(crate::command::completion_from_tcl_error(e)),
                 }
             }
             Op::INCR_SCALAR1_IMM => {
@@ -3383,18 +3388,20 @@ impl Vm {
             Op::UPVAR => {
                 let local = lvt_name(imm0(instr));
                 let other = pop(f).to_str();
-                let spec = f
+                // The level word under the name, resolved as `INST_UPVAR`'s
+                // `TclObjGetFrame` does; a word that is no level is bad here.
+                let level = f
                     .stack
                     .last()
-                    .map(|v| v.to_str().to_string())
-                    .unwrap_or_default();
-                let target_level = if let Some(abs) = spec.strip_prefix('#') {
-                    abs.parse::<usize>().unwrap_or(0)
-                } else if !spec.is_empty() && spec.bytes().all(|b| b.is_ascii_digit()) {
-                    self.current_level()
-                        .saturating_sub(spec.parse::<usize>().unwrap_or(1))
-                } else {
-                    self.current_level().saturating_sub(1)
+                    .cloned()
+                    .unwrap_or_else(|| Value::string("1"));
+                let current = self.current_level();
+                let Ok(tcl_cmd_core::frame::FrameLevel::Named(target_level)) =
+                    tcl_cmd_core::frame::frame_level(self, Some(&level), current)
+                else {
+                    return Tick::Return(crate::command::completion_from_cmd_error(
+                        tcl_cmd_core::frame::bad_level(&level.to_str()),
+                    ));
                 };
                 if let Err(error) = self.link_upvar(target_level, &other, &local) {
                     return Tick::Return(crate::command::upvar_link_error(error, &other, &local));
@@ -4396,7 +4403,7 @@ impl Vm {
                     // a sum past `i64` promotes to `i128` and past that to an
                     // arbitrary-precision bignum rather than erroring, matching
                     // tclsh.
-                    crate::value_ops::int_add(old, &inc).map_err(|e| err(e.message()))
+                    crate::cmd_dict::dict_incr(old, &inc)
                 });
                 match updated {
                     Ok(result) => {
@@ -4467,9 +4474,9 @@ impl Vm {
                     match ps.iter().find(|(pk, _)| pk == &*ks) {
                         Some((_, v)) => cur = v.clone(),
                         None => {
-                            return Tick::Return(err(format!(
-                                "key \"{ks}\" not known in dictionary"
-                            )));
+                            return Tick::Return(crate::command::completion_from_cmd_error(
+                                tcl_cmd_core::dict::key_not_known(&ks),
+                            ));
                         }
                     }
                 }
@@ -6049,7 +6056,7 @@ impl Vm {
         let cur = self.read_for_update(name);
         let inc = Value::int(amount);
         let next = tcl_syntax::value::ValueOps::int_add(self, cur.as_ref(), &inc)
-            .map_err(|e| err(e.message()))?;
+            .map_err(|e| crate::command::completion_from_cmd_error(e.into()))?;
         let stored = self.store_var_result(name, next)?;
         f.stack.push(stored);
         Ok(())

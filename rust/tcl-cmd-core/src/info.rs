@@ -107,8 +107,9 @@ where
     let Some(n) = number else {
         return Ok(ops.new_int(cur));
     };
-    // Non-integer → `expected integer but got "x"` (via `ValueError`).
-    let requested = ops.as_int(n)?;
+    // C reads a C `int`: non-integer → `expected integer but got "x"`, past
+    // `UINT_MAX` → the overflow (via `ValueError`).
+    let requested = i64::from(ops.as_c_int(n)?);
     let target = if requested <= 0 {
         cur + requested
     } else {
@@ -121,7 +122,11 @@ where
     }
     // Syntactically an integer but no such call frame (out of range, or <= 0
     // at the global level): `bad level "x"`.
-    Err(CmdError::new(format!("bad level \"{}\"", ops.as_str(n))))
+    let word = ops.as_str(n);
+    Err(CmdError::with_error_code(
+        format!("bad level \"{word}\""),
+        tcl_syntax::list::join_list(["TCL", "LOOKUP", "STACK_LEVEL", &*word]),
+    ))
 }
 
 /// `info exists varName` — whether `varName` is currently set in the current

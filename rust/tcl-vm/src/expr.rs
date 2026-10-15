@@ -1314,13 +1314,12 @@ mod tests {
         let s = |t: &str| Value::string(t);
         let f = |op: BinOp, a: &Value, b: &Value| arith(op, a, b).unwrap().to_str().to_string();
         // tclsh: expr {1.5 + 18446744073709551616} — the *value* is exactly
-        // 2^64 (tclsh: entier of it is 18446744073709551616). tclsh 8.6
-        // prints it "1.844674407370955e+19", which does not round-trip (it
-        // re-parses as 2^64 - 2048); this toolchain's `format_double` is
-        // pinned to the shortest *round-tripping* form.
+        // 2^64 (tclsh: entier of it is 18446744073709551616), which tclsh
+        // 8.5.19 to 9.1.0 print as "1.844674407370955e+19", a spelling that
+        // re-reads as 2^64 - 2048; `format_double` spells it as tclsh does.
         assert_eq!(
             f(BinOp::Add, &Value::double(1.5), &s("18446744073709551616")),
-            "1.8446744073709552e+19"
+            "1.844674407370955e+19"
         );
         // tclsh: expr {2**200 + 1.5} → 1.6069380442589903e+60
         let p200 = "1606938044258990275541962092341162602522202993782792835301376";

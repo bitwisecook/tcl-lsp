@@ -41,12 +41,7 @@ use tcl_syntax::naming::is_qualified;
 
 use crate::frame::{split_array_ref, Link, VarHome};
 use crate::interp::{obj_bytes, Code, Interp};
-// `incr`'s tower add — the only user — is `have_tommath`-gated.
-#[cfg(have_tommath)]
-use crate::interp::drop_fresh;
 use crate::namespace::GLOBAL;
-#[cfg(have_tommath)]
-use crate::obj;
 use crate::obj::TclObj;
 
 /// Register `global`, `variable`, and `upvar`; also re-registers `set` (and,
@@ -178,14 +173,20 @@ fn incr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 
     let cur = interp.read_for_update(&base, elem.as_deref());
-    let one = obj::new_wide_int_obj(1);
+    // `TclIncrObj` checks the current value, then the increment.
+    for operand in cur.iter().chain(argv.get(2)) {
+        if let Err(error) = crate::typed_value::incr_operand(*operand) {
+            return interp.report_typed_error(&error);
+        }
+    }
+    let one = crate::obj::new_wide_int_obj(1);
     let amount = if argv.len() == 3 { argv[2] } else { one };
 
     let sum = tcl_syntax::value::ValueOps::int_add(interp, cur.as_ref(), &amount);
-    drop_fresh(one); // the transient `1` (used or not) is no longer needed
+    crate::interp::drop_fresh(one); // the transient `1` (used or not) is no longer needed
     let sum = match sum {
         Ok(s) => s, // rc 0
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e.into()),
     };
 
     match interp.store_var_result(&base, elem.as_deref(), sum) {
@@ -287,23 +288,28 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // A level is present iff the arg count is even (cmd + level + pairs); else
     // the default relative level 1 applies and the pairs start at argv[1].
     let has_level = argv.len() % 2 == 0;
-    let (spec, pairs_start) = if has_level {
-        (obj_bytes(argv[1]), 2)
-    } else {
-        (b"1".to_vec(), 1)
-    };
+    let pairs_start = if has_level { 2 } else { 1 };
     if argv.len() - pairs_start < 2 {
         return interp.wrong_args(usage);
     }
-    let target_level = parse_level(&spec, interp.current_level());
+    // C resolves the level before any pair, so a bad one fails even when every
+    // other-var is qualified; a word that is not a level at all is a bad level
+    // here, where `uplevel` would take it as the command.
+    let level_word = has_level.then(|| argv[1]);
+    let level = match frame_level(interp, level_word) {
+        Ok(FrameLevel::Named(level)) => level,
+        Ok(FrameLevel::Default(level)) if !has_level => level,
+        Ok(FrameLevel::Default(_)) => return bad_level(interp, &obj_bytes(argv[1])),
+        Err(code) => return code,
+    };
     // A *relative* `upvar 0` at namespace-eval scope (no proc frame) resolves an
     // unqualified other-var against the current namespace, not the global frame
     // — e.g. `upvar 0 Option(-debug) debug` inside `namespace eval`. (`#0` is
     // absolute and always means the global level.)
-    let relative_here = !spec.starts_with(b"#")
+    let relative_here = level_word.is_some_and(|word| !obj_bytes(word).starts_with(b"#"))
         && !interp.in_proc()
         && interp.current_ns() != GLOBAL
-        && target_level == Some(interp.current_level());
+        && level == interp.current_level();
 
     let mut i = pairs_start;
     while i + 1 < argv.len() {
@@ -312,7 +318,7 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let (base, elem) = split_array_ref(&other);
 
         let link = if is_qualified(&base) {
-            // A qualified other-var names a namespace var (level is irrelevant).
+            // A qualified other-var names a namespace var at any level.
             match interp.resolve_var_target(interp.current_ns(), &base) {
                 Some((ns, simple)) => Link {
                     home: VarHome::Namespace(ns),
@@ -323,12 +329,6 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         } else {
             // A frame-local other-var at the resolved level.
-            let Some(level) = target_level else {
-                let mut m = b"bad level \"".to_vec();
-                m.extend_from_slice(&spec);
-                m.push(b'"');
-                return interp.set_error(&m);
-            };
             let home = if relative_here {
                 VarHome::Namespace(interp.current_ns())
             } else {
@@ -377,30 +377,33 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// Parse an `upvar`/`uplevel` level spec to an **absolute** frame level, or
-/// `None` if it isn't a valid level for the `current` depth. `#N` is absolute; a
-/// bare `N` is relative (`current - N`).
-pub(crate) fn parse_level(spec: &[u8], current: usize) -> Option<usize> {
-    if let Some(rest) = spec.strip_prefix(b"#") {
-        let n = parse_usize(rest)?;
-        (n <= current).then_some(n)
-    } else if !spec.is_empty() && spec.iter().all(u8::is_ascii_digit) {
-        let n = parse_usize(spec)?;
-        current.checked_sub(n)
-    } else {
-        None
-    }
+pub(crate) use tcl_cmd_core::frame::FrameLevel;
+
+/// Resolve a `?level?` word as C's `TclObjGetFrame` does
+/// ([`tcl_cmd_core::frame::frame_level`]), raising `bad level`
+/// (`TCL LOOKUP LEVEL`) when it names no frame.
+pub(crate) fn frame_level(
+    interp: &mut Interp,
+    word: Option<*mut TclObj>,
+) -> Result<FrameLevel, Code> {
+    let current = interp.current_level();
+    tcl_cmd_core::frame::frame_level(interp, word.as_ref(), current).map_err(|bad| {
+        let spec = match (bad, word) {
+            (tcl_cmd_core::frame::BadLevel::Word, Some(word)) => obj_bytes(word),
+            _ => b"1".to_vec(),
+        };
+        bad_level(interp, &spec)
+    })
 }
 
-fn parse_usize(s: &[u8]) -> Option<usize> {
-    if s.is_empty() || !s.iter().all(u8::is_ascii_digit) {
-        return None;
-    }
-    let mut acc: usize = 0;
-    for &c in s {
-        acc = acc.checked_mul(10)?.checked_add((c - b'0') as usize)?;
-    }
-    Some(acc)
+/// `bad level "…"`, with the `TCL LOOKUP LEVEL` code C sets beside it.
+pub(crate) fn bad_level(interp: &mut Interp, spec: &[u8]) -> Code {
+    let mut m = b"bad level \"".to_vec();
+    m.extend_from_slice(spec);
+    m.push(b'"');
+    let word = String::from_utf8_lossy(spec);
+    let code = tcl_syntax::list::join_list(["TCL", "LOOKUP", "LEVEL", &word]);
+    interp.error_with_code(&m, code.as_bytes())
 }
 
 #[cfg(test)]

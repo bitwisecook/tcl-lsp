@@ -49,6 +49,7 @@ use std::sync::atomic::AtomicBool;
 use tcl_dialect::{ByteStringEncoding, StringCharacterModel, TclVersion};
 use tcl_syntax::value::ValueOps;
 
+use crate::error::CmdError;
 use crate::prefix::OptionTable;
 
 /// The "did not participate" sentinel for a subexpression's offset (mirrors the
@@ -151,7 +152,7 @@ impl PrecisionDecline {
         let reason = match self {
             Self::PatternError(error) => return error,
             Self::FormUnsupported { option } => {
-                return RegexError(format!("{option} is not yet supported").into_bytes());
+                return RegexError::new(format!("{option} is not yet supported"));
             }
             Self::FuelExhausted { .. } => "the search exceeded its work budget",
             Self::DepthExhausted { .. } => "the search exceeded its recursion limit",
@@ -160,7 +161,7 @@ impl PrecisionDecline {
         };
         let mut message = b"error while matching regular expression: ".to_vec();
         message.extend_from_slice(reason.as_bytes());
-        RegexError(message)
+        RegexError::new(message)
     }
 }
 
@@ -299,9 +300,78 @@ pub trait RegexEngine {
     }
 }
 
-/// A `regexp`/`regsub` failure: the full, ready-to-report message bytes.
+/// A `regexp`/`regsub` failure: the full, ready-to-report message bytes and
+/// the `-errorcode` C sets beside them, where it sets one.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RegexError(pub Vec<u8>);
+pub struct RegexError {
+    pub message: Vec<u8>,
+    pub code: Option<String>,
+}
+
+impl RegexError {
+    /// A failure C reports with the default code.
+    #[must_use]
+    pub fn new(message: impl Into<Vec<u8>>) -> Self {
+        Self {
+            message: message.into(),
+            code: None,
+        }
+    }
+
+    /// A failure carrying its `-errorcode` list.
+    #[must_use]
+    pub fn coded(message: impl Into<Vec<u8>>, code: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            code: Some(code.into()),
+        }
+    }
+}
+
+/// The command-level error, keeping the code.
+impl From<RegexError> for CmdError {
+    fn from(error: RegexError) -> Self {
+        let message = String::from_utf8_lossy(&error.message).into_owned();
+        match error.code {
+            Some(code) => Self::with_error_code(message, code),
+            None => Self::new(message),
+        }
+    }
+}
+
+/// A shared-owner error (an index, an option lookup) keeps its code.
+impl From<CmdError> for RegexError {
+    fn from(error: CmdError) -> Self {
+        let (message, code) = error.into_parts();
+        Self {
+            message: message.into_bytes(),
+            code,
+        }
+    }
+}
+
+/// The `REG_*` name `regerror` gives each compile failure (`regerrs.h`),
+/// keyed by its message.
+const REG_ERROR_NAMES: &[(&str, &str)] = &[
+    ("invalid regexp (reg version 0.8)", "REG_BADPAT"),
+    ("invalid collating element", "REG_ECOLLATE"),
+    ("invalid character class", "REG_ECTYPE"),
+    ("invalid escape \\ sequence", "REG_EESCAPE"),
+    ("invalid backreference number", "REG_ESUBREG"),
+    ("brackets [] not balanced", "REG_EBRACK"),
+    ("parentheses () not balanced", "REG_EPAREN"),
+    ("braces {} not balanced", "REG_EBRACE"),
+    ("invalid repetition count(s)", "REG_BADBR"),
+    ("invalid character range", "REG_ERANGE"),
+    ("out of memory", "REG_ESPACE"),
+    ("invalid quantifier operand", "REG_BADRPT"),
+    ("\"cannot happen\" -- you found a bug", "REG_ASSERT"),
+    ("invalid argument to regex function", "REG_INVARG"),
+    ("character widths of regex and string differ", "REG_MIXED"),
+    ("invalid embedded option", "REG_BADOPT"),
+    ("regular expression is too complex", "REG_ETOOBIG"),
+    ("too many colors", "REG_ECOLORS"),
+];
 
 /// The outcome of [`regexp`] for the adapter to apply (var writes stay in the
 /// adapter — they are Family-B state).
@@ -643,9 +713,8 @@ fn notbol_at(cps: &[i32], offset: usize) -> bool {
 /// the start, both the intended clamp behaviour.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 fn resolve_start_checked(spec: &[u8], char_len: usize) -> Result<usize, RegexError> {
-    let text = core::str::from_utf8(spec).map_err(|_| RegexError(b"bad index".to_vec()))?;
-    let idx = crate::index::resolve(text, char_len)
-        .map_err(|e| RegexError(e.into_message().into_bytes()))?;
+    let text = core::str::from_utf8(spec).map_err(|_| RegexError::new(b"bad index".to_vec()))?;
+    let idx = crate::index::resolve(text, char_len)?;
     Ok(usize::try_from(idx).unwrap_or(0))
 }
 
@@ -670,14 +739,22 @@ fn wrong_args(usage: &[u8]) -> RegexError {
     let mut m = b"wrong # args: should be \"".to_vec();
     m.extend_from_slice(usage);
     m.push(b'"');
-    RegexError(m)
+    RegexError::new(m)
 }
 
-/// Wrap a provider compile-error detail in `version`'s standard prefix.
+/// Wrap a provider compile-error detail in `version`'s standard prefix, with
+/// `TclRegError`'s `REGEXP <name> <detail>` code when the detail is one of
+/// `regerror`'s.
 fn compile_error(version: TclVersion, detail: &[u8]) -> RegexError {
     let mut m = version.regex_compile_error_prefix().as_bytes().to_vec();
     m.extend_from_slice(detail);
-    RegexError(m)
+    let text = String::from_utf8_lossy(detail);
+    match REG_ERROR_NAMES.iter().find(|(message, _)| *message == text) {
+        Some((_, name)) => {
+            RegexError::coded(m, tcl_syntax::list::join_list(["REGEXP", name, &text]))
+        }
+        None => RegexError::new(m),
+    }
 }
 
 const REGEXP_USAGE: &[u8] = b"regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?";
@@ -777,7 +854,9 @@ where
         if name.first() != Some(&b'-') {
             break;
         }
-        let idx = REGEXP_OPTIONS.index_of(name).map_err(RegexError)?;
+        let idx = REGEXP_OPTIONS
+            .index_of_cmd(name)
+            .map_err(RegexError::from)?;
         i += 1;
         match idx {
             RE_ALL => c.all = true,
@@ -820,9 +899,11 @@ where
     // rather than an about answer (tclsh 8.4.20–9.1b0). Without `-about` the
     // arity check above has already forced `>= 2`, so `!= 2` is the old `> 2`.
     if inline && rest.len() != 2 {
-        return Err(
-            RegexError(b"regexp match variables not allowed when using -inline".to_vec()).into(),
-        );
+        return Err(RegexError::coded(
+            b"regexp match variables not allowed when using -inline".to_vec(),
+            "TCL OPERATION REGEXP MIX_VAR_INLINE",
+        )
+        .into());
     }
 
     let pattern = rest[0];
@@ -1066,11 +1147,11 @@ impl<Err> From<RegexError> for RegsubError<Err> {
 ///   command prefix must be a list of at least one element
 fn command_prefix(subspec: &[u8]) -> Result<Vec<Vec<u8>>, RegexError> {
     let text = core::str::from_utf8(subspec)
-        .map_err(|_| RegexError(b"command prefix must be a valid list".to_vec()))?;
+        .map_err(|_| RegexError::new(b"command prefix must be a valid list".to_vec()))?;
     let words = tcl_syntax::list::split_list(text)
-        .map_err(|e| RegexError(e.message().as_bytes().to_vec()))?;
+        .map_err(|e| RegexError::new(e.message().as_bytes().to_vec()))?;
     if words.is_empty() {
-        return Err(RegexError(
+        return Err(RegexError::new(
             b"command prefix must be a list of at least one element".to_vec(),
         ));
     }
@@ -1099,7 +1180,7 @@ fn regsub_option_scan(
         if name.first() != Some(&b'-') {
             break;
         }
-        let idx = options.index_of(name).map_err(RegexError)?;
+        let idx = options.index_of_cmd(name)?;
         i += 1;
         // Matched by name, not by table index: the 8.x and 9.x tables list the
         // same options in different orders (see the tables above), so an index
@@ -1151,7 +1232,9 @@ where
     E::Regex: 'static,
 {
     regsub_eval::<E, RegexError>(args, TclVersion::V9_0, |_| {
-        Err(RegexError(b"regsub -command is not yet supported".to_vec()))
+        Err(RegexError::new(
+            b"regsub -command is not yet supported".to_vec(),
+        ))
     })
     .map_err(|e| match e {
         RegsubError::Regex(e) | RegsubError::Eval(e) => e,
@@ -1766,11 +1849,11 @@ mod tests {
         let mut ops = ListOps;
         assert!(matches!(
             regexp::<ListOps, StoppingEngine>(&mut ops, &[b"abc", b"xabcx"], TclVersion::V9_0),
-            Err(RegexError(message)) if message == raised
+            Err(RegexError { message, .. }) if message == raised
         ));
         assert!(matches!(
             regsub::<StoppingEngine>(&[b"abc", b"xabcx", b"-"]),
-            Err(RegexError(message)) if message == raised
+            Err(RegexError { message, .. }) if message == raised
         ));
         let mut charge = |_: u64| true;
         let mut analysis = AnalysisMatch {
@@ -1907,7 +1990,7 @@ mod tests {
         match regexp::<ListOps, LiteralEngine>(&mut ops, args, TclVersion::V9_0) {
             Ok(RegexpResult::Inline(v)) => Ok(v),
             Ok(RegexpResult::Count { count, .. }) => Ok(count.to_string()),
-            Err(RegexError(m)) => Err(String::from_utf8_lossy(&m).into_owned()),
+            Err(RegexError { message: m, .. }) => Err(String::from_utf8_lossy(&m).into_owned()),
         }
     }
 
@@ -1996,7 +2079,8 @@ mod tests {
                 format!("{verb} compile regular expression pattern: brackets [] not balanced");
             for args in [&[b"!bad".as_slice(), b"x"][..], &[b"-about", b"!bad"]] {
                 let mut ops = ListOps;
-                let Err(RegexError(m)) = regexp::<ListOps, LiteralEngine>(&mut ops, args, version)
+                let Err(RegexError { message: m, .. }) =
+                    regexp::<ListOps, LiteralEngine>(&mut ops, args, version)
                 else {
                     panic!("{version:?}: a bad pattern must not compile")
                 };
@@ -2020,7 +2104,9 @@ mod tests {
         };
         match regsub_eval::<LiteralEngine, String>(args, version, joined) {
             Ok(r) => Ok((String::from_utf8_lossy(&r.text).into_owned(), r.count)),
-            Err(RegsubError::Regex(RegexError(m))) => Err(String::from_utf8_lossy(&m).into_owned()),
+            Err(RegsubError::Regex(RegexError { message: m, .. })) => {
+                Err(String::from_utf8_lossy(&m).into_owned())
+            }
             Err(RegsubError::Eval(e)) => Err(e),
         }
     }
@@ -2124,7 +2210,7 @@ mod tests {
         // actually due — so a non-matching `-command` call still answers.
         let refused = regsub::<LiteralEngine>(&[b"-command", b"a", b"abc", b"f"])
             .err()
-            .map(|RegexError(m)| String::from_utf8_lossy(&m).into_owned());
+            .map(|RegexError { message: m, .. }| String::from_utf8_lossy(&m).into_owned());
         assert_eq!(
             refused.as_deref(),
             Some("regsub -command is not yet supported")

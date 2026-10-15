@@ -23,7 +23,7 @@ use std::rc::Rc;
 use tcl_cmd_core::list as list_core;
 use tcl_runtime_api::Completion;
 
-use crate::command::completion_from_cmd_error;
+use crate::command::{completion_from_cmd_error, err_with_code};
 use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
@@ -252,13 +252,21 @@ fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared
 /// [`tcl_cmd_core::lsearch`] core, driven by the VM's `regex`-crate engine for
-/// `-regexp`, with the full option set (the Tcl errorCodes the core carries
-/// are dropped — the VM has no errorCode surface).
+/// `-regexp`, with the full option set and the Tcl errorCodes the core carries.
 fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let version = vm.runtime_version();
     match tcl_cmd_core::lsearch::lsearch::<Vm, crate::cmd_regexp::CrateEngine>(vm, args, version) {
         Ok(v) => ok(v),
-        Err(e) => err(String::from_utf8_lossy(&e.message).into_owned()),
+        Err(e) => coded_err(&e.message, e.code),
+    }
+}
+
+/// An error completion from a core's message bytes and optional `-errorcode`.
+fn coded_err(message: &[u8], code: Option<&[u8]>) -> Completion<Value> {
+    let message = String::from_utf8_lossy(message).into_owned();
+    match code {
+        Some(code) => err_with_code(message, &String::from_utf8_lossy(code)),
+        None => err(message),
     }
 }
 
@@ -268,10 +276,11 @@ fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// the comparison modes.
 fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
-    let mut job = match prepare(vm, args) {
+    let release = vm.runtime_version();
+    let mut job = match prepare(vm, args, release) {
         Ok(Lsort::Done(v)) => return ok(v),
         Ok(Lsort::Command(job)) => job,
-        Err(e) => return err(String::from_utf8_lossy(&e.message).into_owned()),
+        Err(e) => return coded_err(&e.message, e.code),
     };
     // `-command`: split the comparison prefix into words, run the reentrant merge
     // sort over the VM comparator (no `ValueOps` borrow during the eval), build.
@@ -305,12 +314,13 @@ fn vm_compare(
     if !comp.code.is_ok() {
         return Err(comp);
     }
-    let r = comp.result.to_str();
-    match tcl_cmd_core::sort::parse_wide(r.as_bytes()) {
-        Some(v) => Ok(i32::try_from(v.signum()).unwrap_or(0)),
-        None => Err(err(format!(
-            "-command comparison script returned non-integer result: {r}"
-        ))),
+    // C reads the comparator's result as a C `int`.
+    match comp.result.as_c_int() {
+        Ok(order) => Ok(order.signum()),
+        Err(_) => Err(err_with_code(
+            "-compare command returned non-integer result",
+            "TCL OPERATION LSORT COMPARISONFAILED",
+        )),
     }
 }
 

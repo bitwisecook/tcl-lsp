@@ -254,7 +254,10 @@ fn cmd_exit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         [c] => match c.as_int() {
             Ok(n) => i32::try_from(n).unwrap_or(0),
             Err(_) => {
-                return err(format!("expected integer but got \"{}\"", c.to_str()));
+                return err_with_code(
+                    format!("expected integer but got \"{}\"", c.to_str()),
+                    "TCL VALUE NUMBER",
+                );
             }
         },
         _ => return err("wrong # args: should be \"exit ?returnCode?\""),
@@ -723,19 +726,20 @@ fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (path, newlimit) = match rest {
         [path] => (path.to_str(), None),
-        [path, nl] => (path.to_str(), Some(nl.to_str().to_string())),
+        [path, nl] => (path.to_str(), Some(nl)),
         _ => return err("wrong # args: should be \"interp recursionlimit path ?newlimit?\""),
     };
     let result = if path.is_empty() {
-        vm.recursion_limit_apply(newlimit.as_deref())
-    } else if let Some(r) = vm.child_recursion_limit_apply(&path, newlimit.as_deref()) {
+        vm.recursion_limit_apply(newlimit)
+    } else if let Some(r) = vm.child_recursion_limit_apply(&path, newlimit) {
         r
     } else {
         return err(format!("could not find interpreter \"{path}\""));
     };
+    // C answers a new limit with the word it was given.
     match result {
-        Ok(n) => ok(Value::int(n)),
-        Err(m) => err(m),
+        Ok(n) => ok(newlimit.cloned().unwrap_or_else(|| Value::int(n))),
+        Err(e) => completion_from_tcl_error(e),
     }
 }
 
@@ -766,7 +770,7 @@ fn interp_limit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let opts = opts.to_vec();
     match vm.in_interp(id, |vm| vm.limit_apply(&ltype, &opts)) {
         Ok(v) => ok(v),
-        Err(m) => err(m),
+        Err(e) => completion_from_tcl_error(e),
     }
 }
 
@@ -1306,7 +1310,7 @@ fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let cur = vm.read_for_update(&name);
     let sum = match tcl_syntax::value::ValueOps::int_add(vm, cur.as_ref(), &amount) {
         Ok(v) => v,
-        Err(e) => return err(e.message()),
+        Err(e) => return completion_from_cmd_error(e.into()),
     };
     match vm.store_var_result(&name, sum) {
         Ok(stored) => ok(stored),
@@ -1442,21 +1446,50 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
-/// Parse a `return -code` word: the named codes (`ok`/`error`/`return`/`break`/
-/// `continue`) or an integer (`return -code N`, which becomes [`Code::Other`] for
-/// N outside `0..=4`). An unparseable word falls back to `Ok`.
-fn parse_code(s: &str) -> Code {
-    match s {
-        "ok" | "0" => Code::Ok,
-        "error" => Code::Error,
-        "return" => Code::Return,
-        "break" => Code::Break,
-        "continue" => Code::Continue,
-        _ => Value::string(s)
-            .as_int()
-            .ok()
-            .and_then(|n| i32::try_from(n).ok())
-            .map_or(Code::Ok, Code::from_int),
+/// Read a `return -code` word as `TclGetCompletionCodeFromObj` does: a named
+/// code (`ok`/`error`/`return`/`break`/`continue`) or a C `int`.
+fn parse_code(word: &Value) -> Result<Code, Completion<Value>> {
+    match &*word.to_str() {
+        "ok" => return Ok(Code::Ok),
+        "error" => return Ok(Code::Error),
+        "return" => return Ok(Code::Return),
+        "break" => return Ok(Code::Break),
+        "continue" => return Ok(Code::Continue),
+        _ => {}
+    }
+    word.as_c_int().map(Code::from_int).map_err(|_| {
+        err_with_code(
+            format!(
+                "bad completion code \"{}\": must be ok, error, return, break, continue, \
+                 or an integer",
+                word.to_str()
+            ),
+            "TCL RESULT ILLEGAL_CODE",
+        )
+    })
+}
+
+/// The merged `-code` and `-level` words, each validated as C does.
+fn return_code_and_level(
+    code_word: Option<&Value>,
+    level_word: Option<&Value>,
+) -> Result<(Code, i64), Completion<Value>> {
+    let code = code_word.map_or(Ok(Code::Ok), parse_code)?;
+    let level = level_word.map_or(Ok(1), parse_return_level)?;
+    Ok((code, level))
+}
+
+/// Read a `return -level` word: a C `int` that is not negative.
+fn parse_return_level(word: &Value) -> Result<i64, Completion<Value>> {
+    match word.as_c_int() {
+        Ok(level) if level >= 0 => Ok(i64::from(level)),
+        _ => Err(err_with_code(
+            format!(
+                "bad -level value: expected non-negative integer but got \"{}\"",
+                word.to_str()
+            ),
+            "TCL RESULT ILLEGAL_LEVEL",
+        )),
     }
 }
 
@@ -1690,19 +1723,20 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 /// `return -options $opts $result`.
 pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Apply one option pair, from a direct argument or an expanded `-options`
-    // dict. `-code`/`-level` drive the completion; every other key (`-errorcode`,
-    // `-errorinfo`, or a user option like `-foo`) is preserved in the options
-    // dict, later occurrences overriding earlier ones (C's `TclMergeReturnOptions`).
+    // dict. `-code`/`-level` drive the completion and are validated once
+    // merged; every other key (`-errorcode`, `-errorinfo`, or a user option
+    // like `-foo`) is preserved in the options dict, later occurrences
+    // overriding earlier ones (C's `TclMergeReturnOptions`).
     fn apply(
         key: &str,
         val: &Value,
-        ret_code: &mut Code,
-        level: &mut i64,
+        code_word: &mut Option<Value>,
+        level_word: &mut Option<Value>,
         extra: &mut Vec<(String, Value)>,
     ) {
         match key {
-            "-code" => *ret_code = parse_code(&val.to_str()),
-            "-level" => *level = val.as_int().unwrap_or(1),
+            "-code" => *code_word = Some(val.clone()),
+            "-level" => *level_word = Some(val.clone()),
             _ => match extra.iter_mut().find(|(k, _)| k == key) {
                 Some(slot) => slot.1 = val.clone(),
                 None => extra.push((key.to_string(), val.clone())),
@@ -1711,8 +1745,8 @@ pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 
     let mut value = Value::empty();
-    let mut ret_code = Code::Ok;
-    let mut level = 1i64;
+    let mut code_word = None;
+    let mut level_word = None;
     let mut extra: Vec<(String, Value)> = Vec::new();
     let mut i = 0;
     while i < args.len() {
@@ -1730,15 +1764,21 @@ pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 apply(
                     &pairs[j].to_str(),
                     &pairs[j + 1],
-                    &mut ret_code,
-                    &mut level,
+                    &mut code_word,
+                    &mut level_word,
                     &mut extra,
                 );
                 j += 2;
             }
             i += 2;
         } else if a.starts_with('-') && a.len() > 1 && i + 1 < args.len() {
-            apply(&a, &args[i + 1], &mut ret_code, &mut level, &mut extra);
+            apply(
+                &a,
+                &args[i + 1],
+                &mut code_word,
+                &mut level_word,
+                &mut extra,
+            );
             i += 2;
         } else if i == args.len() - 1 {
             value = args[i].clone();
@@ -1747,6 +1787,10 @@ pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             return err(format!("bad option \"{a}\""));
         }
     }
+    let (ret_code, level) = match return_code_and_level(code_word.as_ref(), level_word.as_ref()) {
+        Ok(merged) => merged,
+        Err(bad) => return bad,
+    };
     let extra_refs: Vec<(&str, Value)> =
         extra.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
     if vm.supports_error_stack()
@@ -1866,10 +1910,11 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.is_empty() || args.len() > 2 {
         return err("wrong # args: should be \"time command ?count?\"");
     }
+    // C reads the count as a C `int`, so `4294967295` is -1 iterations.
     let count = if args.len() == 2 {
-        match args[1].as_int() {
-            Ok(n) => n,
-            Err(e) => return err(e.message),
+        match args[1].as_c_int() {
+            Ok(n) => i64::from(n),
+            Err(e) => return completion_from_tcl_error(e),
         }
     } else {
         1
@@ -2431,29 +2476,28 @@ fn cmd_global(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `upvar ?level? otherVar localVar ?otherVar localVar ...?`.
 fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let mut rest = args;
-    // Default level 1 (the caller).
-    let mut target = vm.current_level().saturating_sub(1);
-    if let Some(first) = rest.first() {
-        let s = first.to_str();
-        if let Some(abs) = s.strip_prefix('#')
-            && let Ok(n) = abs.parse::<usize>()
-        {
-            target = n;
-            rest = &rest[1..];
-        } else if !s.is_empty()
-            && s.bytes().all(|b| b.is_ascii_digit())
-            && let Ok(n) = s.parse::<usize>()
-        {
-            target = vm.current_level().saturating_sub(n);
-            rest = &rest[1..];
-        }
-    }
-    if rest.is_empty() || !rest.len().is_multiple_of(2) {
+    if args.len() < 2 {
         return err(
             "wrong # args: should be \"upvar ?level? otherVar localVar ?otherVar localVar ...?\"",
         );
     }
+    // `Tcl_UpvarObjCmd`: an odd argument count leads with the level, which
+    // must then be one; an even count takes the default.
+    let level_word = (args.len() % 2 == 1).then(|| &args[0]);
+    let rest = if level_word.is_some() {
+        &args[1..]
+    } else {
+        args
+    };
+    let target = match frame_level(vm, level_word) {
+        Ok(tcl_cmd_core::frame::FrameLevel::Named(level)) => level,
+        Ok(tcl_cmd_core::frame::FrameLevel::Default(level)) if level_word.is_none() => level,
+        Ok(tcl_cmd_core::frame::FrameLevel::Default(_)) => {
+            let spec = args[0].to_str();
+            return completion_from_cmd_error(tcl_cmd_core::frame::bad_level(&spec));
+        }
+        Err(bad) => return bad,
+    };
     let mut i = 0;
     while i + 1 < rest.len() {
         let other = rest[i].to_str();
@@ -2466,83 +2510,36 @@ fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
-/// The outcome of parsing an `uplevel`/`upvar` level word (C's `TclObjGetFrame`).
-enum FrameLevel {
-    /// A valid absolute frame level.
-    Level(usize),
-    /// The word is not a level — the caller treats it as the start of the
-    /// command, using the default level.
-    NotLevel,
-    /// A number-like word that is not a usable level (carries the spelling for
-    /// the `bad level "…"` error).
-    Bad(String),
-}
-
-/// Parse an `uplevel`/`upvar` level word against the current level `cur`,
-/// mirroring C's `TclObjGetFrame`: a plain integer is *relative* (`cur - n`, and
-/// must land in `0..=cur`); `#n` is *absolute*; a number wider than the C `int`
-/// range, or any other purely-numeric word, is a `bad level`; a non-numeric word
-/// is not a level at all (the command, run one level up).
-fn parse_frame_level(cur: usize, obj: &Value) -> FrameLevel {
-    let s = obj.to_str();
-    let cur = i64::try_from(cur).unwrap_or(i64::MAX);
-    // A plain integer is a relative level. C parses with the `int` range, so a
-    // value outside it (e.g. `-0xffffffff` / `[expr -0xffffffff]`) is a bad level
-    // rather than a huge relative offset.
-    let bad = || FrameLevel::Bad(s.to_string());
-    if let Ok(w) = obj.as_int() {
-        let Ok(n) = i32::try_from(w) else {
-            return bad();
+/// Resolve a `?level?` word as C's `TclObjGetFrame` does, or the `bad level`
+/// completion (`TCL LOOKUP LEVEL`) when it names no frame.
+fn frame_level(
+    vm: &mut Vm,
+    word: Option<&Value>,
+) -> Result<tcl_cmd_core::frame::FrameLevel, Completion<Value>> {
+    let current = vm.current_level();
+    tcl_cmd_core::frame::frame_level(vm, word, current).map_err(|bad| {
+        let spec = match (bad, word) {
+            (tcl_cmd_core::frame::BadLevel::Word, Some(word)) => word.to_str().to_string(),
+            _ => "1".to_string(),
         };
-        let level = cur - i64::from(n);
-        if n < 0 || level < 0 || level > cur {
-            return bad();
-        }
-        usize::try_from(level).map_or_else(|_| bad(), FrameLevel::Level)
-    } else if let Some(rest) = s.strip_prefix('#') {
-        // `#n` is an absolute level. `#-0` is level 0; any other negative
-        // spelling is bad.
-        let parsed = Value::string(rest)
-            .as_int()
-            .ok()
-            .and_then(|w| i32::try_from(w).ok());
-        match parsed {
-            Some(n) if n >= 0 && !(n > 0 && rest.starts_with('-')) && i64::from(n) <= cur => {
-                usize::try_from(n).map_or_else(|_| bad(), FrameLevel::Level)
-            }
-            _ => bad(),
-        }
-    } else {
-        // Anything non-numeric is the command, not a level.
-        FrameLevel::NotLevel
-    }
+        completion_from_cmd_error(tcl_cmd_core::frame::bad_level(&spec))
+    })
 }
 
 /// `uplevel ?level? arg ?arg ...?` — evaluate the concatenated args as a script
 /// in the call frame `level` up (default 1, the caller). `#N` selects an
 /// absolute level.
 fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some(first) = args.first() else {
+        return err("wrong # args: should be \"uplevel ?level? command ?arg ...?\"");
+    };
     let cur = vm.current_level();
-    let mut rest = args;
-    let mut target = cur.saturating_sub(1);
-    let mut explicit = false;
-    if let Some(first) = rest.first() {
-        match parse_frame_level(cur, first) {
-            FrameLevel::Level(level) => {
-                target = level;
-                rest = &rest[1..];
-                explicit = true;
-            }
-            FrameLevel::NotLevel => {}
-            FrameLevel::Bad(name) => return err(format!("bad level \"{name}\"")),
-        }
-    }
-    // A non-`#`/non-numeric first word is the command, run one level up; at the
-    // global level there is no such frame, so an implicit level is `bad level "1"`
-    // (uplevel-4.0.1/4.0.2).
-    if !explicit && cur == 0 {
-        return err("bad level \"1\"");
-    }
+    // A word that is no level is the command, run one level up.
+    let (target, rest) = match frame_level(vm, Some(first)) {
+        Ok(tcl_cmd_core::frame::FrameLevel::Named(level)) => (level, &args[1..]),
+        Ok(tcl_cmd_core::frame::FrameLevel::Default(level)) => (level, args),
+        Err(bad) => return bad,
+    };
     if rest.is_empty() {
         return err("wrong # args: should be \"uplevel ?level? command ?arg ...?\"");
     }

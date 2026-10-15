@@ -20,14 +20,14 @@
 //! `seek`, `tell`, `fconfigure`, and channel-aware `puts`.
 //!
 //! Channels back onto the real filesystem (the test host). Read channels
-//! preload the file contents (test inputs are small); write/append channels
-//! hold an `std::fs::File`. The predefined `stdin`/`stdout`/`stderr` are not
+//! preload the file contents (test inputs are small); writable channels,
+//! read-write ones included, hold an `std::fs::File`. The predefined `stdin`/`stdout`/`stderr` are not
 //! stored in the channel table — they are handled by name: `stdout` follows the
 //! VM's captured output, `stderr` the process stderr, and `stdin` is always at
 //! end-of-file (non-interactive).
 
 use std::fs::OpenOptions;
-use std::io::Write as _;
+use std::io::{Read as _, Seek as _, SeekFrom, Write as _};
 
 use tcl_cmd_core::CmdError;
 use tcl_cmd_core::channel::{
@@ -36,7 +36,7 @@ use tcl_cmd_core::channel::{
 };
 use tcl_runtime_api::Completion;
 
-use crate::command::completion_from_cmd_error;
+use crate::command::{completion_from_cmd_error, completion_from_tcl_error, err_with_code};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -48,9 +48,13 @@ pub(crate) enum Channel {
         pos: usize,
         config: ChannelConfig,
     },
-    /// A writable (create/truncate or append) channel.
+    /// A writable channel over the file itself; `readable` for the read-write
+    /// modes (`r+`, `w+`, `a+`, `RDWR`), whose reads and writes share the
+    /// file offset.
     Write {
         file: std::fs::File,
+        readable: bool,
+        eof: bool,
         config: ChannelConfig,
     },
 }
@@ -123,9 +127,21 @@ fn cmd_open(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .truncate(access.truncates())
             .create(access.creates())
             .create_new(access.creates() && access.is_exclusive());
-        match opts.open(&name) {
+        // `Tcl_FSOpenFileChannel` starts an appending channel at the end.
+        let opened = opts.open(&name).and_then(|mut file| {
+            if access.appends() {
+                file.seek(SeekFrom::End(0))?;
+            }
+            Ok(file)
+        });
+        match opened {
             Ok(file) => {
-                let id = vm.add_channel(Channel::Write { file, config });
+                let id = vm.add_channel(Channel::Write {
+                    file,
+                    readable: access.is_readable(),
+                    eof: false,
+                    config,
+                });
                 ok(Value::string(id))
             }
             Err(e) => err(format!("couldn't open \"{name}\": {}", io_reason(&e))),
@@ -156,6 +172,46 @@ fn cmd_close(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+/// `channel "…" wasn't opened for reading` — C's refusal (no `-errorcode`).
+fn not_readable(id: &str) -> Completion<Value> {
+    err(format!("channel \"{id}\" wasn't opened for reading"))
+}
+
+/// Read up to `limit` bytes (all of them for `None`) from a read-write
+/// channel's file, noting when the read met the end.
+fn read_file(
+    file: &mut std::fs::File,
+    eof: &mut bool,
+    limit: Option<usize>,
+) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    if let Some(n) = limit {
+        let read = (&mut *file).take(n as u64).read_to_end(&mut bytes)?;
+        *eof = read < n;
+    } else {
+        file.read_to_end(&mut bytes)?;
+        *eof = true;
+    }
+    Ok(bytes)
+}
+
+/// Read one line (its newline consumed, not returned) from a read-write
+/// channel's file; `None` when the file was already at its end.
+fn read_file_line(file: &mut std::fs::File, eof: &mut bool) -> std::io::Result<Option<Vec<u8>>> {
+    let mut line = Vec::new();
+    let mut byte = [0u8; 1];
+    loop {
+        if file.read(&mut byte)? == 0 {
+            *eof = true;
+            return Ok((!line.is_empty()).then_some(line));
+        }
+        if byte[0] == b'\n' {
+            return Ok(Some(line));
+        }
+        line.push(byte[0]);
+    }
+}
+
 /// `gets channelId ?varName?` — read one line (without the trailing newline).
 /// With `varName`, store the line and return its length (`-1` at end-of-file);
 /// without, return the line.
@@ -165,6 +221,9 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         [c, v] => (c.to_str().to_string(), Some(v.to_str().to_string())),
         _ => return err("wrong # args: should be \"gets channelId ?varName?\""),
     };
+    if id == "stdout" || id == "stderr" {
+        return not_readable(&id);
+    }
     if is_std(&id) {
         // stdin is non-interactive: immediate EOF.
         return match var {
@@ -187,21 +246,29 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 while end < data.len() && data[end] != b'\n' {
                     end += 1;
                 }
-                let mut line_end = end;
-                // Strip a trailing CR for CRLF inputs.
-                if line_end > start && data[line_end - 1] == b'\r' {
-                    line_end -= 1;
-                }
-                let s = String::from_utf8_lossy(&data[start..line_end]).into_owned();
                 *pos = if end < data.len() { end + 1 } else { end };
-                Some(s)
+                Some(data[start..end].to_vec())
             }
         }
-        Some(Channel::Write { .. }) => {
-            return err(format!("channel \"{id}\" wasn't opened for reading"));
-        }
+        Some(Channel::Write {
+            file,
+            readable: true,
+            eof,
+            ..
+        }) => match read_file_line(file, eof) {
+            Ok(line) => line,
+            Err(e) => return err(format!("error reading \"{id}\": {}", io_reason(&e))),
+        },
+        Some(Channel::Write { .. }) => return not_readable(&id),
         None => return err(format!("can not find channel named \"{id}\"")),
     };
+    // Strip a trailing CR for CRLF inputs.
+    let line = line.map(|mut bytes| {
+        if bytes.last() == Some(&b'\r') {
+            bytes.pop();
+        }
+        String::from_utf8_lossy(&bytes).into_owned()
+    });
     match (var, line) {
         (Some(name), Some(s)) => {
             let n = s.chars().count();
@@ -234,33 +301,50 @@ fn cmd_read(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     let (id, count) = match rest {
         [c] => (c.to_str().to_string(), None),
-        [c, n] => {
-            let cnt = n.as_int().unwrap_or(-1);
-            (c.to_str().to_string(), Some(cnt))
-        }
+        [c, n] => (c.to_str().to_string(), Some(n)),
         _ => return err("wrong # args: should be \"read channelId ?numChars?\""),
     };
-    if is_std(&id) {
-        return ok(Value::string(""));
+    // C finds a readable channel before reading the count.
+    let readable = match vm.channel(&id) {
+        Some(Channel::Read { .. } | Channel::Write { readable: true, .. }) => true,
+        Some(Channel::Write { .. }) => false,
+        None if id == "stdin" => true,
+        None if is_std(&id) => false,
+        None => return err(format!("can not find channel named \"{id}\"")),
+    };
+    if !readable {
+        return not_readable(&id);
     }
-    match vm.channel_mut(&id) {
+    let count = match count {
+        None => None,
+        Some(n) => match n.as_int().ok().and_then(|n| usize::try_from(n).ok()) {
+            Some(n) => Some(n),
+            None => {
+                return err_with_code(
+                    format!("expected non-negative integer but got \"{}\"", n.to_str()),
+                    "TCL VALUE NUMBER",
+                );
+            }
+        },
+    };
+    let bytes = match vm.channel_mut(&id) {
         Some(Channel::Read { data, pos, .. }) => {
             let start = *pos;
-            let end = match count {
-                Some(n) if n >= 0 => (start + usize::try_from(n).unwrap_or(0)).min(data.len()),
-                _ => data.len(),
-            };
-            let mut bytes = &data[start..end];
-            if nonewline && bytes.last() == Some(&b'\n') {
-                bytes = &bytes[..bytes.len() - 1];
-            }
-            let s = String::from_utf8_lossy(bytes).into_owned();
+            let end = count.map_or(data.len(), |n| start.saturating_add(n).min(data.len()));
             *pos = end;
-            ok(Value::string(s))
+            data[start..end].to_vec()
         }
-        Some(Channel::Write { .. }) => err(format!("channel \"{id}\" wasn't opened for reading")),
-        None => err(format!("can not find channel named \"{id}\"")),
+        Some(Channel::Write { file, eof, .. }) => match read_file(file, eof, count) {
+            Ok(bytes) => bytes,
+            Err(e) => return err(format!("error reading \"{id}\": {}", io_reason(&e))),
+        },
+        None => Vec::new(),
+    };
+    let mut bytes = &bytes[..];
+    if nonewline && bytes.last() == Some(&b'\n') {
+        bytes = &bytes[..bytes.len() - 1];
     }
+    ok(Value::string(String::from_utf8_lossy(bytes).into_owned()))
 }
 
 fn cmd_eof(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -273,7 +357,7 @@ fn cmd_eof(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     match vm.channel_mut(&id) {
         Some(Channel::Read { data, pos, .. }) => ok(Value::bool(*pos >= data.len())),
-        Some(Channel::Write { .. }) => ok(Value::bool(false)),
+        Some(Channel::Write { eof, .. }) => ok(Value::bool(*eof)),
         None => err(format!("can not find channel named \"{id}\"")),
     }
 }
@@ -303,7 +387,11 @@ fn cmd_tell(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let id = chan.to_str();
     match vm.channel_mut(&id) {
         Some(Channel::Read { pos, .. }) => ok(Value::int(i64::try_from(*pos).unwrap_or(i64::MAX))),
-        _ => ok(Value::int(-1)),
+        Some(Channel::Write { file, .. }) => ok(Value::int(
+            file.stream_position()
+                .map_or(-1, |pos| i64::try_from(pos).unwrap_or(i64::MAX)),
+        )),
+        None => ok(Value::int(-1)),
     }
 }
 
@@ -315,24 +403,47 @@ const SEEK_ORIGINS: tcl_cmd_core::prefix::OptionTable<'static> =
 
 fn cmd_seek(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (id, offset, origin) = match args {
-        [c, o] => (c.to_str().to_string(), o.as_int().unwrap_or(0), 0),
-        [c, o, w] => {
-            let index = match SEEK_ORIGINS.index_of_str(&w.to_str()) {
-                Ok(i) => i,
-                Err(e) => return err(e.into_message()),
-            };
-            (c.to_str().to_string(), o.as_int().unwrap_or(0), index)
-        }
+        [c, o] => (c.to_str().to_string(), o, None),
+        [c, o, w] => (c.to_str().to_string(), o, Some(w)),
         _ => return err("wrong # args: should be \"seek channelId offset ?origin?\""),
     };
-    if let Some(Channel::Read { data, pos, .. }) = vm.channel_mut(&id) {
-        let base = match origin {
-            1 => i64::try_from(*pos).unwrap_or(0),
-            2 => i64::try_from(data.len()).unwrap_or(0),
-            _ => 0,
-        };
-        let np = (base + offset).clamp(0, i64::try_from(data.len()).unwrap_or(i64::MAX));
-        *pos = usize::try_from(np).unwrap_or(0);
+    // C finds the channel, then reads the offset wide, then the origin.
+    if vm.channel(&id).is_none() && !is_std(&id) {
+        return err(format!("can not find channel named \"{id}\""));
+    }
+    let offset = match offset.as_int() {
+        Ok(offset) => offset,
+        Err(error) => return completion_from_tcl_error(error),
+    };
+    let origin = match origin.map(|w| SEEK_ORIGINS.index_of_str(&w.to_str())) {
+        None => 0,
+        Some(Ok(index)) => index,
+        Some(Err(error)) => return completion_from_cmd_error(error),
+    };
+    match vm.channel_mut(&id) {
+        Some(Channel::Read { data, pos, .. }) => {
+            let base = match origin {
+                1 => i64::try_from(*pos).unwrap_or(0),
+                2 => i64::try_from(data.len()).unwrap_or(0),
+                _ => 0,
+            };
+            let np = base
+                .saturating_add(offset)
+                .clamp(0, i64::try_from(data.len()).unwrap_or(i64::MAX));
+            *pos = usize::try_from(np).unwrap_or(0);
+        }
+        Some(Channel::Write { file, eof, .. }) => {
+            let from = match origin {
+                1 => SeekFrom::Current(offset),
+                2 => SeekFrom::End(offset),
+                _ => SeekFrom::Start(u64::try_from(offset).unwrap_or(0)),
+            };
+            if let Err(e) = file.seek(from) {
+                return err(format!("error during seek on \"{id}\": {}", io_reason(&e)));
+            }
+            *eof = false;
+        }
+        None => {}
     }
     ok(Value::empty())
 }

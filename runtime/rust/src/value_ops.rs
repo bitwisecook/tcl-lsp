@@ -81,6 +81,20 @@ fn str_to_bytes(s: &str) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 
+/// A failed integer read as the shared seam's error: the overflow and a held
+/// double keep their own variants, and anything else is the non-integer `v`
+/// spells.
+fn value_error(v: *mut TclObj, error: &crate::typed_value::TypedError) -> ValueError {
+    let text = || String::from_utf8_lossy(&obj_bytes(v)).into_owned();
+    if error.is_overflow() {
+        ValueError::IntegerOverflow
+    } else if error.code == crate::typed_value::HELD_DOUBLE_CODE {
+        ValueError::DoubleNotInteger(text())
+    } else {
+        ValueError::NotInteger(text())
+    }
+}
+
 impl ValueOps for Interp {
     type Value = *mut TclObj;
 
@@ -136,13 +150,14 @@ impl ValueOps for Interp {
         string_char_len(&bytes_to_str(&obj_bytes(*v)), self.runtime_version())
     }
 
+    /// `Tcl_GetWideIntFromObj` through the runtime's one typed-read owner, so a
+    /// beyond-wide count is C's overflow rather than a non-integer.
     fn as_int(&mut self, v: &*mut TclObj) -> Result<i64, ValueError> {
-        let bytes = obj_bytes(*v);
-        let s = String::from_utf8_lossy(&bytes);
-        match number::parse_whole(s.trim()) {
-            Some(Number::Int(n)) => Ok(n),
-            _ => Err(ValueError::NotInteger(s.into_owned())),
-        }
+        crate::typed_value::wide_int(*v).map_err(|error| value_error(*v, &error))
+    }
+
+    fn as_c_int(&mut self, v: &*mut TclObj) -> Result<i32, ValueError> {
+        crate::typed_value::int(*v).map_err(|error| value_error(*v, &error))
     }
 
     #[cfg(have_tommath)]
@@ -152,21 +167,15 @@ impl ValueOps for Interp {
         radix: Radix,
         syntax: tcl_dialect::NumberSyntax,
     ) -> Result<IntegerMagnitude, ValueError> {
+        // A held double is refused before its spelling is read.
+        if let Some(error) = crate::typed_value::held_double(*v) {
+            return Err(value_error(*v, &error));
+        }
         let (negative, digits) =
             crate::bignum::integer_magnitude(*v, radix, syntax).ok_or_else(|| {
                 ValueError::NotInteger(String::from_utf8_lossy(&obj_bytes(*v)).into_owned())
             })?;
         Ok(IntegerMagnitude { negative, digits })
-    }
-
-    fn string_compare_length(&mut self, v: &*mut TclObj) -> Result<Option<usize>, ValueError> {
-        let bytes = obj_bytes(*v);
-        let s = String::from_utf8_lossy(&bytes);
-        match number::parse_whole(s.trim()) {
-            Some(Number::Int(n)) => Ok(usize::try_from(n).ok()),
-            Some(Number::Big { .. }) => Err(ValueError::IntegerOverflow),
-            _ => Err(ValueError::NotInteger(s.into_owned())),
-        }
     }
 
     fn as_double(&mut self, v: &*mut TclObj) -> Result<f64, ValueError> {

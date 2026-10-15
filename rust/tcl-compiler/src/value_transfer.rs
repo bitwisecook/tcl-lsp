@@ -1292,6 +1292,7 @@ impl<'a> LatticeDriver<'a> {
             grammar: profile.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
             traced_variables: trace.traced_variables.clone(),
             has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
+            precision_written: folds.is_some_and(|f| f.mutations.may_set_precision()),
             escaping: escaping.iter().cloned().collect(),
             seeds_revision: 0,
             evaluator_revision: key.map_or(0, |k| k.evaluator_revision),
@@ -6028,11 +6029,22 @@ pub(crate) fn const_text(c: &ConstValue) -> Option<String> {
 }
 
 /// An exact value as a lattice constant: the classification when it has
-/// one, else the exact text.
+/// one, else the exact text. A double is kept as one only where its text is
+/// [`tcl_syntax::number::format_double`]'s, which is what
+/// [`const_to_exact`] spells it back as; a release that spells it otherwise
+/// (`1e-05` under 8.4 and Jim) keeps the text, which reads back as the same
+/// double.
 pub(crate) fn exact_to_const(value: &ExactValue) -> ConstValue {
     match value.numeric {
         Some(NumericValue::Int(i)) => ConstValue::Int(i),
-        Some(NumericValue::Float(f)) => ConstValue::Float(f),
+        Some(NumericValue::Float(f))
+            if value.bytes == tcl_syntax::number::format_double(f).as_bytes() =>
+        {
+            ConstValue::Float(f)
+        }
+        Some(NumericValue::Float(_)) => {
+            ConstValue::String(String::from_utf8_lossy(&value.bytes).into_owned())
+        }
         Some(NumericValue::Bool(b)) => ConstValue::Bool(b),
         None => ConstValue::String(String::from_utf8_lossy(&value.bytes).into_owned()),
     }

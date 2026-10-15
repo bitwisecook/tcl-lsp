@@ -74,6 +74,23 @@ pub fn string_char_len(value: &str, version: TclVersion) -> usize {
     version.string_character_model().count(value)
 }
 
+/// C's `Tcl_GetIntFromObj` narrowing of a wide read: `INT_MIN` to `UINT_MAX`
+/// is taken, an unsigned value truncated to its low 32 bits rather than
+/// refused (`4294967295` reads -1), and anything wider is
+/// [`ValueError::IntegerOverflow`].
+///
+/// # Errors
+/// [`ValueError::IntegerOverflow`] outside `INT_MIN..=UINT_MAX`.
+pub fn narrow_to_c_int(wide: i64) -> Result<i32, ValueError> {
+    if !(i64::from(i32::MIN)..=i64::from(u32::MAX)).contains(&wide) {
+        return Err(ValueError::IntegerOverflow);
+    }
+    // C's `(int)` of the `long`: the low 32 bits.
+    i32::try_from(wide)
+        .or_else(|_| i32::try_from(wide - (1_i64 << 32)))
+        .map_err(|_| ValueError::IntegerOverflow)
+}
+
 /// A value-coercion / list-parse failure — the closed set Tcl reports with
 /// canonical messages, independent of any runtime's value or error type.
 ///
@@ -84,6 +101,10 @@ pub fn string_char_len(value: &str, version: TclVersion) -> usize {
 pub enum ValueError {
     /// The value is not a wide integer (`expected integer but got "…"`).
     NotInteger(String),
+    /// The value already holds a double, which `Tcl_GetWideIntFromObj`
+    /// refuses as no integer without reparsing its spelling (`tclObj.c`:
+    /// `expected integer but got "…"`, `TCL VALUE INTEGER`).
+    DoubleNotInteger(String),
     /// The value is not a float (`expected floating-point number but got "…"`).
     NotDouble(String),
     /// The value is not a boolean (`expected boolean value but got "…"`).
@@ -109,6 +130,7 @@ impl ValueError {
                     crate::list::describe_bad_value(s)
                 )
             }
+            ValueError::DoubleNotInteger(s) => format!("expected integer but got \"{s}\""),
             ValueError::NotDouble(s) => format!(
                 "expected floating-point number but got {}",
                 crate::list::describe_bad_value(s)
@@ -120,7 +142,24 @@ impl ValueError {
                 )
             }
             ValueError::BadList(msg) => msg.clone(),
-            ValueError::IntegerOverflow => "integer value too large to represent".to_string(),
+            ValueError::IntegerOverflow => crate::expr::errors::IOVERFLOW_MESSAGE.to_string(),
+        }
+    }
+
+    /// The `-errorcode` C sets beside [`Self::message`]: `TclParseNumber`'s
+    /// `TCL VALUE NUMBER` for an unparsable spelling, `TCL VALUE INTEGER` for
+    /// a held double, `ARITH IOVERFLOW` for an integer past the wide range. A
+    /// list failure's code depends on the parse fault, which
+    /// [`ValueError::BadList`] no longer carries, so it has none.
+    #[must_use]
+    pub fn error_code(&self) -> Option<&'static str> {
+        match self {
+            ValueError::NotInteger(_) | ValueError::NotDouble(_) | ValueError::NotBoolean(_) => {
+                Some("TCL VALUE NUMBER")
+            }
+            ValueError::DoubleNotInteger(_) => Some("TCL VALUE INTEGER"),
+            ValueError::IntegerOverflow => Some(crate::expr::errors::IOVERFLOW_CODE),
+            ValueError::BadList(_) => None,
         }
     }
 }
@@ -283,6 +322,13 @@ pub trait ValueOps {
 
     /// As a wide integer (`Tcl_GetWideIntFromObj`).
     fn as_int(&mut self, v: &Self::Value) -> Result<i64, ValueError>;
+
+    /// As a C `int` (`Tcl_GetIntFromObj`): the wide read narrowed as C
+    /// narrows it ([`narrow_to_c_int`]). A runtime whose `long` read takes
+    /// more than the wide range overrides this to read the way it does.
+    fn as_c_int(&mut self, v: &Self::Value) -> Result<i32, ValueError> {
+        narrow_to_c_int(self.as_int(v)?)
+    }
 
     /// The integer's sign and magnitude in `radix` for a bignum format path.
     ///

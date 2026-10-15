@@ -189,7 +189,7 @@ fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match first {
         "idle" => {
             if args.len() < 2 {
-                return err("wrong # args: should be \"after idle script\"");
+                return err("wrong # args: should be \"after idle script ?script ...?\"");
             }
             let script = join_args(&args[1..]);
             let id = vm.events.push_idle(script);
@@ -213,11 +213,14 @@ fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // scheduling — a cancelled/fired event is simply absent).
         "info" => ok(Value::empty()),
         _ => {
-            let Some(ms) = parse_ms(&word) else {
-                return err(format!(
-                    "bad argument \"{word}\": must be cancel, idle, info, or an integer"
-                ));
+            // A wide-integer delay, a negative one taken as 0.
+            let Ok(ms) = args[0].as_int() else {
+                return crate::command::err_with_code(
+                    format!("bad argument \"{word}\": must be cancel, idle, info, or an integer"),
+                    &tcl_syntax::list::join_list(["TCL", "LOOKUP", "INDEX", "argument", &word]),
+                );
             };
+            let ms = u64::try_from(ms).unwrap_or(0);
             if args.len() == 1 {
                 // Bare delay: block, servicing events, until `ms` elapses.
                 return delay(vm, ms);
@@ -354,14 +357,6 @@ fn join_args(args: &[Value]) -> String {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn parse_ms(s: &str) -> Option<u64> {
-    // A negative delay clamps to 0 (C treats `after -5` as `after 0`).
-    s.trim()
-        .parse::<i64>()
-        .ok()
-        .map(|n| u64::try_from(n).unwrap_or(0))
 }
 
 /// The `after#<id>` token C returns for a scheduled event.

@@ -630,11 +630,15 @@ fn whitespace_around_a_boolean_word_is_refused() {
         );
         assert_eq!(error_code, "TCL VALUE NUMBER", "{script}");
     }
-    // The ensemble option parser reports a message without a code.
-    let (code, result, _) = run("namespace ensemble create -command ::q -map {} -prefixes {yes }");
+    let (code, result, error_code) =
+        run("namespace ensemble create -command ::q -map {} -prefixes {yes }");
     assert_eq!(
-        (code, result.as_str()),
-        (Code::Error, "expected boolean value but got \"yes \"")
+        (code, result.as_str(), error_code.as_str()),
+        (
+            Code::Error,
+            "expected boolean value but got \"yes \"",
+            "TCL VALUE NUMBER"
+        )
     );
     for (script, value) in [
         ("if {\" 1 \"} {set y 1} else {set y 0}", "1"),

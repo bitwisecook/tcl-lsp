@@ -100,7 +100,15 @@ fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             set_int(interp, count);
             Code::Ok
         }
-        Err(e) => interp.set_error(&e.0),
+        Err(e) => regex_error(interp, &e),
+    }
+}
+
+/// Raise a `regexp`/`regsub` failure with the code the core carries.
+fn regex_error(interp: &mut Interp, error: &core_re::RegexError) -> Code {
+    match &error.code {
+        Some(code) => interp.error_with_code(&error.message, code.as_bytes()),
+        None => interp.set_error(&error.message),
     }
 }
 
@@ -118,7 +126,7 @@ fn regsub_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     });
     let RegsubResult { text, count, var } = match outcome {
         Ok(r) => r,
-        Err(RegsubError::Regex(e)) => return interp.set_error(&e.0),
+        Err(RegsubError::Regex(e)) => return regex_error(interp, &e),
         Err(RegsubError::Eval(code)) => {
             // C adds the context frame only for a genuine error; a
             // `break`/`continue`/custom code from the prefix propagates

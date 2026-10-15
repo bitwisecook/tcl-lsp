@@ -161,9 +161,10 @@ pub fn lrepeat<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let n = ops.as_int(count)?;
     if n < 0 {
-        return Err(CmdError::new(format!(
-            "bad count \"{n}\": must be integer >= 0"
-        )));
+        return Err(CmdError::with_error_code(
+            format!("bad count \"{n}\": must be integer >= 0"),
+            "TCL OPERATION LREPEAT NEGARG",
+        ));
     }
     let n = usize::try_from(n).unwrap_or(0);
     value_size::charge(ops, |ops, cap| {
@@ -228,23 +229,6 @@ pub fn lreplace<O: ValueOps>(
     Ok(ops.new_list(elems))
 }
 
-/// The `bad index` error `release` raises for `spec`: 8.4 words the grammar
-/// it reads (`integer or end?-integer?`), 8.5 on the sums too, and from 8.6
-/// the error carries `TCL VALUE INDEX` (measured, 8.4.20 to 9.1.0).
-fn bad_index_under(spec: &str, release: TclVersion) -> CmdError {
-    if release < TclVersion::V8_5 {
-        return CmdError::new(format!(
-            "bad index \"{spec}\": must be integer or end?-integer?"
-        ));
-    }
-    let message = format!("bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?");
-    if release < TclVersion::V8_6 {
-        CmdError::new(message)
-    } else {
-        CmdError::with_error_code(message, "TCL VALUE INDEX")
-    }
-}
-
 /// `spec` read as one index of a level of `len` elements under `release`; a
 /// reading the host's `long` decides takes `ops`'s answer.
 fn index_under<O: ValueOps>(
@@ -257,7 +241,7 @@ fn index_under<O: ValueOps>(
         IndexReading::At(index) => Ok(index),
         IndexReading::HostLong(index) if ops.reads_a_wide_long() => Ok(index),
         IndexReading::HostLong(_) | IndexReading::Bad | IndexReading::Unsure => {
-            Err(bad_index_under(spec, release))
+            Err(index::bad_index_under(spec, release))
         }
     }
 }

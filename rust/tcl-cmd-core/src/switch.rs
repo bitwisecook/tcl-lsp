@@ -283,9 +283,7 @@ where
     select_run::<O, E, V>(ops, opts, value, patterns, version, &mut Run::Runtime).map_err(
         |failure| match failure {
             SelectFailure::Error(error) => error,
-            SelectFailure::Regex(failure) => {
-                CmdError::new(String::from_utf8_lossy(&failure.into_error().0).into_owned())
-            }
+            SelectFailure::Regex(failure) => CmdError::from(failure.into_error()),
         },
     )
 }
@@ -324,9 +322,7 @@ where
         &mut Run::Analysis(analysis),
     )
     .map_err(|failure| match failure {
-        SelectFailure::Error(error) => {
-            RegexFailure::Error(crate::regex::RegexError(error.into_message().into_bytes()))
-        }
+        SelectFailure::Error(error) => RegexFailure::Error(crate::regex::RegexError::from(error)),
         SelectFailure::Regex(failure) => failure,
     })
 }
