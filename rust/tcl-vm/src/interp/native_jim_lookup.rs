@@ -1008,10 +1008,22 @@ impl Vm {
     }
 
     pub(crate) fn reset_original_jim_global_error_code(&mut self) -> Result<(), Completion<Value>> {
+        self.store_original_jim_global_error_code(Value::from_native_string_bytes(
+            b"NONE".as_slice(),
+        ))
+    }
+
+    pub(crate) fn store_original_jim_global_error_code(
+        &mut self,
+        value: Value,
+    ) -> Result<(), Completion<Value>> {
         if !self.uses_native_jim_lookup() {
             return Err(self.refuse_host_command("original Jim global error-code setter".into()));
         }
         let caller = super::native_name_consumers::OriginalNameConsumerScope::enter(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        caller
+            .current_for_value(self, &value)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let reached = self.with_event_global_frame(|vm| {
             if vm.frames.len() != 1 || vm.current_ns_id() != ROOT_NS {
@@ -1024,11 +1036,7 @@ impl Vm {
                     .name()
                     .as_bytes(),
             );
-            vm.store_original_named_variable(
-                &name,
-                Value::from_native_string_bytes(b"NONE".as_slice()),
-            )
-            .map(|_| ())
+            vm.store_original_named_variable(&name, value).map(|_| ())
         });
         caller
             .check(self)

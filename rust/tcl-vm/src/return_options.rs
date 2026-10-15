@@ -342,9 +342,17 @@ pub(crate) fn publish(
             match pair.name_in(ops.protocol) {
                 b"-errorinfo" => vm.jim_errors.stack.adopt_explicit(pair.value.clone()),
                 b"-errorcode" => {
-                    let _ = vm.set_var_bytes(b"::errorCode", pair.value.clone());
+                    if let Err(error) = scope.check(vm) {
+                        return crate::command::completion_from_cmd_error(vm, error);
+                    }
+                    let _ = vm.store_original_jim_global_error_code(
+                        pair.value.native_lifetime_lease().into_value(),
+                    );
                     if let Some(refusal) = vm.refused_completion() {
                         return refusal;
+                    }
+                    if let Err(error) = scope.check(vm) {
+                        return crate::command::completion_from_cmd_error(vm, error);
                     }
                 }
                 _ => {}

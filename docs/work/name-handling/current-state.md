@@ -1,5 +1,9 @@
 # Current centralised naming work
 
+## VM Return original global setter
+
+The reviewed VM Return -errorcode consumer now transports its actual prepared Value through the existing original global root-frame/bare-key store owner, sharing reset lifetime/restoration/currentness checks. Guest setter status and terminal Host refusal retain their separate original purposes; C behaviour is unchanged. This two-path source review and formatting check supplies no Rust execution or full Return conformance. The existing quiet-capture tranche is captured separately, and later custom clause/trap getters can still require a later actual-result capture before Try message binding.
+
 ## Shared Logical lambda declaration owner
 
 The reviewed canonical Logical lambda receipt now lives in the existing source-declaration owner and is shared by analyser and conditional-frame adapters. Its original selected-call/vector/fields/body/formals/input/argc guards are retained, with full fresh body correspondence. Native snapshots remain separate. This makes the genuine producer available to the source walker without an analyser cycle; it does not yet issue lambda child binding/alias graphs, formal source symbols or generic same-frame inventory coverage. Existing tests only reborrow the same shared owner; Rust acceptance remains unexecuted.
