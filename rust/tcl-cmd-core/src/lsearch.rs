@@ -184,6 +184,7 @@ struct Opts {
     group: usize,
     index_path: Vec<Vec<u8>>,
     start_spec: Option<Vec<u8>>,
+    release: TclVersion,
 }
 
 /// Drive `lsearch` over `args` (the command's arguments **without** the command
@@ -218,6 +219,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
         group: 1,
         index_path: Vec::new(),
         start_spec: None,
+        release: version,
     };
     // Options occupy everything before the trailing `list pattern`.
     let last_opt = n - 2; // first non-option index
@@ -364,7 +366,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
         while lower + (o.group as isize) != upper {
             let mut mid = (lower + upper) / 2;
             mid -= mid % o.group as isize;
-            let key = select_key(ops, &elems, mid as usize, group_offset, key_path)?;
+            let key = select_key(ops, &elems, mid as usize, group_offset, key_path, version)?;
             let ord = elem_cmp(ops, o.dtype, o.nocase, &pattern, &key)?;
             match ord {
                 Ordering::Equal => {
@@ -399,7 +401,7 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
         let mut matches: Vec<usize> = Vec::new();
         let mut g = start;
         while g < listc {
-            let key = select_key(ops, &elems, g, group_offset, key_path)?;
+            let key = select_key(ops, &elems, g, group_offset, key_path, version)?;
             let mut m = match o.mode {
                 SearchMode::Glob => {
                     let kb = ops.as_bytes(&key);
@@ -453,8 +455,9 @@ fn select_key<O: ValueOps>(
     base: usize,
     group_offset: usize,
     key_path: &[Vec<u8>],
+    release: TclVersion,
 ) -> Result<O::Value, LsearchError> {
-    select_by_index(ops, &elems[base + group_offset], key_path)
+    select_by_index(ops, &elems[base + group_offset], key_path, release)
 }
 
 /// Drill into a (nested) list value by an index `path` — the shared
@@ -463,8 +466,9 @@ fn select_by_index<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
     path: &[Vec<u8>],
+    release: TclVersion,
 ) -> Result<O::Value, LsearchError> {
-    Ok(index::drill(ops, value, path)?)
+    Ok(index::drill(ops, value, path, release)?)
 }
 
 /// Compare the search `pattern` against key `obj` under `dtype` (`-exact`/
@@ -599,7 +603,7 @@ fn inline_leaf<O: ValueOps>(
     key_path: &[Vec<u8>],
 ) -> Result<O::Value, LsearchError> {
     if o.subindices && !key_path.is_empty() {
-        select_by_index(ops, &elems[base + group_offset], key_path)
+        select_by_index(ops, &elems[base + group_offset], key_path, o.release)
     } else {
         Ok(elems[base + group_offset].clone())
     }

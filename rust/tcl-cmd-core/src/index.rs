@@ -337,10 +337,9 @@ fn path_error(spec: &[u8], refusal: Refusal) -> IndexPathError {
 
 /// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
 /// -index`): each spec steps one level. A step past its level is `element <n>
-/// missing from sublist "<list>"`, naming the decoded index as C's
-/// `SelectObjFromSublists` does (`0x10` is `16`, an `end` step that falls
-/// before the first element is `end-<n>`); a non-list step stops, returning the
-/// current value (C's `TclLindexFlat` fallthrough).
+/// missing from sublist "<list>"`, naming the index as `release`'s
+/// `SelectObjFromSublists` does ([`failed_step_name`]); a non-list step stops,
+/// returning the current value (C's `TclLindexFlat` fallthrough).
 ///
 /// # Errors
 /// `bad index` / `out of range`, the list-parse error, or `element … missing
@@ -349,6 +348,7 @@ pub fn drill<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
     path: &[Vec<u8>],
+    release: TclVersion,
 ) -> Result<O::Value, IndexPathError> {
     let mut cur = value.clone();
     for spec in path {
@@ -360,16 +360,13 @@ pub fn drill<O: ValueOps>(
             .map_err(|refusal| path_error(spec, refusal))?;
         let idx = encoded.decode(len);
         if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) >= len {
-            let named = match encoded {
-                PathEncoding::FromEnd(offset) if idx < 0 => format!("end-{}", -offset),
-                _ => idx.to_string(),
-            };
+            let named = failed_step_name(encoded, idx, release);
             let mut message = format!("element {named} missing from sublist \"").into_bytes();
             message.extend_from_slice(&ops.as_bytes(&cur));
             message.push(b'"');
             return Err(IndexPathError {
                 message,
-                code: Some(b"TCL OPERATION LSORT INDEXFAILED"),
+                code: (release >= TclVersion::V8_6).then_some(b"TCL OPERATION LSORT INDEXFAILED"),
             });
         }
         match ops.list_index(&cur, usize::try_from(idx).unwrap_or(0)) {
@@ -378,6 +375,23 @@ pub fn drill<O: ValueOps>(
         }
     }
     Ok(cur)
+}
+
+/// How `release` names an `-index` step that falls outside its sublist.
+/// Measured (`lsort -index end-5 {{a b} {c d}}`, the step decoding to -4):
+/// tclsh 9.0.4 and 9.1.0 name the word (`end-5`) when an `end` step falls
+/// before the first element; 8.5.19 and 8.6.18 name the decoded index (`-4`);
+/// 8.4.20 names its encoding, `end` being -2 (`-7`). An index past the end is
+/// the decoded number everywhere.
+fn failed_step_name(step: PathEncoding, decoded: i64, release: TclVersion) -> String {
+    match step {
+        PathEncoding::FromEnd(offset) if decoded < 0 => match release {
+            TclVersion::V8_4 => (offset - 2).to_string(),
+            TclVersion::V8_5 | TclVersion::V8_6 => decoded.to_string(),
+            _ => format!("end-{}", -offset),
+        },
+        _ => decoded.to_string(),
+    }
 }
 
 /// Whether an index `spec` is *encodable* the way `TclIndexEncode` requires for
@@ -817,6 +831,37 @@ pub fn bad_index_under(spec: &str, release: TclVersion) -> CmdError {
 mod tests {
     use super::IndexReading::{At, Bad, HostLong};
     use super::*;
+
+    /// `lsort -index <step> {{a b} {c d}}` against each release (tclsh 8.4.20,
+    /// 8.5.19, 8.6.18, 9.0.4, 9.1.0): a step before the first element names
+    /// the word from 9.0, the decoded index in 8.5/8.6 and 8.4's `end` = -2
+    /// encoding; a step past the end is the number everywhere.
+    #[test]
+    fn a_failed_step_is_named_as_each_release_names_it() {
+        let rows: &[(&str, [&str; 5])] = &[
+            ("end-5", ["-7", "-4", "-4", "end-5", "end-5"]),
+            ("end-3", ["-5", "-2", "-2", "end-3", "end-3"]),
+            ("7", ["7", "7", "7", "7", "7"]),
+        ];
+        let releases = [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ];
+        for (spec, names) in rows {
+            let step = PathEncoding::of(spec).expect("encodes");
+            let decoded = step.decode(2);
+            for (release, name) in releases.iter().zip(names) {
+                assert_eq!(
+                    failed_step_name(step, decoded, *release),
+                    *name,
+                    "{spec} {release:?}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn resolve_integer_and_end_forms() {

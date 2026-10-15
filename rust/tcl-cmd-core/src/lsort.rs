@@ -37,6 +37,7 @@
 //!
 //! Semantics follow tclsh 9.0.
 
+use tcl_dialect::TclVersion;
 use tcl_syntax::list::split_list;
 use tcl_syntax::value::{ValueError, ValueOps};
 
@@ -160,7 +161,11 @@ pub struct CommandJob<V> {
 // before the `as usize` casts, so the truncation/sign-loss allows are safe here.
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::Value>, LsortError> {
+pub fn prepare<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    release: TclVersion,
+) -> Result<Lsort<O::Value>, LsortError> {
     if args.is_empty() {
         return Err(LsortError::msg(
             "wrong # args: should be \"lsort ?-option value ...? list\"",
@@ -263,7 +268,7 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
         let mut items: Vec<(usize, O::Value)> = Vec::with_capacity(logical);
         for l in 0..logical {
             let base = l * group;
-            let key = index::drill(ops, &elems[base + group_offset], key_path)?;
+            let key = index::drill(ops, &elems[base + group_offset], key_path, release)?;
             items.push((base, key));
         }
         return Ok(Lsort::Command(CommandJob {
@@ -281,7 +286,7 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
     let mut items: Vec<(usize, Vec<u8>)> = Vec::with_capacity(logical);
     for l in 0..logical {
         let base = l * group;
-        let key = index::drill(ops, &elems[base + group_offset], key_path)?;
+        let key = index::drill(ops, &elems[base + group_offset], key_path, release)?;
         // An `-integer` key is a wide read: a beyond-wide one is C's overflow.
         if mode == SortMode::Integer {
             ops.as_int(&key)?;

@@ -27,23 +27,39 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
+use tcl_vm::{CompileService, Vm};
 
 const IOVERFLOW: &str = "{integer value too large to represent} \
                          {ARITH IOVERFLOW {integer value too large to represent}}";
 
 /// `script`'s completion code, result and `-errorcode`, caught as a list.
 fn caught(script: &str) -> String {
+    caught_under(script, None)
+}
+
+fn caught_under(script: &str, release: Option<tcl_dialect::TclVersion>) -> String {
     let src = format!(
         "set rc [catch {{{script}}} m o]\n\
          list $rc $m [expr {{$rc == 1 ? [dict get $o -errorcode] : {{}}}}]\n"
     );
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(&src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
     let mut vm = Vm::new();
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    let asm = if let Some(release) = release {
+        let profile = tcl_registry::model::ingress::resolve_environment(release.dialect_name())
+            .analyser_profile();
+        let service = BytecodeCompileService::for_profile(profile);
+        let asm = service
+            .compile_for_profile(&src, profile)
+            .expect("the script compiles for its release");
+        vm.set_compiler(Box::new(service));
+        vm.set_runtime_version(release);
+        asm
+    } else {
+        let registry = CommandRegistry::build_default();
+        let ir = lower_to_ir(&src, &registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        codegen_module(&cfg, &ir, &registry)
+    };
     let completion = vm.run_module(&asm);
     assert!(
         completion.code.is_ok(),
@@ -537,4 +553,48 @@ fn read_write_channels_read_and_write() {
         assert_eq!(caught(&script), expected, "{mode}: {body}");
     }
     std::fs::remove_file(&path).ok();
+}
+
+/// The two answers the releases split on, as tclsh 8.5.19, 8.6.18, 9.0.4 and
+/// 9.1.0 give them: how a failed `-index` step is named (and whether it is
+/// coded), and which `clock add` unit words are read.
+#[test]
+fn index_steps_and_clock_units_follow_the_release() {
+    use tcl_dialect::TclVersion::{V8_5, V8_6, V9_0, V9_1};
+    let unit_miss = |word: &str| {
+        format!(
+            "1 {{unknown unit \"{word}\", must be  years, months, weeks, days, hours, minutes or seconds}} \
+             {{CLOCK badUnit {word}}}"
+        )
+    };
+    let rows: Vec<(&str, tcl_dialect::TclVersion, String)> = vec![
+        (
+            "lsort -index end-5 {{a b} {c d}}",
+            V8_5,
+            "1 {element -4 missing from sublist \"a b\"} NONE".into(),
+        ),
+        (
+            "lsort -index end-5 {{a b} {c d}}",
+            V8_6,
+            "1 {element -4 missing from sublist \"a b\"} {TCL OPERATION LSORT INDEXFAILED}".into(),
+        ),
+        (
+            "lsearch -index end-5 {{a b} {c d}} x",
+            V9_0,
+            "1 {element end-5 missing from sublist \"a b\"} {TCL OPERATION LSORT INDEXFAILED}"
+                .into(),
+        ),
+        ("clock add 0 1 weekdays -gmt 1", V8_6, unit_miss("weekdays")),
+        ("clock add 0 1 d -gmt 1", V8_5, unit_miss("d")),
+        ("clock add 0 1 days -gmt 1", V8_6, "0 86400 {}".into()),
+        ("clock add 0 1 d -gmt 1", V9_0, "0 86400 {}".into()),
+        ("clock add 0 1 weekdays -gmt 1", V9_1, "0 86400 {}".into()),
+    ];
+    for (script, release, expected) in rows {
+        assert_eq!(
+            caught_under(script, Some(release)),
+            expected,
+            "{script} {release:?}"
+        );
+    }
 }

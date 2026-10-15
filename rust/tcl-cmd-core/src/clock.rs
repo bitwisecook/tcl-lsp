@@ -39,6 +39,7 @@
     clippy::similar_names
 )]
 
+use tcl_dialect::TclVersion;
 use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::error::CmdError;
@@ -75,6 +76,7 @@ pub fn dispatch<O, V>(
     args: &[V],
     now: &Now,
     local_offset: &dyn Fn(i64) -> i32,
+    release: TclVersion,
 ) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V>,
@@ -103,7 +105,7 @@ where
         "microseconds" => nullary(ops, rest, "microseconds", now.micros),
         "clicks" => clicks(ops, rest, now),
         "format" => format(ops, rest, now, local_offset),
-        "add" => add(ops, rest, now, local_offset),
+        "add" => add(ops, rest, now, local_offset, release),
         // Unreachable: `CLOCK_SUBS` has exactly the seven arms here.
         _ => scan(ops, rest, now, local_offset),
     }
@@ -354,6 +356,35 @@ const UNITS: OptionTable = OptionTable::abbreviating(
     ],
 );
 
+/// `word` as `release`'s `clock add` reads a unit. 9.0's C `clock add` takes
+/// any unique prefix of [`UNITS`]; 8.5 and 8.6's script `clock add` takes only
+/// each unit's singular or plural word and has no `weekdays` (measured: tclsh
+/// 8.5.19 and 8.6.18 refuse `d`, `mo`, `weekdays` with `CLOCK badUnit`; 9.0.4
+/// and 9.1.0 accept them).
+fn unit_under(word: &str, release: TclVersion) -> Result<Unit, CmdError> {
+    if release >= TclVersion::V9_0 {
+        return Ok(Unit::from_index(UNITS.index_of_cmd(word.as_bytes())?));
+    }
+    let unit = match word {
+        "year" | "years" => Unit::Years,
+        "month" | "months" => Unit::Months,
+        "week" | "weeks" => Unit::Weeks,
+        "day" | "days" => Unit::Days,
+        "hour" | "hours" => Unit::Hours,
+        "minute" | "minutes" => Unit::Minutes,
+        "second" | "seconds" => Unit::Seconds,
+        _ => {
+            return Err(CmdError::with_error_code(
+                format!(
+                    "unknown unit \"{word}\", must be  years, months, weeks, days, hours, minutes or seconds"
+                ),
+                tcl_syntax::list::join_list(["CLOCK", "badUnit", word]),
+            ));
+        }
+    };
+    Ok(unit)
+}
+
 /// A resolved `clock add` unit.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Unit {
@@ -397,6 +428,7 @@ fn add<O, V>(
     rest: &[V],
     now: &Now,
     local_offset: &dyn Fn(i64) -> i32,
+    release: TclVersion,
 ) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V>,
@@ -407,7 +439,7 @@ where
         let Ok(count) = ops.as_int(&rest[i]) else {
             continue;
         };
-        let unit = Unit::from_index(UNITS.index_of_cmd(ops.as_str(&rest[i + 1]).as_bytes())?);
+        let unit = unit_under(&ops.as_str(&rest[i + 1]), release)?;
         if !(-unit.max_count()..=unit.max_count()).contains(&count) {
             return Err(overflow());
         }
@@ -1162,6 +1194,35 @@ mod tests {
             add_units(0, 1, Unit::Weeks, true, &off).unwrap(),
             7 * 86_400
         );
+    }
+
+    /// tclsh 9.0.4/9.1.0 take any unique unit prefix and `weekdays`; 8.5.19
+    /// and 8.6.18 take only the singular and plural words.
+    #[test]
+    fn units_read_as_each_release_reads_them() {
+        for word in ["d", "mo", "y", "weekdays", "weekday", "days"] {
+            assert!(unit_under(word, TclVersion::V9_0).is_ok(), "{word}");
+        }
+        let ambiguous = unit_under("w", TclVersion::V9_1).expect_err("w is ambiguous");
+        assert_eq!(ambiguous.error_code(), Some("TCL LOOKUP INDEX unit w"));
+        for release in [TclVersion::V8_5, TclVersion::V8_6] {
+            for word in ["day", "days", "month", "weeks", "second"] {
+                assert!(unit_under(word, release).is_ok(), "{word} {release:?}");
+            }
+            for word in ["d", "mo", "weekdays", "w"] {
+                let error = unit_under(word, release).expect_err(word);
+                assert_eq!(
+                    error.message(),
+                    format!(
+                        "unknown unit \"{word}\", must be  years, months, weeks, days, hours, minutes or seconds"
+                    )
+                );
+                assert_eq!(
+                    error.error_code(),
+                    Some(format!("CLOCK badUnit {word}").as_str())
+                );
+            }
+        }
     }
 
     #[test]

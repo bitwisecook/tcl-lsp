@@ -276,7 +276,8 @@ fn coded_err(message: &[u8], code: Option<&[u8]>) -> Completion<Value> {
 /// the comparison modes.
 fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
-    let mut job = match prepare(vm, args) {
+    let release = vm.runtime_version();
+    let mut job = match prepare(vm, args, release) {
         Ok(Lsort::Done(v)) => return ok(v),
         Ok(Lsort::Command(job)) => job,
         Err(e) => return coded_err(&e.message, e.code),

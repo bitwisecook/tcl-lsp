@@ -69,7 +69,8 @@ fn cmd_clock(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         micros: i64::try_from(host.clock().now_micros()).unwrap_or(i64::MAX),
     };
     let offset = move |ts: i64| host.clock().local_offset_secs(ts);
-    match core_clock::dispatch(vm, args, &now, &offset) {
+    let release = vm.runtime_version();
+    match core_clock::dispatch(vm, args, &now, &offset, release) {
         Ok(v) => ok(v),
         Err(e) => crate::command::completion_from_cmd_error(e),
     }

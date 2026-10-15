@@ -516,7 +516,8 @@ fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// sort over the user comparator via `lsort_cmd_compare`, then the core builds).
 fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     use tcl_cmd_core::lsort::{build_command, prepare, sort_command, Lsort};
-    let job = match prepare(interp, &argv[1..]) {
+    let release = interp.runtime_version();
+    let job = match prepare(interp, &argv[1..], release) {
         Ok(Lsort::Done(v)) => {
             interp.set_result(v);
             return Code::Ok;
