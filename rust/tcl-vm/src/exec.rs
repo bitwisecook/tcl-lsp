@@ -1570,7 +1570,10 @@ impl Vm {
                 .filter(|parent| parent.each_loop.is_some())
                 .and_then(|parent| parent.release_units.inherited())
         });
-        if let Some(unit) = inherited {
+        if let Some(mut unit) = inherited {
+            // A `catch` activation runs the script body of a `catch` the
+            // release compiled into the unit.
+            unit.kind.in_catch_body |= frame.catch.is_some();
             frame.inherit_release_unit(unit);
         }
         acts.push(frame);
@@ -2645,9 +2648,18 @@ impl Vm {
         if !matches!(c.code, Code::Ok | Code::Error) {
             c = self.unexpected_result(c.code);
         }
+        // A script evaluated directly names the outermost command it was
+        // running, whichever command within it raised the code.
+        let outermost = match act.role {
+            ActivationRole::TopLevel { direct: true } => self
+                .script_command()
+                .map(|(text, line)| (text, line, Vec::new())),
+            _ => None,
+        };
         if c.code == Code::Error
             && !self.error_logged()
-            && let Some((text, line, enclosing)) = Self::current_command_text(act)
+            && let Some((text, line, enclosing)) =
+                outermost.or_else(|| Self::current_command_text(act))
         {
             let message = c.result.to_str().to_string();
             self.log_command_with_enclosing(
@@ -3055,10 +3067,7 @@ impl Vm {
             && instr.evaluation == CommandEvaluation::Compiled
             && !self.step_trace_active()
             && f.release_units.current(instr).is_some_and(|unit| {
-                !unit.entry.stale
-                    && instr
-                        .release_hold
-                        .is_some_and(|hold| hold.binds(unit.in_procedure))
+                !unit.entry.stale && instr.release_hold.is_some_and(|hold| hold.binds(unit.kind))
             })
             && self.function_inlined_facts_hold(asm, f.manifest.as_deref())
     }
@@ -3073,7 +3082,7 @@ impl Vm {
         words: &[Value],
     ) -> Option<EnteredCommand> {
         let unit = f.release_units.current(instr)?;
-        if !instr.release_binding?.binds(unit.in_procedure) {
+        if !instr.release_binding?.binds(unit.kind) {
             return None;
         }
         let entry = unit.entry;
@@ -3081,10 +3090,7 @@ impl Vm {
             return None;
         }
         let name = words.first()?.to_str().to_string();
-        let key = self
-            .resolve_command_fqn(self.current_ns(), &name)
-            .unwrap_or_else(|| name.trim_start_matches("::").to_owned());
-        let builtin = self.builtin_at_unit_entry(&key, entry.epoch)?;
+        let builtin = self.builtin_at_unit_entry(&name, entry.epoch)?;
         Some(EnteredCommand {
             resume: f.pc,
             continuation: f.pc,
@@ -3132,6 +3138,9 @@ impl Vm {
             ));
         }
         let instr = &asm.instructions[f.pc];
+        if instr.script_command && !f.is_script {
+            self.enter_script_command(&asm, f.pc);
+        }
         if !self.runtime_version().revalidates_running_bytecode() && f.release_units.enters(instr) {
             let stale = !self.function_command_bindings_match(&asm, f.manifest.as_deref());
             f.release_units.enter(
@@ -3301,11 +3310,10 @@ impl Vm {
                     .unwrap_or_default();
                 // A verbatim (braced / constant) literal suppresses all word
                 // substitution — it is pushed exactly as the codegen interned
-                // it (the codegen sets this flag for braced words / `proc`
-                // bodies / constant assignments).
+                // it (braced words / `proc` bodies / constant assignments).
                 if instr.literal_rep == tcl_bytecode::LiteralRep::List {
                     f.stack.push(Value::list_literal(&raw));
-                } else if instr.push_verbatim {
+                } else if instr.literal_rep == tcl_bytecode::LiteralRep::Verbatim {
                     f.stack.push(Value::string(raw));
                 } else {
                     let statement = Some((instr.source_cmd_text.as_str(), instr.source_line))
@@ -4853,7 +4861,7 @@ impl Vm {
                 let unit = f.release_units.current(instr).filter(|unit| {
                     instr
                         .release_binding
-                        .is_some_and(|binding| binding.binds(unit.in_procedure))
+                        .is_some_and(|binding| binding.binds(unit.kind))
                 });
                 let dispatched = self.dispatch_words_in_unit(f, &words, entered.as_ref(), unit);
                 self.pending.release_compiled = None;

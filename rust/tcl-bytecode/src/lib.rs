@@ -1323,15 +1323,7 @@ pub struct Instruction {
     /// out-of-band (like `foreach_vars`) so the 9-byte on-disk operand form and
     /// disassembly stay byte-stable. `None` for every other opcode.
     pub dict_vars: Option<Vec<String>>,
-    /// `PUSH1`/`PUSH4` only: the literal is a *verbatim* (braced / constant)
-    /// word and must be pushed exactly as-is, suppressing the runtime word
-    /// substitution that the VM otherwise applies to `${…}` / `[…]` markers
-    /// (see `tcl-vm::subst::subst_word`). This is the Rust analogue of the
-    /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling, carried out-of-band
-    /// so the literal pool and disassembly stay byte-stable (keeps identity
-    /// stable).
-    pub push_verbatim: bool,
-    /// `PUSH1`/`PUSH4` only: the representation the pushed literal carries.
+    /// `PUSH1`/`PUSH4` only: how the VM pushes the literal ([`LiteralRep`]).
     /// Carried out-of-band so the literal pool and disassembly stay
     /// byte-stable.
     pub literal_rep: LiteralRep,
@@ -1350,6 +1342,11 @@ pub struct Instruction {
     /// across a command-table change rather than evaluating the command
     /// afresh.
     pub release_hold: Option<tcl_runtime_api::ReleaseBinding>,
+    /// A boundary of one of the commands of a script the release evaluates
+    /// directly, as `tclsh` evaluates the script file it is given: the
+    /// outermost command running, which C's level-0 evaluation names when it
+    /// turns an unexpected completion code into an error.
+    pub script_command: bool,
     /// Under such a release, the script body this compiler inlined that this
     /// instruction runs part of: `0` for none, otherwise one more than the
     /// body's index in the function.
@@ -1424,11 +1421,11 @@ impl Instruction {
             foreach_vars: None,
             foreach_collect: false,
             dict_vars: None,
-            push_verbatim: false,
-            literal_rep: LiteralRep::String,
+            literal_rep: LiteralRep::Word,
             evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             release_binding: None,
             release_hold: None,
+            script_command: false,
             release_body: 0,
             release_body_entry: None,
             entered_command: None,
@@ -1438,12 +1435,17 @@ impl Instruction {
     }
 }
 
-/// The representation a pushed literal carries.
+/// How the VM pushes a literal.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum LiteralRep {
-    /// Its string.
+    /// A word the VM substitutes as it pushes it (see
+    /// `tcl-vm::subst::subst_word`).
     #[default]
-    String,
+    Word,
+    /// Its string exactly as it is, with no word substitution: a braced or
+    /// constant word, or a value the compiler finished. The analogue of the
+    /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling.
+    Verbatim,
     /// A list the compiler built from literal words, spelt canonically: C's
     /// `TclCompileListCmd` pushes such a list as its list object, a canonical
     /// list.

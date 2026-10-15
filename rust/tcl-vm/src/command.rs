@@ -560,13 +560,8 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let old_name = old.to_str();
     let new_name = new.to_str();
-    // Tcl rejects a rename onto an existing command (leaving both intact), so
-    // check the destination before removing the source.
-    if !new_name.is_empty() && vm.rename_destination_exists(&new_name) {
-        return err(format!(
-            "can't rename to \"{new_name}\": command already exists"
-        ));
-    }
+    // C's `TclRenameCommand` looks the source up first, so a missing source is
+    // the error even when the destination is taken.
     let Some((cmd, mut rename)) = vm.prepare_command_rename(&old_name) else {
         // Renaming to the empty name is a delete; C words the miss accordingly.
         let verb = if new_name.is_empty() {
@@ -574,10 +569,23 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         } else {
             "rename"
         };
-        return err(format!(
-            "can't {verb} \"{old_name}\": command doesn't exist"
-        ));
+        let message = format!("can't {verb} \"{old_name}\": command doesn't exist");
+        return if vm.runtime_version().has_rename_error_codes() {
+            lookup_error(message, "COMMAND", &old_name)
+        } else {
+            err(message)
+        };
     };
+    // Tcl rejects a rename onto an existing command (leaving both intact), so
+    // check the destination before removing the source.
+    if !new_name.is_empty() && vm.rename_destination_exists(&new_name) {
+        let message = format!("can't rename to \"{new_name}\": command already exists");
+        return if vm.runtime_version().has_rename_error_codes() {
+            err_with_code(message, "TCL OPERATION RENAME TARGET_EXISTS")
+        } else {
+            err(message)
+        };
+    }
     let old_key = rename.old_key().to_owned();
     // A coroutine's state travels with its command: a delete (`rename $coro {}`)
     // drops it (no `finally` runs — the frozen continuation is inert data,

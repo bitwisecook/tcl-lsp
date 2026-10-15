@@ -948,7 +948,7 @@ impl CodegenCtx<'_> {
     /// substitution over a name it has already resolved, or it strips a name's
     /// outer braces (`set {{a}} V` creating `a` instead of `{a}`), reads a
     /// `${…}` inside one, and runs a `[…]` inside one. The
-    /// literal bytes are unchanged — only the out-of-band `push_verbatim` flag
+    /// literal bytes are unchanged — only the out-of-band `literal_rep`
     /// differs — so the disassembly is byte-stable.
     ///
     /// `key_is_literal` says whether an array-element key is likewise finished

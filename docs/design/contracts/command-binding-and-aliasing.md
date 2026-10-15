@@ -211,11 +211,19 @@ the 8.4 behaviour is carried by explicit facts rather than inferred at run
 time:
 
 * **What 8.4 compiles** — `tcl_registry::release_compilation`. The
-  `builtInCmds` entries with a `compileProc`, those that decline outside a
-  procedure body (`foreach`, `lappend`, `list`, `return`, `catch` with a
-  result variable), those that need literal words (`if`, `for`, `while`,
-  `foreach`), and the compiled `string` subcommands. An invocation's
-  `InvocationShape` (word count, literal words, subcommand) rides on its
+  `builtInCmds` entries with a `compileProc`, each with the word shapes its
+  `compileProc` declines (`tclCompCmds.c`): `append` with more than two
+  arguments, `lappend` with other than two, `lindex` with none, `lset` with
+  fewer than two, `regexp` with options other than `-nocase`/`--`, a
+  non-plain pattern or match variables, `string` subcommands other than the
+  compiled ones or with the wrong word count, and `catch`/`foreach` variables
+  that are not local scalars. Those that decline outside a procedure body
+  (`foreach`, `lappend`, `list`, `return`, `catch` with a result variable),
+  and those that need literal words (`if`, `for`, `while`, `foreach`). A
+  `return` of at most one word compiles only outside a catch range
+  (`ReleaseBinding::CompiledInProcedureOutsideCatch`). A `compileProc` that
+  reports a wrong-arity error counts as compiled. An invocation's
+  `InvocationShape` (its words, literal or not) rides on its
   `CommandBindingSite` and on each codegen requirement. `eval` and `uplevel`
   scripts are evaluated directly (`TCL_EVAL_DIRECT`).
 * **Which script bodies exist** — `cfg::Function::body_scripts`: each body a
@@ -224,16 +232,26 @@ time:
 * **Per-instruction metadata** (8.4 only; out-of-band, so the disassembly is
   unchanged): `release_binding` on a literal-headed invoke, `release_hold` on
   a command boundary (whether 8.4 compiled every command the boundary's
-  specialised instructions rely on), and `release_body` / `release_body_entry`
-  for the body tree.
+  specialised instructions rely on), `release_body` / `release_body_entry`
+  for the body tree, and `script_command` on the first instruction of each
+  command of a directly evaluated script, which names the command an error
+  that reaches level 0 logs.
 * **The VM** (`tcl_vm::release_units`) decides, when it enters a body, whether
-  the body runs in the enclosing unit or in a fresh one. That depends on
-  whether the enclosing unit is a procedure body, which only the running
-  activation knows. A stale boundary whose hold binds in a unit entered before
-  the change keeps running instead of replaying. A compiled invocation whose
-  builtin a change removed after the unit's entry runs that builtin. A body
-  the VM runs through an invoked builtin that 8.4 compiles inherits the
-  invoking unit.
+  the body runs in the enclosing unit or in a fresh one. That depends on the
+  enclosing unit's `UnitKind`: whether it is a procedure body and whether it
+  runs inside a catch range, which only the running activation knows. A
+  stale boundary whose hold binds in a unit entered before the change keeps
+  running instead of replaying. A compiled invocation runs the builtin its
+  name resolved to when the unit was entered, if a later change removed or
+  replaced it: the interpreter keeps a `CommandTableHistory` of each change
+  to a name 8.4 may compile, with what the name held before it, and resolves
+  the name as 8.4 does (`ns::name`, then `name`) against that history. A
+  body the VM runs through an invoked builtin that 8.4 compiles inherits the
+  invoking unit, and a `catch` activation marks the inherited unit as inside
+  a catch range.
+* **Reference bodies** — under a release that does not revalidate running
+  bytecode, spec-pack reference bodies are not inlined: 8.4 would run them as
+  procedures, each its own unit.
 
 ### Calls to code the module cannot see
 

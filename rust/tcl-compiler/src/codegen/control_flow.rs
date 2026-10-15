@@ -260,7 +260,7 @@ impl CodegenCtx<'_> {
         if !compiled {
             return None;
         }
-        let shape = Self::invocation_shape(&arg_refs, |index| args[index].1);
+        let shape = self.invocation_shape(&arg_refs, |index| args[index].1);
         self.require_invocation_binding(&binding, &shape);
         Some(tcl_bytecode::ReleaseCompiled {
             script_word: words
