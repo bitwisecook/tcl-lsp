@@ -325,12 +325,12 @@ fn info_cmd_original(
             } => {
                 if let Some(script) = protocol.literal_script(name) {
                     let namespace =
-                        match crate::interp::native_jim_lookup::OriginalJimLookupNamespace::capture(
+                        match crate::interp::OriginalJimLookupNamespace::capture(
                             interp,
                             interp.current_ns(),
                         ) {
                             Ok(namespace) => namespace,
-                            Err(error) => return interp.report_cmd_error(error),
+                            Err(error) => return interp.report_cmd_error(error.into()),
                         };
                     if let Err(error) = namespace.check_current_arguments(interp, arguments) {
                         return interp.report_cmd_error(error);
