@@ -284,7 +284,7 @@ fn finish(vm: &mut Vm, result: Result<tcl_vm::Completion<Value>, tcl_vm::TclErro
     if let Some(code) = vm.take_exit() {
         return code;
     }
-    match result {
+    match result.map(|comp| vm.settle_top_level(comp)) {
         Ok(comp) if comp.code.is_ok() => 0,
         Ok(comp) => {
             vm.report_stderr_text(&comp.result.to_str());
@@ -389,7 +389,7 @@ fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &m
             let _ = writeln!(out);
             return code;
         }
-        match result {
+        match result.map(|comp| vm.settle_top_level(comp)) {
             Ok(comp) if comp.code.is_ok() => {
                 let result = comp.result.to_str();
                 if !result.is_empty() {

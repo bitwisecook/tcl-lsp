@@ -592,10 +592,12 @@ trace add variable y write W
 catch {set y 2} wm wo
 puts [list $rm [dict get $ro -errorcode] $wm [dict get $wo -errorcode] $y]
 ";
-    assert_eq!(
-        vm_output(script),
-        "{can't read \"x\": nope} {TCL READ VARNAME x} {can't set \"y\": bad} {TCL WRITE VARNAME y} 2"
-    );
+    let expected =
+        "{can't read \"x\": nope} {TCL READ VARNAME} {can't set \"y\": bad} {TCL WRITE VARNAME} 2";
+    assert_eq!(vm_output(script), expected);
+    if let Some(oracle) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+        assert_eq!(oracle, expected, "Tcl 9.0 trace wrapper oracle");
+    }
 }
 
 #[test]

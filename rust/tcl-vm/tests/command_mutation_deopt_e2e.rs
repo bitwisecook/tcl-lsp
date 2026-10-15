@@ -3269,7 +3269,7 @@ fn a_rung_zero_module_is_admitted_under_a_changed_pack_set() {
     let module = BytecodeCompileService::default()
         .compile("set l {a b c}\nset n [llength $l]\nlindex $l $n")
         .expect("module compiles");
-    assert!(module.top_level.site_claims.is_empty());
+    assert_eq!(module.top_level.site_claims, []);
     assert!(
         !module.top_level.command_bindings.is_empty(),
         "specialised code, whose bindings admission checks"
@@ -3465,8 +3465,8 @@ fn a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites() {
         .compile("set l {a b c}\nlindex $l [llength $l]")
         .expect("compiles");
     let generic = service.compile("native_probe").expect("compiles");
-    assert!(!specialised.top_level.command_bindings.is_empty());
-    assert!(generic.top_level.command_bindings.is_empty());
+    assert_ne!(specialised.top_level.command_bindings, []);
+    assert_eq!(generic.top_level.command_bindings, []);
 
     let run = |module: &tcl_bytecode::ModuleAsm| {
         let plain_calls = Rc::new(Cell::new(0));

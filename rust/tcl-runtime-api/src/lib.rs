@@ -566,6 +566,47 @@ pub enum CommandEvaluation {
     Direct,
 }
 
+/// Whether the emulated release binds a command when it compiles the
+/// enclosing script (its `compileProc` emits the command inline) or looks it
+/// up when the command runs. Observable only in a release whose running
+/// bytecode keeps the commands it compiled
+/// (`TclVersion::revalidates_running_bytecode`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReleaseBinding {
+    /// Looked up each time the command runs.
+    Invoked,
+    /// Compiled inline wherever it appears.
+    Compiled,
+    /// Compiled inline only in a procedure body, whose local variable table
+    /// its `compileProc` needs; looked up elsewhere.
+    CompiledInProcedure,
+}
+
+impl ReleaseBinding {
+    /// Whether the command is bound at compile time in a unit that is
+    /// (`in_procedure`) or is not a procedure body.
+    #[must_use]
+    pub fn binds(self, in_procedure: bool) -> bool {
+        match self {
+            Self::Invoked => false,
+            Self::Compiled => true,
+            Self::CompiledInProcedure => in_procedure,
+        }
+    }
+
+    /// The binding that holds where both `self` and `other` hold.
+    #[must_use]
+    pub fn meet(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Invoked, _) | (_, Self::Invoked) => Self::Invoked,
+            (Self::CompiledInProcedure, _) | (_, Self::CompiledInProcedure) => {
+                Self::CompiledInProcedure
+            }
+            (Self::Compiled, Self::Compiled) => Self::Compiled,
+        }
+    }
+}
+
 /// Command-dispatch form requested for a procedure-body compilation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcedureDispatch {

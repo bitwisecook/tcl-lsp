@@ -167,6 +167,9 @@ pub(crate) struct Frame {
     /// the stack is trimmed to its depth, the completion is recorded on that
     /// range ([`CatchRange::caught`]), and execution resumes at the handler.
     catch_ranges: Vec<CatchRange>,
+    /// Under a release that keeps the commands running bytecode compiled, the
+    /// units this activation's instructions run in and when it entered each.
+    release_units: crate::release_units::ReleaseUnits,
     /// Last value dropped by `POP` — the `DONE` result when the stack is empty.
     last_result: Value,
     /// Carried return options in this evaluation frame. An ordinary successful
@@ -428,6 +431,7 @@ impl Frame {
             dict_iters: HashMap::new(),
             expand_markers: Vec::new(),
             catch_ranges: Vec::new(),
+            release_units: crate::release_units::ReleaseUnits::new(is_proc),
             last_result: Value::empty(),
             last_options: Value::empty(),
             is_proc,
@@ -564,6 +568,14 @@ impl Frame {
     /// Take the innermost literal command token whose substitution region ends
     /// at the current continuation. Nested commands can share an activation,
     /// so match by continuation instead of assuming a single pending token.
+    /// Run in `unit`, inherited from the invocation that runs this activation.
+    /// A procedure body is always a unit of its own.
+    fn inherit_release_unit(&mut self, unit: crate::release_units::InheritedUnit) {
+        if !self.is_proc {
+            self.release_units.inherit(unit);
+        }
+    }
+
     fn take_entered_command(&mut self) -> Option<EnteredCommand> {
         let index = self
             .entered_commands
@@ -1371,7 +1383,10 @@ impl Vm {
     /// call (so `unwind` pops a call-frame + namespace and absorbs `return`):
     /// `false` for a module top-level,
     /// `true` for [`invoke_command`](Self::invoke_command) running a proc body.
-    fn run_activation(&mut self, initial: Frame) -> Completion<Value> {
+    fn run_activation(&mut self, mut initial: Frame) -> Completion<Value> {
+        if let Some(unit) = self.pending.release_dispatch {
+            initial.inherit_release_unit(unit);
+        }
         let mut acts: Vec<Frame> = vec![initial];
         match self.drive(&mut acts, DriveMode::Plain) {
             RunExit::Done(c) => c,
@@ -1420,6 +1435,16 @@ impl Vm {
     fn push_frame(&mut self, acts: &mut Vec<Frame>, mut frame: Frame) {
         if let Some(ctx) = self.pending_exec_leave.take() {
             frame.exec_leave.push(ctx);
+        }
+        // The body of a command the release compiled into the issuing unit, or
+        // one a driver activation running such a command runs.
+        let inherited = self.pending.release_unit.take().or_else(|| {
+            acts.last()
+                .filter(|parent| parent.each_loop.is_some())
+                .and_then(|parent| parent.release_units.inherited())
+        });
+        if let Some(unit) = inherited {
+            frame.inherit_release_unit(unit);
         }
         acts.push(frame);
     }
@@ -2567,9 +2592,61 @@ impl Vm {
         Ok(())
     }
 
+    /// Whether the release keeps running `instr`'s command as `f` compiled it
+    /// across the command-table change that outdated `f`'s bindings, where
+    /// this VM would otherwise evaluate the command afresh: the release
+    /// compiled every command the command's specialised instructions rely on
+    /// into a unit `f` entered before the change ([`crate::release_units`]).
+    fn release_keeps_running(&self, f: &Frame, asm: &FunctionAsm, instr: &Instruction) -> bool {
+        !self.runtime_version().revalidates_running_bytecode()
+            && instr.evaluation == CommandEvaluation::Compiled
+            && !self.step_trace_active()
+            && f.release_units.current(instr).is_some_and(|unit| {
+                !unit.entry.stale
+                    && instr
+                        .release_hold
+                        .is_some_and(|hold| hold.binds(unit.in_procedure))
+            })
+            && self.function_inlined_facts_hold(asm, f.manifest.as_deref())
+    }
+
+    /// The command an invocation of `words` the release compiled into `f`'s
+    /// running unit runs, where a command-table change since the unit was
+    /// entered removed the builtin the release compiled it as.
+    fn release_compiled_command(
+        &self,
+        f: &Frame,
+        instr: &Instruction,
+        words: &[Value],
+    ) -> Option<EnteredCommand> {
+        let unit = f.release_units.current(instr)?;
+        if !instr.release_binding?.binds(unit.in_procedure) {
+            return None;
+        }
+        let entry = unit.entry;
+        if entry.epoch == self.trace_deopt_epoch() {
+            return None;
+        }
+        let name = words.first()?.to_str().to_string();
+        let key = self
+            .resolve_command_fqn(self.current_ns(), &name)
+            .unwrap_or_else(|| name.trim_start_matches("::").to_owned());
+        let builtin = self.builtin_at_unit_entry(&key, entry.epoch)?;
+        Some(EnteredCommand {
+            resume: f.pc,
+            continuation: f.pc,
+            name,
+            command: Command::Builtin(builtin),
+            sidecar: CommandSidecarHandle::detached(),
+        })
+    }
+
     /// Execute a single instruction of the top activation.
     #[allow(clippy::too_many_lines)] // One match over every opcode; the VM's central dispatch is clearer whole.
     fn tick(&mut self, f: &mut Frame) -> Tick {
+        // Only the activation the previous invocation deferred inherits its
+        // unit; it was installed before this tick.
+        self.pending.release_unit = None;
         // A subst activation is scanner-driven, not bytecode-driven: run the next
         // scan step (native literal/`$` runs, pausing at each top-level `[…]`)
         // instead of the instruction dispatch below.
@@ -2599,6 +2676,16 @@ impl Vm {
             ));
         }
         let instr = &asm.instructions[f.pc];
+        if !self.runtime_version().revalidates_running_bytecode() && f.release_units.enters(instr) {
+            let stale = !self.function_command_bindings_match(&asm, f.manifest.as_deref());
+            f.release_units.enter(
+                instr,
+                crate::release_units::UnitEntry {
+                    epoch: self.trace_deopt_epoch(),
+                    stale,
+                },
+            );
+        }
         // Tcl resets the interpreter result at the start of every source
         // command. `last_result` is this VM's result owner; releasing it here
         // prevents the previous command from looking like a Tcl-level alias to
@@ -2618,7 +2705,7 @@ impl Vm {
                 && !self.step_trace_active()
             {
                 f.command_epoch = self.trace_deopt_epoch();
-            } else {
+            } else if !self.release_keeps_running(f, &asm, instr) {
                 let child = match self.compile_plain_function_cached(ScriptCompileTarget {
                     source: &instr.source_cmd_text,
                     namespace: &instr.source_command_namespace,
@@ -2835,7 +2922,7 @@ impl Vm {
                         && !self.step_trace_active()
                     {
                         f.command_epoch = current_epoch;
-                    } else {
+                    } else if !self.release_keeps_running(f, &asm, instr) {
                         let Some(target) =
                             label0(instr).and_then(|label| label_to_idx(&asm, &f.off2idx, label))
                         else {
@@ -3895,13 +3982,10 @@ impl Vm {
 
             // Dict validation: consumes the (dup'd) TOS, validates even length.
             Op::VERIFY_DICT => {
-                let top = pop(f);
-                match top.as_list() {
-                    Ok(items) if items.len() % 2 == 0 => {}
-                    Ok(_) => {
-                        return Tick::Return(err("missing value to go with key"));
-                    }
-                    Err(e) => return Tick::Return(err(e.message)),
+                // C's `Tcl_DictObjSize`: the value (the literal `dup` shares
+                // with the stored result) becomes a dict, not a list.
+                if let Err(e) = pop(f).dict_pairs() {
+                    return Tick::Return(err(e.message));
                 }
             }
 
@@ -4324,9 +4408,16 @@ impl Vm {
                 {
                     word.compile_as_script();
                 }
-                let entered = f.take_entered_command();
+                let entered = f
+                    .take_entered_command()
+                    .or_else(|| self.release_compiled_command(f, instr, &words));
                 self.pending.release_compiled = release_compiled;
-                let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
+                let unit = f.release_units.current(instr).filter(|unit| {
+                    instr
+                        .release_binding
+                        .is_some_and(|binding| binding.binds(unit.in_procedure))
+                });
+                let dispatched = self.dispatch_words_in_unit(f, &words, entered.as_ref(), unit);
                 self.pending.release_compiled = None;
                 match dispatched {
                     Ok(Some(call)) => return call,
@@ -4388,7 +4479,7 @@ impl Vm {
                 } else {
                     let entered = f.take_entered_command();
                     self.pending.release_compiled = None;
-                    match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
+                    match self.dispatch_words_in_unit(f, &words, entered.as_ref(), None) {
                         Ok(Some(call)) => return call,
                         Ok(None) => {}
                         Err(c) => {
@@ -4434,7 +4525,7 @@ impl Vm {
                     rewritten.extend_from_slice(&words[opnd..]);
                 }
                 self.pending.release_compiled = None;
-                match self.dispatch_words_with_entered(f, &rewritten, None) {
+                match self.dispatch_words_in_unit(f, &rewritten, None, None) {
                     Ok(Some(call)) => return call,
                     Ok(None) => {}
                     Err(c) => {
@@ -5098,7 +5189,26 @@ impl Vm {
         f: &mut Frame,
         words: &[Value],
     ) -> Result<Option<Tick>, Completion<Value>> {
-        self.dispatch_words_with_entered(f, words, None)
+        self.dispatch_words_in_unit(f, words, None, None)
+    }
+
+    /// [`Self::dispatch_words_with_entered`] for an invocation the release
+    /// compiled into `unit`, which the activations the command runs its body
+    /// in inherit.
+    fn dispatch_words_in_unit(
+        &mut self,
+        f: &mut Frame,
+        words: &[Value],
+        entered: Option<&EnteredCommand>,
+        unit: Option<crate::release_units::InheritedUnit>,
+    ) -> Result<Option<Tick>, Completion<Value>> {
+        let outer = std::mem::replace(&mut self.pending.release_dispatch, unit);
+        let dispatched = self.dispatch_words_with_entered(f, words, entered);
+        self.pending.release_dispatch = outer;
+        if matches!(dispatched, Ok(Some(_))) {
+            self.pending.release_unit = unit;
+        }
+        dispatched
     }
 
     /// Dispatch with an optional command token captured at the command-head

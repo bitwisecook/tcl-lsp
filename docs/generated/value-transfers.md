@@ -1160,24 +1160,24 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 
 | Dialect | Rows |
 |---|---|
-| bpf | 2614 |
+| bpf | 2616 |
 | cadence-eda-tcl | 1191 |
-| expect | 2532 |
+| expect | 2534 |
 | f5-iapps | 1017 |
 | f5-irules | 1075 |
 | f5-tmsh | 998 |
 | intel-quartus-eda-tcl | 2570 |
-| mentor-eda-tcl | 2829 |
+| mentor-eda-tcl | 2831 |
 | microchip-libero-eda-tcl | 2751 |
-| spectcl | 2707 |
-| sslictcl | 2652 |
-| synopsys-eda-tcl | 2734 |
+| spectcl | 2709 |
+| sslictcl | 2654 |
+| synopsys-eda-tcl | 2736 |
 | tcl8.4 | 968 |
 | tcl8.5 | 2345 |
-| tcl8.6 | 2518 |
-| tcl9.0 | 2590 |
-| tcl9.1 | 2606 |
-| tk | 2622 |
+| tcl8.6 | 2520 |
+| tcl9.0 | 2592 |
+| tcl9.1 | 2608 |
+| tk | 2624 |
 | xilinx-eda-tcl | 3283 |
 
 ## Hand-written command knowledge outside the registry

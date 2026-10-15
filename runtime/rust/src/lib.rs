@@ -122,6 +122,7 @@ pub mod embedded_stdlib;
 pub mod engine;
 pub mod engine_abi;
 pub mod ensemble;
+mod env_trace;
 mod environment;
 #[cfg(have_tommath)]
 pub mod expr;

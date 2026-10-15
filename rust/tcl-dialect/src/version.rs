@@ -724,12 +724,14 @@ impl TclVersion {
         matches!(self, Self::V8_4)
     }
 
-    /// Whether `eval` and `uplevel` compile a script that is no canonical
-    /// list (`TclEvalObjEx` with no flags), and `source` the file it reads.
-    /// 8.4 evaluates every such script directly (`TCL_EVAL_DIRECT`,
-    /// `Tcl_EvalEx`).
+    /// Does this release revalidate bytecode that is already running? From
+    /// 8.5 every compiled command starts with `INST_START_CMD`, which checks
+    /// the compile epoch and evaluates the command's source afresh when a
+    /// command-table change outdated it. 8.4 checks the epoch only when
+    /// bytecode is entered (`TclCompEvalObj`), so running bytecode keeps the
+    /// commands it compiled until its next entry.
     #[must_use]
-    pub fn compiles_eval_scripts(self) -> bool {
+    pub fn revalidates_running_bytecode(self) -> bool {
         !matches!(self, Self::V8_4)
     }
 

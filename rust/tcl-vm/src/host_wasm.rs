@@ -54,7 +54,8 @@
 //! - **`StdIo`** — discarded. There is no terminal on the other end of a
 //!   worker's `puts`; a host that wants the output owns the decision of where
 //!   it goes and can install its own [`Host`] with [`Vm::set_host`].
-//! - **Env** — empty, with `/` as the working directory. `std::env::vars` is
+//! - **Env** — starts empty and keeps what scripts set, with `/` as the
+//!   working directory. `std::env::vars` is
 //!   another `unsupported.rs` panic on this target, which is why the VM's
 //!   `write_platform_globals` already skips it here.
 //! - **Filesystem / process / sockets** — absent, so `tcl-cmd-core`'s portable
@@ -62,6 +63,9 @@
 //!   failing at a syscall.
 //!
 //! [`Vm::set_host`]: crate::Vm::set_host
+
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 use tcl_platform::{Capabilities, Clock, Env, Host, HostError, StdIo};
 
@@ -79,7 +83,7 @@ impl BrowserHost {
         Self {
             clock: BrowserClock,
             stdio: BrowserStdIo,
-            env: BrowserEnv,
+            env: BrowserEnv::default(),
         }
     }
 }
@@ -161,18 +165,30 @@ impl StdIo for BrowserStdIo {
     fn write_stderr(&self, _bytes: &[u8]) {}
 }
 
-/// No environment variables, and a fixed root working directory.
-struct BrowserEnv;
+/// An environment that starts empty and keeps what the script sets (the
+/// `::env` array reads through to it), and a fixed root working directory.
+#[derive(Default)]
+struct BrowserEnv(RefCell<BTreeMap<String, String>>);
 
 impl Env for BrowserEnv {
-    fn get(&self, _key: &str) -> Option<String> {
-        None
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.borrow().get(key).cloned()
     }
 
-    fn set(&self, _key: &str, _val: &str) {}
+    fn set(&self, key: &str, val: &str) {
+        self.0.borrow_mut().insert(key.to_owned(), val.to_owned());
+    }
+
+    fn unset(&self, key: &str) {
+        self.0.borrow_mut().remove(key);
+    }
 
     fn vars(&self) -> Vec<(String, String)> {
-        Vec::new()
+        self.0
+            .borrow()
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
     }
 
     fn cwd(&self) -> Result<String, HostError> {
