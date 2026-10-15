@@ -1,0 +1,18 @@
+{
+  "interpreter": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "source": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c",
+  "git_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "fixture_sha256": "6c62ae3ff0f7cb73eb3c1074a27686aba07192540b60f5502b247e9924e43ecc",
+  "driver_sha256": "05af6bec6c439ea4710a18d837dcde098041763ac10150a6346de55ad3e8fcdc",
+  "exit_code": 0,
+  "stdout_sha256": "ea11bf58aa3937e016eb59da754671adc23e324c294ce795d65a37bc0910a1ce",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "Original Jim registered CoreCommand/source invocation at the pinned commit, public script arguments only; no native opcode or direct C-ABI/vector observation. No C/F5 acceptance. Jim_ExistsCoreCommand lines16348-16405, registration16849. Driver only prints actual fixture result after unchanged script.",
+  "latest_remote_check_receipt": "/tmp/name-jim-namespace-code-sdk-20261015/upstream-check-0312/receipt.json",
+  "latest_remote_check_sha256": "19f2248651d04a1c990e75e1a03ad67f807e3cbe426ced951c969d873f4f80d3",
+  "capture_utc": "2026-10-15",
+  "driver_materialized_utc": "2026-10-15T03:38:23.166238+00:00",
+  "output_retained_utc": "2026-10-15T03:38:23.169862+00:00"
+}

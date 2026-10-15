@@ -5,7 +5,7 @@
 //! Package and autoload command queries using retained original byte producers.
 
 mod file_candidates;
-mod index_loader;
+pub(super) mod index_loader;
 pub use file_candidates::{OriginalPackageFileCandidate, OriginalPackageFileCandidateKind};
 
 use super::PackageResolver;

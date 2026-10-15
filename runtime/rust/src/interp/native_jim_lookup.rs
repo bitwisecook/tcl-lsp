@@ -12,6 +12,12 @@ use crate::{
 };
 use tcl_syntax::value::{ValueError, ValueOps};
 
+#[derive(Clone, Copy)]
+pub(super) enum OriginalJimVariableReport {
+    Missing,
+    Silent,
+}
+
 enum OriginalJimCachedStore {
     Stored,
     Link(crate::frame::Link),
@@ -491,6 +497,38 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
     ) -> Result<*mut TclObj, Code> {
+        self.read_original_named_variable_reported(original, OriginalJimVariableReport::Missing)
+    }
+
+    pub(crate) fn exists_original_jim_variable(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<bool, Code> {
+        if self.observed_name_policy_selected()
+            || self
+                .native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .is_none()
+        {
+            return Err(self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("original Jim variable existence query")
+                    .into(),
+            ));
+        }
+        match self
+            .read_original_named_variable_reported(original, OriginalJimVariableReport::Silent)
+        {
+            Ok(_) => Ok(true),
+            Err(code) if self.host_refusal_pending() => Err(code),
+            Err(_) => Ok(false),
+        }
+    }
+
+    pub(super) fn read_original_named_variable_reported(
+        &mut self,
+        original: *mut TclObj,
+        report: OriginalJimVariableReport,
+    ) -> Result<*mut TclObj, Code> {
         if self.native_c_variable_name_protocol().is_some() {
             return self.read_original_c_variable(original);
         }
@@ -516,7 +554,7 @@ impl Interp {
             {
                 Some(JimVariableRead::Scalar(value)) => Some(value),
                 Some(JimVariableRead::Link(link)) => {
-                    if let Some(result) = self.read_original_jim_link(original, &link) {
+                    if let Some(result) = self.read_original_jim_link(original, &link, report) {
                         return result;
                     }
                     crate::vars::read_jim_cached_link(
@@ -547,17 +585,28 @@ impl Interp {
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?
         {
-            if let Some(JimVariableRead::Link(link)) = cache
+            match cache
                 .cell
                 .read_checked()
                 .map_err(|error| self.report_cmd_error(error.into()))?
             {
-                if let Some(result) = self.read_original_jim_link(original, &link) {
-                    return result;
+                Some(JimVariableRead::Link(link)) => {
+                    if let Some(result) = self.read_original_jim_link(original, &link, report) {
+                        return result;
+                    }
                 }
+                Some(JimVariableRead::Scalar(value))
+                    if matches!(report, OriginalJimVariableReport::Silent) =>
+                {
+                    return Ok(value);
+                }
+                _ => {}
             }
         }
-        self.read_named_variable(&bytes)
+        match report {
+            OriginalJimVariableReport::Missing => self.read_named_variable(&bytes),
+            OriginalJimVariableReport::Silent => Err(Code::Error),
+        }
     }
     /// Assign through the original name, then publish the actual supplied value.
     pub(crate) fn store_original_named_variable(

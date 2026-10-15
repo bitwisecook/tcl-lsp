@@ -83,6 +83,7 @@ pub mod cmd_event;
 pub mod cmd_format;
 pub mod cmd_fs;
 pub mod cmd_info;
+mod cmd_jim_exists;
 pub mod cmd_list;
 mod jim_try;
 mod native_arithseries;

@@ -1313,9 +1313,8 @@ pub fn source_logical_command_candidates_at(
     analysis: &AnalysisResult,
     offset: u32,
 ) -> Option<crate::command_binding::OriginalLogicalCommandCandidates> {
-    analysis.allows_lexical_declaration_advice().then_some(())?;
-    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
-    realm.original_logical_navigation_candidates(input, &native)
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_navigation_candidates(input, offset)
 }
 
 /// Ordered readonly Logical candidates for selected prefix roles at this exact original installer.
@@ -1327,9 +1326,32 @@ pub fn source_logical_callback_candidates_at(
     analysis: &AnalysisResult,
     offset: u32,
 ) -> Option<Vec<crate::command_binding::OriginalLogicalCallbackCandidates>> {
+    let (input, realm) = logical_source_candidate_context(source, analysis)?;
+    realm.original_logical_callback_candidates(input, offset)
+}
+
+// The immutable tape already owns the complete original vectors and body
+// bounds. A source suffix cannot reconstruct that context at a nested closer.
+fn logical_source_candidate_context<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+) -> Option<(
+    &'a crate::analyser::ResolvedAnalysisInput,
+    &'a crate::realm::CommandBindingRealm,
+)> {
     analysis.allows_lexical_declaration_advice().then_some(())?;
-    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
-    realm.original_logical_callback_candidates(input, &native)
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    if config != input.lexer_config() {
+        return None;
+    }
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    realm.matches_resolved_analysis_input(input).then_some(())?;
+    Some((input, realm))
 }
 
 /// Genuine Logical callback prefix roles from the current complete source tape.

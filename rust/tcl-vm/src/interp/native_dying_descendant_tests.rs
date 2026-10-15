@@ -182,9 +182,11 @@ fn original_missing_descendant_has_the_dying_ancestor_and_is_destroyed_with_it()
                     );
                 } else {
                     assert_eq!(
-                        vm.eval_source(
+                        vm.eval_source(if version == tcl_dialect::TclVersion::V8_4 {
                             "namespace eval retiring {trace variable sentinel u ::during}"
-                        )
+                        } else {
+                            "namespace eval retiring {trace add variable sentinel unset ::during}"
+                        })
                         .unwrap()
                         .code,
                         Code::Ok

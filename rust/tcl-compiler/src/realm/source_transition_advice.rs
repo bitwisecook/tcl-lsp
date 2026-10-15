@@ -602,7 +602,7 @@ impl super::CommandBindingRealm {
     pub(crate) fn original_logical_navigation_candidates(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
-        original: &[tcl_lexer::NativeWord],
+        offset: u32,
     ) -> Option<crate::command_binding::OriginalLogicalCommandCandidates> {
         let image = self.original_source_image()?;
         if !input.has_logical_source_name_context()
@@ -621,7 +621,7 @@ impl super::CommandBindingRealm {
         prepared
             .as_ref()
             .as_ref()?
-            .logical_navigation_at(input, original)
+            .logical_navigation_at(input, image, offset)
     }
 
     /// Reborrow actual Logical callback roles at one original installer from the immutable syntax catalogue.
@@ -629,7 +629,7 @@ impl super::CommandBindingRealm {
     pub(crate) fn original_logical_callback_candidates(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
-        original: &[tcl_lexer::NativeWord],
+        offset: u32,
     ) -> Option<Vec<crate::command_binding::OriginalLogicalCallbackCandidates>> {
         let image = self.original_source_image()?;
         if !input.has_logical_source_name_context()
@@ -648,7 +648,7 @@ impl super::CommandBindingRealm {
         prepared
             .as_ref()
             .as_ref()?
-            .logical_callbacks_at(input, original)
+            .logical_callbacks_at(input, image, offset)
     }
 
     /// Reborrow actual Logical callback roles at one original installer from the immutable syntax catalogue.

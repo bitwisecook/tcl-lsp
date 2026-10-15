@@ -58,7 +58,9 @@ mod eof_;
 mod error_;
 mod eval_;
 mod exec_;
+mod exists_;
 mod exit_;
+pub use exists_::{NativeJimExistsKind, NativeJimExistsProtocol};
 mod expr_;
 mod fblocked;
 mod fconfigure_;
@@ -400,6 +402,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         regsub_::spec(),
         rename_::spec(),
         alias_::spec(),
+        exists_::spec(),
         return_::spec(),
         scan_::spec(),
         seek_::spec(),

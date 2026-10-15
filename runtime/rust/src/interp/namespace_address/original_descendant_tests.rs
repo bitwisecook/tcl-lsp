@@ -182,7 +182,11 @@ fn original_missing_descendant_has_the_dying_ancestor_and_is_destroyed_with_it()
                 } else {
                     assert_eq!(
                         interpreter.eval_str(
+                            if version == tcl_dialect::TclVersion::V8_4 {
                             b"namespace eval retiring {trace variable sentinel u ::during}"
+                        } else {
+                            b"namespace eval retiring {trace add variable sentinel unset ::during}"
+                        }
                         ),
                         Code::Ok,
                         "{version:?}/{target:?}: trace setup result {:?}, execution {:?}, access {:?}", interpreter.result_bytes(), interpreter.native_execution_refusal(), interpreter.native_access_refusal()

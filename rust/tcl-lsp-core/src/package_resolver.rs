@@ -47,11 +47,11 @@
 //! by regex). [`auto_qualify`] delegates name qualification to the shared
 //! naming owner. [`PackageResolver`] ties them together over a set of search paths
 //! (an `auto_path`), resolving `package require` and auto-loaded command names
-//! to the files C Tcl would load.
+//! to candidate implementation files.
 //!
 //! The differential tests in this module verify the output against a real
 //! `tclsh` (`auto_qualify`, and `pkg_mkIndex` / `auto_mkindex`-generated index
-//! files) so this module cannot silently drift from C Tcl.
+//! files).
 //!
 //! [`tclPkgUnknown`]: https://www.tcl-lang.org/man/tcl/TclCmd/package.htm
 //! [`auto_load_index`]: https://www.tcl-lang.org/man/tcl/TclCmd/library.htm
@@ -261,19 +261,8 @@ pub(super) fn word_unwrap(text: &str, word: &[Token]) -> Option<String> {
     None
 }
 
-/// Extract the package-relative filename from a `source` argument word.
-///
-/// Accepts the two structural forms real index files use, via the tokeniser:
-///
-/// * `[file join $dir X …]` — path components after `$dir` joined by `/`.
-/// * `$dir/X` — the path tail after a bare `$dir/` prefix.
-fn source_filename(text: &str, arg: &[Token]) -> Option<String> {
-    // Independent on-disk index compatibility, without a document input.
-    source_filename_with_config(text, arg, tcl_lexer::LexerConfig::default())
-}
-
-/// Parse the genuine command-substitution operand with its supplied grammar.
-/// The caller retains the parent word and input; this supplies path syntax only.
+/// Fixture-only legacy syntax projection for retained parser boundary controls.
+#[cfg(test)]
 fn source_filename_with_config(
     text: &str,
     arg: &[Token],
@@ -352,34 +341,33 @@ fn collect_source_targets(
     out: &mut Vec<PathBuf>,
     depth: u32,
 ) {
-    if MAX_SOURCE_TARGET_SCAN_DEPTH.exceeded(depth) {
+    let config = tcl_lexer::LexerConfig::default();
+    let Ok(length) = u32::try_from(text.len()) else {
         return;
-    }
-    for words in commands {
-        for (i, word) in words.iter().enumerate() {
-            if word_raw(text, word) == "source"
-                && let Some(next) = words.get(i + 1)
-                && let Some(filename) = source_filename(text, next)
-            {
-                let full = pkg_dir.join(&filename);
-                if exists(&full) {
-                    out.push(full);
-                }
-            }
-        }
-        for word in words {
-            if let Some(inner) = word_unwrap(text, word) {
-                collect_source_targets(
-                    &inner,
-                    &walk_command_words(&inner),
-                    pkg_dir,
-                    exists,
-                    out,
-                    depth + 1,
-                );
-            }
+    };
+    let Ok(plan) = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(text),
+        tcl_lexer::Span::new(0, length),
+        config,
+    ) else {
+        return;
+    };
+    let loader = original_names::index_loader::IndexLoader::standalone(text, config);
+    let mut candidates = Vec::new();
+    for tokens in commands.iter().flatten() {
+        let mut matching = plan
+            .commands
+            .iter()
+            .flat_map(|command| &command.words)
+            .filter(|word| word.tokens() == tokens.as_slice());
+        let Some(word) = matching.next() else {
+            continue;
+        };
+        if matching.next().is_none() {
+            loader.collect_word(word, pkg_dir, &mut candidates, depth);
         }
     }
+    out.extend(candidates.into_iter().filter(|path| exists(path)));
 }
 
 /// A literal advertisement must be a version in at least one supported C Tcl
@@ -413,6 +401,9 @@ fn is_version_word(word: &str) -> bool {
 /// front of it. Nothing is filtered here: a caller that targets a specific
 /// Tcl release asks [`PackageInfo::availability`], and one that does not
 /// (go-to-definition, which is deliberately permissive) ignores the field.
+/// This standalone survey uses the default Tcl source configuration and
+/// encoding-form loader syntax. Candidates retain the supplied directory,
+/// existence and fallback-listing conventions.
 pub fn parse_pkg_index(
     content: &str,
     pkg_dir: &Path,
@@ -489,12 +480,14 @@ pub fn parse_pkg_index(
 /// Handles both formats `auto_load_index` reads (`library/init.tcl:446`):
 ///
 /// * **version 2.0** — `set auto_index(NAME) [list source [file join $dir F]]`
-///   (also `::tcl::Pkg::source` and an `-encoding utf-8` flag), and
+///   (including the standalone `-encoding utf-8` grammar), and
 /// * **old format** — `# Tcl autoload index file: each line identifies a Tcl`
 ///   followed by `NAME FILE` lines.
 ///
 /// `index_dir` is the directory the index lives in; `exists` gates referenced
 /// files (pass `|p| p.is_file()`).
+/// This standalone survey uses the default Tcl source configuration and
+/// encoding-form loader syntax, independently of a document analysis or runtime.
 pub fn parse_tcl_index(
     content: &str,
     index_dir: &Path,
@@ -506,46 +499,58 @@ pub fn parse_tcl_index(
 
     if old_format {
         for line in content.lines().skip(1) {
-            let line = line.trim();
-            if line.starts_with('#') || line.is_empty() {
+            if line.trim_start().starts_with('#') || line.trim().is_empty() {
                 continue;
             }
-            // `NAME FILE` — exactly two whitespace-separated words.
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() != 2 {
+            let Ok(parts) = tcl_syntax::word_rules::WordValueRules::from_config(
+                &tcl_lexer::LexerConfig::default(),
+            )
+            .split_list(line) else {
                 continue;
-            }
-            push_auto_entry(parts[0], parts[1], index_dir, exists, &mut entries);
+            };
+            let [name, filename] = parts.as_slice() else {
+                continue;
+            };
+            push_auto_entry(name, filename, index_dir, exists, &mut entries);
         }
         return entries;
     }
 
-    // Version 2.0: structurally match each `set auto_index(NAME) [list … source
-    // … [file join $dir FILE]]` command via the tokeniser.
-    for words in walk_command_words(content) {
-        if words.len() != 3 {
-            continue;
-        }
-        if word_raw(content, &words[0]) != "set" {
-            continue;
-        }
-        let Some(proc_name) = auto_index_key(word_raw(content, &words[1])) else {
-            continue;
-        };
-        let Some(inner) = word_unwrap(content, &words[2]) else {
-            continue;
-        };
-        // `[list ?::tcl::Pkg::?source ?-encoding utf-8? [file join $dir FILE]]`.
-        let cmds = walk_command_words(&inner);
-        if cmds.len() != 1 {
-            continue;
-        }
-        let lw = &cmds[0];
-        let Some(src_arg) = list_source_file_arg(&inner, lw) else {
+    let config = tcl_lexer::LexerConfig::default();
+    let Ok(length) = u32::try_from(content.len()) else {
+        return entries;
+    };
+    let Ok(plan) = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(content),
+        tcl_lexer::Span::new(0, length),
+        config,
+    ) else {
+        return entries;
+    };
+    let loader = original_names::index_loader::IndexLoader::standalone(content, config);
+    for command in plan.commands {
+        let [head, name, value] = command.words.as_slice() else {
             continue;
         };
-        if let Some(filename) = source_filename(&inner, src_arg) {
-            push_auto_entry(proc_name, &filename, index_dir, exists, &mut entries);
+        if tcl_syntax::word_rules::original_static_word_unicode_value(head).as_deref()
+            != Some(b"set")
+        {
+            continue;
+        }
+        let Some(name) = tcl_syntax::word_rules::original_static_word_unicode_value(name) else {
+            continue;
+        };
+        let Some(proc_name) = std::str::from_utf8(&name).ok().and_then(auto_index_key) else {
+            continue;
+        };
+        let Some(file) = loader.filename(value, index_dir) else {
+            continue;
+        };
+        if exists(&file) {
+            entries.push(AutoIndexEntry {
+                proc_name: proc_name.to_owned(),
+                source_file: file,
+            });
         }
     }
     entries
@@ -553,29 +558,8 @@ pub fn parse_tcl_index(
 
 /// Extract `NAME` from an `auto_index(NAME)` array-element word.
 fn auto_index_key(raw: &str) -> Option<&str> {
-    let inner = raw.strip_prefix("auto_index(")?.strip_suffix(')')?;
-    Some(inner.trim())
-}
-
-/// In a `[list …]` body, find the argument word that names the source file:
-/// the word *after* a `source` / `::tcl::Pkg::source` word, skipping an
-/// `-encoding <enc>` option pair.
-fn list_source_file_arg<'w>(inner: &str, words: &'w [Vec<Token>]) -> Option<&'w Vec<Token>> {
-    let mut i = 0;
-    // Find the `source` verb.
-    while i < words.len() {
-        let w = word_raw(inner, &words[i]);
-        if w == "source" || w == "::tcl::Pkg::source" {
-            break;
-        }
-        i += 1;
-    }
-    i += 1; // step past the source verb
-    // Optional `-encoding <enc>` pair.
-    if words.get(i).map(|w| word_raw(inner, w)) == Some("-encoding") {
-        i += 2;
-    }
-    words.get(i)
+    let (root, index) = tcl_syntax::naming::split_element_ref(raw)?;
+    (root == "auto_index").then_some(index)
 }
 
 fn push_auto_entry(
@@ -585,11 +569,10 @@ fn push_auto_entry(
     exists: &dyn Fn(&Path) -> bool,
     out: &mut Vec<AutoIndexEntry>,
 ) {
-    let filename = filename.trim().trim_matches('"');
     let full = index_dir.join(filename);
     if exists(&full) {
         out.push(AutoIndexEntry {
-            proc_name: proc_name.trim().to_owned(),
+            proc_name: proc_name.to_owned(),
             source_file: full,
         });
     }
@@ -1305,3 +1288,129 @@ pub use original_names::{
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod standalone_filename_data_tests {
+    use super::*;
+
+    #[test]
+    fn standalone_indices_keep_actual_filename_values_and_default_source_grammar() {
+        let directory = Path::new("/library");
+        for (loader, relative) in [
+            (
+                "[list source [file join $dir { spaced.tcl }]]",
+                " spaced.tcl ",
+            ),
+            (
+                "[list source [file join $dir {\"quoted\".tcl}]]",
+                "\"quoted\".tcl",
+            ),
+            (
+                "[list source [file join $dir {cash$name.tcl}]]",
+                "cash$name.tcl",
+            ),
+            ("[list source [file join $dir {} empty.tcl]]", "empty.tcl"),
+            (
+                "{source [file join $dir {a b} {part\".tcl}]}",
+                "a b/part\".tcl",
+            ),
+            ("\"source $dir/plain.tcl\"", "plain.tcl"),
+            (
+                "[list source -encoding utf-8 [file join $dir -literal.tcl]]",
+                "-literal.tcl",
+            ),
+        ] {
+            let expected = directory.join(relative);
+            let source = format!("set auto_index(p) {loader}");
+            let entries = parse_tcl_index(&source, directory, &|path| path == expected);
+            assert_eq!(entries.len(), 1, "{source}");
+            assert_eq!(entries[0].source_file, expected, "{source}");
+            assert_eq!(entries[0].proc_name, "p");
+            let source = format!("package ifneeded p 1.0 {loader}");
+            let packages = parse_pkg_index(
+                &source,
+                directory,
+                &directory.join("pkgIndex.tcl"),
+                &|path| path == expected,
+                &|_| Vec::new(),
+            );
+            assert_eq!(packages.len(), 1, "{source}");
+            assert_eq!(packages[0].source_files, vec![expected], "{source}");
+        }
+        for observed in [
+            include_str!("../tests/data/standalone_index_keys/8.4.20.stdout"),
+            include_str!("../tests/data/standalone_index_keys/8.5.19.stdout"),
+            include_str!("../tests/data/standalone_index_keys/8.6.18.stdout"),
+            include_str!("../tests/data/standalone_index_keys/9.0.4.stdout"),
+            include_str!("../tests/data/standalone_index_keys/9.1.0.stdout"),
+            include_str!("../tests/data/standalone_index_keys/jim.stdout"),
+        ] {
+            assert_eq!(
+                observed.lines().collect::<Vec<_>>(),
+                vec![
+                    "KEY|207020|5350414345",
+                    "KEY||454d505459",
+                    "KEY|3a3a4e3a3a70|5155414c4946494544",
+                    "KEY|612962|434c4f5345"
+                ]
+            );
+        }
+        for (name, expected) in [
+            ("auto_index( p )", " p "),
+            ("auto_index()", ""),
+            ("auto_index(::N::p)", "::N::p"),
+            ("auto_index(a)b)", "a)b"),
+        ] {
+            let source = format!("set {{{name}}} [list source [file join $dir p.tcl]]");
+            let entries = parse_tcl_index(&source, directory, &|_| true);
+            assert_eq!(entries.len(), 1, "{source}");
+            assert_eq!(entries[0].proc_name, expected, "{source}");
+        }
+        let source = "# Tcl autoload index file: each line identifies a Tcl\n{ spaced command } { spaced.tcl }\nq {\"quoted\".tcl}\nr spaced\\ \n";
+        let entries = parse_tcl_index(source, directory, &|_| true);
+        assert_eq!(entries[0].proc_name, " spaced command ");
+        assert_eq!(entries[0].source_file, directory.join(" spaced.tcl "));
+        assert_eq!(entries[1].source_file, directory.join("\"quoted\".tcl"));
+        assert_eq!(entries[2].source_file, directory.join("spaced "));
+    }
+
+    #[test]
+    fn standalone_loader_candidates_refuse_unknown_expanded_and_malformed_data() {
+        let directory = Path::new("/library");
+        for loader in [
+            "[mystery source [file join $dir p.tcl]]",
+            "[concat source [file join $dir p.tcl]]",
+            "[list source {*}$files]",
+            "[list source [file join $dir $tail]]",
+            "[list source [file join $dir p.tcl] extra]",
+            "[list source -encoding utf-8 [file join $dir p.tcl] extra]",
+            "[list source -nopkg [file join $dir p.tcl]]",
+            "[list ::tcl::Pkg::source [file join $dir p.tcl]]",
+        ] {
+            let source = format!("set auto_index(p) {loader}");
+            assert!(
+                parse_tcl_index(&source, directory, &|_| true).is_empty(),
+                "{source}"
+            );
+            let source = format!("package ifneeded p 1.0 {loader}");
+            let packages = parse_pkg_index(
+                &source,
+                directory,
+                &directory.join("pkgIndex.tcl"),
+                &|_| true,
+                &|_| Vec::new(),
+            );
+            assert_eq!(packages.len(), 1, "{source}");
+            assert!(packages[0].source_files.is_empty(), "{source}");
+        }
+        let source = "package ifneeded p 1.0 {puts source [file join $dir p.tcl]}";
+        let packages = parse_pkg_index(
+            source,
+            directory,
+            &directory.join("pkgIndex.tcl"),
+            &|_| true,
+            &|_| Vec::new(),
+        );
+        assert!(packages[0].source_files.is_empty());
+    }
+}

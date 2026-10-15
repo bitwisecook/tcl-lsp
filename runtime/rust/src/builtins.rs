@@ -96,6 +96,7 @@ fn install_for_bootstrap(
     }
     crate::cmd_eval::install(interp);
     crate::cmd_info::install(interp);
+    crate::cmd_jim_exists::install(interp);
     crate::cmd_array::install(interp);
     crate::cmd_switch::install(interp);
     crate::cmd_package::install(interp);

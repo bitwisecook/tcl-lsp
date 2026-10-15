@@ -1,0 +1,28 @@
+var-present 0 1
+var-missing 0 0
+var-option 0 1
+var-empty 0 1
+dict-present 0 1
+dict-missing 0 0
+dict-root-missing 0 0
+command-proc 0 1
+command-alias 0 1
+command-native 0 1
+command-missing 0 0
+proc-proc 0 1
+proc-alias 0 0
+proc-native 0 0
+alias-alias 0 1
+alias-proc 0 0
+channel-missing 0 0
+channel-proc 0 0
+option-ambiguous 1 {ambiguous option "-c": must be -alias, -channel, -command, -proc, or -var}
+option-bare 1 {bad option "-": must be -alias, -channel, -command, -proc, or -var}
+option-unknown 1 {bad option "-missing": must be -alias, -channel, -command, -proc, or -var}
+option-nul 0 1
+missing-arguments 1 {wrong # args: should be "exists ?-command|-proc|-alias|-channel|-var? name"}
+excess-arguments 1 {wrong # args: should be "exists ?-command|-proc|-alias|-channel|-var? name"}
+namespace-local 0 1
+namespace-fallback 0 1
+linked-present 0 {1 1}
+linked-missing 0 {0 0}

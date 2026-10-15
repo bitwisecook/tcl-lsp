@@ -3518,12 +3518,9 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     #[must_use]
     pub fn authored_source_list_arguments(&self) -> Option<std::ops::Range<usize>> {
         let arguments = self.words.arguments();
-        let dialect = arguments.dialect()?;
         if self.semantics.native_result
             != Some(crate::native_result::NativeResultContract::ListArguments { from: 0 })
             || self.semantics.argument_offset != 0
-            || dialect.family() != Some(tcl_dialect::model::Family::Tcl)
-            || dialect.native_string_protocol().is_none()
             || !matches!(self.subcommand, SubcommandResolution::NotApplicable)
         {
             return None;
@@ -3541,6 +3538,12 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         // naming.source.original-structured-script-timing
         // docs/design/analysis/name-resolution-proofs/original-structured-script-timing.md
         let arguments = self.words.arguments();
+        let dialect = arguments.dialect()?;
+        if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+            || dialect.native_string_protocol().is_none()
+        {
+            return None;
+        }
         let ordinals = self.authored_source_list_arguments()?;
         let mut result = Vec::new();
         for ordinal in ordinals {
@@ -10816,5 +10819,37 @@ mod logical_source_alias_projection_tests {
                 .is_empty()
         );
         assert!(schema.state_transitions().facts().is_empty());
+    }
+    #[test]
+    fn conditional_list_ordinals_do_not_borrow_ascii_or_runtime_authority() {
+        use crate::InvocationWord;
+        let context = crate::model::ingress::static_context_for("tcl");
+        let arguments = [InvocationWord::Dynamic];
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            crate::InvocationWords::structured(InvocationWord::Literal("list"), &arguments),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        )
+        .resolved()
+        .unwrap();
+        assert_eq!(selected.authored_source_list_arguments(), Some(0..1));
+        assert_eq!(selected.authored_source_ascii_list_result(), None);
+        let environment = crate::model::ingress::resolve_known_environment("jim").unwrap();
+        let context = crate::model::ingress::static_context_for("jim");
+        let arguments = [InvocationWord::Literal("literal")];
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            crate::InvocationWords::structured(InvocationWord::Literal("list"), &arguments)
+                .with_dialect(crate::InvocationDialect::of_profile(
+                    environment.unit_profile(),
+                )),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        )
+        .resolved()
+        .unwrap();
+        assert_eq!(selected.authored_source_list_arguments(), Some(0..1));
+        assert_eq!(selected.authored_source_ascii_list_result(), None);
     }
 }

@@ -246,6 +246,27 @@ fn collect_declarations_in_region(
     if MAX_BODY_DEPTH.exceeded(depth) {
         return;
     }
+    let commands = match scan.target {
+        DeclTarget::LexicalCell { analysis, .. } => {
+            original_declaration_region_commands(scan.source, analysis, region, nested)
+        }
+        #[cfg(test)]
+        DeclTarget::StandaloneName(_) => {
+            declaration_region_commands(scan.source, region, scan.config, nested)
+        }
+    };
+    collect_declarations_from_commands(scan, &commands, depth, found);
+}
+
+fn collect_declarations_from_commands(
+    scan: &DeclScan<'_>,
+    commands: &[tcl_compiler::segmenter::SegmentedCommand],
+    depth: u32,
+    found: &mut DeclSpans,
+) {
+    if MAX_BODY_DEPTH.exceeded(depth) {
+        return;
+    }
     let (source, config, target, visible, registry) = (
         scan.source,
         scan.config,
@@ -254,8 +275,7 @@ fn collect_declarations_in_region(
         scan.registry,
     );
     let identities = scan.identities;
-    let commands = declaration_region_commands(source, region, config, nested);
-    for cmd in &commands {
+    for cmd in commands {
         if cmd.argv.is_empty() {
             continue;
         }
@@ -308,17 +328,8 @@ fn collect_declarations_in_region(
             }
         }
 
-        // `apply {argList body ?ns?} …` (and any future command sharing the
-        // shape) — recurse into the real body *element*, not the whole
-        // lambda literal: re-segmenting the whole `{argList}
-        // {body}` blob as a script misread the parameter word as a command
-        // name, so a `global` / `variable` / `upvar` genuinely inside the
-        // body was never reached (and, worse, a parameter that happened to
-        // be *named* `global`/`variable`/`upvar` could misfire as a bogus
-        // declaration). `split_lambda_literal`'s span is already
-        // delimiter-stripped, so it can be handed to
-        // `collect_declarations_in_region` directly — its own peel step is a
-        // no-op on a region that has nothing left to peel.
+        // Lambda bodies already have the shared original list element's
+        // content span; they must not be peeled as a second body word.
         //
         // Unlike an `if`/`foreach`/`catch` body, an `apply` body runs in a
         // *fresh* call frame — a `global`/`variable`/`upvar` declared inside
@@ -337,14 +348,96 @@ fn collect_declarations_in_region(
                 && body_span.start() <= scan.cursor
                 && scan.cursor <= body_span.end()
             {
-                collect_declarations_in_region(scan, body_span, true, depth + 1, found);
+                // The shared lambda owner already returned content geometry.
+                let commands = declaration_commands_in_content(source, body_span, config, true);
+                collect_declarations_from_commands(scan, &commands, depth + 1, found);
             }
         }
     }
 }
 
-/// The caller identifies a whole document or an authentic extracted body.
-/// Original token/metadata joins continue using the complete parent config.
+/// Select a scope's actual original word before interpreting its contents.
+/// Source geometry remains separate from the declaration/frame checks below.
+fn original_declaration_body_content(
+    source: &str,
+    analysis: &AnalysisResult,
+    region: Span,
+) -> Option<Span> {
+    let walk = crate::refactor::FrameWalk::new(source, analysis)?;
+    let mut selected = None;
+    let mut unavailable = false;
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            let Some(words) = walk.native_words(source, command) else {
+                return false;
+            };
+            for word in words {
+                if word.group().span != region && word.span() != region {
+                    continue;
+                }
+                let Ok(content) = word.content_span() else {
+                    unavailable = true;
+                    continue;
+                };
+                if word.group().expand || selected.is_some_and(|previous| previous != content) {
+                    unavailable = true;
+                } else {
+                    selected = Some(content);
+                }
+            }
+            false
+        },
+    );
+    (!unavailable).then_some(selected).flatten()
+}
+
+fn original_declaration_region_commands(
+    source: &str,
+    analysis: &AnalysisResult,
+    region: Span,
+    nested: bool,
+) -> Vec<tcl_compiler::segmenter::SegmentedCommand> {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let content = if nested {
+        let Some(content) = original_declaration_body_content(source, analysis, region) else {
+            return Vec::new();
+        };
+        content
+    } else {
+        if region != Span::new(0, u32::try_from(source.len()).unwrap_or(0)) {
+            return Vec::new();
+        }
+        region
+    };
+    declaration_commands_in_content(source, content, current.config(), nested)
+}
+
+/// A whole document or an independently issued body content extent.
+fn declaration_commands_in_content(
+    source: &str,
+    content: Span,
+    config: LexerConfig,
+    nested: bool,
+) -> Vec<tcl_compiler::segmenter::SegmentedCommand> {
+    let Some(body) = source.get(content.as_range()) else {
+        return Vec::new();
+    };
+    tcl_compiler::segmenter::segment_script_image_with_offset_and_config(
+        &tcl_lexer::SourceImage::document(body),
+        content.start(),
+        if nested { config.nested() } else { config },
+    )
+    .map(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
+    .unwrap_or_default()
+}
+
+/// Standalone compatibility grammar controls use their explicit source region.
+#[cfg(test)]
 fn declaration_region_commands(
     source: &str,
     region: Span,
@@ -1192,5 +1285,47 @@ mod original_declaration_region_purpose_tests {
             &tcl_lexer::SourceImage::document(&format!("{source}#changed")),
             config
         ));
+    }
+}
+
+#[cfg(test)]
+mod original_body_content_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn declaration_body_regions_use_original_word_contents_and_keep_lambda_data() {
+        let source = "proc p {} {{global x}; global y; puts $y}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let body = analysis.all_procs["::p"].body_span;
+        let commands = original_declaration_region_commands(source, &analysis, body, true);
+        assert_eq!(commands.len(), 3);
+        assert_eq!(commands[0].name(), "global x");
+        assert_eq!(commands[0].argv.len(), 1);
+        assert_eq!(commands[1].name(), "global");
+        let content = original_declaration_body_content(source, &analysis, body).unwrap();
+        assert_eq!(
+            source.get(content.as_range()),
+            Some("{global x}; global y; puts $y")
+        );
+        assert!(original_declaration_body_content(source, &analysis, content).is_none());
+        assert!(
+            original_declaration_body_content(&format!("{source}#changed"), &analysis, body)
+                .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(original_declaration_body_content(source, &missing, body).is_none());
+
+        let source = "apply {{} {{global x}; puts $x}}";
+        let config = LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        let command =
+            tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
+        let body = original_lambda_body_at(source, &command, 0, config).unwrap();
+        let commands = declaration_commands_in_content(source, body, config, true);
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0].name(), "global x");
+        assert_eq!(commands[0].argv.len(), 1);
+        assert_eq!(commands[1].name(), "puts");
     }
 }

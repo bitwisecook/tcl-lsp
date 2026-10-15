@@ -124,6 +124,7 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
         link: &Link,
+        report: super::native_jim_lookup::OriginalJimVariableReport,
     ) -> Option<Result<*mut TclObj, Code>> {
         let target = Rc::clone(link.original_jim_target.as_ref()?);
         let target_original = match target.original_name() {
@@ -146,7 +147,7 @@ impl Interp {
         let saved_namespace = self
             .current_ns
             .replace(self.frames.borrow().frame_ns(level));
-        let result = self.read_original_named_variable(target_original);
+        let result = self.read_original_named_variable_reported(target_original, report);
         self.current_ns.set(saved_namespace);
         self.frames.borrow_mut().set_active_level(saved);
         if let Err(error) = target.original_name() {
@@ -154,7 +155,12 @@ impl Interp {
         }
         Some(match result {
             Err(code) if self.host_refusal_pending() => Err(code),
-            Err(_) => self.report_original_jim_alias_read(original),
+            Err(code) => match report {
+                super::native_jim_lookup::OriginalJimVariableReport::Missing => {
+                    self.report_original_jim_alias_read(original)
+                }
+                super::native_jim_lookup::OriginalJimVariableReport::Silent => Err(code),
+            },
             Ok(value) => Ok(value),
         })
     }

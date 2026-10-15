@@ -291,20 +291,21 @@ impl OriginalSourceTransitionAdviceTape {
     pub(crate) fn logical_callbacks_at(
         &self,
         input: &ResolvedAnalysisInput,
-        original: &[NativeWord],
+        image: &tcl_lexer::SourceImage,
+        offset: u32,
     ) -> Option<Vec<OriginalLogicalCallbackCandidates>> {
-        let (held_original, candidates) = self
-            .logical_callbacks
-            .get(&original.first()?.span().start())?
-            .as_ref()?;
-        if held_original.as_ref() != original {
+        let (original, candidates) = self.logical_callbacks.get(&offset)?.as_ref()?;
+        if original.first()?.span().start() != offset
+            || original
+                .iter()
+                .any(|word| word.image() != image || word.config() != input.lexer_config())
+        {
             return None;
         }
-        let image = original.first()?.image();
         candidates
             .iter()
             .all(|candidate| {
-                candidate.registration.original_words() == original
+                candidate.registration.original_words() == original.as_ref()
                     && candidate.matches_source(image, input)
             })
             .then(|| candidates.clone())
@@ -333,14 +334,12 @@ impl OriginalSourceTransitionAdviceTape {
     pub(crate) fn logical_navigation_at(
         &self,
         input: &ResolvedAnalysisInput,
-        original: &[NativeWord],
+        image: &tcl_lexer::SourceImage,
+        offset: u32,
     ) -> Option<OriginalLogicalCommandCandidates> {
-        let candidate = self
-            .logical_navigation
-            .get(&original.first()?.span().start())?
-            .as_ref()?;
-        (candidate.original.as_ref() == original
-            && candidate.matches_source(original.first()?.image(), input))
+        let candidate = self.logical_navigation.get(&offset)?.as_ref()?;
+        (candidate.original.first()?.span().start() == offset
+            && candidate.matches_source(image, input))
         .then(|| candidate.clone())
     }
 }
@@ -361,6 +360,47 @@ mod tests {
             analysis,
             u32::try_from(source.find(needle)?).ok()?,
         )
+    }
+
+    #[test]
+    fn logical_candidate_queries_retain_body_bounds_and_require_an_exact_original_head() {
+        use crate::registry_invocation::source_structure::source_logical_callback_candidates_at;
+        let source = "proc caller {} {namespace eval A {helper}; after 1 {handler ARG}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let helper = u32::try_from(source.find("helper").unwrap()).unwrap();
+        let candidate = source_logical_command_candidates_at(source, &analysis, helper)
+            .expect("original body command before its closing delimiter");
+        let root = tcl_core_types::ByteNamespacePath::root();
+        let namespace = tcl_syntax::naming::authored_source_namespace_path(&root, b"A").unwrap();
+        assert_eq!(
+            candidate.coordinates().first().unwrap().namespace,
+            namespace
+        );
+        assert_eq!(
+            candidate.coordinates().first().unwrap().simple.as_bytes(),
+            b"helper"
+        );
+        let installer = u32::try_from(source.find("after").unwrap()).unwrap();
+        let callbacks = source_logical_callback_candidates_at(source, &analysis, installer)
+            .expect("original installer vector before its enclosing closing delimiter");
+        assert_eq!(callbacks.len(), 1);
+        assert_eq!(callbacks[0].head().value().as_bytes(), b"handler");
+        for offset in [helper + 1, helper + 6, installer + 1] {
+            assert!(source_logical_command_candidates_at(source, &analysis, offset).is_none());
+            assert!(source_logical_callback_candidates_at(source, &analysis, offset).is_none());
+        }
+        let mut missing = analysis.clone();
+        missing.body_lexer_config = None;
+        assert!(source_logical_command_candidates_at(source, &missing, helper).is_none());
+        assert!(source_logical_callback_candidates_at(source, &missing, installer).is_none());
+        assert!(
+            source_logical_command_candidates_at(&format!("{source} "), &analysis, helper)
+                .is_none()
+        );
+        assert!(
+            source_logical_callback_candidates_at(&format!("{source} "), &analysis, installer)
+                .is_none()
+        );
     }
 
     #[test]
