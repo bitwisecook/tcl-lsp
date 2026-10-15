@@ -56,6 +56,7 @@ pub(crate) fn install_for_bootstrap(
 /// completion code, and return it as an integer (0=ok … 4=continue).
 fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let dialect = interp.native_invocation_dialect();
+    let jim = dialect.family() == Some(tcl_dialect::model::Family::Jim);
     if dialect.return_options_protocol()
         == Some(tcl_cmd_core::return_options::ReturnOptionsProtocol::Jim084)
     {
@@ -66,12 +67,40 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let _ = error;
         }
     }
-    let selected = tcl_registry::catch_invocation::select_original_catch_invocation(
-        argv.len() - 1,
-        dialect,
-        |index| Ok::<_, std::convert::Infallible>(obj_bytes(argv[index + 1])),
-    )
-    .unwrap_or_else(|error| match error {});
+    let jim_original = if jim {
+        match crate::interp::native_arguments::OriginalArguments::enter(interp, &argv[1..]) {
+            Ok(original) => Some(original),
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        None
+    };
+    let selected = if let Some(original) = &jim_original {
+        let selected = tcl_registry::catch_invocation::select_native_jim_catch_invocation(
+            argv.len() - 1,
+            dialect,
+            |index| {
+                original.check_original_for(interp, index, argv[index + 1])?;
+                let reached = original.bytes(index)?;
+                original.check_original_for(interp, index, argv[index + 1])?;
+                Ok::<_, tcl_cmd_core::CmdError>(reached.to_vec())
+            },
+        );
+        if let Err(error) = original.check_for(interp) {
+            return interp.report_cmd_error(error);
+        }
+        match selected {
+            Ok(selected) => selected,
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        tcl_registry::catch_invocation::select_original_catch_invocation(
+            argv.len() - 1,
+            dialect,
+            |index| Ok::<_, std::convert::Infallible>(obj_bytes(argv[index + 1])),
+        )
+        .unwrap_or_else(|error| match error {})
+    };
     let tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) = selected else {
         let synopsis: &[u8] = if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
             b"catch ?-?no?code ... --? script ?resultVarName? ?optionVarName?".as_slice()
@@ -97,11 +126,22 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // the enclosing frame in a proc (so `info frame` depth and the body-relative
     // `errorLine` for `MakeProcError` stay correct), while a top-level or dynamic
     // body still evaluates as its own frame.
+    if let Some(original) = &jim_original {
+        if let Err(error) =
+            original.check_original_for(interp, selected.script_at, argv[selected.script_at + 1])
+        {
+            return interp.report_cmd_error(error);
+        }
+    }
     let mut code = interp.eval_control_body(argv[selected.script_at + 1]);
+    if let Some(original) = &jim_original {
+        if let Err(error) = original.check_for(interp) {
+            return interp.report_cmd_error(error);
+        }
+    }
     if interp.host_refusal_pending() {
         return Code::Error;
     }
-    let jim = dialect.family() == Some(tcl_dialect::model::Family::Jim);
     let jim_error_code = if jim {
         interp.reset_jim_error_capture();
         match interp.capture_original_jim_error_code() {
@@ -122,7 +162,9 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         code = Code::from_int(6);
     }
     if selected.ignores(code.as_int()) {
-        return code;
+        return jim_original
+            .as_ref()
+            .map_or(code, |original| original.finish(code));
     }
     // C captures before output construction; Jim reads after the name's Length.
     let result = (!jim).then(|| crate::obj::Owned::retain(interp.get_obj_result()));
@@ -228,7 +270,9 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     interp.set_result_bytes(code.as_int().to_string().as_bytes());
-    Code::Ok
+    jim_original
+        .as_ref()
+        .map_or(Code::Ok, |original| original.finish(Code::Ok))
 }
 
 /// Write `obj` to `name`, routing `arr(a)` to the array *element* rather than
@@ -1088,6 +1132,7 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[cfg(test)]
 mod tests {
+    mod jim_capture_prefix;
     mod jim_output_name_stages;
     mod original_c_output_names;
     mod original_c_try_output_names;

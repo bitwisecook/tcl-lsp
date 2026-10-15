@@ -110,6 +110,34 @@ pub struct PreparedPrefixErrorOptions<V> {
 }
 
 impl ReturnOptionsProtocol {
+    /// Select only an exact authored completion name, without numeric probing
+    /// or original-object cache effects.
+    #[must_use]
+    pub fn named_completion_code(self, spelling: &[u8]) -> Option<i32> {
+        const NAMES: [&[u8]; 8] = [
+            b"ok",
+            b"error",
+            b"return",
+            b"break",
+            b"continue",
+            b"signal",
+            b"exit",
+            b"eval",
+        ];
+        let count = if self == Self::Jim084 { 8 } else { 5 };
+        NAMES[..count]
+            .iter()
+            .position(|name| *name == spelling)
+            .map(|index| i32::try_from(index).expect("completion keyword index"))
+    }
+
+    /// Select a native keyword's CString extent after its actual String getter.
+    /// This does not acquire a getter, inspect numbers or install a ReturnCode cache.
+    #[must_use]
+    pub fn native_named_completion_code(self, original: &[u8]) -> Option<i32> {
+        self.named_completion_code(nul_prefix(original))
+    }
+
     fn modern(self) -> bool {
         matches!(self, Self::Tcl85 | Self::Tcl86Plus)
     }
@@ -180,22 +208,7 @@ pub fn parse_completion_code<O: ReturnOptionsOps>(
         Some(bytes) => bytes,
         None => ops.bytes(value)?,
     };
-    let names: &[&[u8]] = if protocol == ReturnOptionsProtocol::Jim084 {
-        &[
-            b"ok",
-            b"error",
-            b"return",
-            b"break",
-            b"continue",
-            b"signal",
-            b"exit",
-            b"eval",
-        ]
-    } else {
-        &[b"ok", b"error", b"return", b"break", b"continue"]
-    };
-    if let Some(index) = names.iter().position(|name| *name == nul_prefix(&bytes)) {
-        let code = i32::try_from(index).expect("completion keyword index");
+    if let Some(code) = protocol.native_named_completion_code(&bytes) {
         match protocol {
             ReturnOptionsProtocol::Tcl84 => {}
             ReturnOptionsProtocol::Jim084 => {

@@ -12,65 +12,32 @@ use tcl_cmd_core::{
 use tcl_syntax::value::ValueError;
 
 const USAGE: &[u8] = b"try ?options? script ?on|trap code varlist script ...? ?finally script?";
-const CODES: &[&[u8]] = &[
-    b"ok",
-    b"error",
-    b"return",
-    b"break",
-    b"continue",
-    b"signal",
-    b"exit",
-    b"eval",
-];
-
 fn switches(
     interp: &mut Interp,
-    ops: &mut crate::return_options::NativeReturnOps,
     argv: &[Owned],
-) -> Result<(usize, u64), CmdError> {
-    let protocol = interp
-        .native_invocation_dialect()
-        .native_scalar_getter_protocol()
-        .ok_or(ValueError::CommandProtocolUnavailable("Jim try switches"))?;
-    let mut at = 0;
-    let mut ignored = (1_u64 << 5) | (1_u64 << 6) | (1_u64 << 7);
-    while at + 1 < argv.len() {
-        let bytes = ops.bytes(&argv[at])?;
-        let word = tcl_core_types::c_string_extent(&bytes);
-        if word == b"--" {
-            at += 1;
-            break;
+) -> Result<tcl_registry::catch_invocation::JimCapturePrefix, CmdError> {
+    let headers = argv.iter().map(Owned::as_ptr).collect::<Vec<_>>();
+    let originals = crate::interp::native_arguments::OriginalArguments::enter(interp, &headers)?;
+    let selected = tcl_registry::catch_invocation::select_native_jim_capture_prefix(
+        argv.len(),
+        interp.native_invocation_dialect(),
+        |index| {
+            originals.check_original_for(interp, index, argv[index].as_ptr())?;
+            let reached = originals.bytes(index)?;
+            originals.check_original_for(interp, index, argv[index].as_ptr())?;
+            Ok::<_, CmdError>(reached.to_vec())
+        },
+    );
+    originals.check_for(interp)?;
+    match selected? {
+        tcl_registry::catch_invocation::JimCapturePrefixSelection::Valid(prefix) => Ok(prefix),
+        tcl_registry::catch_invocation::JimCapturePrefixSelection::Invalid => {
+            Err(CmdError::wrong_args_bytes(USAGE))
         }
-        if !word.starts_with(b"-") {
-            break;
+        tcl_registry::catch_invocation::JimCapturePrefixSelection::Unknown => {
+            Err(ValueError::CommandProtocolUnavailable("original Jim try prefix").into())
         }
-        let (ignore, name) = word
-            .strip_prefix(b"-no")
-            .map_or((false, &word[1..]), |name| (true, name));
-        let decimal = protocol
-            .jim_decimal_wide_probe(name)
-            .ok_or(ValueError::CommandProtocolUnavailable("Jim try switches"))?;
-        let code = match decimal {
-            Ok(code) if code >= 0 => code,
-            _ => CODES
-                .iter()
-                .position(|code| *code == name)
-                .map_or(-1, |code| code as i64),
-        };
-        if code < 0 {
-            return Err(CmdError::wrong_args_bytes(USAGE));
-        }
-        let code = u32::try_from(code).ok().filter(|code| *code < 64).ok_or(
-            ValueError::CommandProtocolUnavailable("Jim try ignore-mask width"),
-        )?;
-        if ignore {
-            ignored |= 1_u64 << code;
-        } else {
-            ignored &= !(1_u64 << code);
-        }
-        at += 1;
     }
-    Ok((at, ignored))
 }
 
 fn trap_matches(
@@ -296,11 +263,11 @@ pub(crate) fn command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(selected) => selected,
         Err(error) => return interp.report_cmd_error(error),
     };
-    let (body_at, ignored) = match switches(interp, &mut ops, &original) {
+    let prefix = match switches(interp, &original) {
         Ok(selected) => selected,
         Err(error) => return interp.report_cmd_error(error),
     };
-    let Some(body) = original.get(body_at) else {
+    let Some(body) = original.get(prefix.script_at) else {
         return interp.wrong_args(USAGE);
     };
     let mut code = interp.eval_control_body(body.as_ptr());
@@ -315,17 +282,14 @@ pub(crate) fn command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let (handler, finally) = match clauses(
         interp,
         &mut ops,
-        &original[body_at + 1..],
+        &original[prefix.script_at + 1..],
         code,
         &body_error_code,
     ) {
         Ok(clauses) => clauses,
         Err(error) => return interp.report_cmd_error(error),
     };
-    let ignored = u32::try_from(code.as_int())
-        .ok()
-        .is_some_and(|code| code < 64 && ignored & (1_u64 << code) != 0);
-    if ignored {
+    if prefix.ignores(code.as_int()) {
         if let Some(finally) = finally {
             let _ = interp.eval_control_body(finally.as_ptr());
         }
