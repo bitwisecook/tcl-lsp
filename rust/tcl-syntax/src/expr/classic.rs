@@ -392,29 +392,25 @@ fn parse_integer(s: &[u8]) -> usize {
 /// `Tcl_GetWideIntFromObj` on an integer lexeme: octal with a leading 0,
 /// wrapping at 64 bits as `strtoull` does, and an error past them.
 fn read_integer(text: &str) -> Step {
-    let (digits, radix) =
-        if let Some(hex) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
-            (hex, 16)
-        } else if text.len() > 1 && text.starts_with('0') {
-            (&text[1..], 8)
-        } else {
-            (text, 10)
-        };
-    if radix == 8 && !digits.bytes().all(|b| (b'0'..=b'7').contains(&b)) {
-        return Err(ClassicExprError {
+    let flags = crate::number::ParseFlags {
+        integer_only: true,
+        ..crate::number::ParseFlags::for_syntax(crate::number::NumberSyntax::Tcl84)
+    };
+    match crate::number::parse_whole_with(text, flags) {
+        Some(crate::number::Number::Int(_)) => Ok(()),
+        Some(_) => Err(ClassicExprError {
+            message: crate::expr::errors::IOVERFLOW_MESSAGE.to_owned(),
+            error_code: crate::expr::errors::IOVERFLOW_CODE.to_owned(),
+        }),
+        // The lexeme is all digits, so a refusal is a leading-zero octal
+        // with an 8 or 9 in it.
+        None => Err(ClassicExprError {
             message: format!(
                 "expected integer but got \"{text}\" (looks like invalid octal number)"
             ),
             error_code: NONE.to_owned(),
-        });
+        }),
     }
-    if u64::from_str_radix(digits, radix).is_err() {
-        return Err(ClassicExprError {
-            message: crate::expr::errors::IOVERFLOW_MESSAGE.to_owned(),
-            error_code: crate::expr::errors::IOVERFLOW_CODE.to_owned(),
-        });
-    }
-    Ok(())
 }
 
 /// `ParseMaxDoubleLength`: how many leading bytes could belong to a double.
