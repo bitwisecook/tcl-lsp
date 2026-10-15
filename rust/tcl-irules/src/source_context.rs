@@ -347,6 +347,8 @@ fn source_event_roots(
             .collect::<HashSet<_>>();
     let mut events = Vec::new();
     let mut pending = VecDeque::new();
+    let event_catalogue = tcl_registry::events::EventRegistry::build();
+    let target = context.context().placement_floor("f5-irules-cmds");
     for (label, procedure) in &module.procedures {
         let Some(event) = tcl_compiler::source_graph::event_body_for_procedure(
             module,
@@ -356,7 +358,12 @@ fn source_event_roots(
         ) else {
             continue;
         };
-        if !top_level.contains(&procedure.span.start()) {
+        if !top_level.contains(&procedure.span.start())
+            || !event_catalogue.is_known(event.event())
+            || target.is_some_and(|version| {
+                !event_catalogue.event_available_at(event.event(), version.as_str())
+            })
+        {
             continue;
         }
         let Some((_, words)) = vectors
@@ -897,6 +904,86 @@ mod tests {
                     .any(|command| is_pool(command.words(), b"nested")),
                 !reference_only,
                 "{reference_only}: only potential evaluation supplies an event-rooted path"
+            );
+        }
+    }
+
+    #[test]
+    fn configured_event_roots_preserve_literal_body_values_and_event_availability() {
+        let source = concat!(
+            "when HTTP_REQUEST {pool \"a\\\"b\"; pool {茶}; pool $dynamic}\n",
+            "when BOGUS_EVENT {pool unknown}\n",
+            "when XML_BEGIN_DOCUMENT {pool retired}\n",
+        );
+        let environment = tcl_registry::model::ingress::resolve_environment("f5-irules");
+        let profile = tcl_dialect::DialectProfile::irules();
+        for (version, includes_retired_event) in [("9.4.0", true), ("16.1.0", false)] {
+            let keyed = tcl_registry::model::KeyedVersions {
+                bigip: Some(tcl_dialect::model::Version::parse(version).unwrap()),
+                ..Default::default()
+            };
+            let context = environment.plain_context_registry(&keyed);
+            let registry = context.commands();
+            let config = LexerConfig {
+                braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+                ..LexerConfig::for_profile(Some(profile))
+            };
+            let input = ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+            let unit = Arc::new(CompilationUnit::build_with_context_registry(
+                source,
+                UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                context.clone(),
+            ));
+            let mut analyser = Analyser::new().with_resolved_input(input);
+            analyser.set_cu_override(unit.clone());
+            let analysis = analyser.analyse(source, profile.name);
+            let inventory = OriginalIrulesSourceContext::from_analysis(
+                source,
+                &analysis,
+                &unit.ir_module,
+                &context,
+            )
+            .unwrap();
+            let references =
+                crate::extract_original_irules_source_object_references(source, &inventory, None);
+            let names = references
+                .iter()
+                .map(|reference| reference.name.as_str())
+                .collect::<Vec<_>>();
+            assert!(
+                names.contains(&"a\"b") && names.contains(&"茶"),
+                "{version}: {names:?}"
+            );
+            assert!(
+                !names.contains(&"unknown") && !names.contains(&"$dynamic"),
+                "{version}: {names:?}"
+            );
+            assert_eq!(
+                names.contains(&"retired"),
+                includes_retired_event,
+                "{version}: {names:?}"
+            );
+            assert!(
+                !inventory
+                    .events()
+                    .iter()
+                    .any(|event| event.event() == "BOGUS_EVENT")
+            );
+            assert!(
+                crate::extract_original_irules_source_object_references(
+                    &format!("#changed\n{source}"),
+                    &inventory,
+                    None
+                )
+                .is_empty()
             );
         }
     }

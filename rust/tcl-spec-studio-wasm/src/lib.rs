@@ -234,11 +234,12 @@ pub fn import_package(files_json: &str, dialect: &str) -> String {
 ///
 /// `bytes` is the archive verbatim (a `File`'s `arrayBuffer`, a fetched release
 /// zipball). Returns
-/// `{"entries": [{"name", "text"}], "skipped": […], "members": n, "bytes": n}`
+/// `{"entries": [{"name", "text"}], "unsupported_encodings": […], "skipped": […], "members": n, "bytes": n}`
 /// — every `.tcl` / `.tm` / `.test` / `.itcl` / `.itk` member decoded as text,
 /// plus a line per member the caps or a read error kept out, so the page can
 /// say what it did not look at rather than quietly analysing less than the
-/// author thinks. Unreadable container bytes come back as `{"error": …}`.
+/// author thinks. Unsupported encodings identify preview text that cannot be
+/// used for release inference. Unreadable containers return `{"error": …}`.
 ///
 /// Nothing is written anywhere: the entries exist only as JSON strings handed
 /// straight back to the caller.

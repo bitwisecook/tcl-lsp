@@ -86,6 +86,7 @@ mod native_jim_increment;
 mod native_jim_invocation_tests;
 mod native_jim_links;
 mod native_jim_lookup;
+pub(crate) use native_jim_lookup::OriginalJimLookupNamespace;
 mod native_jim_namespace;
 mod native_jim_result;
 pub(crate) mod native_jim_tailcall;

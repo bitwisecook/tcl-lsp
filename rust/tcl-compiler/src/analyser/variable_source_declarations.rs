@@ -160,6 +160,100 @@ mod tests {
     use super::*;
     use crate::analyser::Analyser;
 
+    fn variable_at(scope: &Scope, offset: u32) -> Option<&VarDef> {
+        scope
+            .variables
+            .values()
+            .find(|variable| variable.definition_span.start() == offset)
+            .or_else(|| {
+                scope
+                    .children
+                    .iter()
+                    .find_map(|child| variable_at(child, offset))
+            })
+    }
+
+    #[test]
+    fn logical_nested_source_locals_keep_the_actual_declaration_frame() {
+        let source = "proc p {} {if 1 {set local VALUE; puts $local}}; proc q {} {set local OTHER; puts $local}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let image = SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        let mut symbols = Vec::new();
+        for (definition, read) in [
+            (
+                source.find("local VALUE").unwrap(),
+                source.find("$local").unwrap(),
+            ),
+            (
+                source.find("local OTHER").unwrap(),
+                source.rfind("$local").unwrap(),
+            ),
+        ] {
+            let variable =
+                variable_at(&analysis.global_scope, u32::try_from(definition).unwrap()).unwrap();
+            let declaration = analysis
+                .original_variable_declaration_in_source(&image, config, variable)
+                .expect("genuine original local source declaration");
+            let occurrence = analysis
+                .original_variable_symbol_in_source(&image, config, u32::try_from(read).unwrap())
+                .expect("genuine original local source reference");
+            assert_eq!(declaration.symbol(), occurrence.symbol());
+            assert!(!occurrence.symbol().is_namespace());
+            symbols.push(occurrence.symbol());
+        }
+        assert_ne!(symbols[0], symbols[1]);
+        let mut changed = analysis.clone();
+        changed
+            .resolved_input
+            .as_mut()
+            .unwrap()
+            .config
+            .strict_quoting = !config.strict_quoting;
+        assert!(
+            changed
+                .original_variable_symbol_in_source(
+                    &image,
+                    config,
+                    u32::try_from(source.find("$local").unwrap()).unwrap()
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_source_coordinates_preserve_literal_sigils_and_refuse_namespace_alternatives() {
+        let source = "set {$literal} VALUE; puts ${$literal}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let image = SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        let variable = analysis.global_scope.variables.get("$literal").unwrap();
+        let declaration = analysis
+            .original_variable_declaration_in_source(&image, config, variable)
+            .unwrap();
+        let read = analysis
+            .original_variable_symbol_in_source(
+                &image,
+                config,
+                u32::try_from(source.find("${$literal}").unwrap()).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(declaration.symbol(), read.symbol());
+        assert_eq!(read.original_name_input().bytes(), b"$literal");
+
+        let source = "namespace eval A {set local VALUE; puts $local}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(
+            analysis
+                .original_variable_symbol_in_source(
+                    &SourceImage::document(source),
+                    analysis.body_lexer_config.unwrap(),
+                    u32::try_from(source.find("$local").unwrap()).unwrap()
+                )
+                .is_none()
+        );
+    }
+
     #[test]
     fn original_variable_declaration_join_requires_the_owned_record_and_current_source() {
         let source = "set actual 1; puts $actual";

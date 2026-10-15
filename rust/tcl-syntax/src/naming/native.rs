@@ -195,8 +195,10 @@ pub enum NativeNamePurpose {
     JimNamespaceCanonical,
     /// Namespace ensemble command publication, independently of proc creation.
     EnsemblePublication,
-    /// Namespace command's native subcommand index operand.
+    /// Namespace command's native exact subcommand index operand.
     NamespaceSubcommand,
+    /// Namespace command's independent abbreviation operand.
+    NamespaceSubcommandPrefix,
     /// Interpreter dispatch table index, separate from its command operand.
     InterpreterSubcommand,
     /// A C interpreter child-table key; colon bytes are ordinary name bytes.
@@ -535,8 +537,8 @@ impl NativeNameProtocol {
         Ok(Cow::Owned(qualified))
     }
 
-    /// Namespace subcommand indexing consumes `CString` bytes in the audited
-    /// C and Jim dispatch tables, independently from the original argv object.
+    /// Namespace exact subcommand indexing consumes `CString` bytes,
+    /// independently from the abbreviation stage and original argv object.
     #[must_use]
     pub fn namespace_subcommand_input(self, original: &[u8]) -> NativeNameProjection<'_> {
         projection(
@@ -544,6 +546,23 @@ impl NativeNameProtocol {
             NativeNamePurpose::NamespaceSubcommand,
             original,
             Cow::Borrowed(c_string_extent(original)),
+            None,
+        )
+    }
+    /// Jim's namespace abbreviation stage uses the original counted extent;
+    /// its earlier exact comparison remains [`Self::namespace_subcommand_input`].
+    /// C namespace indexing retains its selected `CString` extent.
+    #[must_use]
+    pub fn namespace_subcommand_prefix_input(self, original: &[u8]) -> NativeNameProjection<'_> {
+        projection(
+            self,
+            NativeNamePurpose::NamespaceSubcommandPrefix,
+            original,
+            Cow::Borrowed(if self.is_jim084() {
+                original
+            } else {
+                c_string_extent(original)
+            }),
             None,
         )
     }

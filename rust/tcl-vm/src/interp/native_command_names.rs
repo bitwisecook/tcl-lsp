@@ -27,61 +27,16 @@ impl tcl_registry::native_jim_lookup::NativeJimNamespaceOriginBackend
 
     fn canonical(&mut self, original: &Value) -> Result<Value, CmdError> {
         self.entered.check(self.vm)?;
-        let bytes = self.vm.native_name_operand_bytes_checked(original)?;
-        self.entered.check(self.vm)?;
-        let namespace = self.entered.read_jim_namespace(self.vm)?;
-        let current = self.entered.materialize_namespace(self.vm)?;
-        let path = self.vm.ns_path(current);
-        let projected = self
-            .protocol
-            .namespace_origin_canonical(
-                tcl_syntax::naming::NativeNameContext::with_jim_namespace(&path, &namespace),
-                &bytes,
-            )
-            .map_err(|_| ValueError::CommandProtocolUnavailable("Jim origin canonical operand"))?;
-        let canonical = match projected.construction {
-            tcl_syntax::naming::NativeJimNamespaceConstruction::RetainOriginal => original.clone(),
-            tcl_syntax::naming::NativeJimNamespaceConstruction::FreshString => {
-                let value = Value::from_native_string_bytes(projected.selected.as_bytes());
-                value.bind_native_jim_context(&self.vm.native_jim_object_context()?)?;
-                value
-            }
-            tcl_syntax::naming::NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend => {
-                let namespace = self.entered.jim_namespace_original().ok_or(
-                    ValueError::CommandProtocolUnavailable("Jim origin namespace object"),
-                )?;
-                let duplicate = namespace.duplicate_native_object_in(
-                    tcl_syntax::native_string::NativeStringProtocol::Jim084,
-                );
-                self.entered.check(self.vm)?;
-                let append = self
-                    .vm
-                    .actual_native_invocation_dialect()
-                    .native_object_append_protocol(None)
-                    .ok_or(ValueError::CommandProtocolUnavailable(
-                        "Jim origin canonical append issuer",
-                    ))?;
-                let separator = Value::from_native_string_bytes(b"::".as_slice());
-                let mut prepared = tcl_cmd_core::native_append::append_object(
-                    &crate::value::VmAppendObjects,
-                    append.recipe(),
-                    Some(&duplicate),
-                    &separator,
-                )?;
-                self.entered.check(self.vm)?;
-                tcl_cmd_core::native_append::append_continuation(
-                    &crate::value::VmAppendObjects,
-                    &mut prepared,
-                    original,
-                )?;
-                self.entered.check(self.vm)?;
-                let value = prepared.into_value();
-                value.bind_native_jim_context(&self.vm.native_jim_object_context()?)?;
-                value
-            }
-        };
-        self.entered.check(self.vm)?;
-        Ok(canonical)
+        let namespace =
+            self.entered
+                .jim_namespace_original()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "Jim origin namespace object",
+                ))?;
+        self.vm
+            .original_jim_canonical_namespace_object(namespace, original, &|vm| {
+                self.entered.check(vm)
+            })
     }
 
     fn alias_prefix(&mut self, canonical: &Value) -> Result<Option<Value>, CmdError> {

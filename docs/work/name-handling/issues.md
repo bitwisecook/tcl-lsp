@@ -1,5 +1,6 @@
 # Related issues and prior work
 
+Read-only refresh on15 October2026 fetched all254 catalogue IDs successfully:59OPEN/195CLOSED, zero changes among prior explicitly recorded states. See [additive audit](audit-next.md); GitHub state remains separate from branch acceptance.
 The broad catalogue was searched on 12 October 2026. A focused follow-up on
 13 October verified issue states and relevant merged PRs with individual
 GitHub reads. Rows added below have verified states; unchanged broad rows

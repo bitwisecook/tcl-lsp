@@ -3571,6 +3571,11 @@ impl AnalysisResult {
         &self,
         symbol: &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
     ) -> bool {
+        if self.original_variable_symbols.iter().any(|occurrence| {
+            occurrence.symbol() == symbol && occurrence.has_source_applicability_obligation()
+        }) {
+            return false;
+        }
         #[cfg(test)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
             eprintln!(
@@ -3638,7 +3643,10 @@ impl AnalysisResult {
     ) -> Option<&crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
         self.matches_original_source_image(image, config)
             .then_some(())?;
-        self.original_variable_symbol_at_offset(offset)
+        let occurrence = self.original_variable_symbol_at_offset(offset)?;
+        occurrence
+            .matches_logical_source(image, self.resolved_input.as_ref()?)
+            .then_some(occurrence)
     }
 
     /// Authentic lexical substitution at this cursor, even when its selected

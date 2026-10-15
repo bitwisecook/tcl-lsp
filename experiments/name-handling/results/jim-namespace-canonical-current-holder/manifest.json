@@ -1,0 +1,116 @@
+{
+  "question": "Does original no-argument namespace canonical return the actual current namespace object, and does a reused same-object lookup leave its String absent? Do absolute and explicit-prefix controls avoid that getter?",
+  "provider_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "upstream_receipt_sha256": "55ab6892186c720679b0e96e59a776698efd4aadf4d53b794b292e6cb7b0bb7f",
+  "provider": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+  "provider_before_sha256": {
+    "jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "jimautoconf.h": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+    "Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+    "config.log": "4d8d3ff0b667514e46b7d95c57c59706202db4b0fd8ba49693de2cc220edcf52",
+    "configure": "265f6d7745f5d2a77bea83f50a8edf3dd62496ba9404c23ca735aeb035a0029e",
+    "auto.def": "d41e44e1b023c6061535b0b8729137dfe53b9f500ebd46e3eeb8762a7eb4a11c",
+    "nshelper.tcl": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+    "tcltest.tcl": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce",
+    "tests/testing.tcl": "67f42fd0f5447622b03eecefa445e5c878faa827b960e1ea1ed48bf81beb2bc3",
+    "tests/namespace.test": "a3df226ea9ef35afa59bf82ad5187b6987e6ac4f00cdbbaf1e1c78bb52379dbd",
+    "libjim.a": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+    "jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+  },
+  "probe_sha256": "95c816a35edb55e1ed553270e2a325248e0adf4f78b17daff77c34b11ddf9941",
+  "capture_sha256": "bad1be28af53c5ab7b85363e81b28e8ec567b25bff97f75a8d86ae3976ecfe2b",
+  "harness": "SDK Jim_EvalNamespace with original libjim.a; independently original jimsh tests/namespace.test -> tests/testing.tcl -> tcltest.tcl, no overlays",
+  "compiler": {
+    "command": [
+      "cc",
+      "--version"
+    ],
+    "cwd": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "started_utc": "2026-10-15T10:14:05.898427+00:00",
+    "exit": 0,
+    "completion": "process completed",
+    "stdout_sha256": "78fc11ae2c3ff7c235eb18ed90989d18f6cc864fb27027f839368cd0888deebc",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "version": {
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "-e",
+      "puts [info version]"
+    ],
+    "cwd": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "started_utc": "2026-10-15T10:14:05.901009+00:00",
+    "exit": 0,
+    "completion": "process completed",
+    "stdout_sha256": "805d35287a4c6a67f99c7b0a8038dc8745e024d5a80b691f2fe2ff1702cdeec5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compile": {
+    "command": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/jimtcl-oracle",
+      "/workspace/tcl-lsp/experiments/name-handling/results/jim-namespace-canonical-current-holder/probe.c",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a",
+      "-lm",
+      "-lssl",
+      "-lcrypto",
+      "-lz",
+      "-ldl",
+      "-o",
+      "/tmp/jim-canonical-owner-lv2tvd49/probe"
+    ],
+    "cwd": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "started_utc": "2026-10-15T10:14:05.905192+00:00",
+    "exit": 0,
+    "completion": "process completed",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "executable_sha256": "da9a24349b3b2194b6532bc4a42ee33ee71d2e07d08f63769a73dfa0a44965d1",
+  "probe": {
+    "command": [
+      "/tmp/jim-canonical-owner-lv2tvd49/probe"
+    ],
+    "cwd": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "started_utc": "2026-10-15T10:14:05.982144+00:00",
+    "exit": 0,
+    "completion": "process completed",
+    "stdout_sha256": "85822b1e6ef0f077781585d48d54b49f71fff0c43c7fa1fe0a4c625bf48e9a98",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "original_namespace_suite": {
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "tests/namespace.test"
+    ],
+    "cwd": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+    "started_utc": "2026-10-15T10:14:05.986646+00:00",
+    "exit": 0,
+    "completion": "process completed",
+    "stdout_sha256": "8f143f0ff7ff1090b66bd3d6ec51b459da13ce3b009ca0568f63b348b8d23902",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "provider_after_sha256": {
+    "jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "jim-config.h": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+    "jimautoconf.h": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+    "Makefile": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+    "config.log": "4d8d3ff0b667514e46b7d95c57c59706202db4b0fd8ba49693de2cc220edcf52",
+    "configure": "265f6d7745f5d2a77bea83f50a8edf3dd62496ba9404c23ca735aeb035a0029e",
+    "auto.def": "d41e44e1b023c6061535b0b8729137dfe53b9f500ebd46e3eeb8762a7eb4a11c",
+    "nshelper.tcl": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+    "tcltest.tcl": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce",
+    "tests/testing.tcl": "67f42fd0f5447622b03eecefa445e5c878faa827b960e1ea1ed48bf81beb2bc3",
+    "tests/namespace.test": "a3df226ea9ef35afa59bf82ad5187b6987e6ac4f00cdbbaf1e1c78bb52379dbd",
+    "libjim.a": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61",
+    "jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+  },
+  "provider_drift": {},
+  "limitations": "Exact SDK and original namespace-suite observations only. Selected source/configuration/library hashes are not a complete system toolchain closure. No C Tcl/F5, Runtime/VM result, universal cache hit, namespace existence or lifecycle claim."
+}

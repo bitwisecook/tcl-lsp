@@ -204,19 +204,8 @@ impl Interp {
             let namespace = self.current_ns();
             let original_namespace =
                 super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, namespace)?;
-            let check = |actual: &Interp| -> Result<(), tcl_cmd_core::CmdError> {
-                arguments.check_for(actual)?;
-                original_namespace.check(actual)?;
-                if actual.current_ns() != namespace {
-                    return Err(arguments.retain_refusal(
-                        ValueError::CommandProtocolUnavailable(
-                            "Jim namespace text current namespace",
-                        )
-                        .into(),
-                    ));
-                }
-                Ok(())
-            };
+            let check =
+                |actual: &Interp| original_namespace.check_current_arguments(actual, arguments);
             check(self)?;
             let bytes = self.native_string_bytes(&original);
             check(self)?;
@@ -261,17 +250,8 @@ impl Interp {
             let namespace = self.current_ns();
             let original_namespace =
                 super::native_jim_lookup::OriginalJimLookupNamespace::capture(self, namespace)?;
-            let check = |actual: &Interp| -> Result<(), tcl_cmd_core::CmdError> {
-                arguments.check_for(actual)?;
-                original_namespace.check(actual)?;
-                if actual.current_ns() != namespace {
-                    return Err(arguments.retain_refusal(
-                        ValueError::CommandProtocolUnavailable("Jim parent current namespace")
-                            .into(),
-                    ));
-                }
-                Ok(())
-            };
+            let check =
+                |actual: &Interp| original_namespace.check_current_arguments(actual, arguments);
             check(self)?;
             let original = argv
                 .get(2)

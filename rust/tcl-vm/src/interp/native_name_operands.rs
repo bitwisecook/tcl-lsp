@@ -18,6 +18,15 @@ impl Vm {
         &mut self,
         value: &Value,
     ) -> Result<Rc<[u8]>, CmdError> {
+        self.native_name_operand_bytes_checked_using(value, &|_| Ok(()))
+    }
+
+    pub(crate) fn native_name_operand_bytes_checked_using(
+        &mut self,
+        value: &Value,
+        check: &impl Fn(&mut Vm) -> Result<(), CmdError>,
+    ) -> Result<Rc<[u8]>, CmdError> {
+        check(self)?;
         let scope = NativeOperationScope::enter(self)?;
         let original = value.native_lifetime_lease();
         let reached = (|| {
@@ -31,7 +40,7 @@ impl Vm {
                         NativeStringUnavailable::ProtocolUnavailable,
                     ),
                 )?;
-                operation.string(original.value(), protocol)
+                operation.string_with_original_check(original.value(), protocol, check)
             };
             operation.current_for_value(original.value())?;
             reached
@@ -43,6 +52,7 @@ impl Vm {
         }
         drop(original);
         scope.check(self)?;
+        check(self)?;
         reached
     }
 }

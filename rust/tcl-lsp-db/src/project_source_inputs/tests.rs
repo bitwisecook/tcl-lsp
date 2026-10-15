@@ -250,6 +250,99 @@ fn supplied_callback_headers_use_the_librarys_checked_input_and_body_free_signat
 }
 
 #[test]
+fn supplied_project_headers_keep_unavailable_members_as_lookup_barriers() {
+    let mut db = TclDatabase::default();
+    let library_config = configuration(&db, 0);
+    let other_config = configuration(&db, 0);
+    let caller_config = configuration(&db, 0);
+    let library = SourceFile::new(
+        &db,
+        "proc external {one} {}".to_owned(),
+        "tcl9.0".to_owned(),
+        None,
+    );
+    let other = SourceFile::new(&db, String::new(), "tcl9.0".to_owned(), None);
+    let source = "lsort -command ::external {2 1}";
+    let caller = SourceFile::new(&db, source.to_owned(), "tcl9.0".to_owned(), None);
+    let project = Project::with_token_configurations(
+        &db,
+        vec![library, other, caller],
+        Some(vec![
+            (library, library_config),
+            (other, other_config),
+            (caller, caller_config),
+        ]),
+    );
+    let analysis = file_analysis_incremental(&db, caller, caller_config);
+    assert!(
+        project_callback_diagnostics_for_analysis_with_inputs(
+            &db, project, source, &analysis, |_| false,
+        )
+        .iter()
+        .any(|row| row.code == DiagCode::E003 && row.callback_source_arity().is_some())
+    );
+    other_config.set_spec_pack_key(&mut db).to(u64::MAX - 4356);
+    assert!(document_analysis_input(&db, other, other_config).is_err());
+    assert!(project_original_command_signatures_for_inputs(&db, project).is_empty());
+    assert!(
+        project_callback_diagnostics_for_analysis_with_inputs(
+            &db, project, source, &analysis, |_| false,
+        )
+        .iter()
+        .all(|row| row.callback_source_arity().is_none())
+    );
+    other_config.set_spec_pack_key(&mut db).to(0);
+    project.set_token_configurations(&mut db).to(Some(vec![
+        (library, library_config),
+        (caller, caller_config),
+    ]));
+    assert!(project_original_command_signatures_for_inputs(&db, project).is_empty());
+    assert!(
+        project_callback_diagnostics_for_analysis_with_inputs(
+            &db, project, source, &analysis, |_| false,
+        )
+        .iter()
+        .all(|row| row.callback_source_arity().is_none())
+    );
+}
+
+#[test]
+fn supplied_logical_arities_require_every_members_source_owner() {
+    let mut db = TclDatabase::default();
+    let config = configuration(&db, 0);
+    let other_config = configuration(&db, 0);
+    let library = SourceFile::new(
+        &db,
+        "proc helper {one two} {}".to_owned(),
+        "tcl".to_owned(),
+        None,
+    );
+    let other = SourceFile::new(&db, String::new(), "tcl".to_owned(), None);
+    let project = Project::with_token_configurations(
+        &db,
+        vec![library, other],
+        Some(vec![(library, config), (other, other_config)]),
+    );
+    let coordinate = item_sigs_for_config(&db, library, config)
+        .iter()
+        .find_map(|header| header.logical_source_coordinate.clone())
+        .unwrap();
+    let key = LogicalSourceCommandSlot::new(&db, coordinate);
+    assert_eq!(
+        logical_source_command_arity(&db, project, key, true),
+        Some(Arc::new(vec![(2, 2)]))
+    );
+    other_config.set_spec_pack_key(&mut db).to(u64::MAX - 5356);
+    assert!(document_analysis_input(&db, other, other_config).is_err());
+    assert!(logical_source_command_arity(&db, project, key, true).is_none());
+    other_config.set_spec_pack_key(&mut db).to(0);
+    project
+        .set_token_configurations(&mut db)
+        .to(Some(vec![(library, config)]));
+    assert!(logical_source_command_arity(&db, project, key, true).is_none());
+}
+
+#[test]
 fn supplied_factory_oracles_require_current_file_inputs_without_a_derived_query_cycle() {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md

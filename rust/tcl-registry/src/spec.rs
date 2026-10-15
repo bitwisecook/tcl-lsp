@@ -3583,6 +3583,30 @@ impl CommandSpec {
         })
     }
 
+    /// Resolve the namespace dispatcher's separate exact and abbreviation
+    /// extents against this actual dialect-filtered descriptor table. This
+    /// selects metadata only; it grants no native table/header cache receipt.
+    #[must_use]
+    pub fn resolve_native_namespace_subcommand_bytes_for_dialect(
+        &self,
+        protocol: tcl_syntax::naming::NativeNameProtocol,
+        original: &[u8],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<&SubCommand> {
+        let exact = protocol.namespace_subcommand_input(original);
+        let canonical = self
+            .subcommand_table(dialect, None, Some(PrefixMatching::Strict))
+            .resolve_bytes(exact.selected())
+            .unique()
+            .or_else(|| {
+                let prefix = protocol.namespace_subcommand_prefix_input(original);
+                self.subcommand_table(dialect, None, None)
+                    .resolve_bytes(prefix.selected())
+                    .unique()
+            })?;
+        self.resolve_subcommand_bytes_for_dialect(canonical.as_bytes(), dialect)
+    }
+
     fn resolve_subcommand_filtered(
         &self,
         word: &[u8],

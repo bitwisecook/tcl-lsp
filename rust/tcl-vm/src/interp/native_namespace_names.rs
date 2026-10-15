@@ -17,6 +17,108 @@ use tcl_syntax::{
 };
 
 impl Vm {
+    pub(crate) fn original_jim_canonical_namespace_object(
+        &mut self,
+        namespace: &Value,
+        original: &Value,
+        check: &impl Fn(&mut Vm) -> Result<(), CmdError>,
+    ) -> Result<Value, CmdError> {
+        use tcl_syntax::naming::{NativeJimNamespaceConstruction, NativeNameContext};
+
+        check(self)?;
+        let namespace = namespace.native_lifetime_lease();
+        let original = original.native_lifetime_lease();
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        let current = |vm: &mut Vm| {
+            check(vm)?;
+            let operation =
+                super::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &scope)?;
+            operation.current_for_value(namespace.value())?;
+            operation.current_for_value(original.value())
+        };
+        current(self)?;
+        let dialect = self.actual_native_invocation_dialect();
+        let protocol = dialect
+            .native_name_protocol()
+            .filter(|protocol| protocol.is_jim084())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "Jim canonical namespace issuer",
+            ))?;
+        let bytes = self.native_name_operand_bytes_checked_using(original.value(), &current);
+        current(self)?;
+        let bytes = bytes?;
+        if let Some(absolute) = protocol
+            .jim_namespace_absolute_canonical_input(&bytes)
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("Jim absolute canonical namespace")
+            })?
+        {
+            let value = Value::from_native_string_bytes(absolute.selected());
+            value.bind_native_jim_context(&self.native_jim_object_context()?)?;
+            current(self)?;
+            return Ok(value);
+        }
+
+        let is_current = self
+            .with_jim_current_namespace(|current| Ok(current.is_same_object(namespace.value())))?;
+        current(self)?;
+        if is_current
+            && let super::NamespaceExecutionContext::OriginalJim(context) =
+                self.current_namespace_execution_context()
+        {
+            let reached = context.materialize_using(self, &current);
+            current(self)?;
+            reached?;
+        }
+        let namespace_bytes =
+            self.native_name_operand_bytes_checked_using(namespace.value(), &current);
+        current(self)?;
+        let namespace_bytes = namespace_bytes?;
+        let path = tcl_core_types::ByteNamespacePath::root();
+        let context = NativeNameContext::with_jim_namespace(&path, &namespace_bytes);
+        let construction = protocol
+            .jim_namespace_construction(context, &bytes)
+            .map_err(|_| ValueError::CommandProtocolUnavailable("Jim canonical construction"))?;
+        let value = match construction {
+            NativeJimNamespaceConstruction::RetainOriginal => original.value().clone(),
+            NativeJimNamespaceConstruction::FreshString => {
+                let projection = protocol
+                    .jim_namespace_canonical_input(context, &bytes)
+                    .map_err(|_| {
+                        ValueError::CommandProtocolUnavailable("Jim canonical namespace name")
+                    })?;
+                Value::from_native_string_bytes(projection.selected())
+            }
+            NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend => {
+                let duplicate = namespace.value().duplicate_native_object_in(
+                    tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                );
+                current(self)?;
+                let append = dialect.native_object_append_protocol(None).ok_or(
+                    ValueError::CommandProtocolUnavailable("Jim canonical append issuer"),
+                )?;
+                let separator = Value::from_native_string_bytes(b"::".as_slice());
+                let mut prepared = tcl_cmd_core::native_append::append_object(
+                    &crate::value::VmAppendObjects,
+                    append.recipe(),
+                    Some(&duplicate),
+                    &separator,
+                )?;
+                current(self)?;
+                tcl_cmd_core::native_append::append_continuation(
+                    &crate::value::VmAppendObjects,
+                    &mut prepared,
+                    original.value(),
+                )?;
+                current(self)?;
+                prepared.into_value()
+            }
+        };
+        value.bind_native_jim_context(&self.native_jim_object_context()?)?;
+        current(self)?;
+        Ok(value)
+    }
+
     pub(crate) fn native_namespace_result_object(
         &mut self,
         namespace: NsId,
@@ -380,6 +482,83 @@ impl tcl_cmd_core::namespace::NamespaceDeleteBackend for Vm {
             ));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod original_jim_canonical_ownership_tests {
+    use super::*;
+
+    #[test]
+    fn absolute_canonical_name_retains_the_explicit_prefix_liveness_requirement() {
+        for retired in [false, true] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect("jimtcl"),
+            );
+            let prefix = Value::int(42);
+            let original = prefix.native_lifetime_lease();
+            let _kept = if retired {
+                drop(prefix);
+                None
+            } else {
+                Some(prefix)
+            };
+            let scope =
+                super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm)
+                    .unwrap();
+            let name = Value::from_native_string_bytes(b"::target".as_slice());
+            let reached =
+                vm.original_jim_canonical_namespace_object(original.value(), &name, &|vm| {
+                    scope.check(vm)
+                });
+            assert_eq!(reached.is_err(), retired);
+            assert!(original.value().resident_string_bytes().is_none());
+            assert_eq!(vm.execution_refusal.is_some(), retired);
+            if !retired {
+                assert_eq!(
+                    reached.unwrap().resident_string_bytes().unwrap().as_ref(),
+                    b"target"
+                );
+                scope.finish(&mut vm).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn absolute_canonical_name_rechecks_the_explicit_prefix_after_the_original_getter() {
+        for retire in [false, true] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect("jimtcl"),
+            );
+            let prefix = Value::int(42);
+            let original = prefix.native_lifetime_lease();
+            let retained = std::cell::RefCell::new(Some(prefix));
+            let name = Value::native_list_constructor(
+                vec![Value::from_native_string_bytes(b"::target".as_slice())],
+                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+            );
+            assert!(name.resident_string_bytes().is_none());
+            let scope =
+                super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm)
+                    .unwrap();
+            let reached =
+                vm.original_jim_canonical_namespace_object(original.value(), &name, &|vm| {
+                    if retire && name.resident_string_bytes().is_some() {
+                        drop(retained.borrow_mut().take());
+                    }
+                    scope.check(vm)
+                });
+            assert_eq!(reached.is_err(), retire);
+            assert!(original.value().resident_string_bytes().is_none());
+            assert_eq!(vm.execution_refusal.is_some(), retire);
+            if !retire {
+                assert_eq!(
+                    reached.unwrap().resident_string_bytes().unwrap().as_ref(),
+                    b"target"
+                );
+                scope.finish(&mut vm).unwrap();
+            }
+        }
     }
 }
 

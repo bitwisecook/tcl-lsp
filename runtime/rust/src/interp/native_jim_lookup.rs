@@ -26,7 +26,7 @@ enum OriginalJimCachedStore {
 
 /// The genuine current namespace holder and frame, before any reached getter.
 /// A weak owner observation and allocation lease preserve actual native retirement.
-pub(super) struct OriginalJimLookupNamespace {
+pub(crate) struct OriginalJimLookupNamespace {
     interpreter: Interp,
     namespace: NsId,
     holder_birth: std::rc::Weak<Owned>,
@@ -34,7 +34,7 @@ pub(super) struct OriginalJimLookupNamespace {
     frame: super::native_arguments::OriginalArgumentFrame,
 }
 impl OriginalJimLookupNamespace {
-    pub(super) fn capture(interpreter: &Interp, namespace: NsId) -> Result<Self, ValueError> {
+    pub(crate) fn capture(interpreter: &Interp, namespace: NsId) -> Result<Self, ValueError> {
         let holder = interpreter
             .namespaces()
             .jim_namespace_original_owner(namespace)
@@ -50,7 +50,7 @@ impl OriginalJimLookupNamespace {
             frame: super::native_arguments::OriginalArgumentFrame::capture(interpreter),
         })
     }
-    pub(super) fn check_current_arguments(
+    pub(crate) fn check_current_arguments(
         &self,
         actual: &Interp,
         arguments: &OriginalArguments,

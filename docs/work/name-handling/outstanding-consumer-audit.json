@@ -13316,10 +13316,28 @@
     ],
     "active_continuation": {
       "checkpoint": "2d456966b",
-      "status": "Parallel first migration batch implemented; fresh validation pending; no completion claim",
+      "status": "Second source/API-reviewed migration batch; first frozen ordinary replay in progress; no completion claim",
       "audit": "audit-next.md",
       "historical_bindings": "source238 only; changed files require fresh source review",
-      "required_gates": "rust-check and prep-pr unrun"
+      "required_gates": "rust-check and prep-pr unrun",
+      "published_checkpoint": "551f3b2c1",
+      "fresh_build": {
+        "commit": "551f3b2c1",
+        "exit": 0,
+        "seconds": 753.7946291989999,
+        "artifacts": 14,
+        "source_drift": {},
+        "tests_during_build": 0
+      },
+      "original2286": {
+        "pass": true,
+        "seconds": 68.97764651499983,
+        "budget": 180,
+        "first": true
+      },
+      "readonly_authored_positive_and_negative": "both PASS; full replay unsealed",
+      "studio_web": "123/123 PASS; two tsconfigs pass; npm12.2.0",
+      "remaining": "See current-state.md and audit-next.md"
     }
   }
 }

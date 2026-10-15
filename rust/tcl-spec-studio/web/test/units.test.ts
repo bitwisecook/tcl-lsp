@@ -443,9 +443,36 @@ describe("validateReleases", () => {
     const empty: Release = { ...release("1.0"), entries: [] };
     assert.ok(validateReleases([empty, release("1.1")]).some((p) => /no Tcl sources/.test(p)));
   });
+
+  it("refuses release inference from a lossy source preview", () => {
+    const opaque: Release = {
+      ...release("1.0"),
+      entries: [{ name: "opaque.tcl", text: "proc \uFFFD {} {}" }],
+      unsupportedEncodings: ["opaque.tcl"],
+    };
+    assert.ok(validateReleases([opaque, release("1.1")]).some((p) => p.includes("not UTF-8")));
+    assert.deepEqual(
+      validateReleases([{ ...opaque, unsupportedEncodings: [] }, release("1.1")]),
+      [],
+    );
+  });
 });
 
 describe("snapshotsJson", () => {
+  it("retains unrepresentable source metadata through the WASM boundary", () => {
+    const json = snapshotsJson([
+      {
+        id: "opaque",
+        origin: "opaque.zip",
+        version: "1.0",
+        entries: [{ name: "opaque.tcl", text: "proc \uFFFD {} {}" }],
+        skipped: [],
+        unsupportedEncodings: ["opaque.tcl"],
+      },
+    ]);
+    assert.deepEqual(JSON.parse(json)[0].unsupported_encodings, ["opaque.tcl"]);
+    assert.equal(JSON.parse(json)[0].files[0].text, "proc \uFFFD {} {}");
+  });
   it("emits exactly the shape the wasm export parses, with labels trimmed", () => {
     const json = snapshotsJson([
       {

@@ -319,9 +319,11 @@ fn cmd_namespace_in(
         let spec = registry
             .get_for_surface("namespace", dialect)
             .expect("the core namespace command is registered for every Tcl release");
-        let Some(subcommand) =
-            spec.resolve_subcommand_bytes_for_dialect(selected_sub.selected(), dialect)
-        else {
+        let Some(subcommand) = spec.resolve_native_namespace_subcommand_bytes_for_dialect(
+            name_policy.recipe(),
+            &original_sub,
+            dialect,
+        ) else {
             let available: Vec<&str> = spec
                 .subcommands
                 .iter()
@@ -355,14 +357,31 @@ fn cmd_namespace_in(
         }
         match subcommand.name {
             "canonical" => {
-                let (prefix, name) = match rest {
+                let (namespace, name) = match rest {
                     [] => {
-                        return ok(Value::from_native_string_bytes(
-                            vm.namespace_object_bytes(vm.current_ns_id()).as_bytes(),
-                        ));
+                        return match vm.with_jim_current_namespace(|original| Ok(original.clone()))
+                        {
+                            Ok(original) => match original_names.current_for_value(vm, &original) {
+                                Ok(()) => ok(original),
+                                Err(error) => crate::command::completion_from_cmd_error(vm, error),
+                            },
+                            Err(error) => {
+                                crate::command::completion_from_cmd_error(vm, error.into())
+                            }
+                        };
                     }
-                    [name] => (None, name),
-                    [prefix, name] => (Some(prefix), name),
+                    [name] => {
+                        let namespace = match vm
+                            .with_jim_current_namespace(|original| Ok(original.clone()))
+                        {
+                            Ok(namespace) => namespace,
+                            Err(error) => {
+                                return crate::command::completion_from_cmd_error(vm, error.into());
+                            }
+                        };
+                        (namespace, name)
+                    }
+                    [namespace, name] => (namespace.clone(), name),
                     _ => {
                         return crate::command::native_wrong_arguments_message(
                             vm,
@@ -370,20 +389,11 @@ fn cmd_namespace_in(
                         );
                     }
                 };
-                let name = match original_names.read(vm, name) {
-                    Ok(bytes) => bytes,
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                };
-                let prefix = match prefix
-                    .map(|value| original_names.read(vm, value))
-                    .transpose()
-                {
-                    Ok(bytes) => bytes,
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                };
-                match vm.jim_canonical_namespace_bytes(prefix.as_deref(), &name) {
-                    Ok(bytes) => ok(Value::from_native_string_bytes(bytes)),
-                    Err(error) => vm.refuse_host_command(error.to_string()),
+                match vm.original_jim_canonical_namespace_object(&namespace, name, &|vm| {
+                    original_names.check(vm)
+                }) {
+                    Ok(value) => ok(value),
+                    Err(error) => crate::command::completion_from_cmd_error(vm, error),
                 }
             }
             "eval" => ns_eval(vm, rest),
@@ -423,7 +433,9 @@ fn cmd_namespace_in(
                             if let crate::interp::NamespaceExecutionContext::OriginalJim(context) =
                                 vm.current_namespace_execution_context()
                             {
-                                if let Err(error) = context.materialize(vm) {
+                                if let Err(error) =
+                                    context.materialize_using(vm, &|vm| original_names.check(vm))
+                                {
                                     return crate::command::completion_from_cmd_error(vm, error);
                                 }
                                 if let Err(error) = original_names.check(vm) {
@@ -2903,5 +2915,133 @@ mod original_jim_parent_current_holder_tests {
             vm.pop_ns();
             vm.pop_call_frame();
         }
+    }
+}
+
+#[cfg(test)]
+mod original_jim_canonical_current_holder_tests {
+    use super::*;
+
+    const OBSERVED: &str =
+        include_str!("../tests/data/native_jim_namespace_canonical/current-holder-20261015.tsv");
+
+    fn row(kind: &str, phase: &str) -> Vec<&'static str> {
+        OBSERVED
+            .lines()
+            .find_map(|line| {
+                let fields: Vec<_> = line.split('|').collect();
+                (fields[0] == kind && fields[1] == phase).then(|| fields[2..].to_vec())
+            })
+            .unwrap_or_else(|| panic!("missing original observation {kind}/{phase}"))
+    }
+
+    #[test]
+    fn canonical_uses_the_original_holder_and_reached_namespace_getter() {
+        // Original SDK: experiments/name-handling/results/jim-namespace-canonical-current-holder.
+        assert_eq!(OBSERVED.lines().count(), 80);
+        for (label, name, explicit) in [
+            ("CURRENT", None, false),
+            ("ABSOLUTE", Some("::target"), false),
+            ("RELATIVE", Some("child"), false),
+            ("EXPLICIT", Some("child"), true),
+        ] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect("jimtcl"),
+            );
+            let original = Value::int(42);
+            let prefix = Value::int(84);
+            let context =
+                crate::interp::OriginalJimNamespaceContext::for_lambda(&mut vm, &original).unwrap();
+            vm.push_call_frame(Some("canonical_current_holder_control".into()), Vec::new());
+            vm.install_jim_procedure_namespace_owner(None, original.clone());
+            vm.push_procedure_namespace_context(crate::interp::ProcedureNamespace::OriginalJim(
+                context,
+            ));
+            assert!(original.resident_string_bytes().is_none());
+            let mut arguments = vec![Value::string("canonical")];
+            if explicit {
+                arguments.push(prefix.clone());
+            }
+            if let Some(name) = name {
+                arguments.push(Value::string(name));
+            }
+            let completion = cmd_namespace(&mut vm, &arguments);
+            let phase = format!("{label}_REUSE");
+            assert_eq!(completion.code, Code::Ok, "{phase}");
+            assert_eq!(
+                original.resident_string_bytes().is_some(),
+                row("CALLER_AFTER", &phase)[0] == "1",
+                "{phase}"
+            );
+            assert_eq!(
+                prefix.resident_string_bytes().is_some(),
+                row("PREFIX_AFTER", &phase)[0] == "1",
+                "{phase}"
+            );
+            assert_eq!(
+                completion.result.is_same_object(&original),
+                row("RESULT_IS_CALLER", &phase)[0] == "1",
+                "{phase}"
+            );
+            assert_eq!(
+                vm.current_namespace_execution_context()
+                    .resolved_token()
+                    .is_some(),
+                label == "RELATIVE",
+                "{phase}"
+            );
+            let expected = row("RESULT", &phase);
+            assert_eq!(expected[0], "0");
+            let expected: Vec<_> = expected[1]
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+            assert_eq!(
+                vm.native_name_operand_bytes_checked(&completion.result)
+                    .unwrap()
+                    .as_ref(),
+                expected,
+                "{phase}"
+            );
+            assert!(vm.execution_refusal.is_none(), "{phase}");
+            vm.pop_ns();
+            vm.pop_call_frame();
+        }
+    }
+
+    #[test]
+    fn equal_explicit_prefix_does_not_issue_the_current_namespace_coordinate() {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+        let original = Value::int(42);
+        let prefix = Value::int(42);
+        assert!(!original.is_same_object(&prefix));
+        let context =
+            crate::interp::OriginalJimNamespaceContext::for_lambda(&mut vm, &original).unwrap();
+        vm.push_call_frame(Some("canonical_explicit_prefix_control".into()), Vec::new());
+        vm.install_jim_procedure_namespace_owner(None, original.clone());
+        vm.push_procedure_namespace_context(crate::interp::ProcedureNamespace::OriginalJim(
+            context,
+        ));
+        let completion = cmd_namespace(
+            &mut vm,
+            &[
+                Value::string("canonical"),
+                prefix.clone(),
+                Value::string("child"),
+            ],
+        );
+        assert_eq!(completion.code, Code::Ok);
+        assert!(prefix.resident_string_bytes().is_some());
+        assert!(original.resident_string_bytes().is_none());
+        assert!(
+            vm.current_namespace_execution_context()
+                .resolved_token()
+                .is_none()
+        );
+        assert!(vm.execution_refusal.is_none());
+        vm.pop_ns();
+        vm.pop_call_frame();
     }
 }

@@ -52,6 +52,16 @@ pub fn parse(snapshots_json: &str) -> Result<Vec<VersionedSnapshot>, String> {
             .filter(|v| !v.is_empty())
             .ok_or_else(|| format!("release {} has no version label", at + 1))?
             .to_owned();
+        if let Some(unsupported) = item.get("unsupported_encodings") {
+            let unsupported = unsupported
+                .as_array()
+                .ok_or_else(|| format!("release {version} has invalid source encoding metadata"))?;
+            if !unsupported.is_empty() {
+                return Err(format!(
+                    "release {version} contains Tcl sources that are not UTF-8"
+                ));
+            }
+        }
         let files: Vec<SourceFile> = item
             .get("files")
             .and_then(Value::as_array)
@@ -84,6 +94,17 @@ pub fn parse(snapshots_json: &str) -> Result<Vec<VersionedSnapshot>, String> {
 #[cfg(test)]
 mod tests {
     use super::parse;
+
+    #[test]
+    fn unrepresentable_release_source_cannot_establish_command_presence_or_absence() {
+        let error = parse(r#"[{"version":"1.0","files":[{"name":"opaque.tcl","text":"proc \ufffd {} {}"}],"unsupported_encodings":["opaque.tcl"]}]"#)
+            .expect_err("lossy preview cannot supply a source snapshot");
+        assert!(error.contains("not UTF-8"));
+        assert!(parse(r#"[{"version":"1.0","files":[{"name":"unicode.tcl","text":"proc \ufffd {} {}"}],"unsupported_encodings":[]}]"#).is_ok());
+        assert!(
+            parse(r#"[{"version":"1.0","files":[{}],"unsupported_encodings":false}]"#).is_err()
+        );
+    }
 
     #[test]
     fn reads_labelled_releases_in_caller_order() {

@@ -1,0 +1,3 @@
+provider 9.0.4 executable /workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh library //zipfs:/app/tcl_library
+Q-COLON-WILDCARD-BOUNDARY-01 code 0 result HIT selected ::a::b
+Q-COLON-WILDCARD-BOUNDARY-01-NEGATIVE code 1 result {invalid command name "::a::OTHER"} selected {}

@@ -105,12 +105,13 @@ fn phase(interp: &mut Interp, label: &str, reuse: bool, originals: [&Owned; 3]) 
 #[test]
 fn original_jim_public_helper_lookup_retains_the_recognised_original_selector() {
     assert_eq!(EVIDENCE.lines().count(), 200);
-    // Public arity rendering, counted-prefix rejection and subcmd-lookup header
-    // ownership are independently recorded stages, outside this helper lookup.
+    // Public arity rendering and subcmd-lookup header ownership remain
+    // independently recorded stages, outside this helper lookup.
     for (label, selector, change) in [
         ("EXACT", b"upvar".as_slice(), 0),
         ("ABBREVIATED", b"upv", 0),
         ("EXACT_NUL", b"upvar\0TAIL", 0),
+        ("ABBREVIATED_NUL", b"upv\0TAIL", 0),
         ("ABBREVIATED_CANONICAL_REPLACED", b"upv", 1),
         ("ABBREVIATED_SHORT_REPLACED", b"upv", 2),
         ("EXACT_SHORT_REPLACED", b"upvar", 2),

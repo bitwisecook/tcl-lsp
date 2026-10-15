@@ -6,6 +6,8 @@ centralisation. This is temporary coordination material; remove before merge.
 
 ## #2286 — keep open
 
+Fresh frozen `551f3b2c1` reran the unchanged original selector first: PASS68.977646515s under180s. Complete ordinary replay is still running; this does not replace broader issue acceptance. Raw capture is `/workspace/name-session/replay-a-compiler/test-01.log.gz`.
+
 Root's fresh read on15 October2026 confirms OPEN, GitHub updated2026-10-12T22:29:51Z. The unchanged original selector `analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion` passes in ordinary272 at72.400995379 wrapper seconds under its original180-second budget. This is the latest measured original-program result, on source238.
 
 The earlier one-versus-two C8.4 warning and180/600-second timeout receipts are bounded prior failures, not current source verdicts. Preserve those receipts, all reported programs, both original `$absent` expectations, matching interpreter init/Tcltest files, forty-case alias setup and original negative/import/shared-read controls. Current272 still has200 Compiler failures and 1 separately measured deep-forwarding timeout. A single original-program PASS does not close remaining naming consumers, import/read/refusal obligations or#2286; publish issue changes only with precise scoped acceptance.

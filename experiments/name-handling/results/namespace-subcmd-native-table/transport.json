@@ -1,0 +1,165 @@
+{
+  "scope": "Exact captured files; original receipt and invocation bytes unchanged. probe.elf retains the original executable formerly named probe.",
+  "files": [
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/local-revision.stderr",
+      "path": "capture01/local-revision.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/local-status.stdout",
+      "path": "capture01/local-status.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/upstream.stderr",
+      "path": "capture01/upstream.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/manifest.json",
+      "path": "capture01/manifest.json",
+      "sha256": "3ee45a1b5ede2705a5b31b89e3bdd0ccb5d78ce9446a823dd683b26baa6f3ad6"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/compiler.stdout",
+      "path": "capture01/compiler.stdout",
+      "sha256": "78fc11ae2c3ff7c235eb18ed90989d18f6cc864fb27027f839368cd0888deebc"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/upstream.stdout",
+      "path": "capture01/upstream.stdout",
+      "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/capture.py",
+      "path": "capture01/capture.py",
+      "sha256": "3689a77b5c05d3f102d696561d35deccc9a2a91dbb550df591a3fbfd6aa1608a"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/compiler.stderr",
+      "path": "capture01/compiler.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/local-status.stderr",
+      "path": "capture01/local-status.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/probe.c",
+      "path": "capture01/probe.c",
+      "sha256": "47762dae6c4553225815857a6a61334901f059ff47838bc2d667646326f226a6"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/execution.stderr",
+      "path": "capture01/execution.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/execution.stdout",
+      "path": "capture01/execution.stdout",
+      "sha256": "50b6ed8b9549b0b3d2b3f87f3273a7f47fb8540958db912c4d411bad1665b5da"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/compile.stdout",
+      "path": "capture01/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/local-revision.stdout",
+      "path": "capture01/local-revision.stdout",
+      "sha256": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/compile.stderr",
+      "path": "capture01/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table-20261015/probe",
+      "path": "capture01/probe.elf",
+      "sha256": "2711331c891558035ffbb9c1180b6406fb7b4a2970845a4425ab7c38a9adf471"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/local-revision.stderr",
+      "path": "capture02/local-revision.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/local-status.stdout",
+      "path": "capture02/local-status.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/upstream.stderr",
+      "path": "capture02/upstream.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/manifest.json",
+      "path": "capture02/manifest.json",
+      "sha256": "e9736865a3cbaad7c4cc2e931a0b8809c7b8b1ea6b6500316f4c0f485a42f3a8"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/compiler.stdout",
+      "path": "capture02/compiler.stdout",
+      "sha256": "78fc11ae2c3ff7c235eb18ed90989d18f6cc864fb27027f839368cd0888deebc"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/upstream.stdout",
+      "path": "capture02/upstream.stdout",
+      "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/capture.py",
+      "path": "capture02/capture.py",
+      "sha256": "8c46097720273f2eba098974f070ccf6d1cf79efea610bddfcfefc5cb1a14e0e"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/compiler.stderr",
+      "path": "capture02/compiler.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/local-status.stderr",
+      "path": "capture02/local-status.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/probe.c",
+      "path": "capture02/probe.c",
+      "sha256": "5a707eaf1636a75cb3ceb9ffaa8c6dbdc5d59b10bd1eb1f5ee6bee4b0b04bedb"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/execution.stderr",
+      "path": "capture02/execution.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/execution.stdout",
+      "path": "capture02/execution.stdout",
+      "sha256": "c95c1754424cf11e9d8c7a613c47fddb5be9f494e429f36add88113fd364a202"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/compile.stdout",
+      "path": "capture02/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/local-revision.stdout",
+      "path": "capture02/local-revision.stdout",
+      "sha256": "d6871c3697d0a50df0677833206c147f4873986bb59a4317c8509cb433365243"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/compile.stderr",
+      "path": "capture02/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/workspace/name-captures/namespace-subcmd-native-table02-20261015/probe",
+      "path": "capture02/probe.elf",
+      "sha256": "97063a9fbcf5c206151a4b17b2471592e729ef7e556afc2d37f73b7c25ae8a2e"
+    }
+  ]
+}

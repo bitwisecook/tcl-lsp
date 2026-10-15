@@ -419,6 +419,33 @@ pub struct SourceOriginalVariableFrame {
 }
 
 impl SourceOriginalVariableFrame {
+    pub(super) fn from_logical_procedure_source(
+        card: &super::OriginalLogicalProcedureBody,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Self> {
+        let image = card.site().source.source_image();
+        if !card.matches_source(image, input)
+            || card.scope().frame_recipe() != super::OriginalDeclaredSourceBodyFrame::Procedure
+        {
+            return None;
+        }
+        let body = card.scope().scope_body().content_span();
+        let text = image.try_text().ok()?.get(body.as_range())?;
+        let source = super::ExecutedScriptSource::contiguous_image(
+            Arc::clone(&card.site().source),
+            tcl_lexer::SourceImage::document(text),
+            body.start(),
+        )?;
+        let namespace = super::SourceNamespaceKey::authored(
+            tcl_syntax::naming::checked_namespace_path_key(card.scope().namespace_recipe())?,
+        );
+        Some(Self {
+            source,
+            frame: super::declaration_preview::declared_procedure_frame(card.site(), &namespace),
+            config: input.lexer_config(),
+        })
+    }
+
     /// Genuine original procedure/method frame selected by its body recipe.
     #[must_use]
     pub const fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {

@@ -121,6 +121,7 @@ export function initReleasesPanel(deps: ReleasesDeps): void {
       version: suggested,
       entries: reply.entries ?? [],
       skipped: reply.skipped ?? [],
+      unsupportedEncodings: reply.unsupported_encodings ?? [],
     });
     renderReleases();
   }

@@ -622,9 +622,111 @@ pub struct SignatureSourceVariableOccurrence {
     declaration: bool,
     alias: Option<OriginalVariableAliasReceipt>,
     formal: Option<crate::command_binding::formal_topology::OriginalFormalNameRecipe>,
+    logical_scope: Option<crate::command_binding::OriginalLogicalVariableScope>,
 }
 
 impl SignatureSourceVariableOccurrence {
+    pub(crate) fn from_logical_source(
+        span: tcl_lexer::Span,
+        input: SignatureSourceNameInput,
+        receiver: OriginalVariableSymbolReceiver,
+        declaration: bool,
+        scope: crate::command_binding::OriginalLogicalVariableScope,
+        aliases: &[OriginalVariableAliasReceipt],
+    ) -> Option<Self> {
+        if !scope.matches_name(span, &input) {
+            return None;
+        }
+        let namespace = scope.namespace();
+        let protocol = input.policy().recipe();
+        let selected = match receiver.input_form(&input)? {
+            tcl_syntax::naming::NativeVariableInputForm::Combined(bytes) => {
+                protocol.combined_variable_input(bytes)
+            }
+            tcl_syntax::naming::NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        let geometry =
+            protocol.variable_root_geometry(namespace.context()?, selected.root().selected());
+        let symbol = match geometry {
+            NativeVariableRootGeometry::Local(simple) if !scope.namespace_storage() => {
+                if !scope.local_name_is_byte_unique(simple.as_bytes()) {
+                    return None;
+                }
+                let frame = scope.local_frame()?;
+                if aliases
+                    .iter()
+                    .any(|alias| alias.frame() == &frame && alias.local() == &simple)
+                {
+                    return None;
+                }
+                SignatureSourceVariableSymbol::from_original_local_input(&input, frame, simple)
+            }
+            NativeVariableRootGeometry::Local(_) => {
+                let (SignatureNamespaceScope::C(home), NativeNameProtocol::C(version)) =
+                    (&namespace, protocol)
+                else {
+                    return None;
+                };
+                if version.namespace_var_global_fallback() && home != &ByteNamespacePath::root() {
+                    return None;
+                }
+                SignatureSourceVariableSymbol::from_original_input(
+                    &input,
+                    &namespace,
+                    OriginalVariableSymbolPurpose::NamespaceStorage,
+                    receiver,
+                )?
+            }
+            NativeVariableRootGeometry::CNamespace { .. } => {
+                if let (SignatureNamespaceScope::C(home), NativeNameProtocol::C(version)) =
+                    (&namespace, protocol)
+                    && version.namespace_var_global_fallback()
+                    && home != &ByteNamespacePath::root()
+                    && selected.root().qualification()
+                        != tcl_syntax::naming::NativeNameQualification::Absolute
+                {
+                    return None;
+                }
+                SignatureSourceVariableSymbol::from_original_input(
+                    &input,
+                    &namespace,
+                    OriginalVariableSymbolPurpose::QualifiedOnly,
+                    receiver,
+                )?
+            }
+            NativeVariableRootGeometry::JimAbsolute(_) => return None,
+        };
+        Some(Self {
+            span,
+            input,
+            namespace: Some(namespace),
+            receiver,
+            symbol,
+            declaration,
+            alias: None,
+            formal: None,
+            logical_scope: Some(scope),
+        })
+    }
+
+    pub(crate) fn matches_logical_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        self.logical_scope.as_ref().is_none_or(|scope| {
+            scope.matches_source(image, input) && scope.matches_name(self.span, &self.input)
+        })
+    }
+
+    pub(crate) fn has_source_applicability_obligation(&self) -> bool {
+        self.logical_scope
+            .as_ref()
+            .is_some_and(|scope| scope.has_earlier_unknown_mutations())
+    }
+
     pub(crate) fn from_original_namespace_cell(
         span: tcl_lexer::Span,
         input: SignatureSourceNameInput,
@@ -665,6 +767,7 @@ impl SignatureSourceVariableOccurrence {
             declaration,
             alias: None,
             formal: None,
+            logical_scope: None,
         })
     }
 
@@ -688,6 +791,7 @@ impl SignatureSourceVariableOccurrence {
             declaration,
             alias: None,
             formal: None,
+            logical_scope: None,
         })
     }
 
@@ -711,6 +815,7 @@ impl SignatureSourceVariableOccurrence {
             declaration,
             alias: None,
             formal: None,
+            logical_scope: None,
         }
     }
 
@@ -730,6 +835,7 @@ impl SignatureSourceVariableOccurrence {
             declaration: false,
             alias: Some(alias),
             formal: None,
+            logical_scope: None,
         }
     }
     pub(crate) fn from_original_formal_input(
@@ -750,6 +856,7 @@ impl SignatureSourceVariableOccurrence {
             declaration: true,
             alias: None,
             formal: Some(recipe),
+            logical_scope: None,
         }
     }
 
@@ -812,6 +919,7 @@ impl SignatureSourceVariableOccurrence {
             || self.namespace != other.namespace
             || self.alias != other.alias
             || self.formal != other.formal
+            || self.logical_scope != other.logical_scope
             || self.receiver != other.receiver
             || self.symbol != other.symbol
         {

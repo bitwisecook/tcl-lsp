@@ -1,0 +1,31 @@
+{
+  "checked_utc": "2026-10-15T10:15:51.105978+00:00",
+  "local_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "tracked_source_status": "",
+  "config_invocation": "Invoked as: ./configure --prefix=/workspace/tcl-lsp/tmp/jimtcl-oracle/install",
+  "makefile_flags": [
+    "CC =  cc",
+    "AS_CFLAGS += -I. -fno-unwind-tables -fno-asynchronous-unwind-tables -DUSE_UTF8 -DHAVE_OPENPTY",
+    "CFLAGS ?= ",
+    "LDFLAGS = ",
+    "LDLIBS += -lm -lssl -lcrypto  -lz ",
+    "LIBS += ",
+    "prefix ?= /workspace/tcl-lsp/tmp/jimtcl-oracle/install"
+  ],
+  "jim_defines": [
+    "#define JIM_DOCS 1",
+    "#define JIM_INSTALL 1",
+    "#define JIM_IPV6 1",
+    "#define JIM_MATH_FUNCTIONS 1",
+    "#define JIM_REFERENCES 1",
+    "#define JIM_REGEXP 1",
+    "#define JIM_SSL 1",
+    "#define JIM_STATICLIB 1",
+    "#define JIM_TAINT 1",
+    "#define JIM_UTF8 1",
+    "#define JIM_VERSION 84"
+  ],
+  "jim_init": null,
+  "toolchain_owner": "scripts/dev/ensure-jim-oracle.sh",
+  "toolchain_owner_sha256": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07"
+}

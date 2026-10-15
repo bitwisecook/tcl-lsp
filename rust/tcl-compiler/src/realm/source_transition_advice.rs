@@ -87,6 +87,32 @@ impl OriginalSourceTransitionAdviceCache {
     }
 }
 impl super::CommandBindingRealm {
+    pub(crate) fn original_logical_variable_scope_at(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        name: &crate::signature_scan::scope::SignatureSourceNameInput,
+    ) -> Option<crate::command_binding::OriginalLogicalVariableScope> {
+        if !input.has_logical_source_name_context()
+            || self.bindings.original_logical_source_name_advice_input() != Some(input)
+            || !self.matches_resolved_analysis_input(input)
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        prepared
+            .as_ref()
+            .as_ref()?
+            .logical_variable_scope_at(input, image, span, name)
+    }
+
     /// A genuine authored shadow/delete/alias loop bars conditional Registry
     /// source fallback. Missing or unsupported catalogue coordinates do not.
     pub(crate) fn original_source_registry_barrier(

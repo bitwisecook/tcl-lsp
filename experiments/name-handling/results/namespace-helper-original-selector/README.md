@@ -11,10 +11,11 @@ source, configuration, exact invocation and raw channel hashes are in
 An accepted `upv` selector looks up `namespace upv`; replacing only
 `namespace upvar` does not donate that binding. A replacement abbreviated helper
 receives the untouched original argument object. An exact selector with a NUL
-uses the selected CString extent. Public arity diagnostics, counted-prefix NUL
-rejection and the original subcommand-cache header are separately recorded
-stages. The Runtime regression checks nine cases in 18 phases, without claiming
-those other stages or complete native cache/final-free parity.
+uses the selected CString extent, while an abbreviated selector with a NUL
+fails the counted prefix comparison. The Runtime regression checks ten cases in
+20 phases, including that refusal. Public arity diagnostics and the original
+subcommand-cache header remain separate recorded stages; the regression grants
+no complete native cache/final-free parity.
 
 `initial-tool-*` explicitly records a reconstructed exploratory tool transcript;
 the separately compiled C probe and its retained raw channels are the primary

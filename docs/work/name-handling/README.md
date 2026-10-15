@@ -1,5 +1,7 @@
 # Centralised name handling on work
 
+Current continuation: published `551f3b2c1`; fresh complete ordinary build succeeds, original #2286 first PASS68.978s/180s and both readonly Authored controls PASS. Full replays are running, unsealed, while the reviewed second batch awaits Rust validation. Read [current-state.md](current-state.md) before the historical capture descriptions below.
+
 Complete one coherent set of name representations, lookup policies and
 purpose-specific queries across the entire codebase. The starting report is
 [#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286): W210 must understand

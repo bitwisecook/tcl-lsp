@@ -2288,19 +2288,11 @@ impl Namespaces {
         }
     }
 
-    /// The canonical fully-qualified name a (relative/absolute) command `name`
-    /// resolves to, following the full resolution order — or `None` if no such
-    /// command exists. Used to key command/execution traces so they address the
-    /// same binding `resolve` (and `rename`/`delete`) hit.
+    /// Report the selected command's full name. Its generation remains the identity.
     #[must_use]
     pub fn resolve_fqn(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
-        self.home_of(current, name).map(|(ns, simple)| {
-            let q = self.qualified_name(ns);
-            let mut fqn = if q == b"::" { Vec::new() } else { q };
-            fqn.extend_from_slice(b"::");
-            fqn.extend_from_slice(&simple);
-            fqn
-        })
+        self.home_of(current, name)
+            .map(|(namespace, simple)| self.command_fqn(namespace, &simple))
     }
 
     /// Sorted command names in namespace `ns` (`info commands`).
@@ -3335,13 +3327,8 @@ impl Namespaces {
     /// (`namespace which -command`), or `None` if it doesn't resolve.
     #[must_use]
     pub fn which_command(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
-        let (ns, simple) = self.home_of(current, name)?;
-        let mut fqn = self.qualified_name(ns);
-        if ns != GLOBAL {
-            fqn.extend_from_slice(b"::"); // global's qualified_name is already `::`
-        }
-        fqn.extend_from_slice(&simple);
-        Some(fqn)
+        let (namespace, simple) = self.home_of(current, name)?;
+        Some(self.command_fqn(namespace, &simple))
     }
 
     /// `namespace export` — append a pattern (deduplicated). `-clear` first is the

@@ -278,8 +278,14 @@ pub fn dynamic_variable_word_can_spell(
     // this word names is the base — the same split `names_a_dynamic_variable`
     // makes.
     let base = literal_variable_root(word);
-    let pattern = name_word_pattern(base, braced_var);
-    cell_spellings(qualified_cell).any(|spelling| pattern_matches(&pattern, spelling))
+    let pattern = name_word_pattern(
+        base,
+        LexerConfig {
+            braced_var,
+            ..LexerConfig::default()
+        },
+    );
+    cell_spellings(qualified_cell).any(|spelling| pattern_matches(&pattern, &spelling))
 }
 
 /// Source-name pattern purpose. A namespace name has no variable-element
@@ -346,8 +352,82 @@ pub fn source_name_pattern_can_spell(
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> Option<bool> {
     let config = authored_c_pattern_config(metadata)?;
-    let pattern = name_word_pattern(source_pattern_word(word, purpose), config.braced_var);
-    Some(cell_spellings(source_coordinate).any(|spelling| pattern_matches(&pattern, spelling)))
+    let pattern = name_word_pattern(source_pattern_word(word, purpose), config);
+    Some(cell_spellings(source_coordinate).any(|spelling| pattern_matches(&pattern, &spelling)))
+}
+
+/// Conditional overlap of one original command-name operand and a constructed
+/// Logical source coordinate. Unknown substitutions remain possible targets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OriginalCommandNameOverlap {
+    pub(crate) may_equal: bool,
+    pub(crate) dynamic: bool,
+    pub(crate) empty: bool,
+}
+
+pub(crate) fn original_command_name_overlap(
+    word: &tcl_lexer::NativeWord,
+    coordinate: &str,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<OriginalCommandNameOverlap> {
+    let config = authored_c_pattern_config(metadata)?;
+    if word.config() != config || word.group().expand {
+        return None;
+    }
+    if let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(word) {
+        let value = std::str::from_utf8(&value).ok()?;
+        if value.contains('\0') {
+            return None;
+        }
+        return Some(OriginalCommandNameOverlap {
+            may_equal: tcl_syntax::naming::qualify("::", value) == coordinate
+                || (!tcl_syntax::naming::is_qualified(value.as_bytes())
+                    && tcl_syntax::naming::key_tail(coordinate) == value),
+            dynamic: false,
+            empty: value.is_empty(),
+        });
+    }
+    let arena = word.executable_parts();
+    let mut rest = coordinate;
+    for part in arena.list(arena.root()) {
+        match part.part {
+            tcl_lexer::ExecutablePart::Text(_) => {
+                let text = std::str::from_utf8(arena.bytes(part.span)?).ok()?;
+                if text.contains(['\\', '\0']) {
+                    return Some(OriginalCommandNameOverlap {
+                        may_equal: true,
+                        dynamic: true,
+                        empty: false,
+                    });
+                }
+                let literal = tcl_syntax::naming::canonical_written_command(text.trim_matches(':'));
+                let Some(offset) = rest.find(&literal) else {
+                    return Some(OriginalCommandNameOverlap {
+                        may_equal: false,
+                        dynamic: true,
+                        empty: false,
+                    });
+                };
+                rest = &rest[offset + literal.len()..];
+            }
+            tcl_lexer::ExecutablePart::Variable { index: Some(_), .. }
+            | tcl_lexer::ExecutablePart::ParseError(_) => {
+                return Some(OriginalCommandNameOverlap {
+                    may_equal: true,
+                    dynamic: true,
+                    empty: false,
+                });
+            }
+            tcl_lexer::ExecutablePart::Variable { .. }
+            | tcl_lexer::ExecutablePart::Command { .. }
+            | tcl_lexer::ExecutablePart::Expression { .. } => {}
+        }
+    }
+    Some(OriginalCommandNameOverlap {
+        may_equal: true,
+        dynamic: true,
+        empty: false,
+    })
 }
 
 /// One piece of a variable-name word: a run of literal characters, or a
@@ -365,71 +445,71 @@ enum NamePiece {
 /// substitution canonicalised to `${name}`) or as a token's verbatim
 /// spelling, so both are recognised — the same double spelling
 /// [`names_a_dynamic_variable`] documents.
-fn name_word_pattern(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<NamePiece> {
-    let bytes = word.as_bytes();
-    let mut pieces: Vec<NamePiece> = Vec::new();
-    let mut literal = String::new();
-    let mut i = 0usize;
-    let push_wildcard = |pieces: &mut Vec<NamePiece>, literal: &mut String| {
-        if !literal.is_empty() {
-            pieces.push(NamePiece::Literal(std::mem::take(literal)));
-        }
-        if pieces.last() != Some(&NamePiece::Wildcard) {
-            pieces.push(NamePiece::Wildcard);
-        }
+fn name_word_pattern(word: &str, config: LexerConfig) -> Vec<NamePiece> {
+    use tcl_lexer::{ExecutablePart, ExecutablePartArena, SourceImage, Span};
+    let Some(length) = u32::try_from(word.len()).ok() else {
+        return vec![NamePiece::Wildcard];
     };
-    while i < bytes.len() {
-        match bytes[i] {
-            b'$' if i + 1 < bytes.len() && bytes[i + 1] == b'{' => {
-                // The name starts just past the `${`. An unterminated
-                // reference has no closer, so the wildcard runs to the end of
-                // the word — which is what a lenient tokeniser does with it.
-                i = match tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var) {
-                    tcl_lexer::BracedVarEnd::Closed(end) => end + 1,
-                    tcl_lexer::BracedVarEnd::Unterminated => bytes.len(),
+    let Ok(arena) = ExecutablePartArena::decompose(
+        SourceImage::document(word),
+        Span::new(0, length),
+        tcl_lexer::word_parts::SubstFlags::default(),
+        config,
+    ) else {
+        return vec![NamePiece::Wildcard];
+    };
+    let mut pieces = Vec::new();
+    for component in arena.list(arena.root()) {
+        match component.part {
+            ExecutablePart::Text(_) => {
+                let Some(text) = arena
+                    .bytes(component.span)
+                    .and_then(|text| std::str::from_utf8(text).ok())
+                else {
+                    return vec![NamePiece::Wildcard];
                 };
-                push_wildcard(&mut pieces, &mut literal);
-            }
-            b'$' => {
-                i += 1;
-                while i < bytes.len()
-                    && (bytes[i].is_ascii_alphanumeric()
-                        || bytes[i] == b'_'
-                        || (bytes[i] == b':' && bytes.get(i + 1) == Some(&b':')))
-                {
-                    i += if bytes[i] == b':' { 2 } else { 1 };
+                if text.contains(['\\', '\0']) {
+                    return vec![NamePiece::Wildcard];
                 }
-                push_wildcard(&mut pieces, &mut literal);
-            }
-            b'[' => {
-                let mut depth = 0usize;
-                while i < bytes.len() {
-                    match bytes[i] {
-                        b'[' => depth += 1,
-                        b']' => {
-                            depth -= 1;
-                            if depth == 0 {
-                                i += 1;
-                                break;
-                            }
-                        }
-                        _ => {}
-                    }
-                    i += 1;
+                if !text.is_empty() {
+                    pieces.push(NamePiece::Literal(text.to_owned()));
                 }
-                push_wildcard(&mut pieces, &mut literal);
             }
-            _ => {
-                let ch_len = word[i..].chars().next().map_or(1, char::len_utf8);
-                literal.push_str(&word[i..i + ch_len]);
-                i += ch_len;
+            ExecutablePart::Variable { .. }
+            | ExecutablePart::Command { .. }
+            | ExecutablePart::Expression { .. } => {
+                pieces.push(NamePiece::Wildcard);
             }
+            ExecutablePart::ParseError(_) => return vec![NamePiece::Wildcard],
         }
     }
-    if !literal.is_empty() {
-        pieces.push(NamePiece::Literal(literal));
+    if pieces
+        .iter()
+        .any(|piece| matches!(piece, NamePiece::Wildcard))
+    {
+        pieces
+            .into_iter()
+            .filter_map(|piece| match piece {
+                NamePiece::Literal(text) => {
+                    let literal =
+                        tcl_syntax::naming::canonical_written_command(text.trim_matches(':'));
+                    (!literal.is_empty()).then_some(NamePiece::Literal(literal))
+                }
+                NamePiece::Wildcard => Some(NamePiece::Wildcard),
+            })
+            .collect()
+    } else {
+        let literal: String = pieces
+            .into_iter()
+            .filter_map(|piece| match piece {
+                NamePiece::Literal(text) => Some(text),
+                NamePiece::Wildcard => None,
+            })
+            .collect();
+        vec![NamePiece::Literal(
+            tcl_syntax::naming::canonical_written_command(&literal),
+        )]
     }
-    pieces
 }
 
 /// Every way `qualified_cell` can be written at a use site: the rooted name
@@ -439,13 +519,14 @@ fn name_word_pattern(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec
 /// relative ones a site inside an enclosing namespace would use.  Over-wide
 /// on purpose: a spelling that could not actually resolve to this cell from
 /// some site only ever adds a refusal, never removes one.
-fn cell_spellings(qualified_cell: &str) -> impl Iterator<Item = &str> {
-    let unrooted = tcl_syntax::naming::unroot_rooted_key(qualified_cell);
-    let rooted = unrooted.is_some();
-    let bare = unrooted.unwrap_or(qualified_cell);
-    std::iter::once(qualified_cell)
-        .chain(std::iter::once(bare).filter(move |_| rooted))
-        .chain(bare.match_indices("::").map(|(at, _)| &bare[at + 2..]))
+fn cell_spellings(qualified_cell: &str) -> impl Iterator<Item = String> {
+    let mut suffixes = tcl_syntax::naming::key_suffixes(qualified_cell);
+    if tcl_syntax::naming::key_tail(qualified_cell).is_empty()
+        && !suffixes.iter().any(String::is_empty)
+    {
+        suffixes.push(String::new());
+    }
+    suffixes.into_iter()
 }
 
 /// Wildcard match — `NamePiece::Wildcard` is `*`, literals must appear in
@@ -1684,6 +1765,16 @@ mod tests {
             input.lexer_config(),
             Some(input.unit_profile()),
         );
+        for purpose in [VariableRoot, NamespaceName] {
+            assert_eq!(
+                source_name_pattern_can_spell("a:::$x:b", "::a::b", purpose, metadata),
+                Some(true)
+            );
+            assert_eq!(
+                source_name_pattern_can_spell("a:::$x:b", "::a::OTHER", purpose, metadata),
+                Some(false)
+            );
+        }
         assert_eq!(
             source_name_word_is_dynamic("a($key)", VariableRoot, metadata),
             Some(false)

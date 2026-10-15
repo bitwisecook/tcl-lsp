@@ -65,15 +65,16 @@ impl std::io::Write for Capture {
 /// Compile and run `script` on a fresh VM, returning the captured `puts` output.
 /// A non-OK completion (error / uncaught return) appends its message so the host
 /// observes failures rather than a silent empty result.
-fn run(script: &str) -> Vec<u8> {
+fn run(script: &[u8]) -> Vec<u8> {
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     // On a non-OK completion, append the message so the host sees the failure.
-    let trailer = match vm.eval_source(script) {
+    let source = tcl_lexer::SourceImage::from_bytes(script, tcl_lexer::SourceChannel::Document);
+    let trailer = match vm.try_eval_source_image(&source) {
         Ok(comp) if comp.code.is_ok() => None,
         Ok(comp) => Some(tcl_vm::TclError::from_completion(comp)),
-        Err(error) => Some(error),
+        Err(error) => Some(tcl_vm::TclError::from_execution_failure(error)),
     };
     let mut out = buf.borrow().clone();
     if let Some(error) = trailer {
@@ -136,18 +137,17 @@ pub unsafe extern "C" fn tcl_dealloc(ptr: *mut u8, len: usize) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tcl_eval(ptr: *const u8, len: usize) -> u64 {
     let script = if ptr.is_null() || len == 0 {
-        String::new()
+        &[]
     } else {
         // SAFETY: the caller guarantees `ptr`/`len` is a readable span.
-        let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
-        String::from_utf8_lossy(bytes).into_owned()
+        unsafe { std::slice::from_raw_parts(ptr, len) }
     };
-    into_packed(run(&script))
+    into_packed(run(script))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::append_failure;
+    use super::{append_failure, run};
     use tcl_vm::TclError;
 
     #[test]
@@ -169,5 +169,21 @@ mod tests {
         append_failure(&mut output, &error);
         assert_eq!(output, expected);
         assert!(error.guest_completion().is_none());
+    }
+
+    #[test]
+    fn byte_source_preserves_distinct_opaque_and_replacement_names() {
+        assert_eq!(
+            run(b"set {name\xff} ORIGINAL; set {name\xef\xbf\xbd} REPLACEMENT; puts [set {name\xff}]; puts [set {name\xef\xbf\xbd}]"),
+            b"ORIGINAL\nREPLACEMENT\n"
+        );
+    }
+
+    #[test]
+    fn byte_source_keeps_unicode_names_and_document_continuations() {
+        assert_eq!(
+            run("set {caf\u{e9}\\\r\nname} VALUE; puts [set {caf\u{e9} name}]".as_bytes()),
+            b"VALUE\n"
+        );
     }
 }

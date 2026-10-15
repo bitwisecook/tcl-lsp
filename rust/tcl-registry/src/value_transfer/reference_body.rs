@@ -989,13 +989,21 @@ mod tests {
                 Err(Inexpressible::Variable(name.into()))
             );
         }
-        for reference in ["$a($::g)", "$a($b($::g))", "$a({$::g})"] {
+        for reference in ["$a($::g)", "$a($b($::g))"] {
             let definition = format!("proc vendor::f {{}} {{expr {{{reference}}}}}");
             assert_eq!(
                 derived(&definition),
                 Err(Inexpressible::Variable("::g".into()))
             );
         }
+        assert_eq!(
+            expression_text("$a({$::g})", 0, LexerConfig::for_dialect("tcl8.6")),
+            Err(Inexpressible::Variable("::g".into()))
+        );
+        assert_eq!(
+            expression_text("$a({$::g})", 0, LexerConfig::for_dialect("tcl9.0")),
+            Err(Inexpressible::Unreadable)
+        );
         for reference in ["${a{b}}", "$a($b)", "${}"] {
             let definition = format!("proc vendor::f {{}} {{expr {{{reference}}}}}");
             assert!(derived(&definition).is_ok(), "{reference}");

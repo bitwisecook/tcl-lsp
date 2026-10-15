@@ -43,12 +43,15 @@ export interface Release {
   entries: ReleaseEntry[];
   /** Members the extractor did not take, and why. */
   skipped: string[];
+  /** Extracted previews that cannot represent the original source names. */
+  unsupportedEncodings?: string[];
 }
 
 /** `unzip_entries`'s reply. */
 export interface UnzipResult {
   entries: ReleaseEntry[];
   skipped: string[];
+  unsupported_encodings?: string[];
   members: number;
   bytes: number;
   error?: string;
@@ -104,6 +107,11 @@ export function validateReleases(releases: Release[]): string[] {
     if (release.entries.length === 0) {
       problems.push(`${release.origin} yielded no Tcl sources.`);
     }
+    if (release.unsupportedEncodings?.length) {
+      problems.push(
+        `${release.origin} contains Tcl sources that are not UTF-8: ${release.unsupportedEncodings.join(", ")}.`,
+      );
+    }
     const count = (seen.get(release.version.trim()) ?? 0) + 1;
     seen.set(release.version.trim(), count);
   }
@@ -121,6 +129,9 @@ export function snapshotsJson(releases: Release[]): string {
     releases.map((release) => ({
       version: release.version.trim(),
       files: release.entries.map((entry) => ({ name: entry.name, text: entry.text })),
+      ...(release.unsupportedEncodings === undefined
+        ? {}
+        : { unsupported_encodings: release.unsupportedEncodings }),
     })),
   );
 }

@@ -1,0 +1,14 @@
+{
+  "question": "Q-COLON-WILDCARD-BOUNDARY-01",
+  "phase": "setup failed before semantic commands",
+  "input_sha256": "bbfe8b37eeedf0557c2f7fb88c04418d0356aa2e8c718f8f53a3021dde06ae3c",
+  "provider": "8.4.20",
+  "invocation": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/compiler-colon-oracle/capture02/probe.tcl"
+  ],
+  "exit_code": 1,
+  "stdout_sha256": "1c395f7e795070528bc3e005b1f8baff159deaca23e3f9e2a6b3def0ba0cda20",
+  "stderr_sha256": "ad9cafaf7c8133029e6d3df32f81f649521b4a272a5096d7265ccbbf0d6c3cda",
+  "reason": "Tcl 8.4 rejects rb open access mode; no lookup observation from this attempt"
+}

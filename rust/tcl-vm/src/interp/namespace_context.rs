@@ -139,9 +139,22 @@ impl OriginalJimNamespaceContext {
 
     /// A reached original namespace operation owns this getter independently of capture.
     pub(crate) fn materialize(&self, vm: &mut Vm) -> Result<NsId, CmdError> {
+        self.materialize_using(vm, &|_| Ok(()))
+    }
+
+    pub(crate) fn materialize_using(
+        &self,
+        vm: &mut Vm,
+        check: &impl Fn(&mut Vm) -> Result<(), CmdError>,
+    ) -> Result<NsId, CmdError> {
         self.check_owner(vm)?;
-        let bytes = vm.native_name_operand_bytes_checked(self.original())?;
+        check(vm)?;
+        let bytes = vm.native_name_operand_bytes_checked_using(self.original(), &|vm| {
+            self.check_owner(vm)?;
+            check(vm)
+        })?;
         self.check_owner(vm)?;
+        check(vm)?;
         let selected = self
             .policy
             .recipe()
@@ -151,6 +164,7 @@ impl OriginalJimNamespaceContext {
         self.check_owner(vm)?;
         *self.materialized.borrow_mut() = Some((NameBytes::from(bytes.as_ref()), token));
         vm.note_original_jim_namespace_materialized(self, token);
+        check(vm)?;
         Ok(token)
     }
 }

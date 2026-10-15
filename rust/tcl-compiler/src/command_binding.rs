@@ -124,7 +124,9 @@ pub use source_declared_command::{
 };
 mod declaration_body_ownership;
 mod declaration_layout;
+mod logical_variable_scope;
 pub use declaration_layout::SourceOriginalVariableFrame;
+pub(crate) use logical_variable_scope::OriginalLogicalVariableScope;
 mod declaration_preview;
 mod source_read_scope;
 pub(crate) use declaration_preview::OriginalProcedureReadDeclaration;

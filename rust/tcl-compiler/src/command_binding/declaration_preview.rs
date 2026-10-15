@@ -2153,7 +2153,7 @@ fn native_procedure_read_recipe(
     })
 }
 
-fn declared_procedure_frame(
+pub(super) fn declared_procedure_frame(
     site: &CommandAllocationSite,
     namespace: &super::SourceNamespaceKey,
 ) -> crate::var_resolve::VariableExecutionFrame {

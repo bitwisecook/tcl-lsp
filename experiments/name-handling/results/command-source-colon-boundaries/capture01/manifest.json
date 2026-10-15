@@ -1,0 +1,137 @@
+{
+  "question": "Q-COLON-WILDCARD-BOUNDARY-01",
+  "input": "probe.tcl",
+  "input_sha256": "e6640b6d7f0dcfbf133268257f41f9f6a766ebb4a4c582ea0ebd5e165033f030",
+  "captured_utc": "2026-10-15T10:27:32.179824+00:00",
+  "harness": "Standalone original interpreter; no tcltest package or replacement harness",
+  "runs": [
+    {
+      "provider": "8.4",
+      "pin": "8.4.20",
+      "upstream_tag": "core-8-4-20",
+      "source_revision": null,
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/compiler-colon-oracle/probe.tcl"
+      ],
+      "removed_environment": [
+        "TCL_LIBRARY"
+      ],
+      "exit_code": 0,
+      "stdout": "8.4.stdout",
+      "stdout_sha256": "87b7f2cce4333f7a43692ff876687d35de5cc796d02c71e13241681a226eeffc",
+      "stderr": "8.4.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclParse.c": "9165a6e94c18e7af7677bcb7071f89051bbdd46a3295017ddb7ee841d66920ca",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/config.status": "5f20d08e64ba06ce50c7a014f79af3c19db5793d8cf7e9f97990b04796de28a5"
+      }
+    },
+    {
+      "provider": "8.5",
+      "pin": "8.5.19",
+      "upstream_tag": "core-8-5-19",
+      "source_revision": null,
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/compiler-colon-oracle/probe.tcl"
+      ],
+      "removed_environment": [
+        "TCL_LIBRARY"
+      ],
+      "exit_code": 0,
+      "stdout": "8.5.stdout",
+      "stdout_sha256": "9501fa514b02aad7c2f4b37451494575ec1e18ad5d9800e9058b50b444437418",
+      "stderr": "8.5.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclParse.c": "4855b382f7acc6e02e53383f667169a6a9d348a30b44c586c8622e97f34a3a8c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/config.status": "3d068b5b70a8f4617ee7635482b398a90537e37f9c7025942d6ea424db581d3b"
+      }
+    },
+    {
+      "provider": "8.6",
+      "pin": "8.6.18",
+      "upstream_tag": "core-8-6-18",
+      "source_revision": "git-2d456966b4619af28250e73e8585e4dac49be454",
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/compiler-colon-oracle/probe.tcl"
+      ],
+      "removed_environment": [
+        "TCL_LIBRARY"
+      ],
+      "exit_code": 0,
+      "stdout": "8.6.stdout",
+      "stdout_sha256": "8944aca7b2121a8178bda292517d00f4833502d8f923d28713bfb2caa95dd60e",
+      "stderr": "8.6.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/manifest.uuid": "61471cb15b13a675ba7787a7a34a5a66f1fd96959b1ad2c9c03cc63b84115699",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclParse.c": "bbab97189d8d3e1ccca11a1bb02cc2c8c6099c7ba33d3f35de4e614a7ba8bfb6",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/config.status": "fc33bbbef6079670b857a0cae2fb3ea17d7aaec16dc0730cc016381d91170685"
+      }
+    },
+    {
+      "provider": "9.0",
+      "pin": "9.0.4",
+      "upstream_tag": "core-9-0-4",
+      "source_revision": "git-2d456966b4619af28250e73e8585e4dac49be454",
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/compiler-colon-oracle/probe.tcl"
+      ],
+      "removed_environment": [
+        "TCL_LIBRARY"
+      ],
+      "exit_code": 0,
+      "stdout": "9.0.stdout",
+      "stdout_sha256": "427d3c9130bfa261ae3c1b5acbd594d1c34c41e6fee8608ab35de364f331a281",
+      "stderr": "9.0.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "56c3c4561cf3675a5fed0943b4157d9cfe9c646ab2d94cb504fa02fbd34ef322",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/manifest.uuid": "61471cb15b13a675ba7787a7a34a5a66f1fd96959b1ad2c9c03cc63b84115699",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclParse.c": "5937f0c6d669c1e1848a739f40e5d22b21a443a2da83e8b292c3e023bb8e59e0",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/config.status": "b0aee444683959d0d2f2d28811cb6598e1b606b6863d99ee20a999690d6f0e18"
+      }
+    },
+    {
+      "provider": "9.1",
+      "pin": "9.1.0",
+      "upstream_tag": "core-9-1-0",
+      "source_revision": "git-2d456966b4619af28250e73e8585e4dac49be454",
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/compiler-colon-oracle/probe.tcl"
+      ],
+      "removed_environment": [
+        "TCL_LIBRARY"
+      ],
+      "exit_code": 0,
+      "stdout": "9.1.stdout",
+      "stdout_sha256": "fd809eb70dd9a644bd7e8454f1334f95a59c2124f50bf316c7d1fa184680095f",
+      "stderr": "9.1.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "3c5cc3c4a5acbe7e8acd832043d6884e41dcdfefe89da13b50e5c56d1a607835",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/manifest.uuid": "61471cb15b13a675ba7787a7a34a5a66f1fd96959b1ad2c9c03cc63b84115699",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclParse.c": "914176e1d5a1fb79630a45f5f45df438da9943281751855057caa17e921b969f",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/config.status": "e59283743ca43cba3de2c60e21ed43943b12fc1d0bda91c3067eef0330aa45ba"
+      }
+    }
+  ]
+}

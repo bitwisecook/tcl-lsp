@@ -1,0 +1,6 @@
+illegal access mode "rb"
+    while executing
+"open [file join [info library] init.tcl] rb"
+    invoked from within
+"set loaded [open [file join [info library] init.tcl] rb]"
+    (file "/tmp/compiler-colon-oracle/capture02/probe.tcl" line 2)

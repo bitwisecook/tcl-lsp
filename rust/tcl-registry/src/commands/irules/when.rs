@@ -25,9 +25,9 @@ use tcl_dialect::model::SpecSurface;
 ///
 /// The last argument is always the event-handler body.  The
 /// optional `priority` token sits between `EVENT` and `BODY`.
-fn when_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() >= 2
-        && let Ok(idx) = u8::try_from(args.len() - 1)
+fn when_arg_roles(argument_count: usize) -> Vec<(u8, ArgRole)> {
+    if argument_count >= 2
+        && let Ok(idx) = u8::try_from(argument_count - 1)
     {
         return vec![(idx, ArgRole::Body)];
     }
@@ -76,7 +76,7 @@ pub const fn spec() -> CommandSpec {
         surface: Some(SpecSurface::IRULES),
         event_handler_priority: Some(BIGIP_EVENT_HANDLER_PRIORITY),
         arity: Arity::new(2, 6),
-        arg_role_resolver: Some(when_arg_roles),
+        arg_role_count_resolver: Some(when_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         // The event name (argument 0) is the handler's outline entry: an
         // iRule's structure *is* its `when` blocks, so the outline, the
@@ -130,5 +130,55 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_body_roles_require_cardinality_and_preserve_unknown_values() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let context = crate::model::ingress::static_context_for("f5-irules");
+        for arguments in [
+            vec![Literal("HTTP_REQUEST"), Dynamic],
+            vec![
+                Literal("HTTP_REQUEST"),
+                Literal("priority"),
+                Literal("10"),
+                Dynamic,
+            ],
+        ] {
+            let resolution =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(Literal("when"), &arguments),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            let selected = resolution.resolved().unwrap();
+            assert_eq!(
+                selected.authored_source_argument_roles(),
+                (
+                    vec![(u8::try_from(arguments.len() - 1).unwrap(), ArgRole::Body)],
+                    true
+                )
+            );
+        }
+        let arguments = [Literal("HTTP_REQUEST"), Expanded];
+        let resolution = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            crate::InvocationWords::structured(Literal("when"), &arguments),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        assert!(
+            !resolution
+                .resolved()
+                .unwrap()
+                .authored_source_argument_roles()
+                .1
+        );
     }
 }

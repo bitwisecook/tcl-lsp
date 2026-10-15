@@ -880,7 +880,7 @@ impl OriginalSourceTransitionAdviceTape {
             source_class::merge_receipt(&mut self.logical_callbacks, offset, receipt);
         }
         for (offset, candidate) in other.logical_navigation {
-            source_class::merge_receipt(&mut self.logical_navigation, offset, candidate);
+            self.merge_logical_navigation(offset, candidate);
         }
         for (offset, candidate) in other.logical_absolute_navigation {
             source_class::merge_receipt(&mut self.logical_absolute_navigation, offset, candidate);

@@ -1,0 +1,144 @@
+{
+  "question_ids": [
+    "reference-body-braced-qualified-name",
+    "reference-body-index-brace-substitution"
+  ],
+  "captured_utc": "2026-10-15T10:32:26.637137+00:00",
+  "probe_sha256": "5bd31c8a6b153484882bc1d47e7a2296c92d545e88d7b10a3bb701589381fa4b",
+  "toolchain_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "runs": [
+    {
+      "provider": "8.4.20",
+      "revision": "core-8-4-20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/reference-body-source-variable-geometry/probe.tcl"
+      ],
+      "exit_code": 0,
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclParse.c": "9165a6e94c18e7af7677bcb7071f89051bbdd46a3295017ddb7ee841d66920ca",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/config.log": "0833f6c32bfc4dc4c41f111b354f4ac523e4c5f798faf9dcbd94e145de212ee1",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "fc51767f4b4eedbfc6511104919f5b674a826421ff3aa086b5fb0afba91096bd"
+      },
+      "stdout_sha256": "ae12d4db24a5533fa95184ade1ecc1a0b83b8537e53fa998fc8f921243fe33ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_override": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "input_drift": {}
+    },
+    {
+      "provider": "8.5.19",
+      "revision": "core-8-5-19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/reference-body-source-variable-geometry/probe.tcl"
+      ],
+      "exit_code": 0,
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclParse.c": "4855b382f7acc6e02e53383f667169a6a9d348a30b44c586c8622e97f34a3a8c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/config.log": "1f3dd6e12dfc9c1619ee9cf6e1f6bccd94bddfacbcd1031cbddd3a199d12ed62",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "d75f646667cb61a345ba3b296378820ab645dd64a2dfc4086a7a4fc1f3aefd30"
+      },
+      "stdout_sha256": "c880dfc8961e72883589490d4de4248a920556d12f851ae2cfcb49e4337f283c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_override": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "input_drift": {}
+    },
+    {
+      "provider": "8.6.18",
+      "revision": "core-8-6-18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/reference-body-source-variable-geometry/probe.tcl"
+      ],
+      "exit_code": 0,
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclParse.c": "bbab97189d8d3e1ccca11a1bb02cc2c8c6099c7ba33d3f35de4e614a7ba8bfb6",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/config.log": "11d04c4a26d44311342a7e51f8bf88e8a9454cbfb9806d22b4f97d909f21c3d3",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "ac121978b4dbd1527781dc7553d4b25e1a75d296604932ef80e7d01273a0715d"
+      },
+      "stdout_sha256": "d3f3d88c664f62e8a7b9475768705aa33169a1f91a5d84f6ba421211f958a297",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_override": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "input_drift": {}
+    },
+    {
+      "provider": "9.0.4",
+      "revision": "core-9-0-4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/reference-body-source-variable-geometry/probe.tcl"
+      ],
+      "exit_code": 0,
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "56c3c4561cf3675a5fed0943b4157d9cfe9c646ab2d94cb504fa02fbd34ef322",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclParse.c": "5937f0c6d669c1e1848a739f40e5d22b21a443a2da83e8b292c3e023bb8e59e0",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/config.log": "0b4f91e57e47ca3889ff0274a91dd3df27dd3bf8a3927495ae0a500fbfe832f0",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "d0fda2d7c3742ba16f99e593167d24a35c7c6ed881b6e0408798314dcc3ffe60"
+      },
+      "stdout_sha256": "589b6ee2944cb3a6e85a5281bba8a660226f9cff67d49abf6c4affca69e2f011",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_override": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "input_drift": {}
+    },
+    {
+      "provider": "9.1.0",
+      "revision": "core-9-1-0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/reference-body-source-variable-geometry/probe.tcl"
+      ],
+      "exit_code": 0,
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "3c5cc3c4a5acbe7e8acd832043d6884e41dcdfefe89da13b50e5c56d1a607835",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclParse.c": "914176e1d5a1fb79630a45f5f45df438da9943281751855057caa17e921b969f",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/config.log": "f79d27bd924408facc1d2d1981d86cb912b14402823b61ae04c9e97598aa1288",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "4cee42f5d43f79a8fd3b7c4891fe8f2c3c1246d8d94b094e49f23b3eb5526faf"
+      },
+      "stdout_sha256": "0a0b03ff6a34cb7f4ad2ca8c13b1afa42309738a74825dfa75833617df282dfa",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_override": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "input_drift": {}
+    },
+    {
+      "provider": "Jim",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/reference-body-source-variable-geometry/probe.tcl"
+      ],
+      "exit_code": 0,
+      "inputs": {
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimautoconf.h": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/config.log": "4d8d3ff0b667514e46b7d95c57c59706202db4b0fd8ba49693de2cc220edcf52",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/libjim.a": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61"
+      },
+      "stdout_sha256": "bad9d181061f6b45e0bbfa6237b2d8686a848c8f532b4f5ad2f8a594fca2a5a4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_override": null,
+      "input_drift": {}
+    }
+  ],
+  "harness": "Direct original interpreters; no Tcltest invoked",
+  "build_owner": "scripts/dev/ensure-test-deps.sh; scripts/dev/ensure-jim-oracle.sh"
+}

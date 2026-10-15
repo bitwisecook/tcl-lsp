@@ -562,99 +562,6 @@ fn join_parameterised_class_observations(
     Some(joined)
 }
 
-/// Whether a substituted command-name word could produce `candidate`.
-///
-/// The answer is deliberately one-sided: `false` is returned only when a
-/// literal fragment of `word` cannot occur in `candidate`, in order. Every
-/// variable/command/backslash substitution is an unconstrained wildcard.
-/// This lets a command-table trust query distinguish
-/// `${ns}::define::$method` from `::string` without guessing either
-/// substitution, while `$name` remains compatible with every command.
-fn dynamic_command_name_may_equal(word: &str, candidate: &str) -> bool {
-    if !tcl_syntax::naming::is_dynamic_word(word) {
-        let unqualified = !word.contains("::");
-        let rooted_word = crate::naming::qualify("::", word);
-        return rooted_word == candidate
-            || (unqualified && tcl_syntax::naming::key_tail(candidate) == word);
-    }
-
-    let mut fragments = Vec::new();
-    let mut literal = String::new();
-    let mut chars = word.char_indices().peekable();
-    'scan: while let Some((_, ch)) = chars.next() {
-        match ch {
-            '$' => {
-                if !literal.is_empty() {
-                    fragments.push(std::mem::take(&mut literal));
-                }
-                if chars.peek().is_some_and(|(_, next)| *next == '{') {
-                    chars.next();
-                    for (_, next) in chars.by_ref() {
-                        if next == '}' {
-                            break;
-                        }
-                    }
-                } else {
-                    while chars.peek().is_some_and(|(_, next)| {
-                        next.is_alphanumeric() || matches!(*next, '_' | ':')
-                    }) {
-                        chars.next();
-                    }
-                    if chars.peek().is_some_and(|(_, next)| *next == '(') {
-                        // Array indices have their own substitution grammar.
-                        // The prefix fragments are still fixed; the remainder
-                        // is conservatively unconstrained.
-                        break 'scan;
-                    }
-                }
-            }
-            '[' => {
-                if !literal.is_empty() {
-                    fragments.push(std::mem::take(&mut literal));
-                }
-                // A quoted/escaped `]` makes bracket peeling a Tcl parser's
-                // job. Treat the whole suffix as wildcard instead of risking
-                // a false fixed fragment after the wrong closer.
-                break;
-            }
-            '\\' => {
-                if !literal.is_empty() {
-                    fragments.push(std::mem::take(&mut literal));
-                }
-                // Backslash-newline also consumes following whitespace.
-                // Discard the suffix rather than claim any of it is fixed.
-                break;
-            }
-            _ => literal.push(ch),
-        }
-    }
-    if !literal.is_empty() {
-        fragments.push(literal);
-    }
-
-    let mut tail = candidate;
-    for fragment in fragments {
-        let mut canonical = String::with_capacity(fragment.len());
-        let mut chars = fragment.chars().peekable();
-        while let Some(ch) = chars.next() {
-            if ch != ':' || chars.peek() != Some(&':') {
-                canonical.push(ch);
-                continue;
-            }
-            canonical.push_str("::");
-            while chars.peek() == Some(&':') {
-                chars.next();
-            }
-        }
-        let fragment = canonical;
-        let Some(pos) = tail.find(fragment.as_str()) else {
-            return false;
-        };
-        tail = &tail[pos + fragment.len()..];
-    }
-    true
-}
-
 /// What one statement of an unknown-dispatch body proves — see
 /// [`Analyser::unknown_dispatch_binds_instance`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9219,7 +9126,8 @@ impl Analyser {
                     vec![word.clone()]
                 };
                 for name in names {
-                    let base = name.split_once('(').map_or(name.as_str(), |(base, _)| base);
+                    let base = tcl_syntax::naming::split_element_ref(&name)
+                        .map_or(name.as_str(), |(base, _)| base);
                     env.remove(base);
                 }
             }
@@ -9437,17 +9345,50 @@ impl Analyser {
             {
                 continue;
             }
-            let args = seg.args();
-            for transition in
-                command_table_transitions(registry, seg.name(), args).command_bindings()
-            {
+            let Some(original) =
+                crate::registry_invocation::source_structure::source_registry_words(
+                    &self.source,
+                    &self.result,
+                    &seg,
+                )
+            else {
+                return false;
+            };
+            let Some(transitions) = original.with_source_schema(&context, |schema| {
+                schema
+                    .semantics
+                    .state_transitions
+                    .resolve_after_success_with_effect_coverage(schema.words.arguments())
+                    .0
+            }) else {
+                return false;
+            };
+            let input = self
+                .result
+                .resolved_input
+                .as_ref()
+                .expect("checked original source input");
+            let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                registry,
+                input,
+                self.file_lexer_config(),
+                Some(input.unit_profile()),
+            );
+            let overlap = |subject: &tcl_registry::TransitionSubject| {
+                crate::dynamic_names::original_command_name_overlap(
+                    original.original_argument_word(subject.argument_index()?)?,
+                    query,
+                    metadata,
+                )
+            };
+            for transition in transitions.command_bindings() {
                 match transition {
                     tcl_registry::CommandBindingTransition::Define { name, .. } => {
-                        let Some(name) = crate::alias::subject_word(name, args) else {
+                        let Some(name) = overlap(name) else {
                             return false;
                         };
-                        if dynamic_command_name_may_equal(name, query) {
-                            if tcl_syntax::naming::is_dynamic_word(name) {
+                        if name.may_equal {
+                            if name.dynamic {
                                 return false;
                             }
                             matching_declarations += 1;
@@ -9457,27 +9398,19 @@ impl Analyser {
                         }
                     }
                     tcl_registry::CommandBindingTransition::Move { from, to } => {
-                        let (Some(old), Some(new)) = (
-                            crate::alias::subject_word(from, args),
-                            crate::alias::subject_word(to, args),
-                        ) else {
+                        let (Some(old), Some(new)) = (overlap(from), overlap(to)) else {
                             return false;
                         };
-                        if dynamic_command_name_may_equal(old, query)
-                            || (!new.is_empty() && dynamic_command_name_may_equal(new, query))
-                        {
+                        if old.may_equal || (!new.empty && new.may_equal) {
                             return false;
                         }
                     }
                     tcl_registry::CommandBindingTransition::Delete { name, .. }
                     | tcl_registry::CommandBindingTransition::Alias { alias: name, .. } => {
-                        // Only the alias/deleted NAME changes a command
-                        // identity. A dynamic target command changes what
-                        // that known alias does, not what name it binds.
-                        let Some(name) = crate::alias::subject_word(name, args) else {
+                        let Some(name) = overlap(name) else {
                             return false;
                         };
-                        if dynamic_command_name_may_equal(name, query) {
+                        if name.may_equal {
                             return false;
                         }
                     }
@@ -12059,6 +11992,73 @@ mod tests {
     use super::*;
     use tcl_lexer::Span;
 
+    fn command_name_pattern_with_closer(
+        word: &str,
+        candidate: &str,
+        closer: tcl_lexer::BracedVarStyle,
+    ) -> bool {
+        let mut input = Analyser::new().prepare_analysis_input("tcl").unwrap();
+        input.config.braced_var = closer;
+        let config = input.lexer_config();
+        let source = format!("marker {word}");
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config).remove(0);
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(&source),
+            config,
+            &segment,
+        );
+        let original = crate::registry_invocation::original_native_compiler_words(
+            &tcl_lexer::SourceImage::document(&source),
+            tokens.words(),
+            0,
+            config,
+        )
+        .unwrap();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            input.borrowed_context_registry().commands(),
+            &input,
+            config,
+            Some(input.unit_profile()),
+        );
+        crate::dynamic_names::original_command_name_overlap(&original[1], candidate, metadata)
+            .unwrap()
+            .may_equal
+    }
+
+    fn dynamic_command_name_may_equal(word: &str, candidate: &str) -> bool {
+        command_name_pattern_with_closer(word, candidate, tcl_lexer::BracedVarStyle::FirstClose)
+    }
+
+    #[test]
+    fn command_mutation_overlap_retains_the_original_configured_closer() {
+        assert!(dynamic_command_name_may_equal("a:::$x:b", "::a::b"));
+        assert!(!dynamic_command_name_may_equal("a:::$x:b", "::a::OTHER"));
+        assert!(command_name_pattern_with_closer(
+            "${a{b}}",
+            "::string",
+            tcl_lexer::BracedVarStyle::Tcl9Nesting
+        ));
+        assert!(!command_name_pattern_with_closer(
+            "${a{b}}",
+            "::string",
+            tcl_lexer::BracedVarStyle::FirstClose
+        ));
+        for (closer, trusted) in [
+            (tcl_lexer::BracedVarStyle::FirstClose, true),
+            (tcl_lexer::BracedVarStyle::Tcl9Nesting, false),
+        ] {
+            let mut input = Analyser::new().prepare_analysis_input("tcl").unwrap();
+            input.config.braced_var = closer;
+            let mut analyser = Analyser::new().with_resolved_input(input);
+            analyser.analyse_and_retain_result_for_test("proc ${a{b}} {} {}", "tcl");
+            assert_eq!(
+                analyser.static_provenance_command_is_trusted("::string"),
+                trusted
+            );
+        }
+    }
+
     #[test]
     fn segment_completion_retains_return_depth_and_implementation_identity() {
         use tcl_registry::registry::InvocationCompletion;
@@ -12644,6 +12644,32 @@ mod tests {
             "$array(index)::define",
             "::anything"
         ));
+    }
+
+    #[test]
+    fn static_write_invalidation_preserves_scalar_parenthesis_names() {
+        for name in ["a(b", "a(b)tail", "a(b)"] {
+            let source = format!("set {name} VALUE");
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(&source, "tcl");
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                &source,
+                0,
+                analyser.file_lexer_config().nested(),
+            )
+            .remove(0);
+            let mut values = std::collections::HashMap::from([
+                ("a".to_owned(), "ROOT".to_owned()),
+                ("a(b".to_owned(), "OPEN".to_owned()),
+                ("a(b)tail".to_owned(), "SUFFIX".to_owned()),
+            ]);
+            analyser
+                .invalidate_static_facts_written_by_segment(&command, &mut values, 0)
+                .unwrap();
+            let root = if name == "a(b)" { "a" } else { name };
+            assert!(!values.contains_key(root));
+            assert_eq!(values.len(), 2);
+        }
     }
 
     #[test]

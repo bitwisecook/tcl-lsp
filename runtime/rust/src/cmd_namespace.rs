@@ -216,7 +216,11 @@ fn namespace_cmd_original(
     let spec = tcl_registry::default_registry()
         .get_for_surface("namespace", dialect)
         .expect("namespace execution profile");
-    let Some(subcommand) = spec.resolve_subcommand_bytes_for_dialect(&raw, dialect) else {
+    let Some(subcommand) = spec.resolve_native_namespace_subcommand_bytes_for_dialect(
+        policy.recipe(),
+        &original,
+        dialect,
+    ) else {
         let available: Vec<_> = spec
             .subcommands
             .iter()
@@ -930,6 +934,15 @@ fn ns_import_source_names(
         );
     };
     let protocol = policy.recipe();
+    let namespace =
+        match crate::interp::OriginalJimLookupNamespace::capture(interp, interp.current_ns()) {
+            Ok(namespace) => namespace,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+    let check = |actual: &Interp| namespace.check_current_arguments(actual, arguments);
+    if let Err(error) = check(interp) {
+        return interp.report_cmd_error(error);
+    }
     let current = match interp.jim_current_namespace_object() {
         Ok(current) => current,
         Err(error) => return interp.report_cmd_error(error.into()),
@@ -938,16 +951,34 @@ fn ns_import_source_names(
         Ok(bytes) => bytes,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
-    for &pattern in patterns {
-        let original = match interp.native_string_bytes(&pattern) {
+    if let Err(error) = check(interp) {
+        return interp.report_cmd_error(error);
+    }
+    for (offset, &pattern) in patterns.iter().enumerate() {
+        if let Err(error) = arguments.check_original_for(interp, offset + 2, pattern) {
+            return interp.report_cmd_error(error);
+        }
+        let original = arguments.bytes(offset + 2);
+        if let Err(error) = check(interp) {
+            return interp.report_cmd_error(error);
+        }
+        let original = match original {
             Ok(bytes) => bytes,
             Err(error) => return interp.report_cmd_error(error.into()),
         };
-        let canonical = match interp.jim_canonical_namespace_object(&current, pattern) {
+        let canonical = interp.jim_canonical_namespace_object(&current, pattern);
+        if let Err(error) = check(interp) {
+            return interp.report_cmd_error(error);
+        }
+        let canonical = match canonical {
             Ok(canonical) => canonical,
             Err(error) => return interp.report_cmd_error(error.into()),
         };
-        let qualified = match interp.native_string_bytes(&canonical.as_ptr()) {
+        let qualified = interp.native_string_bytes(&canonical.as_ptr());
+        if let Err(error) = check(interp) {
+            return interp.report_cmd_error(error);
+        }
+        let qualified = match qualified {
             Ok(bytes) => bytes,
             Err(error) => return interp.report_cmd_error(error.into()),
         };
@@ -981,7 +1012,7 @@ fn ns_import_source_names(
         let pointers: Vec<_> = members.iter().map(obj::Owned::as_ptr).collect();
         let command_list = obj::Owned::fresh(interp.new_list_object(&pointers));
         drop(members);
-        if let Err(error) = arguments.check() {
+        if let Err(error) = check(interp) {
             return interp.report_cmd_error(error);
         }
         for key in keys {
@@ -990,7 +1021,7 @@ fn ns_import_source_names(
                 Ok(source) => source.to_vec(),
                 Err(error) => return interp.report_cmd_error(error.into()),
             };
-            if let Err(error) = arguments.check() {
+            if let Err(error) = check(interp) {
                 return interp.report_cmd_error(error);
             }
             if protocol.namespace_qualifier_bytes(&source) == current_name.as_ref() {
@@ -1016,7 +1047,7 @@ fn ns_import_source_names(
                     tcl_runtime_api::NsId(GLOBAL as u32),
                     &alias.as_ptr(),
                 );
-                if let Err(error) = arguments.check() {
+                if let Err(error) = check(interp) {
                     return interp.report_cmd_error(error);
                 }
                 let next = match lookup {
@@ -1033,7 +1064,7 @@ fn ns_import_source_names(
                 // existing finite cycle guard without another String getter
                 // or decoding any retained prefix member.
                 let snapshot = interp.native_object_snapshot(&alias.as_ptr());
-                if let Err(error) = arguments.check() {
+                if let Err(error) = check(interp) {
                     return interp.report_cmd_error(error);
                 }
                 let resident = match snapshot {
@@ -1062,7 +1093,7 @@ fn ns_import_source_names(
                 // Equality reaches its selected String/cache before the next
                 // exists -alias lookup; it never rebuilds a prefix List.
                 alias = next;
-                if let Err(error) = arguments.check() {
+                if let Err(error) = check(interp) {
                     return interp.report_cmd_error(error);
                 }
                 let equality = tcl_syntax::native_equality::full_native_equality(
@@ -1070,7 +1101,7 @@ fn ns_import_source_names(
                     &alias.as_ptr(),
                     &destination_object.as_ptr(),
                 );
-                if let Err(error) = arguments.check() {
+                if let Err(error) = check(interp) {
                     return interp.report_cmd_error(error);
                 }
                 let closes_loop = match equality {
@@ -1087,7 +1118,7 @@ fn ns_import_source_names(
             let prefix = obj::Owned::fresh(interp.new_list_object(&[source_object.as_ptr()]));
             let installed =
                 interp.install_alias_with_original(&destination, source, Vec::new(), Some(prefix));
-            if let Err(error) = arguments.check() {
+            if let Err(error) = check(interp) {
                 return interp.report_cmd_error(error);
             }
             if let Err(name) = installed {
@@ -1100,11 +1131,14 @@ fn ns_import_source_names(
             }
         }
         drop(command_list);
-        if let Err(error) = arguments.check() {
+        if let Err(error) = check(interp) {
             return interp.report_cmd_error(error);
         }
     }
     interp.set_result_bytes(b"");
+    if let Err(error) = check(interp) {
+        return interp.report_cmd_error(error);
+    }
     Code::Ok
 }
 
@@ -6813,9 +6847,14 @@ mod original_import_alias_tests {
 
     extern "C" fn update(original: *mut TclObj) {
         READS.with(|reads| reads.set(reads.get() + 1));
-        unsafe { obj::set_native_updater_string_rep(original, b"MEMBER", false) };
         let mode = MODE.with(Cell::get);
-        if mode == 0 {
+        let bytes: &[u8] = if mode >= 3 {
+            b"::src::branch"
+        } else {
+            b"MEMBER"
+        };
+        unsafe { obj::set_native_updater_string_rep(original, bytes, false) };
+        if mode == 0 || mode == 4 {
             return;
         }
         let mut interp = OWNER.with(|owner| owner.borrow().as_ref().unwrap().clone());
@@ -6831,6 +6870,7 @@ mod original_import_alias_tests {
                 interp.pin_context(&changed).unwrap();
                 interp.pin_context(&current).unwrap();
             }
+            3 => interp.set_current_ns(GLOBAL),
             _ => unreachable!(),
         }
     }
@@ -6919,6 +6959,41 @@ mod original_import_alias_tests {
             .unwrap();
         assert!(slot.namespace.is_root());
         slot.simple.as_bytes().to_vec()
+    }
+
+    #[test]
+    fn original_jim_import_refuses_a_pattern_getter_that_switches_the_current_namespace() {
+        for change in [false, true] {
+            let mut interp = native();
+            let _cleanup = super::original_argument_tests::FixtureCleanup(|| {
+                OWNER.with(|owner| owner.borrow_mut().take());
+            });
+            assert_eq!(
+                interp.eval_str(b"proc src::branch {} {return TARGET}"),
+                Code::Ok
+            );
+            let destination_owner = destination(&mut interp);
+            let destination = destination_owner.token;
+            let slot = destination_slot(&interp, destination);
+            interp.set_current_ns(destination);
+            MODE.with(|mode| mode.set(if change { 3 } else { 4 }));
+            let pattern = Owned::fresh(obj::alloc_typed(&TYPE, 0));
+            let head = Owned::fresh(obj::new_string_bytes(b"namespace"));
+            let selector = Owned::fresh(obj::new_string_bytes(b"import"));
+            let code = super::namespace_cmd(
+                &mut interp,
+                &[head.as_ptr(), selector.as_ptr(), pattern.as_ptr()],
+            );
+            assert_eq!(code, if change { Code::Error } else { Code::Ok });
+            assert_eq!(READS.with(Cell::get), 1);
+            assert_eq!(
+                interp.namespaces().command_in(GLOBAL, &slot).is_some(),
+                !change
+            );
+            assert_eq!(interp.native_execution_refusal().is_some(), change);
+            assert_eq!(interp.entered_native_operation_count(), 0);
+            interp.set_current_ns(GLOBAL);
+        }
     }
 
     #[test]

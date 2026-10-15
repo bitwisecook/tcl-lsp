@@ -1715,7 +1715,7 @@ fn project_logical_source_arities(
     for &file in project.files(db) {
         signatures.push(if supplied {
             let config = project_token_inputs::configuration_for_file(db, project, file)?;
-            project_source_inputs::item_sigs_for_config(db, file, config)
+            project_source_inputs::checked_item_sigs_for_config(db, file, config)?
         } else {
             item_sigs(db, file)
         });

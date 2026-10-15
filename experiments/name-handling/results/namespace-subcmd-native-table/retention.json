@@ -1,0 +1,6 @@
+{
+  "capture01_rows": 1992,
+  "capture02_rows": 2023,
+  "added_phase_prefix": "HEAD_GETTER_NUL_ARITY_",
+  "all_predecessor_rows_byte_equal": true
+}

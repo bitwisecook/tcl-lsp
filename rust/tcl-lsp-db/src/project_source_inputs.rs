@@ -30,14 +30,29 @@ pub fn item_sigs_for_config(
     Arc::new(item_tree_for_config(db, file, config).sigs())
 }
 
+/// Preserve unavailable source ownership across the body-free header firewall.
+#[salsa::tracked(returns(clone))]
+pub(super) fn checked_item_sigs_for_config(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<Vec<ItemSig>>> {
+    project_call_inputs::file_source_structure(db, file, config)?;
+    Some(item_sigs_for_config(db, file, config))
+}
+
 fn project_signatures(
     db: &dyn TclDb,
     project: Project,
-) -> impl Iterator<Item = Arc<Vec<ItemSig>>> + '_ {
-    project.files(db).iter().filter_map(move |&file| {
-        let config = project_token_inputs::configuration_for_file(db, project, file)?;
-        Some(item_sigs_for_config(db, file, config))
-    })
+) -> Option<Vec<Arc<Vec<ItemSig>>>> {
+    project
+        .files(db)
+        .iter()
+        .map(|&file| {
+            let config = project_token_inputs::configuration_for_file(db, project, file)?;
+            checked_item_sigs_for_config(db, file, config)
+        })
+        .collect()
 }
 
 /// Factory hints use each member's checked input and published source oracle.
@@ -66,7 +81,7 @@ pub fn project_original_command_signatures_for_inputs(
         Vec<tcl_compiler::analyser::SourceDeclarationSignature>,
     >,
 > {
-    merge_original_command_signatures(project_signatures(db, project))
+    merge_original_command_signatures(project_signatures(db, project).unwrap_or_default())
 }
 
 #[salsa::tracked(returns(clone))]

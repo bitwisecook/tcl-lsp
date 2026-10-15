@@ -105,6 +105,37 @@ impl OriginalLogicalCommandCandidates {
         })
     }
 
+    pub(super) fn variable_source_scope(
+        &self,
+        span: tcl_lexer::Span,
+        name: &crate::signature_scan::scope::SignatureSourceNameInput,
+        procedure: Option<Arc<super::OriginalLogicalProcedureBody>>,
+    ) -> Option<crate::command_binding::OriginalLogicalVariableScope> {
+        match &self.scope {
+            LogicalNavigationScope::Document(origin) => {
+                crate::command_binding::OriginalLogicalVariableScope::document(
+                    &self.input,
+                    Arc::clone(origin),
+                    Arc::clone(&self.original),
+                    self.earlier_unknown_mutations,
+                    span,
+                    name,
+                )
+            }
+            LogicalNavigationScope::Declared(scope) => {
+                crate::command_binding::OriginalLogicalVariableScope::declared(
+                    &self.input,
+                    Arc::clone(scope),
+                    procedure,
+                    Arc::clone(&self.original),
+                    self.earlier_unknown_mutations,
+                    span,
+                    name,
+                )
+            }
+        }
+    }
+
     /// Whole original head, independently of reporting labels and diagnostics.
     #[must_use]
     pub fn original_head(&self) -> Option<&NativeWord> {
@@ -163,6 +194,27 @@ impl OriginalLogicalCommandCandidates {
                 .iter()
                 .all(|word| word.image() == image && word.config() == input.lexer_config())
             && self.scope.owns_words(&self.original, input)
+    }
+
+    fn matches_source_recipe(&self, other: &Self) -> bool {
+        self.input == other.input
+            && self.original == other.original
+            && self.scope == other.scope
+            && self.candidates == other.candidates
+            && self.earlier_unknown_mutations == other.earlier_unknown_mutations
+    }
+
+    fn intersect_external_headers(&mut self, other: &Self) {
+        match (
+            &mut self.external_header_candidates,
+            &other.external_header_candidates,
+        ) {
+            (Some(previous), Some(current)) => {
+                previous.retain(|slot| current.contains(slot));
+            }
+            (previous, None) => *previous = None,
+            (None, Some(_)) => {}
+        }
     }
 }
 
@@ -521,6 +573,22 @@ impl OriginalSourceTransitionAdviceTape {
 }
 
 impl OriginalSourceTransitionAdviceTape {
+    pub(super) fn merge_logical_navigation(
+        &mut self,
+        offset: u32,
+        receipt: Option<OriginalLogicalCommandCandidates>,
+    ) {
+        self.logical_navigation
+            .entry(offset)
+            .and_modify(|previous| match (previous.as_mut(), receipt.as_ref()) {
+                (Some(held), Some(current)) if held.matches_source_recipe(current) => {
+                    held.intersect_external_headers(current);
+                }
+                _ => *previous = None,
+            })
+            .or_insert(receipt);
+    }
+
     pub(super) fn retain_logical_document_navigation(
         &mut self,
         graph: &AdviceGraph,
@@ -530,8 +598,7 @@ impl OriginalSourceTransitionAdviceTape {
         let Some(head) = original.first() else {
             return;
         };
-        super::source_class::merge_receipt(
-            &mut self.logical_navigation,
+        self.merge_logical_navigation(
             head.span().start(),
             OriginalLogicalCommandCandidates::capture_document(graph, original, origin),
         );
@@ -546,8 +613,7 @@ impl OriginalSourceTransitionAdviceTape {
         let Some(head) = original.first() else {
             return;
         };
-        super::source_class::merge_receipt(
-            &mut self.logical_navigation,
+        self.merge_logical_navigation(
             head.span().start(),
             OriginalLogicalCommandCandidates::capture(graph, original, scope),
         );
@@ -555,6 +621,57 @@ impl OriginalSourceTransitionAdviceTape {
 }
 
 impl OriginalSourceTransitionAdviceTape {
+    pub(crate) fn logical_variable_scope_at(
+        &self,
+        input: &ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        name: &crate::signature_scan::scope::SignatureSourceNameInput,
+    ) -> Option<crate::command_binding::OriginalLogicalVariableScope> {
+        for (&offset, candidate) in self.logical_navigation.range(..=span.start()).rev() {
+            let Some(candidate) = candidate.as_ref() else {
+                continue;
+            };
+            if candidate.original.first()?.span().start() != offset
+                || !candidate.matches_source(image, input)
+                || !crate::command_binding::OriginalLogicalVariableScope::original_words_match_name(
+                    &candidate.original,
+                    input,
+                    span,
+                    name,
+                )
+            {
+                continue;
+            }
+            let procedure = match &candidate.scope {
+                LogicalNavigationScope::Declared(scope)
+                    if scope.frame_recipe()
+                        == crate::command_binding::OriginalDeclaredSourceBodyFrame::Procedure =>
+                {
+                    let mut cards = self
+                        .logical_procedure_bodies
+                        .values()
+                        .filter_map(Option::as_ref)
+                        .filter(|card| {
+                            std::ptr::eq(card.scope().scope_body(), scope.scope_body())
+                                && card.scope().scope_name_input() == scope.scope_name_input()
+                                && card.scope().namespace_recipe() == scope.namespace_recipe()
+                                && card.scope().frame_recipe() == scope.frame_recipe()
+                                && card.matches_source(image, input)
+                        });
+                    let card = cards.next()?.clone();
+                    if cards.any(|other| other != &card) {
+                        return None;
+                    }
+                    Some(card)
+                }
+                _ => None,
+            };
+            return candidate.variable_source_scope(span, name, procedure);
+        }
+        None
+    }
+
     pub(crate) fn logical_navigation_inventory(
         &self,
         input: &ResolvedAnalysisInput,
@@ -653,13 +770,18 @@ mod tests {
         ] {
             let analysis = Analyser::new().analyse(source, "tcl");
             let candidate = query(source, &analysis, needle).unwrap();
-            assert_eq!(candidate.external_header_coordinates().is_some(), allowed, "{source}");
+            assert_eq!(
+                candidate.external_header_coordinates().is_some(),
+                allowed,
+                "{source}"
+            );
         }
     }
 
     #[test]
     fn logical_external_headers_skip_deleted_local_slots_and_refuse_unknown_paths() {
-        let source = "namespace eval A {proc helper {} {}; rename helper {}; proc caller {} {helper ONE}}";
+        let source =
+            "namespace eval A {proc helper {} {}; rename helper {}; proc caller {} {helper ONE}}";
         let analysis = Analyser::new().analyse(source, "tcl");
         let candidate = query(source, &analysis, "helper ONE").unwrap();
         assert_eq!(candidate.coordinates().len(), 2);
@@ -671,6 +793,63 @@ mod tests {
         let source = "namespace eval A {namespace path $paths; proc caller {} {helper ONE}}";
         let analysis = Analyser::new().analyse(source, "tcl");
         assert!(query(source, &analysis, "helper ONE").is_none());
+    }
+
+    #[test]
+    fn logical_occurrence_merge_preserves_geometry_and_intersects_external_headers() {
+        let source = "namespace eval A {proc caller {} {helper ONE}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let candidate = query(source, &analysis, "helper ONE").unwrap();
+        let LogicalNavigationScope::Declared(scope) = &candidate.scope else {
+            panic!("original declared source scope");
+        };
+        let mut graph = AdviceGraph::new(
+            candidate.input.borrowed_context_registry(),
+            &AdviceNamingPolicy::Logical(candidate.input.clone()),
+            tcl_registry::InvocationDialect::of_profile(candidate.input.unit_profile()),
+        )
+        .unwrap();
+        graph.logical_namespace = Some(scope.namespace_recipe().clone());
+        let offset = candidate.original_head().unwrap().span().start();
+        let image = tcl_lexer::SourceImage::document(source);
+        let mut tape = OriginalSourceTransitionAdviceTape::default();
+        tape.retain_logical_navigation(&graph, &candidate.original, scope);
+        let initial = tape
+            .logical_navigation_at(&candidate.input, &image, offset)
+            .unwrap();
+        assert_eq!(initial.external_header_coordinates().unwrap().len(), 2);
+
+        let local =
+            tcl_syntax::naming::authored_source_command_slot(scope.namespace_recipe(), b"helper")
+                .unwrap();
+        graph.cells.insert(local, super::super::AdviceCell::Deleted);
+        let mut alternative = OriginalSourceTransitionAdviceTape::default();
+        alternative.retain_logical_navigation(&graph, &candidate.original, scope);
+        tape.extend_inventory(alternative);
+        let held = tape
+            .logical_navigation_at(&candidate.input, &image, offset)
+            .unwrap();
+        assert_eq!(held.coordinates(), initial.coordinates());
+        let root = AdviceNamingPolicy::logical_slot(b"::helper").unwrap();
+        assert_eq!(
+            held.external_header_coordinates().unwrap(),
+            std::slice::from_ref(&root)
+        );
+
+        graph.cells.insert(root, super::super::AdviceCell::Deleted);
+        tape.retain_logical_navigation(&graph, &candidate.original, scope);
+        let held = tape
+            .logical_navigation_at(&candidate.input, &image, offset)
+            .unwrap();
+        assert_eq!(held.coordinates(), initial.coordinates());
+        assert!(held.external_header_coordinates().is_none());
+
+        graph.record_uncertainty(&candidate.original);
+        tape.retain_logical_navigation(&graph, &candidate.original, scope);
+        assert!(
+            tape.logical_navigation_at(&candidate.input, &image, offset)
+                .is_none()
+        );
     }
 
     #[test]

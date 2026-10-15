@@ -189,6 +189,52 @@ fn original_name_selected_string_uses_actual_compound_formatter_without_referenc
 }
 
 #[test]
+fn original_name_caller_check_stops_a_compound_getter_after_reentrant_frame_change() {
+    for change in [false, true] {
+        let (mut vm, formatter, _) = provided();
+        vm.push_call_frame(Some("name_getter_caller_control".into()), Vec::new());
+        let scope =
+            super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
+        let root = Value::native_list_constructor(
+            vec![numeric(&vm, i64::MIN), numeric(&vm, i64::MIN + 1)],
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4),
+        );
+        let changed = Cell::new(false);
+        let reached = vm.native_name_operand_bytes_checked_using(&root, &|vm| {
+            if change && formatter.calls.borrow().contains(&"format") && !changed.replace(true) {
+                vm.push_call_frame(Some("reentrant_name_getter_frame".into()), Vec::new());
+            }
+            scope.check(vm)
+        });
+        assert_eq!(reached.is_err(), change);
+        assert_eq!(
+            formatter
+                .calls
+                .borrow()
+                .iter()
+                .filter(|stage| **stage == "format")
+                .count(),
+            if change { 1 } else { 2 }
+        );
+        assert_eq!(root.resident_string_bytes().is_none(), change);
+        if change {
+            let first = vm.execution_refusal.clone().unwrap();
+            assert_eq!(
+                reached.unwrap_err().native_execution_refusal(),
+                Some(&first)
+            );
+            vm.pop_call_frame();
+            assert!(scope.check(&mut vm).is_err());
+            assert_eq!(vm.execution_refusal, Some(first));
+        } else {
+            scope.finish(&mut vm).unwrap();
+            assert!(vm.execution_refusal.is_none());
+        }
+        vm.pop_call_frame();
+    }
+}
+
+#[test]
 fn original_name_formatter_withdrawal_retains_exact_first_cause_and_stops_later_children() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md

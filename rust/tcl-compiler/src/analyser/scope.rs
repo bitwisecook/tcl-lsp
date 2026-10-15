@@ -3059,6 +3059,25 @@ impl Analyser {
                 ),
             );
         }
+        if let Some(source_input) = self.result.resolved_input.as_ref()
+            && source_input.has_logical_source_name_context()
+        {
+            let image = tcl_lexer::SourceImage::document(&self.source);
+            let scope = self.head_identities.original_logical_variable_scope_at(
+                source_input,
+                &image,
+                span,
+                &input,
+            )?;
+            return SignatureSourceVariableOccurrence::from_logical_source(
+                span,
+                input,
+                receiver,
+                declaration,
+                scope,
+                &self.result.original_variable_alias_receipts,
+            );
+        }
         if let Some(namespace) = &namespace
             && let Some(site) = SignatureSourceVariableOccurrence::from_original_input(
                 span,

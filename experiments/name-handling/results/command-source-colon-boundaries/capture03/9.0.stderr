@@ -1,0 +1,5 @@
+unknown encoding "binary": No longer supported.
+	please use either "-translation binary" or "-encoding iso8859-1"
+    while executing
+"fconfigure $loaded -translation binary -encoding binary"
+    (file "/tmp/compiler-colon-oracle/capture03/probe.tcl" line 3)

@@ -10853,27 +10853,6 @@ impl Vm {
         }
     }
 
-    pub(crate) fn jim_canonical_namespace_bytes(
-        &self,
-        prefix: Option<&[u8]>,
-        original: &[u8],
-    ) -> Result<Vec<u8>, NativeCommandLookupUnavailable> {
-        let policy = self
-            .name_policy_protocol()
-            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?;
-        let path = self.ns_path(self.current_ns_id());
-        let current = self.ns_name_bytes(self.current_ns_id());
-        let context = tcl_syntax::naming::NativeNameContext::with_jim_namespace(
-            &path,
-            prefix.unwrap_or(current.as_bytes()),
-        );
-        policy
-            .recipe()
-            .jim_namespace_canonical_input(context, original)
-            .map(|projection| projection.selected().to_vec())
-            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)
-    }
-
     pub(crate) fn namespace_object_lookup(
         &mut self,
         original: &Value,
@@ -27871,8 +27850,8 @@ mod family_b_tests {
 
     #[test]
     fn jim_actual_namespace_objects_are_in_native_snapshots() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
         let context = vm.activate_namespace_operand(b"n\0z").unwrap();
         vm.push_ns_eval_token_frame(context, Vec::new());
         let entry = vm.native_compilation_entry_for_namespace_token(context, true);
@@ -27886,10 +27865,22 @@ mod family_b_tests {
             row.jim_namespace_object.as_ref().unwrap().as_bytes(),
             b"n\0z"
         );
+        let namespace = vm
+            .with_jim_current_namespace(|original| Ok(original.clone()))
+            .unwrap();
+        let scope = native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
+        let canonical = vm
+            .original_jim_canonical_namespace_object(
+                &namespace,
+                &Value::from_native_string_bytes(b"p".as_slice()),
+                &|vm| scope.check(vm),
+            )
+            .unwrap();
         assert_eq!(
-            vm.jim_canonical_namespace_bytes(None, b"p").unwrap(),
+            canonical.resident_string_bytes().unwrap().as_ref(),
             b"n\0z::p"
         );
+        scope.finish(&mut vm).unwrap();
         let (_, slot, body) = vm.native_procedure_publication(b"p").unwrap();
         assert_eq!(slot.namespace, ROOT_NS);
         assert_eq!(slot.simple.as_bytes(), b"n\0z::p");
