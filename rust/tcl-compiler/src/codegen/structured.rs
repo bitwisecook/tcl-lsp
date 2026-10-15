@@ -711,7 +711,9 @@ mod tests {
         );
     }
 
-    fn original_module(src: &str) -> crate::ir::Module {
+    fn original_module(
+        src: &str,
+    ) -> crate::environment_ingress::RetainedNativeFixture<crate::ir::Module> {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0")
             .expect("selected native structured-walk fixture");
         let registry =
