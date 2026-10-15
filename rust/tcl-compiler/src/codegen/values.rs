@@ -99,8 +99,8 @@ impl CodegenCtx<'_> {
                     )
             });
         if let Some(fold) = fold {
-            for binding in &fold.command_bindings {
-                self.require_command_binding(binding);
+            for invocation in &fold.invocations {
+                self.require_invocation_binding(&invocation.binding, &invocation.shape);
             }
             for claim in &fold.site_claims {
                 self.require_site_claim(claim);

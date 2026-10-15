@@ -1956,7 +1956,18 @@ impl<'r> Lowerer<'r> {
                 seg.name(),
                 canonical_command,
             ),
+            shape: Self::invocation_shape(seg),
         });
+    }
+
+    /// The words after `seg`'s command, as a release's compile reads them.
+    fn invocation_shape(
+        seg: &SegmentedCommand,
+    ) -> tcl_registry::release_compilation::InvocationShape {
+        let args = seg.texts.get(1..).unwrap_or_default();
+        tcl_registry::release_compilation::InvocationShape::of(args, |index| {
+            seg_word_is_static_literal(seg, index + 1)
+        })
     }
 
     fn lower_catch_with_binding(
@@ -2101,6 +2112,7 @@ impl<'r> Lowerer<'r> {
             sites.push(CommandBindingSite {
                 span: seg.span,
                 binding,
+                shape: Self::invocation_shape(seg),
             });
         }
         lowered.statement

@@ -698,6 +698,17 @@ impl TclVersion {
         matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
     }
 
+    /// Does this release revalidate bytecode that is already running? From
+    /// 8.5 every compiled command starts with `INST_START_CMD`, which checks
+    /// the compile epoch and evaluates the command's source afresh when a
+    /// command-table change outdated it. 8.4 checks the epoch only when
+    /// bytecode is entered (`TclCompEvalObj`), so running bytecode keeps the
+    /// commands it compiled until its next entry.
+    #[must_use]
+    pub fn revalidates_running_bytecode(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
     /// Does this release **definitely** satisfy any of `requirements` — the
     /// answer `package vsatisfies [package provide Tcl] REQ ?REQ …?` gives on
     /// every build of the release line?

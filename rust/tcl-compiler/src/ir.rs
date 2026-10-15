@@ -788,6 +788,9 @@ pub struct CommandBindingSite {
     pub span: Span,
     /// Source spelling and registry-resolved implementation identity.
     pub binding: tcl_runtime_api::CommandBindingIdentity,
+    /// The invocation's words after the command, as far as a release's
+    /// choice to compile the command depends on them.
+    pub shape: tcl_registry::release_compilation::InvocationShape,
 }
 
 impl Script {

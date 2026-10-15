@@ -200,6 +200,41 @@ redefinition.
   builtin — the same discipline the qualified-`foreach` fallback needs (see
   [compiled-scope-and-name-lowering.md](compiled-scope-and-name-lowering.md)).
 
+### Running bytecode across a rebinding, per release
+
+From 8.5 every compiled command starts with `INST_START_CMD`, so a rebinding
+reaches running bytecode at the next command: tclvm replays that command from
+source. Tcl 8.4 checks its compile epoch only when bytecode is entered
+(`TclCompEvalObj`), so a running unit keeps the commands it compiled until its
+next entry. `TclVersion::revalidates_running_bytecode` separates the two, and
+the 8.4 behaviour is carried by explicit facts rather than inferred at run
+time:
+
+* **What 8.4 compiles** — `tcl_registry::release_compilation`. The
+  `builtInCmds` entries with a `compileProc`, those that decline outside a
+  procedure body (`foreach`, `lappend`, `list`, `return`, `catch` with a
+  result variable), those that need literal words (`if`, `for`, `while`,
+  `foreach`), and the compiled `string` subcommands. An invocation's
+  `InvocationShape` (word count, literal words, subcommand) rides on its
+  `CommandBindingSite` and on each codegen requirement. `eval` and `uplevel`
+  scripts are evaluated directly (`TCL_EVAL_DIRECT`).
+* **Which script bodies exist** — `cfg::Function::body_scripts`: each body a
+  structured command evaluates (loop bodies, `for` steps, `if`/`switch` arms,
+  `catch` bodies, an inline `eval` block), with its owner and blocks.
+* **Per-instruction metadata** (8.4 only; out-of-band, so the disassembly is
+  unchanged): `release_binding` on a literal-headed invoke, `release_hold` on
+  a command boundary (whether 8.4 compiled every command the boundary's
+  specialised instructions rely on), and `release_body` / `release_body_entry`
+  for the body tree.
+* **The VM** (`tcl_vm::release_units`) decides, when it enters a body, whether
+  the body runs in the enclosing unit or in a fresh one. That depends on
+  whether the enclosing unit is a procedure body, which only the running
+  activation knows. A stale boundary whose hold binds in a unit entered before
+  the change keeps running instead of replaying. A compiled invocation whose
+  builtin a change removed after the unit's entry runs that builtin. A body
+  the VM runs through an invoked builtin that 8.4 compiles inherits the
+  invoking unit.
+
 ### Calls to code the module cannot see
 
 A head the module can name brings its frame effect from the registry (a

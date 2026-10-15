@@ -1255,6 +1255,25 @@ pub struct Instruction {
     /// `PUSH1`/`PUSH4` only: how the emulated release evaluates the command
     /// the word belongs to, and so a command substitution the VM makes in it.
     pub evaluation: tcl_runtime_api::CommandEvaluation,
+    /// `INVOKE_STK1`/`INVOKE_STK4` of a literal command only: how an emulated
+    /// release that keeps the commands running bytecode compiled
+    /// (`TclVersion::revalidates_running_bytecode`) binds the invoked command.
+    /// Where it compiled the command into the running unit, a command-table
+    /// change after the unit was entered does not reach this invocation.
+    pub release_binding: Option<tcl_runtime_api::ReleaseBinding>,
+    /// A command's boundary instruction only, under such a release: where the
+    /// release compiled every command whose binding this command's
+    /// specialised instructions rely on, so that running bytecode keeps them
+    /// across a command-table change rather than evaluating the command
+    /// afresh.
+    pub release_hold: Option<tcl_runtime_api::ReleaseBinding>,
+    /// Under such a release, the script body this compiler inlined that this
+    /// instruction runs part of: `0` for none, otherwise one more than the
+    /// body's index in the function.
+    pub release_body: u32,
+    /// The first instruction of [`Self::release_body`]'s body, where running
+    /// it evaluates the body afresh.
+    pub release_body_entry: Option<ReleaseBodyEntry>,
     /// Literal command-head `PUSH1`/`PUSH4` only: token provenance carried
     /// through argument substitution to its consuming invoke.
     pub entered_command: Option<EnteredCommandSite>,
@@ -1271,6 +1290,19 @@ pub struct Instruction {
     /// command this invoke leaves to the command at run time. Carried
     /// out-of-band so the disassembly stays byte-stable.
     pub release_compiled: Option<ReleaseCompiled>,
+}
+
+/// Where a script body this compiler inlined starts, under a release that
+/// keeps the commands running bytecode compiled: a body whose owner the
+/// release does not compile into the unit enclosing it runs as a unit of its
+/// own, compiled afresh each time the owner evaluates it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReleaseBodyEntry {
+    /// The body enclosing this one ([`Instruction::release_body`]).
+    pub parent: u32,
+    /// How the release binds the command that owns the body; `Invoked` for a
+    /// command it evaluates directly.
+    pub owner: tcl_runtime_api::ReleaseBinding,
 }
 
 /// A command the emulated release's compiler compiles with its words, which
@@ -1310,6 +1342,10 @@ impl Instruction {
             push_verbatim: false,
             literal_rep: LiteralRep::String,
             evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+            release_binding: None,
+            release_hold: None,
+            release_body: 0,
+            release_body_entry: None,
             entered_command: None,
             catch_target: None,
             release_compiled: None,

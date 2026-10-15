@@ -75,6 +75,7 @@ mod exec;
 mod expr;
 mod frame;
 mod interp;
+mod release_units;
 mod subst;
 mod vars;
 

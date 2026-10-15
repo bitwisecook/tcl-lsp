@@ -115,8 +115,9 @@ pub struct ConstSubstCtx<'a> {
 pub struct ResolvedConstSubst {
     /// Raw result value, before any caller-specific word quoting.
     pub value: String,
-    /// Exact source spelling → registry implementation dependencies.
-    pub command_bindings: Vec<CommandBindingIdentity>,
+    /// The invocations the fold consumed: each one's exact source spelling →
+    /// registry implementation dependency, and its shape.
+    pub invocations: Vec<FoldedInvocation>,
     /// The spec-pack facts the fold rests on: one rung-1 claim for each
     /// folding spec a pack supplied ([`crate::site_claims::pack_facts_claim`]),
     /// nested folds included.
@@ -127,6 +128,15 @@ pub struct ResolvedConstSubst {
     /// says how the release's own compiler pushes it (`list` of literal words
     /// is a list literal).
     pub inline_codegen_hook: Option<tcl_registry::hooks::InlineCodegenHookId>,
+}
+
+/// One command invocation a constant fold consumed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FoldedInvocation {
+    /// Exact source spelling → registry implementation dependency.
+    pub binding: CommandBindingIdentity,
+    /// The invocation's literal words after the command.
+    pub shape: tcl_registry::release_compilation::InvocationShape,
 }
 
 /// Whether a folded constant `value`, pushed as the literal it is spelt, can
@@ -164,7 +174,7 @@ impl ConstSubstCtx<'_> {
         if depth > MAX_CONST_SUBST_DEPTH {
             return None;
         }
-        let (words, mut command_bindings, mut site_claims) =
+        let (words, mut invocations, mut site_claims) =
             self.literal_words_at_depth(inner, depth)?;
         let (head, rest) = words.split_first()?;
         if !(self.trusts)(head) {
@@ -183,15 +193,18 @@ impl ConstSubstCtx<'_> {
         if let Some(class) = self.defining_class
             && let Some(folded) = oo_context_fact_fold(spec, rest, class)
         {
-            command_bindings.push(CommandBindingIdentity::in_rooted_namespace(
-                self.resolution_namespace,
-                head,
-                spec.name,
-            ));
+            invocations.push(FoldedInvocation {
+                binding: CommandBindingIdentity::in_rooted_namespace(
+                    self.resolution_namespace,
+                    head,
+                    spec.name,
+                ),
+                shape: tcl_registry::release_compilation::InvocationShape::of(rest, |_| true),
+            });
             site_claims.extend(crate::site_claims::pack_facts_claim(self.registry, spec));
             return Some(ResolvedConstSubst {
                 value: folded,
-                command_bindings,
+                invocations,
                 site_claims,
                 return_type: spec.return_type_for_call(&arg_refs),
                 inline_codegen_hook: resolved.inline_codegen_hook,
@@ -216,17 +229,20 @@ impl ConstSubstCtx<'_> {
                 None => sub.run_const_fold(&arg_refs, self.version)?,
             }
         };
-        command_bindings.push(CommandBindingIdentity::in_rooted_namespace(
-            self.resolution_namespace,
-            head,
-            spec.name,
-        ));
+        invocations.push(FoldedInvocation {
+            binding: CommandBindingIdentity::in_rooted_namespace(
+                self.resolution_namespace,
+                head,
+                spec.name,
+            ),
+            shape: tcl_registry::release_compilation::InvocationShape::of(rest, |_| true),
+        });
         // A pack-supplied spec answered at compile time: the constant rests
         // on that pack's facts, so the site claims them (rung 1).
         site_claims.extend(crate::site_claims::pack_facts_claim(self.registry, spec));
         Some(ResolvedConstSubst {
             value: folded,
-            command_bindings,
+            invocations,
             site_claims,
             return_type: spec.return_type_for_call(&arg_refs),
             inline_codegen_hook: resolved.inline_codegen_hook,
@@ -256,7 +272,7 @@ impl ConstSubstCtx<'_> {
         depth: u32,
     ) -> Option<(
         Vec<String>,
-        Vec<CommandBindingIdentity>,
+        Vec<FoldedInvocation>,
         Vec<tcl_runtime_api::SiteClaim>,
     )> {
         use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
@@ -270,7 +286,7 @@ impl ConstSubstCtx<'_> {
         let sm = SourceMap::new(inner);
         let tokens = Lexer::with_config(inner, config).tokenise_all().ok()?;
         let mut words: Vec<String> = Vec::new();
-        let mut command_bindings = Vec::new();
+        let mut invocations = Vec::new();
         let mut site_claims = Vec::new();
         let mut prev_is_sep = true;
         for tok in &tokens {
@@ -326,7 +342,7 @@ impl ConstSubstCtx<'_> {
                     let nested = sm.token_text(*tok);
                     let folded = self.fold_at_depth(nested, depth + 1)?;
                     words.push(folded.value);
-                    command_bindings.extend(folded.command_bindings);
+                    invocations.extend(folded.invocations);
                     site_claims.extend(folded.site_claims);
                     prev_is_sep = false;
                 }
@@ -334,7 +350,7 @@ impl ConstSubstCtx<'_> {
                 TokenType::Expand => return None,
             }
         }
-        Some((words, command_bindings, site_claims))
+        Some((words, invocations, site_claims))
     }
 }
 
